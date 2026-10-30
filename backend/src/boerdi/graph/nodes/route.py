@@ -51,6 +51,7 @@ from boerdi.domain.state_machine import validate_transition
 from boerdi.domain.turn_frame import clarification_exhausted, resolve_frame
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
+from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.services import page_context
 from boerdi.services.canvas_fast_path import (
@@ -104,11 +105,17 @@ async def route(
             intent=cls.intent_id,
             auto_correct=False,
         )
-    except Exception as exc:  # pragma: no cover — Verteidigung, nie den Turn killen
+    except Exception as exc:  # noqa: BLE001 — Telemetrie, nie den Zug kippen
+        # Paket 18E: der Validator ist reiner Code — ein Fehler ist ein Bug. Der Traceback
+        # geht ins Log, in die Zugakte nur die Fehlerart (N2). Gedrosselt: er liest
+        # Studio-Konfiguration, und ist die kaputt, käme die Warnung je Zug.
+        gedrosselt(logger, logging.WARNING, "route.validator", 60.0,
+                   "Zustandsprüfung fehlgeschlagen (%s) — Zug läuft ohne",
+                   type(exc).__name__, exc_info=True)
         trans_check = {
             "validated_state": new_state,
             "plausible": True,
-            "reason": f"validator error: {exc}",
+            "reason": f"validator error: {type(exc).__name__}",
             "prev_next_likely": [],
         }
 

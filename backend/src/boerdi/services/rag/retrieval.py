@@ -89,23 +89,21 @@ def get_retrieval_settings() -> dict:
     ``max_chars_per_area`` (int, 0 = no cap).
     """
     settings = dict(_RAG_DEFAULTS)
-    # YAML tier (optional)
-    try:
-        cfg = area("01-base/rag-retrieval") or {}
-        r = cfg.get("retrieval") if isinstance(cfg, dict) else None
-        if isinstance(r, dict):
-            # ``bool`` ist in Python ein ``int`` — ``True`` galt bis Paket 9 als 1.
-            top_k, score, zeichen = (r.get(k) for k in ("top_k", "min_score",
-                                                       "max_chars_per_area"))
-            if isinstance(top_k, int) and not isinstance(top_k, bool) and top_k > 0:
-                settings["top_k"] = top_k
-            if (isinstance(score, int | float) and not isinstance(score, bool)
-                    and 0 <= score <= 1):
-                settings["min_score"] = float(score)
-            if isinstance(zeichen, int) and not isinstance(zeichen, bool) and zeichen >= 0:
-                settings["max_chars_per_area"] = zeichen
-    except Exception:
-        pass
+    # YAML tier (optional). Ohne ``try`` (Paket 18E): jeder Zugriff ist typgeprüft — der
+    # Fang verbarg nur einen Bug, und mit ihm still die Studio-Werte.
+    cfg = area("01-base/rag-retrieval") or {}
+    r = cfg.get("retrieval") if isinstance(cfg, dict) else None
+    if isinstance(r, dict):
+        # ``bool`` ist in Python ein ``int`` — ``True`` galt bis Paket 9 als 1.
+        top_k, score, zeichen = (r.get(k) for k in ("top_k", "min_score",
+                                                   "max_chars_per_area"))
+        if isinstance(top_k, int) and not isinstance(top_k, bool) and top_k > 0:
+            settings["top_k"] = top_k
+        if (isinstance(score, int | float) and not isinstance(score, bool)
+                and 0 <= score <= 1):
+            settings["min_score"] = float(score)
+        if isinstance(zeichen, int) and not isinstance(zeichen, bool) and zeichen >= 0:
+            settings["max_chars_per_area"] = zeichen
     # ENV tier (wins)
     env_top_k = _parse_int_env("RAG_TOP_K")
     if env_top_k and env_top_k > 0:

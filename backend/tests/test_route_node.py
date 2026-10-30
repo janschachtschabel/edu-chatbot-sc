@@ -15,6 +15,7 @@ der Node ist ohne LLM/DB voll fake-testbar. Die reinen Helfer
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 
@@ -144,15 +145,26 @@ def test_signals_state_merge_and_validate_wired(monkeypatch):
     assert out.trans_check["plausible"] is True
 
 
-def test_validate_transition_exception_never_fails_turn(monkeypatch):
+def test_validate_transition_exception_never_fails_turn(monkeypatch, caplog):
     captured = {}
     _patch(monkeypatch, captured, vt_raises=True)
     ctx = _ctx(classification=ClassificationResult(next_state="S3"))
-    out = asyncio.run(route(ctx))
-    # Fallback statt Crash: state übernommen, plausibel, Fehler in reason.
+    with caplog.at_level(logging.WARNING, logger=route_mod.__name__):
+        out = asyncio.run(route(ctx))
+    # Fallback statt Crash: state übernommen, plausibel, Fehlerart in reason.
     assert out.trans_check["validated_state"] == "S3"
     assert out.trans_check["plausible"] is True
-    assert "validator" in out.trans_check["reason"].lower()
+    # Paket 18E (N2): ein Code statt des Ausnahmetexts — der Validator ist reiner Code,
+    # ein Fehler ein Bug, und der steht mit Traceback im Log.
+    assert out.trans_check["reason"] == "validator error: RuntimeError"
+    warnung = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnung) == 1 and warnung[0].exc_info is not None
+
+    # Review 18E-2 (Befund 4): der Validator liest Studio-Konfiguration — ist sie kaputt,
+    # käme die Warnung je Zug. Der zweite Zug binnen einer Minute schreibt keine.
+    with caplog.at_level(logging.WARNING, logger=route_mod.__name__):
+        asyncio.run(route(_ctx(classification=ClassificationResult(next_state="S3"))))
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
 
 
 # ── Policy → Safety-Tool-Merge + Blocked-Tools-Strip ───────────────

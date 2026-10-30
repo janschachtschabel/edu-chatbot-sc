@@ -13,6 +13,7 @@ import copy
 import logging
 
 from boerdi.i18n import DEFAULT, Locale, pick_localized
+from boerdi.obs.drossel import gedrosselt
 from boerdi.services import config_loader
 
 logger = logging.getLogger(__name__)
@@ -528,11 +529,20 @@ def get_type_aliases() -> dict[str, str]:
     return merged
 
 
+def _vorgabe_gemeldet(getter: str, fehler: Exception) -> None:
+    """Paket 18E: Der Rückfall auf die Code-Vorgaben verdeckt die Studio-Konfiguration —
+    gemeldet wie bei den Nachbarn oben, aber je Getter höchstens einmal je Minute."""
+    gedrosselt(logger, logging.WARNING, f"canvas.{getter}", 60.0,
+               "canvas %s: Konfiguration unlesbar (%s) — Code-Vorgaben", getter,
+               type(fehler).__name__)
+
+
 def get_short_alias_whitelist() -> set[str]:
     """Short (≤5-char) aliases that are allowed as substring matches."""
     try:
         bundle = config_loader.load_canvas_type_aliases()
-    except Exception:
+    except Exception as e:  # noqa: BLE001 — defensive, defaults are safe
+        _vorgabe_gemeldet("short_whitelist", e)
         return set(_DEFAULT_SHORT_ALIAS_WHITELIST)
     items = bundle.get("short_whitelist") or []
     if not items:
@@ -544,7 +554,8 @@ def get_lrt_mapping() -> dict[str, str]:
     """edu-sharing LRT → canvas material-type mapping (for remix flow)."""
     try:
         bundle = config_loader.load_canvas_type_aliases()
-    except Exception:
+    except Exception as e:  # noqa: BLE001 — defensive, defaults are safe
+        _vorgabe_gemeldet("lrt_to_type", e)
         return dict(_DEFAULT_LRT_TO_MATERIAL_TYPE)
     yaml_map = bundle.get("lrt_to_type") or {}
     if not yaml_map:
@@ -560,7 +571,8 @@ def get_analytical_personas() -> frozenset[str]:
     """Persona IDs that see analytical material-types first in quick replies."""
     try:
         bundle = config_loader.load_canvas_persona_priorities()
-    except Exception:
+    except Exception as e:  # noqa: BLE001 — defensive, defaults are safe
+        _vorgabe_gemeldet("analytical_personas", e)
         return _DEFAULT_ANALYTICAL_PERSONAS
     items = bundle.get("analytical_personas") or []
     if not items:

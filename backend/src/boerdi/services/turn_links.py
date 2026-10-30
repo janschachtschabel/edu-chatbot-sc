@@ -41,6 +41,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Final
 
+from pydantic import ValidationError
+
 from boerdi.api.schemas import ChatRequest
 from boerdi.domain.agent_pattern import AGENT_PATTERN_ID
 from boerdi.domain.content_types import _resolve_wanted_content_types, als_text
@@ -663,8 +665,9 @@ async def _finalize_links_and_metas(
                 repository_url=_rm.get("repositoryUrl", ""),
                 search_url=_rm.get("searchUrl", ""),
             ))
-        except Exception:
-            pass
+        except (ValidationError, AttributeError) as e:
+            # Paket 18E: ohne Meta fehlt der Such-Knopf — nur die Spur, nie der Suchbegriff.
+            logger.debug("QueryMeta verworfen (%s)", type(e).__name__)
     # ── Synthetic fallback meta für die Search-CTA (Welle C.5+, 2026-05-21) ──
     # Wenn das MCP für die Sammlungs-/Themenseiten-Tools keinen ``searchUrl``/
     # ``searchTerm`` mitliefert (passiert in Praxis bei manchen Tool-Variants),

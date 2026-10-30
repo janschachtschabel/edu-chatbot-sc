@@ -22,6 +22,8 @@ Performance") — is reset per test so one test's write can't leak into the next
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -114,3 +116,17 @@ def test_get_endpoint_returns_the_enriched_list(monkeypatch) -> None:
     r = client.get("/api/config/mcp-servers", headers=_AUTH)
     assert r.status_code == 200
     assert r.json() == [{"id": "a", "tool_descriptions": {"t": "d"}}]
+
+
+async def test_fetch_fehler_meldet_host_und_fehlerart(monkeypatch, caplog) -> None:
+    """Paket 18E: Das Studio zeigte Werkzeuge ohne Beschreibung, der Grund stand nirgends."""
+    async def _kaputt(_url):
+        raise ConnectionError("Verbindung abgelehnt")
+
+    monkeypatch.setattr(transport, "discover_server_tools", _kaputt)
+
+    with caplog.at_level(logging.WARNING, logger=tool_descriptions.__name__):
+        assert await tool_descriptions._fetch_tool_descriptions("http://kaputt.invalid") == {}
+
+    meldungen = [r.getMessage() for r in caplog.records]
+    assert any("kaputt.invalid" in m and "ConnectionError" in m for m in meldungen), meldungen

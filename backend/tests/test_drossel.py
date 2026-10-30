@@ -49,3 +49,15 @@ def test_stufe_wird_eingehalten(caplog):
     with caplog.at_level(logging.DEBUG, logger="test.drossel"):
         drossel.gedrosselt(_LOG, logging.ERROR, "e", 60, "schlimm")
     assert caplog.records[0].levelno == logging.ERROR
+
+
+def test_reicht_den_traceback_durch(caplog):
+    """Review 18E-2: eine gedrosselte Warnung kann den Traceback tragen (``exc_info``)."""
+    log = logging.getLogger("boerdi.test.drossel.traceback")
+    with caplog.at_level(logging.WARNING, logger=log.name):
+        try:
+            raise RuntimeError("kaputt")
+        except RuntimeError:
+            drossel.gedrosselt(log, logging.WARNING, "tb", 60.0, "gescheitert", exc_info=True)
+
+    assert len(caplog.records) == 1 and caplog.records[0].exc_info is not None
