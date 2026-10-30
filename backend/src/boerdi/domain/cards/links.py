@@ -56,14 +56,14 @@ def _card_as_dict(card: Any) -> dict[str, Any] | None:
     if callable(md):
         try:
             return md()
-        except Exception:
+        except Exception:  # noqa: S110 — Rückfallkette, die nächste Stufe versucht es
             pass
     # Pydantic V1: dict()-Methode oder __dict__-Attribut
     d = getattr(card, "dict", None)
     if callable(d):
         try:
             return d()
-        except Exception:
+        except Exception:  # noqa: S110 — Rückfallkette, ``__dict__`` versucht es
             pass
     # Letzter Versuch: __dict__ (für normale Klassen)
     raw = getattr(card, "__dict__", None)
