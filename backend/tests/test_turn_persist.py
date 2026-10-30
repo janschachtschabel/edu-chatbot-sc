@@ -1036,3 +1036,23 @@ def test_die_geholte_anleitung_steht_in_der_spur(monkeypatch):
 def test_eine_frueher_geholte_anleitung_steht_nicht_in_der_spur(monkeypatch):
     debug, _ = _run(monkeypatch, session_state=_mit_notiz(4, 5))
     assert debug.trace == []
+
+
+
+def test_unter_der_blase_bleibt_die_zustimmung_zur_abnahme(monkeypatch):
+    """Abschluss-Review 18G: Runde 1 legte die Vorschau an, Runde 2 bekam keinen LLM-Platz —
+    „Nochmal versuchen“ allein verwürfe den offenen Vorgang."""
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services import llm_parallel
+
+    llm_parallel.binde_zug()
+    llm_parallel.blase_merken()
+    try:
+        resp, _ = _run2(
+            monkeypatch,
+            session_state={"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU},
+            _final_text=bot_text("de", "error.llmBusy"), _qr_mode="exact")
+    finally:
+        llm_parallel._zug.set(None)
+    assert resp.quick_replies == [bot_text("de", "action.write.confirmChip"),
+                                  bot_text("de", "error.retryChip")]

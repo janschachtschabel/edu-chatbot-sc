@@ -539,6 +539,11 @@ async def persist_and_build_response(
     # Chips dazu, mit einer offenen Abnahme der Bestätigungs-Chip.
     if blase_gezeigt():
         quick_replies = [bot_text(_lang, "error.retryChip")]
+        # Steht eine Schreib-Abnahme offen (Runde 1 legte die Vorschau an, Runde 2 bekam keinen
+        # Platz), bleibt die Zustimmung — sie braucht kein LLM, „Nochmal versuchen“ verwürfe
+        # den Vorgang (Abschluss-Review 18G).
+        if session_state.get("_write_preview"):
+            quick_replies.insert(0, bot_text(_lang, "action.write.confirmChip"))
 
     # Welle E — Inline-Document-Routing: bei M09/M10/M11 wandert das große
     # Markdown in eine gerahmte Box (``inline_documents``); ``content`` bekommt
