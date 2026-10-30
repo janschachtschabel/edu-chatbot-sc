@@ -136,6 +136,7 @@ POST   /api/sessions/optimize
 POST   /api/sessions/purge
 GET    /api/sessions/retention
 POST   /api/sessions/retention
+GET    /api/sessions/zug/{nummer}
 DELETE /api/sessions/{session_id}
 GET    /api/sessions/{session_id}
 GET    /api/sessions/{session_id}/memory

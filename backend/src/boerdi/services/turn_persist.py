@@ -88,6 +88,7 @@ from boerdi.services.guide_qr_injector import begrenze_pillen
 from boerdi.services.mcp.client import get_prepared_writes
 from boerdi.services.topic_pages import _resolve_m16_topic_page_view
 from boerdi.services.turn_quality import log_turn_quality
+from boerdi.services.zugakte import zugakte_umfang
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -358,6 +359,7 @@ async def persist_and_build_response(
     # Document-Routing kürzt es erst weiter unten auf den Intro-Text) → wir
     # persistieren automatisch den vollen Material-Inhalt (für M11-Edit-Turns).
     _cards_for_save = [c.model_dump() for c in cards]
+    _akte_beim_speichern = zugakte_umfang()
     _message_id = await save_message(
         session,
         req.session_id,
@@ -691,8 +693,11 @@ async def persist_and_build_response(
     _dokumente = dokumente_fuer_die_nachricht(inline_documents)
     if _dokumente:
         _debug_final[DOKUMENTE_DEBUG_KEY] = _dokumente
-    if _message_id is not None and _needs_finalize(
-        _cards_for_save, _cards_final, _debug_for_save, _debug_final,
+    if _message_id is not None and (
+        _needs_finalize(_cards_for_save, _cards_final, _debug_for_save, _debug_final)
+        # Paket 18C/D: ein Werkzeugaufruf danach (der M16-Auflöser) gehört in die gespeicherte
+        # Zugakte — auch wenn er scheiterte und sonst nichts änderte.
+        or zugakte_umfang() != _akte_beim_speichern
     ):
         await finalize_message(
             session, _message_id, cards=_cards_final, debug=_debug_final,

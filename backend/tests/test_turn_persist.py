@@ -31,6 +31,7 @@ from boerdi.services.turn_persist import (
     build_debug_and_update_session,
     persist_and_build_response,
 )
+from boerdi.services.zugakte import aktuelle_zugakte, binde_zugakte
 
 _SESSION = object()
 
@@ -385,7 +386,12 @@ def _run2(monkeypatch, *, sp=None, **over):
         _effective_pattern_id="M04",
     )
     kw.update(over)
-    resp = asyncio.run(persist_and_build_response(**kw))
+
+    async def zug():
+        binde_zugakte()  # wie ``begin_turn`` vor dem Graphen
+        return await persist_and_build_response(**kw)
+
+    resp = asyncio.run(zug())
     return resp, sp
 
 
@@ -473,6 +479,37 @@ def test_die_gezeigten_boxen_reisen_mit_der_nachricht(monkeypatch):
     ((_args, kw),) = nachtrag.calls
     assert kw["debug"]["_dokumente"] == [
         {"kind": "quiz", "title": "Brüche", "content": "x" * DOKUMENT_ZEICHEN, "gekuerzt": True}]
+
+
+def test_ohne_aenderung_kein_nachtrag(monkeypatch):
+    sp = _patch2(monkeypatch)
+    sp.save._ret = 17
+    nachtrag = _ASpy(ret=True)
+    monkeypatch.setattr(tp_mod, "finalize_message", nachtrag)
+    _run2(monkeypatch, sp=sp)
+    assert nachtrag.calls == []
+
+
+def test_ein_spaeterer_eintrag_in_der_zugakte_zieht_nach(monkeypatch):
+    """Paket 18C/D (Review Phase 1): ein Werkzeugaufruf nach dem ersten Speichern — der
+    M16-Auflöser, auch wenn er scheitert und sonst nichts ändert — gehört in die gespeicherte
+    Akte; ohne Nachtrag fehlte gerade der Aufruf, den man untersuchen will."""
+    sp = _patch2(monkeypatch)
+    sp.save._ret = 17
+    gespeichert = sp.save
+
+    async def speichern_dann_aufruf(*a, **k):
+        ergebnis = await gespeichert(*a, **k)
+        aktuelle_zugakte().werkzeug("get_topic_page_content", argumente_eingang={},
+                                    argumente_gesendet={}, status="tool", aus_cache=False,
+                                    dauer_ms=1, fehler="MCP error")
+        return ergebnis
+
+    monkeypatch.setattr(tp_mod, "save_message", speichern_dann_aufruf)
+    nachtrag = _ASpy(ret=True)
+    monkeypatch.setattr(tp_mod, "finalize_message", nachtrag)
+    _run2(monkeypatch, sp=sp)
+    assert len(nachtrag.calls) == 1 and nachtrag.calls[0][0][1] == 17
 
 
 def test_persist_never_logs_safety(monkeypatch):

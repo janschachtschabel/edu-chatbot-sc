@@ -463,3 +463,44 @@ def test_neue_prompt_fassungen_werden_am_zugende_geschrieben(monkeypatch, client
     monkeypatch.setattr(prompt_ablage, "speichere", _fake)
     assert _post(client).status_code == 200
     assert gesehen == [(_SESSION, acc)]
+
+
+# ── Paket 18C/D (1.7): Trace-ID und Zugakte erreichen die Fehlerblase ───────
+
+def _scheitert_nach_einem_aufruf(graph):
+    """Der Zug ruft ein Werkzeug und scheitert danach — der Fall, für den die Akte da ist."""
+    from boerdi.services.zugakte import aktuelle_zugakte
+
+    async def ainvoke(state):
+        aktuelle_zugakte().werkzeug("search_wlo_content", argumente_eingang={},
+                                    argumente_gesendet={}, status="tool", aus_cache=False,
+                                    dauer_ms=1, fehler="MCP error")
+        raise RuntimeError("boom")
+
+    graph.ainvoke = ainvoke
+
+
+def _kontext_beim_speichern(monkeypatch) -> list:
+    from boerdi.obs import trace_id
+    from boerdi.services.zugakte import aktuelle_zugakte
+
+    gesehen: list = []
+
+    async def _save(session, session_id, role, content, **k):
+        akte = aktuelle_zugakte()
+        namen = [w["name"] for w in akte.als_dict().get("werkzeuge", [])] if akte else None
+        gesehen.append((trace_id.fuer_db(), namen))
+
+    monkeypatch.setattr(chat_api, "save_message", _save)
+    return gesehen
+
+
+def test_die_fehlerblase_sieht_trace_id_und_zugakte_des_zuges(monkeypatch, client):
+    """``save_message`` liest beides aus dem Kontext. Sieht die Blase es nicht, fehlt im
+    Studio genau der Zug, den jemand mit seiner Fehlernummer sucht."""
+    graph, _, _ = _patch(monkeypatch)
+    _scheitert_nach_einem_aufruf(graph)
+    gesehen = _kontext_beim_speichern(monkeypatch)
+    client.post("/api/chat", json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+                headers={"x-client-trace-id": "zug-4711-abcdef"})
+    assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]

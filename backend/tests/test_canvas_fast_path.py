@@ -189,6 +189,21 @@ def test_canvas_fp_success_generates_and_mutates_session(canvas_fp):
     assert canvas_fp["named_calls"] == []    # Robust-Fallback nicht befragt
 
 
+def test_canvas_fp_steht_als_schnellweg_in_der_zugakte(canvas_fp):
+    """Paket 18C/D (1.6): das Thema eines Canvas-Zugs stand bisher nur im Log."""
+    from boerdi.services import zugakte as za
+
+    akte = za.binde_zugakte()
+    try:
+        canvas_fp["resolve"] = {"arbeitsblatt": "arbeitsblatt"}
+        canvas_fp["gen_result"] = ("Titel", MD_WITH_LOES)
+        _run_canvas(entities={"thema": "Photosynthese", "material_typ": "Arbeitsblatt"},
+                    session_state={"entities": {}}, tools_called=[])
+        assert akte.als_dict()["schnellwege"] == [{"art": "canvas", "thema": "Photosynthese"}]
+    finally:
+        za._akte.set(None)
+
+
 def test_canvas_fp_loesungen_stub_and_siezen_formality(canvas_fp):
     # Quiz ohne Lösungen-Block → Stub wird angehängt; formality=siezen aus
     # pattern_output steuert die Bubble UND wird an den Generator gereicht.

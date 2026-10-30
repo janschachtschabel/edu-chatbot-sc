@@ -52,11 +52,17 @@ def adopt_turn_auth_block(request: Request) -> None:
 def _interner_zug(request: Request) -> bool:
     """Ein Zug der Anlage selbst: über den Studio-Proxy (Studio-Proben) oder mit gültigem
     Studio-Schlüssel (Evaluation, Lasttest). Er bucht auf ``B_API_KEY`` — der Proxy-Kopf fehlt
-    ihm, und der Studio-Proxy reicht ``Authorization`` nie durch (Review-Runde 3, Befund 1)."""
+    ihm, und der Studio-Proxy reicht ``Authorization`` nie durch (Review-Runde 3, Befund 1).
+
+    Bei offenem Tor (``BOERDI_ALLOW_OPEN_ADMIN`` ohne Passwort) kommt jeder durch den Proxy.
+    Ist zugleich ein Schlüssel gesetzt, setzt der Proxy ihn nicht ein
+    (``studio_proxy._injectable_key``) — dann ist der Durchgang keine Freigabe (Paket 18C/D,
+    Review Phase 1). Ohne Schlüssel ist ohnehin alles offen (Entwicklungsmodus)."""
+    from boerdi.api.studio_auth import gate_is_open
     from boerdi.api.studio_proxy import ueber_studio  # zirkulär: studio_proxy → deps
 
     if ueber_studio(request):
-        return True
+        return not (gate_is_open() and expected_studio_key())
     erwartet = expected_studio_key()
     gegeben = (request.headers.get("x-studio-key") or "").strip()
     return bool(erwartet) and gegeben.isascii() and hmac.compare_digest(gegeben, erwartet)

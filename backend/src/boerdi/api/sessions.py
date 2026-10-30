@@ -26,13 +26,14 @@ import logging
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, Security
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.api.deps import Lang, OriginScope, get_session_factory, require_studio_key
 from boerdi.api.deps import get_session as get_db_session
 from boerdi.api.ratelimit import public_rate_limit
 from boerdi.api.schemas import SITZUNGSKENNUNG
+from boerdi.api.turn_auth import _interner_zug
 from boerdi.domain.write_anzeige import entities_for_display
 from boerdi.i18n import msg
 from boerdi.services import aufbewahrung
@@ -44,6 +45,7 @@ from boerdi.services.db_sessions import (
     get_or_create_session,
     purge_all,
     save_memory,
+    zuege_mit_nummer,
 )
 from boerdi.services.db_sessions import delete_session as db_delete_session
 from boerdi.services.session_admin import db_stats as get_db_stats
@@ -163,6 +165,18 @@ async def retention_run(
     return {"status": "done", "deleted": geloescht}
 
 
+@router.get("/zug/{nummer}")
+async def zug_suchen(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    nummer: Annotated[str, Path(pattern=r"^[A-Za-z0-9._:\-]{8,128}$")],
+) -> list[dict]:
+    """Paket 18C/D: Fehlernummer (Anfang der Trace-ID) → Züge, neueste zuerst, höchstens 20 —
+    je Treffer Sitzung, Nachricht, Trace-ID und Zeitpunkt. Mindestens 8 Zeichen, damit eine Nummer
+    nicht die halbe Datenbank trifft; der Zeichenvorrat ist der der Trace-ID. Steht vor den
+    Routen mit ``{session_id}``: ``/zug/messages`` gehört hierher, nicht in den Verlauf."""
+    return await zuege_mit_nummer(session, nummer)
+
+
 # ── Dynamic routes ───────────────────────────────────────────────────────
 
 @router.get("/{session_id}")
@@ -269,4 +283,7 @@ async def get_session_messages(
     # endpoint 500s the moment the limiter is active (V7 default ON).
     _validate_session_id(session_id)
     limit = max(1, min(limit, _MAX_MESSAGES_LIMIT))
-    return await get_messages(session, session_id, limit)
+    # Paket 18C/D: die Zugakte (Werkzeug-Argumente, Fehlertexte, umgeschriebene Entwürfe) ist
+    # Diagnose fürs Studio, das diesen Weg über den Proxy liest — keine Wiederherstellung.
+    # Ab Phase 3 trennt die Antwort ``ui`` und ``debug`` ganz.
+    return await get_messages(session, session_id, limit, zugakte=_interner_zug(request))

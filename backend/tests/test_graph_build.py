@@ -340,6 +340,7 @@ def _sammler_knoten(gesehen):
     from boerdi.domain.prepared_write import PreparedWrite
     from boerdi.obs.usage import add_usage, current_turn_usage
     from boerdi.services.mcp import client
+    from boerdi.services.zugakte import aktuelle_zugakte
 
     async def _respond(ctx, session=None, peer_ip="", memory_fetch=None, on_token=None,
                        progress=None, engine="pattern"):
@@ -352,6 +353,7 @@ def _sammler_knoten(gesehen):
         client._prepared_writes.set(offene)
         add_usage(current_turn_usage(),
                   {"prompt": 100, "completion": 10, "model": "vocab-model"}, phase="vocab")
+        aktuelle_zugakte().schnellweg("canvas", thema="Optik")
         return ctx
 
     async def _persist(ctx, session=None, peer_ip="", memory_fetch=None, on_token=None,
@@ -359,6 +361,7 @@ def _sammler_knoten(gesehen):
         gesehen["metas"] = client.get_query_metas()
         gesehen["writes"] = client.get_prepared_writes()
         gesehen["calls"] = ctx.usage["calls"]
+        gesehen["zugakte"] = aktuelle_zugakte().als_dict()
         ctx.response = ChatResponse(session_id="bb-1", content="DONE")
         return ctx
 
@@ -386,6 +389,8 @@ def test_zug_sammler_erreichen_den_persist_knoten(monkeypatch):
     assert len(gesehen["writes"]) == 1
     assert gesehen["calls"] == 1
     assert result["usage"]["calls"] == 1
+    # Paket 18C/D: die Zugakte ist ein Sammler wie die übrigen.
+    assert gesehen["zugakte"] == {"schnellwege": [{"art": "canvas", "thema": "Optik"}]}
 
 
 def test_begin_turn_startet_mit_leeren_sammlern_und_bindet_den_merkposten():
@@ -405,6 +410,21 @@ def test_begin_turn_startet_mit_leeren_sammlern_und_bindet_den_merkposten():
                 current_turn_usage() is ctx.usage)
 
     assert asyncio.run(zug()) == ([], [], True)
+
+
+def test_jeder_zug_beginnt_mit_einer_frischen_zugakte():
+    from boerdi.services.zugakte import aktuelle_zugakte
+
+    async def zwei_zuege():
+        build_mod.begin_turn(_ctx())
+        erste = aktuelle_zugakte()
+        erste.schnellweg("canvas", thema="alt")
+        build_mod.begin_turn(_ctx())
+        return erste, aktuelle_zugakte()
+
+    erste, zweite = asyncio.run(zwei_zuege())
+    assert zweite is not None and zweite is not erste
+    assert zweite.als_dict() == {}
 
 
 def test_der_zugbeginn_bindet_den_merkposten_und_ein_blatt_bucht_hinein(monkeypatch):

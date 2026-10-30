@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import Text, delete, func, literal, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +40,10 @@ from boerdi.db.models import (
     QualityLog,
     SafetyLog,
 )
+from boerdi.obs import trace_id
 from boerdi.services.config_loader import load_privacy_config
+from boerdi.services.zugakte import SCHLUESSEL as ZUGAKTE
+from boerdi.services.zugakte import mit_zugakte
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +153,10 @@ async def save_message(
         role=role,
         content=content,
         cards=cards or [],
-        debug=debug or {},
+        # Paket 18C/D: Trace-ID und Zugakte aus dem Kontext — kein Aufrufer reicht sie durch,
+        # auch die früh endenden Züge und die Fehlerblase nicht.
+        debug=mit_zugakte(debug) if role == "assistant" else (debug or {}),
+        trace_id=trace_id.fuer_db(),
     )
     session.add(obj)
     try:
@@ -182,7 +188,9 @@ async def finalize_message(
         await session.execute(
             update(ChatMessage)
             .where(ChatMessage.id == message_id)
-            .values(cards=cards, debug=debug)
+            # Ersetzt den Diagnoseteil ganz — die Zugakte also wieder dazu (mit allem, was
+            # nach dem ersten Schreiben noch eingetragen wurde).
+            .values(cards=cards, debug=mit_zugakte(debug))
         )
         await session.commit()
         return True
@@ -198,6 +206,39 @@ async def finalize_message(
         return False
 
 
+#: Höchstens so viele Züge liefert die Suche nach Fehlernummer (Paket 18C/D).
+MAX_ZUG_TREFFER = 20
+
+
+async def zuege_mit_nummer(session: AsyncSession, praefix: str) -> list[dict[str, Any]]:
+    """Die Züge, deren Trace-ID mit ``praefix`` beginnt — die Fehlernummer führt so zum Zug
+    (Paket 18C/D). Neueste zuerst, höchstens :data:`MAX_ZUG_TREFFER`.
+
+    Ein Zug zählt einmal, obwohl Frage und Antwort dieselbe ID tragen: der Treffer zeigt auf
+    seine letzte Nachricht — die Antwort, oder die Frage, wenn keine gespeichert wurde.
+    ``autoescape``: ``_`` gehört zum Zeichenvorrat der Trace-ID und ist kein Platzhalter. Den
+    Präfix-Vergleich trägt der Index ``ix_messages_trace_id`` (``text_pattern_ops``, 0016).
+    """
+    letzte = (
+        select(ChatMessage.id)
+        .where(ChatMessage.trace_id.startswith(praefix, autoescape=True))
+        .distinct(ChatMessage.session_id, ChatMessage.trace_id)
+        .order_by(ChatMessage.session_id, ChatMessage.trace_id, ChatMessage.id.desc())
+    )
+    stmt = (
+        select(ChatMessage.session_id, ChatMessage.id, ChatMessage.trace_id,
+               ChatMessage.created_at)
+        .where(ChatMessage.id.in_(letzte))
+        .order_by(ChatMessage.id.desc())
+        .limit(MAX_ZUG_TREFFER)
+    )
+    return [
+        {"session_id": r.session_id, "message_id": r.id, "trace_id": r.trace_id,
+         "created_at": r.created_at}
+        for r in (await session.execute(stmt)).all()
+    ]
+
+
 async def last_message_id(session: AsyncSession, session_id: str) -> int | None:
     """Die höchste Nachrichten-ID einer Sitzung, ``None`` ohne Nachricht — nur die
     Kennung, über den Index ``messages(session_id, id)`` (Paket 9: der Handschlag
@@ -206,21 +247,31 @@ async def last_message_id(session: AsyncSession, session_id: str) -> int | None:
     return (await session.execute(stmt)).scalar_one()
 
 
-async def get_messages(session: AsyncSession, session_id: str, limit: int = 50) -> list[dict]:
+async def get_messages(
+    session: AsyncSession, session_id: str, limit: int = 50, *, zugakte: bool = False,
+) -> list[dict]:
     """Message history for a session, newest LAST, ``cards``/``debug`` parsed.
 
     The frontend needs ``cards`` to re-render bot answers on session restore; the
     Studio uses ``debug`` for per-turn pattern display. Selects newest-first with
     the LIMIT, then reverses — so the newest ``limit`` messages come back in
     chronological order (ALT semantics).
+
+    ``zugakte`` (Paket 18C/D): only then does ``debug`` keep the turn record — it is
+    diagnosis for the Studio (tool arguments, error texts, rewritten drafts). Without
+    it the database already drops the key (``debug - '_zugakte'``): the public history
+    never carries it, and ``setup`` does not haul it along on every turn.
     """
+    debug = (ChatMessage.debug if zugakte else
+             ChatMessage.debug.op("-", return_type=ChatMessage.debug.type)(
+                 literal(ZUGAKTE, Text)).label("debug"))
     stmt = (
         select(
             ChatMessage.id,
             ChatMessage.role,
             ChatMessage.content,
             ChatMessage.cards,
-            ChatMessage.debug,
+            debug,
             ChatMessage.created_at,
         )
         .where(ChatMessage.session_id == session_id)

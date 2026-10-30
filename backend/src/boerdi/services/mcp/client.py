@@ -58,6 +58,7 @@ from boerdi.services.mcp.tool_cache import (
     _cache_set,
     darf_cachen,
 )
+from boerdi.services.zugakte import aktuelle_zugakte
 
 logger = logging.getLogger(__name__)
 
@@ -285,16 +286,51 @@ async def call_mcp_tool_status(
     # Paket 11 (E): ein Werkzeug eines fremden Servers geht seinen eigenen Weg —
     # nichts von dem, was unten an WLO-Namen hängt, gilt für ihn.
     if ist_fremd(tool_name):
+        t0 = _time.perf_counter()
         text, art = await fremdwerkzeuge.rufen(tool_name, arguments)
-        return (f"{_MCP_ERROR_PREFIX}: {text}", art) if art else (text, "")
+        text = f"{_MCP_ERROR_PREFIX}: {text}" if art else text
+        _in_die_akte(tool_name, arguments, arguments, text, art, aus_cache=False, t0=t0)
+        return text, art
 
     # Paket 18B: ein Suchfilter als Liste („Arbeitsblatt oder interaktives Material“)
     # wird ausgepackt oder in Einzelaufrufe aufgefächert — der Server kennt je Filter
     # nur einen Wert (``listen_argumente``).
     if braucht_umformung(tool_name, arguments):
+        # Jeder Teilaufruf läuft wieder hier durch und trägt sich selbst in die Zugakte ein.
         return await mit_listen(tool_name, arguments, call_mcp_tool_status,
                                 use_cache=use_cache)
 
+    t0 = _time.perf_counter()
+    gesendet: dict[str, Any] = {}
+    text, art, aus_cache = await _einzelaufruf(
+        tool_name, arguments, use_cache=use_cache, gesendet=gesendet)
+    _in_die_akte(tool_name, arguments, gesendet or arguments, text, art,
+                 aus_cache=aus_cache, t0=t0)
+    return text, art
+
+
+def _in_die_akte(name: str, eingang: dict[str, Any], gesendet: dict[str, Any], text: str,
+                 art: str, *, aus_cache: bool, t0: float) -> None:
+    """Den Aufruf in die Zugakte des laufenden Zugs schreiben (Paket 18C/D) — ohne Zug nichts.
+
+    Hier und nicht beim Aufrufer: alle Wege (Werkzeugschleife, Agent, Vorabruf, Direktaktion)
+    laufen durch diese eine Stelle, auch die gescheiterten Aufrufe."""
+    akte = aktuelle_zugakte()
+    if akte is None:
+        return
+    akte.werkzeug(name, argumente_eingang=eingang, argumente_gesendet=gesendet,
+                  status=art or "ok", aus_cache=aus_cache,
+                  dauer_ms=round((_time.perf_counter() - t0) * 1000),
+                  zeichen=None if art else len(text), fehler=text if art else None)
+
+
+async def _einzelaufruf(
+    tool_name: str, arguments: dict[str, Any], *, use_cache: bool, gesendet: dict[str, Any],
+) -> tuple[str, str, bool]:
+    """Ein Aufruf am WLO-Server: Prüfung, Auflösung, Cache, Transport, Auswertung.
+
+    Rückgabe wie :func:`call_mcp_tool_status`, dazu ``aus_cache``. In ``gesendet`` stehen danach
+    die Argumente, wie sie nach Prüfung und Auflösung hinausgingen (für die Zugakte)."""
     # Per-Call-Server-URL: zuerst aus der Studio-Registry, sonst Default.
     target_url = _get_server_url_for_tool(tool_name)
     _call_t0 = _time.perf_counter()  # für Tool-Laufzeit-Logging (#3 Debug-Timing)
@@ -339,6 +375,7 @@ async def call_mcp_tool_status(
         and "outputFormat" not in arguments
     ):
         arguments = {**arguments, "outputFormat": "json"}
+    gesendet.update(arguments)
 
     # Kein ``maxChars`` mehr von uns (2026-08-21): der Server liefert ohne
     # Angabe den ganzen Text (Vorgabe 200000 seit dem MCP-Deploy 20.08., live
@@ -366,7 +403,7 @@ async def call_mcp_tool_status(
                     "re-emitted %d cached queryMetas for %s",
                     len(_cached_metas), tool_name,
                 )
-            return cached, ""
+            return cached, "", True
 
     # SDK-Transport (5-1b): Handshake + Call + Result-Normalisierung liegen im
     # Transport, ein Call = frische Session. Result-Dict trägt die ALT-
@@ -423,6 +460,7 @@ async def call_mcp_tool_status(
         return (
             f"{_MCP_ERROR_PREFIX}: {result['error'].get('message', 'Unknown error')}",
             _art if _art in ("tool", "transport", "timeout", "auth") else "transport",
+            False,
         )
 
     # Extract text content from result, separating _queryMeta blocks.
@@ -508,4 +546,4 @@ async def call_mcp_tool_status(
         # siehe Re-Emit-Logik im Cache-Hit-Zweig oben.
         if _extracted_metas_this_call:
             _TOOL_META_CACHE[cache_key] = _extracted_metas_this_call
-    return response, ""
+    return response, "", False

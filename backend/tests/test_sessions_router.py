@@ -315,3 +315,34 @@ def test_list_mit_unbekannter_herkunft_wird_abgewiesen(client, monkeypatch):
     r = client.get("/api/sessions/", headers=_AUTH, params={"scope": "echt"})
     assert r.status_code == 422
     assert calls == []
+
+
+# ── Paket 18C/D (1.8): Suche nach Fehlernummer ───────────────────────────
+_TREFFER = [{"session_id": "bb-1", "message_id": 7, "trace_id": "4f2a9c01d3b7e6a8",
+             "created_at": "2026-10-29T10:00:00Z"}]
+
+
+def test_zug_suche_braucht_den_studio_schluessel(client):
+    assert client.get("/api/sessions/zug/4f2a9c01").status_code == 401
+
+
+@pytest.mark.parametrize("nummer", ["4f2a9c0", "4f2a9c01 x", "4f2a/9c01", "a" * 129])
+def test_zug_suche_weist_kurze_und_fremde_nummern_ab(client, monkeypatch, nummer):
+    calls = _fake(monkeypatch, "zuege_mit_nummer", [])
+    r = client.get(f"/api/sessions/zug/{nummer}", headers=_AUTH)
+    assert r.status_code in (404, 422)  # „/“ trennt den Pfad: keine Route
+    assert calls == []
+
+
+def test_zug_suche_reicht_praefix_und_sitzung_durch(client, monkeypatch):
+    calls = _fake(monkeypatch, "zuege_mit_nummer", _TREFFER)
+    r = client.get("/api/sessions/zug/4f2a9c01", headers=_AUTH)
+    assert r.status_code == 200
+    assert r.json() == _TREFFER
+    assert calls == [((_SESSION, "4f2a9c01"), {})]
+
+
+def test_zug_suche_wird_nicht_vom_oeffentlichen_verlauf_verdeckt(client, monkeypatch):
+    calls = _fake(monkeypatch, "zuege_mit_nummer", [])
+    assert client.get("/api/sessions/zug/messages", headers=_AUTH).status_code == 200
+    assert calls == [((_SESSION, "messages"), {})]

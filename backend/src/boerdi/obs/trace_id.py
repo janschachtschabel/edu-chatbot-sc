@@ -51,6 +51,12 @@ def aktuelle() -> str:
     return _trace_id.get()
 
 
+def fuer_db() -> str | None:
+    """Die Trace-ID für eine Spalte ``trace_id`` (0016): ``None`` außerhalb einer Anfrage, damit
+    ein Hintergrundlauf ``NULL`` schreibt statt eines leeren Texts."""
+    return _trace_id.get() or None
+
+
 def setze(wert: str) -> contextvars.Token[str]:
     return _trace_id.set(wert)
 

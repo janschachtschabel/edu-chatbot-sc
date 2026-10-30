@@ -286,6 +286,35 @@ async def test_watchdog_collection_claim_german_is_alt_verbatim(monkeypatch):
     )
 
 
+async def test_eine_waechter_umschreibung_steht_in_der_zugakte(monkeypatch):
+    """Paket 18C/D (1.6): Original und Ersatz standen bisher nur im Log (WARNING, je 200
+    Zeichen) — jetzt in der Zugakte, damit das Log ohne Inhalt auskommt."""
+    from boerdi.services.zugakte import binde_zugakte
+
+    akte = binde_zugakte()
+    await _watch(monkeypatch, "Hier sind zwei passende Sammlungen.")
+    (eintrag,) = akte.als_dict()["umschreibungen"]
+    assert eintrag["art"] == "waechter"
+    assert eintrag["original"] == "Hier sind zwei passende Sammlungen."
+    assert eintrag["ersatz"] == "Hier sind zwei passende Treffer in der Suche."
+    assert "sammlungen" in eintrag["grund"]
+
+
+async def test_eine_typ_fokus_umschreibung_steht_in_der_zugakte(monkeypatch):
+    from boerdi.services.zugakte import binde_zugakte
+
+    akte = binde_zugakte()
+    (out, _tr) = await _call(
+        monkeypatch, winner=_M06, message="Videos zur Optik",
+        classification={"entities": {"medientyp": "Video", "thema": "Optik"}},
+        tools_called=_SEARCHED, cards=[_card("v1", "Optik-Video", lrt=["Video"])],
+        response_text="Hier sind passende Videos.", mock_vocab=True)
+    assert out[1] != "Hier sind passende Videos."   # der Typ-Fokus hat ersetzt
+    (eintrag,) = akte.als_dict()["umschreibungen"]
+    assert eintrag == {"art": "typ_fokus", "original": "Hier sind passende Videos.",
+                       "ersatz": out[1], "grund": "Videos"}
+
+
 async def test_watchdog_topic_page_claim_german_is_alt_verbatim(monkeypatch):
     assert await _watch(monkeypatch, "Ich zeige dir passende Themenseiten.") == (
         "Ich zeige dir passende Treffer in der Suche."

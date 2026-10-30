@@ -8002,6 +8002,60 @@
         ]
       }
     },
+    "/api/sessions/zug/{nummer}": {
+      "get": {
+        "description": "Paket 18C/D: Fehlernummer (Anfang der Trace-ID) → Züge, neueste zuerst, höchstens 20 —\nje Treffer Sitzung, Nachricht, Trace-ID und Zeitpunkt. Mindestens 8 Zeichen, damit eine Nummer\nnicht die halbe Datenbank trifft; der Zeichenvorrat ist der der Trace-ID. Steht vor den\nRouten mit ``{session_id}``: ``/zug/messages`` gehört hierher, nicht in den Verlauf.",
+        "operationId": "zug_suchen_api_sessions_zug__nummer__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nummer",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9._:\\-]{8,128}$",
+              "title": "Nummer",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Zug Suchen Api Sessions Zug  Nummer  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Zug Suchen",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
     "/api/sessions/{session_id}": {
       "delete": {
         "description": "Fully delete a session: messages, memory, quality + safety logs, and the\nsession row. Per-table row counts returned.",
