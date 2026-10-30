@@ -721,8 +721,8 @@ Trace-ID der Anfrage (`x-client-trace-id` bzw. B3, sonst neu vergeben).
 **Keine Inhalte im Log (Paket 18C/D):** Nachrichten, Antworten, Themen und Suchbegriffe erscheinen
 nur als Länge (`‹42 Zeichen›`), eine Sitzung nur als Kurzkennung (8 Hex-Zeichen), Werkzeug-
 argumente nur mit ihren Filterwerten. Was ein Zug tat, steht im Studio: die Trace-ID einer
-Logzeile führt über die Suche nach Fehlernummer (`GET /api/sessions/zug/{nummer}`, die
-Oberfläche folgt) zum Gespräch samt Zugakte. Uvicorns
+Logzeile führt über die Suche nach Fehlernummer (`GET /api/sessions/zug/{nummer}`, im Studio
+unter „Sessions“) zum Gespräch samt Zugakte. Uvicorns
 Zugriffszeile (IP, roher Pfad) ist aus; die eigene Zeile `zugriff` nennt Methode, Pfad-Vorlage,
 Status und Dauer (Dateien und `/health` nur auf DEBUG), eine Drosselung als `status=429`.
 Fremd-Logger (LiteLLM, OpenAI, MCP, instructor, httpx/httpcore, SQLAlchemy, slowapi) sind gedeckelt, LiteLLM

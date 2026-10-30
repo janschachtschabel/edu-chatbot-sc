@@ -64,6 +64,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Neue MCP-Server und ihre Werkzeuge:** Nutzer 2026-10-15: sollen nutzbar sein → Paket 11 (E). MCP- und Anmeldungs-Punkte für das MCP-Team: [`mcp-und-anmeldung.md`](mcp-und-anmeldung.md).
 - **Paket 18, E5 — Agent-Deckel für Anonyme:** Nutzer-Entscheid 2026-10-28: erst die Kosten eines anonymen Zugs messen, dann entscheiden (Audit-Rückmeldung §5).
 - **Paket 18A — `MODERATION_FAILURE_MODE`:** `open` (Vorgabe, Zug läuft ungeprüft weiter, Zähler und Alarm) oder `closed` (Zug wird höflich abgewiesen) für den Betrieb festlegen (Steckbrief Punkt 10).
+- **Paket 18G, G-E2 — Entwicklungsmodus:** Mit `BOERDI_ALLOW_OPEN_ADMIN` ohne Studio-Passwort und ohne `STUDIO_API_KEY` buchen Studio-Züge auf `B_API_KEY`, auch unter `B_API_KEY_MODE=forward`. Empfehlung: so lassen (die Chat-Probe läuft lokal ohne eigenen Schlüssel), Entscheid steht aus.
+- **Paket 18G — Fehlernummer bei festem Vorsatz:** Schickt ein Aufrufer `x-client-trace-id` mit festem Vorsatz (`dienst-<uuid>`), tragen alle seine Züge dieselbe Fehlernummer (die ersten 12 Zeichen). Mit Team 6 klären, welche IDs der B-API-Proxy schickt; sonst einen serverseitigen Anteil in die Nummer nehmen.
 
 ## 3 Messungen und Prüfungen (startet der Nutzer)
 

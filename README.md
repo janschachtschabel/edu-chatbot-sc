@@ -28,11 +28,11 @@ Altsystem, generisch über deklarative Konfiguration.
 | 🏛 Altsystem (Referenz, läuft parallel) | `../badboerdi/` |
 | 🔌 WLO-MCP-Server (extern, unverändert) | `../wlo-mcp-server-sc/` |
 
-**Betrieb in Kürze** (Stand Paket 17, 2026-10-20):
+**Betrieb in Kürze** (Stand Paket 18, 2026-10-30):
 
 - Start im Container: `python -m boerdi.serve` — Port **8100** öffentlich (Widget, Chat, Agent,
   Sprache, Studio), Port **8101** intern (`/health`, `/ready`, `/metrics`, `/openapi-full.json`).
-- Datenbank-Stand: Migration **0015**. Der `migrate`-Dienst hebt bei jedem Deploy
+- Datenbank-Stand: Migration **0016**. Der `migrate`-Dienst hebt bei jedem Deploy
   (`alembic upgrade head && boerdi import-config --werksabgleich`).
 - b-api: `B_API_ROUTE` (Route des Routers, Vorgabe leer) und `B_API_KEY_MODE`
   (`auto` Vorgabe · `static` · `forward`) — [deploy/README.md](deploy/README.md).
