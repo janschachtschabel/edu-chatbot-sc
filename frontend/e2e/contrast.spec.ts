@@ -88,6 +88,30 @@ for (const flaeche of OBERFLAECHEN) {
   }
 }
 
+for (const theme of ['light', 'dark'] as const) {
+  test(`kein Text unter SC 1.4.3 — Debug-Feld ohne Freigabe, ${theme}`, async ({ page }) => {
+    // Review 2026-10-30: die anonyme Fassung (nur `ui`, Hinweis aufs Studio) blieb ungemessen.
+    const w = await mount(page, { attrs: { theme } });
+    w.enqueue(chatResponse({
+      content: 'Hier ist eine Antwort.',
+      ui: { pattern: 'M05', intent: 'I03', state: 'S3', tools_called: ['search_wlo_content'] },
+    }));
+    await w.open();
+    await page.locator('.chat-input').fill('Bruchrechnen');
+    await page.locator('.btn-send').click();
+    await page.locator('.boerdi-action-btn[aria-label="Debug an"]').first().click();
+    await page.locator('.debug-panel [role="note"]').first().waitFor();
+
+    const befunde = await textkontraste(page);
+    expect(befunde.some((b) => b.sel.includes('debug-row')), 'Debug-Feld nicht gemessen')
+      .toBe(true);
+    expect(befunde.filter((b) => b.unmessbar), 'Fläche nicht messbar').toEqual([]);
+    const funde = verstoesse(befunde);
+    expect(funde, `Kontrast zu schwach (Debug ohne Freigabe, ${theme}):\n${bericht(funde)}`)
+      .toEqual([]);
+  });
+}
+
 test('der Messer erkennt einen zu schwachen Text', async ({ page }) => {
   await volleOberflaeche(page, 'light', 'true', '.result-group');
 

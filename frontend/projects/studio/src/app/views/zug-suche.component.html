@@ -9,13 +9,15 @@
       autocomplete="off"
       autocapitalize="off"
       spellcheck="false"
-      maxlength="128"
+      maxlength="512"
       [value]="eingabe()"
       [attr.aria-invalid]="feldFehler() ? 'true' : null"
       [attr.aria-describedby]="feldFehler() ? 'zs-hint zs-error' : 'zs-hint'"
       (input)="onInput($event)"
     />
-    <button type="submit" class="zs-btn" [disabled]="sucht()">
+    <!-- aria-disabled statt disabled (Review 2026-10-30, WCAG 2.4.3): ein gesperrter Knopf
+         verlöre den Tastaturfokus; ``suchen()`` übergeht einen zweiten Druck ohnehin. -->
+    <button type="submit" class="zs-btn" [attr.aria-disabled]="sucht() ? 'true' : null">
       {{ sucht() ? t('sv.search.searching') : t('sv.search.submit') }}
     </button>
   </div>

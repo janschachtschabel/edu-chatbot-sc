@@ -18,7 +18,8 @@ export const PROBE_SESSION_PREFIX = 'studio-';
 /** Was der Probelauf aus `ChatResponse` liest. */
 export interface ChatProbeResponse {
   readonly content: string;
-  readonly debug?: TraceDebug;
+  /** `null` ohne Freigabe (Paket 18C/D, Phase 4). */
+  readonly debug?: TraceDebug | null;
   readonly cards?: readonly unknown[];
   readonly inline_documents?: readonly { readonly title?: string }[];
 }

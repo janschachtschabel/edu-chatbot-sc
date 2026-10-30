@@ -92,7 +92,8 @@ export class AgentProbeComponent {
         message: nachricht,
         answer: antwort.content ?? '',
         durationMs,
-        debug: antwort.debug,
+        // `null` ohne Freigabe (Phase 4) — die Probe läuft über den Proxy und hat sie.
+        debug: antwort.debug ?? undefined,
         cards: antwort.cards?.length ?? 0,
         documents: (antwort.inline_documents ?? []).map((d) => d.title ?? '').filter(Boolean),
       }]);

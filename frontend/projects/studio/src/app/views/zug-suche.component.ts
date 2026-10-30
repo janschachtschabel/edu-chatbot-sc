@@ -22,6 +22,18 @@ import { StudioLanguageService } from '../i18n/studio-language.service';
  *  Anfrage träfe dann die Sitzungsliste (Review Phase 4). */
 const NUMMER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
+/** Die Nummer aus einer kopierten Zeile der Fehlerblase: „(Fehlernummer: 4f2a…)“ bzw.
+ *  „(Error number: 4f2a…)“ — bis dahin scheiterte genau das am Muster (Review 2026-10-30). */
+const AUS_DER_BLASE = /(?:fehlernummer|error number)\s*:?\s*([A-Za-z0-9][A-Za-z0-9._:-]*)/i;
+
+export function nummerAus(eingabe: string): string {
+  const roh = eingabe.trim();
+  const treffer = AUS_DER_BLASE.exec(roh);
+  // Ein Satzzeichen am Ende gehört zum Satz, nicht zur Nummer („…: 4711abcdef01.“).
+  if (treffer) return treffer[1].replace(/[.:]+$/, '');
+  return roh.replace(/^[(„"]+|[)“".,;]+$/g, '');
+}
+
 export interface ZugZiel {
   readonly sessionId: string;
   readonly messageId: number;
@@ -56,7 +68,7 @@ export class ZugSucheComponent {
 
   protected async suchen(): Promise<void> {
     if (this.sucht()) return;
-    const nummer = this.eingabe().trim();
+    const nummer = nummerAus(this.eingabe());
     this.fehler.set('');
     this.status.set('');
     this.treffer.set([]);
@@ -74,7 +86,12 @@ export class ZugSucheComponent {
         this.waehlen(gefunden[0]);
       } else {
         this.treffer.set(gefunden);
-        this.status.set(this.t('sv.search.many', { count: gefunden.length }));
+        // Mehrere Sitzungen: die Nummer ist nicht eindeutig — etwa eine von einem Client
+        // wiederverwendete Kennung (Review 2026-10-30). Das sagen, statt still eine Liste.
+        const sitzungen = new Set(gefunden.map((t) => t.session_id)).size;
+        this.status.set(sitzungen > 1
+          ? this.t('sv.search.manySessions', { count: gefunden.length, sessions: sitzungen })
+          : this.t('sv.search.many', { count: gefunden.length }));
       }
     } catch (err) {
       this.fehler.set(describeApiError(err, this.t));

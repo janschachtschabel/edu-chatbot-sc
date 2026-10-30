@@ -116,7 +116,7 @@ export type RetentionCounts = Partial<Record<RetentionLog, number>>;
 
 /** The endpoint's own cap (`_MAX_MESSAGES_LIMIT`), asked for explicitly: the
  *  studio reads a whole conversation, not the widget's 50-message restore. */
-const TRANSCRIPT_LIMIT = 200;
+export const TRANSCRIPT_LIMIT = 200;
 
 @Injectable({ providedIn: 'root' })
 export class SessionsApi {

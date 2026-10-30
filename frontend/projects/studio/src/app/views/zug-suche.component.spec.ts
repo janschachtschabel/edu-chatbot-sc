@@ -107,4 +107,57 @@ describe('ZugSucheComponent (Paket 18C/D)', () => {
     expect(h.el.querySelector('[role="alert"]')).not.toBeNull();
     expect(h.el.querySelector<HTMLInputElement>('input')!.value).toBe('4711abcdef01');
   });
+
+  it('nimmt die Nummer aus einer kopierten Zeile der Fehlerblase (Review 2026-10-30)', async () => {
+    const h = await mount();
+    await suche(h, '(Fehlernummer: 4711abcdef01)');
+    await antworte(h, '4711abcdef01', [TREFFER]);
+    expect(h.geoeffnet).toEqual([{ sessionId: 'bb-1', messageId: 7 }]);
+    await suche(h, 'Error number: 4711abcdef01).');
+    await antworte(h, '4711abcdef01', [TREFFER]);
+    expect(h.geoeffnet.length).toBe(2);
+  });
+
+  it('sperrt den Knopf beim Suchen nur per aria-disabled — der Fokus bleibt', async () => {
+    const h = await mount();
+    const knopf = h.el.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    await suche(h, '4711abcdef01');
+    expect(knopf.disabled).toBe(false);
+    expect(knopf.getAttribute('aria-disabled')).toBe('true');
+    await antworte(h, '4711abcdef01', []);
+    expect(knopf.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('sagt, wenn die Treffer aus mehreren Sitzungen stammen', async () => {
+    const h = await mount();
+    await suche(h, '4711abcd');
+    await antworte(h, '4711abcd', [TREFFER, { ...TREFFER, message_id: 8 },
+                                   { ...TREFFER, session_id: 'bb-2', message_id: 9 }]);
+    expect(h.el.textContent).toContain('3 Treffer aus 2 Sitzungen');
+  });
+
+  it('nimmt die Nummer auch aus der ganzen eingefügten Blase und ohne Doppelpunkt', async () => {
+    const h = await mount();
+    const blase = 'Da ist intern etwas schiefgelaufen. Ich habe es mir notiert — versuch es bitte '
+      + 'gleich noch einmal. Wenn es wieder passiert, nenn uns die Nummer. (Fehlernummer: 4711abcdef01)';
+    await suche(h, blase);
+    await antworte(h, '4711abcdef01', [TREFFER]);
+    await suche(h, 'Fehlernummer 4711abcdef01.');
+    await antworte(h, '4711abcdef01', [TREFFER]);
+    await suche(h, '„4711abcdef01“.');
+    await antworte(h, '4711abcdef01', [TREFFER]);
+    expect(h.geoeffnet.length).toBe(3);
+  });
+
+  it('ein zweites Absenden während der Suche schickt keine zweite Anfrage, der Fokus bleibt', async () => {
+    const h = await mount();
+    const knopf = h.el.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    knopf.focus();
+    await suche(h, '4711abcdef01');
+    h.el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await h.fixture.whenStable();
+    expect(document.activeElement).toBe(knopf);
+    await antworte(h, '4711abcdef01', []);  // expectOne: genau eine Anfrage
+    h.http.verify();
+  });
 });

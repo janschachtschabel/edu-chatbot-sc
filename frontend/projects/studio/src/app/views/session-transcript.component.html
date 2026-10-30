@@ -7,6 +7,12 @@
   (retry)="load()"
 />
 
+<!-- Die Live-Region steht immer im DOM, nur ihr Text kommt und geht — sonst sagen
+     Screenreader ihn nicht verlässlich an (Review 18G-5). -->
+<p class="st-fokus-missing" role="status">
+  @if (fokusFehlt()) { {{ t('st.fokus.missing', { limit: limit }) }} }
+</p>
+
 @if (rows().length > 0) {
   <ol class="st-list">
     @for (message of rows(); track message.id ?? $index) {

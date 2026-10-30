@@ -259,6 +259,17 @@ def test_eine_aufgefuellte_64_bit_id_gilt_in_kurzer_form() -> None:
         "e457b5a2e4d86bd1")
 
 
+def test_das_studio_kuerzt_die_trace_id_wie_die_fehlerblase() -> None:
+    """Review 2026-10-30: die Länge stand zweimal — hier fällt eine Drift auf."""
+    import re
+    from pathlib import Path
+
+    ts = (Path(__file__).resolve().parents[2] / "frontend" / "projects" / "studio" / "src" / "app"
+          / "views" / "zugakte.ts").read_text(encoding="utf-8")
+    zeichen = re.search(r"const FEHLERNUMMER_ZEICHEN = (\d+);", ts)
+    assert zeichen and int(zeichen.group(1)) == trace_id.FEHLERNUMMER_ZEICHEN
+
+
 
 @pytest.mark.parametrize("roh", ["------------", "....abc", "_zug-4711"])
 def test_eine_id_ohne_buchstabe_oder_ziffer_vorn_wird_ersetzt(roh) -> None:
