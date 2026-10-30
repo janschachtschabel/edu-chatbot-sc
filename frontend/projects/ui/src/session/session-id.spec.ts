@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   generateSessionId,
@@ -44,6 +44,21 @@ describe('generateSessionId', () => {
 
   it('produces unique ids across calls', () => {
     expect(generateSessionId()).not.toBe(generateSessionId());
+  });
+
+  describe('ohne starke Zufallsquelle (Paket 18E, N3)', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('nimmt getRandomValues, wenn randomUUID fehlt', () => {
+      const echt = globalThis.crypto;
+      vi.stubGlobal('crypto', { getRandomValues: echt.getRandomValues.bind(echt) });
+      expect(isValidSessionId(generateSessionId())).toBe(true);
+    });
+
+    it('wirft statt einer schwachen ID — sie ist der Schlüssel zum Verlauf', () => {
+      vi.stubGlobal('crypto', undefined);
+      expect(() => generateSessionId()).toThrow();
+    });
   });
 });
 

@@ -123,21 +123,23 @@ export function deleteSessionCookie(name: string, domain: string): void {
   } catch { /* ignore */ }
 }
 
-/** Erzeugt eine neue Session-ID im ``bb-<uuid>``-Format. */
+/** Erzeugt eine neue Session-ID im ``bb-<uuid>``-Format.
+ *
+ *  Paket 18E (N3): ohne starke Zufallsquelle wirft sie, statt auf
+ *  ``Date.now()``/``Math.random()`` zurückzufallen — die ID ist der Schlüssel zum
+ *  Verlauf, eine erratbare öffnete ihn Fremden. ``getRandomValues`` gibt es in jedem
+ *  unterstützten Browser, auch ohne HTTPS (``randomUUID`` nur mit). */
 export function generateSessionId(): string {
   // Prefer cryptographically strong UUID v4 (122 bits entropy, collision-safe).
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return 'bb-' + crypto.randomUUID();
-    }
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-      const buf = new Uint8Array(16);
-      crypto.getRandomValues(buf);
-      return 'bb-' + Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
-    }
-  } catch { /* fall through */ }
-  // Last-resort fallback for very old browsers
-  return 'bb-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return 'bb-' + crypto.randomUUID();
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const buf = new Uint8Array(16);
+    crypto.getRandomValues(buf);
+    return 'bb-' + Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
+  }
+  throw new Error('boerdi: keine sichere Zufallsquelle (crypto.getRandomValues) — keine Sitzung');
 }
 
 /**
