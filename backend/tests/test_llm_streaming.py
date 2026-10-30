@@ -283,15 +283,15 @@ def test_stream_holds_live_semaphore_for_whole_consumption(monkeypatch):
 
     async def fake(**kwargs):
         async def _gen():
-            during.append(llm.semaphore()._value)  # base-1 == held
+            during.append(llm._semaphore("live")._value)  # base-1 == held
             yield _chunk(content="x")
-            during.append(llm.semaphore()._value)
+            during.append(llm._semaphore("live")._value)
         return _gen()
 
     monkeypatch.setattr(llm, "_acompletion", fake)
 
     async def main():
-        sem = llm.semaphore()
+        sem = llm._semaphore("live")  # Paket 18F: ``semaphore()`` ist ein Platz, kein Semaphor
         base = sem._value
         resp = await lls._stream_completion(lambda s: None, model="m", messages=[])
         return base, sem._value, resp

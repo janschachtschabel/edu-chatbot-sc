@@ -618,12 +618,18 @@ def test_embedding_runs_under_the_live_semaphore(monkeypatch) -> None:
 
 
 def test_semaphore_public_wrapper_returns_same_per_loop() -> None:
+    """Paket 18F: ``semaphore()`` ist ein Platz über ``platz`` (Frist, Schlüssel-Meldung) — er
+    nimmt den EINEN Anbieter-Deckel der Schleife; Hintergrund hat seinen eigenen."""
     async def go():
-        a = llm.semaphore()
-        b = llm.semaphore()
-        assert a is b and isinstance(a, asyncio.Semaphore)
-        bg = llm.semaphore(background=True)
-        assert bg is not a  # distinct live/bg bulkheads
+        live = llm._semaphore("live")
+        assert live is llm._semaphore("live") and isinstance(live, asyncio.Semaphore)
+        basis = live._value
+        async with llm.semaphore():
+            assert live._value == basis - 1
+        async with llm.semaphore(background=True):
+            assert llm._semaphore("bg") is not live  # distinct live/bg bulkheads
+            assert llm._semaphore("bg")._value == get_settings().bg_llm_max_concurrency - 1
+        assert live._value == basis
 
     asyncio.run(go())
 

@@ -6,7 +6,7 @@ parsing, fail-fast on garbage numerics, empty env value == unset.
 """
 
 import pytest
-from pydantic import AliasChoices
+from pydantic import AliasChoices, ValidationError
 
 from boerdi.settings import Settings
 
@@ -152,7 +152,8 @@ def test_defaults_match_alt(clean_env) -> None:
     # NEW
     assert s.database_url == "postgresql+asyncpg://boerdi:boerdi@localhost:5432/boerdi"
     assert s.rate_limit_storage_uri == "memory://"
-    assert s.rate_limit_chat == "20/minute"
+    # Paket 18F: 120 statt 20 je Minute — 20 war hinter einem Schul-NAT zu knapp.
+    assert s.rate_limit_chat == "120/minute"
     assert s.otel_exporter_otlp_endpoint == ""
     assert s.rerank_url == ""
     assert s.widget_dist_dir == "widget_dist"
@@ -293,3 +294,23 @@ def test_die_betriebs_env_spricht_in_tests_nicht_mit() -> None:
     )
     # Vorgabe im Code ist AUS; die Betriebs-.env setzt sie auf AN.
     assert get_settings().master_skill_enabled is False
+
+
+# ── Paket 18F (3.4): das äußere Ratenlimit wird beim Start geprüft ─────────────
+
+@pytest.mark.parametrize("wert", ["120/minute", "10/second;500/hour", "5 per minute",
+                                  "off", "0", "none", "false", "disabled", "OFF", " off "])
+def test_gueltige_ratenlimits_und_aus_woerter(clean_env, wert) -> None:
+    assert fresh(RATE_LIMIT_CHAT=wert).rate_limit_chat.strip() == wert.strip()
+
+
+@pytest.mark.parametrize("wert", ["120/min", "viele", "120", "/minute"])
+def test_ungueltiges_ratenlimit_verhindert_den_start(clean_env, wert) -> None:
+    """Bisher scheiterte slowapi erst je Anfrage am Parsen — eine Fehlerzeile je Anfrage, das
+    Limit faktisch aus. Jetzt laut beim Start, mit dem Namen der Variable."""
+    with pytest.raises(ValidationError, match="RATE_LIMIT_CHAT"):
+        fresh(RATE_LIMIT_CHAT=wert)
+
+
+def test_leeres_ratenlimit_ist_die_vorgabe(clean_env) -> None:
+    assert fresh(RATE_LIMIT_CHAT="").rate_limit_chat == "120/minute"

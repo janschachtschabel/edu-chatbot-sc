@@ -43,6 +43,11 @@ def setze_llm_schluessel(roh: str | None) -> bool:
     return treffer is not None
 
 
+def hat_zug_schluessel() -> bool:
+    """Gilt für diesen Zug ein durchgereichter Schlüssel? (Für Meldungen — nie der Wert.)"""
+    return bool(_zug_schluessel.get())
+
+
 def b_api_schluessel() -> str:
     """Der Schlüssel für einen b-api-Aufruf: der durchgereichte, sonst ``B_API_KEY``."""
     return _zug_schluessel.get() or get_settings().b_api_key.get_secret_value().strip()
