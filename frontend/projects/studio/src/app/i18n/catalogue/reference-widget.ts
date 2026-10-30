@@ -127,6 +127,8 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.when.guideSuggestion': 'emit-guide-suggestion="true"',
     'rw.when.routingDebug': 'emit-routing-debug="true"',
     'rw.when.agentResult': 'result-schema gesetzt + engine="agent"',
+    /** Paket 18C/D: ohne Debug-Block bleiben diese beiden Felder leer. */
+    'rw.note.routingDebug': 'persona und signals nur mit Freigabe (Studio), sonst leer.',
 
     'rw.outputs':
       'Angular-Outputs für programmatische Einbindung: `{outputs}`. `linkClicked` '
@@ -229,6 +231,7 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.when.guideSuggestion': 'emit-guide-suggestion="true"',
     'rw.when.routingDebug': 'emit-routing-debug="true"',
     'rw.when.agentResult': 'result-schema set + engine="agent"',
+    'rw.note.routingDebug': 'persona and signals only with clearance (Studio), otherwise empty.',
 
     'rw.outputs':
       'Angular outputs for embedding programmatically: `{outputs}`. `linkClicked` '

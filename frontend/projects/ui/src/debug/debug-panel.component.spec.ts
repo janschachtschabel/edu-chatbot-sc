@@ -2,7 +2,10 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { DebugInfo } from '../grouping/message-types';
+import { DebugInfo, UiInfo } from '../grouping/message-types';
+import { createTranslator } from '../i18n/dictionary';
+import { DE } from '../i18n/de';
+import { EN } from '../i18n/en';
 import { DebugPanelComponent } from './debug-panel.component';
 
 /**
@@ -31,9 +34,13 @@ function makeDebug(over: Partial<DebugInfo> = {}): DebugInfo {
   };
 }
 
-async function render(debug: DebugInfo | null, show = true): Promise<HTMLElement> {
+async function render(
+  debug: DebugInfo | null, show = true, ui: UiInfo | null = null, katalog = DE,
+): Promise<HTMLElement> {
   const fixture = TestBed.createComponent(DebugPanelComponent);
   fixture.componentRef.setInput('debug', debug);
+  fixture.componentRef.setInput('ui', ui);
+  fixture.componentRef.setInput('translate', createTranslator(katalog, DE));
   fixture.componentRef.setInput('show', show);
   fixture.detectChanges();
   await fixture.whenStable();
@@ -53,9 +60,39 @@ describe('DebugPanelComponent', () => {
     expect(host.querySelector('.debug-panel')).toBeNull();
   });
 
-  it('rendert nichts bei debug=null', async () => {
+  it('rendert nichts bei debug=null und ui=null', async () => {
     const host = await render(null, true);
     expect(host.querySelector('.debug-panel')).toBeNull();
+  });
+
+  // Paket 18C/D, Phase 4: ohne Freigabe kommt kein Debug-Block — das Panel zeigt, was `ui`
+  // trägt, und sagt, wo die Diagnose steht.
+  it('ohne debug: Zusammenfassung aus ui und Hinweis aufs Studio', async () => {
+    const host = await render(null, true, {
+      pattern: 'M06', intent: 'I03', state: 'S3', tools_called: ['search_wlo_content'],
+    });
+    expect(host.querySelector('.debug-panel')).not.toBeNull();
+    const text = host.textContent!;
+    expect(text).toContain('steht im Studio');
+    expect(text).toContain('Muster');
+    expect(text).toContain('M06');
+    expect(text).toContain('I03');
+    expect(text).toContain('S3');
+    expect(text).toContain('search_wlo_content');
+    expect(host.querySelectorAll('.debug-section-title').length).toBe(0);
+  });
+
+  it('ohne debug: Hinweis und Beschriftungen auf Englisch, wenn Englisch eingestellt ist', async () => {
+    const host = await render(null, true, { pattern: 'M06', tools_called: [] }, EN);
+    expect(host.textContent).toContain('in the Studio');
+    expect(host.textContent).toContain('Tools');
+    expect(host.textContent).not.toContain('Werkzeuge');
+  });
+
+  it('mit debug bleibt das volle Panel, ohne Hinweis', async () => {
+    const host = await render(makeDebug(), true, { pattern: 'M06' });
+    expect(host.querySelectorAll('.debug-section-title').length).toBe(6);
+    expect(host.textContent).not.toContain('steht im Studio');
   });
 
   it('rendert das Panel mit den Kern-Feldern der 6 Phasen-Gruppen', async () => {

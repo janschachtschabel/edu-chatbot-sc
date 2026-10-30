@@ -46,7 +46,12 @@
             <tr>
               <th scope="row"><code>{{ row.name }}</code></th>
               <td>{{ t(row.whenKey) }}</td>
-              <td><code>{{ row.payload }}</code></td>
+              <td>
+                <code>{{ row.payload }}</code>
+                @if (row.noteKey) {
+                  <span class="ar-cell-note">{{ t(row.noteKey) }}</span>
+                }
+              </td>
             </tr>
           }
         </tbody>

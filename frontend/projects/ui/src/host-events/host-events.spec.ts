@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { WloCard } from '../cards/card-types';
-import { DebugInfo } from '../grouping/message-types';
+import { DebugInfo, UiInfo } from '../grouping/message-types';
 import {
   GuideSuggestionPayload,
   HostEventsContext,
@@ -126,44 +126,62 @@ describe('maybeDispatchGuideSuggestion', () => {
 });
 
 describe('maybeDispatchRoutingDebug', () => {
+  // Paket 18C/D: das Ereignis liest `ui` — öffentlich in jeder Antwort. Persona und Signale
+  // stehen nur im Debug-Block, den das Widget ohne Freigabe nicht mehr bekommt.
+  const ui: UiInfo = {
+    pattern: 'PAT-07', intent: 'INT-03', state: 'state-5',
+    tools_called: ['search_wlo_content'],
+    modulations: {
+      tone: 'freundlich', length: 'kurz', formality: 'du', card_text_mode: 'kompakt',
+      rag_areas: ['mathe'], sources: ['mcp'], _tone_modifier_override: true,
+    },
+  };
+
   it('Gate aus → nichts', () => {
     const { ctx, routingOut } = makeCtx({ emitRoutingDebug: false });
     const events = captureWindowEvent('boerdi:routing-debug', () =>
-      maybeDispatchRoutingDebug('Frage', { pattern: 'P' } as unknown as DebugInfo, ctx),
+      maybeDispatchRoutingDebug('Frage', { ui }, ctx),
     );
     expect(events.length).toBe(0);
     expect(routingOut.length).toBe(0);
   });
 
-  it('Gate an + debug → window-Event + Output mit gemapptem Payload', () => {
+  it('Gate an + ui → window-Event + Output mit gemapptem Payload, ohne Persona und Signale', () => {
     const { ctx, routingOut } = makeCtx({ emitRoutingDebug: true });
-    const debug = {
-      pattern: 'PAT-07', intent: 'INT-03', state: 'state-5', persona: 'P-LK',
-      tools_called: ['search_wlo_content'], signals: ['neugierig'],
-      phase3_modulations: {
-        tone: 'freundlich', length: 'kurz', formality: 'du', card_text_mode: 'kompakt',
-        rag_areas: ['mathe'], sources: ['mcp'], _tone_modifier_override: true,
-      },
-    } as unknown as DebugInfo;
     const events = captureWindowEvent('boerdi:routing-debug', () =>
-      maybeDispatchRoutingDebug('Frage', debug, ctx),
+      maybeDispatchRoutingDebug('Frage', { ui, debug: null }, ctx),
     );
     expect(events.length).toBe(1);
     const d = events[0].detail as RoutingDebugPayload;
     expect(d.message).toBe('Frage');
     expect(d.pattern).toBe('PAT-07');
+    expect(d.intent).toBe('INT-03');
+    expect(d.state).toBe('state-5');
     expect(d.tools_called).toEqual(['search_wlo_content']);
     expect(d.rag_areas).toEqual(['mathe']);
     expect(d.sources).toEqual(['mcp']);
     expect(d.modifier).toEqual({ tone: 'freundlich', length: 'kurz', formality: 'du', card_text_mode: 'kompakt', override: true });
-    expect(d.signals).toEqual(['neugierig']);
+    expect(d.persona).toBe('');
+    expect(d.signals).toEqual([]);
     expect(routingOut.length).toBe(1);
   });
 
-  it('debug null → nichts', () => {
+  it('mit Debug-Block (Studio, Freigabe) → Persona und Signale dazu', () => {
+    const { ctx } = makeCtx({ emitRoutingDebug: true });
+    const debug = { persona: 'P-LK', signals: ['neugierig'] } as unknown as DebugInfo;
+    const events = captureWindowEvent('boerdi:routing-debug', () =>
+      maybeDispatchRoutingDebug('Frage', { ui, debug }, ctx),
+    );
+    const d = events[0].detail as RoutingDebugPayload;
+    expect(d.persona).toBe('P-LK');
+    expect(d.signals).toEqual(['neugierig']);
+    expect(d.pattern).toBe('PAT-07');
+  });
+
+  it('ohne ui → nichts', () => {
     const { ctx, routingOut } = makeCtx({ emitRoutingDebug: true });
     const events = captureWindowEvent('boerdi:routing-debug', () =>
-      maybeDispatchRoutingDebug('Frage', null, ctx),
+      maybeDispatchRoutingDebug('Frage', { debug: null }, ctx),
     );
     expect(events.length).toBe(0);
     expect(routingOut.length).toBe(0);

@@ -60,7 +60,7 @@ describe('restoreHistory (8-4S-e3)', () => {
       { role: 'user', content: 'Frage' },
       {
         role: 'assistant', content: 'Antwort',
-        cards: [{ id: 'c' }], debug: { x: 1 },
+        cards: [{ id: 'c' }], ui: { pattern: 'M06' }, debug: { persona: 'P' },
         webLinks: [{ title: 'T', url: 'u' }], queryMetas: [{ search_url: 's', search_term: 't' } as never],
       },
     ];
@@ -71,9 +71,10 @@ describe('restoreHistory (8-4S-e3)', () => {
     expect(rec.update).toBe(1);
     expect(rec.strippedHead?.quickReplies).toBeUndefined(); // Greeting-QRs gestrippt
     expect(rec.users).toEqual(['Frage']);
-    // ALT: addBotMessage(content, false, cards, undefined, debug, undefined, queryMetas, webLinks)
+    // addBotMessage(content, false, cards, undefined, ui, undefined, queryMetas, webLinks) — Paket 18C/D:
+    // `ui` statt `debug`; einen Debug-Block bekommt das Widget ohne Freigabe nicht mehr.
     expect(rec.bots[0]).toEqual([
-      'Antwort', false, [{ id: 'c' }], undefined, { x: 1 }, undefined,
+      'Antwort', false, [{ id: 'c' }], undefined, { pattern: 'M06' }, undefined,
       [{ search_url: 's', search_term: 't' }], [{ title: 'T', url: 'u' }],
     ]);
     expect(rec.scroll).toBe(1);
@@ -99,7 +100,7 @@ describe('restoreHistory (8-4S-e3)', () => {
    */
   it('Verlauf beginnt mit einer Kontext-Begruessung → KEINE Startnachricht davor', async () => {
     const history: HistoryMessage[] = [
-      { role: 'assistant', content: 'Du bist auf de.wikipedia.org …', debug: { pattern: 'CTX:external' } },
+      { role: 'assistant', content: 'Du bist auf de.wikipedia.org …', ui: { pattern: 'CTX:external' } },
       { role: 'user', content: 'Was kannst du?' },
       { role: 'assistant', content: 'Einiges.' },
     ];
@@ -116,7 +117,7 @@ describe('restoreHistory (8-4S-e3)', () => {
   it('Kontext-Begruessung MITTEN im Verlauf → Startnachricht bleibt', async () => {
     const history: HistoryMessage[] = [
       { role: 'user', content: 'Frage' },
-      { role: 'assistant', content: 'Du bist auf de.wikipedia.org …', debug: { pattern: 'CTX:external' } },
+      { role: 'assistant', content: 'Du bist auf de.wikipedia.org …', ui: { pattern: 'CTX:external' } },
     ];
     const { ctx, rec } = makeCtx(history);
     await restoreHistory(ctx);
@@ -125,7 +126,7 @@ describe('restoreHistory (8-4S-e3)', () => {
 
   it('Tour-Opener ist KEINE Kontext-Begruessung → Startnachricht bleibt', async () => {
     const history: HistoryMessage[] = [
-      { role: 'assistant', content: 'Willkommen zur Tour', debug: { pattern: 'TOUR:step1' } },
+      { role: 'assistant', content: 'Willkommen zur Tour', ui: { pattern: 'TOUR:step1' } },
     ];
     const { ctx, rec } = makeCtx(history);
     await restoreHistory(ctx);

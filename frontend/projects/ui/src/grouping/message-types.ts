@@ -7,12 +7,12 @@
  * war bis 8-2g **absichtlich schmal** (nur die Grouping-Felder). Mit der
  * Chat-Shell (8-4S-a) ist es jetzt auf das **volle ALT-Modell**
  * konsolidiert: `id`/`sender`/`timestamp` required, plus `quickReplies`/
- * `loadingPhase`/`inlineDocuments`/`topicPage`. Einzige bewusste
- * Fidelity-Abweichung: `debug` bleibt `unknown` (siehe Feld-Kommentar).
+ * `loadingPhase`/`inlineDocuments`/`topicPage`. Seit Paket 18C/D trägt eine
+ * Nachricht `ui` statt `debug` (siehe Feld-Kommentar).
  */
 import { WloCard } from '../cards/card-types';
 
-/** Eine MCP-Such-Metadaten-Zeile (aus `debug._query_metas`). Grouping liest
+/** Eine MCP-Such-Metadaten-Zeile (aus `query_metas`). Grouping liest
  *  `tool_name`/`search_url`/`search_term`/`repository_url` für die
  *  Search-CTA. */
 export interface QueryMetaEntry {
@@ -115,12 +115,35 @@ export interface TraceEntry {
   data: Record<string, any>;
 }
 
+/** Der öffentliche Teil einer Bot-Antwort (Paket 18C/D) — Gegenstück zu
+ *  `api/schemas_ui.UiInfo` des Backends. Kommt an jeder Antwort und an jeder
+ *  Nachricht des Verlaufs; im Verlauf nur gesetzte Felder, daher alles optional.
+ *  Die Wiederherstellungsfelder stammen aus gespeicherten Zügen jeder
+ *  Backend-Version und bleiben `unknown`: jeder Leser prüft ihre Form selbst. */
+export interface UiInfo {
+  pattern?: string;
+  intent?: string;
+  state?: string;
+  tools_called?: string[];
+  /** Die Modulationen, die das Gastgeber-Ereignis liest (Ton, Länge, Quellen …). */
+  modulations?: Record<string, unknown>;
+  // ── nur im Verlauf (Wiederherstellung nach dem Neuladen) ──
+  query_metas?: unknown[];
+  web_links?: unknown[];
+  /** Typ-Fokus der Antwort (Material-Typ-Anfrage) — live und im Verlauf. */
+  type_focus?: string;
+  dokumente?: unknown[];
+  topic_page_view?: unknown;
+  /** Nur für die Nachfrage nach einem Strom-Abbruch — nie beim Wiederherstellen
+   *  ausführen, sonst liefe die Änderung ein zweites Mal. */
+  prepared_write?: unknown;
+}
+
 /** Debug-/Telemetrie-Block einer Bot-Antwort — **volles ALT-`DebugInfo`**
  *  (verbatim aus ALT api.service.ts, portiert im Debug-Panel-Slice 8-4). Das
  *  ist der Vertrag für `ChatResponse.debug` und die `latestDebug`-Anzeige des
- *  Debug-Panel-Renderers. `ChatMessage.debug` bleibt bewusst `unknown` — das
- *  Grouping castet nur `as any` auf `pattern`/`_web_links`/`_type_focus` und
- *  braucht diese Form nicht. */
+ *  Debug-Panel-Renderers. Seit Paket 18C/D bekommt ihn nur die Anlage selbst
+ *  (Studio, Studio-Schlüssel); sonst ist `ChatResponse.debug` `null`. */
 export interface DebugInfo {
   persona: string;
   intent: string;
@@ -206,7 +229,10 @@ export interface ChatResponse {
   cards: WloCard[];
   follow_up: string;
   quick_replies: string[];
-  debug: DebugInfo;
+  /** Diagnose — nur für die Anlage selbst, sonst `null` (Paket 18C/D). */
+  debug?: DebugInfo | null;
+  /** Der öffentliche Teil; fehlt nur bei einem Backend vor Paket 18C/D. */
+  ui?: UiInfo;
   page_action: { action: string; payload: any } | null;
   pagination: PaginationInfo | null;
   query_metas?: QueryMetaEntry[];
@@ -238,17 +264,10 @@ export interface ChatMessage {
   content: string;
   cards?: WloCard[];
   quickReplies?: string[];
-  /** ALT: `debug?: DebugInfo`. Bewusste Fidelity-Abweichung → `unknown`:
-   *  das Grouping castet nur `as any` auf dynamische Keys
-   *  (`_web_links`/`_type_focus`/`pattern`), die NICHT in `DebugInfo`
-   *  deklariert sind; die typisierte Debug-Anzeige läuft über das separate
-   *  `latestDebug`-Signal, nicht über `msg.debug`. `unknown` ist hier
-   *  ehrlicher (ALT castet den Wert ohnehin sofort `as any`) und hält die
-   *  Grouping-Charakterisierungs-Specs frei von Voll-`DebugInfo`-Literalen.
-   *  `addBotMessage` nimmt `debug?: DebugInfo` und weitet beim Zuweisen.
-   *  simplify: `unknown` statt `DebugInfo`; Upgrade-Pfad =
-   *  `DebugInfo & Record<string, unknown>`, falls je typisierter Zugriff nötig. */
-  debug?: unknown;
+  /** ALT: `debug?: DebugInfo`. Seit Paket 18C/D `ui` — das Grouping liest
+   *  daraus Muster (Tour), Typ-Fokus und Web-Links; die Debug-Anzeige läuft
+   *  über das separate `latestDebug`-Signal, nicht über die Nachricht. */
+  ui?: UiInfo;
   isLoading?: boolean;
   /** Der Satz kam vom GASTGEBER, nicht von der Person am Chat (`startTask()`,
    *  Nutzer-Entscheid 2026-08-14). `sender` bleibt `'user'`: Grouping, Verlauf

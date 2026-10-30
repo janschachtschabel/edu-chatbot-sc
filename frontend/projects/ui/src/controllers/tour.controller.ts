@@ -22,6 +22,7 @@ import {
   PaginationInfo,
   QueryMetaEntry,
   TopicPageView,
+  UiInfo,
   WebLink,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
@@ -49,7 +50,7 @@ export interface TourContext {
   addUserMessage: (content: string) => void;
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: WloCard[],
-    quickReplies?: string[], debug?: DebugInfo,
+    quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null, queryMetas?: QueryMetaEntry[],
     webLinks?: WebLink[], inlineDocuments?: InlineDocument[],
     displayRules?: Record<string, any>, topicPage?: TopicPageView | null,
@@ -58,7 +59,8 @@ export interface TourContext {
   /** Setzt `scrollTargetId` (konsumiert in `ngAfterViewChecked`). */
   setScrollTarget: (id: string) => void;
   /** Setzt `latestDebug` (Debug-Panel). */
-  setLatestDebug: (debug: DebugInfo) => void;
+  /** Debug-Panel: Debug-Block (nur mit Freigabe, sonst `null`) und `ui` der Antwort. */
+  setLatestDebug: (debug: DebugInfo | null | undefined, ui?: UiInfo) => void;
   /** Übersetzer für die Fehler-Bubble (C1-b4). Der gesendete Text
    *  (`'Web-Tour starten'`) bleibt deutsch: er ist Backend-Anweisung, und
    *  `TOUR_START_LABEL` ist ohnehin ein Protokollwert (siehe oben). */
@@ -108,12 +110,12 @@ export class TourController {
   /** Rendert eine Tour-Bot-Antwort wie eine normale Bot-Bubble. */
   private renderTourResponse(resp: ChatResponse): void {
     const id = this.ctx.addBotMessage(
-      resp.content, false, resp.cards, resp.quick_replies, resp.debug,
+      resp.content, false, resp.cards, resp.quick_replies, resp.ui,
       resp.pagination, resp.query_metas, resp.web_links,
       resp.inline_documents, resp.display_rules, resp.topic_page,
     );
     this.ctx.setScrollTarget(id);
-    this.ctx.setLatestDebug(resp.debug);
+    this.ctx.setLatestDebug(resp.debug, resp.ui);
   }
 
   /** Startet die geführte Web-Tour (Klick auf den Startbutton). */

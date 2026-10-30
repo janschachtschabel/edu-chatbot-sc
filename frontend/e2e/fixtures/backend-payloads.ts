@@ -103,7 +103,10 @@ export function chatResponse(overrides: Record<string, unknown> = {}) {
     cards: [],
     follow_up: '',
     quick_replies: [],
-    debug: { pattern: 'M01', intent: 'greeting' },
+    // Paket 18C/D: wie eine anonyme Antwort — `ui` öffentlich, kein Debug-Block (den bekommt
+    // nur die Anlage selbst; die Kontrast-Probe setzt ihn für das volle Debug-Panel).
+    debug: null,
+    ui: { pattern: 'M01', intent: 'greeting' },
     page_action: null,
     pagination: null,
     ...overrides,

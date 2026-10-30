@@ -8,7 +8,7 @@ import { CardListComponent } from '../cards/card-list.component';
 import { resolveCardsVisible, SHOW_CARDS_MODES } from '../cards/cards-visible';
 import { DebugPanelComponent } from '../debug/debug-panel.component';
 import { _attrEnum, _attrIsTrue, PanelSizeStep } from '../element/attr';
-import { ChatResponse, DebugInfo, PreparedWriteOut } from '../grouping/message-types';
+import { ChatResponse, DebugInfo, PreparedWriteOut, UiInfo } from '../grouping/message-types';
 import { ResultGroupsComponent } from '../grouping/result-groups.component';
 import { WebLinksComponent } from '../grouping/web-links.component';
 import { SwimlanesComponent } from '../grouping/swimlanes.component';
@@ -97,8 +97,11 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly messages = this._store.messages;
   /** Turn-Serialisierung: true während ein Chat-Turn läuft. ALT: plain field. */
   readonly isLoading = signal(false);
-  /** Letzter Debug-/Telemetrie-Block fürs Debug-Panel. ALT: plain field. */
+  /** Letzter Debug-/Telemetrie-Block fürs Debug-Panel. ALT: plain field. Seit
+   *  Paket 18C/D nur mit Freigabe (Studio) — sonst bleibt er `null`. */
   readonly latestDebug = signal<DebugInfo | null>(null);
+  /** `ui` der jüngsten Antwort: was das Debug-Panel ohne Debug-Block zeigt. */
+  readonly latestUi = signal<UiInfo | null>(null);
 
   // ── Turn-/Integrations-Zustand (8-4S-d2a) ───────────────────────
   /** Session-ID des Chats (aufgelöst in `ngOnInit`, 8-4S-e; Tests setzen direkt). */
@@ -336,7 +339,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     addBotMessage: (...args) => this._store.addBotMessage(...args),
     removeMessage: (id) => this._store.removeMessage(id),
     setScrollTarget: (id) => { this._scroll.setScrollTarget(id); },
-    setLatestDebug: (debug) => this.latestDebug.set(debug),
+    setLatestDebug: (debug, ui) => this._setzeLetzte(debug, ui),
     dispatchPageAction: (pa) => this.dispatchPageAction(pa),
     messagesContainer: () => this._messagesContainer()?.nativeElement,
     emitGuideSuggestion: () => this.emitGuideSuggestion(),
@@ -379,7 +382,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     updateMessages: (u) => this._store.update(u),
     addUserMessage: (content) => this._store.addUserMessage(content),
     addBotMessage: (...args) => this._store.addBotMessage(...args),
-    setLatestDebug: (d) => this.latestDebug.set(d),
+    setLatestDebug: (d, ui) => this._setzeLetzte(d, ui),
     isLoading: () => this.isLoading(),
     setLoading: (v) => this.isLoading.set(v),
     tour: this._tour,
@@ -531,16 +534,22 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Pfad), Debug-Panel füttern, query-meta broadcasten, page_action
    *  weiterreichen, Host-Events (Lotsen-Navigate/Suggestion/Routing) feuern und
    *  bei aktivem autoSpeak die Antwort vorlesen. */
+  /** Debug-Panel füttern — Debug-Block und `ui` der jüngsten Antwort zusammen. */
+  private _setzeLetzte(debug: DebugInfo | null | undefined, ui?: UiInfo | null): void {
+    this.latestDebug.set(debug ?? null);
+    this.latestUi.set(ui ?? null);
+  }
+
   private _onResult(resp: ChatResponse, userMessage: string): void {
     this._tour.applyTourState(resp);
-    this.latestDebug.set(resp.debug);
+    this._setzeLetzte(resp.debug, resp.ui);
     if (resp.query_metas?.length) {
       dispatchHostEvent(HOST_EVENTS.queryMeta, { queries: resp.query_metas });
     }
     this.dispatchPageAction(resp.page_action);
     maybeDispatchGuideNavigate(userMessage, resp.cards, this._contexts.hostEvents);
     maybeDispatchGuideSuggestion(userMessage, resp.cards, this._contexts.hostEvents);
-    maybeDispatchRoutingDebug(userMessage, resp.debug, this._contexts.hostEvents);
+    maybeDispatchRoutingDebug(userMessage, resp, this._contexts.hostEvents);
     this._reportAgentResult(resp);
     if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
     if (resp.auth_invalid) this._anmeldungAbgewiesen();

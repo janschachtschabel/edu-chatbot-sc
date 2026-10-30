@@ -18,7 +18,7 @@ import { ChatShellComponent } from './chat-shell.component';
  */
 
 const RESP = {
-  content: 'Antwort', session_id: 's1', debug: { pattern: 'M06' },
+  content: 'Antwort', session_id: 's1', debug: { pattern: 'M06' }, ui: { pattern: 'M06', intent: 'I03' },
   query_metas: [{ query: 'mathe', total_count: 3 }], page_action: { action: 'canvas', payload: { n: 1 } },
   cards: [], quick_replies: [],
 } as unknown as ChatResponse;
@@ -161,6 +161,7 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     await c.sendMessage('frag');
 
     expect(c.latestDebug()).toEqual({ pattern: 'M06' });
+    expect(c.latestUi()).toEqual({ pattern: 'M06', intent: 'I03' });
     const qm = dispatchSpy.mock.calls.find(([e]) => (e as CustomEvent).type === 'boerdi:query-meta');
     expect(qm).toBeTruthy();
     expect((qm![0] as CustomEvent).detail).toEqual({ queries: RESP.query_metas });

@@ -129,6 +129,7 @@ export type {
   ToolOutcome,
   TopicPageView,
   TraceEntry,
+  UiInfo,
   WebLink,
 } from './grouping/message-types';
 export { DebugPanelComponent } from './debug/debug-panel.component';

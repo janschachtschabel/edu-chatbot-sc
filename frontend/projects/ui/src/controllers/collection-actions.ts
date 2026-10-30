@@ -21,7 +21,7 @@
  */
 import { WloCard } from '../cards/card-types';
 import {
-  ChatMessage, ChatResponse, DebugInfo, PaginationInfo,
+  ChatMessage, ChatResponse, DebugInfo, PaginationInfo, UiInfo,
   QueryMetaEntry, WebLink, InlineDocument, TopicPageView,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
@@ -49,7 +49,7 @@ export interface CollectionActionsContext {
   /** Message-State-Reducer der Komponente (Signaturen unverändert). */
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: WloCard[],
-    quickReplies?: string[], debug?: DebugInfo,
+    quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null, queryMetas?: QueryMetaEntry[],
     webLinks?: WebLink[], inlineDocuments?: InlineDocument[],
     displayRules?: Record<string, any>, topicPage?: TopicPageView | null,
@@ -58,7 +58,8 @@ export interface CollectionActionsContext {
   /** Setzt ``scrollTargetId`` (konsumiert in ``ngAfterViewChecked``). */
   setScrollTarget: (id: string) => void;
   /** Setzt ``latestDebug`` (Debug-Panel). */
-  setLatestDebug: (debug: DebugInfo) => void;
+  /** Debug-Panel: Debug-Block (nur mit Freigabe, sonst `null`) und `ui` der Antwort. */
+  setLatestDebug: (debug: DebugInfo | null | undefined, ui?: UiInfo) => void;
   /** Komponenten-``dispatchPageAction`` (host callback + Output + window-Event). */
   dispatchPageAction: (pa: { action: string; payload: any } | null | undefined) => void;
   /** ``messagesContainer?.nativeElement`` — LIVE (ViewChild füllt sich
@@ -87,9 +88,9 @@ export async function browseCollection(
     );
     if (veraltet()) return;
     ctx.removeMessage(loadingId);
-    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.debug, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
+    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
-    ctx.setLatestDebug(resp.debug);
+    ctx.setLatestDebug(resp.debug, resp.ui);
     ctx.dispatchPageAction(resp.page_action);
   } catch {
     if (veraltet()) return;
@@ -132,9 +133,9 @@ export async function showContentText(
     );
     if (veraltet()) return;
     ctx.removeMessage(loadingId);
-    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.debug, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
+    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
-    ctx.setLatestDebug(resp.debug);
+    ctx.setLatestDebug(resp.debug, resp.ui);
     ctx.dispatchPageAction(resp.page_action);
   } catch {
     if (veraltet()) return;
@@ -163,9 +164,9 @@ export async function generateLearningPath(
     );
     if (veraltet()) return;
     ctx.removeMessage(loadingId);
-    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.debug, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
+    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
-    ctx.setLatestDebug(resp.debug);
+    ctx.setLatestDebug(resp.debug, resp.ui);
     ctx.dispatchPageAction(resp.page_action);
   } catch {
     if (veraltet()) return;

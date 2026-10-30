@@ -333,12 +333,12 @@ describe('ChatApiClient speech transport (8-4S-d-β)', () => {
 describe('ChatApiClient history transport (8-4S-e-0)', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('loadHistory: GET /sessions/<sid>/messages?limit=, hebt debug._web_links/_query_metas auf Top-Level', async () => {
+  it('loadHistory: GET /sessions/<sid>/messages?limit=, hebt ui.web_links/query_metas auf Top-Level', async () => {
     const payload = [
       { role: 'user', content: 'Frage' },
       {
         role: 'assistant', content: 'Antwort', cards: [{ id: 'c1' }],
-        debug: { _web_links: [{ title: 'T', url: 'https://x' }], _query_metas: [{ search_url: 'u', search_term: 't' }] },
+        ui: { web_links: [{ title: 'T', url: 'https://x' }], query_metas: [{ search_url: 'u', search_term: 't' }] },
       },
     ];
     const { fetchImpl, calls } = capturingFetchRaw(jsonResponse(payload));
@@ -353,8 +353,8 @@ describe('ChatApiClient history transport (8-4S-e-0)', () => {
     });
   });
 
-  it('loadHistory: _type_focus überstimmt stale _web_links → webLinks:[]', async () => {
-    const payload = [{ role: 'assistant', content: 'A', debug: { _type_focus: true, _web_links: [{ title: 'X', url: 'u' }] } }];
+  it('loadHistory: type_focus überstimmt stale web_links → webLinks:[]', async () => {
+    const payload = [{ role: 'assistant', content: 'A', ui: { type_focus: 'Video', web_links: [{ title: 'X', url: 'u' }] } }];
     const { fetchImpl } = capturingFetchRaw(jsonResponse(payload));
     const out = await new ChatApiClient({ fetchImpl }).loadHistory('s');
     expect(out[0].webLinks).toEqual([]);
@@ -385,7 +385,7 @@ describe('ChatApiClient history transport (8-4S-e-0)', () => {
 // Ratenlimit von „noch nichts da“ unterscheiden — `loadHistory` macht aus beidem `[]`.
 describe('ChatApiClient.fetchHistory (Review Paket 7, C-3)', () => {
   it('liefert dieselben aufbereiteten Einträge wie loadHistory', async () => {
-    const payload = [{ id: 7, role: 'assistant', content: 'A', debug: { _web_links: [{ title: 'T', url: 'u' }] } }];
+    const payload = [{ id: 7, role: 'assistant', content: 'A', ui: { web_links: [{ title: 'T', url: 'u' }] } }];
     const { fetchImpl, calls } = capturingFetchRaw(jsonResponse(payload));
     const out = await new ChatApiClient({ fetchImpl }).fetchHistory('s', 6);
     expect(calls[0].url).toBe('/api/sessions/s/messages?limit=6');

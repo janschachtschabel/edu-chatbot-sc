@@ -9,17 +9,17 @@
  */
 import type { HistoryMessage } from './chat-api';
 
-/** Ein Verlaufseintrag, wie die Shell ihn braucht: `_web_links`/`_query_metas`
- *  aus `debug` auf die Top-Level; ein `_type_focus`-Marker überstimmt stale
- *  `_web_links` mit `[]` (Material-Typ-Antwort → keine Webseiten-Inhalte-Box).
- *  Verbatim aus ALT api.service.ts:556-602. */
+/** Ein Verlaufseintrag, wie die Shell ihn braucht: `web_links`/`query_metas`
+ *  aus `ui` auf die Top-Level; ein Typ-Fokus überstimmt stale `web_links` mit
+ *  `[]` (Material-Typ-Antwort → keine Webseiten-Inhalte-Box). Nach ALT
+ *  api.service.ts:556-602; seit Paket 18C/D aus `ui` statt `debug` — einen
+ *  Debug-Block bekommt das Widget ohne Freigabe nicht mehr. */
 export function verlaufseintrag(m: any): HistoryMessage {
-  const dbg = m && typeof m === 'object' ? (m.debug || {}) : {};
-  const isTypeFocus = !!dbg._type_focus;
-  const wl = isTypeFocus
+  const ui = m && typeof m === 'object' && m.ui && typeof m.ui === 'object' ? m.ui : {};
+  const wl = ui.type_focus
     ? []
-    : (Array.isArray(dbg._web_links) ? dbg._web_links : undefined);
-  const qm = Array.isArray(dbg._query_metas) ? dbg._query_metas : undefined;
+    : (Array.isArray(ui.web_links) ? ui.web_links : undefined);
+  const qm = Array.isArray(ui.query_metas) ? ui.query_metas : undefined;
   return { ...m, webLinks: wl, queryMetas: qm };
 }
 

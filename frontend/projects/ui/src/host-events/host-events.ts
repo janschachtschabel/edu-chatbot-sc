@@ -22,7 +22,7 @@
  * vorgezogen). Gleiche Semantik.
  */
 import { WloCard } from '../cards/card-types';
-import { DebugInfo } from '../grouping/message-types';
+import { ChatResponse } from '../grouping/message-types';
 import { _attrIsTrue } from '../element/attr';
 import { dispatchHostEvent, HOST_EVENTS } from './event-names';
 
@@ -66,8 +66,9 @@ export interface GuideSuggestionPayload {
 /** Welle C.4 (2026-05): Payload für ``boerdi:routing-debug``.
  *  Auf ``window`` gefeuert nach jedem Bot-Turn, wenn der Host
  *  ``emit-routing-debug="true"`` gesetzt hat. Quellen-Daten kommen aus
- *  dem ``DebugInfo``-Block der ChatResponse — keine zusätzlichen
- *  Backend-Calls nötig.
+ *  dem öffentlichen ``ui``-Block der ChatResponse — keine zusätzlichen
+ *  Backend-Calls nötig. ``persona`` und ``signals`` stehen nur im
+ *  Debug-Block und bleiben ohne Freigabe leer (Paket 18C/D).
  *
  *  Hosts können das Routing live beobachten und z.B. ein Routing-Panel
  *  oder A/B-Logging implementieren:
@@ -88,7 +89,7 @@ export interface RoutingDebugPayload {
   intent: string;
   /** Conversation-State (z.B. ``state-5``). */
   state: string;
-  /** Persona-ID (z.B. ``P-W-LK``). */
+  /** Persona-ID (z.B. ``P-W-LK``) — nur mit Freigabe (Studio), sonst leer. */
   persona: string;
   /** Tatsächlich aufgerufene MCP-Tools für diesen Turn. */
   tools_called: string[];
@@ -105,7 +106,8 @@ export interface RoutingDebugPayload {
     /** True wenn der Modifier den Pattern-Default überschrieben hat. */
     override: boolean;
   };
-  /** Classifier-Signale (z.B. ``["orientierungssuchend", "neugierig"]``). */
+  /** Classifier-Signale (z.B. ``["orientierungssuchend", "neugierig"]``) — nur
+   *  mit Freigabe (Studio), sonst leer. */
   signals: string[];
 }
 
@@ -223,8 +225,10 @@ export function maybeDispatchGuideSuggestion(
 /** Welle C.4 (2026-05): Dispatch a ``boerdi:routing-debug`` Custom-
  *  Event with the routing telemetry from the current turn. Gated by
  *  ``emitRoutingDebug`` — hosts opt in explicitly. Data is read from
- *  the existing ``DebugInfo`` block in the response — no additional
- *  backend round-trip.
+ *  the response's public ``ui`` block — no additional backend round-trip.
+ *  ``persona`` and ``signals`` exist only in the ``debug`` block, which
+ *  since Paket 18C/D reaches the system itself only (Studio, studio key);
+ *  for everyone else they stay empty.
  *
  *  Use cases:
  *    - Studio-Live-Debug-Panel (welches Pattern wurde aktiv?)
@@ -234,21 +238,23 @@ export function maybeDispatchGuideSuggestion(
  */
 export function maybeDispatchRoutingDebug(
   userMessage: string,
-  debug: DebugInfo | null | undefined,
+  resp: Pick<ChatResponse, 'ui' | 'debug'>,
   ctx: HostEventsContext,
 ): void {
   if (!_attrIsTrue(ctx.emitRoutingDebug())) return;
-  if (!debug) return;
+  const ui = resp.ui;
+  if (!ui) return;
+  const debug = resp.debug;
 
-  const mods = debug.phase3_modulations || {};
+  const mods: Record<string, any> = ui.modulations || {};
   const payload: RoutingDebugPayload = {
     message: userMessage || '',
-    pattern: debug.pattern || '',
-    intent: debug.intent || '',
-    state: debug.state || '',
-    persona: debug.persona || '',
-    tools_called: Array.isArray(debug.tools_called) ? debug.tools_called : [],
-    // rag_areas + sources kommen aus phase3_modulations (Pattern-Engine-Output)
+    pattern: ui.pattern || '',
+    intent: ui.intent || '',
+    state: ui.state || '',
+    persona: debug?.persona || '',
+    tools_called: Array.isArray(ui.tools_called) ? ui.tools_called : [],
+    // rag_areas + sources kommen aus den Modulationen (Pattern-Engine-Output)
     rag_areas: Array.isArray(mods['rag_areas']) ? mods['rag_areas'] : [],
     sources: Array.isArray(mods['sources']) ? mods['sources'] : [],
     modifier: {
@@ -258,7 +264,7 @@ export function maybeDispatchRoutingDebug(
       card_text_mode: String(mods['card_text_mode'] || ''),
       override: Boolean(mods['_tone_modifier_override']),
     },
-    signals: Array.isArray(debug.signals) ? debug.signals : [],
+    signals: Array.isArray(debug?.signals) ? debug.signals : [],
   };
 
   dispatchHostEvent(HOST_EVENTS.routingDebug, payload);

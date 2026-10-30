@@ -277,11 +277,11 @@ export function groupedWebLinks(
   // Arbeitsblätter / …") rendern NIEMALS eine Webseiten-Inhalte-Box —
   // der Antwortmodus ist „Klick auf die Such-CTA", alles andere
   // verwirrt. Zwei Detection-Pfade:
-  //   1. Backend-Marker ``debug._type_focus`` (auf neuen Antworten +
-  //      via api.service.ts auch beim Restore mitgereicht)
+  //   1. Backend-Marker ``ui.type_focus`` (seit Paket 18C/D live und beim
+  //      Restore)
   //   2. Content-Pattern-Match (defensiv für alte gespeicherte Messages
   //      die noch keinen Marker haben).
-  if ((msg.debug as any)?._type_focus) return [];
+  if (msg.ui?.type_focus) return [];
   const _tfPattern = /^\s*Für\s+\S.*\bschau\s+in\s+die\s+Suche\s+unten\b/i;
   if (_tfPattern.test(msg.content || '')) return [];
   // Welle E (2026-05-23) — Limit aus display_rules.groups.webseiten_max
@@ -292,11 +292,11 @@ export function groupedWebLinks(
       .slice(0, limit)
       .map(l => ({ title: l.title, url: ctx.withBsid(l.url) }));
   }
-  // ── Fallback: ChatMessage hat möglicherweise webLinks im debug-Feld
-  // (kommt aus altem ``GET /messages``-Restore via ``_web_links``-Key) ──
-  const debugLinks = (msg.debug as any)?._web_links;
-  if (Array.isArray(debugLinks) && debugLinks.length > 0) {
-    return debugLinks
+  // ── Fallback: ChatMessage hat möglicherweise webLinks nur in ``ui``
+  // (``GET /messages``-Restore via ``web_links``-Key) ──
+  const uiLinks = msg.ui?.web_links;
+  if (Array.isArray(uiLinks) && uiLinks.length > 0) {
+    return uiLinks
       .filter((l: any) => l && l.title && l.url)
       .slice(0, limit)
       .map((l: any) => ({ title: String(l.title), url: ctx.withBsid(String(l.url)) }));
@@ -396,14 +396,14 @@ export function searchCtaTooltip(msg: ChatMessage, ctx: GroupingContext): string
   return itemTooltip(base, groupedSearchUrl(msg, ctx), ctx);
 }
 
-/** Tour-Antworten (``debug.pattern`` = „TOUR:…") sind bewusst rein
+/** Tour-Antworten (``ui.pattern`` = „TOUR:…") sind bewusst rein
  *  textbasiert: kuratierte Inline-Links (Angebote/Sublinks/Kontakt) +
  *  ``__guide__``-Nav-Buttons. Sie tragen KEINE RAG-``web_links``. Die
  *  Result-Group-Boxen würden via Content-Scrape-Fallback nur die Tour-
  *  eigenen Links ein zweites Mal in die „Webseiten-Inhalte"-Box spiegeln
  *  → Dopplung. Daher während der Tour komplett unterdrücken. */
 export function isTourMessage(msg: ChatMessage): boolean {
-  const p = (msg?.debug as any)?.pattern;
+  const p = msg?.ui?.pattern;
   return typeof p === 'string' && p.startsWith('TOUR:');
 }
 

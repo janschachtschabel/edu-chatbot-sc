@@ -1,4 +1,11 @@
 // The widget-contract section. Disclosure shell and content rules come from the
-// shared partials; this section has no styling of its own.
+// shared partials; the only rule of its own is the note under a payload.
 @use './section-shell';
 @use './reference';
+
+// Paket 18C/D: translated note under an event payload — own line, muted.
+.ar-cell-note {
+  display: block;
+  margin-block-start: var(--st-1);
+  color: var(--st-text-muted);
+}

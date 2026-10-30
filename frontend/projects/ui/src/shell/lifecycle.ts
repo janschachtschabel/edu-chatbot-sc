@@ -11,7 +11,7 @@
 import { WloCard } from '../cards/card-types';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
 import { TourController } from '../controllers/tour.controller';
-import { ChatMessage, DebugInfo, PaginationInfo, QueryMetaEntry, WebLink } from '../grouping/message-types';
+import { ChatMessage, DebugInfo, PaginationInfo, QueryMetaEntry, UiInfo, WebLink } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { deleteSessionCookie, generateSessionId, writeSessionEverywhere } from '../session/session-id';
 import { ChatApiClient } from '../stream/chat-api';
@@ -95,10 +95,10 @@ export interface LifecycleContext {
   addUserMessage: (content: string) => void;
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: WloCard[], quickReplies?: string[],
-    debug?: DebugInfo, pagination?: PaginationInfo | null,
+    ui?: UiInfo, pagination?: PaginationInfo | null,
     queryMetas?: QueryMetaEntry[], webLinks?: WebLink[],
   ) => string;
-  setLatestDebug: (d: DebugInfo | null) => void;
+  setLatestDebug: (d: DebugInfo | null, ui?: UiInfo | null) => void;
   /** Globales `isLoading` der Shell. Ein Neustart gibt es frei, auch wenn
    *  noch ein Zug läuft: der verwirft sein Ergebnis selbst (`send-message.ts`). */
   isLoading: () => boolean;

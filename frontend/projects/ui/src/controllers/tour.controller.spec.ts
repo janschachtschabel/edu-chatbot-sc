@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { ChatResponse, DebugInfo } from '../grouping/message-types';
+import { ChatResponse } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import { TourContext, TourController, TOUR_START_LABEL } from './tour.controller';
@@ -41,7 +41,7 @@ function makeCtx(over: Partial<TourContext> = {}): { ctx: TourContext; calls: Ca
     },
     removeMessage: (id) => calls.removed.push(id),
     setScrollTarget: (id) => calls.scroll.push(id),
-    setLatestDebug: (d) => calls.debug.push(d),
+    setLatestDebug: (d, ui) => calls.debug.push([d, ui]),
     t: over.t ?? createTranslator(DE, DE),
   };
   return { ctx, calls };
@@ -50,7 +50,8 @@ function makeCtx(over: Partial<TourContext> = {}): { ctx: TourContext; calls: Ca
 function makeResp(fields: Partial<ChatResponse> = {}): ChatResponse {
   return {
     session_id: 's', content: 'Hallo', cards: [], follow_up: '', quick_replies: [],
-    debug: { pattern: 'TOUR:1' } as DebugInfo, page_action: null, pagination: null,
+    // Paket 18C/D: wie eine anonyme Antwort — Muster in `ui`, kein Debug-Block.
+    debug: null, ui: { pattern: 'TOUR:1' }, page_action: null, pagination: null,
     tour: { active: true, step: 's1', group: 'g' }, ...fields,
   } as ChatResponse;
 }
@@ -73,8 +74,10 @@ describe('TourController', () => {
     expect(localStorage.getItem('boerdi_tour_active')).toBe('1');
     // Loading-Bubble entfernt, echte Antwort gerendert
     expect(calls.removed.length).toBe(1);
-    expect(calls.bot.some((b) => b.content === 'Willkommen')).toBe(true);
-    expect(calls.debug.length).toBe(1);
+    const antwort = calls.bot.find((b) => b.content === 'Willkommen')!;
+    // `ui` an Position 5: daran erkennt das Grouping die Tour und unterdrückt die Boxen (R1).
+    expect(antwort.rest[2]).toEqual({ pattern: 'TOUR:1' });
+    expect(calls.debug).toEqual([[null, { pattern: 'TOUR:1' }]]);
     expect(calls.loading).toEqual([true, false]);
   });
 

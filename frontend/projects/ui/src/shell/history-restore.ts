@@ -5,11 +5,11 @@
  * Liste: die hardcodierte Begrüßung IMMER voranstellen (Backend persistiert sie
  * nicht → würde nach Reopen/Cross-TLD-Handoff verschwinden), deren Quick-Reply-
  * Pillen strippen (nur der ganz frische Chat-Anfang bleibt klickbar), dann jede
- * user-/assistant-Zeile mit Cards/WebLinks/QueryMetas/Debug mitrestoren, zuletzt
+ * user-/assistant-Zeile mit Cards/WebLinks/QueryMetas/`ui` mitrestoren, zuletzt
  * ans Ende scrollen. KEINE Logik-Änderung — Bodies verbatim aus ALT.
  */
 import { WloCard } from '../cards/card-types';
-import { ChatMessage, DebugInfo, PaginationInfo, QueryMetaEntry, WebLink } from '../grouping/message-types';
+import { ChatMessage, PaginationInfo, QueryMetaEntry, UiInfo, WebLink } from '../grouping/message-types';
 import { HistoryMessage } from '../stream/chat-api';
 
 /** Live-Zustand/Reducer der Shell, die der Restore braucht (deferred Arrows +
@@ -22,13 +22,13 @@ export interface HistoryRestoreContext {
   addUserMessage: (content: string) => void;
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: WloCard[], quickReplies?: string[],
-    debug?: DebugInfo, pagination?: PaginationInfo | null,
+    ui?: UiInfo, pagination?: PaginationInfo | null,
     queryMetas?: QueryMetaEntry[], webLinks?: WebLink[],
   ) => string;
   scrollToLatest: () => void;
 }
 
-/** Kennzeichen der persistierten Kontext-Begrüßung im ``debug.pattern`` —
+/** Kennzeichen der persistierten Kontext-Begrüßung im ``ui.pattern`` —
  *  Gegenstück zu ``CONTEXT_GREETING_MARKER`` im Backend
  *  (``domain/quick_reply_policy.py``). Lokal wie ``'TOUR:'`` in
  *  ``grouping/result-grouping.ts``: beide Seiten teilen die Zeichenkette, nicht
@@ -51,7 +51,7 @@ const CONTEXT_GREETING_MARKER = 'CTX:';
  *  Startnachricht, die bei jedem Seitenwechsel nachwächst) war der teurere. */
 function openerIsContextGreeting(history: HistoryMessage[]): boolean {
   const first = history[0];
-  const pattern = first?.debug?.['pattern'];
+  const pattern = first?.ui?.pattern;
   return first?.role === 'assistant' && typeof pattern === 'string'
     && pattern.startsWith(CONTEXT_GREETING_MARKER);
 }
@@ -92,9 +92,9 @@ export async function restoreHistory(ctx: HistoryRestoreContext): Promise<void> 
       const cards = Array.isArray(m.cards) ? m.cards : undefined;
       const webLinks = Array.isArray(m.webLinks) ? m.webLinks : undefined;
       const queryMetas = Array.isArray(m.queryMetas) ? m.queryMetas : undefined;
-      // debug mitgeben (pattern="TOUR:…" + _type_focus): so werden auch
+      // `ui` mitgeben (pattern="TOUR:…" + type_focus): so werden auch
       // wiederhergestellte Tour-Nachrichten erkannt und Result-Boxen unterdrückt.
-      ctx.addBotMessage(content, false, cards, undefined, m.debug as DebugInfo | undefined, undefined, queryMetas, webLinks);
+      ctx.addBotMessage(content, false, cards, undefined, m.ui, undefined, queryMetas, webLinks);
     }
   }
   // Ans Ende scrollen — der Auto-Follow-Tail hält jede spätere Mutation am Boden.

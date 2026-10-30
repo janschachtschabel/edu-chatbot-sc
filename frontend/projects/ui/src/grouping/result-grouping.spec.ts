@@ -188,8 +188,8 @@ describe('groupedSearchUrl / groupedSearchTerm', () => {
 });
 
 describe('groupedWebLinks', () => {
-  it('type-focus via debug-Marker → []', () => {
-    const m = msg({ debug: { _type_focus: true }, webLinks: [{ title: 'X', url: 'https://x' }] });
+  it('type-focus via ui-Marker → [] (live und aus dem Verlauf, Paket 18C/D)', () => {
+    const m = msg({ ui: { type_focus: 'Video' }, webLinks: [{ title: 'X', url: 'https://x' }] });
     expect(groupedWebLinks(m, ctx)).toEqual([]);
   });
 
@@ -217,8 +217,8 @@ describe('groupedWebLinks', () => {
     ]);
   });
 
-  it('debug._web_links-Fallback (filtert kaputte Einträge)', () => {
-    const m = msg({ debug: { _web_links: [{ title: 'W', url: 'https://w' }, { bad: 1 }] } });
+  it('ui.web_links-Fallback (filtert kaputte Einträge)', () => {
+    const m = msg({ ui: { web_links: [{ title: 'W', url: 'https://w' }, { bad: 1 }] } });
     expect(groupedWebLinks(m, ctx)).toEqual([{ title: 'W', url: 'https://w' }]);
   });
 
@@ -302,15 +302,15 @@ describe('Tooltips', () => {
 });
 
 describe('isTourMessage / hasGroupedResults', () => {
-  it('isTourMessage: debug.pattern TOUR:*', () => {
-    expect(isTourMessage(msg({ debug: { pattern: 'TOUR:step1' } }))).toBe(true);
-    expect(isTourMessage(msg({ debug: { pattern: 'M06' } }))).toBe(false);
+  it('isTourMessage: ui.pattern TOUR:*', () => {
+    expect(isTourMessage(msg({ ui: { pattern: 'TOUR:step1' } }))).toBe(true);
+    expect(isTourMessage(msg({ ui: { pattern: 'M06' } }))).toBe(false);
     expect(isTourMessage(msg({}))).toBe(false);
   });
 
   it('hasGroupedResults: Tour unterdrückt alles', () => {
     const m = msg({
-      debug: { pattern: 'TOUR:x' },
+      ui: { pattern: 'TOUR:x' },
       cards: [card({ node_type: 'topic_page', node_id: 'a', title: 'A' })],
     });
     expect(hasGroupedResults(m, ctx)).toBe(false);
