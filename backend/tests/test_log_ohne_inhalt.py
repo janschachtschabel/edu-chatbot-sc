@@ -104,6 +104,10 @@ class _Sammler(ast.NodeVisitor):
             stufe = next((k.value for k in knoten.keywords if k.arg == "stufe"), None)
             if not (stufe is not None and _ist_debug(stufe) and self._geschuetzt):
                 self.aufrufe.append((knoten, [*knoten.args[2:], *werte]))
+        elif isinstance(f, ast.Name) and f.id == "gedrosselt":
+            # Paket 18E: ``gedrosselt(logger, stufe, schluessel, abstand_s, text, *args)`` —
+            # geprüft wird, was ins Log geht (Vorlage und Werte), an jedem Aufruf.
+            self.aufrufe.append((knoten, [*knoten.args[4:], *werte]))
         elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) \
                 and f.value.id in _LOGGER:
             if f.attr in _STUFEN:
@@ -154,10 +158,12 @@ def test_der_waechter_erkennt_aliase_ketten_und_schluessel():
         "log.log(logging.INFO if x else logging.DEBUG, 'f %s', query_tokens)\n"
         "ereignis(log, 'g', wert=signature)\n"
         "logger.debug('h %s', req.session_id)\n"
+        "gedrosselt(logger, logging.WARNING, 'k', 60, 'i %s', response_text)\n"
     )
     gefunden = [n for aufruf, args in _logaufrufe(baum) for a in args for n in _verboten(a)]
     assert gefunden == ["ctx.req.message", "_user_msg", "extra_args", "state.get('thema')",
-                        "s['query']", "query_tokens", "signature", "req.session_id"]
+                        "s['query']", "query_tokens", "signature", "req.session_id",
+                        "response_text"]
 
 
 def test_der_waechter_laesst_helfer_kennungen_und_geschuetztes_debug_durch():
