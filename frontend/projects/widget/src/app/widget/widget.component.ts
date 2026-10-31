@@ -149,6 +149,12 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly emitGuideSuggestion = input<boolean | string>(false);
   /** Routing-Debug als `boerdi:routing-debug` + Output emittieren. */
   readonly emitRoutingDebug = input<boolean | string>(false);
+  /** Suchmetadaten als `boerdi:query-meta` an `window` (Paket 19, Audit
+   *  2026-10-31 N-6). Bis dahin immer an; Suchbegriff und Such-URL gingen damit
+   *  ungefragt an jedes Skript der Gastseite. Gilt auch für den Output
+   *  `queryMeta` dieser Hülle: Angular Elements macht ihn zum DOM-Ereignis am
+   *  Element (Review zu N-6). Er kommt über die Shell, nicht über `window`. */
+  readonly emitQueryMeta = input<boolean | string>(false);
   /** `false` = flaches Karten-Grid mit Pagination statt der Ergebnis-Boxen
    *  (8-2i). Hier durchgereicht, weil das Attribut sonst nur an der Shell
    *  existiert und am echten Embed wirkungslos wäre — dieselbe Falle wie das
@@ -258,7 +264,8 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly guideSuggestion = output<GuideSuggestionPayload>();
   /** Spiegelt `boerdi:routing-debug` für Angular-Konsumenten. */
   readonly routingDebug = output<RoutingDebugPayload>();
-  /** MCP-Suchmetadaten jedes Bot-Turns (immer aktiv, kein Opt-in). */
+  /** MCP-Suchmetadaten jedes Bot-Turns — wie `guideSuggestion`/`routingDebug`
+   *  nur mit `emit-query-meta` (die Shell gated Output und `window`-Ereignis). */
   readonly queryMeta = output<unknown>();
 
   /** Die Chat-Shell — wir brauchen die Instanz (nicht nur das Element) für
@@ -337,7 +344,6 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     interceptEduSharingLinks: () => this.interceptEduSharingLinks(),
     onInterceptedLink: p => this.linkClicked.emit(p),
     onPageAction: pa => this.handlePageAction(pa),
-    onQueryMeta: d => this.queryMeta.emit(d),
     onUrlChange: () => this.refreshPageContext(true),
   });
 

@@ -8,7 +8,7 @@ import { CardListComponent } from '../cards/card-list.component';
 import { resolveCardsVisible, SHOW_CARDS_MODES } from '../cards/cards-visible';
 import { DebugPanelComponent } from '../debug/debug-panel.component';
 import { _attrEnum, _attrIsTrue, PanelSizeStep } from '../element/attr';
-import { ChatResponse, DebugInfo, PreparedWriteOut, UiInfo } from '../grouping/message-types';
+import { ChatResponse, DebugInfo, PreparedWriteOut, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { ResultGroupsComponent } from '../grouping/result-groups.component';
 import { WebLinksComponent } from '../grouping/web-links.component';
 import { SwimlanesComponent } from '../grouping/swimlanes.component';
@@ -126,12 +126,20 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly emitGuideSuggestion = input<boolean | string>(false);
   /** `[emit-routing-debug]` — Routing-Telemetrie-Emission (host-events). */
   readonly emitRoutingDebug = input<boolean | string>(false);
+  /** `[emit-query-meta]` — `boerdi:query-meta` an `window` und der Ausgang
+   *  `queryMeta` (Paket 19, Audit 2026-10-31 N-6). Suchbegriff und Such-URL
+   *  gingen bis dahin ungefragt an jedes Skript der Gastseite; jetzt wie
+   *  `emit-guide-suggestion`/`emit-routing-debug` nur auf Ansage. */
+  readonly emitQueryMeta = input<boolean | string>(false);
   /** Jede backend-`page_action` (Host- + Widget-Integration). */
   readonly pageAction = output<{ action: string; payload: any }>();
   /** Top-1-Lotsen-Treffer pro Turn (gated durch `emitGuideSuggestion`). */
   readonly guideSuggestion = output<GuideSuggestionPayload>();
   /** Routing-Telemetrie pro Turn (gated durch `emitRoutingDebug`). */
   readonly routingDebug = output<RoutingDebugPayload>();
+  /** MCP-Suchmetadaten jedes Zugs mit Suche — der Weg zur Widget-Hülle statt
+   *  über `window` (Paket 19, N-6); gated durch `emitQueryMeta`. */
+  readonly queryMeta = output<{ queries: QueryMetaEntry[] }>();
   /** Das maschinenlesbare Ergebnis eines Zuges (2026-08-14). Feuert NUR, wenn
    *  der Gastgeber ein `result_schema` erklärt hat — ungated, anders als
    *  `guideSuggestion`/`routingDebug`: das Schema IST hier schon die Ansage. */
@@ -549,8 +557,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private _onResult(resp: ChatResponse, userMessage: string): void {
     this._tour.applyTourState(resp);
     this._setzeLetzte(resp.debug, resp.ui);
-    if (resp.query_metas?.length) {
-      dispatchHostEvent(HOST_EVENTS.queryMeta, { queries: resp.query_metas });
+    // Review zu N-6: Output UND window-Ereignis nur mit `emit-query-meta` — die
+    // Hülle macht den Output über Angular Elements zum DOM-Ereignis am Element.
+    if (resp.query_metas?.length && _attrIsTrue(this.emitQueryMeta())) {
+      const nutzlast = { queries: resp.query_metas };
+      this.queryMeta.emit(nutzlast);
+      dispatchHostEvent(HOST_EVENTS.queryMeta, nutzlast);
     }
     this.dispatchPageAction(resp.page_action);
     maybeDispatchGuideNavigate(userMessage, resp.cards, this._contexts.hostEvents);

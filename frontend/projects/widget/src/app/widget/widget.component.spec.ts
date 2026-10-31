@@ -61,7 +61,7 @@ describe('WidgetComponent', () => {
     expect(c.interceptEduSharingLinks()).toBe(false);
   });
 
-  it('hat genau diese 32 Host-Attribute (§5.5-Kontrakt)', () => {
+  it('hat genau diese 33 Host-Attribute (§5.5-Kontrakt)', () => {
     // Der Attribut-Satz IST der öffentliche Vertrag der Web-Komponente, und er
     // steht zusätzlich in der Studio-Architektur-Referenz
     // (`projects/studio/src/app/views/widget-contract-data.ts`, HOST_ATTRIBUTES).
@@ -71,7 +71,7 @@ describe('WidgetComponent', () => {
     const inputs = (reflectComponentType(WidgetComponent)?.inputs ?? [])
       .map((i) => i.templateName).sort();
     expect(inputs).toEqual([
-      'apiUrl', 'autoContext', 'embedMode', 'emitGuideSuggestion', 'emitRoutingDebug',
+      'apiUrl', 'autoContext', 'embedMode', 'emitGuideSuggestion', 'emitQueryMeta', 'emitRoutingDebug',
       'engine', 'greeting', 'initialState', 'inlineResultGrouping',
       'interceptEduSharingLinks', 'language', 'masterSkill', 'pageContext',
       'persistSession', 'position',
@@ -656,6 +656,52 @@ describe('WidgetComponent', () => {
     f.componentInstance.openChatbot();
     f.detectChanges();
     expect(f.componentInstance.shell()?.inlineResultGroupingBool).toBe(false);
+  });
+
+  // Paket 19, Audit 2026-10-31 N-6: `boerdi:query-meta` geht nur noch mit
+  // `emit-query-meta` an `window`. Der eigene Ausgang `queryMeta` der Hülle hängt
+  // am Angular-Ausgang der Shell — er verliert nichts und feuert nicht doppelt.
+  it('queryMeta kommt über die Shell, ohne window-Ereignis (N-6)', () => {
+    const f = mount();
+    f.componentRef.setInput('emitQueryMeta', 'true');
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    const gesehen: unknown[] = [];
+    f.componentInstance.queryMeta.subscribe((d) => gesehen.push(d));
+    f.componentInstance.shell()!.queryMeta.emit({ queries: [] });
+    window.dispatchEvent(new CustomEvent('boerdi:query-meta', { detail: { queries: ['fremd'] } }));
+    expect(gesehen).toEqual([{ queries: [] }]);
+  });
+
+  // Review zu N-6: der Output `queryMeta` wird über Angular Elements zum
+  // DOM-Ereignis am Element — ohne Attribut darf er nicht feuern.
+  it('ohne emit-query-meta feuert der Element-Output queryMeta nicht (N-6)', async () => {
+    const f = mount();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    const shell = f.componentInstance.shell()! as any;
+    vi.spyOn(shell._api, 'stream').mockResolvedValue({
+      content: 'Antwort', session_id: 's', cards: [], quick_replies: [], debug: null, ui: {},
+      page_action: null, pagination: null, query_metas: [{ search_term: 'mathe' }],
+    });
+    const gesehen: unknown[] = [];
+    f.componentInstance.queryMeta.subscribe((d) => gesehen.push(d));
+    shell.isLoading.set(false);
+    await shell.sendMessage('frag');
+    expect(gesehen).toEqual([]);
+    f.componentRef.setInput('emitQueryMeta', 'true');
+    f.detectChanges();
+    shell.isLoading.set(false);
+    await shell.sendMessage('noch mal');
+    expect(gesehen).toEqual([{ queries: [{ search_term: 'mathe' }] }]);
+  });
+
+  it('emit-query-meta erreicht die Shell (sonst totes Host-Attribut)', () => {
+    const f = mount();
+    f.componentRef.setInput('emitQueryMeta', 'true');
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    expect(f.componentInstance.shell()?.emitQueryMeta()).toBe('true');
   });
 
   // Paket 19, Review zu H-4: ohne `persist-session` reiste die Kennung trotzdem

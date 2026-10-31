@@ -152,8 +152,14 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     expect(c.messages()).toEqual([]);
   });
 
-  it('onResult: latestDebug gesetzt, query-meta-Event gefeuert, page_action dispatcht', async () => {
-    const c = make();
+  it('onResult: latestDebug gesetzt, query-meta-Event gefeuert (mit emit-query-meta), page_action dispatcht', async () => {
+    TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    });
+    const f = TestBed.createComponent(ChatShellComponent);
+    f.componentRef.setInput('emitQueryMeta', true);
+    const c = f.componentInstance;
     (c as any)._api = fakeApi();
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
     const onPageAction = vi.fn();
@@ -167,6 +173,49 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     expect(qm).toBeTruthy();
     expect((qm![0] as CustomEvent).detail).toEqual({ queries: RESP.query_metas });
     expect(onPageAction).toHaveBeenCalledWith({ action: 'canvas', payload: { n: 1 } });
+  });
+
+  // Paket 19, Audit 2026-10-31 N-6: `boerdi:query-meta` (Suchbegriff, Such-URL)
+  // ging ungefragt an `window` — die anderen Ereignisse nur per Attribut. Die
+  // eigene Hülle bekommt die Daten über den Angular-Ausgang `queryMeta`.
+  // Review zu N-6: Angular Elements macht jeden Output zum DOM-Ereignis am
+  // Element — ein ungegateter `queryMeta` war für die Gastseite genauso lesbar.
+  it('ohne emit-query-meta weder window-Ereignis noch Angular-Ausgang (N-6)', async () => {
+    const f = TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).createComponent(ChatShellComponent);
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi();
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const ausgang: unknown[] = [];
+    c.queryMeta.subscribe((d) => ausgang.push(d));
+
+    await c.sendMessage('frag');
+
+    const typen = dispatchSpy.mock.calls.map(([e]) => (e as CustomEvent).type);
+    expect(typen).not.toContain('boerdi:query-meta');
+    expect(typen).not.toContain('badboerdi:query-meta');
+    expect(ausgang).toEqual([]);
+  });
+
+  it('emit-query-meta="true" schaltet das window-Ereignis ein (N-6)', async () => {
+    const f = TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).createComponent(ChatShellComponent);
+    f.componentRef.setInput('emitQueryMeta', 'true');
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi();
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const ausgang: unknown[] = [];
+    c.queryMeta.subscribe((d) => ausgang.push(d));
+
+    await c.sendMessage('frag');
+
+    const qm = dispatchSpy.mock.calls.find(([e]) => (e as CustomEvent).type === 'boerdi:query-meta');
+    expect((qm?.[0] as CustomEvent | undefined)?.detail).toEqual({ queries: RESP.query_metas });
+    expect(ausgang).toEqual([{ queries: RESP.query_metas }]);
   });
 
   // Review zu M-15: der POST-Rückfall eines Chat-Zugs bekommt die Frist eines

@@ -27,16 +27,18 @@ export interface HostBridgesContext {
   onInterceptedLink: (pathAndSearch: string) => void;
   /** page_action aus dem window-Fallback-Event. */
   onPageAction: (pa: { action: string; payload: any }) => void;
-  /** query-meta aus dem window-Event → Output `queryMeta`. */
-  onQueryMeta: (detail: unknown) => void;
   /** SPA-Navigation erkannt — der Aufrufer löst den Seitenkontext neu auf. */
   onUrlChange: () => void;
 }
 
 /**
  * HostBridges — alles, was die Widget-Hülle an der Host-Seite verdrahtet:
- * der bsid-Rewrite ausgehender Klicks, die beiden window-Event-Fallbacks und
- * der SPA-URL-Watcher. Port von ALT `widget.component.ts`
+ * der bsid-Rewrite ausgehender Klicks, der window-Event-Fallback für
+ * `page-action` und der SPA-URL-Watcher. Den Zuhörer auf `boerdi:query-meta`
+ * gibt es seit Paket 19 (Audit 2026-10-31 N-6) nicht mehr: das Ereignis geht nur
+ * noch mit `emit-query-meta` an `window`, die Hülle bekommt die Suchmetadaten
+ * über den Angular-Ausgang `queryMeta` der Shell — sonst kämen sie bei gesetztem
+ * Attribut doppelt, und jedes Skript der Gastseite könnte ihr welche unterschieben. Port von ALT `widget.component.ts`
  * (ngAfterViewInit 307-367, ngOnDestroy 369-386, _checkUrlChange 295-305,
  * _maybeRewriteOutgoingLink 440-449).
  *
@@ -50,7 +52,6 @@ export interface HostBridgesContext {
  */
 export class HostBridges {
   private _onPageActionEvent?: (e: Event) => void;
-  private _onQueryMetaEvent?: (e: Event) => void;
   private _onHostClick?: (e: Event) => void;
   /** Wohin der Klick-Listener gehängt wurde — gespeichert, damit `destroy()`
    *  ihn am SELBEN Ziel wieder abnimmt. */
@@ -68,12 +69,6 @@ export class HostBridges {
       if (detail && detail.action) this.ctx.onPageAction(detail);
     };
     window.addEventListener(HOST_EVENTS.pageAction, this._onPageActionEvent);
-
-    this._onQueryMetaEvent = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail) this.ctx.onQueryMeta(detail);
-    };
-    window.addEventListener(HOST_EVENTS.queryMeta, this._onQueryMetaEvent);
 
     // Outgoing-Link-Rewrite für den Cross-TLD-Session-Handoff.
     //
@@ -111,10 +106,6 @@ export class HostBridges {
     if (this._onPageActionEvent) {
       window.removeEventListener(HOST_EVENTS.pageAction, this._onPageActionEvent);
       this._onPageActionEvent = undefined;
-    }
-    if (this._onQueryMetaEvent) {
-      window.removeEventListener(HOST_EVENTS.queryMeta, this._onQueryMetaEvent);
-      this._onQueryMetaEvent = undefined;
     }
     if (this._onHostClick) {
       (this._clickScope || document).removeEventListener('click', this._onHostClick, true);

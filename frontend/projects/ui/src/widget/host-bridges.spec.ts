@@ -21,7 +21,6 @@ interface Harness {
   host: HTMLElement;
   shadow: ShadowRoot;
   pageActions: unknown[];
-  queryMetas: unknown[];
   urlChanges: number;
   intercepted: string[];
 }
@@ -36,7 +35,7 @@ function mk(opts: { intercept?: boolean | string } = {}): Harness {
   const h: Harness = {
     bridges: null as unknown as HostBridges,
     host, shadow: null as unknown as ShadowRoot,
-    pageActions: [], queryMetas: [], urlChanges: 0, intercepted: [],
+    pageActions: [], urlChanges: 0, intercepted: [],
   };
   const ctx: HostBridgesContext = {
     clickScope: () => shadow,
@@ -45,7 +44,6 @@ function mk(opts: { intercept?: boolean | string } = {}): Harness {
     interceptEduSharingLinks: () => opts.intercept ?? false,
     onInterceptedLink: (p) => h.intercepted.push(p),
     onPageAction: (pa) => h.pageActions.push(pa),
-    onQueryMeta: (d) => h.queryMetas.push(d),
     onUrlChange: () => { h.urlChanges++; },
   };
   h.bridges = new HostBridges(ctx);
@@ -112,10 +110,17 @@ describe('HostBridges window-Events', () => {
     expect(h.pageActions).toEqual([{ action: 'navigate', payload: {} }]);
   });
 
-  it('query-meta wird durchgereicht, leeres detail verworfen', () => {
-    window.dispatchEvent(new CustomEvent('boerdi:query-meta', { detail: { tool: 'search' } }));
-    window.dispatchEvent(new CustomEvent('boerdi:query-meta', { detail: null }));
-    expect(h.queryMetas).toEqual([{ tool: 'search' }]);
+  // Paket 19, Audit 2026-10-31 N-6: das window-Ereignis ist nur noch mit
+  // `emit-query-meta` an. Die Hülle bekommt die Suchmetadaten über den
+  // Angular-Ausgang der Shell — ein Zuhörer hier ließe sie bei gesetztem
+  // Attribut doppelt ankommen, und fremde Seiten könnten ihr welche unterschieben.
+  it('query-meta wird nicht mehr über window übernommen (N-6)', () => {
+    const add = vi.spyOn(window, 'addEventListener');
+    const frisch = mk();
+    frisch.bridges.init();
+    expect(add.mock.calls.map(([name]) => name)).not.toContain('boerdi:query-meta');
+    frisch.bridges.destroy();
+    add.mockRestore();
   });
 
   /** U5a: Die Shell feuert jedes Ereignis unter BEIDEN Namen. Diese Brücke ist
@@ -124,17 +129,13 @@ describe('HostBridges window-Events', () => {
    *  ist Nachsicht gegenüber fremden Empfängern, kein Eingang. */
   it('der alte Name wird NICHT konsumiert — sonst liefe alles doppelt', () => {
     window.dispatchEvent(new CustomEvent('badboerdi:page-action', { detail: { action: 'navigate', payload: {} } }));
-    window.dispatchEvent(new CustomEvent('badboerdi:query-meta', { detail: { tool: 'search' } }));
     expect(h.pageActions).toHaveLength(0);
-    expect(h.queryMetas).toHaveLength(0);
   });
 
-  it('destroy() nimmt beide window-Listener ab', () => {
+  it('destroy() nimmt den window-Listener ab', () => {
     h.bridges.destroy();
     window.dispatchEvent(new CustomEvent('boerdi:page-action', { detail: { action: 'x' } }));
-    window.dispatchEvent(new CustomEvent('boerdi:query-meta', { detail: { a: 1 } }));
     expect(h.pageActions).toHaveLength(0);
-    expect(h.queryMetas).toHaveLength(0);
   });
 });
 

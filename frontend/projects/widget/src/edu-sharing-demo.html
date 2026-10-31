@@ -381,6 +381,9 @@
     // Begrüßung — und deren Chips fehlten obendrein, weil Quick-Replies nicht
     // persistiert werden. Auf einer Probierseite ist die leere Bühne richtig.
     el.setAttribute('persist-session', 'false');
+    // Paket 19 (N-6): `boerdi:query-meta` geht nur noch auf Ansage an `window` —
+    // das Protokoll unten hört darauf.
+    el.setAttribute('emit-query-meta', 'true');
     el.setAttribute('greeting', $('gruss').value);
     el.setAttribute('start-replies', JSON.stringify(zeilen($('chips').value)));
     // Nur auf Ansage: mit Kontext beim Aufbau begrüßt das Backend die Seite und
