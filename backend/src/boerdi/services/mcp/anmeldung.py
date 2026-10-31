@@ -25,6 +25,7 @@ import asyncio
 import hashlib
 import logging
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,8 +39,12 @@ POSITIV_S = 300.0
 NEGATIV_S = 30.0
 #: Frist der Prüfung — sie steht vor jedem Zug mit Block, länger warten hieße hängen.
 FRIST_S = 5.0
-#: Mehr Fingerabdrücke merkt sich der Prozess nicht; darüber beginnt er neu.
+#: Mehr Fingerabdrücke merkt sich der Prozess nicht; darüber verdrängt er (Paket 19, N-10):
+#: zuerst negative Einträge, dann die am längsten unbenutzten.
 HOECHSTENS = 1024
+#: Eigene Obergrenze für „keine Person“/„abgewiesen“ — jeder erfundene ``wlo…``-Block legt einen
+#: solchen Eintrag an; sie dürfen die bestätigten Personen nicht hinausdrängen.
+HOECHSTENS_NEGATIV = 256
 
 
 @dataclass(frozen=True)
@@ -49,7 +54,26 @@ class Befund:
     abgelehnt: bool = False
 
 
-_cache: dict[str, tuple[float, Befund]] = {}
+#: Fingerabdruck → (gültig bis, Befund), in LRU-Reihenfolge (zuletzt benutzt am Ende).
+_cache: OrderedDict[str, tuple[float, Befund]] = OrderedDict()
+
+
+def _merken(fingerabdruck: str, eintrag: tuple[float, Befund]) -> None:
+    _cache[fingerabdruck] = eintrag
+    _cache.move_to_end(fingerabdruck)
+    _verdraengen()
+
+
+def _verdraengen() -> None:
+    """Bis Paket 19 ``_cache.clear()`` bei voller Liste — das warf auch alle bestätigten
+    Personen hinaus (N-10). Jetzt: negative über ihrer eigenen Grenze, dann bei voller Liste
+    erst der älteste negative, sonst der älteste überhaupt."""
+    negative = [k for k, (_, b) in _cache.items() if not b.person]
+    while len(negative) > HOECHSTENS_NEGATIV:
+        _cache.pop(negative.pop(0), None)
+    while len(_cache) > HOECHSTENS:
+        opfer = negative.pop(0) if negative else next(iter(_cache))
+        _cache.pop(opfer, None)
 
 
 async def bestaetige_anmeldung() -> Befund:
@@ -61,11 +85,10 @@ async def bestaetige_anmeldung() -> Befund:
     gemerkt = _cache.get(fingerabdruck)
     if gemerkt is not None and gemerkt[0] > jetzt:
         befund = gemerkt[1]
+        _cache.move_to_end(fingerabdruck)
     else:
         befund = await _fragen()
-        if len(_cache) >= HOECHSTENS:
-            _cache.clear()
-        _cache[fingerabdruck] = (jetzt + (POSITIV_S if befund.person else NEGATIV_S), befund)
+        _merken(fingerabdruck, (jetzt + (POSITIV_S if befund.person else NEGATIV_S), befund))
     if befund.abgelehnt:
         _verwerfen()
     else:
@@ -107,8 +130,8 @@ def markiere_abgelehnt() -> None:
     if not auth.hat_zug_block():
         logger.warning("Der Zugangsblock der Anlage wird abgewiesen (MCP_AUTH_TOKEN prüfen)")
         return
-    _cache[auth.caller_fingerprint()] = (
-        time.monotonic() + NEGATIV_S, Befund(person=False, abgelehnt=True))
+    _merken(auth.caller_fingerprint(),
+            (time.monotonic() + NEGATIV_S, Befund(person=False, abgelehnt=True)))
     _verwerfen()
 
 
