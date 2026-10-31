@@ -13,7 +13,9 @@ import { ContextGreetingController } from '../controllers/context-greeting.contr
 import { TourController } from '../controllers/tour.controller';
 import { ChatMessage, DebugInfo, PaginationInfo, QueryMetaEntry, UiInfo, WebLink } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
-import { deleteSessionCookie, generateSessionId, writeSessionEverywhere } from '../session/session-id';
+import {
+  OWL_HINT_KEY, deleteSessionCookie, generateSessionId, writeSessionEverywhere,
+} from '../session/session-id';
 import { ChatApiClient } from '../stream/chat-api';
 import { restoreHistory } from './history-restore';
 import { bootSession } from './session-boot';
@@ -140,9 +142,8 @@ export class ShellLifecycle {
       this.ctx.setParsedPageContext(pc as Record<string, any>);
     }
 
-    const persist = this.ctx.persistSession() === true || this.ctx.persistSession() === 'true';
     const boot = bootSession({
-      persist,
+      persist: this._persist(),
       sessionKey: this.ctx.sessionKey(),
       cookieDomain: this.ctx.sessionCookieDomain(),
       cookieMaxAge: this.ctx.sessionCookieMaxAge(),
@@ -197,7 +198,9 @@ export class ShellLifecycle {
     this._neugrussOffen = false;  // die neue Sitzung begrüßt sich selbst
     const id = generateSessionId();
     this.ctx.setSessionId(id);
-    writeSessionEverywhere(id, this._cookieCfg());
+    // Paket 19 (H-4): abgelegt wird nur, wo `persist-session` es erlaubt —
+    // sonst las die nächste Person am geteilten Rechner die Kennung aus.
+    if (this._persist()) writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
     this.ctx.setLatestDebug(null);
     this.ctx.setLoading(false);
@@ -208,11 +211,13 @@ export class ShellLifecycle {
    *  dazu die Freigabe des Ladens wie in `restart()` (Befundliste §1.4). */
   resetSession(): void {
     try { localStorage.removeItem(this.ctx.sessionKey()); } catch { /* ignore */ }
+    // Paket 19 (H-4): auch der Eulen-Merker — er stand früher mit voller ID dort.
+    try { localStorage.removeItem(OWL_HINT_KEY); } catch { /* ignore */ }
     deleteSessionCookie(this.ctx.sessionKey(), this.ctx.sessionCookieDomain());
     this._neugrussOffen = false;
     const id = generateSessionId();
     this.ctx.setSessionId(id);
-    writeSessionEverywhere(id, this._cookieCfg());
+    if (this._persist()) writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
     this.ctx.setLatestDebug(null);
     this.ctx.setLoading(false);
@@ -314,6 +319,12 @@ export class ShellLifecycle {
       // Ping-Fehler still schlucken — aber NIE ohne Begrüßung dastehen.
     }
     if (!rendered) this.showGreeting();
+  }
+
+  /** `persist-session` als Wahrheitswert (Attribut kommt als Text oder bool). */
+  private _persist(): boolean {
+    const p = this.ctx.persistSession();
+    return p === true || p === 'true';
   }
 
   private _cookieCfg() {

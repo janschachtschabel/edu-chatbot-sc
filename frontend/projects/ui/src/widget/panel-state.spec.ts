@@ -128,12 +128,45 @@ describe('PanelState Owl-Hint', () => {
     expect(p.hintActive()).toBe(true);
     vi.advanceTimersByTime(3000);
     expect(p.hintActive()).toBe(false);
-    expect(localStorage.getItem('boerdi_owl_hint_session')).toBe(VALID_SID);
+    // Paket 19, H-4: die Kennung selbst liegt NICHT im localStorage — nur ein Merker.
+    const merker = localStorage.getItem('boerdi_owl_hint_session') ?? '';
+    expect(merker).not.toBe('');
+    expect(merker).not.toContain(VALID_SID.slice(3, 11));
+    const alles = Array.from({ length: localStorage.length }, (_, i) => {
+      const k = localStorage.key(i) ?? '';
+      return k + '=' + (localStorage.getItem(k) ?? '');
+    }).join(';');
+    expect(alles).not.toContain(VALID_SID);
 
     // Neues Widget, gleiche Session → kein Hint mehr.
     const p2 = new PanelState(mkCtx(() => VALID_SID).ctx);
     p2.setExpanded(true);
     expect(p2.hintActive()).toBe(false);
+  });
+
+  it('neue Session (Neues Gespräch) hintet erneut (H-4: Merker statt ID)', () => {
+    new PanelState(mkCtx(() => VALID_SID).ctx).setExpanded(true);
+    const andere = 'bb-11111111-2222-4333-8444-555555555555';
+    const p = new PanelState(mkCtx(() => andere).ctx);
+    p.setExpanded(true);
+    expect(p.hintActive()).toBe(true);
+  });
+
+  // Review zu H-4: ein Altbestand mit voller ID verschwindet schon beim Boot —
+  // nicht erst, wenn jemand das Panel öffnet.
+  it('ein alter Eintrag mit voller ID wird beim Boot entfernt (H-4)', () => {
+    localStorage.setItem('boerdi_owl_hint_session', VALID_SID);
+    new PanelState(mkCtx(() => VALID_SID).ctx);
+    expect(localStorage.getItem('boerdi_owl_hint_session')).toBeNull();
+    localStorage.setItem('boerdi_owl_hint_session', 'h1abc');   // ein Merker bleibt
+    new PanelState(mkCtx(() => VALID_SID).ctx);
+    expect(localStorage.getItem('boerdi_owl_hint_session')).toBe('h1abc');
+  });
+
+  it('ein alter Eintrag mit voller ID wird durch den Merker ersetzt (H-4)', () => {
+    localStorage.setItem('boerdi_owl_hint_session', VALID_SID);
+    new PanelState(mkCtx(() => VALID_SID).ctx).setExpanded(true);
+    expect(localStorage.getItem('boerdi_owl_hint_session')).not.toBe(VALID_SID);
   });
 
   it('pollt auf die sessionId: Hint kommt, sobald die Shell bereit ist', () => {

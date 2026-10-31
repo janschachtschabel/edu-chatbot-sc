@@ -115,6 +115,27 @@ export function readSessionCookie(name: string): string | null {
   }
 }
 
+/** localStorage-Schlüssel des einmaligen Eulen-Hinweises (`widget/panel-state.ts`).
+ *  Hier, weil auch `resetSession()` (`shell/lifecycle.ts`) ihn räumt. */
+export const OWL_HINT_KEY = 'boerdi_owl_hint_session';
+
+/**
+ * Merker „diese Sitzung wurde schon gehintet“ — ein kurzer Prüfwert der
+ * Kennung statt der Kennung selbst (Paket 19, Audit 2026-10-31 H-4). Der
+ * Eulen-Hinweis legte die volle ID unabhängig von `persist-session` in den
+ * localStorage; auf einem geteilten Rechner las die nächste Person sie dort
+ * und rief den Verlauf ab. 32 Bit (FNV-1a) unterscheiden zwei Sitzungen eines
+ * Geräts sicher genug, verraten aber nichts, womit sich der Verlauf öffnen ließe.
+ */
+export function eulenMerker(sessionId: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < sessionId.length; i++) {
+    h ^= sessionId.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return 'h' + h.toString(36);
+}
+
 /** Löscht das Session-Cookie (nutzt Max-Age=0 unter derselben Domain). */
 export function deleteSessionCookie(name: string, domain: string): void {
   if (!domain) return;
