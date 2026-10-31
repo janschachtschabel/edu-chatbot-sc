@@ -111,6 +111,22 @@ def test_ein_einzelner_medientyp_bekommt_keine_liste():
     assert normalisiere_entitaeten({"medientyp": ["Video"]}) == {"medientyp": "Video"}
 
 
+def test_zahlen_in_einzelwert_entitaeten_bleiben_als_text():
+    """Audit N-24: ``"stufe": 7`` fiel seit 18B still weg — bis dahin lief der Wert weiter.
+    Skalare werden zu Text; nur Listen werden aufgelöst (auch ihre Zahlen)."""
+    assert normalisiere_entitaeten({"stufe": 7, "bildungsstufe": 5.5}) == {
+        "stufe": "7", "bildungsstufe": "5.5"}
+    assert normalisiere_entitaeten({"stufe": [7, 8]}) == {"stufe": "7"}
+    # Review 19-5 (9): eine ganzzahlige Kommazahl ist die Zahl, nicht „7.0“.
+    assert normalisiere_entitaeten({"stufe": 7.0}) == {"stufe": "7"}
+    assert normalisiere_entitaeten({"stufe": [8.0, 9]}) == {"stufe": "8"}
+
+
+@pytest.mark.parametrize("wert", [None, True, False, {"a": 1}])
+def test_kein_skalarer_text_faellt_weiter_weg(wert):
+    assert normalisiere_entitaeten({"stufe": wert}) == {}
+
+
 # ── MCP: Listen auffächern ───────────────────────────────────────────────
 
 def _umschlag(*ids: str, total: int | None = None) -> str:

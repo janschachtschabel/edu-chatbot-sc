@@ -176,18 +176,40 @@ _EINZELWERT_ENTITAETEN = ("medientyp", "fach", "stufe", "bildungsstufe", "thema"
                           "lizenz")
 
 
+def _ist_zahl(wert: object) -> bool:
+    """``int``/``float`` — aber kein ``bool`` (in Python eine Unterklasse von ``int``)."""
+    return isinstance(wert, (int, float)) and not isinstance(wert, bool)
+
+
+def _zahl_als_text(wert: float) -> str:
+    """``7`` und ``7.0`` → ``"7"`` (Review 19-5, 9), ``5.5`` → ``"5.5"``."""
+    if isinstance(wert, float) and wert.is_integer():
+        return str(int(wert))
+    return str(wert)
+
+
 def normalisiere_entitaeten(entities: dict[str, Any]) -> dict[str, Any]:
     """Listen in Einzelwert-Entitäten auflösen (Paket 18B).
 
     Bisher lief eine Liste unverändert bis in die MCP-Argumente (-32602) und in den
     Anti-Halluzinations-Wächter (``list.strip``). Jetzt gilt der erste Wert; ein
     mehrfacher Medientyp steht zusätzlich vollständig in ``medientypen``, damit die
-    Suche alle Typen abfragt. Leere Listen fallen weg, Texte bleiben unverändert."""
+    Suche alle Typen abfragt. Leere Listen fallen weg, Texte bleiben unverändert.
+
+    Zahlen (``"stufe": 7``) werden zu Text, auch in Listen (Paket 19, Audit N-24) — seit 18B
+    fielen sie still weg, davor liefen sie weiter. Wahrheitswerte, ``None`` und Zuordnungen
+    sind kein Entitätswert und fallen wie bisher weg."""
     aus = dict(entities)
     for schluessel in _EINZELWERT_ENTITAETEN:
         if schluessel not in aus or isinstance(aus[schluessel], str):
             continue
-        werte = als_liste(aus[schluessel])
+        roh = aus[schluessel]
+        if _ist_zahl(roh):
+            aus[schluessel] = _zahl_als_text(roh)
+            continue
+        if isinstance(roh, (list, tuple)):
+            roh = [_zahl_als_text(w) if _ist_zahl(w) else w for w in roh]
+        werte = als_liste(roh)
         if not werte:
             aus.pop(schluessel)
             continue
