@@ -14,7 +14,7 @@ import { TourController } from '../controllers/tour.controller';
 import { ChatMessage, DebugInfo, PaginationInfo, QueryMetaEntry, UiInfo, WebLink } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import {
-  OWL_HINT_KEY, deleteSessionCookie, generateSessionId, writeSessionEverywhere,
+  OWL_HINT_KEY, deleteSessionCookie, generateSessionId, sitzungsWache, writeSessionEverywhere,
 } from '../session/session-id';
 import { ChatApiClient } from '../stream/chat-api';
 import { restoreHistory } from './history-restore';
@@ -153,7 +153,14 @@ export class ShellLifecycle {
 
     if (boot.resumed) {
       // Fortgeführte Session: History laden, dann Tour prüfen/fortsetzen.
-      this._restoreHistory().then(() => this._afterResume());
+      // Paket 19 (M-14): die Wache VOR dem Laden — kam der Verlauf erst nach
+      // einem Neustart an, gehören weder er noch Tour-Tick und Kontext-Ping
+      // in das frische Gespräch.
+      const veraltet = sitzungsWache(() => this.ctx.sessionId());
+      void this._restoreHistory().then((fertig) => {
+        if (fertig && !veraltet()) return this._afterResume();
+        return undefined;
+      });
     } else {
       void this._greetOnFirstLoad();
       this._maybeStartTourTick();
@@ -245,8 +252,9 @@ export class ShellLifecycle {
     this._maybeSendContextPing();
   }
 
-  /** History-Restore mit einem aus dem Lifecycle-Kontext gebauten Sub-Kontext. */
-  private _restoreHistory(): Promise<void> {
+  /** History-Restore mit einem aus dem Lifecycle-Kontext gebauten Sub-Kontext.
+   *  `false` = nach einem Neustart verworfen (`sitzungsWache` im Restore). */
+  private _restoreHistory(): Promise<boolean> {
     return restoreHistory({
       loadHistory: (sid, limit) => this.ctx.api().loadHistory(sid, limit),
       sessionId: () => this.ctx.sessionId(),
@@ -266,6 +274,9 @@ export class ShellLifecycle {
     // und eine Kontext-Begrüßung direkt hinter „Fast geschafft" wäre der
     // falsche Abgang (X1, live auf wp-test 2026-08-20).
     const tourOwnsThisLoad = this.ctx.tour.isTourFlagSet() || this.ctx.resumedViaBsid();
+    // Paket 19 (M-14): Tick und Ping prüfen ihre Sitzung selbst
+    // (`sitzungsWache` in den Controllern); der Aufrufer ruft hier nur noch für
+    // die Sitzung, deren Verlauf gerade eingespielt wurde.
     if (tourOwnsThisLoad) {
       try { await this.ctx.tour.sendTourTick(); } catch { /* Tick-Fehler still */ }
       return;
@@ -312,12 +323,16 @@ export class ShellLifecycle {
       this.showGreeting();
       return;
     }
+    // Paket 19 (N-32): ein Neustart während des Pings begrüßt die neue Sitzung
+    // selbst — eine zweite Begrüßung hinterher wäre doppelt.
+    const veraltet = sitzungsWache(() => this.ctx.sessionId());
     let rendered = false;
     try {
       rendered = await this.ctx.contextGreeting.sendContextPing('context_open_initial');
     } catch {
       // Ping-Fehler still schlucken — aber NIE ohne Begrüßung dastehen.
     }
+    if (veraltet()) return;
     if (!rendered) this.showGreeting();
   }
 
