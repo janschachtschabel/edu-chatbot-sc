@@ -23,6 +23,10 @@ export const RETENTION: CataloguePart = {
       + 'Tour) geleert; ebenso der Text im Qualitäts-Protokoll (Nachricht, Thema, Begründungen) — '
       + 'die Kennzahlen bleiben bis zu dessen Frist. Samt Verbrauch löschen lassen sich Sitzungen einzeln in der Ansicht '
       + '„Sessions“ oder gesammelt über „Gespräche löschen“.',
+    'retention.backups':
+      'Zusätzlich halten die Datenbank-Sicherungen (Dienst pg-backup) Gelöschtes so lange, '
+      + 'wie sie aufbewahrt werden — Vorgabe 14 Tage (BACKUP_KEEP_DAYS). Erst danach ist ein '
+      + 'gelöschter Eintrag auch aus den Sicherungen verschwunden.',
     'retention.caption': 'Gezählt beim Öffnen, vor jeder Rückfrage und nach jedem Bereinigen.',
     'retention.col.log': 'Daten',
     'retention.col.period': 'Frist',
@@ -79,6 +83,10 @@ export const RETENTION: CataloguePart = {
       + 'tour) is cleared; so is the text in the quality log (message, topic, reasoning) — its '
       + 'figures stay until the quality log\'s own period. Sessions are deleted together with their usage one by one in the '
       + '“Sessions” view or all at once via “Delete conversations”.',
+    'retention.backups':
+      'In addition, the database backups (pg-backup service) keep deleted data for as long as '
+      + 'they are kept themselves — 14 days by default (BACKUP_KEEP_DAYS). Only after that is a '
+      + 'deleted entry gone from the backups as well.',
     'retention.caption':
       'Counted when the panel opens, before every confirmation and after every cleanup.',
     'retention.col.log': 'Data',
