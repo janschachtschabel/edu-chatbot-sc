@@ -41,6 +41,20 @@ const NACHLADENDE_TAGS = [
 ];
 const NACHLADENDE_ATTRIBUTE = ['style', 'background', 'poster', 'srcset'];
 
+/** Formulare (Paket 19, Audit 2026-10-31 M-12): über Prompt-Injection in
+ *  Werkzeug- oder Inhaltstexten (M17 → `inline_documents`) stünde sonst ein
+ *  funktionierendes Phishing-Formular im Chatfenster, und Absenden navigierte die
+ *  Gastseite weg. Weder Seeds noch Backend erzeugen Formularelemente (geprüft:
+ *  Formulare gibt es nur auf den Demo-Seiten des Backends, die nicht durch diesen
+ *  Renderer laufen). Preis: die Kästchen einer GFM-Aufgabenliste (`- [ ]`)
+ *  entfallen, ihr Text bleibt. */
+const FORMULAR_TAGS = ['form', 'input', 'button', 'select', 'option', 'textarea', 'fieldset', 'label'];
+const FORMULAR_ATTRIBUTE = ['action', 'formaction'];
+/** SVG-Links (Review zu N-35): `xlink:href` liest die Link-Nachbearbeitung nicht
+ *  zuverlässig mit; ein `<svg><a xlink:href=… target="_top">` aus dem Modelltext
+ *  navigierte sonst die Gastseite weg. Die eigenen Inline-Icons brauchen es nicht. */
+const SVG_LINK_ATTRIBUTE = ['xlink:href'];
+
 const INLINE_ICON_LABEL_KEY: Record<string, string> = {
   topic: 'contentType.topicPage',
   auto_stories: 'contentType.collection',
@@ -166,8 +180,8 @@ export class MarkdownRenderer {
     const clean = DOMPurify.sanitize(html, {
       ADD_ATTR: ['target', 'rel', 'data-bb-type'],
       USE_PROFILES: { html: true, svg: true, svgFilters: true },
-      FORBID_TAGS: NACHLADENDE_TAGS,
-      FORBID_ATTR: NACHLADENDE_ATTRIBUTE,
+      FORBID_TAGS: [...NACHLADENDE_TAGS, ...FORMULAR_TAGS],
+      FORBID_ATTR: [...NACHLADENDE_ATTRIBUTE, ...FORMULAR_ATTRIBUTE, ...SVG_LINK_ATTRIBUTE],
     });
     // Post-Process: (1) Externe Links (NICHT auf der Trusted-Hosts-Liste)
     // in neuem Tab öffnen — Tabnabbing-sicher via ``rel="noopener noreferrer"``.
@@ -175,14 +189,18 @@ export class MarkdownRenderer {
     // Widgets ``?bsid=<sid>`` anhängen kann und die Session über die TLD-Grenze
     // erhalten bleibt. (2) Inline-Card-Title-Wrap für korrektes Icon-Title-CSS.
     let final = clean;
-    if (clean.includes('<a ')) {
+    if (clean.includes('<a ') || clean.includes('<a>')) {
       try {
         const tmp = document.createElement('div');
         tmp.innerHTML = clean;
         tmp.querySelectorAll('a').forEach(a => {
           // (1) Target-Klassifikation + bsid-Rewrite. Anker (#frag), Mailto,
           // Tel, javascript: und same-origin-Pfad-Links unangetastet lassen.
-          const href = a.getAttribute('href') || '';
+          // Review zu N-35: auch SVG-Links (`<svg><a>`); `xlink:href` ist oben
+          // verboten, hier zur Sicherheit trotzdem mitgelesen. Ein Ziel ohne
+          // Adresse hat nichts zu öffnen — es fällt weg.
+          const href = a.getAttribute('href') || a.getAttribute('xlink:href') || '';
+          if (!href) a.removeAttribute('target');
           if (href && !href.startsWith('#') && !href.startsWith('javascript:')
               && !href.startsWith('mailto:') && !href.startsWith('tel:')) {
             let hostname = '';
@@ -194,7 +212,9 @@ export class MarkdownRenderer {
             // Externe + nicht-vertrauenswürdige Hosts → neuer Tab + Warntooltip.
             // Same-origin und trusted hosts → same tab (für ?bsid=-Handoff).
             if (hostname && !sameOrigin && !trusted) {
-              if (!a.hasAttribute('target')) a.setAttribute('target', '_blank');
+              // Paket 19 (N-35): immer `_blank` — ein `target` aus dem Modelltext
+              // (`_top`/`_self`/`_parent`) navigierte sonst die Gastseite weg.
+              a.setAttribute('target', '_blank');
               // Warntooltip nur setzen wenn kein anderer (z.B. Material-Typ-
               // Label vom Inline-Card-Link) bereits einen ``title`` gesetzt hat.
               const existingTitle = a.getAttribute('title') || '';
