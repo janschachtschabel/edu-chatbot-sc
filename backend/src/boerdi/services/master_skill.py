@@ -103,6 +103,9 @@ _FRISCH_GENUG: Final = 0.8
 NEU_LADEN_WARTEN_S: Final = 45.0
 #: Laufende Übernahmen nach einem Signal — gehalten, damit sie nicht eingesammelt werden.
 _uebernahmen: set[asyncio.Task[None]] = set()
+#: Paket 20 (B2): der laufende Erstabruf je Kennung. Nach einem Neustart warten gleichzeitige
+#: Züge ohne Stand auf DENSELBEN Abruf, statt je einen eigenen zu starten (N Züge, N Sitzungen).
+_erstabrufe: dict[str, asyncio.Task[str | None]] = {}
 
 _KOPF: Final = "## Gesamtanleitung dieser Anlage"
 
@@ -149,6 +152,7 @@ def leere_den_zwischenspeicher() -> None:
     _abgerufen_um.clear()
     _stand_um.clear()
     _letzter_fehler.clear()
+    _erstabrufe.clear()
 
 
 def _gespeichert(kennung: str) -> str | None:
@@ -286,6 +290,38 @@ async def _hole(kennung: str, *, frisch: bool = False) -> str | None:
         if stand is not None and stand.text:
             _uebernimm(kennung, stand)
             return stand.text
+        return await _erstabruf(kennung)
+    return await _vom_server(kennung, frisch=True)
+
+
+async def _erstabruf(kennung: str) -> str | None:
+    """Ein Abruf für alle Züge, die gerade ohne Stand dastehen (Paket 20, B2).
+
+    ``shield``: bricht ein wartender Zug ab, läuft der Abruf für die anderen weiter. Die
+    Aufgabe läuft in leerem Kontext wie ``_abrufen`` selbst (keine Anmeldung einer Person).
+    """
+    gespeichert = _gespeichert(kennung)  # ein eben beendeter Abruf hat schon abgelegt
+    if gespeichert is not None:
+        return gespeichert
+    laufend = _erstabrufe.get(kennung)
+    if laufend is not None and laufend.get_loop() is not asyncio.get_running_loop():
+        laufend = None  # Rest einer geschlossenen Loop (nur in Tests denkbar): neu starten
+    if laufend is None:
+        laufend = asyncio.get_running_loop().create_task(
+            _vom_server(kennung, frisch=False), name=f"master-skill-erstabruf-{kennung}",
+            context=contextvars.Context())
+        _erstabrufe[kennung] = laufend
+
+        def _fertig(aufgabe: asyncio.Task[str | None]) -> None:
+            if _erstabrufe.get(kennung) is aufgabe:
+                del _erstabrufe[kennung]
+
+        laufend.add_done_callback(_fertig)
+    return await asyncio.shield(laufend)
+
+
+async def _vom_server(kennung: str, *, frisch: bool) -> str | None:
+    """Abrufen und das Ergebnis ablegen — ein überholter Abruf ändert nichts."""
     abruf_nr = next(_abruf_nummern)
     text, fehler, verwerfen = await _abrufen(kennung, frisch=frisch)
     if _angewendet.get(kennung, 0) > abruf_nr:
