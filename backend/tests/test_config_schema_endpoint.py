@@ -13,9 +13,9 @@ from boerdi.settings import get_settings
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t-test")
+    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t-test-0123")
     get_settings.cache_clear()
-    return TestClient(create_app()), {"X-Studio-Key": "s3cr3t-test"}
+    return TestClient(create_app()), {"X-Studio-Key": "s3cr3t-test-0123"}
 
 
 def test_all_35_logical_areas_return_valid_schema(client) -> None:

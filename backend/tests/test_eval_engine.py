@@ -40,7 +40,7 @@ from tests.test_eval_router import (
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
     app = create_app()
     app.dependency_overrides[get_session] = lambda: _SESSION

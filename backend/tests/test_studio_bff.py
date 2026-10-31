@@ -62,7 +62,7 @@ def _studio_env(monkeypatch):
     """Configured gate + configured backend key, limiter reset around each test
     (the login limit is a fixed 10/minute and would leak between tests)."""
     monkeypatch.setenv("STUDIO_PASSWORD", PASSWORD)
-    monkeypatch.setenv("STUDIO_API_KEY", "backend-key")
+    monkeypatch.setenv("STUDIO_API_KEY", "backend-key-0123")
     monkeypatch.delenv("BOERDI_ALLOW_OPEN_ADMIN", raising=False)
     monkeypatch.delenv("STUDIO_DIST_DIR", raising=False)
     get_settings.cache_clear()
@@ -188,7 +188,7 @@ def test_a_client_supplied_key_cannot_bypass_the_cookie_gate(client: TestClient)
     """ALT forwarded all client headers verbatim and only overwrote X-Studio-Key
     when STUDIO_API_KEY was non-empty ([...path]/route.ts:39-44) — the proxy was
     not a trust boundary for that header. Here it is."""
-    resp = client.get(PROBE, headers={"X-Studio-Key": "backend-key"})
+    resp = client.get(PROBE, headers={"X-Studio-Key": "backend-key-0123"})
     assert resp.status_code == 401
 
 
@@ -267,7 +267,7 @@ def test_proxy_forwards_path_query_and_headers_verbatim() -> None:
     # consumed. ALT forwarded every header verbatim.
     assert "cookie" not in names
     assert names.count("x-studio-key") == 1
-    assert dict(seen["headers"])[b"x-studio-key"] == b"backend-key"  # type: ignore[arg-type]
+    assert dict(seen["headers"])[b"x-studio-key"] == b"backend-key-0123"  # type: ignore[arg-type]
     assert dict(seen["headers"])[b"x-custom"] == b"bleibt"  # type: ignore[arg-type]
 
 

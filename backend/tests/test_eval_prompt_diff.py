@@ -70,7 +70,7 @@ def test_unbekannte_fassung_ist_404() -> None:
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
     app = create_app()
     app.dependency_overrides[get_session] = lambda: "S"
@@ -88,14 +88,14 @@ def test_route_reicht_beide_pruefsummen_weiter(client, monkeypatch) -> None:
 
     monkeypatch.setattr(eval_api, "prompt_diff", fake)
     r = client.get("/api/eval/prompt-diff", params={"a": "aaaaaaaaaaaa", "b": "bbbbbbbbbbbb"},
-                   headers={"X-Studio-Key": "k"})
+                   headers={"X-Studio-Key": "k-studio-testkey"})
     assert r.status_code == 200 and aufrufe == [("S", "aaaaaaaaaaaa", "bbbbbbbbbbbb")]
 
 
 @pytest.mark.parametrize("a", ["zu-kurz", "AAAAAAAAAAAA", "aaaaaaaaaaaa'--"])
 def test_route_nimmt_nur_pruefsummen(client, a) -> None:
     r = client.get("/api/eval/prompt-diff", params={"a": a, "b": "bbbbbbbbbbbb"},
-                   headers={"X-Studio-Key": "k"})
+                   headers={"X-Studio-Key": "k-studio-testkey"})
     assert r.status_code == 422
 
 

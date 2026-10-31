@@ -32,7 +32,7 @@ from boerdi.services import config_loader
 from boerdi.services.mcp import tool_descriptions, transport
 from boerdi.settings import get_settings
 
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 
 
 @pytest.fixture(autouse=True)
@@ -105,7 +105,7 @@ async def test_enriches_only_enabled_with_url_and_tools(monkeypatch, handshakes)
 def test_get_endpoint_returns_the_enriched_list(monkeypatch) -> None:
     """The GET endpoint is a one-liner over the service — pin that it awaits the
     service and serialises its result (offline: the service is spied)."""
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
 
     async def _enriched():

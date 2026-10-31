@@ -25,14 +25,14 @@ from boerdi.api.deps import get_session
 from boerdi.main import create_app
 from boerdi.settings import get_settings
 
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 _SESSION = object()  # sentinel: whatever get_session yields must reach the service
 _VALID = "bb-0123456789abcdef0123456789abcdef"
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     monkeypatch.setenv("RATE_LIMIT_CHAT", "off")  # public endpoint: no 429 interference
     get_settings.cache_clear()
     app = create_app()

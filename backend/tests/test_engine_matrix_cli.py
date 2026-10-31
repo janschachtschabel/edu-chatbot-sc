@@ -55,12 +55,12 @@ def test_der_studio_schluessel_reist_nur_als_kopfzeile(monkeypatch, capsys) -> N
         gesehen["key"] = req.headers.get("X-Studio-Key")
         return httpx.Response(200, json=FLOWS)
 
-    monkeypatch.setenv("STUDIO_API_KEY", "geheim-123")
+    monkeypatch.setenv("STUDIO_API_KEY", "geheim-123-4567")
     _netz(monkeypatch, handler)
     with em.client("http://x") as c:
         em.flow_ids(c, [], [])
-    assert gesehen["key"] == "geheim-123"
-    assert "geheim-123" not in capsys.readouterr().out
+    assert gesehen["key"] == "geheim-123-4567"
+    assert "geheim-123-4567" not in capsys.readouterr().out
 
 
 def test_start_wartet_solange_ein_anderer_lauf_laeuft(monkeypatch) -> None:

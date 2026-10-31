@@ -45,32 +45,32 @@ def test_change_me_placeholder_fails_closed(monkeypatch):
 
 
 def test_correct_key_in_header_passes(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t")
-    assert _call(header="s3cr3t") is None
+    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t-0123456789")
+    assert _call(header="s3cr3t-0123456789") is None
 
 
 def test_query_key_not_accepted(monkeypatch):
     # key is header-only (never query params -> proxy/Referer logs)
-    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t")
+    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t-0123456789")
     assert "key" not in inspect.signature(deps.require_studio_key).parameters
 
 
 def test_wrong_key_raises_401(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t")
+    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t-0123456789")
     with pytest.raises(HTTPException) as exc:
         _call(header="falsch")
     assert exc.value.status_code == 401
 
 
 def test_missing_key_when_configured_raises_401(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t")
+    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t-0123456789")
     with pytest.raises(HTTPException):
         _call(header=None)
 
 
 def test_key_is_stripped(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "  s3cr3t  ")
-    assert _call(header="s3cr3t") is None
+    monkeypatch.setenv("STUDIO_API_KEY", "  s3cr3t-0123456789  ")
+    assert _call(header="s3cr3t-0123456789") is None
 
 
 def test_http_matrix_on_studio_route(monkeypatch):
@@ -91,13 +91,14 @@ def test_http_matrix_on_studio_route(monkeypatch):
     from boerdi.main import create_app
     from boerdi.settings import get_settings
 
-    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t")
+    monkeypatch.setenv("STUDIO_API_KEY", "s3cr3t-0123456789")
     get_settings.cache_clear()
     client = TestClient(create_app())
     assert client.get("/api/debug/mcp-test").status_code == 401
     assert client.get("/api/debug/mcp-test", headers={"X-Studio-Key": "falsch"}).status_code == 401
     # correct key reaches the stub (501 until P5-1)
-    assert client.get("/api/debug/mcp-test", headers={"X-Studio-Key": "s3cr3t"}).status_code == 501
+    richtig = {"X-Studio-Key": "s3cr3t-0123456789"}
+    assert client.get("/api/debug/mcp-test", headers=richtig).status_code == 501
     # Eine oeffentliche Route bleibt offen: ohne Schluessel erreicht die Anfrage
     # ihren Handler. Geprueft wird genau das — NICHT, was der Handler dann sagt.
     #

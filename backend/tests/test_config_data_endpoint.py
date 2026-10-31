@@ -35,7 +35,7 @@ pytestmark = [
 ]
 
 _DB = "boerdi_p9_data_test"
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 _WELCOME = "01-base/welcome-config"
 
 
@@ -59,7 +59,7 @@ def cfg(_module_db, monkeypatch):
     )
     store = ConfigStore(engine, listen_dsn=pg_utils.asyncpg_dsn(_DB))
     config_loader.bind_store(store)
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
     client = TestClient(create_app())
 
