@@ -22,13 +22,34 @@ export interface ChatStreamEvent {
   data: any;
 }
 
-/** Stale-Abbruch: 100 s lang kein BENANNTES Server-Event (connected/phase/
- *  text_delta/result/error). Der Aufrufer zeigt eine ehrliche Meldung statt still auf
- *  POST /chat zu fallen (was die Wartezeit verdoppeln würde). Klasse statt
- *  ALTs `Error`+`err.name=` — `.name`-Kontrakt identisch, zusätzlich
- *  `instanceof`-fähig. */
+/**
+ * Frist, nach der ein Zug als „veraltet“ gilt — Strom (ohne benannten Rahmen) wie
+ * POST (ohne Antwort). Paket 19 (Audit 2026-10-31 N-18): seit Paket 18F wartet das
+ * Backend erst bis zu `LLM_SLOT_WAIT_S` (30 s) auf einen Platz und dann bis zu
+ * `LLM_READ_TIMEOUT` (75 s) auf das Modell; ohne Token-Streaming kommt dazwischen
+ * kein Rahmen. 30 + 75 + 15 s Puffer (Werkzeugaufrufe, Netz) = 120 s — die alten
+ * 100 s meldeten „veraltet“, obwohl der Server Sekunden später speicherte.
+ */
+export const STALE_MS = 120_000;
+
+/**
+ * Frist für den POST-Rückfall eines Chat-Zugs (Paket 19, Review zu M-15). Ohne
+ * Strom gibt es keine Fortschrittsrahmen, und ein Zug kann ein ganzer Agent-Lauf
+ * sein: Werksvorgabe `deadline_s` 900 s (`seeds/01-base/engine.yaml`,
+ * `services/agent_frist.py`) + 30 s Platzwartezeit + 30 s Puffer. Wer die
+ * Agent-Frist im Studio über 900 s hebt (bis 1800 s), dem endet der POST-Rückfall
+ * hier früher — die Antwort steht dann im Verlauf (`error.stale` sagt das).
+ * Tour, Kontext-Ping und Karten-Aktionen bleiben bei {@link STALE_MS}.
+ */
+export const ZUG_POST_FRIST_MS = 960_000;
+
+/** Stale-Abbruch: {@link STALE_MS} lang kein BENANNTES Server-Event (connected/
+ *  phase/text_delta/result/error) bzw. keine Antwort auf den POST. Der Aufrufer
+ *  zeigt eine ehrliche Meldung statt still auf POST /chat zu fallen (was die
+ *  Wartezeit verdoppeln würde). Klasse statt ALTs `Error`+`err.name=` —
+ *  `.name`-Kontrakt identisch, zusätzlich `instanceof`-fähig. */
 export class StreamStaleError extends Error {
-  constructor(message = 'Stream stale: keine Server-Events seit 100 s') {
+  constructor(message = 'Stream stale: keine Server-Events innerhalb der Frist') {
     super(message);
     this.name = 'StreamStaleError';
   }
@@ -107,9 +128,11 @@ export interface StreamChatOptions {
   onEvent: (evt: ChatStreamEvent) => void;
   /** Injizierbar für Tests; Default `globalThis.fetch`. */
   fetchImpl?: typeof fetch;
-  /** Idle-Byte-Watchdog (B9), Default 90 s. */
+  /** Idle-Byte-Watchdog (B9), Default 90 s. Bleibt unter {@link STALE_MS}: das
+   *  Backend schickt alle 10 s ein Keepalive (`api/sse.py`), 90 s ohne jedes Byte
+   *  heißen also wirklich „Verbindung tot“. */
   idleMs?: number;
-  /** Stale-Named-Event-Watchdog (B10), Default 100 s. */
+  /** Stale-Named-Event-Watchdog (B10), Default {@link STALE_MS}. */
   staleMs?: number;
   /** Zusätzliche Kopfzeilen dieses Zuges (heute: `X-Boerdi-Engine`).
    *
@@ -130,14 +153,16 @@ export interface StreamChatOptions {
  * Watchdogs (Verbatim-Kontrakt aus ALT):
  *   - B9 Idle 90 s: jede Byte-Lieferung resettet; ohne Bytes → AbortError →
  *     der Aufrufer fällt auf seinen Fehlerpfad (bzw. POST /chat).
- *   - B10 Stale 100 s: nur BENANNTE Events resetten; sonst → StreamStaleError
- *     (der Aufrufer fällt NICHT auf POST /chat, um die Wartezeit nicht zu
- *     verdoppeln). 100 s = Backend-LLM_READ_TIMEOUT 75 s + SDK-Retry-Puffer.
+ *   - B10 Stale {@link STALE_MS} (120 s): nur BENANNTE Events resetten; sonst →
+ *     StreamStaleError (der Aufrufer fällt NICHT auf POST /chat, um die
+ *     Wartezeit nicht zu verdoppeln). 120 s = Backend-LLM_SLOT_WAIT_S 30 s +
+ *     LLM_READ_TIMEOUT 75 s + Puffer (Paket 19, N-18; vorher 100 s ohne die
+ *     Platzwartezeit).
  */
 export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<T> {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const idleMs = opts.idleMs ?? 90_000;
-  const staleMs = opts.staleMs ?? 100_000;
+  const staleMs = opts.staleMs ?? STALE_MS;
 
   const abort = new AbortController();
   let watchdog: ReturnType<typeof setTimeout> | null = null;
@@ -266,25 +291,47 @@ export interface PostChatOptions {
    *  treffen wie der Stream, sonst wechselte ein Zug bei einem Stream-Abbruch
    *  stillschweigend die Engine. */
   extraHeaders?: Record<string, string>;
+  /** Frist bis zur vollständigen Antwort, Default {@link STALE_MS} (Paket 19, M-15). */
+  fristMs?: number;
 }
 
 /**
  * Non-streaming Fallback POST /api/chat — die Shell nutzt ihn, wenn der Stream
- * mit einem NICHT-stale Fehler abbricht. Verbatim-Port des ALT
- * `ApiService.sendMessage`-Transports (ohne die environment-Formung).
+ * mit einem NICHT-stale Fehler abbricht; Tour, Kontext-Ping und Karten-Aktionen
+ * gehen nur diesen Weg. Verbatim-Port des ALT `ApiService.sendMessage`-Transports
+ * (ohne die environment-Formung).
+ *
+ * Paket 19 (Audit 2026-10-31 M-15): mit Frist. Ohne sie standen Ladeblase und
+ * gesperrtes Feld bis zum Browser-Timeout (~5 min), einziger Ausweg „Neustart“.
+ * Nach der Frist → {@link StreamStaleError}; der Aufrufer zeigt `error.stale` und
+ * gibt Laden und Eingabe frei.
  */
 export async function postChat<T = unknown>(opts: PostChatOptions): Promise<T> {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
-  const resp = await fetchImpl(opts.url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...accessBlockHeaders(),
-      ...(opts.extraHeaders ?? {}),
-    },
-    body: JSON.stringify(opts.body),
-  });
-  // Der Status reist mit (Paket 7, P1): ein 409 heißt „Sitzung beschäftigt“.
-  if (!resp.ok) throw httpFehler(resp, 'Chat error');
-  return resp.json() as Promise<T>;
+  const abort = new AbortController();
+  let abgelaufen = false;
+  const uhr = setTimeout(() => {
+    abgelaufen = true;
+    abort.abort();
+  }, opts.fristMs ?? STALE_MS);
+  try {
+    const resp = await fetchImpl(opts.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...accessBlockHeaders(),
+        ...(opts.extraHeaders ?? {}),
+      },
+      body: JSON.stringify(opts.body),
+      signal: abort.signal,
+    });
+    // Der Status reist mit (Paket 7, P1): ein 409 heißt „Sitzung beschäftigt“.
+    if (!resp.ok) throw httpFehler(resp, 'Chat error');
+    // Auch der Rumpf liegt in der Frist — er kann nach den Kopfzeilen hängen.
+    return (await resp.json()) as T;
+  } catch (e) {
+    throw abgelaufen ? new StreamStaleError() : e;
+  } finally {
+    clearTimeout(uhr);
+  }
 }

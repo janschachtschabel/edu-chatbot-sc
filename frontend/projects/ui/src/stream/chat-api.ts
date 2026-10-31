@@ -391,10 +391,11 @@ export class ChatApiClient {
     });
   }
 
-  /** Non-streaming Fallback-Turn (POST /api/chat). */
+  /** Non-streaming Fallback-Turn (POST /api/chat). `fristMs` — eigene Frist
+   *  (Paket 19, M-15); ohne Angabe die Vorgabe von `postChat` (`STALE_MS`). */
   async post(
     sessionId: string, message: string, env?: Partial<Environment>,
-    action?: string, actionParams?: Record<string, any>,
+    action?: string, actionParams?: Record<string, any>, fristMs?: number,
   ): Promise<ChatResponse> {
     await this.anmeldung;
     return postChat<ChatResponse>({
@@ -402,6 +403,7 @@ export class ChatApiClient {
       body: this.buildBody(sessionId, message, env, action, actionParams),
       fetchImpl: this.fetchImpl,
       extraHeaders: this.turnHeaders(),
+      ...(fristMs === undefined ? {} : { fristMs }),
     });
   }
 

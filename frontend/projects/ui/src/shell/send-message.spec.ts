@@ -675,3 +675,25 @@ describe('runSendMessage — zu viele Anfragen (Paket 18F)', () => {
     warn.mockRestore();
   });
 });
+
+// ── Paket 19, Audit 2026-10-31 M-15 + N-33 ──────────────────────────────────
+describe('runSendMessage — POST-Frist und Host-Rückruf (Paket 19)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // M-15: der POST-Rückfall läuft jetzt in eine Frist (StreamStaleError) — dann
+  // dieselbe ehrliche Blase wie beim Strom, Laden und Eingabe frei.
+  it('POST-Rückfall läuft in seine Frist → „veraltet“-Blase, Laden frei, Frage zurück (M-15)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const frist = Object.assign(new Error('frist'), { name: 'StreamStaleError' });
+    const r = makeCtx({
+      input: 'Frage',
+      stream: () => Promise.reject(new Error('network')),
+      post: () => Promise.reject(frist),
+    });
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.bots.at(-1)?.content).toBe(STALE_TEXT);
+    expect(r.inputSet).toEqual(['Frage']);
+    expect(r.loading.at(-1)).toBe(false);
+    expect(r.results).toEqual([]);
+  });
+});

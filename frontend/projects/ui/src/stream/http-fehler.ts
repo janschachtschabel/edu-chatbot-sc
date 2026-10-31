@@ -37,3 +37,10 @@ export function drosselHinweis(t: TranslateFn, err: unknown): string | null {
     ? t('error.rateLimitedWait', { sekunden: Math.ceil(ms / 1000) })
     : t('error.rateLimited');
 }
+
+/** Der Satz für „Frist abgelaufen“ (Paket 19, M-15): der POST lief in seine Frist
+ *  (`StreamStaleError` aus `postChat`) — sonst `null`. Über den Namen, nicht über
+ *  `instanceof`: so bleibt dieses Modul frei vom Strom-Transport. */
+export function fristHinweis(t: TranslateFn, err: unknown): string | null {
+  return (err as { name?: unknown } | null)?.name === 'StreamStaleError' ? t('error.stale') : null;
+}

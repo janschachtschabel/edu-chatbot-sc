@@ -22,6 +22,7 @@ import { QuickRepliesComponent } from '../chips/quick-replies.component';
 import { BOERDI_LOGO_DATA_URL } from '../branding/boerdi-logo';
 import { SHELL_PRINT } from '../print/print-gates';
 import { ChatApiClient } from '../stream/chat-api';
+import { ZUG_POST_FRIST_MS } from '../stream/stream-client';
 import { formatPhaseLabel } from '../stream/phase-label';
 import {
   browseCollection, generateLearningPath, loadMore, showContentText, showMoreCards,
@@ -427,8 +428,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       ? { page_context: this.parsedPageContext } : undefined,
     stream: (msg, onEvent, env, action, actionParams) =>
       this._api.stream(this.sessionId, msg, onEvent, env as any, action, actionParams),
+    // Review zu M-15: der POST-Rückfall eines Zugs hat keine Fortschrittsrahmen
+    // und kann ein ganzer Agent-Lauf sein — eigene, längere Frist.
     post: (msg, env, action, actionParams) =>
-      this._api.post(this.sessionId, msg, env as any, action, actionParams),
+      this._api.post(this.sessionId, msg, env as any, action, actionParams, ZUG_POST_FRIST_MS),
     formatPhaseLabel: (evt) => formatPhaseLabel(evt, (k, p) => this.t(k, p)),
     onResult: (resp, msg) => this._onResult(resp, msg),
     t: (key, params) => this.t(key, params),

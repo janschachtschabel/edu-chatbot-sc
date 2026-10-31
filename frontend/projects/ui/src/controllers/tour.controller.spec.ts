@@ -210,3 +210,17 @@ describe('Paket 18E: Spur der Tour', () => {
     expect(ausgabe(debug)).not.toContain(MARKE);
   });
 });
+
+// ── Paket 19, Audit 2026-10-31 M-15: der POST der Tour läuft in eine Frist ───
+describe('TourController — Frist (Paket 19)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('startTour: Frist abgelaufen → „veraltet“-Satz, Laden frei', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const frist = Object.assign(new Error('frist'), { name: 'StreamStaleError' });
+    const { ctx, calls } = makeCtx({ sendMessage: async () => { throw frist; } });
+    await new TourController(ctx).startTour();
+    expect(calls.bot.at(-1)?.content).toBe(DE['error.stale']);
+    expect(calls.loading).toEqual([true, false]);
+  });
+});

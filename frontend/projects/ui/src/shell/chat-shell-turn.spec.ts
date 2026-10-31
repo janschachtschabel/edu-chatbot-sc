@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatResponse } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
+import { ZUG_POST_FRIST_MS } from '../stream/stream-client';
 import { ChatShellComponent } from './chat-shell.component';
 
 /**
@@ -166,6 +167,19 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     expect(qm).toBeTruthy();
     expect((qm![0] as CustomEvent).detail).toEqual({ queries: RESP.query_metas });
     expect(onPageAction).toHaveBeenCalledWith({ action: 'canvas', payload: { n: 1 } });
+  });
+
+  // Review zu M-15: der POST-Rückfall eines Chat-Zugs bekommt die Frist eines
+  // Agent-Laufs, nicht die 120 s des Stroms (dort fehlen die Fortschrittsrahmen).
+  it('der POST-Rückfall eines Zugs läuft mit ZUG_POST_FRIST_MS (M-15)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const c = make();
+    const api = fakeApi({ streamRejects: new Error('netz') });
+    (c as any)._api = api;
+
+    await c.sendMessage('frag');
+
+    expect((api.post.mock.calls[0] as unknown[])?.[5]).toBe(ZUG_POST_FRIST_MS);
   });
 
   // ── Das maschinenlesbare Ergebnis (Nutzer-Entscheid 2026-08-14) ──────

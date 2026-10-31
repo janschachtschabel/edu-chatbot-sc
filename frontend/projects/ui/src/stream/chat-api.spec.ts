@@ -140,6 +140,22 @@ describe('ChatApiClient', () => {
     });
   });
 
+  // Review zu M-15: der POST-Rückfall eines Zugs darf eine eigene Frist haben.
+  it('post reicht eine Frist an postChat durch (M-15)', async () => {
+    vi.useFakeTimers();
+    try {
+      const haengt = ((_u: unknown, init: RequestInit) => new Promise<Response>((_ok, nein) => {
+        init.signal?.addEventListener('abort', () => nein(new DOMException('aborted', 'AbortError')));
+      })) as unknown as typeof fetch;
+      const p = new ChatApiClient({ fetchImpl: haengt }).post('s', 'm', undefined, undefined, undefined, 500);
+      const fehler = p.catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(501);
+      expect((await fehler as Error).name).toBe('StreamStaleError');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // ── Sprache des Widgets (C1-f1) ────────────────────────────────────────
   // `environment.locale` stand seit je im Vertrag und wurde aus
   // `navigator.language` gefuellt — also aus dem Browser, nicht aus der

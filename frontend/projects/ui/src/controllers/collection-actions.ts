@@ -26,7 +26,7 @@ import {
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { fehlerKurz } from '../obs/fehler-kurz';
-import { drosselHinweis } from '../stream/http-fehler';
+import { drosselHinweis, fristHinweis } from '../stream/http-fehler';
 import { sitzungsWache } from '../session/session-id';
 
 /** Live-Zustand/Seiteneffekte der ChatComponent, die die Aktionen
@@ -99,7 +99,8 @@ export async function browseCollection(
     console.warn('boerdi: Sammlung nicht geladen —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(
-      drosselHinweis(ctx.t, err) ?? ctx.t('error.browseCollection', { title }));
+      drosselHinweis(ctx.t, err) ?? fristHinweis(ctx.t, err)
+        ?? ctx.t('error.browseCollection', { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);
@@ -146,7 +147,8 @@ export async function showContentText(
     console.warn('boerdi: Inhaltstext nicht geladen —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(
-      drosselHinweis(ctx.t, err) ?? ctx.t('error.contentText', { title }));
+      drosselHinweis(ctx.t, err) ?? fristHinweis(ctx.t, err)
+        ?? ctx.t('error.contentText', { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);
@@ -179,7 +181,8 @@ export async function generateLearningPath(
     console.warn('boerdi: Lernpfad nicht erzeugt —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(
-      drosselHinweis(ctx.t, err) ?? ctx.t('error.learningPath', { title }));
+      drosselHinweis(ctx.t, err) ?? fristHinweis(ctx.t, err)
+        ?? ctx.t('error.learningPath', { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);
@@ -261,6 +264,12 @@ export async function loadMore(msgId: string, ctx: CollectionActionsContext): Pr
     if (veraltet()) return;
     // Review 2026-10-30: nur die Art des Fehlers — sein Text kann Antwortinhalt tragen.
     console.error('Load more failed:', fehlerKurz(err));
+    // Paket 19 (Audit 2026-10-31 N-34): sonst scheiterte „Weitere laden“ still —
+    // der Knopf stand wieder da, ohne dass jemand wusste, warum nichts kam.
+    const errId = ctx.addBotMessage(
+      drosselHinweis(ctx.t, err) ?? fristHinweis(ctx.t, err)
+        ?? ctx.t('error.browseCollection', { title: p.collection_title }));
+    ctx.setScrollTarget(errId);
   }
 
   ctx.setLoading(false);

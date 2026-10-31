@@ -23,7 +23,7 @@ import { ChatResponse, UiInfo } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { sitzungsWache } from '../session/session-id';
 import { fehlerKurz } from '../obs/fehler-kurz';
-import { drosselHinweis } from '../stream/http-fehler';
+import { drosselHinweis, fristHinweis } from '../stream/http-fehler';
 import { ChatStreamEvent } from '../stream/stream-client';
 
 /** Was die Nachfrage im Verlauf braucht (Paket 7, P2; Review C-3/C-4). */
@@ -287,7 +287,9 @@ async function perPost(zug: Zug, streamErr: unknown): Promise<ChatResponse | nul
     return await ctx.post(zug.msg, zug.env, zug.action, zug.actionParams);
   } catch (postErr) {
     if (veraltet()) return null;
-    const gedrosselt = drosselHinweis(ctx.t, postErr);
+    // Paket 19 (M-15): der POST hat jetzt eine Frist — dieselbe ehrliche Blase
+    // wie beim Strom, die getippte Frage zurück ins Feld.
+    const gedrosselt = drosselHinweis(ctx.t, postErr) ?? fristHinweis(ctx.t, postErr);
     if (gedrosselt) return hinweis(zug, gedrosselt);
     if (!istBeschaeftigt(postErr)) throw postErr;
     return hinweis(zug, ctx.t('error.busy'));
