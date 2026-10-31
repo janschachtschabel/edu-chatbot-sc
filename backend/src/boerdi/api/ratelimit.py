@@ -24,6 +24,8 @@ Both count independently and are meant to: env is the operator's knob, the
 safety config is the editorial team's.
 """
 
+import ipaddress
+
 from slowapi import Limiter
 
 from boerdi.settings import RATE_LIMIT_AUS, get_settings
@@ -44,6 +46,25 @@ def peer_ip(request) -> str:
         return (request.client.host if request.client else "") or ""
     except Exception:
         return ""
+
+
+def drossel_schluessel(request) -> str:
+    """Der Schlüssel der Drosselung: :func:`peer_ip`, IPv6 aber als /64-Netz (Paket 19, M-4).
+
+    Ein Anschluss bekommt meist ein ganzes /64 — mit der einzelnen Adresse als Schlüssel hätte
+    jeder Aufruf einen eigenen Topf. IPv4 in IPv6 (``::ffff:1.2.3.4``) zählt als IPv4.
+    ``peer_ip`` selbst bleibt unverändert: die Logs nennen die echte Adresse.
+    """
+    ip = peer_ip(request)
+    try:
+        adresse = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(adresse, ipaddress.IPv6Address):
+        if adresse.ipv4_mapped is not None:
+            return str(adresse.ipv4_mapped)
+        return str(ipaddress.IPv6Network((adresse, 64), strict=False))
+    return ip
 
 
 def _limit_disabled() -> bool:
@@ -77,7 +98,7 @@ def _chat_limit() -> str:
 # the off-switch are evaluated per request, so env/settings changes in tests
 # take effect without rebuilding the limiter.
 limiter = Limiter(
-    key_func=peer_ip,
+    key_func=drossel_schluessel,
     storage_uri=get_settings().rate_limit_storage_uri,
     headers_enabled=True,
 )
