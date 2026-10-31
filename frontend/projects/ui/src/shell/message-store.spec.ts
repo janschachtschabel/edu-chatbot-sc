@@ -22,6 +22,10 @@ import { MessageStore } from './message-store';
  * Abhängigkeit (Verlagerungs-Gewinn ggü. der Component-Spec vorher).
  */
 
+/** Rahmen-Planer, der sofort schreibt — für die Fälle, in denen es um den Inhalt
+ *  geht, nicht um die Drosselung (Paket 19, N-40). */
+const sofort = (cb: () => void) => cb();
+
 describe('MessageStore — State-Core', () => {
   it('Default-State: leere messages', () => {
     expect(new MessageStore().messages()).toEqual([]);
@@ -125,7 +129,7 @@ describe('MessageStore — State-Core', () => {
   // gesendeten Texts. Passt er nicht, fehlt ein Stück — dann wird nichts mehr
   // angehängt, und `result` bringt am Ende den ganzen Text.
   it('appendStreamText: hängt an, solange pos zur bisherigen Länge passt', () => {
-    const s = new MessageStore();
+    const s = new MessageStore(sofort);
     const loadingId = s.addBotMessage('', true);
     const byId = (id: string) => s.messages().find(m => m.id === id)!;
 
@@ -141,7 +145,7 @@ describe('MessageStore — State-Core', () => {
   // Review Token-Streaming, M1: `pos` zählt Unicode-Zeichen (Python `len`),
   // JavaScript-`length` dagegen UTF-16-Einheiten — ein Emoji zählt dort doppelt.
   it('appendStreamText: Emoji im Strom zählt als ein Zeichen wie beim Server', () => {
-    const s = new MessageStore();
+    const s = new MessageStore(sofort);
     const loadingId = s.addBotMessage('', true);
     const emoji = String.fromCodePoint(0x1F600);
     s.appendStreamText(loadingId, 'Grüße ' + emoji, 0);
@@ -150,14 +154,14 @@ describe('MessageStore — State-Core', () => {
   });
 
   it('appendStreamText: nur auf der ladenden Bubble mit passender id', () => {
-    const s = new MessageStore();
+    const s = new MessageStore(sofort);
     const doneId = s.addBotMessage('fertig', false);
     s.appendStreamText(doneId, 'x', 0);
     expect(s.messages()[0].streamText).toBeUndefined();
   });
 
   it('clearStreamText: leert den vorläufigen Text und hebt die Sperre nach einer Lücke auf', () => {
-    const s = new MessageStore();
+    const s = new MessageStore(sofort);
     const loadingId = s.addBotMessage('', true);
     const byId = (id: string) => s.messages().find(m => m.id === id)!;
     s.appendStreamText(loadingId, 'Hal', 0);
@@ -176,5 +180,92 @@ describe('MessageStore — State-Core', () => {
     s.addUserMessage('u');
     s.update(msgs => msgs.map(m => ({ ...m, content: m.content + '!' })));
     expect(s.messages()[0].content).toBe('u!');
+  });
+});
+
+// ── Paket 19, Audit 2026-10-31 N-40: Token-Streaming gedrosselt ─────────────
+// Je `text_delta` lief der ganze Teiltext durch marked + DOMPurify (quadratisch),
+// und `Array.from(bisher).length` zählte jedes Mal den ganzen Text nach. Jetzt
+// sammelt der Store die Stücke und schreibt sie einmal je Rahmen.
+describe('MessageStore — Streaming je Rahmen (N-40)', () => {
+  function mitRahmen() {
+    const rahmen: Array<() => void> = [];
+    const s = new MessageStore((cb) => { rahmen.push(cb); });
+    const naechster = () => { const r = rahmen.splice(0); r.forEach((cb) => cb()); };
+    return { s, rahmen, naechster };
+  }
+
+  it('viele Stücke in einem Rahmen → ein Schreibvorgang, Endstand exakt', () => {
+    const { s, rahmen, naechster } = mitRahmen();
+    const id = s.addBotMessage('', true);
+    const stuecke = ['Die ', 'Photo', 'synthese ', String.fromCodePoint(0x1F33F), ' braucht ', 'Licht.'];
+    let pos = 0;
+    let schreibvorgaenge = 0;
+    for (const t of stuecke) {
+      s.appendStreamText(id, t, pos);
+      pos += Array.from(t).length;
+    }
+    expect(s.messages().find((m) => m.id === id)!.streamText).toBeUndefined();  // noch nichts gerendert
+    expect(rahmen).toHaveLength(1);                                             // genau ein Rahmen geplant
+    const alt = s.messages();
+    naechster();
+    if (s.messages() !== alt) schreibvorgaenge++;
+    expect(schreibvorgaenge).toBe(1);
+    expect(s.messages().find((m) => m.id === id)!.streamText).toBe(stuecke.join(''));
+  });
+
+  it('Lücken-Erkennung zählt auch die noch nicht geschriebenen Stücke', () => {
+    const { s, naechster } = mitRahmen();
+    const id = s.addBotMessage('', true);
+    s.appendStreamText(id, 'Hal', 0);
+    s.appendStreamText(id, 'lo', 3);       // pos passt zum Puffer, obwohl noch nichts geschrieben ist
+    s.appendStreamText(id, '!', 9);        // Lücke
+    s.appendStreamText(id, '?', 5);        // danach bleibt der Strom stehen
+    naechster();
+    expect(s.messages()[0].streamText).toBe('Hallo');
+  });
+
+  it('über mehrere Rahmen hinweg derselbe Endstand wie ungedrosselt', () => {
+    const { s, naechster } = mitRahmen();
+    const ref = new MessageStore(sofort);
+    const id = s.addBotMessage('', true);
+    const refId = ref.addBotMessage('', true);
+    const text = 'Ein längerer Satz mit Ümläuten, Emoji ' + String.fromCodePoint(0x1F600) + ' und **Markdown**.';
+    const zeichen = Array.from(text);
+    let pos = 0;
+    for (let i = 0; i < zeichen.length; i += 3) {
+      const stueck = zeichen.slice(i, i + 3).join('');
+      s.appendStreamText(id, stueck, pos);
+      ref.appendStreamText(refId, stueck, pos);
+      pos += Array.from(stueck).length;
+      if (i % 9 === 0) naechster();
+    }
+    naechster();
+    expect(s.messages()[0].streamText).toBe(text);
+    expect(s.messages()[0].streamText).toBe(ref.messages()[0].streamText);
+  });
+
+  it('ein Rahmen nach dem Entfernen der Ladeblase schreibt nichts zurück', () => {
+    const { s, naechster } = mitRahmen();
+    const id = s.addBotMessage('', true);
+    s.appendStreamText(id, 'Teil', 0);
+    s.removeMessage(id);
+    const fertig = s.addBotMessage('Fertige Antwort');
+    naechster();
+    expect(s.messages()).toHaveLength(1);
+    expect(s.messages()[0].id).toBe(fertig);
+    expect(s.messages()[0].streamText).toBeUndefined();
+  });
+
+  it('clearStreamText verwirft auch Stücke, die noch auf ihren Rahmen warten', () => {
+    const { s, naechster } = mitRahmen();
+    const id = s.addBotMessage('', true);
+    s.appendStreamText(id, 'Alt', 0);
+    s.clearStreamText(id);
+    naechster();
+    expect(s.messages()[0].streamText).toBeUndefined();
+    s.appendStreamText(id, 'Neu', 0);
+    naechster();
+    expect(s.messages()[0].streamText).toBe('Neu');
   });
 });

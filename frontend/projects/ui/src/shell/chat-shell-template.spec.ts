@@ -49,6 +49,7 @@ function store(c: ChatShellComponent) {
       set: (m: ChatMessage[]) => void;
       updateLoadingPhase: (id: string, label: string) => void;
       appendStreamText: (id: string, text: string, pos: number) => void;
+      streamTextSchreiben: () => void;
     };
   })._store;
 }
@@ -108,6 +109,7 @@ describe('ChatShellComponent — Message-Row-Template (8-4S-f3)', () => {
     const id = store(c).addBotMessage('', true);
     store(c).updateLoadingPhase(id, 'Formuliere Antwort…');
     store(c).appendStreamText(id, 'Photosynthese ist **wichtig**', 0);
+    store(c).streamTextSchreiben();   // Paket 19, N-40: sonst erst im nächsten Rahmen
     f.detectChanges();
 
     const strom = el.querySelector('.message-row [aria-hidden="true"]') as HTMLElement | null;
