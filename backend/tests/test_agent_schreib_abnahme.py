@@ -260,6 +260,8 @@ async def test_der_agent_zug_legt_vorschau_box_und_merkposten_an(welt, angemelde
         f"Kein Merkposten für den Folgezug: entities = "
         f"{sorted((zug1.session_state.get('entities') or {}).keys())}")
     assert merkposten.get("args") == _ARGS
+    # Paket 19 (Review 19-5, 2): die Kopie für eine erneute Anzeige bei unklarer Zustimmung.
+    assert "Die Sammlung „Bruchrechnen“ wird angelegt." in merkposten.get("vorschau", "")
 
 
 async def test_ohne_zustimmung_wird_nichts_ausgefuehrt_und_das_modell_sieht_keinen_schluessel(

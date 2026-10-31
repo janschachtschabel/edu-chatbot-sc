@@ -29,13 +29,19 @@ from __future__ import annotations
 
 import time
 
+import litellm
 import pytest
 
 from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.domain.write_confirm import remember_pending
 from boerdi.i18n.bot_text import bot_text
 from boerdi.services import write_approval as wa_mod
+from boerdi.services import zustimmung_pruefen as _zp
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.write_approval import discard_stale_approval, redeem_write_approval
+
+# Die echte Prüfung — ``conftest`` ersetzt sie für alle Tests (kein Netz).
+_ECHTES_URTEIL = _zp._llm_urteil
 
 _SESSION = object()  # Sentinel — jede DB-Grenze ist gepatcht.
 
@@ -630,3 +636,205 @@ class TestFreieZustimmung:
         zustand = _zustand(caller="p:andere")
         assert await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
         assert zustand[abnahme_hinweis.MERKER] is True
+
+
+_VORSCHAU = "Das Material „Arbeitsblatt Bruchrechnung“ wird angelegt."
+
+
+def _mit_vorschau(zustand: dict) -> dict:
+    """Der Merkposten trägt seit Review 19-5 (2) eine Kopie der gezeigten Vorschau."""
+    zustand["entities"]["_pending_write"]["vorschau"] = _VORSCHAU
+    return zustand
+
+
+class TestUnklareZustimmung:
+    """Paket 19, M-2: Fehlschlag ist keine Antwort. Konnte das Modell die freie Antwort nicht
+    beurteilen (Frist, ausgelastet, Anbieterfehler), bleibt der Vorgang stehen; die Person
+    bekommt die „ausgelastet“-Blase und den Bestätigungs-Chip. Geschrieben wird nie."""
+
+    @pytest.fixture
+    def _echtes_urteil(self, monkeypatch):
+        from boerdi.services import zustimmung_pruefen as zp
+        monkeypatch.setattr(zp, "_llm_urteil", _ECHTES_URTEIL)
+
+        def modell_scheitert(fehler: BaseException) -> None:
+            async def chat_completion(**_kwargs):
+                raise fehler
+            monkeypatch.setattr(zp.llm, "chat_completion", chat_completion)
+        return modell_scheitert
+
+    @pytest.fixture
+    def _zug(self):
+        from boerdi.services import llm_parallel
+        llm_parallel.binde_zug()
+        yield llm_parallel
+        llm_parallel._zug.set(None)
+
+    @pytest.mark.parametrize("fehler", [
+        TimeoutError(),
+        litellm.RateLimitError(message="429", llm_provider="openai", model="gpt-x"),
+        LlmAusgelastet("voll"),
+    ], ids=["frist", "anbieterfehler", "ausgelastet"])
+    @pytest.mark.asyncio
+    async def test_der_vorgang_bleibt_und_nichts_wird_geschrieben(
+            self, _grenzen, _echtes_urteil, _zug, fehler):
+        mcp, update, save = _grenzen
+        _echtes_urteil(fehler)
+        zustand = _mit_vorschau(_zustand())
+        assert await discard_stale_approval(_SESSION, _req("ja, rein damit"),
+                                            zustand) is False
+        assert "_pending_write" in zustand["entities"]  # im Speicher …
+        # … in der Datenbank verworfen (Review 19-5, 1): endet der Zug vor dem Vorlauf
+        # (Tour, Drosselung), löst kein späteres „ok“ den alten Vorgang ein.
+        assert "_pending_write" not in update.calls[-1][1]["entities"]
+
+        antwort = await redeem_write_approval(_SESSION, _req("ja, rein damit"), zustand)
+        assert antwort is not None
+        assert mcp.calls == []  # unklar schreibt NIE
+        assert antwort.content.startswith(bot_text("de", "error.llmBusy"))
+        assert bot_text("de", "write.consentUnclear") in antwort.content
+        assert antwort.quick_replies == [bot_text("de", "action.write.confirmChip")]
+        # Review 19-5 (2): die Vorschau steht wieder darunter — der Chip meint genau sie.
+        assert [d.kind for d in antwort.inline_documents] == ["schreib_vorschau"]
+        assert _VORSCHAU in antwort.inline_documents[0].content
+        assert _zug.blase_gezeigt()
+        assert "_pending_write" in zustand["entities"]
+        # Erst jetzt, mit gezeigtem Chip, steht der Vorgang wieder in der Datenbank.
+        assert "_pending_write" in update.calls[-1][1]["entities"]
+        assert len(save.calls) == 1  # die Blase steht im Verlauf
+
+    @pytest.mark.asyncio
+    async def test_der_bestaetigungs_chip_loest_danach_ein(self, _grenzen, _echtes_urteil, _zug):
+        mcp, _u, _s = _grenzen
+        _echtes_urteil(TimeoutError())
+        zustand = _mit_vorschau(_zustand())
+        await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
+        await redeem_write_approval(_SESSION, _req("ja, rein damit"), zustand)
+        # Folgezug: der Chip ist ein Listenwort — kein Modell nötig.
+        folge = {"persona_id": "P-AND", "entities": dict(zustand["entities"])}
+        chip = bot_text("de", "action.write.confirmChip")
+        assert await discard_stale_approval(_SESSION, _req(chip), folge) is False
+        assert await redeem_write_approval(_SESSION, _req(chip), folge) is not None
+        assert mcp.calls[0][0][0] == _WERKZEUG
+
+    @pytest.mark.asyncio
+    async def test_ein_gedrosselter_zug_laesst_keinen_vorgang_in_der_datenbank(
+            self, monkeypatch, _grenzen, _echtes_urteil):
+        """Review 19-5 (1): der Vorlauf drosselt VOR der Einlösung — der Zug endet ohne Chip."""
+        from types import SimpleNamespace
+
+        from boerdi.graph.nodes import preflight as pf
+        from boerdi.graph.state import TurnContext
+
+        _mcp, update, _s = _grenzen
+        _echtes_urteil(TimeoutError())
+
+        async def gedrosselt(*_a, **_k):
+            return SimpleNamespace(allowed=False, reason="session", blocked_message="Halt")
+
+        async def kein_ereignis(*_a, **_k):
+            return None
+
+        monkeypatch.setattr(pf, "check_rate_limit", gedrosselt)
+        monkeypatch.setattr(pf, "log_safety_event", kein_ereignis)
+        ctx = TurnContext(req=_req("ja, rein damit"))
+        ctx.session_state = _mit_vorschau(_zustand())
+        await discard_stale_approval(_SESSION, ctx.req, ctx.session_state)
+        await pf.preflight(ctx, _SESSION)
+        assert ctx.early_response.content == "Halt"
+        assert update.calls and all(
+            "_pending_write" not in c[1]["entities"] for c in update.calls)
+
+    @pytest.mark.asyncio
+    async def test_ein_tour_zug_laesst_keinen_vorgang_in_der_datenbank(
+            self, _grenzen, _echtes_urteil):
+        """Review 19-5 (1): ein Zug, der vor dem Vorlauf endet (die Tour schreibt nur
+        ``tour_state``), hinterlässt den Stand aus ``setup`` — ohne Vorgang."""
+        _mcp, update, _s = _grenzen
+        _echtes_urteil(TimeoutError())
+        zustand = _mit_vorschau(_zustand())
+        await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
+        assert len(update.calls) == 1
+        assert "_pending_write" not in update.calls[0][1]["entities"]
+
+    @pytest.mark.asyncio
+    async def test_ohne_gemerkte_vorschau_kein_chip(self, _grenzen, _echtes_urteil, _zug):
+        """Review 19-5 (2): ein Chip ohne sichtbare Vorschau hieße „ja“ zu Unbekanntem — ein
+        Vorgang ohne Kopie (vor diesem Stand gemerkt) fällt, die Blase bleibt."""
+        mcp, update, _s = _grenzen
+        _echtes_urteil(TimeoutError())
+        zustand = _zustand()
+        await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
+        antwort = await redeem_write_approval(_SESSION, _req("ja, rein damit"), zustand)
+        assert antwort is not None and antwort.quick_replies == []
+        assert antwort.content == bot_text("de", "error.llmBusy")
+        assert "_pending_write" not in zustand["entities"]
+        assert "_pending_write" not in update.calls[-1][1]["entities"]
+        assert mcp.calls == []
+
+    @pytest.mark.asyncio
+    async def test_ein_abgelaufener_vorgang_bekommt_keinen_chip(
+            self, _grenzen, _echtes_urteil):
+        """Review 19-5 (3): nach der Frist löste der Chip nichts mehr ein — der Vorgang fällt."""
+        from boerdi.domain.write_confirm import TOKEN_TTL_SECONDS
+        mcp, _u, _s = _grenzen
+        _echtes_urteil(TimeoutError())
+        zustand = _mit_vorschau(_zustand(alter=TOKEN_TTL_SECONDS + 5))
+        await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
+        assert await redeem_write_approval(_SESSION, _req("ja, rein damit"), zustand) is None
+        assert "_pending_write" not in zustand["entities"]
+        assert mcp.calls == []
+
+    @pytest.mark.asyncio
+    async def test_ein_dauerhafter_fehler_verwirft_wie_frueher(self, _grenzen, _echtes_urteil):
+        _echtes_urteil(RuntimeError("kaputt"))
+        zustand = _mit_vorschau(_zustand())
+        assert await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand) is True
+        assert "_pending_write" not in zustand["entities"]
+
+    @pytest.mark.asyncio
+    async def test_unklar_liest_kein_leser_als_zustimmung(self, _grenzen, _echtes_urteil):
+        from boerdi.services import zustimmung_pruefen as zp
+        _echtes_urteil(TimeoutError())
+        zustand = _zustand()
+        await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
+        # Vorlauf und Werkzeug-Schleife lesen den Merker — unklar ist nie Zustimmung.
+        assert zustand[zp.MERKER] is False
+        assert not zp.zugestimmt(zustand, "ja, rein damit")
+
+    @pytest.mark.asyncio
+    async def test_eine_klare_ablehnung_verwirft_wie_bisher(self, _grenzen, monkeypatch):
+        from boerdi.services import zustimmung_pruefen as zp
+
+        async def nein(_n, _w):
+            return False
+
+        monkeypatch.setattr(zp, "_llm_urteil", nein)
+        mcp, update, _s = _grenzen
+        zustand = _zustand()
+        assert await discard_stale_approval(_SESSION, _req("hm, eher nicht so"), zustand)
+        assert "_pending_write" not in zustand["entities"]
+        assert len(update.calls) == 1
+        assert await redeem_write_approval(_SESSION, _req("hm, eher nicht so"), zustand) is None
+        assert mcp.calls == []
+
+    @pytest.mark.asyncio
+    async def test_unklar_bei_fremdem_aufrufer_verwirft(
+            self, monkeypatch, _grenzen, _echtes_urteil):
+        _echtes_urteil(TimeoutError())
+        zustand = _zustand(caller="p:andere")
+        assert await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
+        assert "_pending_write" not in zustand["entities"]
+
+    @pytest.mark.asyncio
+    async def test_unklar_ohne_schreibrecht_bietet_keinen_chip(
+            self, monkeypatch, _grenzen, _echtes_urteil):
+        mcp, _u, _s = _grenzen
+        monkeypatch.setattr(wa_mod, "schreiben_erlaubt", lambda: False)
+        _echtes_urteil(TimeoutError())
+        zustand = _zustand()
+        await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
+        assert await redeem_write_approval(
+            _SESSION, _req("ja, rein damit"), zustand) is None
+        assert "_pending_write" not in zustand["entities"]
+        assert mcp.calls == []

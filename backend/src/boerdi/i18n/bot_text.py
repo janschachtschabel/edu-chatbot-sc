@@ -284,6 +284,13 @@ BOT_TEXT: Final[Catalogue] = {
         # Nur die Zustimmung bekommt einen Knopf. Ein „Ändern"-Knopf könnte nur
         # einen Satz senden, den der Nutzer selbst besser formuliert.
         "action.write.confirmChip": "Ja, so ausführen",
+        # Paket 19 (Review 19-5): die freie Antwort auf die Vorschau ließ sich unter Last nicht
+        # prüfen — die Vorschau steht erneut darunter, der Chip meint genau sie.
+        "write.consentUnclear": (
+            "Deine letzte Nachricht konnte ich deshalb nicht prüfen. Unten steht die Vorschau "
+            "noch einmal — soll ich sie unverändert ausführen? Wolltest du etwas ändern, "
+            "schreib es mir gleich noch einmal."
+        ),
         # S5: die Abnahme lag vor, es kam keine bestätigte Rückmeldung.
         #
         # Der Satz sagte bis zum Review „es wurde nichts geändert" — eine
@@ -582,6 +589,10 @@ BOT_TEXT: Final[Catalogue] = {
             "Shall I go ahead? If something is off, tell me what to change."
         ),
         "action.write.confirmChip": "Yes, go ahead",
+        "write.consentUnclear": (
+            "So I could not check your last message. The preview is below once more — shall "
+            "I carry it out unchanged? If you wanted something changed, just tell me again."
+        ),
         "write.callerChanged": (
             "I cannot carry that out here: the preview was made under a WLO sign-in that "
             "does not apply in this window right now — for example in a new tab or after "

@@ -64,6 +64,7 @@ from boerdi.domain.tool_pflicht import fehlende_pflichtwerkzeuge, gerufene_werkz
 from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted, frame_wissen
 from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN, angebotene_namen
+from boerdi.domain.write_anzeige import merke_vorschau
 from boerdi.domain.write_confirm import (
     CONFIRM_TOKEN_FIELD,
     confirmed_args,
@@ -895,9 +896,12 @@ async def _run_tool_loop(
                     if _minted:
                         # In ``entities``, weil der Merkposten den Zug
                         # überdauern MUSS — siehe Zug-Eintritt oben.
+                        # Mit einer Kopie der Vorschau (Paket 19, Review 19-5): ist die
+                        # Zustimmung im Folgezug unklar, zeigt der Vorlauf sie erneut.
                         session_state.setdefault("entities", {})["_pending_write"] = (
-                            remember_pending(tool_name, tool_args, _minted, now=time.time(),
-                                             caller=aufrufer_kennung()))
+                            merke_vorschau(remember_pending(
+                                tool_name, tool_args, _minted, now=time.time(),
+                                caller=aufrufer_kennung()), result_text))
                         # S1: derselbe Text ein zweites Mal — diesmal für den
                         # Menschen. Der Server formuliert die Abnahme bereits
                         # vollständig und auf Deutsch; bisher endete sie in der

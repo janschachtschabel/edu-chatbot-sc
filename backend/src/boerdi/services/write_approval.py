@@ -63,7 +63,13 @@ import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo, PreparedWriteOut
+from boerdi.api.schemas import (
+    ChatRequest,
+    ChatResponse,
+    DebugInfo,
+    InlineDocument,
+    PreparedWriteOut,
+)
 from boerdi.domain.host_capabilities import erlaubt
 from boerdi.domain.prepared_write import (
     VERLAUF_SCHLUESSEL,
@@ -71,12 +77,19 @@ from boerdi.domain.prepared_write import (
     fuer_den_verlauf,
     single_prepared_write,
 )
-from boerdi.domain.write_confirm import confirmed_args, redact_confirm_token
+from boerdi.domain.write_anzeige import VORSCHAU_KOPIE, merke_vorschau
+from boerdi.domain.write_confirm import (
+    TOKEN_TTL_SECONDS,
+    confirmed_args,
+    is_expired,
+    redact_confirm_token,
+)
 from boerdi.i18n import Locale, bot_text, resolve_locale
 from boerdi.obs.log_inhalt import inhalt, kennung
 from boerdi.services import abnahme_hinweis, zustimmung_pruefen
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.fehlertext import ausgelastet_text
 from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.mcp.client import (
     call_mcp_tool_status,
@@ -116,7 +129,7 @@ async def discard_stale_approval(
     und ein beliebiges späteres „Ja …" führte ihn aus — etwa der Chip „Ja, zeig
     mir mehr Videos" zwei Züge nach einer Vorschau, zu der die Person nie etwas
     gesagt hatte. Verworfen wird deshalb in jedem Zug, der eine Direkt-Aktion
-    trägt oder keine Zustimmung ist (``zustimmung_pruefen.stimmt_zu``). Kommt das
+    trägt oder keine Zustimmung ist (``zustimmung_pruefen.urteil``). Kommt das
     Anliegen wieder, zeigt das Modell eine neue Vorschau: der Preis ist eine
     zweite Frage, nicht eine Änderung ohne Zustimmung.
 
@@ -161,10 +174,24 @@ async def discard_stale_approval(
     fremd = not _gehoert_dem_aufrufer(pending)
     # Paket 10, A-6: Liste, Veto, dann das Modell — einmal je Zug; Vorlauf und
     # Werkzeug-Schleife lesen das Urteil (``zustimmung_pruefen.zugestimmt``).
-    zustimmung = not req.action and await zustimmung_pruefen.stimmt_zu(
+    urteil = zustimmung_pruefen.NEIN if req.action else await zustimmung_pruefen.urteil(
         req.message, str(pending.get("tool") or "") if isinstance(pending, dict) else "")
+    zustimmung = urteil == zustimmung_pruefen.JA
     session_state[zustimmung_pruefen.MERKER] = zustimmung
     if not fremd and zustimmung:
+        return False
+    if not fremd and urteil == zustimmung_pruefen.UNKLAR:
+        # Paket 19, M-2: kein Urteil ist keine Absage. Der Vorgang bleibt — aber nur im
+        # Speicher (Review 19-5, 1): endet der Zug vor dem Vorlauf (Tour, Drosselung), löste
+        # sonst ein späteres „ok“ zu etwas anderem den alten Vorgang ein (Audit 2026-09-29).
+        # In die Datenbank zurück schreibt ihn erst :func:`_zustimmung_unklar`, wenn die
+        # Vorschau samt Chip wirklich gezeigt wird. Eingelöst wird so nie — ``MERKER``
+        # steht auf ``False``.
+        session_state[zustimmung_pruefen.UNKLAR_MERKER] = True
+        logger.info("offener Vorgang für %s ruht — Zustimmung unklar",
+                    pending.get("tool") if isinstance(pending, dict) else "?")
+        await update_session(session, req.session_id, entities={
+            k: v for k, v in entities.items() if k != "_pending_write"})
         return False
     if fremd and zustimmung:
         # Paket 10 (Kurzaudit S-1/S-3/S-4): die Person meint diese Vorschau, hat
@@ -186,9 +213,11 @@ def merke_abnahme(session_state: dict, merkposten: dict, vorschau: str) -> None:
     An dieselben zwei Stellen, die ``services/tool_loop`` setzt: der Merkposten
     in ``entities`` überdauert den Zug und wird hier im nächsten eingelöst, die
     Vorschau auf oberster Ebene gilt nur für diesen Zug (Box und Knopf in
-    ``turn_persist``).
+    ``turn_persist``). Eine Kopie der Vorschau reist im Merkposten mit (Paket 19,
+    Review 19-5: erneute Anzeige bei unklarer Zustimmung).
     """
-    session_state.setdefault("entities", {})["_pending_write"] = merkposten
+    session_state.setdefault("entities", {})["_pending_write"] = merke_vorschau(
+        merkposten, vorschau)
     session_state["_write_preview"] = vorschau
 
 
@@ -219,10 +248,18 @@ async def redeem_write_approval(
     nicht), und der Vorgang ist noch frisch und vollständig gemerkt
     (:func:`confirmed_args`). Fehlt eines, läuft der Zug normal weiter und zeigt
     eine neue Vorschau — der teurere, aber immer richtige Ausgang.
+
+    War die Zustimmung **unklar** (Paket 19, M-2: Frist, kein LLM-Platz, vorübergehender
+    Anbieterfehler), endet der Zug hier mit der „ausgelastet“-Blase, der erneut gezeigten
+    Vorschau und dem Bestätigungs-Chip — ohne Aufruf, der Vorgang bleibt für den
+    Folgezug. Erst nach den Prüfungen unten: ein Vorgang, der ohnehin nicht mehr
+    eingelöst werden darf (fremd, ohne Schreibrecht, abgelaufen), bekommt keinen Chip.
     """
     entities = session_state.setdefault("entities", {})
     pending = entities.get("_pending_write")
-    if not pending or not zustimmung_pruefen.zugestimmt(session_state, req.message):
+    unklar = bool(session_state.get(zustimmung_pruefen.UNKLAR_MERKER))
+    if not pending or not (
+            unklar or zustimmung_pruefen.zugestimmt(session_state, req.message)):
         return None
     if not _gehoert_dem_aufrufer(pending):
         # Im Graphen hat ``setup`` ihn schon verworfen; diese Wache gilt für
@@ -240,6 +277,15 @@ async def redeem_write_approval(
         entities.pop("_pending_write", None)
         await update_session(session, req.session_id, entities=entities)
         return None
+    if unklar:
+        if is_expired(pending, now=time.time()):
+            # Review 19-5 (3): nach der Frist löste der Chip nichts mehr ein — und der Server
+            # kennte den Schlüssel nicht mehr. Verworfen; der Zug läuft normal weiter.
+            logger.info("offener Vorgang für %s abgelaufen — kein Bestätigungs-Chip", tool)
+            entities.pop("_pending_write", None)
+            await update_session(session, req.session_id, entities=entities)
+            return None
+        return await _zustimmung_unklar(session, req, session_state, tool)
 
     args = confirmed_args(pending, tool, now=time.time())
     if args is None:
@@ -349,6 +395,58 @@ async def redeem_write_approval(
         ),
     )
     await _persist(session, req, session_state, text, debug, vorbereitet=prepared)
+    return antwort
+
+
+async def _zustimmung_unklar(
+    session: AsyncSession | None,
+    req: ChatRequest,
+    session_state: dict,
+    tool: str,
+) -> ChatResponse:
+    """Die Antwort, wenn das Modell die freie Antwort auf die Vorschau nicht beurteilen
+    konnte (Paket 19, M-2): die „ausgelastet“-Blase, die Vorschau erneut und der
+    Bestätigungs-Chip.
+
+    Die Vorschau steht wieder darunter (Review 19-5, 2): die unbeurteilte Nachricht kann
+    eine Änderung gewesen sein („bitte noch Schlagwort Mathe ergänzen“) — der Chip führt
+    sichtbar die GEZEIGTE Fassung aus, und der Text sagt es. Ohne gemerkte Kopie (ein
+    Vorgang von vor diesem Stand) gibt es keinen Chip: dann fällt der Vorgang.
+
+    Der Chip ist ein Wort der Erlaubnisliste — der Folgezug löst ohne Modell ein, also
+    auch unter Last. „Nochmal versuchen“ steht bewusst NICHT daneben: das Modell läse es
+    im Folgezug womöglich als Zustimmung zu einer Nachricht, die es nie beurteilt hat.
+    ``_persist`` schreibt den Vorgang wieder in die Datenbank (``setup`` hatte ihn dort
+    verworfen) — nur hier, wo der Chip wirklich gezeigt wird.
+    """
+    lang = resolve_locale(req.environment.locale)
+    entities = session_state.setdefault("entities", {})
+    vorschau = str((entities.get("_pending_write") or {}).get(VORSCHAU_KOPIE) or "").strip()
+    debug = DebugInfo(pattern=_PATTERN_ID, tools_called=["error"],
+                      entities={"tool": tool, "reason": "zustimmung_unklar"})
+    if not vorschau:
+        entities.pop("_pending_write", None)
+        logger.info("offener Vorgang für %s ohne gemerkte Vorschau verworfen — kein Chip", tool)
+        antwort = ChatResponse(session_id=req.session_id, content=ausgelastet_text(lang),
+                               debug=debug)
+        await _persist(session, req, session_state, antwort.content, debug)
+        return antwort
+    box = InlineDocument(
+        kind="schreib_vorschau",
+        title=bot_text(lang, "inline.title.writePreview"),
+        content=f"{vorschau}\n\n" + bot_text(
+            lang, "inline.writePreview.frist", minuten=TOKEN_TTL_SECONDS // 60),
+    )
+    antwort = ChatResponse(
+        session_id=req.session_id,
+        # Beginnt mit dem „ausgelastet“-Satz (setzt den Blasen-Merker des Zugs; Lasttest und
+        # Golden zählen die Blase über ihren Anfang, ``eval/run_profile.fallback_kind``).
+        content=f"{ausgelastet_text(lang)}\n\n{bot_text(lang, 'write.consentUnclear')}",
+        quick_replies=[bot_text(lang, "action.write.confirmChip")],
+        inline_documents=[box],
+        debug=debug,
+    )
+    await _persist(session, req, session_state, antwort.content, debug)
     return antwort
 
 

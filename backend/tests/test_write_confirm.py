@@ -337,6 +337,14 @@ class TestNaht:
         assert offen["token"] == _TOKEN
         assert offen["tool"] == _WERKZEUG
 
+    def test_der_vorgang_traegt_eine_kopie_der_vorschau(self, monkeypatch):
+        """Paket 19 (Review 19-5, 2): ist die Zustimmung im Folgezug unklar, zeigt der
+        Vorlauf die Vorschau erneut — die Box selbst lebt nur einen Zug. Ohne Schlüssel."""
+        _outcome, st = _lauf(monkeypatch, [("tc1", _WERKZEUG, _ARGS)])
+        kopie = st["session_state"]["entities"]["_pending_write"]["vorschau"]
+        assert "Bruchrechnung Klasse 6" in kopie
+        assert _TOKEN not in kopie
+
     def test_der_vorgang_traegt_das_kennzeichen_des_aufrufers(self, monkeypatch):
         # Paket 4, A1: Eingelöst wird nur unter derselben Identität
         # (``services/write_approval``); dafür muss der Merkposten sie kennen.
