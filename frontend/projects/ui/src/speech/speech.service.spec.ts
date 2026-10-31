@@ -169,3 +169,167 @@ describe('Paket 18E: Spur, wenn das Vorlesen scheitert', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 });
+
+// ── Paket 19, Audit 2026-10-31 M-13 + N-38: Mikrofon ─────────────────────────
+// jsdom kennt weder MediaRecorder noch getUserMedia — hier stehen kleine
+// Attrappen, die nur das Verhalten tragen, auf das der Dienst baut: `stop()`
+// liefert erst die Daten, dann `onstop`.
+describe('Paket 19: Aufnahme verwerfen und verweigertes Mikrofon', () => {
+  const spuren: Array<{ stop: () => void; gestoppt: boolean }> = [];
+
+  class AttrappenRecorder {
+    state: 'inactive' | 'recording' = 'inactive';
+    ondataavailable: ((e: { data: Blob }) => void) | null = null;
+    onstop: (() => void) | null = null;
+    constructor(readonly stream: MediaStream) {}
+    start() { this.state = 'recording'; }
+    stop() {
+      this.state = 'inactive';
+      this.ondataavailable?.({ data: new Blob(['ton']) });
+      this.onstop?.();
+    }
+  }
+
+  function mitMikrofon(getUserMedia: () => Promise<MediaStream>) {
+    vi.stubGlobal('MediaRecorder', AttrappenRecorder);
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true, value: { getUserMedia },
+    });
+  }
+
+  function strom(): MediaStream {
+    const spur = { gestoppt: false, stop() { this.gestoppt = true; } };
+    spuren.push(spur);
+    return { getTracks: () => [spur] } as unknown as MediaStream;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete (navigator as { mediaDevices?: unknown }).mediaDevices;
+    spuren.length = 0;
+    vi.restoreAllMocks();
+  });
+
+  it('Gegenprobe: normales Stoppen transkribiert und sendet', async () => {
+    mitMikrofon(async () => strom());
+    const transcribe = vi.fn(async () => 'Hallo');
+    const { ctx, transcript } = makeCtx({ transcribe });
+    const svc = new SpeechService(ctx);
+    await svc.toggleRecording();
+    expect(svc.isRecording).toBe(true);
+    await svc.toggleRecording();
+    await flush();
+    expect(transcribe).toHaveBeenCalledTimes(1);
+    expect(transcript).toEqual(['Hallo']);
+  });
+
+  it('verwerfen(): stoppt die Aufnahme, gibt das Mikrofon frei, transkribiert und sendet nichts (M-13)', async () => {
+    mitMikrofon(async () => strom());
+    const transcribe = vi.fn(async () => 'Geheim');
+    const { ctx, transcript } = makeCtx({ transcribe });
+    const svc = new SpeechService(ctx);
+    await svc.toggleRecording();
+    svc.verwerfen();
+    await flush();
+    expect(svc.isRecording).toBe(false);
+    expect(spuren.every((s) => s.gestoppt)).toBe(true);
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(transcript).toEqual([]);
+  });
+
+  it('destroy(): dieselbe Verwerfung — kein Hochladen nach dem Entfernen (M-13)', async () => {
+    mitMikrofon(async () => strom());
+    const transcribe = vi.fn(async () => 'Geheim');
+    const { ctx, transcript } = makeCtx({ transcribe });
+    const svc = new SpeechService(ctx);
+    await svc.toggleRecording();
+    svc.destroy();
+    await flush();
+    expect(spuren.every((s) => s.gestoppt)).toBe(true);
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(transcript).toEqual([]);
+  });
+
+  it('nach dem Verwerfen nimmt die nächste Aufnahme wieder normal auf', async () => {
+    mitMikrofon(async () => strom());
+    const transcribe = vi.fn(async () => 'Zwei');
+    const { ctx, transcript } = makeCtx({ transcribe });
+    const svc = new SpeechService(ctx);
+    await svc.toggleRecording();
+    svc.verwerfen();
+    await svc.toggleRecording();
+    await svc.toggleRecording();
+    await flush();
+    expect(transcript).toEqual(['Zwei']);
+  });
+
+  it('verweigertes Mikrofon → Hinweisblase error.micDenied (N-38)', async () => {
+    mitMikrofon(async () => { throw new DOMException('nein', 'NotAllowedError'); });
+    const { ctx, bot } = makeCtx();
+    const svc = new SpeechService(ctx);
+    await svc.toggleRecording();
+    expect(svc.isRecording).toBe(false);
+    expect(bot).toEqual([DE['error.micDenied']]);
+  });
+});
+
+// ── Review zu M-13: Prüfung nach der Transkription, Merker je Aufnahme ───────
+describe('Paket 19 Review: Verwerfen auch während der Transkription', () => {
+  class Rec {
+    state: 'inactive' | 'recording' = 'inactive';
+    ondataavailable: ((e: { data: Blob }) => void) | null = null;
+    onstop: (() => void) | null = null;
+    constructor(readonly stream: MediaStream) {}
+    start() { this.state = 'recording'; }
+    stop() { this.state = 'inactive'; this.ondataavailable?.({ data: new Blob(['t']) }); this.onstop?.(); }
+  }
+  const strom = () => ({ getTracks: () => [{ stop() { /* frei */ } }] }) as unknown as MediaStream;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete (navigator as { mediaDevices?: unknown }).mediaDevices;
+  });
+
+  it('destroy() während transcribe läuft → das Transkript wird nicht gesendet', async () => {
+    vi.stubGlobal('MediaRecorder', Rec);
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true, value: { getUserMedia: async () => strom() },
+    });
+    let fertig!: (t: string) => void;
+    const transcribe = vi.fn(() => new Promise<string>((r) => { fertig = r; }));
+    const { ctx, transcript } = makeCtx({ transcribe });
+    const svc = new SpeechService(ctx);
+    await svc.toggleRecording();
+    await svc.toggleRecording();            // stoppt → transcribe läuft
+    expect(transcribe).toHaveBeenCalledTimes(1);
+    svc.destroy();
+    fertig('Geheim');
+    await flush();
+    expect(transcript).toEqual([]);
+  });
+
+  it('der Verwerfen-Merker gilt nur für seine Aufnahme', async () => {
+    vi.stubGlobal('MediaRecorder', Rec);
+    let freigeben!: (s: MediaStream) => void;
+    let aufruf = 0;
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: () => (++aufruf === 1
+          ? new Promise<MediaStream>((r) => { freigeben = r; })
+          : Promise.resolve(strom())),
+      },
+    });
+    const transcribe = vi.fn(async () => 'Zwei');
+    const { ctx, transcript } = makeCtx({ transcribe });
+    const svc = new SpeechService(ctx);
+    const erste = svc.toggleRecording();    // wartet auf die Freigabe
+    svc.verwerfen();                        // verwirft die erste
+    freigeben(strom());
+    await erste;
+    await svc.toggleRecording();            // zweite Aufnahme
+    await svc.toggleRecording();
+    await flush();
+    expect(transcript).toEqual(['Zwei']);
+  });
+});

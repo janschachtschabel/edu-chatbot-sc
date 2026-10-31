@@ -43,23 +43,23 @@ def umgebung(monkeypatch):
 
 
 def test_das_angemeldete_studio_ueber_den_proxy(umgebung):
-    umgebung(passwort="pw", schluessel="k", offen=False)
+    umgebung(passwort="pw-0123456789", schluessel="k-studio-testkey", offen=False)
     assert ist_interner_zug(_anfrage(proxy=True)) is True
 
 
 def test_ein_gueltiger_schluessel(umgebung):
-    umgebung(passwort="pw", schluessel="k", offen=False)
-    assert ist_interner_zug(_anfrage(schluessel="k")) is True
+    umgebung(passwort="pw-0123456789", schluessel="k-studio-testkey", offen=False)
+    assert ist_interner_zug(_anfrage(schluessel="k-studio-testkey")) is True
 
 
 @pytest.mark.parametrize("schluessel", [None, "falsch", "kä"])
 def test_ohne_oder_mit_falschem_schluessel_nicht(umgebung, schluessel):
-    umgebung(passwort="pw", schluessel="k", offen=False)
+    umgebung(passwort="pw-0123456789", schluessel="k-studio-testkey", offen=False)
     assert ist_interner_zug(_anfrage(schluessel=schluessel)) is False
 
 
 def test_offenes_tor_mit_schluessel_ist_keine_freigabe(umgebung):
-    umgebung(passwort=None, schluessel="k", offen=True)
+    umgebung(passwort=None, schluessel="k-studio-testkey", offen=True)
     assert ist_interner_zug(_anfrage(proxy=True)) is False
 
 
@@ -70,8 +70,8 @@ def test_der_reine_entwicklungsmodus_gibt_diagnose_frei_aber_bucht_nicht(umgebun
 
 
 def test_diagnose_folgt_sonst_dem_internen_zug(umgebung):
-    umgebung(passwort="pw", schluessel="k", offen=False)
-    assert darf_diagnose(_anfrage(schluessel="k")) is True
+    umgebung(passwort="pw-0123456789", schluessel="k-studio-testkey", offen=False)
+    assert darf_diagnose(_anfrage(schluessel="k-studio-testkey")) is True
     assert darf_diagnose(_anfrage(schluessel="falsch")) is False
 
 
@@ -85,9 +85,9 @@ def test_ohne_schluessel_und_ohne_entwicklungsmodus_nicht(umgebung):
 def test_ein_schluessel_ausserhalb_von_ascii_ergibt_kein_500(umgebung):
     """Review 2026-10-30: ``compare_digest`` warf bei einem Nicht-ASCII-Schlüssel — jeder Zug mit
     Kopfzeile wurde zum 500."""
-    umgebung(passwort="pw", schluessel="kä", offen=False)
-    assert ist_interner_zug(_anfrage(schluessel="k")) is False
-    assert darf_diagnose(_anfrage(schluessel="k")) is False
+    umgebung(passwort="pw-0123456789", schluessel="kä-0123456789ab", offen=False)
+    assert ist_interner_zug(_anfrage(schluessel="k-studio-testkey")) is False
+    assert darf_diagnose(_anfrage(schluessel="k-studio-testkey")) is False
 
 
 def test_require_studio_key_mit_nicht_ascii_schluessel_sagt_401(umgebung):
@@ -97,9 +97,9 @@ def test_require_studio_key_mit_nicht_ascii_schluessel_sagt_401(umgebung):
 
     from boerdi.api.deps import require_studio_key
 
-    umgebung(passwort="pw", schluessel="kä", offen=False)
+    umgebung(passwort="pw-0123456789", schluessel="kä-0123456789ab", offen=False)
     with pytest.raises(HTTPException) as e:
-        asyncio.run(require_studio_key("k"))
+        asyncio.run(require_studio_key(_anfrage(), "k-studio-testkey"))
     assert e.value.status_code == 401
 
 

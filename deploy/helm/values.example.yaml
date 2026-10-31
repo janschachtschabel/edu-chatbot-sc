@@ -27,6 +27,10 @@ ingress:
     # Größte Rümpfe: Wiederherstellen/Werks-Upload 151 MiB, Spracheingabe 11 MiB, Chat 2 MiB
     # (``api/body_limit``). Ohne Angabe deckelt ingress-nginx auf 1 MiB (413).
     nginx.ingress.kubernetes.io/proxy-body-size: "160m"
+    # Zugriffslog (Paket 19, H-1): der Pfad trägt die Sitzungs-ID, die wie ein Schlüssel zum
+    # Verlauf wirkt. Entweder ein log-format-upstream ohne $request/$request_uri/$uri/$args/
+    # $http_referer/$http_user_agent in der Controller-ConfigMap — oder für diesen Ingress aus:
+    # nginx.ingress.kubernetes.io/enable-access-log: "false"
   # Am öffentlichen Port bleibt /health (nur {"status":"ok"}) für ältere Proben — ausblenden:
   hidePaths: ["/health"]
 
@@ -77,7 +81,9 @@ postgresql:
   # Die App liest nur das Secret DATABASE_URL; diese Angaben dienen dem Chart, es daraus
   # zu bauen. POSTGRES_PASSWORD braucht nur die mitgelieferte Datenbank.
   external: {host: boerdi-postgres, port: 5432, database: boerdi, user: boerdi}
-  # Pool je Pod 5+10, eine LISTEN-Verbindung, kurz eine für /ready — max_connections >= N×17 + Reserve.
+  # Pool je Pod 5+10, Sitzungssperre bis 4, eine LISTEN-Verbindung, kurz eine für /ready —
+  # max_connections >= N × (DB_POOL_SIZE + DB_MAX_OVERFLOW + 6) + Reserve, mit den Vorgaben N×21;
+  # N zählt die Surge-Pods beim Rolling Update mit.
 valkey:
   enabled: true           # Rate-Limit-Zähler über alle Pods (RATE_LIMIT_STORAGE_URI)
   persistence: false
@@ -128,8 +134,8 @@ secretEnv:
     - MCP_AUTH_TOKEN
     - OPENAI_API_KEY
     - POSTGRES_PASSWORD
-    - STUDIO_API_KEY
-    - STUDIO_PASSWORD
+    - STUDIO_API_KEY      # mindestens 12 Zeichen (Paket 19), sonst Verwaltung gesperrt
+    - STUDIO_PASSWORD     # mindestens 12 Zeichen (Paket 19), sonst Studio gesperrt
 
 # Von Image bzw. Build gesetzt (Dockerfile-ENV) — nur bei abweichendem Aufbau angeben:
 imageEnv:
@@ -169,8 +175,12 @@ env:
   CORS_ALLOW_ALL: "false"
   CORS_ALLOW_EXTENSIONS: "true"
   CORS_ORIGINS: "https://wirlernenonline.de"
+  DB_COMMAND_TIMEOUT_S: "90.0"
+  DB_IDLE_IN_TRANSACTION_TIMEOUT_S: "300.0"
+  DB_LOCK_TIMEOUT_S: "30.0"
   DB_MAX_OVERFLOW: "10"
   DB_POOL_SIZE: "5"
+  DB_STATEMENT_TIMEOUT_S: "60.0"
   EMBED_BACKEND: "api"
   EMBED_DIM: ""
   EMBED_INGEST_PARALLEL: "4"
@@ -202,6 +212,8 @@ env:
   MASTER_SKILL_NODE_ID: "535cabca-47e4-4cbf-9cab-ca47e40cbf4e"
   MCP_CALL_TIMEOUT_S: "60.0"
   MCP_SERVER_URL: "https://wlo-mcp.87.106.195.152.nip.io/mcp"   # Staging-MCP — Prod-Adresse eintragen, sobald vorhanden
+  MCP_TOOL_CACHE_MAX_CHARS: "20000000"
+  MCP_TOOL_CACHE_MAX_ENTRY_CHARS: "1000000"
   OPENAI_BASE_URL: ""
   OPENAI_MODEL: ""
   OTEL_EXPORTER_OTLP_ENDPOINT: ""
@@ -212,7 +224,7 @@ env:
   RAG_MIN_SCORE: ""
   RAG_RERANKER_ENABLED: "false"
   RAG_TOP_K: ""
-  RATE_LIMIT_CHAT: "120/minute"   # Paket 18F; ungültig = kein Start
+  RATE_LIMIT_CHAT: "120/minute"   # Paket 18F; ungültig = kein Start; Zug-Grenzen: Studio (P19)
   # Mit Passwort (valkey://:pw@host) gehört die Adresse in secretEnv, nicht hierher.
   RATE_LIMIT_STORAGE_URI: "valkey://boerdi-valkey:6379/0"
   REPO_BASE_URL: "https://repository.staging.openeduhub.net"   # Staging — muss zum Repository des MCP-Servers passen

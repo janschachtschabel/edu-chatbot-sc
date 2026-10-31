@@ -151,10 +151,35 @@ def test_streng_wirft_statt_den_kopf_zu_verwerfen(text) -> None:
     assert fm == {}
 
 
-def test_streng_laesst_gueltiges_und_reinen_text_durch() -> None:
+def test_streng_laesst_gueltiges_durch() -> None:
     assert seed_io.split_frontmatter("---\nid: M42\n---\nText\n", streng=True) == (
         {"id": "M42"}, "Text\n")
-    assert seed_io.split_frontmatter("Nur Text\n", streng=True) == ({}, "Nur Text\n")
+
+
+# ── Paket 19 (Audit N-19): BOM/Leerraum vor dem Kopf, md-Bereich ohne Kopf ─────
+
+@pytest.mark.parametrize("vorlauf", ["\ufeff", "\n", "  \n\t", "\ufeff\n"],
+                         ids=["bom", "leerzeile", "leerraum", "bom-leerzeile"])
+def test_streng_toleriert_bom_und_leerraum_vor_dem_kopf(vorlauf) -> None:
+    """Vor dem Kopf machte eine Leerzeile oder ein BOM ihn still zum Rumpf — genau den Fall,
+    den der strenge Modus (18E, C4) verhindern sollte: das Muster verlor live seine Kennung."""
+    assert seed_io.split_frontmatter(f"{vorlauf}---\nid: M42\n---\nText\n", streng=True) == (
+        {"id": "M42"}, "Text\n")
+
+
+@pytest.mark.parametrize("text", ["Nur Text\n", "", "\ufeffNur Text\n"],
+                         ids=["text", "leer", "bom-text"])
+def test_streng_wirft_ohne_kopf(text) -> None:
+    """Ein md-Bereich ohne Kopf darf streng nicht still ``{}`` werden — Rohtext-Editor und
+    Sicherung schreiben den Kopf immer (``join_frontmatter``), auch einen leeren."""
+    with pytest.raises(yaml.YAMLError):
+        seed_io.split_frontmatter(text, streng=True)
+    assert seed_io.split_frontmatter(text) == ({}, text)  # der Seed-Import bleibt tolerant
+
+
+def test_ein_leerer_kopf_ueberlebt_den_rundweg_streng() -> None:
+    text = seed_io.join_frontmatter({}, "Rumpf\n")
+    assert seed_io.split_frontmatter(text, streng=True) == ({}, "Rumpf\n")
 
 
 def test_round_trip_mit_strich_im_wert() -> None:

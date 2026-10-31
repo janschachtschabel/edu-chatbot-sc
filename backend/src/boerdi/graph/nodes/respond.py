@@ -47,7 +47,7 @@ from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
-from boerdi.obs.tasks import _retrieve_task_exception, cancel_and_drain
+from boerdi.obs.tasks import _retrieve_task_exception, cancel_and_drain, merke_zug_aufgabe
 from boerdi.obs.zeiten import schritt
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.engine_choice import (
@@ -56,6 +56,7 @@ from boerdi.services.engine_choice import (
 )
 from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.generate import generate_response
+from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
@@ -416,6 +417,8 @@ async def respond(
                 # here instead of surfacing as a stray "Task exception was never
                 # retrieved" (audit 2026-08-12).
                 _qr_spec_task.add_done_callback(_retrieve_task_exception)
+                # Paket 19 (N-30): scheitert der Zug vor ``assemble``, räumt ``run_turn`` ab.
+                merke_zug_aufgabe(_qr_spec_task)
             except Exception as _sqr_err:
                 logger.warning("speculative QR start failed: %s", _sqr_err)
                 _qr_spec_task = None
@@ -460,6 +463,9 @@ async def respond(
                 # Review 2026-10-30: Last, kein Fehler — etwa die RAG-Einbettung eines
                 # ausgelasteten Zugs; ``llm_platz_frist`` meldet sie gedrosselt.
                 logger.info("generate_response: kein LLM-Platz frei — Zug ausgelastet")
+            elif ist_voruebergehend(_gen_err):
+                # Paket 19 (N-16): Frist, 429, Verbindung — ohne Traceback, gedrosselt.
+                melde_voruebergehend(logger, "generate_response", _gen_err)
             else:
                 logger.exception("generate_response failed (%s)", type(_gen_err).__name__)
             # Kam der Fehler aus der Datenbank (etwa der RAG-Abfrage), steht die

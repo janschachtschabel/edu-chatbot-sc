@@ -84,6 +84,18 @@ export class AsyncData<T> {
     }
   }
 
+  /**
+   * Vergisst Wert und Fehler — für den Wechsel auf ANDERE Daten (Paket 19, N-39: das
+   * Transkript einer Sitzung stand sonst unter der nächsten, beim Laden und nach einem
+   * Fehler). Ein noch laufendes Laden verfällt, wie bei einem neueren `reload()`.
+   */
+  clear(): void {
+    this.generation++;
+    this.current.set(null);
+    this.failure.set(null);
+    this.busy.set(false);
+  }
+
 }
 
 /**

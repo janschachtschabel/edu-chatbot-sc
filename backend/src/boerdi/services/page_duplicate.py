@@ -21,6 +21,11 @@ Own module rather than a branch inside ``graph/nodes/context_greeting``: this is
 a second responsibility (asking the holdings a question) next to that node's
 first one (composing the message), and it is the piece a later, richer
 duplicate check would grow in.
+
+**Three outcomes** (Paket 19, audit M-9): found (a dict), not found (``None``) and
+*unclear* — :class:`DublettenpruefungUnklar`, raised when a search could not be asked
+(MCP exception or error text). Until then "could not ask" read as "not found", and the
+greeting offered to add the page without the M20 precondition being met.
 """
 
 from __future__ import annotations
@@ -28,11 +33,15 @@ from __future__ import annotations
 import logging
 from urllib.parse import urlsplit
 
-from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
 from boerdi.services.mcp.parsers import parse_wlo_cards
 
 logger = logging.getLogger(__name__)
+
+
+class DublettenpruefungUnklar(RuntimeError):
+    """The holdings could not be asked — neither "found" nor "not found" is known.
+    Carries only the tool name, never the query (it is the page address)."""
 
 # Enough to survive a couple of better-ranked near-misses ahead of the exact
 # node, small enough to stay one cheap call. The measured exact-URL query
@@ -63,19 +72,20 @@ def _same_address(a: str, b: str) -> bool:
 
 
 async def _search(query: str) -> list[dict]:
-    """One content search, reduced to cards. Empty on any failure — the caller
-    treats "found nothing" and "could not ask" alike, and the honest difference
-    is logged rather than raised: the greeting must not die on a search."""
+    """One content search, reduced to cards. An empty answer is "nothing found";
+    a failure raises :class:`DublettenpruefungUnklar` — logged without the query
+    and without the exception text (both can carry the address)."""
     try:
         raw = await call_mcp_tool(
             "search_wlo_content", {"query": query, "maxResults": _MAX_RESULTS},
         )
     except Exception as err:
-        logger.warning("duplicate check: search failed: %s", err)
-        return []
+        logger.warning("duplicate check: search failed (%s) — unclear", type(err).__name__)
+        raise DublettenpruefungUnklar("search_wlo_content") from None
     if not raw or is_mcp_error(raw):
-        logger.info("duplicate check: no usable answer for %s", inhalt(query))
-        return []
+        # "Nothing found" is an envelope with ``total: 0`` — an empty or error answer is not.
+        logger.warning("duplicate check: no usable answer — unclear")
+        raise DublettenpruefungUnklar("search_wlo_content")
     return parse_wlo_cards(raw)
 
 
@@ -83,8 +93,8 @@ async def find_existing_by_url(url: str, title: str) -> dict | None:
     """First WLO record for this address or this exact title, else ``None``.
 
     Returns ``{"node_id": str, "title": str, "matched_on": "url" | "title"}``.
-    Never raises: a duplicate check that fails must cost the offer its
-    certainty, not the whole turn.
+    Raises :class:`DublettenpruefungUnklar` when a search needed for the answer
+    failed (Paket 19, M-9): the caller must then not offer to add the page.
     """
     url = (url or "").strip()
     title = (title or "").strip()

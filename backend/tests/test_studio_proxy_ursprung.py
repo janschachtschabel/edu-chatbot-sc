@@ -27,7 +27,7 @@ _PROBE = "/studio/api/debug/mcp-test"
 @pytest.fixture(autouse=True)
 def _studio(monkeypatch):
     monkeypatch.setenv("STUDIO_PASSWORD", _PASSWORT)
-    monkeypatch.setenv("STUDIO_API_KEY", "backend-key")
+    monkeypatch.setenv("STUDIO_API_KEY", "backend-key-0123")
     monkeypatch.delenv("BOERDI_ALLOW_OPEN_ADMIN", raising=False)
     get_settings.cache_clear()
     ratelimit.limiter.reset()

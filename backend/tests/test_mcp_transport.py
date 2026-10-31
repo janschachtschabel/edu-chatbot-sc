@@ -325,3 +325,84 @@ def test_ein_abgewiesener_zugang_traegt_die_art_auth(monkeypatch, status):
     _patch_session(monkeypatch, _FakeSession(call_exc=gruppe))
     out = asyncio.run(call_tool("wlo_x", {}))
     assert out["error"]["kind"] == "auth"
+
+
+class _HaengendeListe(_FakeSession):
+    async def list_tools(self):
+        await asyncio.sleep(5)
+
+
+def test_discover_endet_nach_der_gesamtfrist(monkeypatch):
+    """Paket 19 (Audit 2026-10-31, N-27): ``discover_server_tools`` hatte keine
+    Gesamtfrist (SDK ``read=300``); ``GET /mcp-servers`` fragt nacheinander — bis
+    5 min je schweigendem Fremdserver. Jetzt dieselbe Frist wie ``_call_tool``."""
+    import time
+
+    _patch_session(monkeypatch, _HaengendeListe())
+    monkeypatch.setattr(transport_mod, "_frist_s", lambda: 0.2)
+
+    beginn = time.monotonic()
+    with pytest.raises(TimeoutError):
+        asyncio.run(discover_server_tools("https://u/mcp"))
+    assert time.monotonic() - beginn < 1.0
+
+
+# ── Paket 19 (N-15): erwartbare Fehler als gedrosselte Warnung ───────────────
+# Ein fehlgeschlagener Aufruf ergab bis zu vier ERROR-Zeilen, auch für Fälle, die der Betrieb
+# kennt (eigene Frist, ``isError``, -32602 aus Modellargumenten, Verbindung). Den Alarm trägt
+# ``metrics.mcp_aufruf``; das Log nennt den Fall einmal je Server, Art und Minute.
+
+
+def _stufen(caplog) -> list[str]:
+    return [r.levelname for r in caplog.records if r.name == transport_mod.__name__]
+
+
+def _zweimal(monkeypatch, caplog, sitzung) -> list[str]:
+    import logging
+
+    _patch_session(monkeypatch, sitzung)
+    with caplog.at_level(logging.INFO, logger=transport_mod.__name__):
+        for _ in range(2):
+            asyncio.run(call_tool("search_wlo_content", {"query": "x"}, url="https://s/mcp"))
+    return _stufen(caplog)
+
+
+def test_ein_werkzeugfehler_ist_eine_gedrosselte_warnung(monkeypatch, caplog):
+    ergebnis = CallToolResult(content=[TextContent(type="text", text="kaputt")], isError=True)
+    assert _zweimal(monkeypatch, caplog, _FakeSession(call_result=ergebnis)) == ["WARNING"]
+
+
+def test_eine_ablehnung_aus_modellargumenten_ist_eine_gedrosselte_warnung(monkeypatch, caplog):
+    from mcp.types import INVALID_PARAMS
+
+    sitzung = _FakeSession(call_exc=_json_rpc_fehler(INVALID_PARAMS, "query: expected string"))
+    assert _zweimal(monkeypatch, caplog, sitzung) == ["WARNING"]
+
+
+def test_ein_verbindungsfehler_ist_eine_gedrosselte_warnung(monkeypatch, caplog):
+    import httpx
+
+    gruppe = ExceptionGroup("unhandled errors in a TaskGroup",
+                            [httpx.ConnectError("Connection refused")])
+    assert _zweimal(monkeypatch, caplog, _FakeSession(call_exc=gruppe)) == ["WARNING"]
+
+
+def test_die_eigene_frist_ist_eine_gedrosselte_warnung(monkeypatch, caplog):
+    monkeypatch.setattr(transport_mod, "_frist_s", lambda: 0.05)
+    assert _zweimal(monkeypatch, caplog, _HaengendeSession()) == ["WARNING"]
+
+
+def test_ein_programmfehler_bleibt_error(monkeypatch, caplog):
+    sitzung = _FakeSession(call_exc=TypeError("unhashable type: 'dict'"))
+    assert _zweimal(monkeypatch, caplog, sitzung) == ["ERROR", "ERROR"]
+
+
+def test_die_drossel_trennt_server_und_art(monkeypatch, caplog):
+    import logging
+
+    ergebnis = CallToolResult(content=[TextContent(type="text", text="kaputt")], isError=True)
+    _patch_session(monkeypatch, _FakeSession(call_result=ergebnis))
+    with caplog.at_level(logging.INFO, logger=transport_mod.__name__):
+        for url in ("https://a/mcp", "https://b/mcp"):
+            asyncio.run(call_tool("search_wlo_content", {}, url=url))
+    assert _stufen(caplog) == ["WARNING", "WARNING"]

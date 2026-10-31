@@ -64,6 +64,7 @@ from boerdi.domain.tool_pflicht import fehlende_pflichtwerkzeuge, gerufene_werkz
 from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted, frame_wissen
 from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN, angebotene_namen
+from boerdi.domain.write_anzeige import merke_vorschau
 from boerdi.domain.write_confirm import (
     CONFIRM_TOKEN_FIELD,
     confirmed_args,
@@ -85,6 +86,7 @@ from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.fehlertext import antwort_fehlertext
+from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.auth import aufrufer_kennung
@@ -339,6 +341,9 @@ async def _run_tool_loop(
             if isinstance(e, LlmAusgelastet):
                 # Last, kein Fehler: ohne Traceback (``llm_platz_frist`` meldet gedrosselt).
                 _logger.info("LLM API: kein Platz frei — Zug ausgelastet")
+            elif ist_voruebergehend(e):
+                # Paket 19 (N-16): Frist, 429, Verbindung — ohne Traceback, gedrosselt.
+                melde_voruebergehend(_logger, "LLM API", e)
             else:
                 _logger.exception("LLM API error (%s)", type(e).__name__)
             # Der Grund steht im Log, die Person sieht die Fehlerblase des Chats
@@ -895,9 +900,12 @@ async def _run_tool_loop(
                     if _minted:
                         # In ``entities``, weil der Merkposten den Zug
                         # überdauern MUSS — siehe Zug-Eintritt oben.
+                        # Mit einer Kopie der Vorschau (Paket 19, Review 19-5): ist die
+                        # Zustimmung im Folgezug unklar, zeigt der Vorlauf sie erneut.
                         session_state.setdefault("entities", {})["_pending_write"] = (
-                            remember_pending(tool_name, tool_args, _minted, now=time.time(),
-                                             caller=aufrufer_kennung()))
+                            merke_vorschau(remember_pending(
+                                tool_name, tool_args, _minted, now=time.time(),
+                                caller=aufrufer_kennung()), result_text))
                         # S1: derselbe Text ein zweites Mal — diesmal für den
                         # Menschen. Der Server formuliert die Abnahme bereits
                         # vollständig und auf Deutsch; bisher endete sie in der

@@ -132,6 +132,8 @@ FIELD_EFFECTS: Final[dict[str, dict[str, dict[str, Effect]]]] = {
         "crisis_pattern": _e("voll", "krise"),
         "threat_pattern": _e("voll", "krise"),
         "crisis_blocked_tools": _e("voll", "krise"),
+        # Paket 19 (M-4): die HTTP-Grenze jedes Zuges, vor der Maschinenwahl (`api/ratelimit`).
+        "turn_limits": _e("voll", "voll"),
     },
     "01-base/display-rules": {
         # Der Agent heißt `AGENT`; der Ratepfad prüft M09/M10/M11 (`turn_persist.py`).

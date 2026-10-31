@@ -167,6 +167,14 @@ describe('RetentionComponent (Paket 8, A)', () => {
     expect(lead).toContain('Gesprächsstand');
   });
 
+  it('sagt, dass Datenbank-Sicherungen Gelöschtes länger halten (Paket 19, N-7)', async () => {
+    const { el } = await mountLoaded();
+    const hinweis = el.querySelector('.rt-backups')?.textContent ?? '';
+    expect(hinweis).toContain('Sicherungen');
+    expect(hinweis).toContain('BACKUP_KEEP_DAYS');
+    expect(hinweis).toContain('14 Tage');
+  });
+
   it('lädt erst, wenn das Panel aufgeht', async () => {
     const h = await mount(false);
     h.http.expectNone(URL);

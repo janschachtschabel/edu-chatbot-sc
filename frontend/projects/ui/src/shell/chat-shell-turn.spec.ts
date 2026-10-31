@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatResponse } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
+import { ZUG_POST_FRIST_MS } from '../stream/stream-client';
 import { ChatShellComponent } from './chat-shell.component';
 
 /**
@@ -151,8 +152,14 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     expect(c.messages()).toEqual([]);
   });
 
-  it('onResult: latestDebug gesetzt, query-meta-Event gefeuert, page_action dispatcht', async () => {
-    const c = make();
+  it('onResult: latestDebug gesetzt, query-meta-Event gefeuert (mit emit-query-meta), page_action dispatcht', async () => {
+    TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    });
+    const f = TestBed.createComponent(ChatShellComponent);
+    f.componentRef.setInput('emitQueryMeta', true);
+    const c = f.componentInstance;
     (c as any)._api = fakeApi();
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
     const onPageAction = vi.fn();
@@ -166,6 +173,112 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     expect(qm).toBeTruthy();
     expect((qm![0] as CustomEvent).detail).toEqual({ queries: RESP.query_metas });
     expect(onPageAction).toHaveBeenCalledWith({ action: 'canvas', payload: { n: 1 } });
+  });
+
+  // Paket 19, Audit 2026-10-31 N-6: `boerdi:query-meta` (Suchbegriff, Such-URL)
+  // ging ungefragt an `window` — die anderen Ereignisse nur per Attribut. Die
+  // eigene Hülle bekommt die Daten über den Angular-Ausgang `queryMeta`.
+  // Review zu N-6: Angular Elements macht jeden Output zum DOM-Ereignis am
+  // Element — ein ungegateter `queryMeta` war für die Gastseite genauso lesbar.
+  it('ohne emit-query-meta weder window-Ereignis noch Angular-Ausgang (N-6)', async () => {
+    const f = TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).createComponent(ChatShellComponent);
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi();
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const ausgang: unknown[] = [];
+    c.queryMeta.subscribe((d) => ausgang.push(d));
+
+    await c.sendMessage('frag');
+
+    const typen = dispatchSpy.mock.calls.map(([e]) => (e as CustomEvent).type);
+    expect(typen).not.toContain('boerdi:query-meta');
+    expect(typen).not.toContain('badboerdi:query-meta');
+    expect(ausgang).toEqual([]);
+  });
+
+  it('emit-query-meta="true" schaltet das window-Ereignis ein (N-6)', async () => {
+    const f = TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).createComponent(ChatShellComponent);
+    f.componentRef.setInput('emitQueryMeta', 'true');
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi();
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const ausgang: unknown[] = [];
+    c.queryMeta.subscribe((d) => ausgang.push(d));
+
+    await c.sendMessage('frag');
+
+    const qm = dispatchSpy.mock.calls.find(([e]) => (e as CustomEvent).type === 'boerdi:query-meta');
+    expect((qm?.[0] as CustomEvent | undefined)?.detail).toEqual({ queries: RESP.query_metas });
+    expect(ausgang).toEqual([{ queries: RESP.query_metas }]);
+  });
+
+  // Review zu N-33: der Host-Rückruf `onPageAction` riss Output und Ereignisse
+  // danach mit — er ist jetzt einzeln gekapselt.
+  it('ein werfender onPageAction nimmt Output, window-Ereignis und Agent-Ergebnis nicht mit (N-33)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const c = make();
+    (c as any)._api = fakeApi({
+      resp: { ...RESP, result: { a: 1 }, result_stop_reason: 'submit' } as unknown as ChatResponse,
+    });
+    c.onPageAction = () => { throw new Error('host'); };
+    const ausgang: unknown[] = [];
+    c.pageAction.subscribe((pa) => ausgang.push(pa));
+    const ergebnis: unknown[] = [];
+    c.agentResult.subscribe((r) => ergebnis.push(r));
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    await c.sendMessage('frag');
+
+    expect(ausgang).toEqual([RESP.page_action]);
+    const typen = dispatchSpy.mock.calls.map(([e]) => (e as CustomEvent).type);
+    expect(typen).toContain('boerdi:page-action');
+    expect(ergebnis).toEqual([{ result: { a: 1 }, stop_reason: 'submit' }]);
+  });
+
+  // Review zu M-15: der POST-Rückfall eines Chat-Zugs bekommt die Frist eines
+  // Agent-Laufs, nicht die 120 s des Stroms (dort fehlen die Fortschrittsrahmen).
+  it('der POST-Rückfall eines Zugs läuft mit ZUG_POST_FRIST_MS (M-15)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const c = make();
+    const api = fakeApi({ streamRejects: new Error('netz') });
+    (c as any)._api = api;
+
+    await c.sendMessage('frag');
+
+    expect((api.post.mock.calls[0] as unknown[])?.[5]).toBe(ZUG_POST_FRIST_MS);
+  });
+
+  // N-33: ein werfender Rückruf der Gastseite stand vor `prepared_write`,
+  // `auth_invalid` und dem Vorlesen — die fielen dann aus, und unter der gültigen
+  // Antwort stand eine Fehlerblase.
+  it('ein werfender Host-Rückruf nimmt dem Zug weder Abmeldung noch Antwort (N-33)', async () => {
+    sessionStorage.setItem('boerdi.mcp-access', 'wlo2.QUJD-_x=.aXY.Y3Q');
+    const fehler = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const f = TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).createComponent(ChatShellComponent);
+    f.componentRef.setInput('translate', createTranslator(DE, DE));
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi({ resp: { ...RESP, auth_invalid: true } as unknown as ChatResponse });
+    c.onPageAction = () => { throw new Error('KANARIE-host'); };
+
+    await c.sendMessage('frag');
+
+    const inhalte = c.messages().map((m) => m.content);
+    expect(inhalte).toContain('Antwort');
+    expect(inhalte).toContain(DE['auth.expired']);
+    expect(inhalte).not.toContain(DE['error.generic']);
+    expect(sessionStorage.getItem('boerdi.mcp-access')).toBeNull();
+    expect(c.isLoading()).toBe(false);
+    expect(fehler.mock.calls.flat().map(String).join(' ')).not.toContain('KANARIE');
+    sessionStorage.clear();
   });
 
   // ── Das maschinenlesbare Ergebnis (Nutzer-Entscheid 2026-08-14) ──────

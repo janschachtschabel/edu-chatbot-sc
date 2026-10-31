@@ -309,3 +309,69 @@ def test_stream_propagates_errors(monkeypatch):
     monkeypatch.setattr(llm, "_acompletion", boom)
     with pytest.raises(RuntimeError, match="upstream 503"):
         asyncio.run(lls._stream_completion(lambda s: None, model="m", messages=[]))
+
+
+def test_ein_abgebrochener_strom_wird_geschlossen(monkeypatch):
+    """Paket 19 (Audit 2026-10-31, N-26): bricht der Verbraucher ab (Agent-Frist, Client
+    legt auf), blieb die HTTP-Verbindung des LiteLLM-Stroms bis zum GC offen."""
+    geschlossen: list[bool] = []
+
+    class _Strom:
+        def __init__(self) -> None:
+            self._erster = True
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self._erster:
+                self._erster = False
+                return _chunk(content="x")
+            await asyncio.sleep(30)  # der Anbieter schweigt
+            raise StopAsyncIteration
+
+        async def aclose(self) -> None:
+            geschlossen.append(True)
+
+    async def fake(**kwargs):
+        return _Strom()
+
+    monkeypatch.setattr(llm, "_acompletion", fake)
+
+    async def main():
+        aufgabe = asyncio.create_task(
+            lls._stream_completion(lambda s: None, model="m", messages=[]))
+        await asyncio.sleep(0.05)
+        aufgabe.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await aufgabe
+
+    asyncio.run(main())
+    assert geschlossen == [True]
+
+
+def test_ein_vollstaendiger_strom_wird_ebenfalls_geschlossen(monkeypatch):
+    geschlossen: list[bool] = []
+
+    class _Strom:
+        def __init__(self) -> None:
+            self._rest = [_chunk(content="ok")]
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self._rest:
+                raise StopAsyncIteration
+            return self._rest.pop()
+
+        async def aclose(self) -> None:
+            geschlossen.append(True)
+
+    async def fake(**kwargs):
+        return _Strom()
+
+    monkeypatch.setattr(llm, "_acompletion", fake)
+    resp = asyncio.run(lls._stream_completion(lambda s: None, model="m", messages=[]))
+    assert resp.choices[0].message.content == "ok"
+    assert geschlossen == [True]

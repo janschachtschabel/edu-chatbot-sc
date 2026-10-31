@@ -441,6 +441,88 @@ def test_chat_completion_propagates_errors(monkeypatch) -> None:
         asyncio.run(llm.chat_completion(messages=[{"role": "user", "content": "x"}]))
 
 
+def test_frist_s_beginnt_erst_nach_der_platzvergabe(monkeypatch) -> None:
+    """Paket 19 (M-2): wie beim Klassifikator gilt eine kurze Frist dem Aufruf, nicht dem
+    Warten auf einen Platz — sonst lief sie unter Last schon in der Schlange ab."""
+    monkeypatch.setenv("LLM_MAX_CONCURRENCY", "2")
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", _FakeCompletion())
+
+    async def lauf() -> str:
+        sem = llm._semaphore("live")
+        for _ in range(2):
+            await sem.acquire()
+
+        async def frei_nach(s: float) -> None:
+            await asyncio.sleep(s)
+            sem.release()
+
+        freigabe = asyncio.create_task(frei_nach(0.15))
+        resp = await llm.chat_completion(
+            messages=[{"role": "user", "content": "x"}], frist_s=0.05)
+        await freigabe
+        return resp.choices[0].message.content
+
+    assert asyncio.run(lauf()) == "ok"
+
+
+def test_frist_s_begrenzt_den_aufruf(monkeypatch) -> None:
+    async def haengt(**_kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(llm, "_acompletion", haengt)
+    from boerdi.services.llm_ereignisse import LlmFristAbgelaufen
+
+    # Paket 19 (N-16, Review): als eigene Frist markiert — ein anderer ``TimeoutError``
+    # (etwa asyncpg) gilt nicht als Anbieterfehler.
+    with pytest.raises(LlmFristAbgelaufen):
+        asyncio.run(llm.chat_completion(
+            messages=[{"role": "user", "content": "x"}], frist_s=0.05))
+
+
+def _llm_zaehler(phase: str, ausgang: str) -> float:
+    from boerdi.obs import metrics
+    return metrics.LLM_AUFRUFE.labels(phase, ausgang)._value.get()
+
+
+def test_eine_abgelaufene_eigene_frist_ist_kein_anbieterfehler(monkeypatch) -> None:
+    """Review 19-5 (5): sonst feuerte die Alarmregel auf die LLM-Fehlerquote, sobald kurze
+    Prüfungen ihre Frist reißen."""
+    async def haengt(**_kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(llm, "_acompletion", haengt)
+    fehler, abbruch = _llm_zaehler("frist-test", "fehler"), _llm_zaehler("frist-test", "abbruch")
+    with pytest.raises(TimeoutError):
+        asyncio.run(llm.chat_completion(
+            messages=[{"role": "user", "content": "x"}], frist_s=0.05, phase="frist-test"))
+    assert _llm_zaehler("frist-test", "fehler") == fehler
+    assert _llm_zaehler("frist-test", "abbruch") == abbruch + 1
+
+
+def test_platz_frist_s_begrenzt_das_warten_auf_den_platz(monkeypatch) -> None:
+    """Review 19-5 (4): eine kurze Prüfung wartet nicht ``LLM_SLOT_WAIT_S`` (30 s) lang."""
+    from boerdi.services.llm_parallel import LlmAusgelastet
+
+    monkeypatch.setenv("LLM_MAX_CONCURRENCY", "2")
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", _FakeCompletion())
+
+    async def lauf() -> float:
+        sem = llm._semaphore("live")
+        for _ in range(2):
+            await sem.acquire()
+        t0 = asyncio.get_running_loop().time()
+        with pytest.raises(LlmAusgelastet):
+            await llm.chat_completion(
+                messages=[{"role": "user", "content": "x"}], platz_frist_s=0.1)
+        return asyncio.get_running_loop().time() - t0
+
+    assert asyncio.run(lauf()) < 2
+
+
 def test_semaphore_limits_concurrency(monkeypatch) -> None:
     monkeypatch.setenv("LLM_MAX_CONCURRENCY", "2")
     get_settings.cache_clear()

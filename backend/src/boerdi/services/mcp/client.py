@@ -43,6 +43,7 @@ from boerdi.domain.fremdwerkzeug import ist_fremd
 from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
 from boerdi.domain.werkzeug_freigabe import uebernommen
 from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD
+from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.log_inhalt import ereignis, filterwerte
 from boerdi.services.mcp import anmeldung, fremdwerkzeuge, transport
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
@@ -64,6 +65,9 @@ from boerdi.services.zugakte import aktuelle_zugakte
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+#: Paket 19 (N-15): eine Zeile „Wiederholung gescheitert“ je Server und Minute.
+_WIEDERHOLUNG_ABSTAND_S = 60.0
 
 
 # Wie ein Fehlschlag aussieht — und warum das eine Zeichenkette ist.
@@ -459,19 +463,23 @@ async def _einzelaufruf(
         # Nur Transportfehler: ``tool``-Fehler mit Serverantwort laufen nicht hier durch. Den
         # Grund hat ``transport`` eben ohne Fremdtexte gemeldet — hier nicht noch einmal roh
         # (Review 2026-10-30: der Text eines ``-32603`` stand so bis zu viermal im Log).
-        logger.error("MCP tool %s error @ %s (%s)", tool_name, target_url,
+        # Paket 19 (N-15): DEBUG — die Zeile des Transports steht schon da.
+        logger.debug("MCP tool %s error @ %s (%s)", tool_name, target_url,
                      result["error"].get("kind") or "transport")
         if CONFIRM_TOKEN_FIELD in arguments:
             logger.warning(
                 "MCP tool %s: bestätigter Schreibaufruf wird nicht wiederholt — ob "
                 "er den Server erreicht hat, ist offen", tool_name)
         else:
-            logger.info("Retrying MCP tool %s with fresh session @ %s...",
-                        tool_name, target_url)
+            logger.debug("Retrying MCP tool %s with fresh session @ %s...",
+                         tool_name, target_url)
             result = await transport.call_tool(tool_name, arguments, url=target_url)
             if "error" in result:
-                logger.error("MCP tool %s retry failed @ %s (%s)", tool_name, target_url,
-                             result["error"].get("kind") or "transport")
+                # Paket 19 (N-15): eine Zeile je Server und Minute, dass auch die Wiederholung
+                # scheiterte — den Grund meldet der Transport, den Alarm ``mcp_aufruf``.
+                gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:wiederholung",
+                           _WIEDERHOLUNG_ABSTAND_S, "MCP tool %s retry failed @ %s (%s)",
+                           tool_name, target_url, result["error"].get("kind") or "transport")
 
     if "error" in result:
         # Ohne ``kind`` gilt „keine Antwort" — siehe Docstring: „abgelehnt"
@@ -562,7 +570,8 @@ async def _einzelaufruf(
         # Auch die extrahierten queryMetas mit-cachen, damit Cache-Hits die
         # strukturierten Filter-Daten (URI-resolved discipline /
         # educationalContext / learningResourceType) wieder re-emitten können —
-        # siehe Re-Emit-Logik im Cache-Hit-Zweig oben.
-        if _extracted_metas_this_call:
+        # siehe Re-Emit-Logik im Cache-Hit-Zweig oben. Nur zu einem gespeicherten Wert
+        # (Paket 19, M-11: ein zu großer bleibt draußen — seine Metas sonst für immer).
+        if _extracted_metas_this_call and cache_key in _TOOL_CACHE:
             _TOOL_META_CACHE[cache_key] = _extracted_metas_this_call
     return response, "", False

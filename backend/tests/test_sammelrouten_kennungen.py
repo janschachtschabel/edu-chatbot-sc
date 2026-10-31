@@ -16,14 +16,14 @@ from boerdi.main import create_app
 from boerdi.services import config_loader
 from boerdi.settings import get_settings
 
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 _M01 = {"frontmatter": {"id": "M01", "label": "Krise"}, "body": "x"}
 _LEH = {"frontmatter": {"id": "P-LEH", "label": "Lehrkraft"}, "body": "x"}
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
     return TestClient(create_app())  # ohne Kontextmanager: keine Lebensdauer, keine DB
 

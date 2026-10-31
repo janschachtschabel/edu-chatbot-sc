@@ -35,7 +35,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.api.deps import get_session_factory
-from boerdi.api.ratelimit import public_rate_limit
+from boerdi.api.ratelimit import zug_rate_limit
 from boerdi.api.schemas_agent import AgentRequest, AgentResponse
 from boerdi.api.sse import sse_turn
 from boerdi.api.studio_proxy import ueber_studio
@@ -93,7 +93,7 @@ async def _buchen(sitzungen: Sitzungen, acc: dict[str, Any], quelle: str) -> Non
 
 
 @router.post("/api/agent", response_model=AgentResponse)
-@public_rate_limit
+@zug_rate_limit
 async def agent(
     req: AgentRequest, request: Request, response: Response,
     sitzungen: Annotated[Sitzungen, Depends(get_session_factory)],
@@ -108,7 +108,7 @@ async def agent(
 
 
 @router.post("/api/agent/stream")
-@public_rate_limit
+@zug_rate_limit
 async def agent_stream(
     req: AgentRequest, request: Request,
     sitzungen: Annotated[Sitzungen, Depends(get_session_factory)],

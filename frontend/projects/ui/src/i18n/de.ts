@@ -217,6 +217,10 @@ export const DE: Catalogue = {
   'error.learningPath': 'Den Lernpfad für "{title}" konnte ich leider nicht erstellen. Versuch es nochmal!',
   'error.tourStart': 'Entschuldigung, die Tour konnte gerade nicht gestartet werden. Bitte versuch es nochmal.',
   'error.transcription': 'Spracheingabe konnte nicht verarbeitet werden. Bitte tippe deine Nachricht.',
+  /** Paket 19 (N-38): Mikrofon verweigert oder nicht vorhanden — vorher endete
+   *  das stumm. Ein Satz für beide Fälle: die Abhilfe ist dieselbe. */
+  'error.micDenied': 'Ich komme nicht an dein Mikrofon. Erlaube den Zugriff in deinem Browser '
+    + 'oder tippe deine Frage einfach ein.',
   'error.generic': 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.',
   /** Paket 18C/D: der Strom meldete eine Fehlernummer — im Studio führt sie zum Zug.
    *  Satzende wie in der gespeicherten Blase des Backends (`error.internal`). */
@@ -291,6 +295,9 @@ export const DE: Catalogue = {
   'auth.popupBlocked': 'Der Browser hat das Anmeldefenster blockiert. Bitte erlaube Pop-ups für diese Seite und tippe den Chip noch einmal an.',
   'auth.unavailable': 'Diese Installation bietet die WLO-Anmeldung nicht an. Suchen und Zeigen geht trotzdem.',
   'auth.timeout': 'Von der Anmeldung ist nichts zurückgekommen. Du kannst es jederzeit noch einmal versuchen.',
+  /** Paket 19 (N-37): das Anmeldefenster wurde geschlossen — vorher wartete das
+   *  Widget fünf Minuten ohne Hinweis. */
+  'auth.cancelled': 'Anmeldung abgebrochen — das Anmeldefenster wurde geschlossen. Du kannst es jederzeit noch einmal versuchen.',
   'auth.failed': 'Die Anmeldung hat nicht geklappt. Bitte versuch es noch einmal.',
   /** Beschriftung des Knopfs im angemeldeten Zustand. Sagt die WIRKUNG mit,
    *  weil daneben ein Neustart-Knopf sitzt: hier endet die Anmeldung, nicht

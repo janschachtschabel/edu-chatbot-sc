@@ -8,7 +8,7 @@ import { CardListComponent } from '../cards/card-list.component';
 import { resolveCardsVisible, SHOW_CARDS_MODES } from '../cards/cards-visible';
 import { DebugPanelComponent } from '../debug/debug-panel.component';
 import { _attrEnum, _attrIsTrue, PanelSizeStep } from '../element/attr';
-import { ChatResponse, DebugInfo, PreparedWriteOut, UiInfo } from '../grouping/message-types';
+import { ChatResponse, DebugInfo, PreparedWriteOut, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { ResultGroupsComponent } from '../grouping/result-groups.component';
 import { WebLinksComponent } from '../grouping/web-links.component';
 import { SwimlanesComponent } from '../grouping/swimlanes.component';
@@ -22,6 +22,7 @@ import { QuickRepliesComponent } from '../chips/quick-replies.component';
 import { BOERDI_LOGO_DATA_URL } from '../branding/boerdi-logo';
 import { SHELL_PRINT } from '../print/print-gates';
 import { ChatApiClient } from '../stream/chat-api';
+import { ZUG_POST_FRIST_MS } from '../stream/stream-client';
 import { formatPhaseLabel } from '../stream/phase-label';
 import {
   browseCollection, generateLearningPath, loadMore, showContentText, showMoreCards,
@@ -125,12 +126,20 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly emitGuideSuggestion = input<boolean | string>(false);
   /** `[emit-routing-debug]` — Routing-Telemetrie-Emission (host-events). */
   readonly emitRoutingDebug = input<boolean | string>(false);
+  /** `[emit-query-meta]` — `boerdi:query-meta` an `window` und der Ausgang
+   *  `queryMeta` (Paket 19, Audit 2026-10-31 N-6). Suchbegriff und Such-URL
+   *  gingen bis dahin ungefragt an jedes Skript der Gastseite; jetzt wie
+   *  `emit-guide-suggestion`/`emit-routing-debug` nur auf Ansage. */
+  readonly emitQueryMeta = input<boolean | string>(false);
   /** Jede backend-`page_action` (Host- + Widget-Integration). */
   readonly pageAction = output<{ action: string; payload: any }>();
   /** Top-1-Lotsen-Treffer pro Turn (gated durch `emitGuideSuggestion`). */
   readonly guideSuggestion = output<GuideSuggestionPayload>();
   /** Routing-Telemetrie pro Turn (gated durch `emitRoutingDebug`). */
   readonly routingDebug = output<RoutingDebugPayload>();
+  /** MCP-Suchmetadaten jedes Zugs mit Suche — der Weg zur Widget-Hülle statt
+   *  über `window` (Paket 19, N-6); gated durch `emitQueryMeta`. */
+  readonly queryMeta = output<{ queries: QueryMetaEntry[] }>();
   /** Das maschinenlesbare Ergebnis eines Zuges (2026-08-14). Feuert NUR, wenn
    *  der Gastgeber ein `result_schema` erklärt hat — ungated, anders als
    *  `guideSuggestion`/`routingDebug`: das Schema IST hier schon die Ansage. */
@@ -242,6 +251,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly render = new ShellRender({
     bypassSecurityTrustHtml: (html) => this._sanitizer.bypassSecurityTrustHtml(html),
     sessionId: () => this.sessionId,
+    bsidKennung: () => this.uebergabeKennung(),
     trustedDomains: () => this._effectiveTrustedDomains(),
     inlineResultGrouping: () => this.inlineResultGroupingBool,
     t: (key, params) => this.t(key, params),
@@ -426,8 +436,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       ? { page_context: this.parsedPageContext } : undefined,
     stream: (msg, onEvent, env, action, actionParams) =>
       this._api.stream(this.sessionId, msg, onEvent, env as any, action, actionParams),
+    // Review zu M-15: der POST-Rückfall eines Zugs hat keine Fortschrittsrahmen
+    // und kann ein ganzer Agent-Lauf sein — eigene, längere Frist.
     post: (msg, env, action, actionParams) =>
-      this._api.post(this.sessionId, msg, env as any, action, actionParams),
+      this._api.post(this.sessionId, msg, env as any, action, actionParams, ZUG_POST_FRIST_MS),
     formatPhaseLabel: (evt) => formatPhaseLabel(evt, (k, p) => this.t(k, p)),
     onResult: (resp, msg) => this._onResult(resp, msg),
     t: (key, params) => this.t(key, params),
@@ -462,7 +474,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     tourReplyEn: () => this.tourReplyEn(),
     guideModeActive: this.guideModeActive,
     trustedDomains: () => this._effectiveTrustedDomains(),
-    sessionId: () => this.sessionId,
+    // Nur für die `?bsid=`-Übergabe der Lotsen-Navigation — ohne persist leer (H-4).
+    sessionId: () => this.uebergabeKennung(),
     startTour: () => { this.startTour(); },
     // Der Klick IST die Nutzergeste, ohne die der Browser das Anmeldefenster
     // blockt — deshalb wird hier synchron gestartet und nicht erst nach einem
@@ -544,19 +557,35 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private _onResult(resp: ChatResponse, userMessage: string): void {
     this._tour.applyTourState(resp);
     this._setzeLetzte(resp.debug, resp.ui);
-    if (resp.query_metas?.length) {
-      dispatchHostEvent(HOST_EVENTS.queryMeta, { queries: resp.query_metas });
+    // Paket 19 (Audit 2026-10-31 N-33): erst, was der Zug selbst verlangt —
+    // Schreibvorgang, abgewiesene Anmeldung, Vorlesen —, dann die Rückrufe und
+    // Ereignisse der Gastseite. Ein werfender Rückruf nahm sonst alles danach mit.
+    if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
+    if (resp.auth_invalid) this._anmeldungAbgewiesen();
+    if (this._speech.autoSpeak && resp.content) {
+      this._speech.autoSpeakText(resp.content);
+    }
+    try {
+      this._meldeAnDieGastseite(resp, userMessage);
+    } catch (err) {
+      console.error('boerdi: Rückruf der Gastseite gescheitert —', fehlerKurz(err));
+    }
+  }
+
+  /** Was die Gastseite von einem Zug erfährt — Rückrufe, Ausgänge, Ereignisse. */
+  private _meldeAnDieGastseite(resp: ChatResponse, userMessage: string): void {
+    // Review zu N-6: Output UND window-Ereignis nur mit `emit-query-meta` — die
+    // Hülle macht den Output über Angular Elements zum DOM-Ereignis am Element.
+    if (resp.query_metas?.length && _attrIsTrue(this.emitQueryMeta())) {
+      const nutzlast = { queries: resp.query_metas };
+      this.queryMeta.emit(nutzlast);
+      dispatchHostEvent(HOST_EVENTS.queryMeta, nutzlast);
     }
     this.dispatchPageAction(resp.page_action);
     maybeDispatchGuideNavigate(userMessage, resp.cards, this._contexts.hostEvents);
     maybeDispatchGuideSuggestion(userMessage, resp.cards, this._contexts.hostEvents);
     maybeDispatchRoutingDebug(userMessage, resp, this._contexts.hostEvents);
     this._reportAgentResult(resp);
-    if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
-    if (resp.auth_invalid) this._anmeldungAbgewiesen();
-    if (this._speech.autoSpeak && resp.content) {
-      this._speech.autoSpeakText(resp.content);
-    }
   }
 
   /** Das maschinenlesbare Ergebnis an den Gastgeber melden (2026-08-14).
@@ -597,7 +626,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Verbatim aus ALT chat.component.ts:1075-1080. */
   private dispatchPageAction(pa: { action: string; payload: any } | null | undefined): void {
     if (!pa) return;
-    if (this.onPageAction) this.onPageAction(pa);
+    // Review zu N-33: ein werfender Rückruf der Gastseite nimmt Output und
+    // Ereignis nicht mit.
+    try {
+      if (this.onPageAction) this.onPageAction(pa);
+    } catch (err) {
+      console.error('boerdi: onPageAction der Gastseite gescheitert —', fehlerKurz(err));
+    }
     this.pageAction.emit(pa);
     dispatchHostEvent(HOST_EVENTS.pageAction, pa);
   }
@@ -797,6 +832,21 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Mikro-Aufnahme starten/stoppen (Transkript geht als Turn raus). */
   toggleRecording(): Promise<void> {
     return this._speech.toggleRecording();
+  }
+
+  /** **Public** — die Kennung, die als `?bsid=` zu vertrauten Hosts reisen darf:
+   *  die Sitzungs-ID nur mit `persist-session`, sonst `''` (Paket 19, Review zu
+   *  H-4). Ohne persist soll die Kennung nirgends liegen bleiben — das WLO-Widget
+   *  am Ziel (persist an) legte eine mitgereiste ID sonst bei sich ab. */
+  uebergabeKennung(): string {
+    const p = this.persistSession();
+    return p === true || p === 'true' ? this.sessionId : '';
+  }
+
+  /** **Public** — laufende Aufnahme stoppen und verwerfen, ohne Transkription und
+   *  ohne Senden (Paket 19, M-13). Die Widget-Hülle ruft es beim Zuklappen. */
+  discardRecording(): void {
+    this._speech.verwerfen();
   }
 
   /** Bot-Antwort vorlesen (bzw. laufende Ausgabe stoppen). */

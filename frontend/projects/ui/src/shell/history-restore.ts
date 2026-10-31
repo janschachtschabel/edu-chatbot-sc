@@ -10,6 +10,7 @@
  */
 import { WloCard } from '../cards/card-types';
 import { ChatMessage, PaginationInfo, QueryMetaEntry, UiInfo, WebLink } from '../grouping/message-types';
+import { sitzungsWache } from '../session/session-id';
 import { HistoryMessage } from '../stream/chat-api';
 
 /** Live-Zustand/Reducer der Shell, die der Restore braucht (deferred Arrows +
@@ -57,13 +58,20 @@ function openerIsContextGreeting(history: HistoryMessage[]): boolean {
 }
 
 /** History der Session laden und render-fertig einspielen. Verbatim aus ALT
- *  chat.component.ts:347-399, plus das Kontext-Tor von 2026-08-17. */
-export async function restoreHistory(ctx: HistoryRestoreContext): Promise<void> {
+ *  chat.component.ts:347-399, plus das Kontext-Tor von 2026-08-17.
+ *
+ *  Paket 19 (Audit 2026-10-31 M-14): der Verlauf gehört der Sitzung, für die er
+ *  geladen wurde (`sitzungsWache`). Kam er erst nach einem Neustart an, landete
+ *  er im frischen Gespräch — genau der „Weg damit“-Fall auf geteilten Geräten.
+ *  Rückgabe `false` = verworfen; der Aufrufer schließt dann nichts mehr an. */
+export async function restoreHistory(ctx: HistoryRestoreContext): Promise<boolean> {
+  const veraltet = sitzungsWache(() => ctx.sessionId());
   const history = await ctx.loadHistory(ctx.sessionId(), 20);
+  if (veraltet()) return false;
   if (!history || history.length === 0) {
     // Leere Session — Begrüßung wie ein frischer Chat.
     ctx.showGreeting();
-    return;
+    return true;
   }
   // Hardcodierte Anfangs-Begrüßung voranstellen (Backend persistiert sie nicht
   // → würde nach Reopen/Cross-TLD-Handoff verschwinden) — es sei denn, sie gab
@@ -99,4 +107,5 @@ export async function restoreHistory(ctx: HistoryRestoreContext): Promise<void> 
   }
   // Ans Ende scrollen — der Auto-Follow-Tail hält jede spätere Mutation am Boden.
   ctx.scrollToLatest();
+  return true;
 }

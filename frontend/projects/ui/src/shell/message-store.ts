@@ -19,9 +19,35 @@ import {
   ChatMessage, InlineDocument, PaginationInfo, QueryMetaEntry, TopicPageView, UiInfo, WebLink,
 } from '../grouping/message-types';
 
+/** Plant einen Rückruf für den nächsten Bildschirm-Rahmen. */
+export type RahmenPlaner = (cb: () => void) => void;
+
+/** `requestAnimationFrame`, wo es das gibt — sonst ein Rahmen von ~16 ms. In einem
+ *  verborgenen Tab feuert rAF nicht; dann wartet der Text, bis der Tab wieder
+ *  sichtbar ist oder die fertige Antwort die Ladeblase ersetzt. */
+const naechsterRahmen: RahmenPlaner = (cb) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => cb());
+  else setTimeout(cb, 16);
+};
+
+/** Was ein laufender Strom schon geliefert, aber noch nicht geschrieben hat. */
+interface StromPuffer {
+  /** Zeichen (Unicode-Codepunkte wie Python `len`) seit Beginn des Stroms —
+   *  geschrieben UND ausstehend. Gegen sie prüft `pos`. */
+  zeichen: number;
+  /** Stücke, die auf ihren Rahmen warten. */
+  ausstehend: string;
+  /** Ist für diesen Strom schon ein Rahmen geplant? */
+  geplant: boolean;
+}
+
 export class MessageStore {
   /** Nachrichten-Verlauf (bot/user Bubbles) — Single Source of Truth. */
   readonly messages = signal<ChatMessage[]>([]);
+
+  /** `planen`: wann gesammelte Strom-Stücke geschrieben werden (Paket 19, N-40).
+   *  Vorgabe: einmal je Bildschirm-Rahmen; Tests geben einen eigenen Planer. */
+  constructor(private readonly planen: RahmenPlaner = naechsterRahmen) {}
 
   /** Verlauf ersetzen (Restart/Reset/History-Restore). */
   set(msgs: ChatMessage[]): void {
@@ -84,6 +110,9 @@ export class MessageStore {
   /** Message per id entfernen. Verbatim aus ALT chat.component.ts:1319-1321. */
   removeMessage(id: string): void {
     this.messages.update(msgs => msgs.filter(m => m.id !== id));
+    // Ein noch geplanter Strom-Rahmen findet dann nichts mehr (Paket 19, N-40).
+    this._strom.delete(id);
+    this._stromLuecke.delete(id);
   }
 
   /** Lade-Phasen-Label einer laufenden Bubble per id setzen (nur solange
@@ -97,29 +126,72 @@ export class MessageStore {
   /** Bubbles, deren Strom eine Lücke hatte — dort wird nichts mehr angehängt. */
   private readonly _stromLuecke = new Set<string>();
 
+  /** Laufende Ströme je Ladeblase (Paket 19, N-40). */
+  private readonly _strom = new Map<string, StromPuffer>();
+
   /** Token-Streaming (Plan 2026-10-01): ein Stück Antworttext an die ladende
    *  Bubble hängen. `pos` ist die Länge des bisher gesendeten Texts; passt er
    *  nicht, fehlt ein Stück — dann bleibt der Strom stehen, und `result`
-   *  bringt den ganzen Text. */
+   *  bringt den ganzen Text.
+   *
+   *  Paket 19 (Audit 2026-10-31 N-40): geschrieben wird einmal je Rahmen, nicht je
+   *  Stück. Jeder Schreibvorgang schickt den ganzen Teiltext durch marked und
+   *  DOMPurify — je Stück wurde das quadratisch und machte das Streaming auf
+   *  schwachen Geräten hakelig. Die Zeichenzahl läuft mit, statt den Text je
+   *  Stück neu zu zählen. Der Endstand ist derselbe Text. */
   appendStreamText(loadingId: string, text: string, pos: number): void {
     if (this._stromLuecke.has(loadingId)) return;
     const msg = this.messages().find(m => m.id === loadingId);
     if (!msg || !msg.isLoading) return;
-    const bisher = msg.streamText ?? '';
-    // `pos` zählt Unicode-Zeichen wie der Server (Python `len`), nicht
-    // UTF-16-Einheiten: ein Emoji ist ein Zeichen, `length` zählte zwei.
-    if (pos !== Array.from(bisher).length) {
+    let puffer = this._strom.get(loadingId);
+    if (!puffer) {
+      // `pos` zählt Unicode-Zeichen wie der Server (Python `len`), nicht
+      // UTF-16-Einheiten: ein Emoji ist ein Zeichen, `length` zählte zwei.
+      puffer = { zeichen: Array.from(msg.streamText ?? '').length, ausstehend: '', geplant: false };
+      this._strom.set(loadingId, puffer);
+    }
+    if (pos !== puffer.zeichen) {
       this._stromLuecke.add(loadingId);
       return;
     }
+    puffer.zeichen += Array.from(text).length;
+    puffer.ausstehend += text;
+    if (puffer.geplant) return;
+    puffer.geplant = true;
+    this.planen(() => this._schreibeStrom(loadingId));
+  }
+
+  /** **Sofort** alle ausstehenden Strom-Stücke schreiben — für Tests und für
+   *  Aufrufer, die den aktuellen Stand brauchen, bevor der Rahmen kommt. */
+  streamTextSchreiben(): void {
+    for (const id of [...this._strom.keys()]) this._schreibeStrom(id);
+  }
+
+  /** Die gesammelten Stücke einer Ladeblase in EINEM Schreibvorgang anhängen. */
+  private _schreibeStrom(loadingId: string): void {
+    const puffer = this._strom.get(loadingId);
+    if (!puffer) return;
+    puffer.geplant = false;
+    const stueck = puffer.ausstehend;
+    puffer.ausstehend = '';
+    const msg = this.messages().find(m => m.id === loadingId);
+    // Ladeblase schon ersetzt (fertige Antwort, Neustart): nichts zurückschreiben.
+    if (!msg || !msg.isLoading) {
+      this._strom.delete(loadingId);
+      return;
+    }
+    if (!stueck) return;
     this.messages.update(msgs => msgs.map(m =>
-      m.id === loadingId ? { ...m, streamText: bisher + text } : m,
+      m.id === loadingId ? { ...m, streamText: (m.streamText ?? '') + stueck } : m,
     ));
   }
 
   /** Den vorläufigen Text verwerfen (Rückfall auf POST) — samt einer Lücke. */
   clearStreamText(loadingId: string): void {
     this._stromLuecke.delete(loadingId);
+    // Auch was noch auf seinen Rahmen wartet; ein schon geplanter Rahmen findet
+    // dann keinen Puffer mehr bzw. einen neuen, der bei 0 beginnt.
+    this._strom.delete(loadingId);
     this.messages.update(msgs => msgs.map(m => {
       if (m.id !== loadingId || m.streamText === undefined) return m;
       const { streamText: _verworfen, ...rest } = m;

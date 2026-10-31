@@ -20,6 +20,10 @@
         {{ t('login.notConfigured', { env: t('login.passwordEnv') }) }}
       </p>
     } @else {
+      @if (locked(); as seconds) {
+        <!-- Paket 19 (H-3): zu viele falsche Anmeldungen von dieser Adresse. -->
+        <p class="hint locked" role="status">{{ t('login.locked', { seconds: seconds }) }}</p>
+      }
       <p class="hint" id="pw-hint">
         @if (expired()) {
           {{ t('login.expired') }}

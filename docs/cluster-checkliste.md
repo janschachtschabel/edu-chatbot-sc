@@ -55,9 +55,18 @@ Werte, ohne die ein Cluster zwar startet, aber unter Last oder beim Rollout Züg
 Die Helm-Vorlage (`deploy/helm/values.example.yaml`) trägt sie bereits; hier steht, warum.
 
 * **DB-Verbindungen:** je Pod ein Pool von `DB_POOL_SIZE` + `DB_MAX_OVERFLOW` (Vorgabe 5 + 10),
-  eine LISTEN-Verbindung und kurzzeitig eine für die Bereitschaftsprobe (`/ready`, ohne Pool).
-  Also `max_connections ≥ N × 17 + Reserve` (Migration, psql, Sicherung) — oder PgBouncer im
-  Session-Modus (LISTEN braucht ihn).
+  bis zu 4 der Sitzungssperre (eigener kleiner Pool, Paket 19), eine LISTEN-Verbindung und
+  kurzzeitig eine für die Bereitschaftsprobe (`/ready`, ohne Pool).
+  Also `max_connections ≥ N × (DB_POOL_SIZE + DB_MAX_OVERFLOW + 6) + Reserve` (die 6: Sitzungssperre 4, LISTEN 1, `/ready` 1;
+  Reserve für Migration, psql, Sicherung), mit den Vorgaben N × 21 — beim Rolling Update
+  zählen die Surge-Pods mit (N = Repliken + `maxSurge`). Oder PgBouncer im
+  Session-Modus (LISTEN braucht ihn). Seit Paket 19 hält ein Zug seine Verbindung nur während
+  der Abfragen, nicht über LLM und MCP; jede Verbindung trägt Fristen (`DB_*_TIMEOUT_S`). Die
+  Server-Fristen setzt die App per `SET` nach dem Verbindungsaufbau, nicht als Startparameter —
+  PgBouncer lehnt unbekannte Startparameter ab.
+* **Config-Abgleich:** neben NOTIFY gleicht jede Kopie alle 60 s die Versionen der Bereiche ab
+  und prüft die LISTEN-Verbindung alle 15 s mit `SELECT 1`. `/ready` meldet `konfiguration`,
+  wenn weder LISTEN steht noch der Abgleich in drei Takten gelang.
 * **Gnadenfrist ≥ 75 s:** bis 5 s schließt der Pod seine Läufe, Uvicorn wartet bis 30 s auf
   offene Anfragen, danach der Lebenszyklus bis 25 s auf nachlaufende Züge, plus Abbruch und
   Abbau (5 + 5 + 2 s). Compose: `stop_grace_period: 75s`. Kubernetes:

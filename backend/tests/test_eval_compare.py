@@ -197,7 +197,7 @@ def test_rechnet_neben_dem_event_loop(monkeypatch) -> None:
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
     app = create_app()
     app.dependency_overrides[get_session] = lambda: "S"
@@ -215,7 +215,7 @@ def test_route_reicht_die_kennungen_weiter(client, monkeypatch) -> None:
 
     monkeypatch.setattr(eval_api, "compare_runs", fake)
     r = client.get("/api/eval/compare", params={"ids": "eval-a,eval-b,eval-a"},
-                   headers={"X-Studio-Key": "k"})
+                   headers={"X-Studio-Key": "k-studio-testkey"})
 
     assert r.status_code == 200
     # Doppelte Kennung zählt einmal — ein Lauf zweimal wäre eine erfundene Wiederholung.
@@ -235,7 +235,8 @@ def test_route_weist_unbrauchbare_auswahl_ab(client, monkeypatch, ids) -> None:
         return {"engines": {}}
 
     monkeypatch.setattr(eval_api, "compare_runs", fake)
-    r = client.get("/api/eval/compare", params={"ids": ids}, headers={"X-Studio-Key": "k"})
+    r = client.get("/api/eval/compare", params={"ids": ids},
+                   headers={"X-Studio-Key": "k-studio-testkey"})
     assert r.status_code == 422
 
 

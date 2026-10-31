@@ -40,6 +40,7 @@ from boerdi.db.models import (
     QualityLog,
     SafetyLog,
 )
+from boerdi.domain.history_window import KUERZUNGS_HINWEIS
 from boerdi.obs import trace_id
 from boerdi.services.config_loader import load_privacy_config
 from boerdi.services.config_loader.safety import melde_datenschutz_unlesbar
@@ -47,6 +48,19 @@ from boerdi.services.zugakte import SCHLUESSEL as ZUGAKTE
 from boerdi.services.zugakte import mit_zugakte
 
 logger = logging.getLogger(__name__)
+
+#: Paket 19 (Audit M-6): so viele Zeichen einer Nachricht der PERSON landen höchstens in
+#: ``messages`` — der Rest wird mit :data:`KUERZUNGS_HINWEIS` markiert. Der Prompt-Weg bleibt
+#: ohne Deckel (Entscheid 2026-08-18). Bot-Antworten bleiben ganz (Review, Punkt 8): der
+#: Volltext eines Dokuments (M17, ``content_text_action``) wird im Folgezug gebraucht, und die
+#: Angriffsfläche ist der Rumpf der Anfrage.
+MAX_GESPEICHERT = 20_000
+
+
+def _gekappt(inhalt: str) -> str:
+    if not isinstance(inhalt, str) or len(inhalt) <= MAX_GESPEICHERT:
+        return inhalt
+    return inhalt[:MAX_GESPEICHERT] + KUERZUNGS_HINWEIS
 
 
 def _session_to_dict(obj: ChatSession) -> dict[str, Any]:
@@ -153,7 +167,7 @@ async def save_message(
     obj = ChatMessage(
         session_id=session_id,
         role=role,
-        content=content,
+        content=_gekappt(content) if role == "user" else content,  # Paket 19, M-6
         cards=cards or [],
         # Paket 18C/D: Trace-ID und Zugakte aus dem Kontext — kein Aufrufer reicht sie durch,
         # auch die früh endenden Züge und die Fehlerblase nicht.

@@ -318,3 +318,23 @@ def test_asyncpg_in_allen_formen(zeile):
     from boerdi.obs.log_format import geschwaerzt
 
     assert MARKE not in geschwaerzt(zeile)
+
+
+def test_ein_formatfehler_schreibt_nur_typ_und_logger_nach_stderr(capsys, monkeypatch):
+    """Paket 19 (N-11): ``logging.Handler.handleError`` schriebe ``Message: %r`` und
+    ``Arguments: %s`` roh nach stderr — an der Schwärzung vorbei."""
+    from boerdi.obs.log_format import StdoutHandler
+
+    monkeypatch.setattr(logging, "raiseExceptions", True)
+    handler = StdoutHandler()
+    handler.setFormatter(text_formatter())
+    # Zwei Platzhalter, ein Argument: ``getMessage`` wirft beim Formatieren.
+    record = logging.LogRecord("boerdi.probe", logging.WARNING, __file__, 1,
+                               "Thema %s, Anfrage %s", (f"{MARKE} Optik",), None)
+    record.trace_id = "-"
+    handler.handle(record)
+    fehler = capsys.readouterr().err
+    assert MARKE not in fehler and "Thema" not in fehler
+    assert "TypeError" in fehler and "boerdi.probe" in fehler
+    # Review: der Ort der Logzeile, damit der Platzhalterfehler zu finden ist (kein Inhalt).
+    assert f"{__file__}:1" in fehler

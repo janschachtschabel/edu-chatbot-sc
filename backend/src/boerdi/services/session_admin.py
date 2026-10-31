@@ -35,6 +35,8 @@ from boerdi.db.models import ChatSession
 from boerdi.services.session_origin import scope_clause
 
 _LIST_LIMIT = 100
+#: Frist des ``VACUUM (ANALYZE)`` im Studio (Paket 19, M-10) — über den Fristen je Abfrage.
+VACUUM_FRIST_S = 1800.0
 
 
 async def list_sessions_admin(session: AsyncSession, scope: str = "all") -> list[dict]:
@@ -123,8 +125,26 @@ async def optimize_database(session: AsyncSession) -> dict[str, int]:
     conn = await session.connection(
         execution_options={"isolation_level": "AUTOCOMMIT"}
     )
-    await conn.execute(text("VACUUM (ANALYZE)"))
-    after = await _db_size_bytes(session)
+    # Paket 19 (Audit 2026-10-31, M-10): VACUUM ist der eine lange Lauf der App — er
+    # bekommt seine eigene Frist statt ``DB_STATEMENT_TIMEOUT_S``/``DB_COMMAND_TIMEOUT_S``.
+    # Ohne Transaktion kein ``SET LOCAL``: auf Sitzungsebene aufheben und danach die
+    # Werte der Verbindung wiederherstellen, bevor sie in den Pool geht. Nicht ``RESET``:
+    # die Fristen setzt ``db/session`` per ``SET`` nach dem Verbinden (Review 19-4), ein
+    # ``RESET`` fiele auf die Vorgabe des Servers (aus) zurück. ``lock_timeout`` mit: VACUUM
+    # wartet auf Tabellensperren (Review 19-4).
+    vorher = (await conn.execute(text(
+        "SELECT current_setting('statement_timeout'), current_setting('lock_timeout')"))).one()
+    await conn.execute(text("SET statement_timeout = 0"))
+    await conn.execute(text("SET lock_timeout = 0"))
+    try:
+        roh = (await conn.get_raw_connection()).driver_connection
+        await roh.execute("VACUUM (ANALYZE)", timeout=VACUUM_FRIST_S)
+        after = await _db_size_bytes(session)
+    finally:
+        await conn.execute(
+            text("SELECT set_config('statement_timeout', :st, false), "
+                 "set_config('lock_timeout', :lt, false)"),
+            {"st": vorher[0], "lt": vorher[1]})
     return {
         "before_bytes": before,
         "after_bytes": after,

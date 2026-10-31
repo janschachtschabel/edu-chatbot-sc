@@ -25,14 +25,14 @@ from boerdi.api.deps import get_session
 from boerdi.main import create_app
 from boerdi.settings import get_settings
 
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 _SESSION = object()  # sentinel: whatever get_session yields must reach the service
 _VALID = "bb-0123456789abcdef0123456789abcdef"
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     monkeypatch.setenv("RATE_LIMIT_CHAT", "off")  # public endpoint: no 429 interference
     get_settings.cache_clear()
     app = create_app()
@@ -133,6 +133,20 @@ def test_optimize_failure_becomes_503(client, monkeypatch, caplog):
     # Paket 18E: ein Wartungsfehler mit Traceback im Log, nicht nur im Studio.
     fehler = [r for r in caplog.records if r.levelno == logging.ERROR]
     assert len(fehler) == 1 and fehler[0].exc_info is not None
+
+
+def test_optimize_failure_detail_traegt_keinen_ausnahmetext(client, monkeypatch):
+    """Paket 19 (N-12): der Studio-Text trug ``str(e)`` — bei asyncpg samt ``DETAIL:`` mit
+    Werten. Jetzt Art und Fehlernummer; der Grund steht im Log unter derselben Trace-ID."""
+    async def _boom(*a, **k):
+        raise RuntimeError("Schlüssel fehlt\nDETAIL:  Key (session_id)=(KANARIE7Q) is absent")
+
+    monkeypatch.setattr(sessions_api, "optimize_database", _boom)
+    r = client.post("/api/sessions/optimize", headers=_AUTH)
+    assert r.status_code == 503
+    detail = r.json()["detail"]
+    assert "KANARIE7Q" not in detail and "Schlüssel fehlt" not in detail
+    assert "RuntimeError" in detail and "Fehlernummer" in detail
 
 
 # ── GET /{session_id} ────────────────────────────────────────────────────

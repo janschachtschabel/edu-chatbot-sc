@@ -327,3 +327,44 @@ def test_eine_langsame_einbettung_haelt_den_zug_nicht_auf(monkeypatch):
     assert out.rag_einbettung is None
     assert dauer < 2, dauer          # Nachfrist, nicht die 5 s der Einbettung
     assert weg                       # keine Aufgabe bleibt liegen
+
+
+def test_die_eigene_klassifikationsfrist_ist_kein_error(monkeypatch, caplog):
+    """Paket 19 (N-16): ``classify_input`` wirft nach ``CLASSIFY_TIMEOUT_S`` ein
+    ``TimeoutError`` — erwartet unter Last, die Vorgabe-Einordnung übernimmt. WARNING,
+    gedrosselt; ein anderer Fehler bleibt ERROR."""
+    import logging
+
+    async def _safety(*a, **k):
+        return SafetyDecision(risk_level="low")
+
+    async def _frist(*a, **k):
+        from boerdi.services.llm_ereignisse import LlmFristAbgelaufen
+
+        raise LlmFristAbgelaufen("Klassifikation: keine Antwort binnen 8 s")
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _safety)
+    monkeypatch.setattr(assess_mod, "classify_input", _frist)
+    with caplog.at_level(logging.INFO, logger=assess_mod.__name__):
+        for _ in range(2):
+            out = asyncio.run(assess(_ctx("wie erkläre ich bruchrechnung?"), _memory_ok))
+            assert out.classification.intent_id == "I01"
+    zeilen = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert [r.levelname for r in zeilen] == ["WARNING"]
+
+
+def test_ein_fremder_timeouterror_der_klassifikation_bleibt_error(monkeypatch, caplog):
+    """Review: nur die eigene Frist (``LlmFristAbgelaufen``) ist erwartbar."""
+    import logging
+
+    async def _safety(*a, **k):
+        return SafetyDecision(risk_level="low")
+
+    async def _fremd(*a, **k):
+        raise TimeoutError()
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _safety)
+    monkeypatch.setattr(assess_mod, "classify_input", _fremd)
+    with caplog.at_level(logging.INFO, logger=assess_mod.__name__):
+        asyncio.run(assess(_ctx("wie erkläre ich bruchrechnung?"), _memory_ok))
+    assert [r.levelname for r in caplog.records if r.levelno >= logging.WARNING] == ["ERROR"]

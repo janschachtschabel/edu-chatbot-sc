@@ -477,11 +477,29 @@ class Settings(BaseSettings):
         validation_alias=_env("DATABASE_URL"),
         description="dev default matches deploy/compose.dev.yml",
     )
-    # Paket 10 (Audit 2026-10-10, M-8): der Verbindungs-Pool je Replik. Ein Zug hält
-    # seine Sitzung über die LLM-Aufrufe hinweg; die Vorgaben sind die von
-    # SQLAlchemy (5 + 10) — ohne Eintrag ändert sich nichts.
+    # Paket 10 (Audit 2026-10-10, M-8): der Verbindungs-Pool je Replik; die Vorgaben sind
+    # die von SQLAlchemy (5 + 10). Seit Paket 19 (H-5) hält ein Zug seine Verbindung nur
+    # noch während der Abfragen, nicht über LLM und MCP — 15 Verbindungen tragen damit
+    # weit mehr als 15 gleichzeitige Züge.
     db_pool_size: int = Field(5, ge=1, validation_alias=_env("DB_POOL_SIZE"))
     db_max_overflow: int = Field(10, ge=0, validation_alias=_env("DB_MAX_OVERFLOW"))
+    # Paket 19 (Audit 2026-10-31, M-10): Fristen je Verbindung, in Sekunden; 0 = aus.
+    # ``statement_timeout``/``idle_in_transaction_session_timeout``/``lock_timeout`` setzt
+    # der Server, ``command_timeout`` der Client (asyncpg) — er fängt auch eine
+    # Netzpartition ohne RST. Lange Läufe (VACUUM) heben die Frist für sich auf; die
+    # Kommandozeile (``boerdi …``) baut ihre Engine ohne Fristen.
+    db_statement_timeout_s: float = Field(
+        60.0, ge=0, validation_alias=_env("DB_STATEMENT_TIMEOUT_S"))
+    db_command_timeout_s: float = Field(
+        90.0, ge=0, validation_alias=_env("DB_COMMAND_TIMEOUT_S"))
+    db_idle_in_transaction_timeout_s: float = Field(
+        300.0, ge=0, validation_alias=_env("DB_IDLE_IN_TRANSACTION_TIMEOUT_S"))
+    db_lock_timeout_s: float = Field(30.0, ge=0, validation_alias=_env("DB_LOCK_TIMEOUT_S"))
+    # Paket 19 (Audit 2026-10-31, M-11): Deckel des MCP-Werkzeug-Caches nach Größe (Zeichen).
+    mcp_tool_cache_max_chars: int = Field(
+        20_000_000, ge=0, validation_alias=_env("MCP_TOOL_CACHE_MAX_CHARS"))
+    mcp_tool_cache_max_entry_chars: int = Field(
+        1_000_000, ge=0, validation_alias=_env("MCP_TOOL_CACHE_MAX_ENTRY_CHARS"))
     rate_limit_storage_uri: str = Field(
         "memory://", validation_alias=_env("RATE_LIMIT_STORAGE_URI"),
         description="slowapi storage; valkey://... in cluster (P10-6)",
@@ -515,15 +533,7 @@ class Settings(BaseSettings):
     def _pruefe_rate_limit_chat(cls, v: str) -> str:
         """Paket 18F: ein ungültiges Limit verhindert den Start. Bisher scheiterte slowapi erst
         je Anfrage am Parsen — eine Fehlerzeile je Anfrage, und das Limit war faktisch aus."""
-        if v.strip().lower() in RATE_LIMIT_AUS:
-            return v
-        try:
-            parse_many(v)
-        except ValueError as fehler:
-            raise ValueError(
-                f"RATE_LIMIT_CHAT={v!r} ist kein gültiges Limit — Form „120/minute“ oder "
-                f"„10/second;500/hour“, abschalten mit {'|'.join(RATE_LIMIT_AUS)}") from fehler
-        return v
+        return pruefe_drosselgrenze(v)
 
     @field_validator("log_level")
     @classmethod
@@ -694,9 +704,63 @@ def get_settings() -> Settings:
     return Settings()
 
 
+#: Paket 19 (Audit H-3, Entscheid P19-E2): kürzer bleibt das Studio (``STUDIO_PASSWORD``) bzw.
+#: der Schlüssel (``STUDIO_API_KEY``) verschlossen — das Cookie ist eine reine Funktion des
+#: Passworts und lässt sich ohne Server raten.
+STUDIO_GEHEIMNIS_MINDESTLAENGE = 12
+
+
+def _studio_schluessel_roh() -> str:
+    key = get_settings().studio_api_key.get_secret_value().strip()
+    return "" if key.upper().startswith("CHANGE_ME") else key
+
+
 def studio_schluessel() -> str:
     """Der konfigurierte Studio-Schlüssel, oder "" ohne. ``CHANGE_ME…``-Platzhalter gelten als
     nicht gesetzt — ein vergessener Vorlagewert darf nie als Schlüssel wirken. Die eine Stelle
-    für API (``api/deps.expected_studio_key``) und interne Aufrufer (Lasttest, Eval-Runner)."""
-    key = get_settings().studio_api_key.get_secret_value().strip()
-    return "" if key.upper().startswith("CHANGE_ME") else key
+    für API (``api/deps.expected_studio_key``) und interne Aufrufer (Lasttest, Eval-Runner).
+
+    Seit Paket 19 auch "" für einen zu kurzen Schlüssel (:func:`studio_schluessel_zu_kurz`): er
+    passt dann auf keine Anfrage, und kein interner Aufrufer schickt ihn mit."""
+    key = _studio_schluessel_roh()
+    return key if len(key) >= STUDIO_GEHEIMNIS_MINDESTLAENGE else ""
+
+
+def studio_schluessel_zu_kurz() -> bool:
+    """Gesetzt, aber kürzer als :data:`STUDIO_GEHEIMNIS_MINDESTLAENGE` — dann bleiben die
+    Verwaltungsrouten zu (503), auch mit ``BOERDI_ALLOW_OPEN_ADMIN``: wer einen Schlüssel setzt,
+    wollte ein Schloss, kein offenes Tor."""
+    return 0 < len(_studio_schluessel_roh()) < STUDIO_GEHEIMNIS_MINDESTLAENGE
+
+
+def pruefe_drosselgrenze(wert: str, name: str = "RATE_LIMIT_CHAT") -> str:
+    """Eine Grenze wie ``120/minute`` oder ``10/second;500/hour``, oder ein Aus-Wort
+    (:data:`RATE_LIMIT_AUS`). Sonst ``ValueError`` — für ``RATE_LIMIT_CHAT`` beim Start, für die
+    Zug-Grenzen im Studio beim Speichern (Paket 19, M-4)."""
+    if wert.strip().lower() in RATE_LIMIT_AUS:
+        return wert
+    try:
+        parse_many(wert)
+    except ValueError as fehler:
+        raise ValueError(
+            f"{name}={wert!r} ist kein gültiges Limit — Form „120/minute“ oder "
+            f"„10/second;500/hour“, abschalten mit {'|'.join(RATE_LIMIT_AUS)}") from fehler
+    return wert
+
+
+def ist_lockerer(wert: str, vorgabe: str) -> bool:
+    """Erlaubt die Grenze ``wert`` in einem Fenster der ``vorgabe`` mehr Anfragen als diese?
+    (Paket 19, Review Punkt 7: das Studio kann den Betreiber-Schutz ``RATE_LIMIT_CHAT`` lockern —
+    das soll im Log stehen.) ``off`` ist lockerer als jede Grenze; ist die Vorgabe aus, ist
+    nichts lockerer. Je Fenster der Vorgabe zählt das strengste Fenster von ``wert``: ein
+    kürzeres wird auf die Fensterlänge hochgerechnet, ein längeres deckelt mit seiner Zahl."""
+    if vorgabe.strip().lower() in RATE_LIMIT_AUS:
+        return False
+    if wert.strip().lower() in RATE_LIMIT_AUS:
+        return True
+    eigene = [(g.amount, g.get_expiry()) for g in parse_many(wert)]
+    for menge, sekunden in ((g.amount, g.get_expiry()) for g in parse_many(vorgabe)):
+        erlaubt = min(m * (sekunden // s) if s <= sekunden else m for m, s in eigene)
+        if erlaubt > menge:
+            return True
+    return False

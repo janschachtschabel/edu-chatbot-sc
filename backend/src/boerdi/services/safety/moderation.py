@@ -19,6 +19,7 @@ from typing import Any
 import litellm
 
 from boerdi.obs import metrics
+from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.trace_id import ausgehende_koepfe
 from boerdi.services import llm_parallel
 from boerdi.services.llm_auth import b_api_schluessel
@@ -26,6 +27,10 @@ from boerdi.services.llm_models import get_provider
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+#: Paket 19 (N-17): eine Ausfall-Zeile je Minute und Fehlerart, nicht je Zug — den Alarm trägt
+#: ``boerdi_safety_stage_total`` (``metrics.sicherheitsstufe``), der jeden Zug zählt.
+_AUSFALL_ABSTAND_S = 60.0
 
 _MOD_MODEL = "omni-moderation-latest"
 _DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
@@ -233,8 +238,9 @@ async def moderate(message: str) -> dict[str, Any]:
         befund = _zusammengefasst(ergebnisse)
     except Exception as e:  # noqa: BLE001 — fail-open by design (regex floor stays)
         # Mit Art: ``str(TimeoutError())`` ist leer, das Log sagte nur „failed: “.
-        logger.warning("moderation skipped, message passes unchecked: %s: %s",
-                       type(e).__name__, e)
+        gedrosselt(logger, logging.WARNING, f"moderation:{type(e).__name__}",
+                   _AUSFALL_ABSTAND_S, "moderation skipped, message passes unchecked: %s: %s",
+                   type(e).__name__, e)
         metrics.sicherheitsstufe("openai_moderation", "fehler")
         return {}
     if not ganz:

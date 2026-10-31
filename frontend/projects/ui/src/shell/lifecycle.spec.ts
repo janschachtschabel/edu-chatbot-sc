@@ -171,8 +171,8 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     expect(rec.bots.length).toBe(0);
   });
 
-  it('restart: neue Session persistiert, Messages/Debug geleert, Begrüßung', () => {
-    const { ctx, rec } = makeCtx();
+  it('restart: neue Session persistiert (persist), Messages/Debug geleert, Begrüßung', () => {
+    const { ctx, rec } = makeCtx({ persistSession: () => true });
     new ShellLifecycle(ctx).restart();
     expect(rec.sessionIds[0]).toMatch(/^bb-/);
     expect(localStorage.getItem(KEY)).toBe(rec.sessionIds[0]);
@@ -181,12 +181,36 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     expect(rec.bots.length).toBe(1);
   });
 
-  it('resetSession: localStorage geräumt + neu geschrieben, Reset-Begrüßung', () => {
-    localStorage.setItem(KEY, 'old-value');
+  // Paket 19, Audit 2026-10-31 H-4: `persist-session="false"` (Schulrechner) heißt,
+  // die Kennung bleibt nirgends liegen — auch nicht nach „Neues Gespräch“. Sonst las
+  // die nächste Person sie aus dem localStorage und rief den Verlauf ab.
+  it('restart ohne persist: neue ID, aber nichts im localStorage oder Cookie (H-4)', () => {
+    const { ctx, rec } = makeCtx({ sessionCookieDomain: () => 'localhost' });
+    const cookie = vi.spyOn(Document.prototype, 'cookie', 'set');
+    new ShellLifecycle(ctx).restart();
+    expect(rec.sessionIds[0]).toMatch(/^bb-/);
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(cookie.mock.calls.some(([c]) => String(c).includes(rec.sessionIds[0]))).toBe(false);
+  });
+
+  it('resetSession ohne persist: alte Kennung und Eulen-Merker weg, neue nicht abgelegt (H-4)', () => {
+    localStorage.setItem(KEY, VALID_SID);
+    localStorage.setItem('boerdi_owl_hint_session', VALID_SID);
     const { ctx, rec } = makeCtx();
     new ShellLifecycle(ctx).resetSession();
     expect(rec.sessionIds[0]).toMatch(/^bb-/);
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(localStorage.getItem('boerdi_owl_hint_session')).toBeNull();
+  });
+
+  it('resetSession: localStorage geräumt + neu geschrieben (persist), Reset-Begrüßung', () => {
+    localStorage.setItem(KEY, 'old-value');
+    localStorage.setItem('boerdi_owl_hint_session', 'alt');
+    const { ctx, rec } = makeCtx({ persistSession: () => 'true' });
+    new ShellLifecycle(ctx).resetSession();
+    expect(rec.sessionIds[0]).toMatch(/^bb-/);
     expect(localStorage.getItem(KEY)).toBe(rec.sessionIds[0]);
+    expect(localStorage.getItem('boerdi_owl_hint_session')).toBeNull();
     expect(rec.messages[0]).toEqual([]);
     expect(rec.bots[0][0]).toBe('Hallo! Wie kann ich dir helfen?');
   });
@@ -369,6 +393,61 @@ describe('ShellLifecycle: Begrüßung beim ersten Laden', () => {
 // Der Abschluss-Tick löscht das Tour-Flag; wurde der Besitz erst NACH dem Tick
 // geprüft, feuerte der Kontext-Ping im selben Load — und direkt hinter „Fast
 // geschafft" stand „diese Seite gehört nicht zu WLO".
+// ── Paket 19, Audit 2026-10-31 M-14 + N-32: Neustart während des Ladens ────
+// Ein Vorgang gehört der Sitzung, in der er begann (`sitzungsWache`). Der
+// Wiederherstellungs- und der Erstgruß-Weg hatten keine: ein langsamer Verlauf
+// landete nach „Neustart“ im frischen Gespräch, ein später Kontext-Ping ergab
+// eine zweite Begrüßung.
+describe('ShellLifecycle — Neustart während Wiederherstellung und Erstgruß', () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); localStorage.clear(); });
+
+  function aufgeschoben<T>() {
+    let loesen!: (v: T) => void;
+    const p = new Promise<T>((r) => { loesen = r; });
+    return { p, loesen };
+  }
+
+  it('Verlauf kommt nach dem Neustart an → nicht eingefügt, kein Tour-Tick, kein Ping (M-14)', async () => {
+    localStorage.setItem(KEY, VALID_SID);
+    const verlauf = aufgeschoben<unknown[]>();
+    const users: string[] = [];
+    const made = makeCtx({
+      persistSession: () => true,
+      parsedPageContext: () => ({ collection_id: 'c1' }),
+      addUserMessage: (c) => { users.push(c); },
+    });
+    made.api.loadHistory.mockImplementation(() => verlauf.p);
+    made.tour.isTourFlagSet.mockReturnValue(false);
+    const lc = new ShellLifecycle(made.ctx);
+    lc.init();
+    lc.restart();                                  // neue Sitzung, eigene Begrüßung
+    const botsNachNeustart = made.rec.bots.length;
+    vi.useFakeTimers();
+    verlauf.loesen([{ role: 'user', content: 'Alte Frage' }, { role: 'assistant', content: 'Alt' }]);
+    for (let i = 0; i < 6; i++) await Promise.resolve();
+    vi.runAllTimers();
+    expect(users).toEqual([]);
+    expect(made.rec.bots.length).toBe(botsNachNeustart);
+    expect(made.cg.sendContextPing).not.toHaveBeenCalled();
+    expect(made.tour.sendTourTick).not.toHaveBeenCalled();
+  });
+
+  it('Kontext-Ping antwortet nach dem Neustart leer → keine zweite Begrüßung (N-32)', async () => {
+    const ping = aufgeschoben<boolean>();
+    const made = makeCtx({ pageContextInput: () => '{"page_kind":"collection"}' });
+    made.cg.sendContextPing.mockImplementation(() => ping.p);
+    const lc = new ShellLifecycle(made.ctx);
+    lc.init();
+    await Promise.resolve();
+    expect(made.cg.sendContextPing).toHaveBeenCalledWith('context_open_initial');
+    lc.restart();
+    expect(made.rec.bots.length).toBe(1);          // die Begrüßung des Neustarts
+    ping.loesen(false);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(made.rec.bots.length).toBe(1);
+  });
+});
+
 describe('ShellLifecycle — Tour besitzt den Load (X1)', () => {
   afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
 

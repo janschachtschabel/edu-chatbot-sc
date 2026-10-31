@@ -113,9 +113,22 @@ describe('page-context-detector: Seitenkontext-Erweiterung — Host und Adresse'
     expect(r.page_host).toBe('beispiel.org');
   });
 
-  it('page_url ist die volle Adresse — sonst findet der Dublettencheck die falsche Seite', () => {
+  it('page_url trägt Pfad und Seiten-Kennung — sonst findet der Dublettencheck die falsche Seite', () => {
     const url = 'https://beispiel.org/artikel?id=42';
     expect(detect(url).page_url).toBe(url);
+  });
+
+  // Paket 19, Audit 2026-10-31 M-8 (Widget-Teil): die Query trug Suchbegriffe,
+  // Tokens, E-Mails und `code=` fremder Seiten mit. Mit geht nur, was die Seite
+  // bezeichnet — `v` (YouTube), `id`, `p`/`page_id` (WordPress) —, der Anker nie.
+  it('page_url ohne Query und Anker — außer den Parametern, die die Seite bezeichnen (M-8)', () => {
+    expect(detect('https://beispiel.org/suche?q=geheim&token=abc&mail=a%40b.de#teil').page_url)
+      .toBe('https://beispiel.org/suche');
+    expect(detect('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10s&utm_source=x').page_url)
+      .toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(detect('https://blog.example/?p=123&code=geheim').page_url)
+      .toBe('https://blog.example/?p=123');
+    expect(detect('https://beispiel.org/a?code=xyz&state=1').page_url).toBe('https://beispiel.org/a');
   });
 
   it('beides steht auch an der echten Staging-Sammlung', () => {

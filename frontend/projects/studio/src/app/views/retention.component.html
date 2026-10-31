@@ -6,6 +6,8 @@
 
   <div class="cs-body">
     <p class="op-lead">{{ t('retention.lead') }}</p>
+    <!-- Paket 19 (Audit N-7): die Sicherungen halten Gelöschtes länger als jede Frist hier. -->
+    <p class="op-lead rt-backups">{{ t('retention.backups') }}</p>
 
     @if (overview.value(); as list) {
       <div class="rt-table-wrap">

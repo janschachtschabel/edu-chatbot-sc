@@ -155,3 +155,31 @@ def test_beendet_folgt_dem_hauptserver() -> None:
 def test_kopfanfragen_fuer_proben(pfad) -> None:
     r = _intern(_Engine()).head(pfad)
     assert r.status_code == 200
+
+
+# ── Paket 19 (Audit 2026-10-31, M-1): der Config-Abgleich zählt mit ──────────────
+
+class _Store:
+    def __init__(self, bereit: bool) -> None:
+        self._bereit = bereit
+
+    def bereit(self) -> bool:
+        return self._bereit
+
+
+def _intern_mit_store(store) -> TestClient:
+    haupt = FastAPI()
+    haupt.state.config_store = store
+    return TestClient(create_intern_app(
+        haupt, beendet=lambda: False, gestartet=lambda: True, probe_engine=_Engine()))
+
+
+def test_ohne_frische_konfiguration_nicht_bereit() -> None:
+    r = _intern_mit_store(_Store(False)).get("/ready")
+    assert r.status_code == 503
+    assert r.json()["grund"] == "konfiguration"
+
+
+def test_mit_frischer_konfiguration_bereit() -> None:
+    r = _intern_mit_store(_Store(True)).get("/ready")
+    assert r.status_code == 200

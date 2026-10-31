@@ -191,7 +191,8 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
         try:
             await save_message(session, req.session_id, "user", req.message)
         except Exception:
-            logger.debug("tour: persisting user message failed", exc_info=True)
+            # WARNING (Paket 19, N-14): sonst fehlt der Zug still im Verlauf.
+            logger.warning("tour: persisting user message failed", exc_info=True)
     if persist_assistant and (rendered.get("text") or "").strip():
         try:
             await save_message(
@@ -199,7 +200,7 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
                 debug={"pattern": f"TOUR:{step}"},
             )
         except Exception:
-            logger.debug("tour: persisting assistant message failed", exc_info=True)
+            logger.warning("tour: persisting assistant message failed", exc_info=True)
 
     ctx.early_response = ChatResponse(
         session_id=req.session_id,

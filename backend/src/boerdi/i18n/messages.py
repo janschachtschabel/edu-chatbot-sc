@@ -78,7 +78,7 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
             "Vorgang wurde verworfen, geschrieben wurde nichts."
         ),
         "mcp.serverRejected": "MCP-Server '{id}': {error}",
-        "mcp.connectFailed": "Verbindung fehlgeschlagen: {error}",
+        "mcp.connectFailed": "Verbindung fehlgeschlagen: {error} (Fehlernummer: {nummer})",
         "mcp.urlRequired": "Bitte eine Server-URL angeben.",
         # Paket 7 (P1): ein anderer Zug derselben Sitzung läuft noch.
         "chat.sessionBusy": "Sitzung beschäftigt — die vorige Nachricht wird noch beantwortet.",
@@ -173,7 +173,8 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
         ),
         "sessions.optimizeFailed": (
             "Kompaktieren fehlgeschlagen — die Datenbank ist evtl. gerade unter Last "
-            "gesperrt. Bitte in einer ruhigen Phase erneut versuchen. ({error})"
+            "gesperrt. Bitte in einer ruhigen Phase erneut versuchen. "
+            "({error}, Fehlernummer: {nummer})"
         ),
         # ── Evaluation: Läufe vergleichen (ST-7c) ──────────────────────
         "eval.compareTooFew": "Ein Vergleich braucht mindestens zwei verschiedene Läufe.",
@@ -225,7 +226,7 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
             "nothing was written."
         ),
         "mcp.serverRejected": "MCP server '{id}': {error}",
-        "mcp.connectFailed": "Connection failed: {error}",
+        "mcp.connectFailed": "Connection failed: {error} (error number: {nummer})",
         "mcp.urlRequired": "Please provide a server URL.",
         "chat.sessionBusy": "Session busy — the previous message is still being answered.",
         "entries.invalid": "Invalid {label} data.",
@@ -301,7 +302,7 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
         ),
         "sessions.optimizeFailed": (
             "Compacting failed — the database may currently be locked under load. "
-            "Please try again in a quiet period. ({error})"
+            "Please try again in a quiet period. ({error}, error number: {nummer})"
         ),
         "eval.compareTooFew": "A comparison needs at least two different runs.",
         "agentCenter.registryFailed": (

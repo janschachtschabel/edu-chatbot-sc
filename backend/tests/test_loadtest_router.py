@@ -25,7 +25,7 @@ from boerdi.api.deps import get_session
 from boerdi.main import create_app
 from boerdi.settings import get_settings
 
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 _SESSION = object()  # sentinel: whatever get_session yields must reach the service
 
 
@@ -39,7 +39,7 @@ def _reset_settings_cache():
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
     app = create_app()
     app.dependency_overrides[get_session] = lambda: _SESSION

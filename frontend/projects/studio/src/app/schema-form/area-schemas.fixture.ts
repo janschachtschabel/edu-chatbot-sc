@@ -2904,7 +2904,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "boolean"
           },
           "retention_days": {
-            "default": 90,
+            "default": 30,
             "minimum": 0,
             "title": "Retention Days",
             "type": "integer"
@@ -2958,6 +2958,24 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           }
         },
         "title": "SafetyPreset",
+        "type": "object"
+      },
+      "TurnLimitsBlock": {
+        "additionalProperties": true,
+        "description": "Die äußere HTTP-Grenze der Züge je IP (Paket 19, M-4 / Entscheid P19-E3) — für\n``/api/chat``, ``/api/chat/stream``, ``/api/agent`` und ``/api/agent/stream``, je Route\ngezählt. Leer heißt ``RATE_LIMIT_CHAT`` (``services/config_loader.load_turn_limits``).\n„Angemeldet“ gilt nur für eine vom MCP bestätigte Person oder einen Zug der Anlage.",
+        "properties": {
+          "anonymous": {
+            "default": "",
+            "title": "Anonymous",
+            "type": "string"
+          },
+          "authenticated": {
+            "default": "",
+            "title": "Authenticated",
+            "type": "string"
+          }
+        },
+        "title": "TurnLimitsBlock",
         "type": "object"
       }
     },
@@ -3058,12 +3076,19 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "blocked_message_en": ""
         }
       },
+      "turn_limits": {
+        "$ref": "#/$defs/TurnLimitsBlock",
+        "default": {
+          "anonymous": "",
+          "authenticated": ""
+        }
+      },
       "logging": {
         "$ref": "#/$defs/SafetyLoggingBlock",
         "default": {
           "enabled": true,
           "log_all_turns": false,
-          "retention_days": 90
+          "retention_days": 30
         }
       }
     },

@@ -124,6 +124,34 @@ describe('restoreHistory (8-4S-e3)', () => {
     expect(rec.greeting).toBe(1);
   });
 
+  // Paket 19, Audit 2026-10-31 M-14: nach dem `await` wurde ohne Wache eingefügt —
+  // bei langsamem Laden und „Neustart“ stand der alte Verlauf im frischen Gespräch
+  // (der „Weg damit“-Fall auf geteilten Geräten).
+  it('Neustart während des Ladens → nichts eingefügt, Rückgabe false (M-14)', async () => {
+    const history: HistoryMessage[] = [
+      { role: 'user', content: 'Alte Frage' },
+      { role: 'assistant', content: 'Alte Antwort' },
+    ];
+    const { ctx, rec } = makeCtx(history);
+    let sid = 'bb-alt';
+    ctx.sessionId = () => sid;
+    const laden = ctx.loadHistory;
+    ctx.loadHistory = async (s, l) => { const h = await laden(s, l); sid = 'bb-neu'; return h; };
+    const fertig = await restoreHistory(ctx);
+    expect(fertig).toBe(false);
+    expect(rec.greeting).toBe(0);
+    expect(rec.users).toEqual([]);
+    expect(rec.bots).toEqual([]);
+    expect(rec.scroll).toBe(0);
+  });
+
+  it('ohne Neustart meldet der Restore true', async () => {
+    const { ctx } = makeCtx([{ role: 'user', content: 'Frage' }]);
+    expect(await restoreHistory(ctx)).toBe(true);
+    const leer = makeCtx([]);
+    expect(await restoreHistory(leer.ctx)).toBe(true);
+  });
+
   it('Tour-Opener ist KEINE Kontext-Begruessung → Startnachricht bleibt', async () => {
     const history: HistoryMessage[] = [
       { role: 'assistant', content: 'Willkommen zur Tour', ui: { pattern: 'TOUR:step1' } },

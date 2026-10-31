@@ -420,3 +420,30 @@ def test_leere_und_fehlende_werte_bleiben_unangetastet(monkeypatch):
     pc = out.env["page_context"]
     assert pc["document_title"] is None
     assert pc["node_id"] == ""
+
+
+# ── Paket 19 (Review 19-1): Titel und Suchbegriff fremder Seiten ─────
+# Bei einer fremden Seite sind Tab-Titel und Suchbegriff ein Stück Browserverlauf der
+# Person. Sie wirken im Zug (Seitenblock aus ``page_context``), stehen aber nicht 30 Tage
+# im Klartext in ``sessions.entities`` — kein Folgezug liest sie dort.
+
+def test_eine_fremde_seite_legt_titel_und_suchbegriff_nicht_ab(monkeypatch):
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({"page_kind": "other", "page_host": "example.org",
+                "document_title": "Mein Kontoauszug", "search_query": "Schulden"})
+    ctx.session_state["entities"] = {"document_title": "Alt", "search_query": "alt", "thema": "x"}
+    out = asyncio.run(m.page_context_enrich(ctx))
+    assert out.env["page_context"]["page_kind"] == "external"
+    assert out.env["page_context"]["document_title"] == "Mein Kontoauszug"  # im Zug da
+    assert out.session_state["entities"] == {"thema": "x"}
+
+
+def test_eine_eigene_seite_legt_ihren_titel_weiter_ab(monkeypatch):
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({"page_kind": "search", "page_host": "wirlernenonline.de",
+                "document_title": "Suche", "search_query": "Optik"})
+    out = asyncio.run(m.page_context_enrich(ctx))
+    assert out.session_state["entities"]["search_query"] == "Optik"
+    assert out.session_state["entities"]["document_title"] == "Suche"

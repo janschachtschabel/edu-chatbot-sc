@@ -53,9 +53,11 @@ export interface DetectedContext {
    *  operational fact that changes without a widget rebuild, so the decision
    *  does NOT live here. */
   page_host?: string;
-  /** Full address of the host page. Needed to look up whether the page is
+  /** Address of the host page. Needed to look up whether the page is
    *  already a WLO record and, on a foreign page, to hand M20 something it can
-   *  actually open — a hostname alone points at the wrong page. */
+   *  actually open — a hostname alone points at the wrong page.
+   *  Seit Paket 19 (M-8) ohne Anker und ohne Query — außer den wenigen
+   *  Parametern, die die Seite bezeichnen ({@link SEITEN_PARAMETER}). */
   page_url?: string;
   /** What kind of page this is — useful for prompt construction.
    *  ``home``/``external`` are never set here: they are the backend's answer to
@@ -66,6 +68,31 @@ export interface DetectedContext {
 }
 
 /* ── URL pattern parsing ─────────────────────────────────────────── */
+
+/**
+ * Query-Parameter, die die Seite selbst bezeichnen und deshalb in `page_url`
+ * bleiben (Paket 19, Audit 2026-10-31 M-8). Alles andere fällt weg: die Query
+ * trug Suchbegriffe, Tokens, E-Mail-Adressen und `code=` fremder Seiten bis in
+ * `sessions.entities._greeted_pages` und an den MCP-Server.
+ *
+ *  - `v`: YouTube (`/watch?v=…`) — ohne ihn wären alle Videos eine Seite, und
+ *    der Dublettencheck (`services/page_duplicate.py` vergleicht die Query mit)
+ *    fände ein erschlossenes Video nie.
+ *  - `id`: edu-sharing (`components/collections?id=…`) und viele CMS.
+ *  - `p`, `page_id`: WordPress-Permalinks ohne sprechenden Pfad.
+ */
+const SEITEN_PARAMETER = ['v', 'id', 'p', 'page_id'];
+
+/** `page_url` ohne Anker, Query nur mit {@link SEITEN_PARAMETER}. */
+function seitenAdresse(url: URL): string {
+  const behalten = new URLSearchParams();
+  for (const name of SEITEN_PARAMETER) {
+    const wert = url.searchParams.get(name);
+    if (wert !== null) behalten.set(name, wert);
+  }
+  const query = behalten.toString();
+  return url.origin + url.pathname + (query ? '?' + query : '');
+}
 
 /** Exported for unit tests — jsdom cannot navigate, so URL-pattern
  *  classification is exercised directly with a constructed `URL`.
@@ -90,7 +117,7 @@ export function _detectFromUrl(url: URL): Partial<DetectedContext> {
   }
   return {
     page_host: url.hostname,
-    page_url: url.href,
+    page_url: seitenAdresse(url),
     ..._classifyUrl(url),
   };
 }

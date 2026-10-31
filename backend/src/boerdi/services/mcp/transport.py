@@ -46,6 +46,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import anyio
 import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import create_mcp_http_client, streamablehttp_client
@@ -53,6 +54,7 @@ from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, METHOD_NOT_FOUND
 
 from boerdi.obs import metrics
+from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.log_format import ausnahme_text
 from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp.http_fabrik import McpHttpClientFactory, build_http_client_factory
@@ -190,6 +192,22 @@ def _abgewiesen(exc: BaseException) -> int | None:
     return None
 
 
+#: Paket 19 (N-15): Fehler, die der Betrieb kennt — Netz, Gegenstelle, Antwort des Servers.
+#: Alles andere (``TypeError``, ``KeyError`` …) ist ein Programmfehler und bleibt ERROR.
+_ERWARTBAR = (httpx.HTTPError, OSError, McpError, anyio.BrokenResourceError,
+              anyio.ClosedResourceError, anyio.EndOfStream)
+#: Höchstens eine Zeile je Server, Art und Minute; den Alarm trägt ``metrics.mcp_aufruf``.
+_ABSTAND_S = 60.0
+
+
+def _erwartbar(exc: BaseException) -> bool:
+    """Ein Fehler aus :data:`_ERWARTBAR` — in einer Gruppe des SDK nur, wenn alle es sind."""
+    kinder = getattr(exc, "exceptions", None)
+    if kinder:
+        return all(_erwartbar(k) for k in kinder)
+    return isinstance(exc, _ERWARTBAR)
+
+
 def _text_blocks(result: Any) -> list[dict[str, str]]:
     """Text-Content-Blöcke eines ``CallToolResult`` in die ALT-Dict-Form bringen.
 
@@ -254,9 +272,11 @@ async def _call_tool(
             # dem SDK, die bleibt ``transport``. Eigene Art, weil ein zweiter
             # Versuch genauso lange hinge (``client.call_mcp_tool_status``).
             # Ohne Traceback (Paket 18E): die eigene Frist ist abgelaufen — ein
-            # erwarteter Zustand, der Trace zeigte nur die Wartestelle.
-            logger.error("MCP tool %s @ %s: keine Antwort binnen %g s",  # noqa: TRY400
-                         tool_name, target_url, frist)
+            # erwarteter Zustand, der Trace zeigte nur die Wartestelle. Paket 19 (N-15):
+            # WARNING, gedrosselt je (Server, Art) — der Alarm hängt an ``mcp_aufruf``.
+            gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:timeout", _ABSTAND_S,
+                       "MCP tool %s @ %s: keine Antwort binnen %g s", tool_name, target_url,
+                       frist)
             return {"error": {"message": f"keine Antwort binnen {frist:g} s",
                               "kind": "timeout"}}
         status = _abgewiesen(exc)
@@ -272,23 +292,34 @@ async def _call_tool(
             # Aufrufer wiederholte sonst dieselbe Ablehnung.
             # Paket 18C/D: ``-32602`` wiederholt die Eingabe — der Text steht in der Zugakte.
             # Ohne Traceback (Paket 18E): ``McpError.__str__`` brächte den ungekürzten
-            # Text zurück, den ``inhalt`` hier gerade kürzt.
-            logger.error("MCP tool %s rejected @ %s: %s", tool_name, target_url,  # noqa: TRY400
-                         inhalt(abgelehnt.error.message))
+            # Text zurück, den ``inhalt`` hier gerade kürzt. Paket 19 (N-15): meist ein
+            # Modellargument — WARNING, gedrosselt.
+            gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:abgelehnt", _ABSTAND_S,
+                       "MCP tool %s rejected @ %s: %s", tool_name, target_url,
+                       inhalt(abgelehnt.error.message))
             return {"error": {"message": abgelehnt.error.message, "kind": "tool"}}
         # Ohne Traceback (Paket 18E): die anyio-Gruppen-Traces wären lang und sagten nichts
         # dazu. Im Log der Grund ohne Fremdtexte (Review 2026-10-30): ein ``McpError`` außer
         # ``-32601``/``-32602`` (etwa ``-32603``) brächte sonst den Text des Servers samt
         # wiederholter Eingabe — von ihm nur Art und Code. Der volle Grund geht an den Aufrufer.
-        logger.error("MCP tool %s transport error @ %s: %s",  # noqa: TRY400
-                     tool_name, target_url, ausnahme_text(exc))
+        # Paket 19 (N-15): Netz und Gegenstelle als gedrosselte Warnung, ein Programmfehler
+        # bleibt ERROR.
+        if _erwartbar(exc):
+            gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:transport", _ABSTAND_S,
+                       "MCP tool %s transport error @ %s: %s", tool_name, target_url,
+                       ausnahme_text(exc))
+        else:
+            logger.error("MCP tool %s transport error @ %s: %s",  # noqa: TRY400
+                         tool_name, target_url, ausnahme_text(exc))
         return {"error": {"message": _cause_text(exc), "kind": "transport"}}
 
     if result.isError:
         message = " ".join(b["text"] for b in _text_blocks(result)) or "tool error"
         # Paket 18C/D: der Server wiederholt in Prüffehlern die Eingabe (-32602) — der Text
-        # steht in der Zugakte des Zugs, hier nur seine Länge.
-        logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, inhalt(message))
+        # steht in der Zugakte des Zugs, hier nur seine Länge. Paket 19 (N-15): der Server
+        # hat geantwortet — WARNING, gedrosselt.
+        gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:tool", _ABSTAND_S,
+                   "MCP tool %s error @ %s: %s", tool_name, target_url, inhalt(message))
         return {"error": {"message": message, "kind": "tool"}}
 
     normalisiert: dict[str, Any] = {"content": _text_blocks(result)}
@@ -309,7 +340,10 @@ async def discover_server_tools(url: str) -> list[dict[str, str]]:
     vom Studio beim Registrieren eines neuen MCP-Servers. Transportfehler
     propagieren (der aufrufende Endpoint fängt sie) — wie ALTs raise-on-failure.
     """
-    async with _open_session(resolve_mcp_url(url)) as session:
+    # Paket 19 (Audit 2026-10-31, N-27): dieselbe Gesamtfrist wie ``_call_tool`` — ohne sie
+    # galt nur das SDK (``read=300``), und ``GET /mcp-servers`` fragt nacheinander.
+    # ``TimeoutError`` geht an den Aufrufer wie jeder Transportfehler.
+    async with asyncio.timeout(_frist_s()), _open_session(resolve_mcp_url(url)) as session:
         listing = await session.list_tools()
     # Paket 11 (E): Schema und Lesend-Markierung für „Werkzeuge übernehmen“ im Studio.
     return [

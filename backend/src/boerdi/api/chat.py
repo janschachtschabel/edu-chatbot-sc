@@ -30,11 +30,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from boerdi.api.chat_handschlag import handschlag
 from boerdi.api.deps import get_session, get_session_factory, require_studio_key, todo
 from boerdi.api.publikum import antwort_fuer
-from boerdi.api.ratelimit import peer_ip, public_rate_limit
+from boerdi.api.ratelimit import peer_ip, zug_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.session_locks import sitzung_sperren
 from boerdi.api.sse import sse_turn
-from boerdi.api.turn_auth import darf_diagnose, uebernimm_zugang
+from boerdi.api.turn_auth import darf_diagnose, pruefe_oeffentliche_kennung, uebernimm_zugang
 from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
@@ -46,6 +46,7 @@ from boerdi.services import betriebsschalter, prompt_ablage
 from boerdi.services.db_sessions import save_message
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
 from boerdi.services.fehlertext import antwort_fehlertext
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.anmeldung import abgelehnt_in_diesem_zug
 from boerdi.services.sitzungssperre import SitzungBeschaeftigt
 from boerdi.services.token_stream import TokenStrom
@@ -92,7 +93,7 @@ async def _record_usage(session: AsyncSession, session_id: str, state: dict) -> 
 
 
 @public_router.post("/api/chat", response_model=ChatResponse)
-@public_rate_limit
+@zug_rate_limit
 async def chat(
     req: ChatRequest,
     request: Request,
@@ -109,6 +110,7 @@ async def chat(
     ``response`` (normal path). Any unhandled error becomes a graceful bubble
     instead of an HTTP 500 so the widget shows something actionable.
     """
+    pruefe_oeffentliche_kennung(request, req.session_id)  # Paket 19, M-5
     await uebernimm_zugang(request)
     intern = darf_diagnose(request)
     try:
@@ -123,6 +125,11 @@ async def chat(
                 resp = _anmeldestand(result.get("early_response") or result.get("response"))
                 return antwort_fuer(await _postprocess_response_for_widget_modes(req, resp),
                                     intern)
+            except LlmAusgelastet as last:
+                # Paket 19 (Review 19-5, 6): Last, kein Fehler — wie im Strom (N-22) INFO
+                # statt Traceback; die Blase sagt „ausgelastet“ ohne Fehlernummer.
+                logger.info("chat endpoint: kein LLM-Platz frei — Zug ausgelastet")
+                return antwort_fuer(await _fehlerblase(session, req, last), intern)
             except Exception as impl_err:
                 # Top-level safety net: a config bug, a pattern-engine attribute
                 # error, a DB hiccup — a chat bubble with the error number (Paket 18C/D)
@@ -184,8 +191,9 @@ async def _fehlerblase(
         await save_message(session, req.session_id, "assistant", err_text,
                            debug=err_debug.model_dump())
     except Exception:
-        # Never let a DB-write failure mask the original error.
-        logger.debug("Fehlerblase nicht gespeichert", exc_info=True)
+        # Never let a DB-write failure mask the original error. WARNING (Paket 19, N-14): das
+        # Widget sucht die Blase nach dem Neuladen im Verlauf.
+        logger.warning("Fehlerblase nicht gespeichert", exc_info=True)
     return ChatResponse(
         session_id=req.session_id,
         content=err_text,
@@ -248,6 +256,12 @@ async def _stream_turn(
                 state = await run_turn(graph, TurnContext(req=req))
                 await _record_usage(session, req.session_id, state)
                 return _anmeldestand(state.get("early_response") or state.get("response"))
+            except LlmAusgelastet:
+                # Paket 19 (Audit N-22): Last, kein Fehler. Der Strom zeigt, was im Verlauf
+                # steht — die „ausgelastet“-Blase samt „Nochmal versuchen“ als ``result``,
+                # nicht einen ``error``-Rahmen mit Fehlernummer (den die Blase nicht trägt).
+                logger.info("chat_stream: kein LLM-Platz frei — Zug ausgelastet")
+                return await _fehlerblase(session, req, LlmAusgelastet())
             except Exception as impl_err:
                 logger.exception("chat_stream impl failed: %s", impl_err)
                 # In den Verlauf wie beim POST-Weg — legte der Client auf, holt das
@@ -281,7 +295,7 @@ async def _stream_turn(
 
 
 @public_router.post("/api/chat/stream")
-@public_rate_limit
+@zug_rate_limit
 async def chat_stream(
     req: ChatRequest,
     request: Request,
@@ -302,6 +316,7 @@ async def chat_stream(
     # ``description`` in das eingefrorene OpenAPI-Dokument ein — der Zusatz hier
     # hat den Vertragstest brechen lassen. Gemessen 2026-08-10; die Kopfzeile
     # selbst blieb unsichtbar (``parameters`` bleibt ``None``).
+    pruefe_oeffentliche_kennung(request, req.session_id)  # Paket 19, M-5
     await uebernimm_zugang(request)
     return StreamingResponse(
         _stream_turn(req, request, sitzungen,

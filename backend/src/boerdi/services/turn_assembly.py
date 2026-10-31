@@ -215,7 +215,18 @@ async def _assemble_cards_and_qrs(
     _qr_spec_consumed = False
     # Rückfall-Sprache der Nachgeneratoren; maßgeblich ist die Sprache der Antwort.
     _qr_lang = resolve_locale(getattr(req.environment, "locale", None))
-    if _canvas_forced_quick_replies:
+    if blase_gezeigt():
+        # Paket 19 (M-3): die Antwort ist die „ausgelastet“-Blase — darunter steht nur
+        # „Nochmal versuchen“ (unten). Den spekulativen Aufruf nicht abwarten und keinen
+        # Generator rufen: das hielt die Blase Sekunden zurück und belegte einen Platz in
+        # der Engstelle für ein verworfenes Ergebnis. Gilt für Muster-, Lernpfad-,
+        # Canvas- und Agent-Weg — alle enden hier.
+        if _qr_spec_task is not None:
+            _qr_spec_task.cancel()
+            _qr_spec_task.add_done_callback(_retrieve_task_exception)
+            _qr_spec_consumed = True
+        quick_replies = [bot_text(_qr_lang, "error.retryChip")]
+    elif _canvas_forced_quick_replies:
         quick_replies = list(_canvas_forced_quick_replies)
         # O-B2 (2026-08-20): nennt der Gastgeber zu seinen Chips eine
         # Gesamtzahl, füllt das Modell die restlichen Plätze — seine Chips

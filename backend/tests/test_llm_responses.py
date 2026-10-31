@@ -168,7 +168,7 @@ def test_mit_antwortformat_bleibt_text_frei(senden):
 def test_andere_modelle_bekommen_keine_gpt5_parameter(senden, provider, modell):
     gesendet = senden(provider, modell, tarif="flex")
     extra = gesendet.get("extra_body") or {}
-    for name in ("reasoning", "text", "verbosity"):
+    for name in ("reasoning", "text", "verbosity", "store"):  # store: Paket 19 (H-2)
         assert name not in extra, (modell, name)
     for name in ("reasoning_effort", "verbosity", "service_tier"):
         assert name not in gesendet, (modell, name)

@@ -37,6 +37,7 @@ from collections.abc import Callable
 from multiprocessing.connection import Connection
 from typing import Any
 
+from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.rag.umwandeln_fehler import Umwandlungsfehler, kurz
 from boerdi.settings import get_settings
 
@@ -57,6 +58,8 @@ MAX_TEXT_ZEICHEN = 50_000_000
 _MB = 1024 * 1024
 
 _semaphores: dict[int, asyncio.Semaphore] = {}
+#: Laufende Umwandlungen — starke Referenzen, auch nach dem Abbruch ihres Aufrufers.
+_LAEUFE: set[asyncio.Future[str]] = set()
 
 
 def _einer() -> asyncio.Semaphore:
@@ -73,9 +76,23 @@ async def im_kindprozess(funktion: Callable[..., str], *args: Any) -> str:
     importiert sie über ihren Namen). Wirft nur, wenn kein Kindprozess startet: das
     ist ein Fehler des Servers (500), kein Fehler der Datei (Review Paket 9)."""
     s = get_settings()
-    async with _einer():
-        return await asyncio.to_thread(
-            _ausfuehren, funktion, args, s.rag_conversion_timeout_s, s.rag_conversion_max_mb)
+    platz = _einer()
+    await platz.acquire()
+    try:
+        lauf = asyncio.ensure_future(asyncio.to_thread(
+            _ausfuehren, funktion, args, s.rag_conversion_timeout_s, s.rag_conversion_max_mb))
+    except BaseException:
+        platz.release()
+        raise
+    # Paket 19 (Audit 2026-10-31, N-31): der Platz wird frei, wenn Thread und Kindprozess
+    # fertig sind — nicht schon beim Abbruch des Aufrufers. ``asyncio.to_thread`` lässt
+    # sich nicht abbrechen; ein sofort freier Platz ließ die nächste Umwandlung neben der
+    # weiterlaufenden starten (Speicherdruck auf 2 Kernen). Der Abbruch selbst kommt sofort
+    # an (``shield``); längstens bis zur Frist (``_ausfuehren``) bleibt der Platz belegt.
+    _LAEUFE.add(lauf)
+    lauf.add_done_callback(lambda t: (platz.release(), _LAEUFE.discard(t),
+                                      _retrieve_task_exception(t)))
+    return await asyncio.shield(lauf)
 
 
 def _ausfuehren(funktion: Callable[..., str], args: tuple[Any, ...],

@@ -144,7 +144,7 @@ def blase_gezeigt() -> bool:
     return merker is not None and merker.blase
 
 
-async def _anstellen(sem: asyncio.Semaphore) -> None:
+async def _anstellen(sem: asyncio.Semaphore, eigene_frist_s: float | None = None) -> None:
     """Auf einen Chat-Platz warten, höchstens ``LLM_SLOT_WAIT_S`` (Nutzer-Entscheid F2).
 
     Ohne Frist füllte ein hängender Anbieter die Kopie: jeder Zug wartete unbegrenzt, und
@@ -153,12 +153,24 @@ async def _anstellen(sem: asyncio.Semaphore) -> None:
     „ausgelastet“-Blase. Einen freien Platz nimmt er aber (Review 2026-10-30): sonst bräche
     nach einem gescheiterten Nebenaufruf die Werkzeugschleife in Runde 2 ab, obwohl
     Werkzeuge und Tokens schon bezahlt sind.
+
+    ``eigene_frist_s`` (Paket 19, Review 19-5): eine kürzere Geduld nur für DIESEN Aufruf
+    (die Zustimmungsprüfung). Läuft sie ab, scheitert nur er — der Zug gilt nicht als
+    ausgelastet, und der Zähler der Platzfrist bleibt bei der Frist des Betriebs.
     """
     merker = _zug.get()
     if merker is not None and merker.ausgelastet:
         if sem.locked():
             raise LlmAusgelastet("Zug bereits ausgelastet")
         await sem.acquire()  # ein freier Platz: ``acquire`` wartet nicht
+        return
+    betrieb = get_settings().llm_slot_wait_s
+    if eigene_frist_s is not None and (betrieb <= 0 or eigene_frist_s < betrieb):
+        try:
+            async with asyncio.timeout(eigene_frist_s):
+                await sem.acquire()
+        except TimeoutError:
+            raise LlmAusgelastet(f"kein LLM-Platz binnen {eigene_frist_s:g} s") from None
         return
     frist = get_settings().llm_slot_wait_s
     if frist <= 0:
@@ -187,13 +199,14 @@ async def _meldet_abgelehnten_schluessel() -> AsyncIterator[None]:
 
 
 @contextlib.asynccontextmanager
-async def platz(kanal: str) -> AsyncIterator[None]:
+async def platz(kanal: str, *, frist_s: float | None = None) -> AsyncIterator[None]:
     """Ein Platz im Kanal ``kanal`` (``live``, ``bg`` oder ``ingest``) — siehe
     Modulkopf. Fremdarbeit wartet zuerst auf ihren eigenen Deckel, dann auf den
-    gemeinsamen, und reiht sich erst dann beim Anbieter ein; eine Frist hat nur der Chat."""
+    gemeinsamen, und reiht sich erst dann beim Anbieter ein; eine Frist hat nur der Chat
+    (``frist_s`` kürzt sie für einen Aufruf, :func:`_anstellen`)."""
     if kanal == "live":
         sem = _semaphore("anbieter")
-        await _anstellen(sem)
+        await _anstellen(sem, frist_s)
         try:
             async with _meldet_abgelehnten_schluessel():
                 yield

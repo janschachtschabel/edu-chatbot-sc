@@ -23,6 +23,7 @@ The network boundaries are the module attributes ``_acompletion`` (chat) and
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 from uuid import uuid4
@@ -36,6 +37,7 @@ from boerdi.obs.zeiten import seit_ms
 from boerdi.services.betriebsschalter import service_tier
 from boerdi.services.llm_auth import b_api_schluessel
 from boerdi.services.llm_choices import vereinige_choices
+from boerdi.services.llm_ereignisse import LlmFristAbgelaufen
 from boerdi.services.llm_models import (
     get_chat_model,
     get_embed_model,
@@ -55,7 +57,11 @@ from boerdi.services.llm_parallel import (  # noqa: F401
     reset,
     semaphore,
 )
-from boerdi.services.llm_responses import RESPONSES_PRAEFIX, denkparameter_verlegen
+from boerdi.services.llm_responses import (
+    RESPONSES_PRAEFIX,
+    denkparameter_verlegen,
+    nichts_ablegen,
+)
 
 # Re-Export (Paket 17): Aufrufer sprechen ``llm.router_route`` / ``llm.antwort_modell`` an.
 from boerdi.services.llm_router import antwort_modell, router_route  # noqa: F401
@@ -209,6 +215,8 @@ def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
     # Paket 7, L2: Denktiefe und Ausführlichkeit kommen sonst nicht an (gpt-6).
     rules = param_rules(resolved)
     denkparameter_verlegen(kwargs, gpt5_familie=rules.gpt5_familie)
+    # Paket 19 (H-2): OpenAI legt auf /v1/responses sonst Anfrage und Antwort 30 Tage ab.
+    nichts_ablegen(kwargs, gpt5_familie=rules.gpt5_familie)
     # Tarif (Umgebung oder Studio-Fast-Modus, Paket 7 S1): nur OpenAI direkt, gpt-5/6 (L1).
     if get_provider() == "openai" and rules.gpt5_familie and (tarif := service_tier()):
         kwargs["service_tier"] = tarif
@@ -229,12 +237,20 @@ async def chat_completion(
     background: bool = False,
     usage_acc: dict[str, Any] | None = None,
     phase: str | None = None,
+    frist_s: float | None = None,
+    platz_frist_s: float | None = None,
     **extra: Any,
 ) -> Any:
     """One non-streaming chat completion. Wires provider routing, timeout and
     retries, runs under the live (or background) concurrency semaphore, and
     folds token usage into ``usage_acc`` when given. Errors propagate — the
-    caller owns the error policy (tool loop / safety / QR wrap as needed)."""
+    caller owns the error policy (tool loop / safety / QR wrap as needed).
+
+    ``frist_s`` (Paket 19, M-2): eine kurze Frist für den Aufruf selbst, erst NACH der
+    Platzvergabe angelegt (``asyncio.timeout`` startet beim Anlegen) — wie beim
+    Klassifikator. Das Warten auf den Platz begrenzt ``LLM_SLOT_WAIT_S``
+    (``llm_parallel.LlmAusgelastet``), kürzer ``platz_frist_s`` (Review 19-5: die
+    Zustimmungsprüfung); abgelaufen wirft ``frist_s`` ``TimeoutError``."""
     resolved = model or get_chat_model()
     kwargs = build_chat_kwargs(
         model=resolved, messages=messages, tools=tools, tool_choice=tool_choice,
@@ -244,8 +260,21 @@ async def chat_completion(
     wire_transport(resolved, kwargs)
 
     t0 = time.perf_counter()  # Wanduhr samt Warteschlange — so wartet der Zug
-    async with metrics.llm_messung(phase), platz("bg" if background else "live"):
-        resp = await _acompletion(**kwargs)
+    async with metrics.llm_messung(phase), platz("bg" if background else "live",
+                                                 frist_s=platz_frist_s):
+        if frist_s is None:
+            resp = await _acompletion(**kwargs)
+        else:
+            grenze = asyncio.timeout(frist_s)
+            try:
+                async with grenze:
+                    resp = await _acompletion(**kwargs)
+            except TimeoutError:
+                if not grenze.expired():
+                    raise
+                # Paket 19 (N-16, Review): als eigene Frist markiert — nur sie gilt als
+                # vorübergehend (``llm_ereignisse.ist_voruebergehend``).
+                raise LlmFristAbgelaufen(f"LLM: keine Antwort binnen {frist_s:g} s") from None
     ms = seit_ms(t0)
     # Responses-Brücke: Text und Aufrufe können auf zwei Choices liegen — jeder
     # Aufrufer liest choices[0] (siehe services/llm_choices).

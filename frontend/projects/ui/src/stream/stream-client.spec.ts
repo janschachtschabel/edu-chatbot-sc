@@ -176,6 +176,97 @@ describe('streamChat Watchdogs (fake timers)', () => {
     await expect(p).resolves.toEqual({ content: 'Hallo' });
     expect(seen).toEqual(['text_delta', 'text_delta']);
   });
+
+  // Paket 19, Audit 2026-10-31 N-18: seit 18F wartet das Backend bis zu
+  // LLM_SLOT_WAIT_S (30 s) auf einen Platz, dann bis zu LLM_READ_TIMEOUT (75 s) auf
+  // das Modell — ohne Token-Streaming kommt dazwischen kein Rahmen. 100 s meldeten
+  // „veraltet“, obwohl der Server Sekunden später speicherte.
+  it('Vorgabe-Fristen: Keepalives alle 10 s, 110 s ohne Rahmen ist noch nicht veraltet (N-18)', async () => {
+    vi.useFakeTimers();
+    const enc = new TextEncoder();
+    let fertig = false;
+    const p = streamChat({
+      url: 'x',
+      body: {},
+      onEvent: () => {},
+      fetchImpl: abortableFetch((controller) => {
+        controller.enqueue(enc.encode('event: connected\ndata: {}\n\n'));
+        for (let s = 10; s <= 110; s += 10) {
+          setTimeout(() => controller.enqueue(enc.encode(': keepalive\n\n')), s * 1000);
+        }
+        setTimeout(() => {
+          controller.enqueue(enc.encode('event: result\ndata: {"content":"spät"}\n\n'));
+          controller.close();
+        }, 112_000);
+      }),
+    }).finally(() => { fertig = true; });
+    await vi.advanceTimersByTimeAsync(111_000);
+    expect(fertig).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await expect(p).resolves.toEqual({ content: 'spät' });
+  });
+
+  it('Vorgabe-Stale-Frist endet nach 120 s ohne benannten Rahmen (N-18)', async () => {
+    vi.useFakeTimers();
+    const enc = new TextEncoder();
+    const p = streamChat({
+      url: 'x',
+      body: {},
+      onEvent: () => {},
+      fetchImpl: abortableFetch((controller) => {
+        for (let s = 10; s <= 120; s += 10) {
+          // Nach dem Abbruch ist der Strom zu — ein spätes Keepalive ginge ins Leere.
+          setTimeout(() => {
+            try { controller.enqueue(enc.encode(': keepalive\n\n')); } catch { /* zu */ }
+          }, s * 1000);
+        }
+      }),
+    });
+    const assertion = expect(p).rejects.toBeInstanceOf(StreamStaleError);
+    await vi.advanceTimersByTimeAsync(121_000);
+    await assertion;
+  });
+});
+
+// ── Paket 19, Audit 2026-10-31 M-15: der POST-Weg hatte keine Frist ──────────
+// POST-Rückfall, Tour, Kontext-Ping und Karten-Aktionen hingen bis zum
+// Browser-Timeout (~5 min) mit Ladeblase und gesperrtem Feld.
+describe('postChat — Frist (M-15)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  /** fetch, das nie antwortet, aber wie der Browser auf `signal` hört. */
+  function haengendesFetch(gesehen: { signal?: AbortSignal }): typeof fetch {
+    return ((_url: unknown, init: RequestInit) => new Promise<Response>((_ok, nein) => {
+      gesehen.signal = init.signal ?? undefined;
+      init.signal?.addEventListener('abort', () => nein(new DOMException('aborted', 'AbortError')));
+    })) as unknown as typeof fetch;
+  }
+
+  it('bricht nach der Frist ab und meldet StreamStaleError', async () => {
+    vi.useFakeTimers();
+    const gesehen: { signal?: AbortSignal } = {};
+    const p = postChat({ url: 'x', body: {}, fetchImpl: haengendesFetch(gesehen), fristMs: 500 });
+    const assertion = expect(p).rejects.toBeInstanceOf(StreamStaleError);
+    await vi.advanceTimersByTimeAsync(501);
+    await assertion;
+    expect(gesehen.signal?.aborted).toBe(true);
+  });
+
+  it('Vorgabe-Frist wie der Strom: 120 s', async () => {
+    vi.useFakeTimers();
+    let fertig = false;
+    const p = postChat({ url: 'x', body: {}, fetchImpl: haengendesFetch({}) })
+      .catch((e) => e).finally(() => { fertig = true; });
+    await vi.advanceTimersByTimeAsync(119_000);
+    expect(fertig).toBe(false);
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(await p).toBeInstanceOf(StreamStaleError);
+  });
+
+  it('ein Netzfehler vor der Frist bleibt ein Netzfehler', async () => {
+    const fetchImpl = (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch;
+    await expect(postChat({ url: 'x', body: {}, fetchImpl })).rejects.toBeInstanceOf(TypeError);
+  });
 });
 
 describe('postChat', () => {

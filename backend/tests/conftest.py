@@ -79,6 +79,18 @@ def _fresh_settings_cache(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _frische_drosselung():
+    """Der Drossel-Speicher (``memory://``) lebt über Tests hinweg. Seit Paket 19 (H-3) zählt er
+    auch fehlgeschlagene Studio-Prüfungen je IP — zehn Tests mit falschem Schlüssel hintereinander
+    ließen den elften sonst mit 429 statt 401 scheitern. Spät importiert: der Limiter liest
+    ``RATE_LIMIT_STORAGE_URI`` beim Import."""
+    from boerdi.api import ratelimit
+
+    ratelimit.limiter.reset()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _no_startup_warmups(monkeypatch):
     """Start-Vorwärmung (W1) in Tests stilllegen.
 

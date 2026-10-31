@@ -176,6 +176,9 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'Studio API key required'": "Betreiber-Meldung, kein Redaktions-Text",
         "'Admin endpoints are disabled: STUDIO_API_KEY is not configured. "
         "Set it, or set BOERDI_ALLOW_OPEN_ADMIN=1 for local development.'": "dito",
+        "f'Admin endpoints are disabled: STUDIO_API_KEY is shorter than "
+        "{STUDIO_GEHEIMNIS_MINDESTLAENGE} characters. Set a longer one "
+        "(a random value is best).'": "dito (Paket 19, P19-E2)",
         "f'not implemented yet (arrives with {package})'": "Vertrags-Stub, kein Betrieb",
     },
     "sessions.py": {
@@ -187,6 +190,9 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'Sprachsynthese fehlgeschlagen.'": "dito",
         "f'Audio zu groß (max {MAX_AUDIO_BYTES // (1024 * 1024)} MB).'": "dito",
         "f'Text zu lang (max {MAX_TTS_CHARS} Zeichen).'": "dito",
+        "'language: Form „de“ oder „de-DE“.'": "dito (Paket 19, M-16)",
+        "'voice: unbekannte Stimme.'": "dito (Paket 19, M-16)",
+        "'speed: 0.25 bis 4.0.'": "dito (Paket 19, M-16)",
     },
     "studio_bff.py": {
         "'Wrong password'": "der Login bildet per STATUS-Code auf "
@@ -195,6 +201,10 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
     "turn_auth.py": {
         "'b-api key required: Authorization: Bearer <key> (B_API_KEY_MODE=forward)'":
             "Protokoll-Meldung an den b-api-Proxy (Paket 17, AB2), kein Redaktions-Text",
+        "'session_id: prefixes eval-, loadtest- and studio- are reserved'":
+            "Protokoll-Meldung (Paket 19, M-5): das Widget wählt nie ein solches Präfix",
+        "f'session_id: at least {MIN_OEFFENTLICHE_KENNUNG} characters'":
+            "Protokoll-Meldung (Paket 19, N-9): das Widget erzeugt `bb-<uuid>` (39 Zeichen)",
     },
     "widget.py": {
         "'invalid path'": "Auslieferung von Dateien, kein Redaktions-Text",

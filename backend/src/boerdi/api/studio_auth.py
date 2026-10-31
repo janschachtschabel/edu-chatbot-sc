@@ -29,10 +29,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security import APIKeyCookie
+from starlette.requests import HTTPConnection
 
-from boerdi.settings import get_settings
+from boerdi.api import fehlversuche
+from boerdi.settings import STUDIO_GEHEIMNIS_MINDESTLAENGE, get_settings
 
 COOKIE_NAME = "boerdi_studio_auth"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 d, ALT login/route.ts:47
@@ -41,10 +43,15 @@ _TOKEN_MESSAGE = b"boerdi-studio-auth-v1"
 _OPEN = "open"
 _CLOSED = "closed"
 _GUARDED = "guarded"
+_TOO_SHORT = "too-short"
 
 _CLOSED_DETAIL = (
     "Studio is disabled: STUDIO_PASSWORD is not configured. Set it, or set "
     "BOERDI_ALLOW_OPEN_ADMIN=1 for local development."
+)
+_TOO_SHORT_DETAIL = (
+    f"Studio is disabled: STUDIO_PASSWORD is shorter than {STUDIO_GEHEIMNIS_MINDESTLAENGE} "
+    "characters. Set a longer one (a random value is best)."
 )
 _UNAUTHORIZED_DETAIL = "Studio login required"
 
@@ -68,7 +75,15 @@ def configured_password() -> str:
 
     ``CHANGE_ME…`` placeholders count as unconfigured for the same reason as in
     ``expected_studio_key``: a forgotten scaffold value must not act as a gate.
+
+    Paket 19 (H-3, P19-E2): a password shorter than ``STUDIO_GEHEIMNIS_MINDESTLAENGE`` counts as
+    unusable, too — the gate is then CLOSED (:func:`password_too_short`), never open.
     """
+    password = _raw_password()
+    return password if len(password.strip()) >= STUDIO_GEHEIMNIS_MINDESTLAENGE else ""
+
+
+def _raw_password() -> str:
     password = get_settings().studio_password.get_secret_value()
     probe = password.strip().upper()
     if not probe or probe.startswith("CHANGE_ME"):
@@ -76,9 +91,17 @@ def configured_password() -> str:
     return password
 
 
+def password_too_short() -> bool:
+    """Set, but shorter than the minimum — the studio stays closed (503), even with
+    ``BOERDI_ALLOW_OPEN_ADMIN``: whoever set a password wanted a lock, not an open door."""
+    return 0 < len(_raw_password().strip()) < STUDIO_GEHEIMNIS_MINDESTLAENGE
+
+
 def _gate_state() -> str:
     if configured_password():
         return _GUARDED
+    if password_too_short():
+        return _TOO_SHORT
     return _OPEN if get_settings().allow_open_admin else _CLOSED
 
 
@@ -98,6 +121,8 @@ def authorize(cookie: str | None) -> tuple[int, str] | None:
         return None
     if state == _CLOSED:
         return (status.HTTP_503_SERVICE_UNAVAILABLE, _CLOSED_DETAIL)
+    if state == _TOO_SHORT:
+        return (status.HTTP_503_SERVICE_UNAVAILABLE, _TOO_SHORT_DETAIL)
     # `isascii()` first: `hmac.compare_digest` raises TypeError on a non-ASCII
     # `str`, and Starlette decodes the Cookie header as latin-1 — so one byte
     # ≥ 0x80 would turn this gate into an unauthenticated 500. A valid token is
@@ -108,9 +133,35 @@ def authorize(cookie: str | None) -> tuple[int, str] | None:
     return (status.HTTP_401_UNAUTHORIZED, _UNAUTHORIZED_DETAIL)
 
 
-async def require_studio_cookie(cookie: str | None = Security(studio_cookie)) -> None:
+def authorize_request(request: HTTPConnection, cookie: str | None) -> tuple[int, str] | None:
+    """:func:`authorize` plus the failed-attempt brake (Paket 19, H-3, ``api/fehlversuche``).
+
+    Only a PRESENTED cookie is a guess: a wrong one is counted, and once the IP has used up its
+    attempts every presented cookie gets 429 — a correct one too, or 429 vs 200 would reveal
+    the hit. No cookie = the first visit, never counted.
+    """
+    vorgelegt = bool(cookie)
+    if vorgelegt and _gate_state() == _GUARDED and fehlversuche.gesperrt(request):
+        return fehlversuche.zu_viele()
+    denial = authorize(cookie)
+    if denial is not None and denial[0] == status.HTTP_401_UNAUTHORIZED and vorgelegt:
+        fehlversuche.zaehle_fehlversuch(request, cookie or "")
+    return denial
+
+
+def denial_headers(denial: tuple[int, str]) -> dict[str, str] | None:
+    """``Retry-After`` on a 429 from the brake."""
+    if denial[0] == status.HTTP_429_TOO_MANY_REQUESTS:
+        return {"Retry-After": str(fehlversuche.RETRY_AFTER_S)}
+    return None
+
+
+async def require_studio_cookie(
+    request: Request, cookie: str | None = Security(studio_cookie),
+) -> None:
     """FastAPI dependency for the BFF's own routes (``Security`` so the cookie
     scheme shows up in the OpenAPI contract, like ``require_studio_key``)."""
-    denial = authorize(cookie)
+    denial = authorize_request(request, cookie)
     if denial is not None:
-        raise HTTPException(status_code=denial[0], detail=denial[1])
+        raise HTTPException(status_code=denial[0], detail=denial[1],
+                            headers=denial_headers(denial))

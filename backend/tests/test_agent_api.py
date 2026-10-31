@@ -339,7 +339,7 @@ def test_der_studio_weg_markiert_die_anfrage(monkeypatch):
     async def _app(scope, receive, send):
         gesehen.append(studio_proxy.ueber_studio(Request(scope)))
 
-    monkeypatch.setattr(studio_proxy, "authorize", lambda _cookie: None)
+    monkeypatch.setattr(studio_proxy, "authorize_request", lambda _anfrage, _cookie: None)
     middleware = studio_proxy.StudioProxyMiddleware(_app)
     for pfad in ("/studio/api/agent", "/api/agent"):
         scope = {"type": "http", "path": pfad, "raw_path": pfad.encode(), "headers": [],

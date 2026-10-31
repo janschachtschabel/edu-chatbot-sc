@@ -161,3 +161,31 @@ def test_ohne_datenbank_bleibt_die_sperre_im_prozess():
         assert "s-2" not in sl._session_locks   # aufgeräumt
 
     asyncio.run(_zug())
+
+
+def test_die_sperre_nutzt_ihre_eigene_engine(monkeypatch):
+    """Paket 19 (Audit 2026-10-31, H-5): die Sitzungssperre läuft über eine eigene kleine
+    Engine — ein ausgeschöpfter Chat-Pool lässt sonst ``_verlaengern`` scheitern, und nach
+    der TTL übernimmt ein zweiter Zug derselben Sitzung."""
+    import contextlib
+    from types import SimpleNamespace
+
+    from boerdi.api import session_locks as sl
+
+    gesehen: list = []
+
+    @contextlib.asynccontextmanager
+    async def _fake(engine, session_id):
+        gesehen.append(engine)
+        yield
+
+    monkeypatch.setattr(sl, "sitzungssperre", _fake)
+    anfrage = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        engine="CHAT", sperr_engine="SPERRE")))
+
+    async def _zug():
+        async with sl.sitzung_sperren(anfrage, "s-3"):
+            pass
+
+    asyncio.run(_zug())
+    assert gesehen == ["SPERRE"]

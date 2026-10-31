@@ -112,10 +112,26 @@ def _fristen_mit(monkeypatch, *, gespraeche=None, sicherheit=None, qualitaet=Non
 
 def test_fehlt_die_frist_gilt_die_vorgabe_des_auslieferungsstands(monkeypatch):
     """Review Paket 7 (MINOR 15): das Modell sagte 30 Tage, der Seed 90 bzw. 180 —
-    fehlte das Feld, löschte der Lauf unwiderruflich nach 30 Tagen."""
+    fehlte das Feld, löschte der Lauf unwiderruflich nach 30 Tagen. Paket 19 (P19-E4):
+    das Sicherheitsprotokoll hält 30 statt 90 Tage — Modell und Seed gleich."""
     assert _fristen_mit(monkeypatch) == {
-        "messages": 30, "memory": 30, "session_state": 30, "safety_logs": 90,
+        "messages": 30, "memory": 30, "session_state": 30, "safety_logs": 30,
         "quality_logs": 180, "quality_text": 30}
+
+
+def test_seed_und_modell_nennen_fuer_das_sicherheitsprotokoll_dieselbe_frist():
+    """Paket 19 (P19-E4, Nutzer 2026-10-31): 30 Tage. Der Seed ist die Import-Quelle des
+    Werkszustands — weicht er vom Modell ab, löscht eine Anlage ohne Eintrag anders als eine
+    unberührte."""
+    from pathlib import Path
+
+    import yaml
+
+    from boerdi.domain.config_models.base_governance import SafetyLoggingBlock
+
+    seed = Path(__file__).resolve().parents[1] / "seeds" / "01-base" / "safety-config.yaml"
+    gelesen = yaml.safe_load(seed.read_text("utf-8"))["logging"]["retention_days"]
+    assert gelesen == SafetyLoggingBlock().retention_days == 30
 
 
 def test_die_frist_wird_wie_im_studio_gelesen(monkeypatch):

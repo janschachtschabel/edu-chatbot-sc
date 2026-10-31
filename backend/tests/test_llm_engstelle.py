@@ -338,3 +338,54 @@ def test_der_rag_vorabruf_meldet_last_ohne_warnung(monkeypatch, caplog):
     with caplog.at_level(logging.INFO):
         assert asyncio.run(vorab.rag_einbettung_vorab("Optik")) is None
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+# ── Paket 19 (N-16, Review): was als vorübergehender Anbieterfehler gilt ─────
+
+
+def _von_litellm_abgebildet(original: BaseException) -> BaseException:
+    """Wie im Betrieb: LiteLLM bildet jede Ausnahme ohne HTTP-Status auf
+    ``APIConnectionError`` ab, das Original steht nur in ``__context__``."""
+    from litellm.litellm_core_utils.exception_mapping_utils import exception_type
+
+    try:
+        try:
+            raise original
+        except Exception as o:  # noqa: BLE001 — die Abbildung nimmt jede Ausnahme
+            exception_type(model="gpt-4o", original_exception=o, custom_llm_provider="openai")
+    except Exception as e:  # noqa: BLE001
+        return e
+    raise AssertionError("exception_type warf nicht")
+
+
+def test_ein_programmfehler_hinter_litellm_ist_nicht_voruebergehend():
+    from boerdi.services.llm_ereignisse import ist_voruebergehend
+
+    fehler = _von_litellm_abgebildet(TypeError("'NoneType' object is not subscriptable"))
+    assert isinstance(fehler, litellm.APIConnectionError)
+    assert not ist_voruebergehend(fehler)
+
+
+def test_ein_netzfehler_hinter_litellm_ist_voruebergehend():
+    import httpx
+
+    from boerdi.services.llm_ereignisse import ist_voruebergehend
+
+    assert ist_voruebergehend(_von_litellm_abgebildet(httpx.ConnectError("refused")))
+    assert ist_voruebergehend(_von_litellm_abgebildet(ConnectionResetError("reset")))
+
+
+def test_frist_und_ratenlimit_sind_voruebergehend():
+    from boerdi.services.llm_ereignisse import LlmFristAbgelaufen, ist_voruebergehend
+
+    assert ist_voruebergehend(litellm.Timeout(message="t", model="m", llm_provider="openai"))
+    assert ist_voruebergehend(litellm.RateLimitError(message="429", model="m",
+                                                     llm_provider="openai"))
+    assert ist_voruebergehend(LlmFristAbgelaufen("keine Antwort binnen 8 s"))
+
+
+def test_ein_fremder_timeouterror_ist_nicht_voruebergehend():
+    """Etwa asyncpg ``command_timeout`` aus der RAG-Abfrage — kein Anbieterfehler."""
+    from boerdi.services.llm_ereignisse import ist_voruebergehend
+
+    assert not ist_voruebergehend(TimeoutError())

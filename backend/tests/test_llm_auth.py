@@ -24,6 +24,9 @@ from boerdi.services import llm, llm_auth
 from boerdi.services.llm_models import get_chat_model
 from boerdi.settings import get_settings
 
+#: Paket 19 (N-9): öffentliche Kennungen brauchen mindestens 16 Zeichen.
+SID = "bb-0123456789abcdef"
+
 SCHLUESSEL = "k" * 36  # Form wie ein b-api-Schlüssel (36 Zeichen)
 ENV_SCHLUESSEL = "env-schluessel-der-anlage"
 
@@ -137,7 +140,7 @@ def _beobachter(monkeypatch, *, fehler: Exception | None = None) -> dict[str, st
             gesehen["schluessel"] = llm.route(get_chat_model())[2]
             if fehler is not None:
                 raise fehler
-            return {"response": ChatResponse(session_id="bb-1", content="X")}
+            return {"response": ChatResponse(session_id=SID, content="X")}
 
     async def _fake_pp(req, resp, *a, **k):
         return resp
@@ -154,7 +157,7 @@ def _beobachter(monkeypatch, *, fehler: Exception | None = None) -> dict[str, st
 
 def _post(client, headers=None):
     return client.post(
-        "/api/chat", json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+        "/api/chat", json={"session_id": SID, "message": "hallo", "environment": {}},
         headers=headers or {},
     )
 

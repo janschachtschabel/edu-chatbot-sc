@@ -14,7 +14,7 @@ from boerdi.api.deps import get_session, get_session_factory
 from boerdi.main import create_app
 from boerdi.settings import get_settings
 
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 _UEBERBLICK = [
     {"bereich": "safety_logs", "tage": 90, "faellig": 3, "aeltester": "2026-07-01T00:00:00+00:00"},
     {"bereich": "quality_logs", "tage": 0, "faellig": 0, "aeltester": None},
@@ -23,7 +23,7 @@ _UEBERBLICK = [
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
     app = create_app()
     app.dependency_overrides[get_session] = lambda: object()

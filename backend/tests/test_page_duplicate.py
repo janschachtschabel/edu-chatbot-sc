@@ -19,6 +19,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+
+import pytest
 
 from boerdi.services import page_duplicate as m
 
@@ -117,18 +120,36 @@ def test_kein_treffer_ist_none(monkeypatch):
     assert _find() is None
 
 
-def test_mcp_fehlertext_wird_nicht_als_treffer_gelesen(monkeypatch):
+# Paket 19 (Audit M-9): drei Ausgänge. „Konnte nicht fragen" ist nicht „nichts
+# gefunden" — sonst bot der Gruß bei gestörtem MCP das Neuanlegen an.
+
+def test_mcp_fehlertext_ist_unklar(monkeypatch):
     _patch(monkeypatch, "MCP error: server unreachable", "MCP error: server unreachable")
-    assert _find() is None
+    with pytest.raises(m.DublettenpruefungUnklar):
+        _find()
 
 
-def test_ausnahme_kommt_nicht_nach_oben(monkeypatch):
+def test_eine_ausnahme_ist_unklar(monkeypatch, caplog):
     async def boom(tool_name: str, arguments: dict) -> str:
-        raise RuntimeError("mcp down")
+        raise RuntimeError(f"mcp down: {URL}")
 
     monkeypatch.setattr(m, "call_mcp_tool", boom)
-    # Die Meldung im Chat darf nicht an der Dublettenprüfung scheitern.
-    assert _find() is None
+    with caplog.at_level(logging.DEBUG), pytest.raises(m.DublettenpruefungUnklar):
+        _find()
+    # Ohne Inhalt: weder die Adresse noch der Text der Ausnahme, kein Traceback.
+    assert not any("geogebra" in r.getMessage() or r.exc_info for r in caplog.records)
+
+
+def test_ist_nur_die_titelsuche_gestoert_bleibt_es_unklar(monkeypatch):
+    # M20 verlangt beide Suchen: ohne die zweite ist „nicht im Bestand" nicht belegt.
+    _patch(monkeypatch, _envelope(), "MCP error: timeout")
+    with pytest.raises(m.DublettenpruefungUnklar):
+        _find()
+
+
+def test_ein_adressen_treffer_braucht_die_titelsuche_nicht(monkeypatch):
+    _patch(monkeypatch, _envelope(_node()), "MCP error: timeout")
+    assert _find()["matched_on"] == "url"
 
 
 def test_ohne_adresse_wird_gar_nicht_gesucht(monkeypatch):

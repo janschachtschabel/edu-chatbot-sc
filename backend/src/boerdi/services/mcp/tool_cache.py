@@ -19,6 +19,7 @@ from typing import Any
 
 from boerdi.domain.write_confirm import CURATION_TOOLS
 from boerdi.services.mcp.auth import caller_fingerprint
+from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,12 @@ _TOOL_CACHE_TTL_NEGATIVE_SECONDS = 60  # Empty-Result-Hits werden nur kurz cache
 _TOOL_CACHE_HITS = 0
 _TOOL_CACHE_MISSES = 0
 _TOOL_CACHE_NEG_HITS = 0  # Hits auf empty-result-Cache-Einträge
+# Paket 19 (Audit 2026-10-31, M-11): Summe der Zeichen aller Einträge. Gedeckelt war nur
+# die Zahl (1024); seit ``maxChars`` fiel, trägt ein Eintrag bis 200 000 Zeichen
+# (``get_url_text``, ``get_wlo_content_text``, ``get_compendium_text``) — bis ~400 MB je
+# Prozess. Jetzt zusätzlich ``MCP_TOOL_CACHE_MAX_CHARS`` (Summe) und
+# ``MCP_TOOL_CACHE_MAX_ENTRY_CHARS`` (je Eintrag, darüber wird nicht gespeichert).
+_TOOL_CACHE_CHARS = 0
 
 # A3.1 — Per-Tool TTL: stabile Tools (Vokabular, Top-Level-Fächer, Knoten-
 # Details) ändern sich quasi nie und können viel länger gecached werden;
@@ -166,8 +173,7 @@ def _cache_get(key: tuple[str, str]) -> str | None:
     ttl = _TOOL_CACHE_TTL_NEGATIVE_SECONDS if is_negative else _ttl_for_tool(key[0])
     if _time.time() - ts > ttl:
         # expired — drop it, with its metas (Paket 10, Audit M-4)
-        _TOOL_CACHE.pop(key, None)
-        _TOOL_META_CACHE.pop(key, None)
+        _entfernen(key)
         _TOOL_CACHE_MISSES += 1
         return None
     # LRU: move to end (most recently used)
@@ -179,27 +185,52 @@ def _cache_get(key: tuple[str, str]) -> str | None:
     return value
 
 
+def _entfernen(key: tuple[str, str]) -> None:
+    """Einen Eintrag samt Metas entfernen und die Zeichensumme nachführen."""
+    global _TOOL_CACHE_CHARS
+    entry = _TOOL_CACHE.pop(key, None)
+    if entry is not None:
+        _TOOL_CACHE_CHARS -= len(entry[1])
+    _TOOL_META_CACHE.pop(key, None)
+
+
+def _grenzen() -> tuple[int, int]:
+    """``(Summe, je Eintrag)`` in Zeichen; 0 = ohne Deckel (M-11)."""
+    cfg = get_settings()
+    return cfg.mcp_tool_cache_max_chars, cfg.mcp_tool_cache_max_entry_chars
+
+
 def _cache_set(key: tuple[str, str], value: str) -> None:
     """Cache a tool response. Empty responses get a short-TTL marker prefix
     so the same empty-result query within ~1 min reuses the cached miss
     instead of round-tripping to MCP again.
+
+    Paket 19 (M-11): ein Wert über ``MCP_TOOL_CACHE_MAX_ENTRY_CHARS`` wird nicht
+    gespeichert (ein alter Eintrag unter demselben Schlüssel fällt mit); über
+    ``MCP_TOOL_CACHE_MAX_CHARS`` weichen die ältesten Einträge.
     """
+    global _TOOL_CACHE_CHARS
+    if not _TOOL_CACHE:
+        _TOOL_CACHE_CHARS = 0  # ein ``_TOOL_CACHE.clear()`` von außen (Tests)
+    max_summe, max_eintrag = _grenzen()
+    # Die Metas gehören zum alten Wert (Paket 10, Audit M-4): wer neue hat, setzt
+    # sie danach (``client.call_mcp_tool``); ohne neue gälten sonst die alten.
+    _entfernen(key)
     if _is_empty_response(value):
         # Mark as negative cache entry; _cache_get strips the prefix.
         stored = "__NEG__::" + value
     else:
         stored = value
+    if max_eintrag and len(stored) > max_eintrag:
+        return
     _TOOL_CACHE[key] = (_time.time(), stored)
-    _TOOL_CACHE.move_to_end(key)
-    # Die Metas gehören zum alten Wert (Paket 10, Audit M-4): wer neue hat, setzt
-    # sie danach (``client.call_mcp_tool``); ohne neue gälten sonst die alten.
-    _TOOL_META_CACHE.pop(key, None)
-    while len(_TOOL_CACHE) > _TOOL_CACHE_MAX_ENTRIES:
+    _TOOL_CACHE_CHARS += len(stored)
+    while len(_TOOL_CACHE) > _TOOL_CACHE_MAX_ENTRIES or (
+            max_summe and _TOOL_CACHE_CHARS > max_summe and len(_TOOL_CACHE) > 1):
         # B5 (2026-06-10): Meta-Cache-Eintrag MIT evicten — vorher wuchs
         # _TOOL_META_CACHE unbegrenzt (jede einzigartige (tool,args)-Kombi
         # blieb prozesslebenslang im RAM).
-        _old_key, _ = _TOOL_CACHE.popitem(last=False)  # drop oldest
-        _TOOL_META_CACHE.pop(_old_key, None)
+        _entfernen(next(iter(_TOOL_CACHE)))  # drop oldest
 
 
 def get_tool_cache_stats() -> dict[str, Any]:
@@ -211,6 +242,7 @@ def get_tool_cache_stats() -> dict[str, Any]:
         "negative_hits": _TOOL_CACHE_NEG_HITS,
         "size": len(_TOOL_CACHE),
         "max_entries": _TOOL_CACHE_MAX_ENTRIES,
+        "chars": _TOOL_CACHE_CHARS,
         "hit_rate": round(_TOOL_CACHE_HITS / total, 3) if total else 0.0,
         "ttl_per_tool": dict(_TOOL_CACHE_TTL_PER_TOOL),
         "ttl_default_seconds": _TOOL_CACHE_TTL_DEFAULT_SECONDS,
@@ -220,9 +252,10 @@ def get_tool_cache_stats() -> dict[str, Any]:
 
 def clear_tool_cache() -> int:
     """Wipe the cache + reset all stat counters (used between eval runs)."""
-    global _TOOL_CACHE_HITS, _TOOL_CACHE_MISSES, _TOOL_CACHE_NEG_HITS
+    global _TOOL_CACHE_HITS, _TOOL_CACHE_MISSES, _TOOL_CACHE_NEG_HITS, _TOOL_CACHE_CHARS
     n = len(_TOOL_CACHE)
     _TOOL_CACHE.clear()
+    _TOOL_CACHE_CHARS = 0
     _TOOL_META_CACHE.clear()  # B5: Meta-Cache mit leeren (lief sonst voll)
     _TOOL_CACHE_HITS = 0
     _TOOL_CACHE_MISSES = 0

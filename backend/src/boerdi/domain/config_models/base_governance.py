@@ -3,11 +3,15 @@ quality-log-config, guide-mode, classify-overrides, tone-modifiers,
 card-pipeline. Shapes verified against the ALT tree inventory (2026-07-11).
 """
 
+import logging
 from typing import Annotated, Any, Final
 
-from pydantic import BeforeValidator, Field
+from pydantic import AfterValidator, BeforeValidator, Field
 
 from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Textarea
+from boerdi.settings import get_settings, ist_lockerer, pruefe_drosselgrenze
+
+_logger = logging.getLogger(__name__)
 
 #: Wann die jeweilige Prüfstufe läuft. Gemessen im Seed 2026-08-13; ``smart``
 #: kommt beim Rechts-Klassifikator vor, bei der Moderation nur ``never``/
@@ -64,6 +68,33 @@ class RateLimitsBlock(AreaModel):
     blocked_message_en: Annotated[str, Textarea()] = ""
 
 
+def _zug_grenze(wert: str) -> str:
+    """Leer = ``RATE_LIMIT_CHAT``; sonst dieselbe Form wie dort — ein Tippfehler wird beim
+    Speichern abgewiesen, nicht erst je Zug still übergangen (Paket 19, M-4)."""
+    if not wert.strip():
+        return wert
+    pruefe_drosselgrenze(wert, "turn_limits")
+    vorgabe = get_settings().rate_limit_chat
+    if ist_lockerer(wert, vorgabe):
+        # Review, Punkt 7: gespeichert wird trotzdem — die Redaktion darf lockern, im Log steht es.
+        _logger.warning("turn_limits=%r ist lockerer als RATE_LIMIT_CHAT=%r", wert, vorgabe)
+    return wert
+
+
+#: Eine Zug-Grenze im Studio: ``120/minute``, ``10/second;500/hour``, ``off`` oder leer.
+_ZugGrenze = Annotated[str, AfterValidator(_zug_grenze)]
+
+
+class TurnLimitsBlock(AreaModel):
+    """Die äußere HTTP-Grenze der Züge je IP (Paket 19, M-4 / Entscheid P19-E3) — für
+    ``/api/chat``, ``/api/chat/stream``, ``/api/agent`` und ``/api/agent/stream``, je Route
+    gezählt. Leer heißt ``RATE_LIMIT_CHAT`` (``services/config_loader.load_turn_limits``).
+    „Angemeldet“ gilt nur für eine vom MCP bestätigte Person oder einen Zug der Anlage."""
+
+    anonymous: _ZugGrenze = ""
+    authenticated: _ZugGrenze = ""
+
+
 def _keine_wahrheitswerte(wert: Any) -> Any:
     """Lax gelesen wird aus ``true`` eine 1 — eine Frist von einem Tag (Paket 9)."""
     if isinstance(wert, bool):
@@ -80,9 +111,10 @@ _Tage = Annotated[int, Field(ge=0), BeforeValidator(_keine_wahrheitswerte)]
 class SafetyLoggingBlock(AreaModel):
     enabled: bool = True
     log_all_turns: bool = False
-    # Wie im Auslieferungsstand (Paket 9, Review Paket 7 MINOR 15): fehlte das Feld,
-    # löschte der Lauf nach 30 statt 90 Tagen — unwiderruflich.
-    retention_days: _Tage = 90
+    # Wie im Auslieferungsstand (Paket 9, Review Paket 7 MINOR 15: Modell und Seed
+    # gingen auseinander). Paket 19 (P19-E4, Nutzer 2026-10-31): 30 statt 90 Tage — die
+    # Einträge halten 500 Zeichen der Nachricht und die IP, so lange wie der Verlauf.
+    retention_days: _Tage = 30
 
 
 #: D-14 (Nutzer, 2026-09-27): die Antwort des Agent-Endpunkts auf eine Krise —
@@ -128,6 +160,8 @@ class SafetyConfigArea(AreaModel):
     # ``confidence_adjustments`` gestrichen (Paket 7, P4): ``outcome_service``
     # rechnet mit festen Werten.
     rate_limits: RateLimitsBlock = RateLimitsBlock()
+    # Paket 19 (M-4): die HTTP-Grenze der Züge, getrennt anonym/angemeldet (``api/ratelimit``).
+    turn_limits: TurnLimitsBlock = TurnLimitsBlock()
     logging: SafetyLoggingBlock = SafetyLoggingBlock()
 
 

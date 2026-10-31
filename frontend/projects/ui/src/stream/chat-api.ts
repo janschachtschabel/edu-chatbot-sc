@@ -347,7 +347,9 @@ export class ChatApiClient {
       device: env?.device || detectDevice(),
       locale: env?.locale || this.uiLocale || navigator.language || 'de-DE',
       session_duration: Math.floor((Date.now() - this.startTime) / 1000),
-      referrer: env?.referrer || document.referrer || 'direkt',
+      // Paket 19 (N-1): nie `document.referrer` — die Herkunftsseite trägt oft
+      // Suchbegriffe, und das Backend liest das Feld nicht.
+      referrer: env?.referrer || 'direkt',
       guide_mode: env?.guide_mode ?? this.guideMode,
       host: env?.host ?? this.guideHost,
       tour_action: env?.tour_action,
@@ -391,10 +393,11 @@ export class ChatApiClient {
     });
   }
 
-  /** Non-streaming Fallback-Turn (POST /api/chat). */
+  /** Non-streaming Fallback-Turn (POST /api/chat). `fristMs` — eigene Frist
+   *  (Paket 19, M-15); ohne Angabe die Vorgabe von `postChat` (`STALE_MS`). */
   async post(
     sessionId: string, message: string, env?: Partial<Environment>,
-    action?: string, actionParams?: Record<string, any>,
+    action?: string, actionParams?: Record<string, any>, fristMs?: number,
   ): Promise<ChatResponse> {
     await this.anmeldung;
     return postChat<ChatResponse>({
@@ -402,6 +405,7 @@ export class ChatApiClient {
       body: this.buildBody(sessionId, message, env, action, actionParams),
       fetchImpl: this.fetchImpl,
       extraHeaders: this.turnHeaders(),
+      ...(fristMs === undefined ? {} : { fristMs }),
     });
   }
 

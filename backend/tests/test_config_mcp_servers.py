@@ -33,12 +33,12 @@ from boerdi.services import config_loader
 from boerdi.services.mcp import transport
 from boerdi.settings import get_settings
 
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
     return TestClient(create_app())  # no context manager -> lifespan not run
 
@@ -268,6 +268,24 @@ def test_discover_maps_a_connection_failure_to_502(client, monkeypatch, caplog) 
     # Paket 18E: der Grund stand nur im Studio-Text — jetzt auch im Log (Fehlerart).
     meldungen = [r.getMessage() for r in caplog.records]
     assert any("8.8.8.8" in m and "RuntimeError" in m for m in meldungen), meldungen
+
+
+def test_discover_detail_traegt_keinen_fremdtext(client, monkeypatch) -> None:
+    """Paket 19 (N-12): ``error=e`` brachte den Text des Servers ins Studio — ein ``McpError``
+    wiederholt mitunter die Eingabe. Jetzt der Grund ohne Fremdtext und die Fehlernummer."""
+    from mcp.shared.exceptions import McpError
+    from mcp.types import ErrorData
+
+    async def _boom(url: str) -> list[dict[str, str]]:
+        raise McpError(ErrorData(code=-32603, message="Interner Fehler bei KANARIE7Q"))
+
+    monkeypatch.setattr(transport, "discover_server_tools", _boom)
+    r = client.post("/api/config/mcp-servers/discover", headers=_AUTH,
+                    params={"url": "http://8.8.8.8/mcp"})
+    assert r.status_code == 502
+    detail = r.json()["detail"]
+    assert "KANARIE7Q" not in detail
+    assert "McpError" in detail and "Fehlernummer" in detail
 
 
 # ── the OTHER two write paths into the same document ────────────────────────

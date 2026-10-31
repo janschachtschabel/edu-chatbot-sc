@@ -159,6 +159,11 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
     descKey: 'rw.attr.emitRoutingDebug',
   },
   {
+    // Paket 19 (Audit N-6, Teil 19-3): `boerdi:query-meta` geht nur noch damit an `window`.
+    groupKey: 'rw.group.integration', attr: 'emit-query-meta', fallback: 'false',
+    descKey: 'rw.attr.emitQueryMeta',
+  },
+  {
     groupKey: 'rw.group.integration', attr: 'ticket', fallback: '—',
     descKey: 'rw.attr.ticket',
   },

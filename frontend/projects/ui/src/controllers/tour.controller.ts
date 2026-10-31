@@ -28,6 +28,7 @@ import {
 import type { TranslateFn } from '../i18n/i18n';
 import { fehlerKurz } from '../obs/fehler-kurz';
 import { sitzungsWache } from '../session/session-id';
+import { fristHinweis } from '../stream/http-fehler';
 
 /** Exakter Text des Start-Chips, der die Web-Tour direkt startet. */
 export const TOUR_START_LABEL = 'Web-Tour starten';
@@ -138,7 +139,8 @@ export class TourController {
       if (veraltet()) return;
       console.warn('boerdi: Tour nicht gestartet —', fehlerKurz(err));
       this.ctx.removeMessage(loadingId);
-      this.ctx.addBotMessage(this.ctx.t('error.tourStart'));
+      // Paket 19 (M-15): lief der POST in seine Frist, sagt die Blase das.
+      this.ctx.addBotMessage(fristHinweis(this.ctx.t, err) ?? this.ctx.t('error.tourStart'));
     }
     this.ctx.setLoading(false);
   }

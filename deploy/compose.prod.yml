@@ -40,7 +40,16 @@ services:
       - --certificatesResolvers.le.acme.email=${ACME_EMAIL:?ACME_EMAIL fehlt}
       - --certificatesResolvers.le.acme.storage=/acme/acme.json
       - --certificatesResolvers.le.acme.tlschallenge=true
+      # Zugriffslog ohne Pfad, Query und Kopfzeilen (Paket 19, H-1): die Standardzeile
+      # schrieb `GET /api/sessions/bb-<uuid>/messages` samt Referer und User-Agent —
+      # die Kennung wirkt wie ein Schlüssel zum Verlauf. Abwählen lassen sich Felder nur
+      # im JSON-Format. Es bleiben Zeit, Methode, Status, Dauer, Router, Dienst, Host
+      # und die IP (Datenbedarf 18C/D).
       - --accesslog=true
+      - --accesslog.format=json
+      - --accesslog.fields.names.RequestPath=drop
+      - --accesslog.fields.names.ClientUsername=drop
+      - --accesslog.fields.headers.defaultmode=drop
     ports:
       - "80:80"
       - "443:443"
@@ -195,6 +204,10 @@ services:
       CLASSIFY_TIMEOUT_S: ${CLASSIFY_TIMEOUT_S:-}
       DB_POOL_SIZE: ${DB_POOL_SIZE:-}
       DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-}
+      DB_STATEMENT_TIMEOUT_S: ${DB_STATEMENT_TIMEOUT_S:-}
+      DB_COMMAND_TIMEOUT_S: ${DB_COMMAND_TIMEOUT_S:-}
+      DB_IDLE_IN_TRANSACTION_TIMEOUT_S: ${DB_IDLE_IN_TRANSACTION_TIMEOUT_S:-}
+      DB_LOCK_TIMEOUT_S: ${DB_LOCK_TIMEOUT_S:-}
       LLM_SERVICE_TIER: ${LLM_SERVICE_TIER:-}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
       LLM_VERBOSITY: ${LLM_VERBOSITY:-}
@@ -215,6 +228,8 @@ services:
       RAG_MAX_CHARS_PER_AREA: ${RAG_MAX_CHARS_PER_AREA:-}
       MCP_SERVER_URL: ${MCP_SERVER_URL:-}
       MCP_CALL_TIMEOUT_S: ${MCP_CALL_TIMEOUT_S:-}
+      MCP_TOOL_CACHE_MAX_CHARS: ${MCP_TOOL_CACHE_MAX_CHARS:-}
+      MCP_TOOL_CACHE_MAX_ENTRY_CHARS: ${MCP_TOOL_CACHE_MAX_ENTRY_CHARS:-}
       # Geheimnis (C2): Zugangsblock des MCP-Servers, aus der .env auf dem
       # Server. Leer = anonym lesend. Siehe deploy/README.md.
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}

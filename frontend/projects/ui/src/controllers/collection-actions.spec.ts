@@ -441,3 +441,51 @@ describe('Paket 18F: zu viele Anfragen bei Sammlungs-Aktionen', () => {
     }
   });
 });
+
+// ── Paket 19, Audit 2026-10-31 N-34 + M-15 ──────────────────────────────────
+describe('Paket 19: „Weitere laden“ und Fristen bei Karten-Aktionen', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const pagination: PaginationInfo = {
+    total_count: 12, skip_count: 5, page_size: 5, has_more: true, collection_id: 'c1', collection_title: 'Mathe',
+  };
+  const t = createTranslator(DE, DE);
+
+  // N-34: „Weitere laden“ scheiterte still — nur eine Konsolenzeile.
+  it('loadMore-Fehler → Fehlerblase mit dem Sammlungstitel (N-34)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { ctx, calls } = makeCtx({
+      initialMessages: [makeMsg({ id: 'm1', pagination })],
+      respond: () => { throw new Error('weg'); },
+    });
+    await loadMore('m1', ctx);
+    expect(calls.bot.map((b) => b.content)).toEqual([t('error.browseCollection', { title: 'Mathe' })]);
+    expect(calls.scroll).toEqual([calls.bot[0].id]);
+    expect(calls.loading).toEqual([true, false]);
+  });
+
+  it('loadMore bei 429 → der Drossel-Satz (N-34)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { ctx, calls } = makeCtx({
+      initialMessages: [makeMsg({ id: 'm1', pagination })],
+      respond: () => { throw Object.assign(new Error('Chat error: 429'), { status: 429, retryAfterMs: 3_000 }); },
+    });
+    await loadMore('m1', ctx);
+    expect(calls.bot.at(-1)?.content).toBe(t('error.rateLimitedWait', { sekunden: 3 }));
+  });
+
+  // M-15: läuft der POST in seine Frist, sagt die Blase „dauert ungewöhnlich lange“.
+  it('Frist abgelaufen → „veraltet“-Satz bei allen Karten-Aktionen (M-15)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const frist = () => { throw Object.assign(new Error('frist'), { name: 'StreamStaleError' }); };
+    for (const lauf of [browseCollection, showContentText, generateLearningPath]) {
+      const { ctx, calls } = makeCtx({ respond: frist });
+      await lauf('c1', 'Mathe', ctx);
+      expect(calls.bot.at(-1)?.content).toBe(t('error.stale'));
+      expect(calls.loading.at(-1)).toBe(false);
+    }
+    const { ctx, calls } = makeCtx({ initialMessages: [makeMsg({ id: 'm1', pagination })], respond: frist });
+    await loadMore('m1', ctx);
+    expect(calls.bot.at(-1)?.content).toBe(t('error.stale'));
+  });
+});

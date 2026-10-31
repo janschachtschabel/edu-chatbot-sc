@@ -39,6 +39,7 @@ import asyncio
 import logging
 import statistics
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -49,6 +50,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import LoadtestRun
+from boerdi.obs.log_format import ausnahme_text
 from boerdi.obs.tasks import cancel_run_task
 from boerdi.services.eval.run_profile import fallback_kind
 from boerdi.services.session_origin import LOADTEST_PREFIX
@@ -501,6 +503,13 @@ def _engstelle(ergebnisse: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "anteile": {k: round(v / summe, 3) if summe else 0.0 for k, v in mediane.items()}}
 
 
+def lasttest_kennung(run_id: str, stage_idx: int) -> str:
+    """Eine Sitzungskennung je virtuellem Nutzer: Lauf und Stufe zum Wiederfinden, dahinter
+    ``uuid4().hex`` — die Kennung ist am offenen Lese-Endpunkt der einzige Schlüssel des
+    Verlaufs (Paket 19, Audit N-9; vorher ``…-s<Stufe>-<Nummer>``, etwa 20 Bit)."""
+    return f"{LOADTEST_PREFIX}{run_id[:8]}-s{stage_idx}-{uuid.uuid4().hex}"
+
+
 async def _run_stage(
     app: Any, run_id: str, stage_idx: int, concurrency: int, kinds: list[str],
     *, engine: str = "default",
@@ -515,7 +524,7 @@ async def _run_stage(
         ip = f"198.51.100.{(i % 50) + 1}"
         transport = httpx.ASGITransport(app=app, client=(ip, 50000 + i))
         topic = _TOPICS[(stage_idx * 7 + i) % len(_TOPICS)]
-        sid = f"{LOADTEST_PREFIX}{run_id[:8]}-s{stage_idx}-{i}"
+        sid = lasttest_kennung(run_id, stage_idx)
         async with sem, httpx.AsyncClient(
             transport=transport, base_url="http://loadtest.local",
         ) as client:
@@ -671,7 +680,8 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
         result["summary"] = _summary(result["stages"], profile["p95_threshold_s"], samples)
     except Exception as e:  # runner records the failure instead of crashing the task
         logger.exception("loadtest %s failed", run_id)
-        result["error"] = f"{type(e).__name__}: {e}"
+        # Paket 19 (wie N-12): der Text geht in die DB und ins Studio — geschwärzt wie im Log.
+        result["error"] = f"{type(e).__name__}: {ausnahme_text(e)}"
         status = "failed"
     finally:
         # Vor dem letzten _persist stoppen und abwarten: sonst könnte der Sampler
@@ -688,4 +698,27 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
                 sampler.cancel()
                 logger.debug("resource sampler did not stop in time; cancelled")
         result["finished_at"] = _now_iso()
+        await _endstand_sichern(factory, run_id, status, result)
+
+
+async def _endstand_sichern(factory: async_sessionmaker[AsyncSession], run_id: str,
+                            status: str, result: dict[str, Any]) -> None:
+    """Der letzte Schreibversuch eines Laufs (Paket 19, N-13). Scheiterte er ungeschützt, blieb
+    die Zeile auf ``running`` — 409 für jeden neuen Lauf bis zum Herzschlag-Verfall, und im Log
+    stand nur ein DEBUG des Hintergrund-Callbacks. Deshalb ein zweiter Versuch ohne Messwerte
+    (die Serialisierung ist die wahrscheinlichste Ursache), danach eine Warnung."""
+    try:
         await _persist(factory, run_id, status=status, result=result)
+        return
+    except Exception as e:  # noqa: BLE001 — der Lauf ist vorbei, nur die Zeile zählt
+        art = type(e).__name__
+        logger.warning("loadtest %s: Endstand '%s' nicht gespeichert (%s) — zweiter Versuch "
+                       "ohne Messwerte", run_id, status, art, exc_info=True)
+    try:
+        await _persist(factory, run_id, status="failed", result={
+            "finished_at": result.get("finished_at"), "stages": [], "resource_samples": [],
+            "summary": None, "error": f"Endstand nicht gespeichert ({art})",
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.warning("loadtest %s: Zeile bleibt bis zum Herzschlag-Verfall auf 'running' (%s)",
+                       run_id, type(e).__name__)

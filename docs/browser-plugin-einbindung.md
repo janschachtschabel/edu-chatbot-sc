@@ -251,7 +251,7 @@ Alle Werte sind HTML-Attribute, also Zeichenketten. Boolesche Attribute nehmen
 
 | Attribut | Vorgabe | Bedeutung |
 |---|---|---|
-| `persist-session` | `true` | Sitzungs-ID über Seitenwechsel behalten |
+| `persist-session` | `true` | Sitzungs-ID über Seitenwechsel behalten. `false` = die ID wird **nirgends** abgelegt, auch nicht nach „Neu starten“, und reist auch nicht als `?bsid=` zu vertrauten Hosts mit (seit Paket 19; der Eulen-Hinweis merkt sich nur einen Prüfwert) |
 | `session-key` | `boerdi_session_id` | Schlüssel im Speicher |
 | `session-cookie-domain` | leer | z.B. `.wirlernenonline.de` für Subdomain-Teilung; leer = nur `localStorage`, herkunftsisoliert |
 | `session-cookie-max-age` | `2592000` | Lebensdauer in Sekunden (30 Tage) |
@@ -282,6 +282,7 @@ Alle Werte sind HTML-Attribute, also Zeichenketten. Boolesche Attribute nehmen
 | `intercept-edu-sharing-links` | `false` | `true` = **ihr übernehmt die Navigation**: jeder Klick auf einen Link mit `/edu-sharing` im Pfad wird unterdrückt und nur als Ereignis `linkClicked` (Pfad+Query) gereicht. Unbehandelt ist jeder solche Klick tot — auch die Such-Pille. Vorgabe aus |
 | `emit-guide-suggestion` | `false` | `boerdi:guide-suggestion` einschalten (§6) |
 | `emit-routing-debug` | `false` | `boerdi:routing-debug` einschalten (§6) |
+| `emit-query-meta` | `false` | `boerdi:query-meta` einschalten (§6). Bis Paket 19 immer an — wer das Ereignis liest, setzt jetzt `emit-query-meta="true"` |
 | `ticket` | — | edu-sharing-Ticket der Gastgeberseite. **Für Plugins nicht nutzbar** (§8) |
 
 ### Was zur Laufzeit noch wirkt
@@ -312,7 +313,7 @@ einer Template-Bindung — die nächste Auswertung nimmt den neuen Wert.
 | `position` | CSS matcht das Attribut direkt (`:host([position="…"])`) — es gibt gar keinen Umweg über den Input |
 | `embed-mode` | `computed` `frameless()`; schaltet Rahmen, FAB und Kopfzeile um |
 | `show-cards`, `show-debug-button`, `show-language-buttons`, `inline-result-grouping` | werden beim Rendern gelesen (Getter/`computed` der Shell) |
-| `intercept-edu-sharing-links`, `emit-guide-suggestion`, `emit-routing-debug` | werden beim Ereignis gelesen |
+| `intercept-edu-sharing-links`, `emit-guide-suggestion`, `emit-routing-debug`, `emit-query-meta` | werden beim Ereignis gelesen |
 | `trusted-domains` | `computed`, mit der Backend-Liste gemergt |
 
 **B · Wirkt erst beim nächsten Neustart des Chats.** Die Bindung ist live, aber
@@ -602,7 +603,7 @@ und Titel der Gastseite zusätzlich bei. Die Felder
 | `search_query` | aktueller Suchbegriff der Gastseite |
 | `search_filters` | `{ publisher?: string[] }` |
 | `page_text` | Titel + sichtbarer Text der Seite (Server-Budget 200 000 Zeichen) |
-| `page_url`, `page_host` | volle Adresse und Hostname |
+| `page_url`, `page_host` | Adresse und Hostname. Die eigene Erkennung schickt seit Paket 19 nur Pfad plus Seiten-Kennung (`v`, `id`, `p`, `page_id`) — keine übrige Query, keinen Anker. Liefert ihr `page_url` selbst, kürzt genauso |
 | `title` | Seitentitel des Tabs (Alias: `document_title` gewinnt, wenn beide gesetzt) |
 
 Alle **Text**felder dieser Tabelle — also alle außer `search_filters`, das ein Objekt bleibt — werden serverseitig zu Zeichenketten normalisiert: ein numerisches Enum als `page_kind` oder eine Zahl-ID (`collection_id: 4711` → `"4711"`) bricht den Zug also nicht. Nicht gesetzte Felder (`null`) bleiben ungesetzt.
@@ -1170,7 +1171,7 @@ window.addEventListener('boerdi:guide-suggestion', (e) => {
 | Ereignis | wann | Nutzlast |
 |---|---|---|
 | `boerdi:page-action` | der Bot schlägt eine Seiten-Aktion vor | `{action, payload}` — heute gefeuert: `navigate`, `show_results`, `canvas_show_cards` |
-| `boerdi:query-meta` | nach jedem Bot-Zug mit Suche — **immer an**, kein Opt-in | `{queries: [{tool_name, query_type, search_term, criteria[], pagination, repository_url, search_url}]}` |
+| `boerdi:query-meta` | nach jedem Bot-Zug mit Suche — **`emit-query-meta="true"` nötig** (seit Paket 19; vorher immer an) | `{queries: [{tool_name, query_type, search_term, criteria[], pagination, repository_url, search_url}]}` |
 | `boerdi:guide-suggestion` | jeder Zug mit mindestens einem verlinkbaren Treffer — **`emit-guide-suggestion="true"` nötig** | `{url, title, node_id, node_type, query, alternatives[]}` |
 | `boerdi:routing-debug` | jeder Bot-Zug — **`emit-routing-debug="true"` nötig** | `{message, pattern, intent, state, persona, tools_called[], rag_areas[], sources[], modifier{tone,length,formality,card_text_mode,override}, signals[]}` — `persona` und `signals` seit Paket 18C/D nur mit Freigabe (Studio), sonst leer |
 | `boerdi:agent-result` | jeder Zug — **`result-schema` gesetzt UND `engine="agent"` nötig** (§7a) | `{result, stop_reason}`; `result` ist `null`, wenn dieser Zug keins hergab |
@@ -1183,9 +1184,10 @@ unter `badboerdi:…` (das ist die Übergangs-Nachsicht). Hört **nur auf den ne
 Namen**, sonst verarbeitet ihr alles doppelt. Der alte Versand fällt nach dem
 Cutover ersatzlos weg.
 
-*`query-meta` kostet nichts extra.* Es ist immer an; `guide-suggestion` und
-`routing-debug` sind Opt-in, und bei `false` entsteht weder Ereignis noch
-Aufwand.
+*Alle drei Melde-Ereignisse sind Opt-in.* `query-meta` trägt Suchbegriff und
+Such-URL; bis Paket 19 ging es ungefragt an jedes Skript der Gastseite, seither
+braucht es wie `guide-suggestion` und `routing-debug` sein Attribut. Bei `false`
+entsteht weder Ereignis noch Aufwand.
 
 **Unbekannte `page-action` still übergehen.** Das Schema erklärt ein breiteres
 Vokabular, als heute tatsächlich gefeuert wird — `navigate`, `show_collection`,
@@ -1198,6 +1200,9 @@ ignoriert ihr, statt daran zu scheitern.
 
 Vier Outputs mit identischer Nutzlast: `linkClicked` (Zeichenkette, nur mit
 `intercept-edu-sharing-links`), `guideSuggestion`, `routingDebug`, `queryMeta`.
+Wie die Ereignisse sind `guideSuggestion`, `routingDebug` und `queryMeta` Opt-in
+(`emit-guide-suggestion`, `emit-routing-debug`, `emit-query-meta`) — Angular Elements
+macht jeden Output zusätzlich zum DOM-Ereignis am Element.
 
 **`linkClicked` verpflichtet.** Mit `intercept-edu-sharing-links="true"`
 navigiert das Widget **nie** selbst — für alle `/edu-sharing`-Ziele seid ihr

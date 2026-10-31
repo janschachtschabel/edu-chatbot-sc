@@ -272,7 +272,9 @@ def test_eine_ablehnung_kostet_eine_sitzung_und_eine_fehlerzeile(mcp_state, monk
             client.call_mcp_tool_status("search_skill", {"query": "Optik"}))
     assert art == "tool"
     assert len(sitzungen) == 1
-    assert [r.levelname for r in caplog.records].count("ERROR") == 1
+    # Paket 19 (N-15): eine Zeile — als Warnung, die Ablehnung ist erwartbar.
+    stufen = [r.levelname for r in caplog.records]
+    assert stufen.count("ERROR") == 0 and stufen.count("WARNING") == 1
 
 
 def test_eine_ablehnung_behaelt_den_grund_des_ersten_aufrufs(mcp_state, monkeypatch):
@@ -346,6 +348,26 @@ def test_ein_ausfall_wird_weiter_wiederholt(mcp_state, monkeypatch):
         client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"}))
     assert (text, art) == ("OK", "")
     assert len(calls) == 2
+
+
+def test_ein_doppelter_ausfall_ist_eine_gedrosselte_warnung(mcp_state, monkeypatch, caplog):
+    """Paket 19 (N-15): bis dahin zwei ERROR-Zeilen hier zu den zwei des Transports. Den Grund
+    meldet der Transport; hier nur, dass auch die Wiederholung scheiterte — gedrosselt."""
+    import logging
+
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [
+        {"error": {"message": "read timeout", "kind": "transport"}},
+        {"error": {"message": "read timeout", "kind": "transport"}},
+        {"error": {"message": "read timeout", "kind": "transport"}},
+        {"error": {"message": "read timeout", "kind": "transport"}},
+    ])
+    with caplog.at_level(logging.INFO, logger=client.__name__):
+        for _ in range(2):
+            asyncio.run(client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"}))
+    stufen = [r.levelname for r in caplog.records if r.levelno >= logging.WARNING]
+    assert stufen == ["WARNING"]
+    assert "Retrying" not in caplog.text  # DEBUG, nicht mehr INFO
 
 
 def test_ein_bestaetigter_schreibaufruf_wird_nach_ausfall_nicht_wiederholt(

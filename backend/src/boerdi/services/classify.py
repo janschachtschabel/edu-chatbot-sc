@@ -51,6 +51,7 @@ from boerdi.services.classify_prompt import (
     build_classify_turn_context,
     klassifikator_rohdaten,
 )
+from boerdi.services.llm_ereignisse import LlmFristAbgelaufen
 from boerdi.services.llm_models import get_chat_model, get_provider
 from boerdi.services.llm_nachrichten import nachrichten_fuer
 from boerdi.settings import get_settings
@@ -126,22 +127,25 @@ async def classify_input(
     frist = get_settings().classify_timeout_s
     # Erst nach der Platzvergabe angelegt: ``asyncio.timeout`` setzt den Fristbeginn
     # beim Anlegen.
-    grenze: asyncio.Timeout | None = None
     try:
         async with metrics.llm_messung("classify"), _llm.semaphore():
             grenze = asyncio.timeout(frist)
-            async with grenze:
-                result, raw = await _acreate(
-                    messages=messages,
-                    response_model=ClassificationResult,
-                    max_retries=2,
-                    **kwargs,
-                )
-    except TimeoutError:
-        if grenze is None or not grenze.expired():
-            raise
-        # Paket 10 (Audit M-5): ``assess`` fängt das und nimmt die Vorgabe.
-        raise TimeoutError(f"Klassifikation: keine Antwort binnen {frist:g} s") from None
+            try:
+                async with grenze:
+                    result, raw = await _acreate(
+                        messages=messages,
+                        response_model=ClassificationResult,
+                        max_retries=2,
+                        **kwargs,
+                    )
+            except TimeoutError:
+                if not grenze.expired():
+                    raise
+                # Paket 10 (Audit M-5): ``assess`` fängt das und nimmt die Vorgabe. Paket 19
+                # (N-16, Review): als eigene Frist markiert — ``assess`` meldet sie gedrosselt.
+                # Innerhalb der Messung (Review 19-5, 5): sie zählt dort als ``abbruch``.
+                raise LlmFristAbgelaufen(
+                    f"Klassifikation: keine Antwort binnen {frist:g} s") from None
     except InstructorRetryException as exc:
         _logger.warning("classify validation exhausted after %s attempts: %s",
                         exc.n_attempts, _fehlversuche(exc))

@@ -112,6 +112,8 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.attr.emitGuideSuggestion': 'true: Lotsen-Treffer als boerdi:guide-suggestion',
     'rw.attr.emitRoutingDebug':
       'true: Routing-Telemetrie je Bot-Turn als boerdi:routing-debug',
+    'rw.attr.emitQueryMeta':
+      'true: Suchmetadaten je Zug (Suchbegriff, Such-URL) als boerdi:query-meta an window',
     'rw.attr.ticket':
       'edu-sharing-Ticket der Gastgeberseite (Betriebsform „das Repositorium '
       + 'bettet ein"): einmal gelesen, sofort aus dem DOM entfernt und beim '
@@ -123,7 +125,7 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.col.when': 'Wann',
     'rw.col.payload': 'Payload',
     'rw.when.pageAction': 'immer aktiv (nur als window-Event)',
-    'rw.when.queryMeta': 'immer aktiv',
+    'rw.when.queryMeta': 'emit-query-meta="true"',
     'rw.when.guideSuggestion': 'emit-guide-suggestion="true"',
     'rw.when.routingDebug': 'emit-routing-debug="true"',
     'rw.when.agentResult': 'result-schema gesetzt + engine="agent"',
@@ -216,6 +218,8 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.attr.emitGuideSuggestion': 'true: guide hits as boerdi:guide-suggestion',
     'rw.attr.emitRoutingDebug':
       'true: routing telemetry per bot turn as boerdi:routing-debug',
+    'rw.attr.emitQueryMeta':
+      'true: search metadata per turn (search term, search URL) as boerdi:query-meta on window',
     'rw.attr.ticket':
       'edu-sharing ticket of the host page (the "repository embeds the chat" '
       + 'mode): read once, removed from the DOM right away and exchanged at the '
@@ -227,7 +231,7 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.col.when': 'When',
     'rw.col.payload': 'Payload',
     'rw.when.pageAction': 'always active (window event only)',
-    'rw.when.queryMeta': 'always active',
+    'rw.when.queryMeta': 'emit-query-meta="true"',
     'rw.when.guideSuggestion': 'emit-guide-suggestion="true"',
     'rw.when.routingDebug': 'emit-routing-debug="true"',
     'rw.when.agentResult': 'result-schema set + engine="agent"',

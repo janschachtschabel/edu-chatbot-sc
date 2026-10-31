@@ -198,10 +198,12 @@
             [trustedHosts]="parsedTrustedHostList"
             [emitGuideSuggestion]="emitGuideSuggestion()"
             [emitRoutingDebug]="emitRoutingDebug()"
+            [emitQueryMeta]="emitQueryMeta()"
             [inlineResultGrouping]="inlineResultGrouping()"
             (pageAction)="handlePageAction($event)"
             (guideSuggestion)="guideSuggestion.emit($event)"
             (routingDebug)="routingDebug.emit($event)"
+            (queryMeta)="queryMeta.emit($event)"
           />
         </div>
       </div>

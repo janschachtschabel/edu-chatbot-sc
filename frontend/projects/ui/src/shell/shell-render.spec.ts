@@ -15,17 +15,38 @@ import { ShellRender } from './shell-render';
  * Bubble-Neuberechnung nach einer Trusted-Hosts-Änderung freigibt.
  */
 
-function make(over: Partial<{ sessionId: string; trusted: string[] }> = {}) {
-  const state = { sessionId: over.sessionId ?? 'bb-11111111-2222-3333-4444-555555555555', trusted: over.trusted ?? [] };
+function make(over: Partial<{ sessionId: string; trusted: string[]; persist: boolean }> = {}) {
+  const state = {
+    sessionId: over.sessionId ?? 'bb-11111111-2222-3333-4444-555555555555', trusted: over.trusted ?? [],
+    persist: over.persist ?? true,
+  };
   const render = new ShellRender({
     bypassSecurityTrustHtml: (html) => html,
     sessionId: () => state.sessionId,
+    bsidKennung: () => (state.persist ? state.sessionId : ''),
     trustedDomains: () => ['wirlernenonline.de', ...state.trusted],
     inlineResultGrouping: () => true,
     t: createTranslator(DE, DE),
   });
   return { render, state };
 }
+
+// Paket 19, Review zu H-4: ohne `persist-session` reiste die Kennung trotzdem als
+// `?bsid=` zu vertrauten Hosts — das WLO-Widget dort (persist an) legte sie ab.
+describe('ShellRender — kein bsid ohne persist (H-4)', () => {
+  it('withBsid, Karten-/Gruppen-Kontext und Markdown-Links bleiben ohne bsid', () => {
+    const { render } = make({ persist: false });
+    expect(render.withBsid('https://wirlernenonline.de/x')).toBe('https://wirlernenonline.de/x');
+    expect(render.groupingCtx.withBsid('https://wirlernenonline.de/x')).not.toContain('bsid=');
+    expect(render.resultGroupsCtx.withBsid('https://wirlernenonline.de/x')).not.toContain('bsid=');
+    expect(String(render.markdown('[a](https://wirlernenonline.de/x)', 'bot'))).not.toContain('bsid=');
+  });
+
+  it('mit persist wie bisher', () => {
+    const { render } = make();
+    expect(render.withBsid('https://wirlernenonline.de/x')).toContain('bsid=');
+  });
+});
 
 describe('ShellRender — Markdown', () => {
   it('rendert Bot-Markdown zu HTML (SafeHtml über den bypass-Seam)', () => {

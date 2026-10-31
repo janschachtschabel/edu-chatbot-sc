@@ -204,5 +204,6 @@ async def _handle_show_content_text(
             debug=debug.model_dump(),
         )
     except Exception:
-        logger.debug("Persistieren der Volltext-Antwort fehlgeschlagen", exc_info=True)
+        # WARNING (Paket 19, N-14): der M11-Folgezug fände den Volltext sonst still nicht.
+        logger.warning("Persistieren der Volltext-Antwort fehlgeschlagen", exc_info=True)
     return response

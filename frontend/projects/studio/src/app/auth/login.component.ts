@@ -38,6 +38,8 @@ export class LoginComponent implements OnInit {
   readonly error = signal('');
   /** 503 — no password configured; the form is pointless and stays hidden. */
   readonly disabled = signal(false);
+  /** Paket 19 (H-3): zu viele Fehlversuche von dieser Adresse — Wartezeit in Sekunden. */
+  readonly locked = signal<number | null>(null);
   /** Arrived here from the 401 interceptor rather than by choice. */
   readonly expired = signal(false);
 
@@ -48,6 +50,7 @@ export class LoginComponent implements OnInit {
     // asked to log in again — refresh() also surfaces the 'disabled' state.
     void this.auth.refresh().then((state) => {
       if (state === 'disabled') this.disabled.set(true);
+      else if (state === 'locked') this.locked.set(this.auth.retryAfterS() ?? 60);
       else if (state === 'signed-in') void this.goToTarget();
     });
   }

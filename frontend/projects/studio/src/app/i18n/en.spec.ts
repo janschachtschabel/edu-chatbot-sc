@@ -200,6 +200,7 @@ describe('STUDIO_EN', () => {
       'rw.group.integration',
       'rw.when.guideSuggestion',
       'rw.when.routingDebug',
+      'rw.when.queryMeta',  // Paket 19 (N-6): seither ebenfalls ein Attributwert
       'rw.attr.position',
       'rw.attr.initialState',
       // Zehn aus dem Fluss-Abschnitt (C1-d5c1): fünf Karten-Überschriften und

@@ -10,6 +10,9 @@ Eine eigene kleine App statt eines Pfads in der Haupt-App, damit der Ingress nur
   antwortet, und der Hauptserver fährt nicht gerade herunter (dann soll der Pod sofort aus
   dem Service). Die Datenbank-Probe hat eine eigene Engine ohne Pool: ein ausgeschöpfter
   Chat-Pool unter Last darf nicht alle Pods zugleich „nicht bereit“ melden (Review Phase D).
+  Seit Paket 19 (M-1) zählt auch der Config-Abgleich (``ConfigStore.bereit``): steht weder
+  ``LISTEN`` noch gelang ein Versionsabgleich in drei Takten, liest die Kopie womöglich alte
+  Konfiguration (Datenschutz-Schalter eingeschlossen) — Grund ``konfiguration``.
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ _OK = {"status": "ok"}
 
 async def _bereitschaft(
     beendet: Callable[[], bool], gestartet: Callable[[], bool], engine: Any,
+    store: Any = None,
 ) -> tuple[bool, str]:
     if beendet():
         return False, "beendet"
@@ -51,6 +55,10 @@ async def _bereitschaft(
         # Der Text kann Verbindungsdaten tragen: ins Log, nicht in die Antwort.
         log.warning("Readiness: Datenbank nicht erreichbar: %s", type(fehler).__name__)
         return False, "datenbank"
+    if store is not None and not store.bereit():
+        log.warning("Readiness: Konfiguration nicht abgeglichen (kein LISTEN, kein "
+                    "Versionsabgleich in drei Takten)")
+        return False, "konfiguration"
     return True, "ok"
 
 
@@ -93,7 +101,9 @@ def create_intern_app(
     @app.get("/ready")
     @app.head("/ready")
     async def ready() -> JSONResponse:
-        bereit, grund = await _bereitschaft(beendet, gestartet, _probe_engine())
+        bereit, grund = await _bereitschaft(
+            beendet, gestartet, _probe_engine(),
+            getattr(haupt.state, "config_store", None))
         if bereit:
             return JSONResponse({"status": "ready", "version": get_settings().boerdi_version})
         return JSONResponse({"status": "not_ready", "grund": grund}, status_code=503)

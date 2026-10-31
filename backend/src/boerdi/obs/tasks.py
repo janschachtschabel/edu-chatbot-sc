@@ -14,6 +14,7 @@ create_task + starke Referenz (der Loop hält nur Weak-Refs) + Exception-Retriev
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 from collections.abc import Iterable
 from typing import Any
@@ -70,19 +71,61 @@ async def cancel_and_drain(
     return len(offen)
 
 
-def _retrieve_task_exception(task: asyncio.Task) -> None:
+def _retrieve_task_exception(task: asyncio.Task, stufe: int = logging.DEBUG) -> None:
     """Done-Callback für fire-and-forget-/Spekulativ-Tasks (B1, 2026-06-10).
 
     Ruft die Exception ab, damit asyncio kein "Task exception was never
     retrieved" loggt, wenn ein Task verworfen wird (z.B. Spekulativ-Suche
-    auf LP-/Canvas-Routen oder Exception vor dem Konsum)."""
+    auf LP-/Canvas-Routen oder Exception vor dem Konsum).
+
+    Paket 19 (N-13): ``stufe`` — die Vorab-Aufgaben und ``cancel_and_drain`` bleiben auf
+    DEBUG (ihr Fehler ist erwartbar, ein Verbraucher behandelt ihn), ``_spawn_background``
+    meldet WARNING: dort hört niemand mehr zu, ein abgestürzter Lauf-Job fiel sonst nicht auf."""
     try:
         exc = task.exception()
         if exc is not None:
-            # Nur der Typ (Paket 18C/18E): ein Ausnahmetext kann die Eingabe tragen.
-            logger.debug("background task ended with %s", type(exc).__name__)
+            # Nur der Typ (Paket 18C/18E): ein Ausnahmetext kann die Eingabe tragen. Der
+            # Traceback nur ab WARNING, über die schwärzenden Formatierer (``obs/log_format``).
+            logger.log(stufe, "background task %s ended with %s",
+                       getattr(task.get_coro(), "__qualname__", "?"), type(exc).__name__,
+                       exc_info=exc if stufe >= logging.WARNING else None)
     except (asyncio.CancelledError, asyncio.InvalidStateError):
         pass
+
+
+# ── Aufgaben eines Zugs (Paket 19, N-30) ──────────────────────────────
+# Der spekulative Schnellantwort-Aufruf startet in ``respond`` (bzw. im Lernpfad-
+# Schnellweg) und wird erst in ``assemble`` verbraucht oder abgebrochen. Scheiterte der
+# Zug dazwischen oder wurde er abgebrochen, lief er weiter — mit seinem Platz in der
+# LLM-Engstelle und ungebuchten Kosten. Eine Liste je Zug, gebunden VOR dem Graphen
+# (``graph/build.begin_turn``): LangGraph-Knoten laufen in Kontextkopien und teilen so das
+# Objekt; ``run_turn`` räumt sie im ``finally`` ab.
+_zug_aufgaben: contextvars.ContextVar[list[asyncio.Task] | None] = contextvars.ContextVar(
+    "_zug_aufgaben", default=None)
+
+
+def binde_zug_aufgaben() -> None:
+    """Eine frische Aufgabenliste für den Zug binden — einmal, vor dem Graphen."""
+    _zug_aufgaben.set([])
+
+
+def merke_zug_aufgabe(task: asyncio.Task) -> None:
+    """``task`` am Zugende abräumen, falls er dann noch läuft. Ohne gebundenen Zug (Tests,
+    Aufrufe außerhalb des Graphen) nichts — der Aufrufer bleibt dann selbst zuständig."""
+    liste = _zug_aufgaben.get()
+    if liste is not None:
+        liste.append(task)
+
+
+async def raeume_zug_aufgaben() -> int:
+    """Die noch laufenden Aufgaben des Zugs abbrechen und abwarten (:func:`cancel_and_drain`);
+    gibt ihre Zahl zurück. Verbrauchte Aufgaben sind fertig und bleiben unberührt."""
+    liste = _zug_aufgaben.get()
+    if not liste:
+        return 0
+    offen = [t for t in liste if not t.done()]
+    liste.clear()
+    return await cancel_and_drain(offen, bezeichnung="zug")
 
 
 # Starke Referenzen auf fire-and-forget-Tasks: der Event-Loop hält nur
@@ -99,7 +142,7 @@ def _spawn_background(coro: Any) -> asyncio.Task:
     t = asyncio.create_task(coro)
     _BG_TASKS.add(t)
     t.add_done_callback(lambda task: (_BG_TASKS.discard(task),
-                                      _retrieve_task_exception(task)))
+                                      _retrieve_task_exception(task, logging.WARNING)))
     return t
 
 

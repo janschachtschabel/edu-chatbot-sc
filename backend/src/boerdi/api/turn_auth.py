@@ -9,16 +9,22 @@ der Anmeldung der vorigen hängen — die schwerste denkbare Verwechslung.
 
 from __future__ import annotations
 
-import hmac
 import logging
 
 from fastapi import HTTPException, Request, Security, status
 
-from boerdi.api.deps import expected_studio_key, require_studio_key, studio_key_header
+from boerdi.api import fehlversuche
+from boerdi.api.deps import (
+    expected_studio_key,
+    require_studio_key,
+    schluessel_passt,
+    studio_key_header,
+)
 from boerdi.services.llm_auth import setze_llm_schluessel
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import is_personal_block, set_turn_auth_block
-from boerdi.settings import get_settings
+from boerdi.services.session_origin import MIN_OEFFENTLICHE_KENNUNG, RESERVIERTE_PRAEFIXE
+from boerdi.settings import get_settings, studio_schluessel_zu_kurz
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +77,27 @@ def ist_interner_zug(request: Request) -> bool:
 
     erwartet = expected_studio_key()
     if ueber_studio(request):
-        return not (gate_is_open() and erwartet)
+        # Ein zu kurzer Schlüssel ist gesetzt, nur unbrauchbar (Paket 19) — kein Entwicklungsmodus.
+        return not (gate_is_open() and (erwartet or studio_schluessel_zu_kurz()))
     gegeben = (request.headers.get("x-studio-key") or "").strip()
+    if not gegeben:
+        return False
+    # Paket 19 (H-3): auch hier ein Orakel (Diagnose im Chat) — ein falscher Schlüssel zählt als
+    # Fehlversuch, einmal je Anfrage. Eine gesperrte IP bekommt 429, laut statt still (Review,
+    # Punkt 5): mit ``False`` sähen Eval und Lasttest ein irreführendes 422 oder 401.
+    if fehlversuche.gesperrt(request):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=fehlversuche.ZU_VIELE,
+            headers={"Retry-After": str(fehlversuche.RETRY_AFTER_S)},
+        )
     # Beide Seiten ASCII, dann als Bytes (Review 2026-10-30): ``compare_digest`` warf bei einem
     # Nicht-ASCII-STUDIO_API_KEY — jeder Zug mit Kopfzeile wurde zum 500. Wie ``deps``: ein
     # solcher Schlüssel passt nie (die Startwarnung sagt es).
-    return (bool(erwartet) and gegeben.isascii() and erwartet.isascii()
-            and hmac.compare_digest(gegeben.encode(), erwartet.encode()))
+    if schluessel_passt(gegeben, erwartet):
+        return True
+    if erwartet:
+        fehlversuche.zaehle_fehlversuch(request, gegeben)
+    return False
 
 
 def darf_diagnose(request: Request) -> bool:
@@ -90,7 +110,37 @@ def darf_diagnose(request: Request) -> bool:
     den gemeinsamen Schlüssel."""
     if ist_interner_zug(request):
         return True
-    return not expected_studio_key() and get_settings().allow_open_admin
+    return (not expected_studio_key() and not studio_schluessel_zu_kurz()
+            and get_settings().allow_open_admin)
+
+
+def pruefe_oeffentliche_kennung(request: Request, session_id: str) -> None:
+    """Reservierte Präfixe (``eval-``, ``loadtest-``, ``studio-``) nur für Züge der Anlage
+    (Paket 19, Audit M-5). Am Präfix liest die Anlage die Herkunft einer Sitzung
+    (``services/session_origin``); ein öffentlicher Aufrufer, der ``eval-…`` wählte, verschwand
+    aus den Sichten „production“ (Kosten, Nutzung, Qualität, Sitzungsliste).
+
+    Erlaubt wie :func:`darf_diagnose`: Studio-Proxy, gültiger Studio-Schlüssel (Eval, Lasttest)
+    und der reine Entwicklungsmodus — dort ist ohnehin alles offen, und Lasttest wie Eval laufen
+    lokal ohne Schlüssel.
+
+    Dazu die Mindestlänge :data:`MIN_OEFFENTLICHE_KENNUNG` (Paket 19, N-9; Review, Punkt 1):
+    der Zug lädt den Verlauf der Kennung in den Prompt — mit einer erratenen kurzen Kennung
+    hätte „wiederhole unser Gespräch“ ein fremdes Gespräch ausgegeben."""
+    reserviert = session_id.startswith(RESERVIERTE_PRAEFIXE)
+    zu_kurz = len(session_id) < MIN_OEFFENTLICHE_KENNUNG
+    if not (reserviert or zu_kurz) or darf_diagnose(request):
+        return
+    # 422 als Zahl: Starlette benennt die Konstante gerade um (…_ENTITY → …_CONTENT).
+    if reserviert:
+        raise HTTPException(
+            status_code=422,
+            detail="session_id: prefixes eval-, loadtest- and studio- are reserved",
+        )
+    raise HTTPException(
+        status_code=422,
+        detail=f"session_id: at least {MIN_OEFFENTLICHE_KENNUNG} characters",
+    )
 
 
 def uebernimm_llm_schluessel(request: Request, *, pflicht: bool = True) -> None:
@@ -171,4 +221,4 @@ async def require_agent_caller(
         return
     if is_personal_block(request.headers.get(ACCESS_BLOCK_HEADER)):
         return
-    await require_studio_key(x_studio_key)
+    await require_studio_key(request, x_studio_key)

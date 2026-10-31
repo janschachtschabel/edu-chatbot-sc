@@ -269,3 +269,20 @@ def test_returns_same_ctx(monkeypatch):
     ctx = _ctx()
     out = _run(ctx)
     assert out is ctx
+
+
+# ── Paket 19 (Review 19-5, 7): Vorabruf-Aufgaben räumt das Zugende ab ──────────
+
+def test_vorabruf_aufgaben_werden_fuer_das_zugende_gemerkt(monkeypatch):
+    from boerdi.obs import tasks as obs_tasks
+
+    async def lauf() -> tuple[int, bool, bool]:
+        obs_tasks.binde_zug_aufgaben()
+        haupt = asyncio.create_task(asyncio.sleep(10))
+        extra = asyncio.create_task(asyncio.sleep(10))
+        _patch(monkeypatch, sp=SpeculativePrefetch(
+            haupt, "search_wlo_all", {}, "x", [("search_wlo_topic_pages", extra)], True, []))
+        await merge(_ctx())
+        return await obs_tasks.raeume_zug_aufgaben(), haupt.cancelled(), extra.cancelled()
+
+    assert asyncio.run(lauf()) == (2, True, True)

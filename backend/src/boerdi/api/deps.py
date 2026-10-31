@@ -21,9 +21,15 @@ from fastapi import Depends, HTTPException, Query, Request, Security, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from boerdi.api import fehlversuche
 from boerdi.i18n import Locale, resolve_locale
 from boerdi.services.session_origin import Scope
-from boerdi.settings import get_settings, studio_schluessel
+from boerdi.settings import (
+    STUDIO_GEHEIMNIS_MINDESTLAENGE,
+    get_settings,
+    studio_schluessel,
+    studio_schluessel_zu_kurz,
+)
 
 _HEADER = "X-Studio-Key"
 
@@ -59,16 +65,36 @@ def expected_studio_key() -> str:
     return studio_schluessel()
 
 
+def schluessel_passt(gegeben: str, erwartet: str) -> bool:
+    """Konstante Zeit, beide Seiten ASCII — sonst warf ``compare_digest`` (Review 2026-10-30)."""
+    return bool(erwartet) and gegeben.isascii() and erwartet.isascii() and hmac.compare_digest(
+        gegeben.encode(), erwartet.encode())
+
+
 async def require_studio_key(
+    request: Request,
     x_studio_key: str | None = Security(studio_key_header),
 ) -> None:
     """FastAPI dependency. Fails closed:
 
     - No real key configured → 503 (admin disabled), UNLESS
       ``BOERDI_ALLOW_OPEN_ADMIN`` is set (explicit dev opt-in) → no-op.
-    - Key configured but request key missing/wrong → 401.
+    - Key set but shorter than ``STUDIO_GEHEIMNIS_MINDESTLAENGE`` → 503, the flag
+      notwithstanding (Paket 19, P19-E2).
+    - Key configured but request key missing/wrong → 401; a presented wrong key counts as a
+      failed attempt per IP, and an IP that used up its attempts gets 429 for every presented
+      key (Paket 19, H-3, ``api/fehlversuche``).
     """
     expected = expected_studio_key()
+    if not expected and studio_schluessel_zu_kurz():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Admin endpoints are disabled: STUDIO_API_KEY is shorter than "
+                f"{STUDIO_GEHEIMNIS_MINDESTLAENGE} characters. Set a longer one "
+                "(a random value is best)."
+            ),
+        )
     if not expected:
         if get_settings().allow_open_admin:
             return  # explicit local-dev opt-in — admin intentionally open
@@ -80,14 +106,20 @@ async def require_studio_key(
             ),
         )
     provided = (x_studio_key or "").strip()
+    if provided and fehlversuche.gesperrt(request):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=fehlversuche.ZU_VIELE,
+            headers={"Retry-After": str(fehlversuche.RETRY_AFTER_S)},
+        )
     # `isascii()` guard: `hmac.compare_digest` raises TypeError on a non-ASCII
     # `str` and Starlette decodes headers as latin-1, so a single byte ≥ 0x80 in
     # X-Studio-Key answered 500 instead of 401 (found reviewing P9-1, same class
     # of bug as the cookie gate in studio_auth.authorize).
     # Both ASCII, then bytes (review 2026-10-30): a non-ASCII configured key raised TypeError
     # too — such a key never matches (startup warns), same as ``turn_auth.ist_interner_zug``.
-    if not (provided.isascii() and expected.isascii()
-            and hmac.compare_digest(provided.encode(), expected.encode())):
+    if not schluessel_passt(provided, expected):
+        if provided:
+            fehlversuche.zaehle_fehlversuch(request, provided)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Studio API key required",

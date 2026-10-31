@@ -339,3 +339,22 @@ def test_german_turn_is_untouched_by_the_english_fields(monkeypatch):
 
     assert out.early_response.content == "Für wen suchst du?"
     assert "Lehrkräfte" in out.early_response.quick_replies
+
+
+# ── Paket 19 (N-14): scheitert das Speichern, steht es als Warnung im Log ──
+
+def test_ein_speicherfehler_steht_als_warnung_im_log(monkeypatch, caplog):
+    import logging
+
+    _patch(monkeypatch)
+
+    async def _boom(*_a, **_k):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(tour_mod, "save_message", _boom)
+    with caplog.at_level(logging.WARNING, logger=tour_mod.__name__):
+        out = _run(_ctx("start", message="Los geht's", page="/home/"))
+    assert out.early_response.content == "Für wen suchst du?"
+    warnungen = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnungen) == 2  # Nutzer- und Antwortzeile
+    assert all("Los geht" not in r.getMessage() for r in warnungen)

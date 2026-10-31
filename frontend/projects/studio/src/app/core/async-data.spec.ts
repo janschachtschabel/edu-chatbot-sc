@@ -29,6 +29,19 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: 
 const tick = (): Promise<unknown> => new Promise((r) => setTimeout(r, 0));
 
 describe('AsyncData', () => {
+  it('clear() vergisst Wert und Fehler, und ein offenes Laden verfällt (Paket 19, N-39)', async () => {
+    const offen = deferred<string[]>();
+    const data = new AsyncData(() => offen.promise, de());
+    const laeuft = data.reload();
+    data.clear();
+    expect(data.value()).toBeNull();
+    expect(data.loading()).toBe(false);
+    offen.resolve(['spät']);
+    await laeuft;
+    await tick();
+    expect(data.value()).toBeNull();
+  });
+
   it('starts empty and idle — nothing is fetched until asked', () => {
     let calls = 0;
     const data = new AsyncData(async () => { calls += 1; return [1]; }, de());

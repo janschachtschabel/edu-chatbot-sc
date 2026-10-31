@@ -45,6 +45,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import RagChunk, RagDocument
+from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.services.config_loader._store import area
 from boerdi.services.rag.embed import embed_text
 from boerdi.services.rag.rerank import (
@@ -216,6 +217,9 @@ async def get_rag_context(session: AsyncSession, query: str,
     for bereich in areas:
         all_results.extend(
             await query_rag(session, query, bereich, top_k, query_emb=query_emb))
+    # Paket 19 (Audit 2026-10-31, H-5): danach folgen Rerank und — beim Aufrufer — das
+    # LLM. Die Lese-Transaktion der Zug-Sitzung hielt die Verbindung sonst bis ``persist``.
+    await verbindung_freigeben(session)
 
     if not all_results:
         return ""

@@ -95,7 +95,18 @@ rate_limits:
     You have sent too many requests just now. Please wait a moment
     and try again shortly.
 
+# ── Zug-Grenzen (Paket 19, M-4) ─────────────────────────────────────
+# Die äußere HTTP-Grenze der Chat- und Agent-Züge je IP-Adresse (IPv6 je /64), je
+# Route gezählt; darüber antwortet die Anlage mit 429. Getrennt für anonyme und
+# angemeldete Aufrufer — „angemeldet“ nur mit vom MCP bestätigter Anmeldung oder
+# als Zug der Anlage (Evaluation, Lasttest, Studio-Probe). Leer = RATE_LIMIT_CHAT
+# (Vorgabe 120/minute); Form „120/minute“ oder „10/second;500/hour“, „off“ schaltet ab.
+turn_limits:
+  anonymous: ""
+  authenticated: ""
+
 logging:
   enabled: true
   log_all_turns: false
-  retention_days: 90
+  # Paket 19 (P19-E4): 30 Tage wie der Verlauf (bis dahin 90).
+  retention_days: 30

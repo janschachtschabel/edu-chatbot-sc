@@ -52,6 +52,9 @@ export const FRAME: CataloguePart = {
     // Satz; die Trennung ist eine Verbesserung von P9-2 und bleibt erhalten.
     'login.error.wrongPassword': 'Falsches Passwort.',
     'login.error.tooMany': 'Zu viele Versuche. Bitte eine Minute warten.',
+    'login.locked':
+      'Zu viele fehlgeschlagene Anmeldeversuche von dieser Adresse. Bitte in {seconds} '
+      + 'Sekunden erneut versuchen.',
     'login.error.notConfigured': 'Das Studio ist nicht eingerichtet (kein Passwort konfiguriert).',
     'login.error.offline': 'Backend nicht erreichbar. Läuft der Server?',
     'login.error.generic': 'Anmeldung fehlgeschlagen (Fehler {status}).',
@@ -106,6 +109,9 @@ export const FRAME: CataloguePart = {
 
     'login.error.wrongPassword': 'Wrong password.',
     'login.error.tooMany': 'Too many attempts. Please wait a minute.',
+    'login.locked':
+      'Too many failed sign-in attempts from this address. Please try again in {seconds} '
+      + 'seconds.',
     'login.error.notConfigured': 'The studio is not set up (no password configured).',
     'login.error.offline': 'Backend unreachable. Is the server running?',
     'login.error.generic': 'Sign-in failed (error {status}).',

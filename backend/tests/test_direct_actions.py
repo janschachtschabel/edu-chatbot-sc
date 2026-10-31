@@ -676,8 +676,111 @@ async def test_lp_ausgelastet_ist_kein_lernpfad(monkeypatch) -> None:
         llm_parallel._zug.set(None)
 
     assert resp.content == bot_text("de", "error.llmBusy")
-    assert resp.quick_replies == [bot_text("de", "error.retryChip")]
+    # Paket 19 (N-23): der Chip wiederholt die Aktion, statt Text in den Muster-Weg zu senden.
+    assert [_aktion(q) for q in resp.quick_replies] == [(
+        bot_text("de", "error.retryChip"), "generate_learning_path",
+        {"collection_id": "col-1", "title": "Eiszeit"})]
     assert resp.cards == [] and "error" in resp.debug.tools_called
     assert "_lp_used_node_ids" not in state["entities"]
     assert "_canvas_material_type" not in upd.calls[0]["entities"]
     assert len(save.calls) == 1
+
+
+def _aktion(chip: str) -> tuple[str, str, dict] | None:
+    """Wie das Widget (``ui/chips/action-qr.parseActionQuickReply``): Präfix, Label, Aktion,
+    Rest als JSON."""
+    import json
+
+    praefix = "__action__|"
+    if not chip.startswith(praefix):
+        return None
+    label, aktion, rest = chip[len(praefix):].split("|", 2)
+    return label, aktion, json.loads(rest)
+
+
+# ── Paket 19 (N-20): der Lernpfad-Reset gilt erst nach einem erzeugten Lernpfad ──
+
+def _alle_benutzt(n: int) -> dict:
+    import json
+
+    state = _state()
+    state["entities"]["_lp_used_node_ids"] = json.dumps([f"n{i}" for i in range(n)])
+    return state
+
+
+async def test_lp_reset_bleibt_aus_wenn_die_erzeugung_scheitert(monkeypatch) -> None:
+    """Audit N-20: der Reset leerte ``_lp_used_node_ids`` VOR dem LLM-Aufruf, und der
+    Fehlerzweig speicherte das — die Vielfalt der nächsten Lernpfade war verloren."""
+    _fake_mcp, _save, upd, _lp = _patch_lp_boundaries(monkeypatch, cards=_raw_cards(3))
+
+    async def kaputt(**kwargs):
+        raise RuntimeError("Anbieter weg")
+
+    monkeypatch.setattr(direct_actions, "generate_learning_path_text", kaputt)
+    state = _alle_benutzt(3)
+    vorher = state["entities"]["_lp_used_node_ids"]
+    await direct_actions._handle_generate_learning_path(
+        object(), _req("generate_learning_path", collection_id="col-1", title="Eiszeit"), state)
+    assert state["entities"]["_lp_used_node_ids"] == vorher
+    assert upd.calls[0]["entities"]["_lp_used_node_ids"] == vorher
+
+
+async def test_lp_reset_bleibt_aus_unter_last(monkeypatch) -> None:
+    from boerdi.services import llm_parallel
+    from boerdi.services.fehlertext import ausgelastet_text
+
+    _patch_lp_boundaries(monkeypatch, cards=_raw_cards(3))
+
+    async def kein_platz(**kwargs):
+        return ausgelastet_text("de")
+
+    monkeypatch.setattr(direct_actions, "generate_learning_path_text", kein_platz)
+    state = _alle_benutzt(3)
+    vorher = state["entities"]["_lp_used_node_ids"]
+    llm_parallel.binde_zug()
+    try:
+        await direct_actions._handle_generate_learning_path(
+            object(), _req("generate_learning_path", collection_id="col-1", title="Eiszeit"),
+            state)
+    finally:
+        llm_parallel._zug.set(None)
+    assert state["entities"]["_lp_used_node_ids"] == vorher
+
+
+async def test_lp_reset_nach_erfolg_beginnt_von_vorn(monkeypatch) -> None:
+    import json
+
+    _patch_lp_boundaries(monkeypatch, cards=_raw_cards(3))
+    state = _alle_benutzt(3)
+    state["entities"]["_lp_used_node_ids"] = json.dumps(["n0", "n1", "n2", "alt-x"])
+    await direct_actions._handle_generate_learning_path(
+        object(), _req("generate_learning_path", collection_id="col-1", title="Eiszeit"), state)
+    benutzt = set(json.loads(state["entities"]["_lp_used_node_ids"]))
+    assert benutzt == {"n0", "n1", "n2"}  # zurückgesetzt, dann die neuen verbucht
+
+
+# ── Paket 19 (N-23): „Nochmal versuchen“ unter der Kuratierung wiederholt sie ──
+
+async def test_kuration_ausgelastet_bietet_die_aktion_erneut_an(monkeypatch) -> None:
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services import llm_parallel
+    from boerdi.services.fehlertext import ausgelastet_text
+
+    _patch_curate_boundaries(monkeypatch, cards=_raw_cards(2))
+
+    async def kein_platz(**kwargs):
+        return ausgelastet_text("de")
+
+    monkeypatch.setattr(direct_actions, "generate_curation_text", kein_platz)
+    state = _state()
+    state["entities"]["_page_metadata"] = {"compendium_text": "Soll: Brüche"}
+    llm_parallel.binde_zug()
+    try:
+        resp = await direct_actions._handle_curate_collection(
+            object(), _req("curate_collection", collection_id="col-9", title="Brüche | Teil 1"),
+            state)
+    finally:
+        llm_parallel._zug.set(None)
+    assert [_aktion(q) for q in resp.quick_replies] == [(
+        bot_text("de", "error.retryChip"), "curate_collection",
+        {"collection_id": "col-9", "title": "Brüche | Teil 1"})]

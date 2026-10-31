@@ -37,6 +37,7 @@ from boerdi.api.schemas import SITZUNGSKENNUNG
 from boerdi.api.turn_auth import darf_diagnose
 from boerdi.domain.write_anzeige import entities_for_display
 from boerdi.i18n import msg
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.services import aufbewahrung
 from boerdi.services.config_loader import load_privacy_config
 from boerdi.services.config_loader.safety import melde_datenschutz_unlesbar
@@ -52,6 +53,7 @@ from boerdi.services.db_sessions import (
 from boerdi.services.db_sessions import delete_session as db_delete_session
 from boerdi.services.session_admin import db_stats as get_db_stats
 from boerdi.services.session_admin import list_sessions_admin, optimize_database
+from boerdi.services.session_origin import MIN_OEFFENTLICHE_KENNUNG
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,10 @@ public_router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 # ``fullmatch``, because ``$`` let a trailing newline through.
 _SESSION_ID_RE = re.compile(SITZUNGSKENNUNG)
 _MAX_MESSAGES_LIMIT = 200
+#: Paket 19 (Audit N-9): die Kennung ist hier der einzige Schlüssel. Kürzer antwortet der offene
+#: Lese-Endpunkt wie für eine unbekannte Sitzung, ohne zu suchen. Dieselbe Grenze am Chat
+#: (``turn_auth.pruefe_oeffentliche_kennung``).
+_MIN_OEFFENTLICHE_KENNUNG = MIN_OEFFENTLICHE_KENNUNG
 
 
 def _validate_session_id(session_id: str) -> None:
@@ -143,7 +149,10 @@ async def optimize_db(
         result = await optimize_database(session)
     except Exception as e:  # noqa: BLE001 — surface lock/IO errors to the UI
         logger.exception("DB-Optimierung fehlgeschlagen (%s)", type(e).__name__)
-        raise HTTPException(503, msg(lang, "sessions.optimizeFailed", error=e)) from e
+        # Paket 19 (N-12): nur die Art — asyncpg hängt ``DETAIL:`` mit Werten an; der Grund
+        # steht oben im Log, die Fehlernummer führt zu ihm.
+        raise HTTPException(503, msg(lang, "sessions.optimizeFailed", error=type(e).__name__,
+                                     nummer=fehlernummer())) from e
     return {"status": "optimized", **result}
 
 
@@ -296,4 +305,8 @@ async def get_session_messages(
     # Review 2026-10-30: der Verlauf ist privat, und seine Form hängt an der Freigabe — kein
     # Zwischenspeicher (Browser, Proxy) darf ihn halten oder einer anderen Anfrage geben.
     response.headers["Cache-Control"] = "private, no-store"
+    if not intern and len(session_id) < _MIN_OEFFENTLICHE_KENNUNG:
+        # Paket 19 (N-9): wie eine unbekannte Sitzung — kein Raten kurzer Kennungen. Das Studio
+        # (``intern``) liest auch alte kurze Kennungen weiter.
+        return []
     return verlauf_fuer(await get_messages(session, session_id, limit, zugakte=intern), intern)

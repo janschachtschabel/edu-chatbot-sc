@@ -81,6 +81,32 @@ class SpeechProxyError(Exception):
     upstream detail leaks to the public client (ALT Audit N-9)."""
 
 
+#: Paket 19 (Audit M-16): Antworten des Anbieters, die an der EINGABE liegen — ein anderes
+#: Modell sähe dieselbe Eingabe; die Kette bricht ab, der Router antwortet 400 bzw. 415.
+#: Zugang, Kontingent, unbekanntes Modell und Ausfall (401/403/404/429/5xx) bleiben ein Grund
+#: für das nächste Modell — dafür gibt es ``STT_FALLBACKS``. Am STT-Weg auch 400 (Review,
+#: Punkt 9): dort heißt es oft „dieses Modell kennt den Parameter nicht“ — ein anderes Modell
+#: kann es. Am TTS-Weg (ein Modell, kein Rückfall) ist 400 ein Eingabefehler.
+_EINGABE_STATUS_STT = frozenset({413, 415, 422})
+_EINGABE_STATUS_TTS = frozenset({400, 413, 415, 422})
+
+
+class SpeechEingabeFehler(SpeechProxyError):
+    """Der Anbieter wies die Eingabe zurück (``status`` aus den Mengen oben)."""
+
+    def __init__(self, status: int) -> None:
+        super().__init__(f"upstream rejected the input ({status})")
+        self.status = status
+
+
+def _eingabe_status(fehler: Exception, eingabe_status: frozenset[int]) -> int | None:
+    if isinstance(fehler, httpx.HTTPStatusError):
+        status = fehler.response.status_code
+        if status in eingabe_status:
+            return status
+    return None
+
+
 def speech_enabled() -> bool:
     """Whether STT/TTS is available for the active provider (port of ALT
     ``llm_provider.speech_enabled`` with a NEU provider-split — see below).
@@ -201,6 +227,11 @@ async def transcribe_audio(content: bytes, filename: str | None, language: str) 
                 logger.info("STT fell back to %r (primary %r failed)", model, primary)
             return {"text": text, "model": model}
         except Exception as e:
+            if (status := _eingabe_status(e, _EINGABE_STATUS_STT)) is not None:
+                # Paket 19 (M-16): kein zweiter bezahlter Aufruf mit derselben Eingabe.
+                logger.warning("STT: Anbieter weist die Eingabe zurück (HTTP %d, Modell %r)",
+                               status, model)
+                raise SpeechEingabeFehler(status) from e
             last_error = e
             logger.warning("STT model %r failed: %s — trying next", model, e)
             continue
@@ -227,6 +258,10 @@ async def synthesize_speech(text: str, voice: str, speed: float) -> bytes:
         resp.raise_for_status()
         return resp.content
     except Exception as e:
+        if (status := _eingabe_status(e, _EINGABE_STATUS_TTS)) is not None:
+            # Paket 19 (M-16): ein Eingabefehler ist kein Ausfall — ohne Traceback.
+            logger.warning("TTS: Anbieter weist die Eingabe zurück (HTTP %d)", status)
+            raise SpeechEingabeFehler(status) from e
         # Internal detail stays server-side only (ALT Audit N-9).
         logger.exception("TTS-Synthese fehlgeschlagen")
         raise SpeechProxyError("TTS failed") from e

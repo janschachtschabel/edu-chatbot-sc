@@ -22,7 +22,7 @@ pytestmark = [
 ]
 
 _DB = "boerdi_w5_fassungen_test"
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 _GRUSS = "01-base/welcome-config"
 _MUSTER = "03-patterns/m77-probe"
 
@@ -48,7 +48,7 @@ def studio(_module_db, monkeypatch, tmp_path):
     (tmp_path / "03-patterns" / "m77-probe.md").write_text(
         "---\nid: M77\nlabel: Probe\n---\nWerkstext\n", encoding="utf-8")
     monkeypatch.setenv("CONFIG_SEED_DIR", str(tmp_path))
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     get_settings.cache_clear()
 
     engine = make_engine(Settings(_env_file=None, database_url=pg_utils.sqlalchemy_url(_DB)),

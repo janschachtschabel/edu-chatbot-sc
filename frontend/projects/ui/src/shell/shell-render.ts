@@ -26,8 +26,11 @@ import { externalLinkWarning, isTrustedHost, withBsid } from '../session/trusted
 export interface ShellRenderContext {
   /** `DomSanitizer.bypassSecurityTrustHtml` — nach DOMPurify sicher. */
   bypassSecurityTrustHtml: (html: string) => SafeHtml;
-  /** Aktuelle Session-ID (bsid in Link-hrefs + Teil des Render-Cache-Keys). */
+  /** Aktuelle Session-ID (Teil des Render-Cache-Keys). */
   sessionId: () => string;
+  /** Die Kennung für `?bsid=` in Link-hrefs — `''` ohne `persist-session`
+   *  (Paket 19, Review zu H-4). */
+  bsidKennung: () => string;
   /** Effektive Trusted-Domains (Kern-WLO-Liste + `[trustedHosts]` des Hosts). */
   trustedDomains: () => readonly string[];
   /** ALT `inlineResultGroupingBool` — steuert das Bullet-Link-Stripping. */
@@ -44,7 +47,9 @@ export class ShellRender {
   constructor(private readonly ctx: ShellRenderContext) {
     this._markdown = new MarkdownRenderer({
       bypassSecurityTrustHtml: (html) => this.ctx.bypassSecurityTrustHtml(html),
-      sessionId: () => this.ctx.sessionId(),
+      // Cache-Key: Sitzung UND Übergabe-Kennung — ändert sich `persist-session`,
+      // dürfen keine gecachten Links mit `?bsid=` stehen bleiben.
+      sessionId: () => this.ctx.sessionId() + '|' + this.ctx.bsidKennung(),
       isHostTrusted: (host) => this.isHostTrusted(host),
       withBsid: (url) => this.withBsid(url),
       t: (key, params) => this.ctx.t(key, params),
@@ -71,7 +76,7 @@ export class ShellRender {
 
   /** `?bsid=<sessionId>` an Trusted-URLs anhängen. ALT 1228-1230. */
   withBsid(url: string | null | undefined): string {
-    return withBsid(url, this.ctx.sessionId(), this.ctx.trustedDomains());
+    return withBsid(url, this.ctx.bsidKennung(), this.ctx.trustedDomains());
   }
 
   /** Warntooltip für Hosts außerhalb der Trusted-Liste. ALT 1221-1223. */

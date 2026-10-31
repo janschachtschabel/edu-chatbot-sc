@@ -16,12 +16,12 @@ from boerdi.main import create_app
 from boerdi.services import master_skill
 from boerdi.settings import get_settings
 
-_AUTH = {"X-Studio-Key": "k"}
+_AUTH = {"X-Studio-Key": "k-studio-testkey"}
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("STUDIO_API_KEY", "k")
+    monkeypatch.setenv("STUDIO_API_KEY", "k-studio-testkey")
     monkeypatch.setenv("MASTER_SKILL_ENABLED", "true")
     monkeypatch.setenv("MASTER_SKILL_NODE_ID", "knoten-1")
     get_settings.cache_clear()

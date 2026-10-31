@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from boerdi.domain.write_confirm import TOKEN_PLACEHOLDER
+from boerdi.domain.write_confirm import TOKEN_PLACEHOLDER, redact_confirm_token
+
+#: Schlüssel der Vorschau-Kopie im Merkposten (Paket 19, Review 19-5) und ihr Deckel.
+VORSCHAU_KOPIE = "vorschau"
+_KOPIE_ZEICHEN = 4000
 
 # Der Anschluss, ab dem die Vorschau nur noch den Aufrufer angeht: „ Dazu
 # denselben Aufruf mit confirmToken: … wiederholen.\nDer Schlüssel gilt …"
@@ -48,6 +52,18 @@ def preview_for_display(text: str) -> str:
     if stelle < 0:
         return (text or "").rstrip()
     return text[:stelle].rstrip()
+
+
+def merke_vorschau(merkposten: dict[str, Any], vorschau: str) -> dict[str, Any]:
+    """Eine Kopie der gezeigten Vorschau in den Merkposten legen (Paket 19, Review 19-5).
+
+    Die Box selbst lebt nur einen Zug (``session_state["_write_preview"]``, S2). Konnte die
+    Zustimmungsprüfung im Folgezug nicht urteilen, zeigt der Vorlauf sie aus dieser Kopie
+    erneut — der Bestätigungs-Chip meint dann sichtbar genau das. Ohne Schlüssel, ohne den
+    Anschluss an den Aufrufer, gedeckelt. Gibt ``merkposten`` zurück."""
+    merkposten[VORSCHAU_KOPIE] = preview_for_display(
+        redact_confirm_token(vorschau or ""))[:_KOPIE_ZEICHEN]
+    return merkposten
 
 
 def entities_for_display(entities: dict[str, Any]) -> dict[str, Any]:

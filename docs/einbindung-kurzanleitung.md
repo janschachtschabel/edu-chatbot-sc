@@ -92,6 +92,7 @@ Das war's. Alles Weitere sind Vorgaben, die ihr überschreiben könnt.
 | `trusted-domains` | *(leer)* | Kommaliste, wird mit der Backend-Liste gemergt |
 | `emit-routing-debug` | `false` | `true` → Ereignis `boerdi:routing-debug` |
 | `emit-guide-suggestion` | `false` | `true` → Ereignis `boerdi:guide-suggestion` |
+| `emit-query-meta` | `false` | `true` → Ereignis `boerdi:query-meta` (bis Paket 19 immer an) |
 | `intercept-edu-sharing-links` | `false` | `true` → Repo-Links werden abgefangen; **ihr müsst `linkClicked` behandeln**, sonst sind die Klicks tot |
 
 ---
@@ -377,7 +378,7 @@ chat.addEventListener('boerdi:collection-id',  e => …);  // erkannte Sammlung
 chat.addEventListener('boerdi:node-id',        e => …);  // erkannter Einzelinhalt
 chat.addEventListener('boerdi:topic-slug',     e => …);  // erkannte Themenseite
 chat.addEventListener('boerdi:page-action',    e => …);  // Leinwand / Lotse
-chat.addEventListener('boerdi:query-meta',     e => …);  // was gesucht wurde
+chat.addEventListener('boerdi:query-meta',     e => …);  // was gesucht wurde — nur mit emit-query-meta
 chat.addEventListener('boerdi:printable-canvas', e => …); // druckbarer Inhalt
 chat.addEventListener('boerdi:guide-suggestion', e => …); // nur mit emit-guide-suggestion
 chat.addEventListener('boerdi:routing-debug',  e => …);  // nur mit emit-routing-debug
@@ -387,7 +388,7 @@ chat.addEventListener('boerdi:routing-debug',  e => …);  // nur mit emit-routi
 angemeldeter Zuhörer verpasst den ersten Zug.
 
 Wollt ihr die Treffer selbst rendern: `inline-result-grouping="false"` setzen und
-`boerdi:query-meta` mitlesen.
+`boerdi:query-meta` mitlesen (dazu `emit-query-meta="true"` setzen).
 
 ---
 

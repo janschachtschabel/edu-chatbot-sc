@@ -409,3 +409,47 @@ def test_last_ist_kein_ausfall_der_rechtspruefung(monkeypatch):
     assert asyncio.run(legal_mod.classify_legal("x")) == {}
     assert _zaehler("llm_legal", "fehler") == fehler
     assert _zaehler("llm_legal", "ausgelastet") == last + 1
+
+
+# ── Paket 19 (N-17): Ausfall-Warnungen gedrosselt — eine Zeile je Zeitraum, nicht je Zug ──
+
+
+def _warnungen(caplog, logger: str) -> list[logging.LogRecord]:
+    return [r for r in caplog.records if r.name == logger and r.levelno == logging.WARNING]
+
+
+def test_ein_moderationsausfall_warnt_einmal_und_zaehlt_jeden_zug(monkeypatch, caplog):
+    monkeypatch.setattr(mod, "_moderation_target", lambda: ("https://b/openai", "k", None))
+
+    async def _kaputt(**kwargs):
+        raise RuntimeError("503")
+
+    monkeypatch.setattr(mod, "_amoderation", _kaputt)
+    vorher = _zaehler("openai_moderation", "fehler")
+    with caplog.at_level(logging.WARNING, logger=mod.__name__):
+        for _ in range(3):
+            assert asyncio.run(mod.moderate("x")) == {}
+    assert len(_warnungen(caplog, mod.__name__)) == 1
+    assert _zaehler("openai_moderation", "fehler") == vorher + 3
+
+
+def test_ein_ausfall_der_rechtspruefung_warnt_einmal(monkeypatch, caplog):
+    async def _kaputt(**kwargs):
+        raise RuntimeError("503")
+
+    monkeypatch.setattr(legal_mod, "chat_completion", _kaputt)
+    with caplog.at_level(logging.WARNING, logger=legal_mod.__name__):
+        for _ in range(3):
+            assert asyncio.run(legal_mod.classify_legal("x")) == {}
+    assert len(_warnungen(caplog, legal_mod.__name__)) == 1
+
+
+def test_eine_abgebrochene_stufe_warnt_einmal(monkeypatch, caplog):
+    async def _abgebrochen(_m):
+        raise asyncio.CancelledError
+
+    with caplog.at_level(logging.WARNING, logger=ss.__name__):
+        for _ in range(3):
+            d = _bewerte(monkeypatch, moderation=_abgebrochen)
+            assert "openai_moderation" in d.stages_failed
+    assert len(_warnungen(caplog, ss.__name__)) == 1

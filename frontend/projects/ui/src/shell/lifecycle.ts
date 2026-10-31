@@ -13,7 +13,9 @@ import { ContextGreetingController } from '../controllers/context-greeting.contr
 import { TourController } from '../controllers/tour.controller';
 import { ChatMessage, DebugInfo, PaginationInfo, QueryMetaEntry, UiInfo, WebLink } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
-import { deleteSessionCookie, generateSessionId, writeSessionEverywhere } from '../session/session-id';
+import {
+  OWL_HINT_KEY, deleteSessionCookie, generateSessionId, sitzungsWache, writeSessionEverywhere,
+} from '../session/session-id';
 import { ChatApiClient } from '../stream/chat-api';
 import { restoreHistory } from './history-restore';
 import { bootSession } from './session-boot';
@@ -140,9 +142,8 @@ export class ShellLifecycle {
       this.ctx.setParsedPageContext(pc as Record<string, any>);
     }
 
-    const persist = this.ctx.persistSession() === true || this.ctx.persistSession() === 'true';
     const boot = bootSession({
-      persist,
+      persist: this._persist(),
       sessionKey: this.ctx.sessionKey(),
       cookieDomain: this.ctx.sessionCookieDomain(),
       cookieMaxAge: this.ctx.sessionCookieMaxAge(),
@@ -152,7 +153,14 @@ export class ShellLifecycle {
 
     if (boot.resumed) {
       // Fortgeführte Session: History laden, dann Tour prüfen/fortsetzen.
-      this._restoreHistory().then(() => this._afterResume());
+      // Paket 19 (M-14): die Wache VOR dem Laden — kam der Verlauf erst nach
+      // einem Neustart an, gehören weder er noch Tour-Tick und Kontext-Ping
+      // in das frische Gespräch.
+      const veraltet = sitzungsWache(() => this.ctx.sessionId());
+      void this._restoreHistory().then((fertig) => {
+        if (fertig && !veraltet()) return this._afterResume();
+        return undefined;
+      });
     } else {
       void this._greetOnFirstLoad();
       this._maybeStartTourTick();
@@ -197,7 +205,9 @@ export class ShellLifecycle {
     this._neugrussOffen = false;  // die neue Sitzung begrüßt sich selbst
     const id = generateSessionId();
     this.ctx.setSessionId(id);
-    writeSessionEverywhere(id, this._cookieCfg());
+    // Paket 19 (H-4): abgelegt wird nur, wo `persist-session` es erlaubt —
+    // sonst las die nächste Person am geteilten Rechner die Kennung aus.
+    if (this._persist()) writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
     this.ctx.setLatestDebug(null);
     this.ctx.setLoading(false);
@@ -208,11 +218,13 @@ export class ShellLifecycle {
    *  dazu die Freigabe des Ladens wie in `restart()` (Befundliste §1.4). */
   resetSession(): void {
     try { localStorage.removeItem(this.ctx.sessionKey()); } catch { /* ignore */ }
+    // Paket 19 (H-4): auch der Eulen-Merker — er stand früher mit voller ID dort.
+    try { localStorage.removeItem(OWL_HINT_KEY); } catch { /* ignore */ }
     deleteSessionCookie(this.ctx.sessionKey(), this.ctx.sessionCookieDomain());
     this._neugrussOffen = false;
     const id = generateSessionId();
     this.ctx.setSessionId(id);
-    writeSessionEverywhere(id, this._cookieCfg());
+    if (this._persist()) writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
     this.ctx.setLatestDebug(null);
     this.ctx.setLoading(false);
@@ -240,8 +252,9 @@ export class ShellLifecycle {
     this._maybeSendContextPing();
   }
 
-  /** History-Restore mit einem aus dem Lifecycle-Kontext gebauten Sub-Kontext. */
-  private _restoreHistory(): Promise<void> {
+  /** History-Restore mit einem aus dem Lifecycle-Kontext gebauten Sub-Kontext.
+   *  `false` = nach einem Neustart verworfen (`sitzungsWache` im Restore). */
+  private _restoreHistory(): Promise<boolean> {
     return restoreHistory({
       loadHistory: (sid, limit) => this.ctx.api().loadHistory(sid, limit),
       sessionId: () => this.ctx.sessionId(),
@@ -261,6 +274,9 @@ export class ShellLifecycle {
     // und eine Kontext-Begrüßung direkt hinter „Fast geschafft" wäre der
     // falsche Abgang (X1, live auf wp-test 2026-08-20).
     const tourOwnsThisLoad = this.ctx.tour.isTourFlagSet() || this.ctx.resumedViaBsid();
+    // Paket 19 (M-14): Tick und Ping prüfen ihre Sitzung selbst
+    // (`sitzungsWache` in den Controllern); der Aufrufer ruft hier nur noch für
+    // die Sitzung, deren Verlauf gerade eingespielt wurde.
     if (tourOwnsThisLoad) {
       try { await this.ctx.tour.sendTourTick(); } catch { /* Tick-Fehler still */ }
       return;
@@ -307,13 +323,23 @@ export class ShellLifecycle {
       this.showGreeting();
       return;
     }
+    // Paket 19 (N-32): ein Neustart während des Pings begrüßt die neue Sitzung
+    // selbst — eine zweite Begrüßung hinterher wäre doppelt.
+    const veraltet = sitzungsWache(() => this.ctx.sessionId());
     let rendered = false;
     try {
       rendered = await this.ctx.contextGreeting.sendContextPing('context_open_initial');
     } catch {
       // Ping-Fehler still schlucken — aber NIE ohne Begrüßung dastehen.
     }
+    if (veraltet()) return;
     if (!rendered) this.showGreeting();
+  }
+
+  /** `persist-session` als Wahrheitswert (Attribut kommt als Text oder bool). */
+  private _persist(): boolean {
+    const p = this.ctx.persistSession();
+    return p === true || p === 'true';
   }
 
   private _cookieCfg() {

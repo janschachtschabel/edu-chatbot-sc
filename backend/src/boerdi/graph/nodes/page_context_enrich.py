@@ -61,6 +61,11 @@ _BESTANDS_KINDS = ("collection", "topic")
 _UNDECIDED_KINDS = ("", "other")
 
 _PAGE_CONTEXT_ENTITY_KEYS = SEITEN_ENTITIES
+#: Paket 19 (Review 19-1): Tab-Titel und Suchbegriff einer FREMDEN Seite sind ein Stück
+#: Browserverlauf. Sie wirken im Zug (``page_context``), aber nicht als Entity — sonst
+#: lägen sie 30 Tage im Klartext in ``sessions.entities``. Kein Folgezug liest sie dort;
+#: ein Wert einer früheren Seite fällt beim Wechsel auf die fremde Seite weg.
+_NICHT_AUS_FREMDEN_SEITEN = frozenset({"document_title", "search_query"})
 
 
 #: Die Felder des Seitenkontexts, die ab hier im Zug als Text gelesen werden.
@@ -217,8 +222,11 @@ async def page_context_enrich(ctx: TurnContext) -> TurnContext:
     _decide_editorial_kind(page_ctx)
     _decide_host_kind(page_ctx)
     entities = ctx.session_state.setdefault("entities", {})
+    fremd = page_ctx.get("page_kind") == "external"
     for key in _PAGE_CONTEXT_ENTITY_KEYS:
-        if page_ctx.get(key):
+        if fremd and key in _NICHT_AUS_FREMDEN_SEITEN:
+            entities.pop(key, None)
+        elif page_ctx.get(key):
             entities[key] = page_ctx[key]
 
     try:

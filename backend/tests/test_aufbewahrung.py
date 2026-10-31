@@ -146,12 +146,12 @@ def test_null_tage_heisst_unbegrenzt(db, monkeypatch):
 
 def test_ohne_eintrag_gilt_die_vorgabe_des_bereichs(db, monkeypatch):
     """Was das Studio als Wert zeigt, gilt auch: fehlt das Feld, die Vorgabe des Modells
-    — seit Paket 9 dieselbe wie im Auslieferungsstand (90 bzw. 180 Tage)."""
+    — seit Paket 9 dieselbe wie im Auslieferungsstand (seit Paket 19: 30 bzw. 180 Tage)."""
     from boerdi.services import aufbewahrung
 
     _fristen(monkeypatch, gespraeche=None, sicherheit=None, qualitaet=None)
     assert [(f.bereich, f.tage) for f in aufbewahrung.fristen()] == [
-        ("messages", 30), ("memory", 30), ("session_state", 30), ("safety_logs", 90),
+        ("messages", 30), ("memory", 30), ("session_state", 30), ("safety_logs", 30),
         ("quality_logs", 180), ("quality_text", 30),
     ]
 

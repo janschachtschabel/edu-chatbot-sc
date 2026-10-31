@@ -675,3 +675,40 @@ describe('runSendMessage — zu viele Anfragen (Paket 18F)', () => {
     warn.mockRestore();
   });
 });
+
+// ── Paket 19, Audit 2026-10-31 M-15 + N-33 ──────────────────────────────────
+describe('runSendMessage — POST-Frist und Host-Rückruf (Paket 19)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // M-15: der POST-Rückfall läuft jetzt in eine Frist (StreamStaleError) — dann
+  // dieselbe ehrliche Blase wie beim Strom, Laden und Eingabe frei.
+  it('POST-Rückfall läuft in seine Frist → „veraltet“-Blase, Laden frei, Frage zurück (M-15)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const frist = Object.assign(new Error('frist'), { name: 'StreamStaleError' });
+    const r = makeCtx({
+      input: 'Frage',
+      stream: () => Promise.reject(new Error('network')),
+      post: () => Promise.reject(frist),
+    });
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.bots.at(-1)?.content).toBe(STALE_TEXT);
+    expect(r.inputSet).toEqual(['Frage']);
+    expect(r.loading.at(-1)).toBe(false);
+    expect(r.results).toEqual([]);
+  });
+
+  // N-33: der Rückruf der Gastseite stand im selben `try` wie der Transport — ein
+  // werfender Rückruf ergab eine Fehlerblase unter einer gültigen Antwort.
+  it('ein werfender Ergebnis-Rückruf erzeugt keine Fehlerblase und meldet nur die Art (N-33)', async () => {
+    const fehler = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const r = makeCtx({ input: 'Frage' });
+    r.ctx.onResult = () => { throw new Error('KANARIE-geheim'); };
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.bots.map((b) => b.content)).toEqual(['', 'Antwort']);   // Lade- und Antwortblase
+    expect(r.bots.some((b) => b.content === ERROR_TEXT)).toBe(false);
+    expect(r.loading.at(-1)).toBe(false);
+    expect(r.focus).toBe(1);
+    expect(fehler).toHaveBeenCalledTimes(1);
+    expect(fehler.mock.calls.flat().map(String).join(' ')).not.toContain('KANARIE');
+  });
+});

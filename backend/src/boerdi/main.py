@@ -55,7 +55,12 @@ from boerdi.services import master_skill as master_skill_dienst
 from boerdi.services.master_skill import starte as starte_master_skill_takt
 from boerdi.services.safety import moderation
 from boerdi.services.warmup import spawn_startup_warmups
-from boerdi.settings import UMBENANNTE_VARIABLEN, Settings, get_settings
+from boerdi.settings import (
+    STUDIO_GEHEIMNIS_MINDESTLAENGE,
+    UMBENANNTE_VARIABLEN,
+    Settings,
+    get_settings,
+)
 
 log = logging.getLogger("startup")
 
@@ -85,6 +90,18 @@ def _warn_insecure_config(settings: Settings) -> None:
             "Staging/Produktion einen langen Zufallswert setzen; lokal öffnet "
             "BOERDI_ALLOW_OPEN_ADMIN=1."
         )
+    # Paket 19 (H-3, P19-E2): zu kurze Geheimnisse halten Studio bzw. Verwaltung zu. ERROR, nie
+    # der Wert — die Länge allein sagt, was zu tun ist.
+    if (key and not key.upper().startswith("CHANGE_ME")
+            and len(key) < STUDIO_GEHEIMNIS_MINDESTLAENGE):
+        log.error("STUDIO_API_KEY ist kürzer als %d Zeichen — die Verwaltungsrouten bleiben "
+                  "GESPERRT (503). Einen langen Zufallswert setzen.",
+                  STUDIO_GEHEIMNIS_MINDESTLAENGE)
+    passwort = settings.studio_password.get_secret_value().strip()
+    if (passwort and not passwort.upper().startswith("CHANGE_ME")
+            and len(passwort) < STUDIO_GEHEIMNIS_MINDESTLAENGE):
+        log.error("STUDIO_PASSWORD ist kürzer als %d Zeichen — das Studio bleibt GESPERRT (503). "
+                  "Ein längeres Passwort setzen.", STUDIO_GEHEIMNIS_MINDESTLAENGE)
     if key and not key.isascii():
         # Review 2026-10-30: Kopfzeilen kommen als latin-1 an — ein solcher Schlüssel passt nie.
         log.warning("⚠ STUDIO_API_KEY enthält Zeichen außerhalb von ASCII — keine Anfrage kann "
@@ -187,6 +204,7 @@ async def _lifespan(app: FastAPI):
     from boerdi.services import config_loader
     from boerdi.services.config_store import ConfigStore
     from boerdi.services.loadtest import sweep_orphaned_loadtests
+    from boerdi.services.sitzungssperre import sperr_engine
 
     settings = get_settings()
     engine = make_engine(settings)
@@ -196,6 +214,9 @@ async def _lifespan(app: FastAPI):
     await store.preload([meta["area"] for meta in await store.list_areas()])
     config_loader.bind_store(store)
     app.state.engine = engine
+    # Paket 19 (Audit 2026-10-31, H-5): die Sitzungssperre der Chat-Züge über eine eigene
+    # kleine Engine — unter Last wartet sie nicht hinter den Zügen auf eine Verbindung.
+    app.state.sperr_engine = sperr_engine(settings)
     app.state.session_factory = make_session_factory(engine)  # api.deps.get_session
     app.state.config_store = store
     # V9 housekeeping: a crashed loadtest can leave a ``running`` row that would
@@ -233,8 +254,12 @@ async def _lifespan(app: FastAPI):
         await cancel_and_drain([takt, skill_takt, *master_skill_dienst.laufende_uebernahmen()],
                                bezeichnung="Herunterfahren")
         config_loader.bind_store(None)
-        await store.stop(frist_s=max(0.0, ende - uhr.time()))
+        # Paket 19 (N-25): mindestens 0,5 s — mit 0 warnte jedes Herunterfahren nach langem
+        # Abbruch der Takte „abgebrochene Aufgabe … nicht beendet“ (der Puffer der Gnadenfrist
+        # deckt die halbe Sekunde, ``test_das_herunterfahren_passt_in_die_gnadenfrist``).
+        await store.stop(frist_s=max(0.5, ende - uhr.time()))
         await engine.dispose()
+        await app.state.sperr_engine.dispose()
 
 
 def create_app() -> FastAPI:
@@ -272,6 +297,12 @@ def create_app() -> FastAPI:
     from boerdi.services.config_conflict import BereichNichtSpeicherbar
 
     app.add_exception_handler(BereichNichtSpeicherbar, nicht_speicherbar_antwort)
+    # Paket 19 (N-5): eine 422 nennt Ort, Art und Satz — nie die Eingabe (``input``/``ctx``).
+    from fastapi.exceptions import RequestValidationError
+
+    from boerdi.api.pruef_fehler import pruef_fehler_antwort
+
+    app.add_exception_handler(RequestValidationError, pruef_fehler_antwort)
 
     # studio-bff (P9-1): /studio/api/* → /api/* with key injection, cookie-gated.
     # Registered BEFORE CORS on purpose: ``add_middleware`` inserts at the front,

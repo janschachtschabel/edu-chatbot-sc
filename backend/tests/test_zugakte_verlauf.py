@@ -21,7 +21,7 @@ from boerdi.main import create_app
 from boerdi.settings import get_settings
 
 _PASSWORT = "geheim-studio-pw"
-_SCHLUESSEL = "backend-key"
+_SCHLUESSEL = "backend-key-0123"
 _SID = "bb-0123456789abcdef0123456789abcdef"
 
 

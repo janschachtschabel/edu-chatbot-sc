@@ -64,8 +64,20 @@ describe('resolveMergedPageContext', () => {
     expect(resolveMergedPageContext('false', { fach: 'mathe' })['fach']).toBe('mathe');
   });
 
-  it('query-Parameter der aktuellen URL landen im Kontext', () => {
-    history.replaceState({}, '', '/suche?q=eiszeit&fach=geo');
-    expect(resolveMergedPageContext(true, '')['query']).toEqual({ q: 'eiszeit', fach: 'geo' });
+  // Paket 19, Audit 2026-10-31 N-1: `auto-context` schickte ALLE URL-Parameter
+  // und `document.referrer` mit — das Backend liest beides nicht (der
+  // Klassifikator nimmt eine Erlaubnisliste, `classify_prompt.py`).
+  it('kein query-Objekt und kein referrer im Kontext (N-1)', () => {
+    history.replaceState({}, '', '/suche?q=eiszeit&token=geheim');
+    Object.defineProperty(document, 'referrer', { configurable: true, value: 'https://vorher.example/?s=geheim' });
+    try {
+      const ctx = resolveMergedPageContext(true, '');
+      expect(ctx['query']).toBeUndefined();
+      expect(ctx['referrer']).toBeUndefined();
+      expect(JSON.stringify(ctx)).not.toContain('geheim');
+      expect(ctx['path']).toBe('/suche');
+    } finally {
+      delete (document as { referrer?: string }).referrer;
+    }
   });
 });

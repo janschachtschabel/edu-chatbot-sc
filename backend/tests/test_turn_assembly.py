@@ -572,3 +572,64 @@ async def test_nur_ein_nebenaufruf_ausgelastet_behaelt_die_chips():
     finally:
         llm_parallel._zug.set(None)
     assert qr == ["genQR1", "genQR2"]
+
+
+# ── Paket 19 (M-3): unter der „ausgelastet“-Blase kein Schnellantwort-Aufruf ──────
+
+@pytest.fixture
+def _blase():
+    from boerdi.services import llm_parallel
+
+    llm_parallel.binde_zug()
+    llm_parallel._zug.get().ausgelastet = True
+    llm_parallel.blase_merken()
+    yield
+    llm_parallel._zug.set(None)
+
+
+def _zaehler(monkeypatch) -> dict:
+    seen = {"gen": 0}
+
+    async def _gen(**k):
+        seen["gen"] += 1
+        return ["gen"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    return seen
+
+
+async def test_blase_bricht_den_spekulativen_task_ab_ohne_nachruf(monkeypatch, _blase):
+    """Audit M-3: der Satz endet auf „.“ — das Gate wartete den Spec-Task ab und rief bei
+    leerem Ergebnis den Generator exakt auf; die Blase kam Sekunden später."""
+    from boerdi.i18n.bot_text import bot_text
+
+    seen = _zaehler(monkeypatch)
+
+    async def _hang():
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(_hang())
+    _c, qr, _pa, _pg, _rt = await asyncio.wait_for(_call(
+        _qr_spec_task=task, _qr_mode="speculative",
+        response_text=bot_text("de", "error.llmBusy")), timeout=2)
+    assert qr == [bot_text("de", "error.retryChip")]
+    assert seen["gen"] == 0
+    await asyncio.sleep(0)
+    assert task.cancelled()
+
+
+async def test_blase_ruft_den_mix_generator_nicht(monkeypatch, _blase):
+    from boerdi.i18n.bot_text import bot_text
+
+    seen = _zaehler(monkeypatch)
+    _c, qr, _pa, _pg, _rt = await _call(
+        _canvas_forced_quick_replies=["A"], _host_qr_max=4,
+        response_text=bot_text("de", "error.llmBusy"))
+    assert seen["gen"] == 0
+    assert qr == [bot_text("de", "error.retryChip")]
+
+
+async def test_blase_ohne_spec_task_ruft_keinen_exakten_generator(monkeypatch, _blase):
+    seen = _zaehler(monkeypatch)
+    await _call()
+    assert seen["gen"] == 0

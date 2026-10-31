@@ -76,6 +76,7 @@ from boerdi.services.config_loader.safety import (
     load_privacy_config,
     load_quality_log_config,
     load_safety_config,
+    load_turn_limits,
 )
 from boerdi.services.config_loader.tone import (
     get_tone_modifier_for_persona,
@@ -115,6 +116,7 @@ __all__ = [
     "load_placeholder_topics_config", "load_policy_config", "load_pricing",
     "load_privacy_config",
     "load_quality_log_config", "load_rag_config", "load_safety_config",
+    "load_turn_limits",
     "load_signal_modulations", "load_states", "load_tie_breaker_config",
     "load_tone_modifiers_config", "load_website_tour_config", "load_welcome_config",
     "load_widget_modes_config", "read_config_file", "rewrite_repo_host",

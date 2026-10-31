@@ -12,6 +12,12 @@ older one, and per area only one fetch runs at a time — a NOTIFY arriving
 meanwhile triggers exactly one more fetch afterwards. Before, every NOTIFY
 started its own fetch, and a slow old one overwrote a faster new one or the
 write-through from ``put``.
+
+Paket 19 (Audit 2026-10-31, M-1): NOTIFY alone is not enough. A failed refresh is
+retried with backoff and, if it still fails, remembered (``_schmutzig``); every
+``ABGLEICH_TAKT_S`` a version check (``SELECT area, version``) reloads what is stale,
+missing or remembered — also when a notification never arrived. ``bereit()`` feeds
+``/ready``: the listener stands, or the last version check is recent.
 """
 
 from __future__ import annotations
@@ -26,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from boerdi.db.notify import ConfigChangeListener
 from boerdi.domain.config_models.schalter import normalisiere_schalter
-from boerdi.obs.tasks import ABBRUCH_FRIST_S
+from boerdi.obs.tasks import ABBRUCH_FRIST_S, cancel_and_drain
 from boerdi.services.config_conflict import (
     FIRST_VERSION,
     ConfigConflict,
@@ -64,6 +70,19 @@ _SELECT_HISTORY = text("""
 """)
 
 _SELECT_AREAS = text("SELECT area, version, updated_at, updated_by FROM config_areas ORDER BY area")
+
+_SELECT_VERSIONEN = text("SELECT area, version FROM config_areas")
+
+#: Takt des Versionsabgleichs (Paket 19, M-1) — so alt wird eine Konfiguration höchstens,
+#: wenn eine Benachrichtigung verloren ging.
+ABGLEICH_TAKT_S = 60.0
+#: Frist der Versionsabfrage.
+_ABGLEICH_FRIST_S = 10.0
+#: Nachladen nach einem gescheiterten Refresh: erste Pause, Höchstpause, Versuche — danach
+#: übernimmt der Versionsabgleich.
+_NACHLADEN_START_S = 1.0
+_NACHLADEN_MAX_S = 16.0
+_NACHLADEN_VERSUCHE = 5
 
 _SELECT_ALL_DATA = text("SELECT area, data FROM config_areas ORDER BY area")
 
@@ -140,7 +159,8 @@ class EigeneFassungLiegtStill(Exception):
 
 
 class ConfigStore:
-    def __init__(self, engine: AsyncEngine, listen_dsn: str) -> None:
+    def __init__(self, engine: AsyncEngine, listen_dsn: str, *,
+                 abgleich_takt_s: float = ABGLEICH_TAKT_S) -> None:
         self._engine = engine
         self._cache: dict[str, dict[str, Any]] = {}
         # Version of each cached entry; both dicts always change together.
@@ -150,6 +170,16 @@ class ConfigStore:
         self._changed_again: set[str] = set()
         self._listener = ConfigChangeListener(listen_dsn)
         self._subscribers: list[Callable[[str], None]] = []
+        # Paket 19 (M-1): Bereiche, deren Refresh scheiterte; der Versionsabgleich und sein
+        # Zeitpunkt (Uhr der Schleife); weitere Aufgaben mit starker Referenz (N-29).
+        self._schmutzig: set[str] = set()
+        self._takt_s = abgleich_takt_s
+        self._letzter_abgleich: float | None = None
+        self._abgleich_aufgabe: asyncio.Task[None] | None = None
+        self._hintergrund: set[asyncio.Task[Any]] = set()
+        # Review 19-4: ab ``stop()`` startet nichts Neues mehr (Benachrichtigung oder
+        # Wiederverbindung während der Abbruchfrist).
+        self._gestoppt = False
 
     @property
     def engine(self) -> AsyncEngine:
@@ -157,18 +187,80 @@ class ConfigStore:
         return self._engine
 
     async def start(self) -> None:
-        """Attach the NOTIFY listener (call once in app lifespan)."""
+        """Attach the NOTIFY listener and start the version check (call once in app
+        lifespan)."""
         await self._listener.start(self._on_area_changed, on_reconnect=self._on_reconnect)
         await self._listener.wait_connected()
+        self._letzter_abgleich = self._jetzt()
+        self._abgleich_aufgabe = asyncio.get_running_loop().create_task(
+            self._abgleich_takt(), name="config-versionsabgleich")
+
+    @staticmethod
+    def _jetzt() -> float:
+        return asyncio.get_running_loop().time()
+
+    def bereit(self) -> bool:
+        """Für ``/ready`` (Paket 19, M-1): die Konfiguration dieser Kopie ist aktuell —
+        ``LISTEN`` steht, oder der letzte Versionsabgleich liegt höchstens drei Takte
+        zurück. Ein kurzer Abriss des Listeners nimmt die Kopie also nicht aus dem
+        Dienst (er trifft meist alle Kopien zugleich); erst wenn auch der Abgleich nicht
+        mehr gelingt, meldet sie sich ab."""
+        if self._listener.verbunden:
+            return True
+        if self._letzter_abgleich is None:
+            return False
+        return self._jetzt() - self._letzter_abgleich <= 3 * self._takt_s
+
+    def _starte(self, coro: Any) -> asyncio.Task[Any] | None:
+        """``create_task`` mit starker Referenz (N-29) — die Schleife hält nur schwache.
+        Nach ``stop()`` keine neue Aufgabe mehr."""
+        if self._gestoppt:
+            coro.close()
+            return None
+        task = asyncio.get_running_loop().create_task(coro)
+        self._hintergrund.add(task)
+        task.add_done_callback(self._hintergrund.discard)
+        return task
 
     def _on_reconnect(self) -> None:
         # Notifications sent while LISTEN was down are lost: reload everything
         # this process may hold, or a replica keeps stale config — privacy
         # switches included — until restart (audit 2026-09-29, C-M NOTIFY).
         try:
-            asyncio.get_running_loop().create_task(self._resync())
+            self._starte(self._resync())
         except RuntimeError:  # no loop — listener callbacks run on the loop
             logger.warning("config resync after reconnect skipped: no running loop")
+
+    async def _abgleich_takt(self) -> None:
+        while True:
+            await asyncio.sleep(self._takt_s)
+            await self.abgleichen()
+
+    async def _versionen(self) -> dict[str, int]:
+        async with asyncio.timeout(_ABGLEICH_FRIST_S), self._engine.connect() as conn:
+            return {row[0]: row[1] for row in await conn.execute(_SELECT_VERSIONEN)}
+
+    async def abgleichen(self) -> bool:
+        """Ein Versionsabgleich (Paket 19, M-1): lädt nach, was in der Datenbank neuer
+        ist, was fehlt, was dort gelöscht wurde und was ein Refresh nicht laden konnte.
+        Gibt zurück, ob die Abfrage gelang; wirft nie."""
+        if self._gestoppt:
+            return False
+        try:
+            versionen = await self._versionen()
+        except Exception as e:  # noqa: BLE001 — der nächste Takt versucht es wieder
+            logger.warning("config-Versionsabgleich gescheitert (%s)", type(e).__name__)
+            return False
+        self._letzter_abgleich = self._jetzt()
+        veraltet = {area for area, version in versionen.items()
+                    if version > self._versions.get(area, -1) or area not in self._cache}
+        veraltet |= set(self._cache) - set(versionen)
+        veraltet |= self._schmutzig & (set(versionen) | set(self._cache))
+        if veraltet:
+            logger.info("config-Versionsabgleich: %d Bereich(e) nachzuladen", len(veraltet))
+        for area in sorted(veraltet):
+            self._on_area_changed(area)
+        return True
 
     async def _resync(self) -> None:
         # Cached areas AND the database list: an area created during the
@@ -183,14 +275,27 @@ class ConfigStore:
             self._on_area_changed(area)
 
     async def stop(self, *, frist_s: float = ABBRUCH_FRIST_S) -> None:
-        """Den Listener anhalten, höchstens ``frist_s`` (der Rest der Frist beim Herunterfahren)."""
-        await self._listener.stop(frist_s=frist_s)
+        """Abgleich, Nachladen und Listener anhalten — zusammen höchstens ``frist_s`` (der
+        Rest der geteilten Frist beim Herunterfahren). Zuerst der Merker: was jetzt noch
+        gemeldet wird, startet keine Aufgabe mehr (Review 19-4)."""
+        self._gestoppt = True
+        uhr = asyncio.get_running_loop()
+        ende = uhr.time() + frist_s
+        try:
+            await cancel_and_drain(
+                [self._abgleich_aufgabe, *self._fetching.values(), *self._hintergrund],
+                frist_s=frist_s, bezeichnung="config-store")
+        finally:
+            self._abgleich_aufgabe = None
+            await self._listener.stop(frist_s=max(0.0, ende - uhr.time()))
 
     def subscribe(self, callback: Callable[[str], None]) -> None:
         """Register for area-change events (loader caches etc.)."""
         self._subscribers.append(callback)
 
     def _on_area_changed(self, area: str) -> None:
+        if self._gestoppt:
+            return
         # Paket 17 (C3): a ``__`` payload is a signal on the same channel (e.g. the shared
         # master-skill state), not an area — nothing to fetch, only the subscribers hear it.
         if area.startswith("__"):
@@ -213,26 +318,43 @@ class ConfigStore:
                 logger.exception("config subscriber failed for area %r", area)
 
     async def _refresh_until_quiet(self, area: str) -> None:
-        """Fetch again as long as a change was reported during the last fetch."""
+        """Fetch again as long as a change was reported during the last fetch.
+
+        Paket 19 (M-1): a failed fetch is retried with a growing pause; after
+        ``_NACHLADEN_VERSUCHE`` the area stays in ``_schmutzig`` for the version check."""
+        pause = _NACHLADEN_START_S
+        versuche = 0
         try:
             while True:
                 self._changed_again.discard(area)
-                await self._refresh(area)
-                if area not in self._changed_again:
+                if await self._refresh(area):
+                    self._schmutzig.discard(area)
+                    if area not in self._changed_again:
+                        return
+                    continue
+                self._schmutzig.add(area)
+                versuche += 1
+                if versuche >= _NACHLADEN_VERSUCHE:
+                    logger.warning("config refresh for %r: %d Versuche gescheitert — der "
+                                   "Versionsabgleich lädt nach", area, versuche)
                     return
+                await asyncio.sleep(pause)
+                pause = min(pause * 2, _NACHLADEN_MAX_S)
         finally:
             self._fetching.pop(area, None)
 
-    async def _refresh(self, area: str) -> None:
+    async def _refresh(self, area: str) -> bool:
+        """Den Bereich neu laden; ``False``, wenn die Abfrage scheiterte."""
         try:
             row = await self._fetch(area)
         except Exception as e:
-            logger.warning("config refresh for %r failed: %s", area, e)
-            return
+            logger.warning("config refresh for %r failed: %s", area, type(e).__name__)
+            return False
         if row is None:
             self._forget(area)  # row gone -> drop
         else:
             self._remember(area, *row)
+        return True
 
     def _remember(self, area: str, data: dict[str, Any], version: int) -> None:
         """Cache ``data`` unless the cache already holds a newer version.

@@ -427,7 +427,7 @@ def test_the_embed_snippet_leaves_out_what_only_the_demo_needs(client, path):
     """
     schnipsel = _snippet(client.get(path).text)
     for demo_only in ("page-context", "auto-context", "emit-guide-suggestion",
-                      "emit-routing-debug"):
+                      "emit-routing-debug", "emit-query-meta"):
         assert demo_only not in schnipsel
 
 

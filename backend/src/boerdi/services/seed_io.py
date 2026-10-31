@@ -18,6 +18,9 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _EXTS = {".yaml", ".yml", ".md"}
+#: Was streng vor dem Kopf übersprungen wird: BOM (als ``chr``, kein unsichtbares Zeichen im
+#: Quelltext) und Leerraum.
+_BOM_UND_LEERRAUM = chr(0xFEFF) + " \t\r\n"
 
 
 class YamlAlias(ValueError):
@@ -53,7 +56,16 @@ def split_frontmatter(
     a broken head, a head that is no mapping, or a missing closing ``---`` raises
     ``yaml.YAMLError`` instead of silently becoming ``{}`` (the pattern then lost its id
     and tools live; the model gate let it pass, all fields have defaults). The seed
-    import stays tolerant."""
+    import stays tolerant.
+
+    Since Paket 19 (audit N-19) ``streng`` also skips a BOM and blank space before the
+    opening ``---`` (an editor or a Windows tool puts them there), and a text without a
+    head raises: it is an md area, and both the raw editor and a backup always write the
+    head (:func:`join_frontmatter`, even an empty one) — no head means it was lost."""
+    if streng:
+        text = text.lstrip(_BOM_UND_LEERRAUM)
+        if not text.startswith("---"):
+            raise yaml.YAMLError("Frontmatter fehlt (--- am Anfang)")
     if not text.startswith("---"):
         return {}, text
     lines = text.splitlines(keepends=True)

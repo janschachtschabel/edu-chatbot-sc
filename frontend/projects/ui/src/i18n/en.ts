@@ -155,6 +155,8 @@ export const EN: Catalogue = {
   'error.learningPath': 'Sorry, I could not create the learning path for “{title}”. Please try again!',
   'error.tourStart': 'Sorry, the tour could not be started just now. Please try again.',
   'error.transcription': 'Voice input could not be processed. Please type your message.',
+  'error.micDenied': 'I cannot reach your microphone. Allow access in your browser '
+    + 'or simply type your question.',
   'error.generic': 'Sorry, something went wrong. Please try again.',
   'error.genericNumber': 'Sorry, something went wrong. Please try again. (Error number: {nummer})',
   'debug.onlyInStudio': 'The full diagnostics of this answer (persona, signals, trace, cost) are in the Studio under “Sessions”.',
@@ -203,6 +205,7 @@ export const EN: Catalogue = {
   'auth.popupBlocked': 'Your browser blocked the sign-in window. Please allow pop-ups for this page, then tap the chip again.',
   'auth.unavailable': 'This installation does not offer WLO sign-in. Searching and showing still work.',
   'auth.timeout': 'Nothing came back from the sign-in. You can try again at any time.',
+  'auth.cancelled': 'Sign-in cancelled — the sign-in window was closed. You can try again at any time.',
   'auth.failed': 'The sign-in did not work. Please try again.',
   'auth.signOut': 'Sign out — search anonymously again',
   'auth.signedOut': 'Signed out. I am searching anonymously again — the access is gone from this tab.',

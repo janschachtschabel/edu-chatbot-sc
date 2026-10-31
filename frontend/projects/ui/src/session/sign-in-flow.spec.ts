@@ -29,6 +29,8 @@ describe('Ausgang → Satz', () => {
     [{ ok: false, reason: 'popup-blocked' } as SignInResult, 'auth.popupBlocked'],
     [{ ok: false, reason: 'unavailable' } as SignInResult, 'auth.unavailable'],
     [{ ok: false, reason: 'timeout' } as SignInResult, 'auth.timeout'],
+    // Paket 19, N-37: das Anmeldefenster wurde geschlossen.
+    [{ ok: false, reason: 'cancelled' } as SignInResult, 'auth.cancelled'],
     [{ ok: false, reason: 'exchange-failed' } as SignInResult, 'auth.failed'],
   ])('%o → %s', (ergebnis, schluessel) => {
     expect(signInMessageKey(ergebnis)).toBe(schluessel);
@@ -38,7 +40,7 @@ describe('Ausgang → Satz', () => {
     // Ein fehlender Schlüssel käme als Schlüsselname in die Blase — sichtbar,
     // aber sinnlos. Der Rückfall des Wörterbuchs verdeckt hier nichts.
     const alle = ['auth.done', 'auth.denied', 'auth.popupBlocked',
-                  'auth.unavailable', 'auth.timeout', 'auth.failed', 'auth.signIn'];
+                  'auth.unavailable', 'auth.timeout', 'auth.cancelled', 'auth.failed', 'auth.signIn'];
     for (const k of alle) {
       expect(DE[k], `DE fehlt ${k}`).toBeTruthy();
       expect(EN[k], `EN fehlt ${k}`).toBeTruthy();

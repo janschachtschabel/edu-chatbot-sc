@@ -117,7 +117,15 @@ function toApiError(err: HttpErrorResponse, path: string): StudioApiError {
     ? parseProblems((body as { detail: unknown }).detail)
     : [];
   const conflict = err.status === 409 ? conflictOf(body) : null;
-  return new StudioApiError(err.status, detailOf(err), path, problems, conflict);
+  return new StudioApiError(err.status, detailOf(err), path, problems, conflict,
+    err.status === 429 ? retryAfterOf(err) : null);
+}
+
+/** `Retry-After` in seconds — the backend sends a number; a date or nonsense counts as none. */
+function retryAfterOf(err: HttpErrorResponse): number | null {
+  const raw = err.headers?.get('Retry-After');
+  const seconds = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
 /** A 409's `detail` object (Paket 4, D5) -> who saved, when, which version. */

@@ -45,7 +45,7 @@ export function computeInitialExpanded(initialState: 'collapsed' | 'expanded'): 
 /** Merge automatic + manual page context.
  *
  *  - ``autoContext`` (strikte ``true``/``'true'``-Koerzierung wie bei den
- *    übrigen Embed-Attributen): URL-Basisdaten (path/query/title/referrer)
+ *    übrigen Embed-Attributen): URL-Basisdaten (path/title)
  *    plus Page-Context-Detector (WLO-Themenseiten/Sammlungen/Inhalte →
  *    ids + sichtbarer Text; leere Felder werden gedroppt, damit das
  *    Backend keine Leer-Strings als „gesetzt" speichert).
@@ -63,15 +63,15 @@ export function resolveMergedPageContext(
 
   const auto = autoContext === true || autoContext === 'true';
   if (auto) {
+    // Paket 19 (Audit 2026-10-31 N-1): kein `query`-Objekt aller URL-Parameter
+    // und kein `referrer` mehr — das Backend liest beides nicht (der Klassifikator
+    // nimmt eine Erlaubnisliste, `classify_prompt.py`), und beides trug
+    // Suchbegriffe, Tokens und die Herkunftsseite mit. Was eine Seite bezeichnet,
+    // liefert der Erkenner darunter (`search_query`, IDs, `page_url`).
     try {
-      const query: Record<string, string> = {};
-      const sp = new URL(window.location.href).searchParams;
-      sp.forEach((value, key) => { query[key] = value; });
       resolved = {
         path: window.location.pathname,
-        query,
         title: document.title,
-        referrer: document.referrer || '',
       };
     } catch { /* ignore */ }
 

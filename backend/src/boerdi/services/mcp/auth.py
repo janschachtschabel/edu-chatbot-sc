@@ -265,7 +265,13 @@ def caller_fingerprint() -> str:
     — die Kollisionswahrscheinlichkeit bei 64 Bit ist gegen die
     Speichergröße (1024 Einträge) ohne Bedeutung.
     """
-    block = _effective_token()
+    return fingerabdruck(_effective_token())
+
+
+def fingerabdruck(block: str | None) -> str:
+    """Der Fingerabdruck eines Blocks wie :func:`caller_fingerprint` — ohne ihn zu übernehmen.
+    Für die Drosselung (Paket 19, M-4), die vor der Übernahme fragt; ``""`` ohne Block."""
+    block = (block or "").strip()
     if not block:
         return ""
     return hashlib.sha256(block.encode("utf-8")).hexdigest()[:16]

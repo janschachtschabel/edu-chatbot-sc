@@ -1489,3 +1489,23 @@ def test_ein_lauf_ohne_llm_platz_merkt_es_sich(monkeypatch):
     run = asyncio.run(agent_loop.run_agent_loop(
         messages=[{"role": "system", "content": "sys"}], tools=[], limits=AgentLimits()))
     assert (run.stop_reason, run.ausgelastet) == ("error", True)
+
+
+def test_ein_voruebergehender_anbieterfehler_ist_eine_gedrosselte_warnung(monkeypatch, caplog):
+    """Paket 19 (N-16): 429, Frist, Verbindung — WARNING ohne Traceback, gedrosselt."""
+    import logging
+
+    import litellm
+
+    async def ratenlimit(**_kw):
+        raise litellm.RateLimitError(message="429", model="gpt-x", llm_provider="openai")
+
+    monkeypatch.setattr(llm, "chat_completion", ratenlimit)
+    with caplog.at_level(logging.INFO, logger=agent_loop.__name__):
+        for _ in range(2):
+            run = asyncio.run(agent_loop.run_agent_loop(
+                messages=[{"role": "system", "content": "sys"}], tools=[],
+                limits=AgentLimits()))
+            assert run.stop_reason == "error"
+    zeilen = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert [r.levelname for r in zeilen] == ["WARNING"] and not zeilen[0].exc_info

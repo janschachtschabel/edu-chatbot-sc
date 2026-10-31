@@ -1,11 +1,8 @@
 import { signal } from '@angular/core';
 
 import type { PanelSizeStep } from '../element/attr';
+import { OWL_HINT_KEY, eulenMerker, isValidSessionId } from '../session/session-id';
 import { computeInitialExpanded } from './widget-init';
-
-/** localStorage-Schlüssel des einmaligen Owl-Hinweises (ALT
- *  `WidgetComponent.OWL_HINT_KEY`). Wert = die gehintete Session-ID. */
-const OWL_HINT_KEY = 'boerdi_owl_hint_session';
 
 /** Seams, die die Zustandsmaschine beim Öffnen/Schließen braucht — alle als
  *  deferred Arrows, damit jeder Zugriff live gegen den echten Zustand geht. */
@@ -19,6 +16,10 @@ export interface PanelStateContext {
   focusInput: () => void;
   /** Floating-Button fokussieren (nach dem Schließen). */
   focusFab: () => void;
+  /** Laufende Mikrofon-Aufnahme stoppen und verwerfen — nichts transkribieren,
+   *  nichts senden (Paket 19, Audit 2026-10-31 M-13). Zugeklappt ist die
+   *  Aufnahme-Anzeige unsichtbar; das Mikrofon liefe sonst ungesehen weiter. */
+  discardRecording: () => void;
   /** `cb` ausführen, NACHDEM Angular gerendert hat.
    *
    *  8-6: ALT stapelte hier zwei `requestAnimationFrame` — unter zone.js war die
@@ -65,7 +66,13 @@ export class PanelState {
   private _owlHintTries = 0;
   private readonly _owlHintTimers = new Set<ReturnType<typeof setTimeout>>();
 
-  constructor(private readonly ctx: PanelStateContext) {}
+  constructor(private readonly ctx: PanelStateContext) {
+    // Review zu H-4: ein Eintrag aus der Zeit vor Paket 19 trug die volle ID.
+    // Weg damit schon beim Boot — nicht erst, wenn jemand das Panel öffnet.
+    try {
+      if (isValidSessionId(localStorage.getItem(OWL_HINT_KEY))) localStorage.removeItem(OWL_HINT_KEY);
+    } catch { /* ignore */ }
+  }
 
   /** Boot-Entscheidung (ALT ngOnInit 260-266): initial-state / ?bsid= /
    *  laufende Tour. Bewusst NICHT über `setExpanded` — beim Boot gibt es noch
@@ -110,6 +117,8 @@ export class PanelState {
         });
       } catch { /* ignore */ }
     } else {
+      // M-13: zugeklappt (auch per Escape) ist die Aufnahme-Anzeige unsichtbar.
+      try { this.ctx.discardRecording(); } catch { /* ignore */ }
       // A11y: Fokus zurück auf den FAB — er wird beim Schließen erst neu
       // gerendert, existiert also vorher gar nicht.
       try {
@@ -157,7 +166,10 @@ export class PanelState {
   /** Einmaliger Owl-Hinweis beim ersten Öffnen einer Session: Kopf wackelt +
    *  Sprechblase 3 s, dann weg. Das localStorage-Flag hängt an der Session-ID —
    *  „Neuer Chat" (neue ID) hintet erneut, Reopen/Reload derselben Session
-   *  nicht. Verbatim ALT 551-568. */
+   *  nicht. Verbatim ALT 551-568; seit Paket 19 (H-4) steht dort nur ein
+   *  Prüfwert der ID (`eulenMerker`), nie die ID selbst — auch nicht bei
+   *  `persist-session="false"`. Ein alter Eintrag mit voller ID wird beim
+   *  nächsten Öffnen überschrieben. */
   private _maybeShowOwlHint(): void {
     if (this._owlHintDone) return;
     const sid = this.ctx.sessionId();
@@ -167,10 +179,11 @@ export class PanelState {
       return;
     }
     this._owlHintDone = true;
+    const merker = eulenMerker(sid);
     let last = '';
     try { last = localStorage.getItem(OWL_HINT_KEY) || ''; } catch { /* ignore */ }
-    if (last === sid) return;  // diese Session schon gehinted
-    try { localStorage.setItem(OWL_HINT_KEY, sid); } catch { /* ignore */ }
+    if (last === merker) return;  // diese Session schon gehinted
+    try { localStorage.setItem(OWL_HINT_KEY, merker); } catch { /* ignore */ }
     this.hintActive.set(true);
     this._owlHintTimer(() => this.hintActive.set(false), 3000);
   }

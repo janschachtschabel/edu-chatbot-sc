@@ -38,6 +38,7 @@ from boerdi.domain.content_types import (
 )
 from boerdi.graph.state import TurnContext
 from boerdi.obs.log_inhalt import inhalt
+from boerdi.obs.tasks import merke_zug_aufgabe
 from boerdi.services.config_loader import load_placeholder_topics_config
 from boerdi.services.engine_choice import laeuft_ueber_die_schleife
 from boerdi.services.prefetch import run_speculative_prefetch
@@ -220,6 +221,11 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
     # Für Such-Style-Intents die MCP-Suche im Hintergrund starten, während
     # Pattern/Policy/Context laufen; der ``respond``-Node konsumiert das Ergebnis.
     sp = await run_speculative_prefetch(req, classification, ctx.safety)
+    # Paket 19 (Review 19-5, 7): scheitert der Zug, bevor ``respond`` sie verbraucht, räumt
+    # ``run_turn`` die Vorabrufe ab — wie den spekulativen Schnellantwort-Aufruf (N-30).
+    for _aufgabe in (sp.spec_task, *(t for _n, t in sp.extra_spec_tasks)):
+        if _aufgabe is not None:
+            merke_zug_aufgabe(_aufgabe)
     ctx.spec_task = sp.spec_task
     ctx.spec_tool_name = sp.spec_tool_name
     ctx.spec_tool_args = sp.spec_tool_args

@@ -152,14 +152,15 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
         )
         if match and match.get("nodeId"):
             resolved = match["nodeId"]
-            logger.info(  # log-ok: Fachname (Filterwert) und öffentlicher Portaltitel
-                "browse_collection_tree nodeId resolved: %r → %s (%s)",
-                nid, resolved, match.get("title", ""),
+            logger.info(  # log-ok: öffentlicher Portaltitel; die Eingabe nur als Länge
+                "browse_collection_tree nodeId resolved: %s → %s (%s)",
+                inhalt(nid), resolved, match.get("title", ""),
             )
             return {**arguments, "nodeId": resolved}
+        # Paket 19 (N-3): kein UUID heißt Freitext aus der Anfrage — nur als Länge.
         logger.info(
-            "browse_collection_tree nodeId %r not resolvable to a Fachportal — passing through",
-            nid,
+            "browse_collection_tree nodeId %s not resolvable to a Fachportal — passing through",
+            inhalt(nid),
         )
         return arguments
 
@@ -241,14 +242,14 @@ async def _resolve_collection_node_id(arguments: dict[str, Any]) -> dict[str, An
         logger.warning("get_collection_contents nodeId resolution failed: %s", e)
         return arguments
     if top_uuid and _UUID_RE.match(top_uuid):
-        logger.info(  # log-ok: Sammlungsname (Filterwert) und öffentlicher Titel
-            "get_collection_contents nodeId resolved: %r → %s (%s)",
-            nid, top_uuid, top_title,
+        logger.info(  # log-ok: öffentlicher Sammlungstitel; die Eingabe nur als Länge
+            "get_collection_contents nodeId resolved: %s → %s (%s)",
+            inhalt(nid), top_uuid, top_title,
         )
         return {**arguments, "nodeId": top_uuid}
     logger.info(
-        "get_collection_contents nodeId %r not resolvable to a collection — passing through",
-        nid,
+        "get_collection_contents nodeId %s not resolvable to a collection — passing through",
+        inhalt(nid),
     )
     return arguments
 
