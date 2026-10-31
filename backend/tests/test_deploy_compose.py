@@ -249,3 +249,17 @@ def test_das_image_kennt_version_und_commit() -> None:
     workflow = (_DEPLOY.parent / ".github" / "workflows" / "image.yml").read_text("utf-8")
     assert "BOERDI_VERSION=${{ needs.stand.outputs.name }}" in workflow
     assert "GIT_SHA=${{ needs.stand.outputs.sha }}" in workflow
+
+
+def test_das_zugriffslog_traegt_weder_pfad_noch_kopfzeilen() -> None:
+    """Paket 19 (H-1): Traefiks Standardzeile schrieb je Anfrage den vollen Pfad samt Query
+    (``/api/sessions/bb-<uuid>/messages`` — die Kennung wirkt wie ein Schlüssel zum Verlauf),
+    Referer und User-Agent ins Docker-Log. Die Felder lassen sich nur im JSON-Format sicher
+    abwählen; die IP bleibt (Datenbedarf 18C/D)."""
+    befehl = yaml.safe_load(_COMPOSE.read_text("utf-8"))["services"]["traefik"]["command"]
+    for zeile in ("--accesslog=true", "--accesslog.format=json",
+                  "--accesslog.fields.names.RequestPath=drop",
+                  "--accesslog.fields.names.ClientUsername=drop",
+                  "--accesslog.fields.headers.defaultmode=drop"):
+        assert zeile in befehl, zeile
+    assert not [z for z in befehl if "fields.headers.names" in z], "keine Kopfzeile zurückholen"

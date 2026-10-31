@@ -732,6 +732,16 @@ der Start warnt, solange der Schalter an ist. Ausnahmetexte werden beim Formatie
 (Postgres-`DETAIL:`, Pydantic-`input_value=`). OpenTelemetry misst die Pfade mit Sitzungs-ID
 (`/api/sessions/…`, `/api/usage/session/…`) nicht.
 
+**Traefiks Zugriffslog (Paket 19, H-1)** schreibt JSON ohne Pfad, Query und Kopfzeilen
+(`--accesslog.format=json`, `fields.names.RequestPath=drop`, `fields.headers.defaultmode=drop`):
+es bleiben Zeit, Methode, Status, Dauer, Router, Dienst, Host und die IP. Die Standardzeile
+schrieb `GET /api/sessions/bb-<uuid>/messages` samt Referer und User-Agent — wer das Docker-Log
+lesen kann, hätte jeden Verlauf abrufen können, solange er besteht. Wer die Zeilen bisher als
+Textformat (CLF) auswertet: auf JSON umstellen. Ein anderer Proxy oder Ingress davor
+(Kubernetes, CDN) braucht dieselbe Einstellung — bei ingress-nginx etwa ein `log-format-upstream`
+ohne `$request`, `$request_uri`, `$http_referer` und `$http_user_agent`
+(`docs/uebergabe-betrieb.md`, Abschnitt 7).
+
 Metriken im Prometheus-Format liefert der interne Port:
 
 ```bash

@@ -40,7 +40,16 @@ services:
       - --certificatesResolvers.le.acme.email=${ACME_EMAIL:?ACME_EMAIL fehlt}
       - --certificatesResolvers.le.acme.storage=/acme/acme.json
       - --certificatesResolvers.le.acme.tlschallenge=true
+      # Zugriffslog ohne Pfad, Query und Kopfzeilen (Paket 19, H-1): die Standardzeile
+      # schrieb `GET /api/sessions/bb-<uuid>/messages` samt Referer und User-Agent —
+      # die Kennung wirkt wie ein Schlüssel zum Verlauf. Abwählen lassen sich Felder nur
+      # im JSON-Format. Es bleiben Zeit, Methode, Status, Dauer, Router, Dienst, Host
+      # und die IP (Datenbedarf 18C/D).
       - --accesslog=true
+      - --accesslog.format=json
+      - --accesslog.fields.names.RequestPath=drop
+      - --accesslog.fields.names.ClientUsername=drop
+      - --accesslog.fields.headers.defaultmode=drop
     ports:
       - "80:80"
       - "443:443"

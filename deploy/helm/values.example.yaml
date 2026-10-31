@@ -27,6 +27,10 @@ ingress:
     # Größte Rümpfe: Wiederherstellen/Werks-Upload 151 MiB, Spracheingabe 11 MiB, Chat 2 MiB
     # (``api/body_limit``). Ohne Angabe deckelt ingress-nginx auf 1 MiB (413).
     nginx.ingress.kubernetes.io/proxy-body-size: "160m"
+    # Zugriffslog (Paket 19, H-1): der Pfad trägt die Sitzungs-ID, die wie ein Schlüssel zum
+    # Verlauf wirkt. Entweder ein log-format-upstream ohne $request/$request_uri/$uri/$args/
+    # $http_referer/$http_user_agent in der Controller-ConfigMap — oder für diesen Ingress aus:
+    # nginx.ingress.kubernetes.io/enable-access-log: "false"
   # Am öffentlichen Port bleibt /health (nur {"status":"ok"}) für ältere Proben — ausblenden:
   hidePaths: ["/health"]
 
