@@ -246,3 +246,36 @@ describe("LoginComponent", () => {
     expect(navigate).toHaveBeenCalledWith("/sessions");
   });
 });
+
+describe("LoginComponent — Sperre nach Fehlversuchen (Paket 19, Review H-3)", () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+  });
+
+  it("zeigt die Sperre mit der Wartezeit statt eines stummen Formulars", async () => {
+    window.history.replaceState({}, "", "/studio/login");
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([{ path: "**", children: [] }]),
+        provideHttpClient(withXhr()),
+        provideHttpClientTesting(),
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginComponent);
+    const http = TestBed.inject(HttpTestingController);
+    await fixture.whenStable();
+    http.expectOne(SESSION).flush(
+      { detail: "x" },
+      { status: 429, statusText: "x", headers: { "Retry-After": "45" } },
+    );
+    await tick();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const hinweis = el.querySelector(".locked")?.textContent ?? "";
+    expect(hinweis).toContain("45");
+    expect(hinweis).toContain("Sekunden");
+    expect(el.querySelector('[role="alert"].locked, .locked[role="status"]')).not.toBeNull();
+  });
+});

@@ -49,6 +49,20 @@ describe("AuthService", () => {
     expect(await done).toBe("disabled");
   });
 
+  it('reports a 429 as "locked" with its Retry-After (Paket 19, Review H-3)', async () => {
+    // Zu viele falsche Cookies von dieser Adresse: kein "signed-out" — ein Login-Formular
+    // bekäme ebenfalls 429, die Seite muss sagen, wie lange es dauert.
+    const done = auth.refresh();
+    http
+      .expectOne("/studio/api/auth/session")
+      .flush(
+        { detail: "Too many failed studio authentication attempts" },
+        { status: 429, statusText: "Too Many Requests", headers: { "Retry-After": "60" } },
+      );
+    expect(await done).toBe("locked");
+    expect(auth.retryAfterS()).toBe(60);
+  });
+
   it("reports a 401 as signed-out", async () => {
     const done = auth.refresh();
     http

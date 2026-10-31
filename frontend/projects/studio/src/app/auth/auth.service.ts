@@ -31,6 +31,7 @@ export class AuthService {
   readonly state = this.store.state;
   readonly gateOpen = this.store.gateOpen;
   readonly signedIn = this.store.signedIn;
+  readonly retryAfterS = this.store.retryAfterS;
 
   /**
    * Ask the BFF. Resolves to the new state; never throws.
@@ -44,9 +45,14 @@ export class AuthService {
       const session = await this.api.get<SessionResponse>('/auth/session');
       this.store.set(session.authenticated ? 'signed-in' : 'signed-out', session.open);
     } catch (err) {
-      this.store.set(
-        err instanceof StudioApiError && err.isDisabled ? 'disabled' : 'signed-out',
-      );
+      if (err instanceof StudioApiError && err.isRateLimited) {
+        // Paket 19 (H-3): ein Formular bekäme ebenfalls 429 — die Seite sagt, wie lange.
+        this.store.set('locked', false, err.retryAfterS);
+      } else {
+        this.store.set(
+          err instanceof StudioApiError && err.isDisabled ? 'disabled' : 'signed-out',
+        );
+      }
     }
     return this.store.state();
   }

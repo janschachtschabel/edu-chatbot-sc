@@ -32,6 +32,8 @@ export class StudioApiError extends Error {
     readonly problems: readonly FieldProblem[] = [],
     /** A 409's stored state — who saved, when, which version. */
     readonly conflict: SaveConflict | null = null,
+    /** A 429's `Retry-After` in seconds (Paket 19, H-3), `null` without one. */
+    readonly retryAfterS: number | null = null,
   ) {
     super(`HTTP ${status} ${url} — ${detail}`);
     this.name = 'StudioApiError';
@@ -40,6 +42,11 @@ export class StudioApiError extends Error {
   /** The cookie is gone or invalid — the shell must send the user to /login. */
   get isUnauthenticated(): boolean {
     return this.status === 401;
+  }
+
+  /** Too many failed attempts from this address (Paket 19, H-3) — wait `retryAfterS`. */
+  get isRateLimited(): boolean {
+    return this.status === 429;
   }
 
   /** The studio is not configured at all (STUDIO_PASSWORD unset, fail-closed). */
