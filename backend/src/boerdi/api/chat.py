@@ -191,8 +191,9 @@ async def _fehlerblase(
         await save_message(session, req.session_id, "assistant", err_text,
                            debug=err_debug.model_dump())
     except Exception:
-        # Never let a DB-write failure mask the original error.
-        logger.debug("Fehlerblase nicht gespeichert", exc_info=True)
+        # Never let a DB-write failure mask the original error. WARNING (Paket 19, N-14): das
+        # Widget sucht die Blase nach dem Neuladen im Verlauf.
+        logger.warning("Fehlerblase nicht gespeichert", exc_info=True)
     return ChatResponse(
         session_id=req.session_id,
         content=err_text,

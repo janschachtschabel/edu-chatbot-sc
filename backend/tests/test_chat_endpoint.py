@@ -184,6 +184,22 @@ def test_error_persist_failure_never_masks_bubble(monkeypatch, client):
     assert "schiefgelaufen" in r.json()["content"]
 
 
+def test_eine_ungespeicherte_fehlerblase_steht_als_warnung_im_log(monkeypatch, client, caplog):
+    """Paket 19 (N-14): das Widget sucht die Fehlerblase nach dem Neuladen im Verlauf."""
+    import logging
+
+    _patch(monkeypatch, exc=RuntimeError("boom"))
+
+    async def _boom_save(*a, **k):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(chat_api, "save_message", _boom_save)
+    with caplog.at_level(logging.WARNING, logger=chat_api.__name__):
+        _post(client)
+    assert any(r.levelno == logging.WARNING and "Fehlerblase" in r.getMessage()
+               for r in caplog.records)
+
+
 def test_ausgelastet_im_post_weg_ohne_traceback(monkeypatch, client, caplog):
     """Review 19-5 (6): wie im Strom (N-22) — Last ist kein Fehler; die Blase ohne Nummer."""
     import logging

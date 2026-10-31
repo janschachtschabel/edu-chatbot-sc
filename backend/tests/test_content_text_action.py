@@ -237,3 +237,23 @@ async def test_m17_fehlende_node_id_folgt_der_sprache(monkeypatch):
         None, _req(locale="en-GB"), {},
     )
     assert resp.content == "You have not told me which material to open."
+
+
+# ── Paket 19 (N-14): der M11-Folgezug braucht den Volltext im Verlauf ──────
+
+
+async def test_ein_speicherfehler_steht_als_warnung_im_log(monkeypatch, caplog):
+    import logging
+
+    async def _boom(*_a, **_k):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(content_text_action, "call_mcp_tool", _Spy(_envelope()))
+    monkeypatch.setattr(content_text_action, "save_message", _boom)
+    with caplog.at_level(logging.WARNING, logger=content_text_action.__name__):
+        resp = await content_text_action._handle_show_content_text(
+            None, _req(node_id="abc-123"), {},
+        )
+    assert resp.inline_documents
+    warnungen = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnungen) == 1 and "Aufgabe 1" not in warnungen[0].getMessage()
