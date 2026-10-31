@@ -15,18 +15,22 @@ def test_der_takt_laeuft_weiter_auch_nach_einem_fehler(monkeypatch):
     monkeypatch.setattr(aufbewahrung, "ERSTER_LAUF_S", 0)
     monkeypatch.setattr(aufbewahrung, "TAKT_S", 0.005)
     laeufe: list[int] = []
+    # Paket 20 (B3): auf den zweiten Lauf warten statt fest 50 ms — unter Parallellast
+    # kam er im vollen Lauf manchmal zu spät (Paket 16, 2026-10-18).
+    zweiter_lauf = asyncio.Event()
 
     async def _lauf(engine, sitzungen):
         laeufe.append(1)
         if len(laeufe) == 1:
             raise RuntimeError("DB kurz weg")
+        zweiter_lauf.set()
         return {"safety_logs": 0, "quality_logs": 0}
 
     monkeypatch.setattr(aufbewahrung, "lauf", _lauf)
 
     async def szenario():
         aufgabe = aufbewahrung.starte(object(), object())
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(zweiter_lauf.wait(), timeout=10)
         aufgabe.cancel()
         await asyncio.gather(aufgabe, return_exceptions=True)
         return aufgabe
