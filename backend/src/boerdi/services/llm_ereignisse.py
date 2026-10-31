@@ -13,8 +13,11 @@ from __future__ import annotations
 
 import logging
 
+import httpx
+
 from boerdi.obs import metrics
 from boerdi.obs.drossel import gedrosselt
+from boerdi.obs.log_format import ausnahme_text
 from boerdi.services import llm_auth
 from boerdi.services.llm_models import get_provider
 from boerdi.settings import get_settings
@@ -77,3 +80,73 @@ def melde_platz_frist(frist_s: float) -> None:
     gedrosselt(logger, logging.WARNING, "platz_frist", _ABSTAND_S,
                "llm_platz_frist frist_s=%g — kein LLM-Platz frei, der Zug gilt als ausgelastet",
                frist_s)
+
+
+class LlmFristAbgelaufen(TimeoutError):  # noqa: N818 — Name wie ``LlmAusgelastet``
+    """Die EIGENE Frist eines LLM-Aufrufs lief ab (``llm.chat_completion(frist_s=…)``,
+    ``CLASSIFY_TIMEOUT_S``). Paket 19 (N-16, Review): nur sie gilt als vorübergehend — ein
+    anderer ``TimeoutError`` (etwa asyncpg ``command_timeout`` aus der RAG-Abfrage) bleibt ein
+    Fehler mit Traceback. Unterklasse, damit ``except TimeoutError`` weiter greift."""
+
+    #: Ausgang in ``boerdi_llm_calls_total`` (``obs/metrics.llm_messung``, Review 19-5): die
+    #: eigene Frist ist kein Anbieterfehler — sonst stiege die Fehlerquote, die der Alarm liest.
+    metrik_ausgang = "abbruch"
+
+
+#: Paket 19 (N-16): Frist und 429 — Betrieb, kein Programmfehler. Nach Namen wie in
+#: ``obs/log_format``: litellm erbt von den openai-Klassen (``Timeout`` von ``APITimeoutError``).
+_VORUEBERGEHEND = frozenset({"openai.RateLimitError", "openai.APITimeoutError"})
+#: ``APIConnectionError`` nur mit einem Netzfehler in der Kette (Review): LiteLLM bildet JEDE
+#: Ausnahme ohne HTTP-Status darauf ab, auch einen eigenen ``TypeError`` — das Original steht
+#: dann nur in ``__context__``.
+_VERBINDUNG = "openai.APIConnectionError"
+_NETZ_NAMEN = frozenset({"aiohttp.client_exceptions.ClientError"})
+
+
+def _namen(e: BaseException) -> set[str]:
+    return {f"{k.__module__}.{k.__qualname__}" for k in type(e).__mro__}
+
+
+def _netzfehler_in_kette(fehler: BaseException) -> bool:
+    """Steht in ``__cause__``/``__context__`` ein Netzfehler (httpx, aiohttp, ``OSError`` samt
+    ``ssl.SSLError`` und ``ConnectionError``)?"""
+    offen = [fehler.__cause__, fehler.__context__]
+    gesehen: set[int] = set()
+    while offen:
+        e = offen.pop()
+        if e is None or id(e) in gesehen or len(gesehen) >= 10:
+            continue
+        gesehen.add(id(e))
+        if isinstance(e, httpx.TransportError | OSError) or _namen(e) & _NETZ_NAMEN:
+            return True
+        offen += [e.__cause__, e.__context__]
+    return False
+
+
+def _einzeln_voruebergehend(e: BaseException) -> bool:
+    if isinstance(e, LlmFristAbgelaufen):
+        return True
+    namen = _namen(e)
+    if namen & _VORUEBERGEHEND:
+        return True
+    return _VERBINDUNG in namen and _netzfehler_in_kette(e)
+
+
+def ist_voruebergehend(fehler: BaseException) -> bool:
+    """Ein vorübergehender Anbieterfehler — auch als Ursache einer Hülle (instructor)."""
+    e: BaseException | None = fehler
+    for _ in range(5):
+        if e is None:
+            return False
+        if _einzeln_voruebergehend(e):
+            return True
+        e = e.__cause__
+    return False
+
+
+def melde_voruebergehend(log: logging.Logger, ort: str, fehler: BaseException) -> None:
+    """Eine WARNING ohne Traceback, höchstens eine je Minute, Ort und Art (Paket 19, N-16) —
+    vorher ``logger.exception`` je Zug. Den Alarm tragen die LLM-Metriken."""
+    gedrosselt(log, logging.WARNING, f"llm_voruebergehend:{ort}:{type(fehler).__name__}",
+               _ABSTAND_S, "%s: Anbieter vorübergehend nicht verfügbar (%s)", ort,
+               ausnahme_text(fehler))

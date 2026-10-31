@@ -353,9 +353,33 @@ def test_ein_haengender_klassifikator_endet_nach_seiner_frist(monkeypatch) -> No
     monkeypatch.setenv("CLASSIFY_TIMEOUT_S", "1")
     get_settings.cache_clear()
     t0 = time.perf_counter()
-    with pytest.raises(TimeoutError, match="binnen 1 s"):
+    from boerdi.services.llm_ereignisse import LlmFristAbgelaufen
+
+    # Paket 19 (N-16, Review): als eigene Frist markiert, weiter ein ``TimeoutError``.
+    with pytest.raises(LlmFristAbgelaufen, match="binnen 1 s"):
         asyncio.run(classify.classify_input("hi", [], {}, {}))
     assert time.perf_counter() - t0 < 5
+
+
+def test_die_abgelaufene_frist_zaehlt_als_abbruch_nicht_als_fehler(monkeypatch) -> None:
+    """Paket 19 (Review 19-5, 5): die eigene Frist ist kein Anbieterfehler — sonst stiege
+    die LLM-Fehlerquote, die die Alarmregel liest."""
+    from boerdi.obs import metrics
+
+    async def haengt(**kwargs):
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(classify, "_acreate", haengt)
+    monkeypatch.setenv("CLASSIFY_TIMEOUT_S", "1")
+    get_settings.cache_clear()
+
+    def zaehler(ausgang: str) -> float:
+        return metrics.LLM_AUFRUFE.labels("classify", ausgang)._value.get()
+
+    fehler, abbruch = zaehler("fehler"), zaehler("abbruch")
+    with pytest.raises(TimeoutError):
+        asyncio.run(classify.classify_input("hi", [], {}, {}))
+    assert (zaehler("fehler"), zaehler("abbruch")) == (fehler, abbruch + 1)
 
 
 def test_die_frist_hat_eine_untergrenze(monkeypatch) -> None:
