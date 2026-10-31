@@ -28,7 +28,9 @@
  */
 
 import { writeAccessBlock } from './mcp-access';
-import { buildAuthorizeUrl, codeChallenge, createCodeVerifier, createState } from './oauth-pkce';
+import {
+  buildAuthorizeUrl, codeChallenge, createCodeVerifier, createState, istSichereAnmeldeAdresse,
+} from './oauth-pkce';
 
 /** Die Adressen aus dem Discovery-Dokument (RFC 8414), soweit wir sie nutzen. */
 export interface OauthEndpoints {
@@ -45,6 +47,8 @@ export interface OauthDeps {
   openWindow?: (url: string) => Window | null;
   /** Wartezeit auf die Rückmeldung; Default 5 Minuten (eine Anmeldung dauert). */
   timeoutMs?: number;
+  /** Abstand, in dem geprüft wird, ob das Fenster geschlossen wurde; Default 500 ms. */
+  pollMs?: number;
 }
 
 /** Warum es nicht geklappt hat — jeder Fall braucht eine andere Antwort. */
@@ -53,6 +57,7 @@ export type SignInFailure =
   | 'popup-blocked' // Browser hat das Fenster verhindert
   | 'denied'        // der Mensch hat abgelehnt
   | 'timeout'       // keine (gültige) Rückmeldung
+  | 'cancelled'     // das Anmeldefenster wurde geschlossen (Paket 19, N-37)
   | 'exchange-failed';
 
 export type SignInResult = { ok: true } | { ok: false; reason: SignInFailure };
@@ -151,19 +156,32 @@ export async function exchangeCode(
   }
 }
 
-/** Wartet auf die Rückmeldung des Anmeldefensters — oder auf die Zeitgrenze. */
+/** Das Fenster wurde ohne Rückmeldung geschlossen. */
+const GESCHLOSSEN = 'geschlossen' as const;
+
+/** Wartet auf die Rückmeldung des Anmeldefensters — oder auf die Zeitgrenze,
+ *  oder darauf, dass die Person das Fenster schließt.
+ *
+ *  Paket 19 (Audit 2026-10-31 N-37): ein geschlossenes Fenster blieb unbemerkt,
+ *  das Widget wartete fünf Minuten ohne Hinweis. Jetzt fragt es `fenster.closed`
+ *  ab. Erst ZWEI Abfragen hintereinander zählen: die Rückruf-Seite schickt ihre
+ *  Nachricht und schließt sich sofort (`oauth-callback.html`) — die Nachricht
+ *  kann dann nach dem ersten Blick auf `closed` ankommen. */
 function warteAufRueckmeldung(
   fenster: Window,
   state: string,
   timeoutMs: number,
-): Promise<CallbackMessage | null> {
+  pollMs: number,
+): Promise<CallbackMessage | typeof GESCHLOSSEN | null> {
   return new Promise((resolve) => {
     let fertig = false;
-    const beenden = (wert: CallbackMessage | null) => {
+    let zuGesehen = false;
+    const beenden = (wert: CallbackMessage | typeof GESCHLOSSEN | null) => {
       if (fertig) return;
       fertig = true;
       window.removeEventListener('message', horcher);
       clearTimeout(uhr);
+      clearInterval(waechter);
       resolve(wert);
     };
     const horcher = (e: MessageEvent) => {
@@ -178,6 +196,12 @@ function warteAufRueckmeldung(
       beenden(m);
     };
     const uhr = setTimeout(() => beenden(null), timeoutMs);
+    const waechter = setInterval(() => {
+      let zu = false;
+      try { zu = fenster.closed === true; } catch { zu = false; }
+      if (zu && zuGesehen) beenden(GESCHLOSSEN);
+      zuGesehen = zu;
+    }, pollMs);
     window.addEventListener('message', horcher);
   });
 }
@@ -223,6 +247,13 @@ async function anmelden(
 ): Promise<SignInResult> {
   const endpunkte = await discoverEndpoints(mcpBaseUrl, deps);
   if (!endpunkte?.registration_endpoint) return { ok: false, reason: 'unavailable' };
+  // Paket 19 (N-36): nur https (bzw. lokales http) — das Fenster trägt bis zur
+  // Navigation die Herkunft der Gastseite.
+  if (!istSichereAnmeldeAdresse(endpunkte.authorization_endpoint)
+      || !istSichereAnmeldeAdresse(endpunkte.token_endpoint)) {
+    console.warn('boerdi: Anmelde-Adressen ohne https — Anmeldung abgebrochen');
+    return { ok: false, reason: 'unavailable' };
+  }
 
   const clientId = await registerClient(endpunkte.registration_endpoint, redirectUri, deps);
   if (!clientId) return { ok: false, reason: 'unavailable' };
@@ -238,9 +269,11 @@ async function anmelden(
     scope: 'wlo',
   });
 
-  const antwort = await warteAufRueckmeldung(fenster, state, deps.timeoutMs ?? 300_000);
+  const antwort = await warteAufRueckmeldung(
+    fenster, state, deps.timeoutMs ?? 300_000, deps.pollMs ?? 500);
   schliessen(fenster);  // gleich nach der Rückmeldung, nicht erst nach dem Tausch
 
+  if (antwort === GESCHLOSSEN) return { ok: false, reason: 'cancelled' };
   if (!antwort) return { ok: false, reason: 'timeout' };
   if (antwort.error) return { ok: false, reason: 'denied' };
   if (!antwort.code) return { ok: false, reason: 'timeout' };

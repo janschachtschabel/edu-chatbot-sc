@@ -295,6 +295,9 @@ export const DE: Catalogue = {
   'auth.popupBlocked': 'Der Browser hat das Anmeldefenster blockiert. Bitte erlaube Pop-ups für diese Seite und tippe den Chip noch einmal an.',
   'auth.unavailable': 'Diese Installation bietet die WLO-Anmeldung nicht an. Suchen und Zeigen geht trotzdem.',
   'auth.timeout': 'Von der Anmeldung ist nichts zurückgekommen. Du kannst es jederzeit noch einmal versuchen.',
+  /** Paket 19 (N-37): das Anmeldefenster wurde geschlossen — vorher wartete das
+   *  Widget fünf Minuten ohne Hinweis. */
+  'auth.cancelled': 'Anmeldung abgebrochen — das Anmeldefenster wurde geschlossen. Du kannst es jederzeit noch einmal versuchen.',
   'auth.failed': 'Die Anmeldung hat nicht geklappt. Bitte versuch es noch einmal.',
   /** Beschriftung des Knopfs im angemeldeten Zustand. Sagt die WIRKUNG mit,
    *  weil daneben ein Neustart-Knopf sitzt: hier endet die Anmeldung, nicht

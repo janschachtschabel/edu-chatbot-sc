@@ -266,3 +266,62 @@ describe('signIn', () => {
     expect(fenster.closed).toBe(true);
   });
 });
+
+// ── Paket 19, Audit 2026-10-31 N-36 + N-37 ──────────────────────────────────
+describe('signIn — Paket 19', () => {
+  it('eine unsichere Anmelde-Adresse bricht ab, bevor das Fenster sie bekommt (N-36)', async () => {
+    const fenster = fakeFenster();
+    const adressen: string[] = [];
+    fenster.beiAdresse = (url) => adressen.push(url);
+    const r = await signIn(BASE, RUECKRUF, {
+      fetchImpl: fakeFetch([], {
+        '.well-known': { ...DISCOVERY, authorization_endpoint: 'javascript:alert(document.domain)//' },
+        register: { client_id: 'wloc1.abc' },
+      }),
+      openWindow: () => fenster,
+      timeoutMs: 200,
+    });
+    expect(r).toEqual({ ok: false, reason: 'unavailable' });
+    expect(adressen).toEqual([]);
+    expect(fenster.closed).toBe(true);
+  });
+
+  // N-37: ein geschlossenes Anmeldefenster blieb unbemerkt — fünf Minuten Warten
+  // ohne Hinweis.
+  it('ein geschlossenes Anmeldefenster heißt „abgebrochen“, nicht Zeitablauf (N-37)', async () => {
+    const fenster = fakeFenster();
+    const basis = deps(fenster);
+    const start = Date.now();
+    const r = await signIn(BASE, RUECKRUF, {
+      ...basis,
+      openWindow: () => {
+        fenster.beiAdresse = () => { setTimeout(() => fenster.close(), 5); };
+        return fenster;
+      },
+      timeoutMs: 5_000,
+      pollMs: 10,
+    });
+    expect(r).toEqual({ ok: false, reason: 'cancelled' });
+    expect(Date.now() - start).toBeLessThan(2_000);
+  });
+
+  it('Rückmeldung und gleich danach geschlossen (Rückruf-Seite) bleibt ein Erfolg (N-37)', async () => {
+    const fenster = fakeFenster();
+    const basis = deps(fenster, (state) => ({
+      quelle: fenster,
+      data: { source: 'boerdi-oauth', code: 'mcp_ac_x', state },
+    }));
+    const r = await signIn(BASE, RUECKRUF, {
+      ...basis,
+      openWindow: () => {
+        const w = basis.openWindow();
+        const vorher = fenster.beiAdresse;
+        // Wie die echte Rückruf-Seite: erst die Nachricht, dann sofort zu.
+        fenster.beiAdresse = (url) => { vorher?.(url); fenster.close(); };
+        return w;
+      },
+      pollMs: 1,
+    });
+    expect(r.ok).toBe(true);
+  });
+});

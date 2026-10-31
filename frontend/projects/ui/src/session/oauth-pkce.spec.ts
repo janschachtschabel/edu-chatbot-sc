@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAuthorizeUrl,
   codeChallenge,
+  istSichereAnmeldeAdresse,
   createCodeVerifier,
   createState,
   readCallbackParams,
@@ -72,6 +73,35 @@ describe('buildAuthorizeUrl', () => {
     const u = new URL(buildAuthorizeUrl(opts));
     expect(u.searchParams.get('code_challenge')).toBe('CHALLENGE');
     expect(u.searchParams.get('code_challenge_method')).toBe('S256');
+  });
+});
+
+// Paket 19, Audit 2026-10-31 N-36: die Adresse aus der Discovery ging ohne
+// Protokollprüfung ins Anmeldefenster — das `about:blank`-Fenster trägt die
+// Herkunft der Gastseite, ein `javascript:` liefe also dort.
+describe('istSichereAnmeldeAdresse (N-36)', () => {
+  it('nimmt https und lokales http', () => {
+    expect(istSichereAnmeldeAdresse('https://mcp.example/oauth/authorize')).toBe(true);
+    expect(istSichereAnmeldeAdresse('http://localhost:8000/oauth/authorize')).toBe(true);
+    expect(istSichereAnmeldeAdresse('http://127.0.0.1:8000/oauth/authorize')).toBe(true);
+    expect(istSichereAnmeldeAdresse('http://[::1]:8000/oauth/authorize')).toBe(true);
+  });
+
+  it('weist alles andere ab', () => {
+    for (const roh of [
+      'javascript:alert(1)//', 'JavaScript:alert(1)', 'data:text/html,<p>x</p>',
+      'http://mcp.example/oauth/authorize', 'http://localhost.evil.example/x', 'ftp://mcp.example/',
+      '', 'keine adresse',
+    ]) {
+      expect(istSichereAnmeldeAdresse(roh)).toBe(false);
+    }
+  });
+
+  it('buildAuthorizeUrl wirft bei einer unsicheren Adresse', () => {
+    expect(() => buildAuthorizeUrl({
+      authorizationEndpoint: 'javascript:alert(1)//', clientId: 'c', redirectUri: 'https://r.example/',
+      state: 's', codeChallenge: 'c', scope: 'wlo',
+    })).toThrow();
   });
 });
 

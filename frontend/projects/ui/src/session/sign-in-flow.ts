@@ -36,6 +36,7 @@ export function signInMessageKey(result: SignInResult): string {
     case 'popup-blocked': return 'auth.popupBlocked';
     case 'unavailable': return 'auth.unavailable';
     case 'timeout': return 'auth.timeout';
+    case 'cancelled': return 'auth.cancelled';
     default: return 'auth.failed';
   }
 }

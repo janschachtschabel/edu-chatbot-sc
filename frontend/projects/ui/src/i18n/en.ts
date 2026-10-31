@@ -205,6 +205,7 @@ export const EN: Catalogue = {
   'auth.popupBlocked': 'Your browser blocked the sign-in window. Please allow pop-ups for this page, then tap the chip again.',
   'auth.unavailable': 'This installation does not offer WLO sign-in. Searching and showing still work.',
   'auth.timeout': 'Nothing came back from the sign-in. You can try again at any time.',
+  'auth.cancelled': 'Sign-in cancelled — the sign-in window was closed. You can try again at any time.',
   'auth.failed': 'The sign-in did not work. Please try again.',
   'auth.signOut': 'Sign out — search anonymously again',
   'auth.signedOut': 'Signed out. I am searching anonymously again — the access is gone from this tab.',

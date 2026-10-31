@@ -66,8 +66,33 @@ export interface AuthorizeUrlOptions {
   scope: string;
 }
 
-/** Die Adresse, auf die das Anmeldefenster geschickt wird. */
+/** Rechner, für die auch `http:` gilt — lokale Entwicklung. */
+const LOKALE_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * Darf das Anmeldefenster diese Adresse bekommen? Nur `https:`, für lokale
+ * Entwicklung auch `http://localhost`/`127.0.0.1`/`[::1]` (Paket 19, Audit
+ * 2026-10-31 N-36). Die Adresse kommt aus dem Discovery-Dokument des MCP-Servers,
+ * und das Fenster startet als `about:blank` mit der Herkunft der Gastseite — ein
+ * `javascript:` oder `data:` liefe dort mit deren Rechten.
+ */
+export function istSichereAnmeldeAdresse(roh: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(roh);
+  } catch {
+    return false;
+  }
+  if (u.protocol === 'https:') return true;
+  return u.protocol === 'http:' && LOKALE_HOSTS.has(u.hostname);
+}
+
+/** Die Adresse, auf die das Anmeldefenster geschickt wird. Wirft bei einer
+ *  unsicheren Adresse ({@link istSichereAnmeldeAdresse}). */
 export function buildAuthorizeUrl(opts: AuthorizeUrlOptions): string {
+  if (!istSichereAnmeldeAdresse(opts.authorizationEndpoint)) {
+    throw new Error('Anmelde-Adresse ohne https verworfen');
+  }
   const u = new URL(opts.authorizationEndpoint);
   u.searchParams.set('response_type', 'code');
   u.searchParams.set('client_id', opts.clientId);
