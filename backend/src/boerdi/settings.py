@@ -483,6 +483,18 @@ class Settings(BaseSettings):
     # weit mehr als 15 gleichzeitige Züge.
     db_pool_size: int = Field(5, ge=1, validation_alias=_env("DB_POOL_SIZE"))
     db_max_overflow: int = Field(10, ge=0, validation_alias=_env("DB_MAX_OVERFLOW"))
+    # Paket 19 (Audit 2026-10-31, M-10): Fristen je Verbindung, in Sekunden; 0 = aus.
+    # ``statement_timeout``/``idle_in_transaction_session_timeout``/``lock_timeout`` setzt
+    # der Server, ``command_timeout`` der Client (asyncpg) — er fängt auch eine
+    # Netzpartition ohne RST. Lange Läufe (VACUUM) heben die Frist für sich auf; die
+    # Kommandozeile (``boerdi …``) baut ihre Engine ohne Fristen.
+    db_statement_timeout_s: float = Field(
+        60.0, ge=0, validation_alias=_env("DB_STATEMENT_TIMEOUT_S"))
+    db_command_timeout_s: float = Field(
+        90.0, ge=0, validation_alias=_env("DB_COMMAND_TIMEOUT_S"))
+    db_idle_in_transaction_timeout_s: float = Field(
+        300.0, ge=0, validation_alias=_env("DB_IDLE_IN_TRANSACTION_TIMEOUT_S"))
+    db_lock_timeout_s: float = Field(30.0, ge=0, validation_alias=_env("DB_LOCK_TIMEOUT_S"))
     rate_limit_storage_uri: str = Field(
         "memory://", validation_alias=_env("RATE_LIMIT_STORAGE_URI"),
         description="slowapi storage; valkey://... in cluster (P10-6)",

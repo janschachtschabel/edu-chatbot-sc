@@ -30,7 +30,7 @@ def aufrufe(monkeypatch):
             raise antwort["bericht"]
         return antwort["bericht"]
 
-    monkeypatch.setattr(cli, "make_engine", lambda _s: _Motor())
+    monkeypatch.setattr(cli, "make_engine", lambda _s, **_k: _Motor())
     monkeypatch.setattr(ew, "wechseln", wechseln)
     return gesehen, antwort
 

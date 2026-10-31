@@ -42,7 +42,7 @@ from boerdi.settings import get_settings
 
 async def _import_config(src: Path, only_missing: bool = False) -> int:
     settings = get_settings()
-    engine = make_engine(settings)
+    engine = make_engine(settings, fristen=False)
     store = ConfigStore(engine, listen_dsn=asyncpg_dsn(settings.database_url))
     try:
         kept: list[str] = []
@@ -81,7 +81,7 @@ async def _werksabgleich(src: Path) -> int:
     from boerdi.services import seed_sync
 
     settings = get_settings()
-    engine = make_engine(settings)
+    engine = make_engine(settings, fristen=False)
     store = ConfigStore(engine, listen_dsn=asyncpg_dsn(settings.database_url))
 
     async def schreiben(eintraege: dict) -> dict[str, int]:
@@ -132,7 +132,7 @@ async def _import_exact(src: Path, *, dry_run: bool) -> int:
     from boerdi.services import seed_sync, snapshots
 
     settings = get_settings()
-    engine = make_engine(settings)
+    engine = make_engine(settings, fristen=False)
     store = ConfigStore(engine, listen_dsn=asyncpg_dsn(settings.database_url))
 
     def pruefen(seed: dict[str, dict]) -> dict[str, dict]:
@@ -183,7 +183,7 @@ async def _import_exact(src: Path, *, dry_run: bool) -> int:
 
 async def _export_config(dst: Path) -> int:
     settings = get_settings()
-    engine = make_engine(settings)
+    engine = make_engine(settings, fristen=False)
     store = ConfigStore(engine, listen_dsn=asyncpg_dsn(settings.database_url))
     try:
         areas: dict[str, dict] = {}
@@ -201,7 +201,7 @@ async def _export_config(dst: Path) -> int:
 async def _import_rag(sqlite_path: Path) -> int:
     from boerdi.services.rag.import_rag import import_rag_from_sqlite
 
-    engine = make_engine(get_settings())
+    engine = make_engine(get_settings(), fristen=False)
     try:
         factory = make_session_factory(engine)
         async with factory() as session:
@@ -216,7 +216,7 @@ async def _import_rag(sqlite_path: Path) -> int:
 async def _import_rag_seed(seed_dir: Path, *, force: bool) -> int:
     from boerdi.services.rag.import_rag import import_rag_from_seed
 
-    engine = make_engine(get_settings())
+    engine = make_engine(get_settings(), fristen=False)
     try:
         factory = make_session_factory(engine)
         async with factory() as session:
@@ -235,7 +235,7 @@ async def _einbettung_wechseln(*, probe: bool, fortsetzen: bool) -> int:
     """Wissensbasis in den Raum des eingestellten Einbettungsmodells überführen (Paket 11, D)."""
     from boerdi.services.rag import einbettung_wechsel as ew
 
-    engine = make_engine(get_settings())
+    engine = make_engine(get_settings(), fristen=False)
     try:
         try:
             b = await ew.wechseln(engine, probe=probe, fortsetzen=fortsetzen)

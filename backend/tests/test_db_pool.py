@@ -33,3 +33,53 @@ def test_die_umgebung_setzt_den_pool(monkeypatch) -> None:
     monkeypatch.setenv("DB_MAX_OVERFLOW", "0")
     pool = make_engine(Settings(_env_file=None, database_url=_URL)).sync_engine.pool
     assert (pool.size(), pool._max_overflow) == (12, 0)
+
+
+# ── Paket 19 (Audit 2026-10-31, H-5/M-10) ─────────────────────────────────────
+
+def test_eine_engine_mit_eigenem_kleinen_pool() -> None:
+    engine = make_engine(Settings(_env_file=None, database_url=_URL),
+                         pool_size=2, max_overflow=2, pool_timeout=7.0)
+    pool = engine.sync_engine.pool
+    assert (pool.size(), pool._max_overflow, pool._timeout) == (2, 2, 7.0)
+
+
+def test_im_startpaket_nur_die_clientfrist() -> None:
+    """Review 19-4 (HOCH): Server-Fristen als ``server_settings`` gehen ins Startpaket —
+    PgBouncer (Session-Modus, Cluster-Checkliste) weist sie als „unsupported startup
+    parameter“ ab, und kein Pod startet. Ins Startpaket nur noch ``command_timeout``
+    (clientseitig); die Server-Fristen setzt ``SET`` nach dem Verbindungsaufbau."""
+    from boerdi.db.session import verbindungs_fristen
+
+    cfg = Settings(_env_file=None, database_url=_URL, db_statement_timeout_s=60,
+                   db_command_timeout_s=90, db_idle_in_transaction_timeout_s=300,
+                   db_lock_timeout_s=0)
+    assert verbindungs_fristen(cfg) == {"command_timeout": 90.0}
+
+
+def test_die_server_fristen_als_set_anweisungen() -> None:
+    from boerdi.db.session import fristen_anweisungen
+
+    cfg = Settings(_env_file=None, database_url=_URL, db_statement_timeout_s=60,
+                   db_command_timeout_s=90, db_idle_in_transaction_timeout_s=300,
+                   db_lock_timeout_s=0)
+    assert fristen_anweisungen(cfg) == [
+        "SET statement_timeout = 60000",
+        "SET idle_in_transaction_session_timeout = 300000",
+    ]
+
+
+def test_null_schaltet_eine_frist_ab() -> None:
+    from boerdi.db.session import fristen_anweisungen, verbindungs_fristen
+
+    cfg = Settings(_env_file=None, database_url=_URL, db_statement_timeout_s=0,
+                   db_command_timeout_s=0, db_idle_in_transaction_timeout_s=0,
+                   db_lock_timeout_s=0)
+    assert verbindungs_fristen(cfg) == {}
+    assert fristen_anweisungen(cfg) == []
+
+
+def test_vorgaben_der_fristen() -> None:
+    cfg = Settings(_env_file=None, database_url=_URL)
+    assert (cfg.db_statement_timeout_s, cfg.db_command_timeout_s,
+            cfg.db_idle_in_transaction_timeout_s, cfg.db_lock_timeout_s) == (60, 90, 300, 30)
