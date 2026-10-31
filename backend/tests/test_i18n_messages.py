@@ -190,6 +190,9 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'Sprachsynthese fehlgeschlagen.'": "dito",
         "f'Audio zu groß (max {MAX_AUDIO_BYTES // (1024 * 1024)} MB).'": "dito",
         "f'Text zu lang (max {MAX_TTS_CHARS} Zeichen).'": "dito",
+        "'language: Form „de“ oder „de-DE“.'": "dito (Paket 19, M-16)",
+        "'voice: unbekannte Stimme.'": "dito (Paket 19, M-16)",
+        "'speed: 0.25 bis 4.0.'": "dito (Paket 19, M-16)",
     },
     "studio_bff.py": {
         "'Wrong password'": "der Login bildet per STATUS-Code auf "

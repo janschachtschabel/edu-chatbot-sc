@@ -13,7 +13,9 @@ only does HTTP translation.
 
 from __future__ import annotations
 
-from typing import Annotated
+import math
+import re
+from typing import Annotated, Final
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
@@ -23,6 +25,7 @@ from boerdi.api.turn_auth import uebernimm_llm_schluessel
 from boerdi.services.speech_proxy import (
     MAX_AUDIO_BYTES,
     MAX_TTS_CHARS,
+    SpeechEingabeFehler,
     SpeechProxyError,
     speech_disabled_reason,
     speech_enabled,
@@ -31,6 +34,21 @@ from boerdi.services.speech_proxy import (
 )
 
 public_router = APIRouter(prefix="/api/speech", tags=["speech"])
+
+# Paket 19 (Audit M-16): die Felder vor jedem bezahlten Aufruf prüfen. Geprüft im Rumpf statt
+# per ``Literal``/``Form(ge=…)``: das hielte das eingefrorene OpenAPI-Dokument nicht still.
+#: Die Stimmen der OpenAI-Sprachausgabe (``tts-1``/``gpt-4o-mini-tts``); das Widget sendet ``nova``.
+STIMMEN: Final = frozenset({
+    "alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer",
+    "verse", "marin", "cedar",
+})
+_SPRACHE = re.compile(r"[a-z]{2}(-[A-Z]{2})?")
+TEMPO_MIN, TEMPO_MAX = 0.25, 4.0
+
+
+def _eingabefehler(fehler: SpeechEingabeFehler, text: str) -> HTTPException:
+    """Der Anbieter wies die Eingabe zurück: 415 für das Format, sonst 400 — nie 502."""
+    return HTTPException(status_code=415 if fehler.status == 415 else 400, detail=text)
 
 
 @public_router.get("/status")
@@ -70,6 +88,8 @@ async def transcribe(
     required, see ``speech_status``. The 413/503/502 paths raise before it is used.
     """
     uebernimm_llm_schluessel(request)  # Paket 17
+    if not _SPRACHE.fullmatch(language):
+        raise HTTPException(status_code=422, detail="language: Form „de“ oder „de-DE“.")
     # Bounded read (max cap+1) — a huge upload must neither pin memory nor reach
     # the paid upstream.
     content = await audio.read(MAX_AUDIO_BYTES + 1)
@@ -82,6 +102,8 @@ async def transcribe(
         raise HTTPException(status_code=503, detail=speech_disabled_reason())
     try:
         return await transcribe_audio(content, audio.filename, language)
+    except SpeechEingabeFehler as err:
+        raise _eingabefehler(err, "Audio wurde nicht angenommen.") from err
     except SpeechProxyError as err:
         raise HTTPException(
             status_code=502, detail="Spracherkennung fehlgeschlagen."
@@ -105,6 +127,10 @@ async def synthesize(
     failure becomes a generic 502.
     """
     uebernimm_llm_schluessel(request)  # Paket 17
+    if voice not in STIMMEN:
+        raise HTTPException(status_code=422, detail="voice: unbekannte Stimme.")
+    if not (math.isfinite(speed) and TEMPO_MIN <= speed <= TEMPO_MAX):
+        raise HTTPException(status_code=422, detail="speed: 0.25 bis 4.0.")
     if len(text) > MAX_TTS_CHARS:
         raise HTTPException(
             status_code=413, detail=f"Text zu lang (max {MAX_TTS_CHARS} Zeichen)."
@@ -113,6 +139,8 @@ async def synthesize(
         raise HTTPException(status_code=503, detail=speech_disabled_reason())
     try:
         audio_bytes = await synthesize_speech(text, voice, speed)
+    except SpeechEingabeFehler as err:
+        raise _eingabefehler(err, "Text wurde nicht angenommen.") from err
     except SpeechProxyError as err:
         raise HTTPException(
             status_code=502, detail="Sprachsynthese fehlgeschlagen."
