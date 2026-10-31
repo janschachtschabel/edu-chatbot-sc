@@ -135,6 +135,20 @@ def test_optimize_failure_becomes_503(client, monkeypatch, caplog):
     assert len(fehler) == 1 and fehler[0].exc_info is not None
 
 
+def test_optimize_failure_detail_traegt_keinen_ausnahmetext(client, monkeypatch):
+    """Paket 19 (N-12): der Studio-Text trug ``str(e)`` — bei asyncpg samt ``DETAIL:`` mit
+    Werten. Jetzt Art und Fehlernummer; der Grund steht im Log unter derselben Trace-ID."""
+    async def _boom(*a, **k):
+        raise RuntimeError("Schlüssel fehlt\nDETAIL:  Key (session_id)=(KANARIE7Q) is absent")
+
+    monkeypatch.setattr(sessions_api, "optimize_database", _boom)
+    r = client.post("/api/sessions/optimize", headers=_AUTH)
+    assert r.status_code == 503
+    detail = r.json()["detail"]
+    assert "KANARIE7Q" not in detail and "Schlüssel fehlt" not in detail
+    assert "RuntimeError" in detail and "Fehlernummer" in detail
+
+
 # ── GET /{session_id} ────────────────────────────────────────────────────
 def test_get_session_returns_alt_shape_without_reparsing(client, monkeypatch):
     # NEU get_or_create_session already returns entities/signal_history parsed

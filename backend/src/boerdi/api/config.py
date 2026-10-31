@@ -31,6 +31,8 @@ from boerdi.domain.anmelde_herkunft import anmeldung_erlaubt
 from boerdi.domain.config_models.schema import area_schema
 from boerdi.domain.mcp_herkunft import mcp_herkunft
 from boerdi.i18n import msg
+from boerdi.obs.log_format import ausnahme_text
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_io
 from boerdi.services.config_conflict import ConfigConflict
@@ -186,7 +188,11 @@ async def discover_mcp_tools(lang: Lang, url: str = "") -> dict:
         # ein gescheiterter Handschlag ist meist das Netz, kein Bug.
         logger.warning("MCP-Discovery %s fehlgeschlagen (%s)", url, type(e).__name__,
                        exc_info=logger.isEnabledFor(logging.DEBUG))
-        raise HTTPException(502, msg(lang, "mcp.connectFailed", error=e)) from e
+        # Paket 19 (N-12): ``error=e`` brachte den Text des Servers ins Studio (ein ``McpError``
+        # wiederholt mitunter die Eingabe) — jetzt ohne Fremdtext, mit Fehlernummer.
+        raise HTTPException(502, msg(lang, "mcp.connectFailed",
+                                     error=ausnahme_text(e) or type(e).__name__,
+                                     nummer=fehlernummer())) from e
 
 
 # backup / restore + snapshots + factory live in config_snapshots.py (P2-7).

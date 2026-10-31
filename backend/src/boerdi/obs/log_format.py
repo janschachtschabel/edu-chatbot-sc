@@ -214,3 +214,16 @@ class StdoutHandler(logging.StreamHandler):
         if not kodierung:
             return text
         return text.encode(kodierung, "backslashreplace").decode(kodierung)
+
+    def handleError(self, record: logging.LogRecord) -> None:  # noqa: N802 — überschreibt logging
+        """Paket 19 (N-11): ``logging.Handler.handleError`` schriebe ``Message: %r`` und
+        ``Arguments: %s`` roh nach stderr — an der Schwärzung vorbei. Hier nur Art, Logger und
+        der Ort des Logaufrufs (Review: sonst bliebe der Platzhalterfehler unauffindbar)."""
+        if not (logging.raiseExceptions and sys.stderr):
+            return
+        art = type(sys.exc_info()[1]).__name__
+        try:
+            sys.stderr.write(f"--- Logging error --- {art} in logger {record.name} "
+                             f"at {record.pathname}:{record.lineno}\n")
+        except Exception:  # noqa: BLE001, S110 — wie logging: ein kaputtes stderr nicht melden
+            pass

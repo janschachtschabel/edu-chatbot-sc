@@ -37,6 +37,7 @@ from boerdi.api.schemas import SITZUNGSKENNUNG
 from boerdi.api.turn_auth import darf_diagnose
 from boerdi.domain.write_anzeige import entities_for_display
 from boerdi.i18n import msg
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.services import aufbewahrung
 from boerdi.services.config_loader import load_privacy_config
 from boerdi.services.config_loader.safety import melde_datenschutz_unlesbar
@@ -148,7 +149,10 @@ async def optimize_db(
         result = await optimize_database(session)
     except Exception as e:  # noqa: BLE001 — surface lock/IO errors to the UI
         logger.exception("DB-Optimierung fehlgeschlagen (%s)", type(e).__name__)
-        raise HTTPException(503, msg(lang, "sessions.optimizeFailed", error=e)) from e
+        # Paket 19 (N-12): nur die Art — asyncpg hängt ``DETAIL:`` mit Werten an; der Grund
+        # steht oben im Log, die Fehlernummer führt zu ihm.
+        raise HTTPException(503, msg(lang, "sessions.optimizeFailed", error=type(e).__name__,
+                                     nummer=fehlernummer())) from e
     return {"status": "optimized", **result}
 
 
