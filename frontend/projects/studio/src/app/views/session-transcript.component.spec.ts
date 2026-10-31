@@ -249,3 +249,57 @@ describe("SessionTranscriptComponent — Zugakte und Fehlernummer (Paket 18C/D)"
     expect(el.querySelector("#st-msg-7")!.classList).toContain("st-turn--fokus");
   });
 });
+
+/**
+ * Paket 19 (Audit 2026-10-31, N-39): beim Wechsel der Sitzung stand während des Ladens — und
+ * nach einem Fehler dauerhaft — das Transkript der VORIGEN Sitzung unter der neuen Überschrift
+ * (`AsyncData` behält den alten Wert absichtlich, für das Neuladen derselben Daten).
+ */
+describe("SessionTranscriptComponent — Sitzungswechsel (N-39)", () => {
+  async function wechsel(): Promise<{ h: Harness; http: HttpTestingController }> {
+    const h = await mount([{ id: 1, role: "user", content: "Alte Sitzung" }]);
+    expect(h.el.textContent).toContain("Alte Sitzung");
+    h.fixture.componentRef.setInput("sessionId", "def-456");
+    await h.fixture.whenStable();
+    return { h, http: TestBed.inject(HttpTestingController) };
+  }
+
+  it("zeigt während des Ladens nichts von der vorigen Sitzung", async () => {
+    const { h, http } = await wechsel();
+    expect(h.el.textContent).not.toContain("Alte Sitzung");
+    expect(h.component.rows()).toEqual([]);
+    http.expectOne((r) => r.url === "/studio/api/sessions/def-456/messages")
+      .flush([{ id: 2, role: "user", content: "Neue Sitzung" }]);
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.textContent).toContain("Neue Sitzung");
+  });
+
+  it("zeigt nach einem Fehler nicht das vorige Transkript", async () => {
+    const { h, http } = await wechsel();
+    http.expectOne((r) => r.url === "/studio/api/sessions/def-456/messages")
+      .flush({ detail: "kaputt" }, { status: 500, statusText: "Server Error" });
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.textContent).not.toContain("Alte Sitzung");
+    expect(h.component.messages.error()).not.toBe("");
+  });
+
+  it("eine späte Antwort der vorigen Sitzung überschreibt die neue nicht", async () => {
+    const h = await mount([{ id: 1, role: "user", content: "Erste" }]);
+    const http = TestBed.inject(HttpTestingController);
+    void h.component.load();  // Neuladen der ersten Sitzung, noch offen
+    await h.fixture.whenStable();
+    const spaet = http.expectOne((r) => r.url === "/studio/api/sessions/abc-123/messages");
+    h.fixture.componentRef.setInput("sessionId", "def-456");
+    await h.fixture.whenStable();
+    http.expectOne((r) => r.url === "/studio/api/sessions/def-456/messages")
+      .flush([{ id: 2, role: "user", content: "Zweite" }]);
+    await tick();
+    spaet.flush([{ id: 9, role: "user", content: "Verspätet" }]);
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.textContent).toContain("Zweite");
+    expect(h.el.textContent).not.toContain("Verspätet");
+  });
+});

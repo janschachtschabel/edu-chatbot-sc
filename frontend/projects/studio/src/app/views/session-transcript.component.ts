@@ -68,7 +68,11 @@ export class SessionTranscriptComponent {
   constructor() {
     effect(() => {
       this.sessionId();
-      untracked(() => void this.load());
+      // Paket 19 (N-39): eine andere Sitzung — der Verlauf der vorigen gilt nicht mehr.
+      untracked(() => {
+        this.messages.clear();
+        void this.load();
+      });
     });
     effect(() => {
       const ziel = this.fokus();
