@@ -88,12 +88,21 @@ describe("QualityApi", () => {
     filtered.flush({ status: "cleared", deleted: 3 });
   });
 
-  it("treats a narrowed scope as a filter, so no confirmation is demanded", () => {
-    // The endpoint's own rule: scope != 'all' already counts as a filter.
-    void api.clearLogs("eval", {});
+  it("treats a pattern made only of LIKE wildcards as no filter, like the server", () => {
+    // Review Paket 20 (9): `%` matches everything; without `confirm` the server answered 400
+    // after the view had already asked.
+    void api.clearLogs("all", { patternId: "%_" });
     const req = http.expectOne((r) => r.url === `${BASE}/logs/clear`);
-    expect(req.request.params.has("confirm")).toBe(false);
-    expect(req.request.params.get("scope")).toBe("eval");
+    expect(req.request.params.get("confirm")).toBe("true");
+    req.flush({ status: "cleared", deleted: 0 });
+  });
+
+  it("confirms a scope-only wipe — the scope alone is no filter (Paket 20, A1)", () => {
+    // ``production`` hit almost the whole table without confirm=true.
+    void api.clearLogs("production", {});
+    const req = http.expectOne((r) => r.url === `${BASE}/logs/clear`);
+    expect(req.request.params.get("confirm")).toBe("true");
+    expect(req.request.params.get("scope")).toBe("production");
     req.flush({ status: "cleared", deleted: 2 });
   });
 
@@ -112,11 +121,11 @@ describe("QualityApi", () => {
       .toBe("agent");
   });
 
-  it("löscht nach Maschine ohne Bestätigung — die Maschine schränkt ein (Paket 13, E5)", () => {
+  it("löscht nach Maschine nur mit Bestätigung — die Maschine allein ist kein Filter (Paket 20, A1)", () => {
     void api.clearLogs("all", {}, "agent");
     const req = http.expectOne((r) => r.url === `${BASE}/logs/clear`);
     expect(req.request.params.get("engine")).toBe("agent");
-    expect(req.request.params.has("confirm")).toBe(false);
+    expect(req.request.params.get("confirm")).toBe("true");
   });
 
   it("deletes a single log by id", () => {

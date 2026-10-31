@@ -30,7 +30,6 @@ from boerdi.services.quality_analytics import (
     get_state_transitions,
     get_tight_races_breakdown,
 )
-from boerdi.services.session_origin import scope_sql
 
 router = APIRouter(
     prefix="/api/quality", tags=["quality"],
@@ -90,20 +89,23 @@ async def clear_quality_logs(
     engine: _Engine = None,
     confirm: bool = False,
 ) -> dict:
-    """Bulk-delete quality logs by filter. Deleting everything (no filter AND
-    scope='all') demands ``confirm=true`` to avoid accidental nukes."""
+    """Bulk-delete quality logs by filter. Without a narrowing filter (session,
+    pattern or intent) the call demands ``confirm=true`` to avoid accidental
+    nukes; ``scope`` and ``engine`` alone do not narrow enough."""
     # A filter counts only if it RESTRICTS (Audit 2026-09-29): an unknown
     # ``scope`` ("prod", "ALL") maps to no WHERE clause in ``scope_sql``, and
     # ``pattern_id``/``intent_id`` made only of the LIKE wildcards ``%``/``_``
     # match every row — both used to count as a filter and wiped the table
     # without ``confirm``. (A comment, not the docstring: that is part of the
     # frozen OpenAPI contract.)
+    # Paket 20 (A1): Umfang und Maschine allein befreien nicht mehr — ``scope=production``
+    # traf fast die ganze Tabelle, ``engine`` die Hälfte. Nur Sitzung, Muster und Intent
+    # schränken so ein, dass ein Löschen ohne ``confirm`` vertretbar ist; das Studio fragt
+    # ohnehin nach und schickt ``confirm`` dann mit.
     has_filter = any([
         session_id,
         pattern_id.strip("%_"),
         intent_id.strip("%_"),
-        scope_sql(scope),
-        engine,  # Paket 13 (E5): die Maschine schränkt immer ein
     ])
     if not has_filter and not confirm:
         raise HTTPException(400, msg(lang, "quality.bulkDeleteNeedsConfirm"))

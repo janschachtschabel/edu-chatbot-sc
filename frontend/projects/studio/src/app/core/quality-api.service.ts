@@ -177,17 +177,19 @@ export class QualityApi {
   }
 
   /**
-   * Bulk delete. The endpoint refuses an unfiltered wipe of every scope unless
-   * `confirm=true`, and counts a narrowed scope as a filter — mirrored here so
-   * the flag is sent exactly when it is required.
+   * Bulk delete. The endpoint refuses a wipe without `confirm=true` unless a
+   * session, pattern or intent narrows it — mirrored here so the flag is sent
+   * exactly when it is required. Scope and engine alone do not count (Paket 20,
+   * A1: `production` hit almost the whole table); the view asks before this call.
    */
   clearLogs(
     scope: QualityScope, filters: LogFilters, engine?: Engine,
   ): Promise<{ deleted: number }> {
     const params = filterParams(filters);
-    // Die Maschine schränkt ein wie der Server es zählt: die Liste zeigt nur ihre Züge, und
-    // „Alle löschen“ löscht genau diese.
-    const filtered = scope !== 'all' || !!engine || Object.values(params).some(Boolean);
+    // Wie der Server: `%`/`_` sind LIKE-Platzhalter und treffen alles — ein Muster aus
+    // nichts als ihnen schränkt nicht ein (sonst 400 nach der eigenen Rückfrage).
+    const filtered = [filters.sessionId, filters.patternId?.replace(/[%_]/g, ''),
+      filters.intentId?.replace(/[%_]/g, '')].some(Boolean);
     return this.api.post<{ deleted: number }>('/quality/logs/clear', null, {
       scope, engine, ...params, confirm: filtered ? undefined : true,
     });

@@ -6633,7 +6633,7 @@
     },
     "/api/quality/logs/clear": {
       "post": {
-        "description": "Bulk-delete quality logs by filter. Deleting everything (no filter AND\nscope='all') demands ``confirm=true`` to avoid accidental nukes.",
+        "description": "Bulk-delete quality logs by filter. Without a narrowing filter (session,\npattern or intent) the call demands ``confirm=true`` to avoid accidental\nnukes; ``scope`` and ``engine`` alone do not narrow enough.",
         "operationId": "clear_quality_logs_api_quality_logs_clear_post",
         "parameters": [
           {

@@ -71,6 +71,29 @@ describe('QualityLogsComponent — löschen', () => {
       expect(question).not.toContain('ALLE');
     });
 
+  it('nennt den Umfang der Datenbasis in der Frage und bestätigt das Löschen (Paket 20, A1)',
+    async () => {
+      const h = await mount();
+      h.fixture.componentInstance.scope.set('production');
+      await h.fixture.whenStable();
+      h.http.expectOne((r) => r.url === LOGS_URL).flush(PAGE);
+      await settle(h);
+
+      h.el.querySelector<HTMLButtonElement>('.ql-clear')!.click();
+      await h.fixture.whenStable();
+      const question = h.el.querySelector('.ql-question')!.textContent!;
+      expect(question).toContain('Datenbasis „Produktion“');
+      expect(question).not.toContain('ALLE');
+
+      h.el.querySelector<HTMLButtonElement>('.ql-confirm')!.click();
+      await h.fixture.whenStable();
+      const req = h.http.expectOne((r) => r.url === CLEAR_URL);
+      expect(req.request.params.get('scope')).toBe('production');
+      expect(req.request.params.get('confirm')).toBe('true');
+      req.flush({ status: 'cleared', deleted: 2 });
+      await settle(h);
+    });
+
   it('sends the bulk delete with the filters that are actually applied', async () => {
     const h = await mount();
     // Paket 4b, B1: die Statuszeile steht leer bereit (Live-Region vorab).
@@ -88,7 +111,7 @@ describe('QualityLogsComponent — löschen', () => {
 
     const req = h.http.expectOne((r) => r.url === CLEAR_URL);
     expect(req.request.params.get('intent_id')).toBe('I02');
-    // `confirm=true` is only for wiping every scope unfiltered — see quality-api.
+    // An intent narrows the delete, so no `confirm` — see quality-api (Paket 20, A1).
     expect(req.request.params.has('confirm')).toBe(false);
     req.flush({ deleted: 2 });
     await settle(h);
