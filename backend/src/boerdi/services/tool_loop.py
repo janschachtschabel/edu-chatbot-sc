@@ -86,6 +86,7 @@ from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.fehlertext import antwort_fehlertext
+from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.auth import aufrufer_kennung
@@ -340,6 +341,9 @@ async def _run_tool_loop(
             if isinstance(e, LlmAusgelastet):
                 # Last, kein Fehler: ohne Traceback (``llm_platz_frist`` meldet gedrosselt).
                 _logger.info("LLM API: kein Platz frei — Zug ausgelastet")
+            elif ist_voruebergehend(e):
+                # Paket 19 (N-16): Frist, 429, Verbindung — ohne Traceback, gedrosselt.
+                melde_voruebergehend(_logger, "LLM API", e)
             else:
                 _logger.exception("LLM API error (%s)", type(e).__name__)
             # Der Grund steht im Log, die Person sieht die Fehlerblase des Chats

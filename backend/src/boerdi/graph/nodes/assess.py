@@ -33,6 +33,7 @@ from boerdi.obs.tasks import cancel_and_drain
 from boerdi.obs.zeiten import schritt
 from boerdi.services.classify import classify_input
 from boerdi.services.engine_choice import laeuft_ueber_die_schleife
+from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.rag.vorab import rag_einbettung_vorab
 from boerdi.services.safety import assess_safety
@@ -157,6 +158,11 @@ async def assess(
     if isinstance(classification, LlmAusgelastet):
         # Paket 18F: Last, kein Fehler — die Frist meldet ``llm_platz_frist`` gedrosselt.
         logger.info("classify: kein LLM-Platz frei — Ersatz-Einordnung")
+        classification = _fallback_classification(ss, "I01")
+    elif isinstance(classification, Exception) and ist_voruebergehend(classification):
+        # Paket 19 (N-16): die eigene Frist (``CLASSIFY_TIMEOUT_S``), 429, Verbindung — die
+        # Vorgabe-Einordnung übernimmt; WARNING ohne Traceback, gedrosselt.
+        melde_voruebergehend(logger, "classify", classification)
         classification = _fallback_classification(ss, "I01")
     elif isinstance(classification, BaseException):
         logger.error("classify task failed: %s: %s", type(classification).__name__,

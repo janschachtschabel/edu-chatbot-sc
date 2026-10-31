@@ -1777,3 +1777,39 @@ def test_ein_fehlgeschlagener_skill_abruf_wird_nicht_gemerkt(monkeypatch):
 
     _fake, _result, state = _skill_zug(monkeypatch, fehler)
     assert "_skill_lauf" not in state["session_state"]["entities"]
+
+
+# ── Paket 19 (N-16): vorübergehende Anbieterfehler ohne Traceback, gedrosselt ──
+
+
+def _anbieterfehler(art: str):
+    import litellm
+
+    if art == "timeout":
+        return litellm.Timeout(message="Request timed out", model="gpt-x", llm_provider="openai")
+    if art == "ratelimit":
+        return litellm.RateLimitError(message="429 Optik", model="gpt-x", llm_provider="openai")
+    # Wie im Betrieb: der Netzfehler steht in der Kette (Review: ohne ihn ist es ein
+    # Programmfehler, den LiteLLM nur umbenannt hat).
+    fehler = litellm.APIConnectionError(message="Connection reset", llm_provider="openai",
+                                        model="gpt-x")
+    fehler.__context__ = ConnectionResetError("reset")
+    return fehler
+
+
+@pytest.mark.parametrize("art", ["timeout", "ratelimit", "verbindung"])
+def test_ein_voruebergehender_anbieterfehler_ist_eine_gedrosselte_warnung(
+        monkeypatch, caplog, art):
+    with caplog.at_level(logging.INFO, logger=tool_loop.__name__):
+        for _ in range(2):
+            _run_loop(monkeypatch, [], raises=_anbieterfehler(art))
+    zeilen = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert [r.levelname for r in zeilen] == ["WARNING"]
+    assert not zeilen[0].exc_info and "Optik" not in zeilen[0].getMessage()
+
+
+def test_ein_anderer_fehler_bleibt_error_mit_traceback(monkeypatch, caplog):
+    with caplog.at_level(logging.INFO, logger=tool_loop.__name__):
+        _run_loop(monkeypatch, [], raises=RuntimeError("boom"))
+    fehler = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(fehler) == 1 and fehler[0].exc_info is not None

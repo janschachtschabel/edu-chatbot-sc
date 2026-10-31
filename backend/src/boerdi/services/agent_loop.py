@@ -79,6 +79,7 @@ from boerdi.services.agent_knowledge import WISSEN_SUCHEN
 from boerdi.services.agent_tools import SUBMIT_RESULT
 from boerdi.services.agent_trace import Rundenbuch
 from boerdi.services.agent_write import WriteGate
+from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
@@ -349,6 +350,9 @@ async def run_agent_loop(
             if isinstance(e, LlmAusgelastet):
                 logger.info("Agent-Schleife: kein LLM-Platz frei — Zug ausgelastet")
                 run.ausgelastet = True
+            elif ist_voruebergehend(e):
+                # Paket 19 (N-16): Frist, 429, Verbindung — ohne Traceback, gedrosselt.
+                melde_voruebergehend(logger, "Agent-Schleife", e)
             else:
                 logger.exception("Agent-Schleife: LLM-Fehler (%s)", type(e).__name__)
             return schluss("error")

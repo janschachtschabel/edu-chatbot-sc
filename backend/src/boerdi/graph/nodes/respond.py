@@ -56,6 +56,7 @@ from boerdi.services.engine_choice import (
 )
 from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.generate import generate_response
+from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
@@ -462,6 +463,9 @@ async def respond(
                 # Review 2026-10-30: Last, kein Fehler — etwa die RAG-Einbettung eines
                 # ausgelasteten Zugs; ``llm_platz_frist`` meldet sie gedrosselt.
                 logger.info("generate_response: kein LLM-Platz frei — Zug ausgelastet")
+            elif ist_voruebergehend(_gen_err):
+                # Paket 19 (N-16): Frist, 429, Verbindung — ohne Traceback, gedrosselt.
+                melde_voruebergehend(logger, "generate_response", _gen_err)
             else:
                 logger.exception("generate_response failed (%s)", type(_gen_err).__name__)
             # Kam der Fehler aus der Datenbank (etwa der RAG-Abfrage), steht die

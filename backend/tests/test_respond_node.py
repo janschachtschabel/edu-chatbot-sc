@@ -616,3 +616,34 @@ def test_ein_gesperrter_zug_reicht_keinen_strom_weiter(monkeypatch):
 
     assert rec.gen_kwargs["on_token"] is None
     assert strom.abschluss("x")["gesperrt"] == "suchmuster"
+
+
+def test_ein_voruebergehender_anbieterfehler_ist_eine_warnung_ohne_traceback(
+        monkeypatch, caplog):
+    """Paket 19 (N-16): etwa eine Frist der RAG-Einbettung — kein ERROR mit Traceback."""
+    import logging
+
+    import litellm
+
+    rec = _Rec()
+    _install(monkeypatch, rec, gen_raises=litellm.Timeout(
+        message="Request timed out", model="gpt-x", llm_provider="openai"))
+    with caplog.at_level(logging.INFO, logger=respond_mod.__name__):
+        out = asyncio.run(respond(_ctx(), _SESSION))
+    assert out.tools_called == ["error"]
+    zeilen = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert [r.levelname for r in zeilen] == ["WARNING"] and not zeilen[0].exc_info
+
+
+def test_ein_fremder_timeouterror_bleibt_error_mit_traceback(monkeypatch, caplog):
+    """Paket 19 (N-16, Review): ein ``TimeoutError`` aus RAG/DB (asyncpg ``command_timeout``)
+    ist kein Anbieterfehler — ERROR mit Traceback wie vorher."""
+    import logging
+
+    rec = _Rec()
+    _install(monkeypatch, rec, gen_raises=TimeoutError())
+    with caplog.at_level(logging.INFO, logger=respond_mod.__name__):
+        out = asyncio.run(respond(_ctx(), _SESSION))
+    assert out.tools_called == ["error"]
+    fehler = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(fehler) == 1 and fehler[0].exc_info
