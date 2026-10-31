@@ -34,8 +34,9 @@ STAEMME = (
     "entit", "args", "argument", "signatur", "reasoning", "text", "antwort", "response", "prompt",
     "qrs", "quick_repl", "title", "titel", "sitzung",
 )
-#: Ganze Namensteile (zu kurz für einen Stamm).
-GANZE = frozenset({"q", "sig", "sid"})
+#: Ganze Namensteile (zu kurz für einen Stamm). ``nid`` (Paket 19, N-3): ein ``nodeId``-Argument,
+#: das keine UUID ist, ist Freitext aus der Anfrage („Mathe Bruchrechnung“).
+GANZE = frozenset({"q", "sig", "sid", "nid"})
 #: Nur als letzter Teil (Review 2026-10-30): ``content``, ``raw``, ``msg_content`` halten Inhalt,
 #: ``content_types`` und ``roh_modus`` dagegen eine Art bzw. einen Konfigurationswert.
 LETZTE = frozenset({"content", "raw", "roh"})
@@ -243,11 +244,12 @@ def test_der_waechter_erkennt_aliase_ketten_und_schluessel():
         "ereignis(log, 'g', wert=signature)\n"
         "logger.debug('h %s', req.session_id)\n"
         "gedrosselt(logger, logging.WARNING, 'k', 60, 'i %s', response_text)\n"
+        "logger.info('j %r', nid)\n"
     )
     gefunden = [n for aufruf, args in _logaufrufe(baum) for a in args for n in _verboten(a)]
     assert gefunden == ["ctx.req.message", "_user_msg", "extra_args", "state.get('thema')",
                         "s['query']", "query_tokens", "signature", "req.session_id",
-                        "response_text"]
+                        "response_text", "nid"]
 
 
 def test_der_waechter_laesst_helfer_kennungen_und_geschuetztes_debug_durch():

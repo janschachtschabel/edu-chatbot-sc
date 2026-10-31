@@ -188,8 +188,8 @@ async def fetch_wikipedia_summary(topic: str) -> dict[str, Any] | None:
         return None
 
     if not _is_relevant(q, title, extract):
-        logger.info("wiki reject irrelevant hit for %s: %r",  # log-ok: Titel aus Wikipedia
-                    inhalt(q), title)
+        # Paket 19 (N-4): der Treffertitel gibt das Thema der Frage fast wörtlich wieder.
+        logger.info("wiki reject irrelevant hit for %s: %s", inhalt(q), inhalt(title))
         return None
 
     return {"title": title, "extract": extract, "url": hit.get("url") or ""}
