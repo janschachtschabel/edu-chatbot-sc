@@ -174,7 +174,7 @@ async def herstellen(
     """
     if modus not in MODI:
         raise ValueError(f"unbekannter Modus {modus!r} — erlaubt: {MODI}")
-    seed = pruefen(await seed_lesen(pfad))
+    seed = await asyncio.to_thread(pruefen, await seed_lesen(pfad))
     live = await lesen()
     snapshot_id = await sichern(live) if modus == "exact" else None
     zu_schreiben: dict[str, dict[str, Any]] = {}
@@ -280,7 +280,7 @@ async def werksabgleich(
     **Kennungs-Kollisionen** (Review #6, ``kollisionen``: zu schreibende Bereiche gegen den
     Bestand → kollidierende): übersprungen und als ``konflikt`` gemeldet, nicht abgebrochen.
     """
-    seed = pruefen(await seed_lesen(pfad))
+    seed = await asyncio.to_thread(pruefen, await seed_lesen(pfad))
     zeilen = {z["area"]: z for z in await lesen()}
     plan = werkfassung.plane_werksabgleich(seed, zeilen, entfernt=await entfernte())
     konflikt = (kollisionen(plan.schreiben, {a: z["data"] for a, z in zeilen.items()})

@@ -11,6 +11,7 @@ config areas, which is what the Studio edits.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Literal
@@ -93,7 +94,7 @@ async def _apply_config(blob: bytes, lang: Locale, mode: Wiederherstellen = "mer
     safety config and M01 along), and ids pass the editor's rules (400).
     """
     areas = _lies_zip(blob, lang)
-    valid = pruefe_bereiche(areas, lang)
+    valid = await asyncio.to_thread(pruefe_bereiche, areas, lang)
     loeschen: list[str] = []
     sicherung: str | None = None
     live = await cl.current_config()

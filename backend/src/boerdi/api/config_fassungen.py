@@ -18,6 +18,7 @@ Kein Lesepfad im Chat ändert sich — die Endpunkte lesen den Seed bei Bedarf (
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 from typing import Any, Literal
 
@@ -113,7 +114,7 @@ async def umschalten(payload: Umschalten, lang: Lang) -> dict:
     except werkfassung.UmschaltEinwand as e:
         status = 404 if e.meldung == "fassung.keinWerk" else 400
         raise HTTPException(status, msg(lang, e.meldung, area=area)) from None
-    pruefe_bereiche({area: neu.data}, lang)
+    await asyncio.to_thread(pruefe_bereiche, {area: neu.data}, lang)
     einwand = kennungs_einwand({area: neu.data}, await cl.current_config(),
                                await sicherheits_kennungen())
     if einwand:

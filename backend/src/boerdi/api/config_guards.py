@@ -43,6 +43,10 @@ def _assert_servers_public(servers: object, lang: Locale) -> None:
     The primary (``wlo-mcp``) is exempt: its URL comes from ``MCP_SERVER_URL``
     and may deliberately point inside the network — ``save_mcp_servers`` strips
     it before writing regardless.
+
+    Löst Namen auf (``getaddrinfo``, blockierend): async Aufrufer rufen diese Prüfung und
+    alles, was sie enthält (``_assert_area_document_safe``, ``pruefe_bereiche``), per
+    ``asyncio.to_thread`` — ein langsamer DNS hielte sonst den ganzen Prozess an (Paket 20, B1).
     """
     for srv in servers if isinstance(servers, list) else []:
         if not isinstance(srv, dict) or srv.get("id") == _PRIMARY_ID:

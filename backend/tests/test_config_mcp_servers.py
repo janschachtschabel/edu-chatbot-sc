@@ -385,6 +385,67 @@ def test_raw_file_put_accepts_public_url(client, file_written) -> None:
     assert len(file_written) == 1
 
 
+def _im_ereignis_loop() -> bool:
+    import asyncio
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+def test_put_loest_die_adressen_ausserhalb_des_ereignis_loops_auf(client, saved,
+                                                                  monkeypatch) -> None:
+    # Paket 20 (B1): ``getaddrinfo`` blockiert — im Loop hielte ein langsamer DNS den
+    # ganzen Prozess an, nicht nur diesen Aufruf.
+    from boerdi.api import config_guards
+    im_loop: list[bool] = []
+    monkeypatch.setattr(config_guards, "assert_public_url",
+                        lambda url: im_loop.append(_im_ereignis_loop()))
+    r = client.put("/api/config/mcp-servers", headers=_AUTH, json=_body("http://8.8.8.8/mcp"))
+    assert r.status_code == 200
+    assert im_loop == [False]
+
+
+def test_wiederherstellen_prueft_ausserhalb_des_ereignis_loops(monkeypatch) -> None:
+    # Paket 20 (B1): die Restore-Prüfung löst je weiterem MCP-Server eines ZIPs Namen auf.
+    import asyncio
+
+    from boerdi.api import config_snapshots
+
+    class _Halt(Exception):
+        pass
+
+    im_loop: list[bool] = []
+
+    def _pruefe(areas, lang):
+        im_loop.append(_im_ereignis_loop())
+        raise _Halt
+
+    monkeypatch.setattr(config_snapshots, "_lies_zip", lambda blob, lang: {})
+    monkeypatch.setattr(config_snapshots, "pruefe_bereiche", _pruefe)
+    with pytest.raises(_Halt):
+        asyncio.run(config_snapshots._apply_config(b"", "de"))
+    assert im_loop == [False]
+
+
+def test_put_data_prueft_ausserhalb_des_ereignis_loops(client, monkeypatch) -> None:
+    # Paket 20 (B1): derselbe Wächter am Bereichs-Speichern (``PUT /config/data``).
+    from fastapi import HTTPException
+
+    from boerdi.api import config as config_api
+    im_loop: list[bool] = []
+
+    def _waechter(key, data, lang):
+        im_loop.append(_im_ereignis_loop())
+        raise HTTPException(400, "gestoppt")  # vor dem Schreiben: kein Store nötig
+
+    monkeypatch.setattr(config_api, "_assert_area_document_safe", _waechter)
+    r = client.put("/api/config/data/01-base/welcome-config", headers=_AUTH, json={"data": {}})
+    assert r.status_code == 400
+    assert im_loop == [False]
+
+
 def test_create_auf_eine_vorhandene_liste_sagt_es_gibt_sie_schon(client, monkeypatch) -> None:
     # Review Paket 20 (5): wie ``/config/data`` die Meldung „gibt es schon“, nicht „geändert von“.
     from datetime import UTC, datetime

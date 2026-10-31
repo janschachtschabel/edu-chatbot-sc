@@ -17,6 +17,7 @@
   den das Studio geladen hat (``expected_version``, sonst 409 wie beim Speichern).
 """
 
+import asyncio
 import copy
 
 from fastapi import APIRouter, HTTPException, Security
@@ -122,7 +123,7 @@ async def create_document(body: DocumentCreate, lang: Lang) -> dict:
     if not is_restorable_area_key(key) or gruppe_von(key) != group:
         # „P-“ ergab ``04-personas/`` — eine Zeile ohne Blatt (Review Paket 6).
         raise HTTPException(400, msg(lang, "documents.idInvalid", id=kennung))
-    _assert_area_document_safe(key, data, lang)
+    await asyncio.to_thread(_assert_area_document_safe, key, data, lang)
     fehler = modell_fehler(key, data)
     if fehler:
         raise HTTPException(status_code=422, detail=fehler)
