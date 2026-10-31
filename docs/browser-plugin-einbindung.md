@@ -251,7 +251,7 @@ Alle Werte sind HTML-Attribute, also Zeichenketten. Boolesche Attribute nehmen
 
 | Attribut | Vorgabe | Bedeutung |
 |---|---|---|
-| `persist-session` | `true` | Sitzungs-ID über Seitenwechsel behalten |
+| `persist-session` | `true` | Sitzungs-ID über Seitenwechsel behalten. `false` = die ID wird **nirgends** abgelegt, auch nicht nach „Neu starten“, und reist auch nicht als `?bsid=` zu vertrauten Hosts mit (seit Paket 19; der Eulen-Hinweis merkt sich nur einen Prüfwert) |
 | `session-key` | `boerdi_session_id` | Schlüssel im Speicher |
 | `session-cookie-domain` | leer | z.B. `.wirlernenonline.de` für Subdomain-Teilung; leer = nur `localStorage`, herkunftsisoliert |
 | `session-cookie-max-age` | `2592000` | Lebensdauer in Sekunden (30 Tage) |

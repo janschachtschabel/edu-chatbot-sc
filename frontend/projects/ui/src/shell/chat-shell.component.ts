@@ -242,6 +242,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly render = new ShellRender({
     bypassSecurityTrustHtml: (html) => this._sanitizer.bypassSecurityTrustHtml(html),
     sessionId: () => this.sessionId,
+    bsidKennung: () => this.uebergabeKennung(),
     trustedDomains: () => this._effectiveTrustedDomains(),
     inlineResultGrouping: () => this.inlineResultGroupingBool,
     t: (key, params) => this.t(key, params),
@@ -462,7 +463,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     tourReplyEn: () => this.tourReplyEn(),
     guideModeActive: this.guideModeActive,
     trustedDomains: () => this._effectiveTrustedDomains(),
-    sessionId: () => this.sessionId,
+    // Nur für die `?bsid=`-Übergabe der Lotsen-Navigation — ohne persist leer (H-4).
+    sessionId: () => this.uebergabeKennung(),
     startTour: () => { this.startTour(); },
     // Der Klick IST die Nutzergeste, ohne die der Browser das Anmeldefenster
     // blockt — deshalb wird hier synchron gestartet und nicht erst nach einem
@@ -797,6 +799,15 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Mikro-Aufnahme starten/stoppen (Transkript geht als Turn raus). */
   toggleRecording(): Promise<void> {
     return this._speech.toggleRecording();
+  }
+
+  /** **Public** — die Kennung, die als `?bsid=` zu vertrauten Hosts reisen darf:
+   *  die Sitzungs-ID nur mit `persist-session`, sonst `''` (Paket 19, Review zu
+   *  H-4). Ohne persist soll die Kennung nirgends liegen bleiben — das WLO-Widget
+   *  am Ziel (persist an) legte eine mitgereiste ID sonst bei sich ab. */
+  uebergabeKennung(): string {
+    const p = this.persistSession();
+    return p === true || p === 'true' ? this.sessionId : '';
   }
 
   /** Bot-Antwort vorlesen (bzw. laufende Ausgabe stoppen). */

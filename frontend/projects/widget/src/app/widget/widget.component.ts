@@ -322,13 +322,15 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly guideNav = new GuideNav({
     guideMode: () => this.guide.guideMode(),
     trustedDomains: () => this.guide.trustedDomains(),
-    sessionId: () => this.shell()?.sessionId,
+    // Paket 19 (Review zu H-4): ohne persist-session kein `?bsid=`.
+    sessionId: () => this.shell()?.uebergabeKennung() || undefined,
   });
 
   /** Brücken zur Host-Seite (`host-bridges.ts`). */
   private readonly bridges = new HostBridges({
     clickScope: () => this.root(),
-    sessionId: () => this.shell()?.sessionId,
+    // Paket 19 (Review zu H-4): ohne persist-session kein `?bsid=`.
+    sessionId: () => this.shell()?.uebergabeKennung() || undefined,
     trustedDomains: () => this.guide.trustedDomains(),
     interceptEduSharingLinks: () => this.interceptEduSharingLinks(),
     onInterceptedLink: p => this.linkClicked.emit(p),
@@ -715,7 +717,8 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    *  same-origin, anders als der Klick-Rewrite: das Auto-Open des Widgets und
    *  die Tour keyen auf `?bsid=`. */
   headerNavHref(b: HeaderNavButton): string {
-    return headerNavHrefWithBsid(b, this.shell()?.sessionId || '', this.guide.trustedDomains());
+    // Paket 19 (Review zu H-4): ohne persist-session kein `?bsid=`.
+    return headerNavHrefWithBsid(b, this.shell()?.uebergabeKennung() || '', this.guide.trustedDomains());
   }
 
   // ── Intern ──────────────────────────────────────────────────────

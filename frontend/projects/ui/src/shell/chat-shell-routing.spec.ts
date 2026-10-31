@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatShellComponent } from './chat-shell.component';
+import { resolveGuideNavTarget } from './input-routing';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 
@@ -26,6 +27,27 @@ function make(): { c: ChatShellComponent; fixture: ComponentFixture<ChatShellCom
 
 describe('ChatShellComponent — Input-Routing (8-4S-d2b)', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  // Paket 19, Review zu H-4: ohne `persist-session` keine Kennung als `?bsid=`
+  // an vertraute Hosts — weder im Render-Weg noch in der Lotsen-Navigation.
+  it('uebergabeKennung: ohne persist leer, mit persist die Sitzungs-ID (H-4)', () => {
+    const { c, fixture } = make();
+    c.sessionId = 'bb-12345678-1234-4123-8123-123456789abc';
+    expect(c.uebergabeKennung()).toBe(c.sessionId);
+    fixture.componentRef.setInput('persistSession', 'false');
+    expect(c.uebergabeKennung()).toBe('');
+    expect(c.render.withBsid('https://wirlernenonline.de/x')).not.toContain('bsid=');
+  });
+
+  it('onGuideNavigate ohne persist: Ziel ohne bsid (H-4)', () => {
+    const { c, fixture } = make();
+    fixture.componentRef.setInput('persistSession', false);
+    c.sessionId = 'bb-12345678-1234-4123-8123-123456789abc';
+    const ziel = (c as unknown as { _routingCtx: unknown })._routingCtx;
+    const url = resolveGuideNavTarget('https://wirlernenonline.de/ziel', ziel as never);
+    expect(url).not.toBeNull();
+    expect(url).not.toContain('bsid=');
+  });
 
   it('onQuickReply: Web-Tour-Startbutton → startTour, kein sendMessage', () => {
     const { c } = make();

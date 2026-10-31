@@ -658,6 +658,26 @@ describe('WidgetComponent', () => {
     expect(f.componentInstance.shell()?.inlineResultGroupingBool).toBe(false);
   });
 
+  // Paket 19, Review zu H-4: ohne `persist-session` reiste die Kennung trotzdem
+  // als `?bsid=` (Kopfzeilen-Navigation, Klick-Umschreiber, Lotsen-Navigation).
+  it('ohne persist-session gibt die Hülle keine Kennung zur Übergabe heraus (H-4)', () => {
+    const f = mount();
+    f.componentRef.setInput('persistSession', 'false');
+    f.componentRef.setInput('trustedDomains', 'wirlernenonline.de');
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    const c = f.componentInstance as any;
+    c.shell().sessionId = 'bb-12345678-1234-4123-8123-123456789abc';
+    const knopf = { id: 'h', label: 'Start', label_en: '', icon: 'home',
+      url: 'https://wirlernenonline.de/', new_tab: false };
+    expect(c.headerNavHref(knopf)).not.toContain('bsid=');
+    expect(c.bridges.ctx.sessionId()).toBeFalsy();
+    expect(c.guideNav.ctx.sessionId()).toBeFalsy();
+    f.componentRef.setInput('persistSession', 'true');
+    f.detectChanges();
+    expect(c.headerNavHref(knopf)).toContain('bsid=');
+  });
+
   it('resolvedPageContext trägt den widget-Marker (Backend-Session-Klassifizierung)', () => {
     const f = mount();
     f.detectChanges();
