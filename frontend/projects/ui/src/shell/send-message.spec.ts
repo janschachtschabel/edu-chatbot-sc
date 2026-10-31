@@ -696,4 +696,19 @@ describe('runSendMessage — POST-Frist und Host-Rückruf (Paket 19)', () => {
     expect(r.loading.at(-1)).toBe(false);
     expect(r.results).toEqual([]);
   });
+
+  // N-33: der Rückruf der Gastseite stand im selben `try` wie der Transport — ein
+  // werfender Rückruf ergab eine Fehlerblase unter einer gültigen Antwort.
+  it('ein werfender Ergebnis-Rückruf erzeugt keine Fehlerblase und meldet nur die Art (N-33)', async () => {
+    const fehler = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const r = makeCtx({ input: 'Frage' });
+    r.ctx.onResult = () => { throw new Error('KANARIE-geheim'); };
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.bots.map((b) => b.content)).toEqual(['', 'Antwort']);   // Lade- und Antwortblase
+    expect(r.bots.some((b) => b.content === ERROR_TEXT)).toBe(false);
+    expect(r.loading.at(-1)).toBe(false);
+    expect(r.focus).toBe(1);
+    expect(fehler).toHaveBeenCalledTimes(1);
+    expect(fehler.mock.calls.flat().map(String).join(' ')).not.toContain('KANARIE');
+  });
 });

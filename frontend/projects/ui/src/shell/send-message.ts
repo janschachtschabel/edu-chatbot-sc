@@ -158,8 +158,14 @@ export async function runSendMessage(
     ctx.setScrollTarget(botMsgId);
 
     // Erfolgs-Seiteneffekte (Tour/latestDebug/query-meta/page-action/Guides/
-    // autoSpeak) — Shell-verdrahtet.
-    ctx.onResult(resp, msg);
+    // autoSpeak) — Shell-verdrahtet. Paket 19 (Audit 2026-10-31 N-33): in einem
+    // eigenen try — darin laufen auch Rückrufe der Gastseite, und ein werfender
+    // Rückruf ergab sonst eine Fehlerblase unter einer gültigen Antwort.
+    try {
+      ctx.onResult(resp, msg);
+    } catch (err) {
+      console.error('boerdi: Nachlauf des Zugs gescheitert —', fehlerKurz(err));
+    }
   } catch (err) {
     if (veraltet()) return;
     ctx.removeMessage(loadingId);

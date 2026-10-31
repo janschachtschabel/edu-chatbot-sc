@@ -557,6 +557,23 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private _onResult(resp: ChatResponse, userMessage: string): void {
     this._tour.applyTourState(resp);
     this._setzeLetzte(resp.debug, resp.ui);
+    // Paket 19 (Audit 2026-10-31 N-33): erst, was der Zug selbst verlangt —
+    // Schreibvorgang, abgewiesene Anmeldung, Vorlesen —, dann die Rückrufe und
+    // Ereignisse der Gastseite. Ein werfender Rückruf nahm sonst alles danach mit.
+    if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
+    if (resp.auth_invalid) this._anmeldungAbgewiesen();
+    if (this._speech.autoSpeak && resp.content) {
+      this._speech.autoSpeakText(resp.content);
+    }
+    try {
+      this._meldeAnDieGastseite(resp, userMessage);
+    } catch (err) {
+      console.error('boerdi: Rückruf der Gastseite gescheitert —', fehlerKurz(err));
+    }
+  }
+
+  /** Was die Gastseite von einem Zug erfährt — Rückrufe, Ausgänge, Ereignisse. */
+  private _meldeAnDieGastseite(resp: ChatResponse, userMessage: string): void {
     // Review zu N-6: Output UND window-Ereignis nur mit `emit-query-meta` — die
     // Hülle macht den Output über Angular Elements zum DOM-Ereignis am Element.
     if (resp.query_metas?.length && _attrIsTrue(this.emitQueryMeta())) {
@@ -569,11 +586,6 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     maybeDispatchGuideSuggestion(userMessage, resp.cards, this._contexts.hostEvents);
     maybeDispatchRoutingDebug(userMessage, resp, this._contexts.hostEvents);
     this._reportAgentResult(resp);
-    if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
-    if (resp.auth_invalid) this._anmeldungAbgewiesen();
-    if (this._speech.autoSpeak && resp.content) {
-      this._speech.autoSpeakText(resp.content);
-    }
   }
 
   /** Das maschinenlesbare Ergebnis an den Gastgeber melden (2026-08-14).
@@ -614,7 +626,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Verbatim aus ALT chat.component.ts:1075-1080. */
   private dispatchPageAction(pa: { action: string; payload: any } | null | undefined): void {
     if (!pa) return;
-    if (this.onPageAction) this.onPageAction(pa);
+    // Review zu N-33: ein werfender Rückruf der Gastseite nimmt Output und
+    // Ereignis nicht mit.
+    try {
+      if (this.onPageAction) this.onPageAction(pa);
+    } catch (err) {
+      console.error('boerdi: onPageAction der Gastseite gescheitert —', fehlerKurz(err));
+    }
     this.pageAction.emit(pa);
     dispatchHostEvent(HOST_EVENTS.pageAction, pa);
   }
