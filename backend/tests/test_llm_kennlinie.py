@@ -134,3 +134,55 @@ def test_der_tarif_erreicht_nur_die_gpt5_und_gpt6_familie(senden):
     assert pfad == "/v1/chat/completions"
     for name in ("service_tier", "verbosity", "reasoning_effort", "reasoning", "text"):
         assert name not in body, name
+
+
+# ── Paket 19 (H-2): nichts bei OpenAI ablegen ───────────────────────────────
+# ``/v1/responses`` legt Anfrage und Antwort ohne ``store: false`` 30 Tage ab (Vorgabe ``true``),
+# sichtbar im Dashboard — Nachricht, Verlauf, Seitentext. LiteLLM setzt den Parameter nicht.
+@pytest.mark.parametrize("tools", [None, _WERKZEUG])
+@pytest.mark.parametrize("provider", ["openai", "b-api-openai"])
+@pytest.mark.parametrize("modell", ["gpt-6-luna", "gpt-5.6-luna"])
+def test_der_responses_weg_legt_nichts_bei_openai_ab(senden, provider, modell, tools):
+    pfad, body = senden(provider, modell, tools=tools)
+    assert pfad.endswith("/responses")
+    assert body["store"] is False
+
+
+def test_die_gpt5_familie_legt_auch_auf_chat_completions_nichts_ab(senden):
+    """gpt-5.4 bleibt am eigenen Endpunkt auf Chat-Completions — gegen ``api.openai.com`` leitet
+    LiteLLM es mit Werkzeugen still nach ``/v1/responses`` um (``responses_api_bridge_check``)."""
+    pfad, body = senden("openai", "gpt-5.4-mini", tools=_WERKZEUG)
+    assert pfad == "/v1/chat/completions"
+    assert body["store"] is False
+
+
+def test_die_academiccloud_bekommt_kein_store(senden):
+    assert "store" not in senden("b-api-academiccloud", "qwen3-30b-a3b-instruct-2507")[1]
+
+
+def test_auch_der_klassifikator_legt_nichts_ab(fang, monkeypatch):
+    """Der Klassifikator geht über instructor an ``wire_transport`` vorbei an LiteLLM — jeder
+    Versuch (instructor wiederholt bei unbrauchbarer Antwort) trägt ``store: false``."""
+    from boerdi.services import classify
+
+    basis, gefangen, _koepfe = fang
+    for name in _ENV:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_CHAT_MODEL", "gpt-6-luna")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_BASE_URL", f"{basis}/v1")
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(classify, "build_classify_system_prompt", lambda: "SYS")
+    monkeypatch.setattr(classify, "build_classify_turn_context", lambda ss, env, cs=None: "CTX")
+    gefangen.clear()
+    try:
+        # Die Antwort des Fangs ist keine Klassifikation — instructor gibt auf, der
+        # Klassifikator nimmt die Vorgabe. Gezählt werden die Anfragen.
+        asyncio.run(classify.classify_input("hi", [], {}, {}))
+    finally:
+        get_settings.cache_clear()
+    assert gefangen, "keine Anfrage am Fang"
+    for pfad, body in gefangen:
+        assert pfad == "/v1/responses" and body["store"] is False

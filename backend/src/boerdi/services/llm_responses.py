@@ -82,3 +82,22 @@ def denkparameter_verlegen(kwargs: dict[str, Any], *, gpt5_familie: bool) -> Non
             extra["verbosity"] = verbosity
     if extra:
         kwargs["extra_body"] = extra
+
+
+def nichts_ablegen(kwargs: dict[str, Any], *, gpt5_familie: bool) -> None:
+    """``store: false`` für jeden Aufruf, der bei OpenAI auf ``/v1/responses`` landen kann.
+
+    Paket 19 (H-2): Dort ist die Vorgabe ``store: true`` — OpenAI hält Anfrage und
+    Antwort (Nachricht, Verlauf, Seitentext) 30 Tage abrufbar, sichtbar im Dashboard;
+    über die b-api ebenso, sie reicht ``/openai/responses`` durch. Weder LiteLLM noch
+    die App setzten den Parameter. Er geht als ``extra_body`` mit: die Responses-Brücke
+    von LiteLLM hebt ihn heraus (``_extract_extra_body_params``), auf Chat-Completions
+    reicht der OpenAI-Client ihn durch — dort ist ``false`` ohnehin die Vorgabe, aber
+    ab gpt-5.4 leitet LiteLLM gegen ``api.openai.com`` Aufrufe mit Werkzeugen still
+    nach ``/v1/responses`` um. Deshalb gilt es für die ganze gpt-5-/gpt-6-Familie
+    (nur bei ``openai``/``b-api-openai``, ``llm_models.param_rules``), nicht für die
+    AcademicCloud. Folgezüge verweisen auf keine gespeicherten Einträge: die
+    Schleifen bauen die Assistenten-Nachricht neu, ohne ``reasoning_items``.
+    """
+    if gpt5_familie or str(kwargs.get("model", "")).startswith(RESPONSES_PRAEFIX):
+        kwargs["extra_body"] = {**(kwargs.get("extra_body") or {}), "store": False}

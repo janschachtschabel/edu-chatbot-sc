@@ -55,7 +55,11 @@ from boerdi.services.llm_parallel import (  # noqa: F401
     reset,
     semaphore,
 )
-from boerdi.services.llm_responses import RESPONSES_PRAEFIX, denkparameter_verlegen
+from boerdi.services.llm_responses import (
+    RESPONSES_PRAEFIX,
+    denkparameter_verlegen,
+    nichts_ablegen,
+)
 
 # Re-Export (Paket 17): Aufrufer sprechen ``llm.router_route`` / ``llm.antwort_modell`` an.
 from boerdi.services.llm_router import antwort_modell, router_route  # noqa: F401
@@ -209,6 +213,8 @@ def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
     # Paket 7, L2: Denktiefe und Ausführlichkeit kommen sonst nicht an (gpt-6).
     rules = param_rules(resolved)
     denkparameter_verlegen(kwargs, gpt5_familie=rules.gpt5_familie)
+    # Paket 19 (H-2): OpenAI legt auf /v1/responses sonst Anfrage und Antwort 30 Tage ab.
+    nichts_ablegen(kwargs, gpt5_familie=rules.gpt5_familie)
     # Tarif (Umgebung oder Studio-Fast-Modus, Paket 7 S1): nur OpenAI direkt, gpt-5/6 (L1).
     if get_provider() == "openai" and rules.gpt5_familie and (tarif := service_tier()):
         kwargs["service_tier"] = tarif
