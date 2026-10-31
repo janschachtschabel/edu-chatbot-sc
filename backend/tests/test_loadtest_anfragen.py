@@ -112,6 +112,72 @@ def test_die_ressourcen_messung_beginnt_erst_nach_dem_aufwaermen(monkeypatch) ->
     assert ereignisse.index("abtasten") > ereignisse.index("stufe:99:ende")
 
 
+def test_scheitert_der_endstand_bleibt_die_zeile_nicht_auf_running(monkeypatch, caplog) -> None:
+    """Paket 19 (N-13): ein Fehler im letzten ``_persist`` ließ die Zeile auf ``running`` —
+    409 für jeden neuen Lauf bis zum Herzschlag-Verfall, ohne Logzeile."""
+    import logging
+    from types import SimpleNamespace
+
+    async def stufe(app, run_id, stage_idx, concurrency, kinds, *, engine="default"):
+        return [{"kind": k, "ok": True, "status": 200, "latency_s": 1.0} for k in kinds]
+
+    async def abtasten(samples, stop):
+        await stop.wait()
+
+    gespeichert: list[tuple[str | None, dict | None]] = []
+
+    async def sichern(factory, run_id, *, status=None, result=None):
+        gespeichert.append((status, result))
+        if status == "completed":
+            raise RuntimeError("Object of type Decimal is not JSON serializable")
+        return True
+
+    monkeypatch.setattr(lt, "_run_stage", stufe)
+    monkeypatch.setattr(lt, "_sample_resources", abtasten)
+    monkeypatch.setattr(lt, "_persist", sichern)
+    profil = lt.validate_profile({"stages": [1], "requests_per_stage": 1, "mix": {"suche": 1},
+                                  "warmup": False})
+    app = SimpleNamespace(state=SimpleNamespace(session_factory=None))
+    with caplog.at_level(logging.WARNING, logger=lt.__name__):
+        asyncio.run(lt.execute_load_test(app, "lt-n13", profil))
+    assert gespeichert[-1][0] == "failed"
+    assert "RuntimeError" in gespeichert[-1][1]["error"]
+    assert any(r.levelno == logging.WARNING and "lt-n13" in r.getMessage()
+               for r in caplog.records)
+
+
+def test_der_gespeicherte_fehlertext_ist_geschwaerzt(monkeypatch):
+    """Paket 19: ``result["error"]`` geht in die DB und ins Studio — ein Datenbank-DETAIL
+    mit Werten darf dort nicht stehen (wie N-12 für Studio-``detail``)."""
+    from types import SimpleNamespace
+
+    from boerdi.services import loadtest as lt
+
+    async def stufe(app, run_id, stage_idx, concurrency, kinds, *, engine="default"):
+        raise RuntimeError("duplicate key\nDETAIL:  Key (session_id)=(bb-geheim) already exists.")
+
+    async def abtasten(samples, stop):
+        await stop.wait()
+
+    gespeichert: list[tuple[str | None, dict | None]] = []
+
+    async def sichern(factory, run_id, *, status=None, result=None):
+        gespeichert.append((status, result))
+        return True
+
+    monkeypatch.setattr(lt, "_run_stage", stufe)
+    monkeypatch.setattr(lt, "_sample_resources", abtasten)
+    monkeypatch.setattr(lt, "_persist", sichern)
+    profil = lt.validate_profile({"stages": [1], "requests_per_stage": 1, "mix": {"suche": 1},
+                                  "warmup": False})
+    app = SimpleNamespace(state=SimpleNamespace(session_factory=None))
+    asyncio.run(lt.execute_load_test(app, "lt-p19", profil))
+    fehler = gespeichert[-1][1]["error"]
+    assert gespeichert[-1][0] == "failed"
+    assert fehler.startswith("RuntimeError: duplicate key")
+    assert "bb-geheim" not in fehler
+
+
 # ── Review 2026-10-30: Fehlerblasen mit HTTP 200 sind keine Antwort ─────────────
 
 

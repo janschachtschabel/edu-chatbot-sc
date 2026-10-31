@@ -71,17 +71,24 @@ async def cancel_and_drain(
     return len(offen)
 
 
-def _retrieve_task_exception(task: asyncio.Task) -> None:
+def _retrieve_task_exception(task: asyncio.Task, stufe: int = logging.DEBUG) -> None:
     """Done-Callback für fire-and-forget-/Spekulativ-Tasks (B1, 2026-06-10).
 
     Ruft die Exception ab, damit asyncio kein "Task exception was never
     retrieved" loggt, wenn ein Task verworfen wird (z.B. Spekulativ-Suche
-    auf LP-/Canvas-Routen oder Exception vor dem Konsum)."""
+    auf LP-/Canvas-Routen oder Exception vor dem Konsum).
+
+    Paket 19 (N-13): ``stufe`` — die Vorab-Aufgaben und ``cancel_and_drain`` bleiben auf
+    DEBUG (ihr Fehler ist erwartbar, ein Verbraucher behandelt ihn), ``_spawn_background``
+    meldet WARNING: dort hört niemand mehr zu, ein abgestürzter Lauf-Job fiel sonst nicht auf."""
     try:
         exc = task.exception()
         if exc is not None:
-            # Nur der Typ (Paket 18C/18E): ein Ausnahmetext kann die Eingabe tragen.
-            logger.debug("background task ended with %s", type(exc).__name__)
+            # Nur der Typ (Paket 18C/18E): ein Ausnahmetext kann die Eingabe tragen. Der
+            # Traceback nur ab WARNING, über die schwärzenden Formatierer (``obs/log_format``).
+            logger.log(stufe, "background task %s ended with %s",
+                       getattr(task.get_coro(), "__qualname__", "?"), type(exc).__name__,
+                       exc_info=exc if stufe >= logging.WARNING else None)
     except (asyncio.CancelledError, asyncio.InvalidStateError):
         pass
 
@@ -135,7 +142,7 @@ def _spawn_background(coro: Any) -> asyncio.Task:
     t = asyncio.create_task(coro)
     _BG_TASKS.add(t)
     t.add_done_callback(lambda task: (_BG_TASKS.discard(task),
-                                      _retrieve_task_exception(task)))
+                                      _retrieve_task_exception(task, logging.WARNING)))
     return t
 
 

@@ -98,6 +98,46 @@ def test_spawn_background_discards_on_exception():
     asyncio.run(_run())
 
 
+def test_ein_absturz_im_hintergrund_steht_als_warnung_im_log(caplog):
+    """Paket 19 (N-13): bis dahin nur DEBUG — ein abgestürzter Lauf-Job fiel niemandem auf.
+    Die Zeile nennt Art und Aufgabe, nicht den Text der Ausnahme."""
+    import logging
+
+    async def _boom():
+        raise RuntimeError("Thema KANARIE7Q")
+
+    async def _run():
+        before = set(obs_tasks._BG_TASKS)
+        _spawn_background(_boom())
+        t = (set(obs_tasks._BG_TASKS) - before).pop()
+        await asyncio.gather(t, return_exceptions=True)
+        await asyncio.sleep(0)
+
+    with caplog.at_level(logging.DEBUG, logger="boerdi.obs.tasks"):
+        asyncio.run(_run())
+    warnungen = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnungen) == 1
+    zeile = warnungen[0].getMessage()
+    assert "RuntimeError" in zeile and "_boom" in zeile and "KANARIE7Q" not in zeile
+
+
+def test_abgebrochene_aufgaben_bleiben_auf_debug(caplog):
+    """``cancel_and_drain`` und die Vorab-Aufgaben: ihr Fehler ist erwartbar — DEBUG bleibt."""
+    import logging
+
+    async def _boom():
+        raise RuntimeError("x")
+
+    async def _run():
+        t = asyncio.ensure_future(_boom())
+        await asyncio.gather(t, return_exceptions=True)
+        _retrieve_task_exception(t)
+        await obs_tasks.cancel_and_drain([asyncio.ensure_future(_boom())])
+
+    with caplog.at_level(logging.DEBUG, logger="boerdi.obs.tasks"):
+        asyncio.run(_run())
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
 
 def test_eine_haengende_aufgabe_behaelt_eine_starke_referenz():
     """Review 2026-10-30: nach der Frist hielt nur noch die Schleife die Aufgabe — schwach."""
