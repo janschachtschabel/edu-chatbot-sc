@@ -1,6 +1,7 @@
 /**
  * Feldtexte (ST-1) der Seite „Identität & Schutz“, Bereich `01-base/safety-config`,
- * Teilbäume `rate_limits` (Drosselung, gelesen von `services/rate_limits.py`) und
+ * Teilbäume `rate_limits` (Drosselung, gelesen von `services/rate_limits.py`), `turn_limits`
+ * (Zug-Grenzen, Paket 19 M-4, gelesen von `api/ratelimit.py`) und
  * `logging` (Sicherheitsprotokoll, `_log_turn_safety` in `graph/build.py`).
  *
  * Schlüsselschema wie in `fields-layer-doc.ts`. `RateLimitWindow` trägt beide
@@ -50,6 +51,25 @@ export const FIELDS_DROSSELUNG_PROTOKOLL: CataloguePart = {
     'feld.RateLimitsBlock.blocked_message_en.label': 'Text bei Drosselung (Englisch)',
     'feld.RateLimitsBlock.blocked_message_en.hint':
       'Englische Fassung, gilt bei Sprache Englisch. Leer = der deutsche Text.',
+    'feld.SafetyConfigArea.turn_limits.label': 'Zug-Grenzen (HTTP)',
+    'feld.SafetyConfigArea.turn_limits.hint':
+      'Technische Grenze für Chat- und Agent-Anfragen je IP-Adresse (IPv6 je /64-Netz), je '
+      + 'Schnittstelle gezählt; darüber antwortet die Anlage mit 429 statt einer Blase. '
+      + 'Getrennt für anonyme und angemeldete Aufrufer, je Stufe ein eigener Zähler. Wirkt '
+      + 'sofort, ohne Neustart. Ein Wert lockerer als RATE_LIMIT_CHAT des Betriebs oder „off“ '
+      + 'wird gespeichert, aber im Backend-Log gewarnt.',
+    'feld.TurnLimitsBlock.anonymous.label': 'Anonym',
+    'feld.TurnLimitsBlock.anonymous.hint':
+      'Grenze für Aufrufer ohne bestätigte Anmeldung, z. B. „120/minute“ oder '
+      + '„10/second;500/hour“; „off“ schaltet ab. Leer = RATE_LIMIT_CHAT des Betriebs '
+      + '(Vorgabe 120/minute). Ein ungültiger Wert wird beim Speichern abgewiesen.',
+    'feld.TurnLimitsBlock.authenticated.label': 'Angemeldet',
+    'feld.TurnLimitsBlock.authenticated.hint':
+      'Grenze für Personen, deren Anmeldung der MCP-Server bestätigt hat, und für Züge '
+      + 'der Anlage (Evaluation, Lasttest, Studio-Probe). Ein bloß mitgeschickter '
+      + 'Zugangsblock zählt als anonym, ebenso der erste Zug einer Person und jeder Zug auf '
+      + 'einer Instanz, die die Anmeldung noch nicht geprüft hat (der Nachweis liegt je '
+      + 'Instanz, einige Minuten). Form und Vorgabe wie bei „Anonym“.',
     'feld.SafetyConfigArea.logging.label': 'Sicherheitsprotokoll',
     'feld.SafetyConfigArea.logging.hint':
       'Welche Sicherheitsentscheidungen von Chat-Zügen gespeichert werden; einsehbar unter '
@@ -106,6 +126,25 @@ export const FIELDS_DROSSELUNG_PROTOKOLL: CataloguePart = {
     'feld.RateLimitsBlock.blocked_message_en.label': 'Rate-limit message (English)',
     'feld.RateLimitsBlock.blocked_message_en.hint':
       'English version, used when the language is English. Empty = the German text.',
+    'feld.SafetyConfigArea.turn_limits.label': 'Turn limits (HTTP)',
+    'feld.SafetyConfigArea.turn_limits.hint':
+      'Technical limit for chat and agent requests per IP address (IPv6 per /64 network), '
+      + 'counted per interface; above it the installation answers 429 instead of a bubble. '
+      + 'Separate for anonymous and signed-in callers, with a counter per level. Takes effect '
+      + 'at once, no restart. A value looser than the deployment RATE_LIMIT_CHAT, or "off", '
+      + 'is saved but logged as a warning in the backend.',
+    'feld.TurnLimitsBlock.anonymous.label': 'Anonymous',
+    'feld.TurnLimitsBlock.anonymous.hint':
+      'Limit for callers without a confirmed sign-in, e.g. "120/minute" or '
+      + '"10/second;500/hour"; "off" switches it off. Empty = the deployment '
+      + 'setting RATE_LIMIT_CHAT (default 120/minute). An invalid value is rejected on save.',
+    'feld.TurnLimitsBlock.authenticated.label': 'Signed in',
+    'feld.TurnLimitsBlock.authenticated.hint':
+      'Limit for people whose sign-in the MCP server has confirmed, and for turns of the '
+      + 'installation itself (evaluation, load test, studio probe). An access block that is '
+      + 'merely sent along counts as anonymous, as do the first turn of a person and any turn '
+      + 'on an instance that has not checked the sign-in yet (the proof is kept per instance '
+      + 'for a few minutes). Format and default as for "Anonymous".',
     'feld.SafetyConfigArea.logging.label': 'Safety log',
     'feld.SafetyConfigArea.logging.hint':
       'Which safety decisions of chat turns are stored; viewable under "Safety logs".',
