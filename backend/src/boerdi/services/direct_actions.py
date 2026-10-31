@@ -49,6 +49,7 @@ nicht.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Any
@@ -249,6 +250,22 @@ async def _handle_browse_collection(
     )
 
 
+#: Was eine Direktaktion an Parametern liest — mehr trägt der Wiederholen-Chip nicht zurück.
+_AKTIONS_PARAMETER = ("collection_id", "node_id", "title")
+
+
+def _wiederholen_chip(req: ChatRequest, lang: Locale) -> str:
+    """„Nochmal versuchen“ als Aktions-Chip (Paket 19, N-23).
+
+    Als Text landete der Klick im Muster-Weg — Kuratierung und Lernpfad laufen nur über
+    ``req.action``. Das Widget kennt die Form ``__action__|<Label>|<Aktion>|<JSON>``
+    (``ui/chips/action-qr``) und sendet dann die Aktion samt Parametern erneut."""
+    params = {k: v for k in _AKTIONS_PARAMETER
+              if isinstance(v := (req.action_params or {}).get(k), str) and v}
+    return (f"__action__|{bot_text(lang, 'error.retryChip')}|{req.action}|"
+            f"{json.dumps(params, ensure_ascii=False)}")
+
+
 # ── Action: Curate collection (gap analysis: compendium vs. contents) ──────
 def _curate_search_pill(title: str, lang: Locale) -> str:
     """A plain-text pill that starts a search for missing content — routed to
@@ -335,7 +352,7 @@ async def _handle_curate_collection(
     return ChatResponse(
         session_id=req.session_id,
         content=response_text,
-        quick_replies=([bot_text(lang, "error.retryChip")] if ausgelastet
+        quick_replies=([_wiederholen_chip(req, lang)] if ausgelastet
                        else [_curate_search_pill(title, lang)]),
         debug=DebugInfo(
             pattern="ACTION: curate_collection",
@@ -392,8 +409,9 @@ async def _handle_generate_learning_path(
         used_ids = _get_used_lp_ids(session_state)
         cards_raw, was_reset = _filter_unused_cards(cards_raw, used_ids)
         if was_reset:
+            # Paket 19 (N-20): der Reset selbst erst nach dem erzeugten Lernpfad (unten) —
+            # sonst speicherte ein Fehlschlag oder „ausgelastet“ die geleerte Liste.
             lp_reset_notice = "\n\n" + bot_text(lang, "action.lp.resetNotice")
-            session_state.setdefault("entities", {})["_lp_used_node_ids"] = "[]"
         cards_raw = cards_raw[:16]
 
         if not cards_raw:
@@ -428,6 +446,7 @@ async def _handle_generate_learning_path(
             raise LlmAusgelastet("Lernpfad ohne LLM-Platz")
         if lp_reset_notice:
             response_text = (response_text or "") + lp_reset_notice
+            session_state.setdefault("entities", {})["_lp_used_node_ids"] = "[]"
 
         # Mark node_ids as used so the next LP varies (based on the full
         # candidate pool, not the post-filter subset — otherwise the diversity
@@ -493,7 +512,7 @@ async def _handle_generate_learning_path(
     if blase_gezeigt():
         # Wie unter der Fehlerblase des Chats (Review 2026-10-30): nur „Nochmal versuchen“,
         # und kein weiterer LLM-Aufruf für Schnellantworten.
-        quick_replies = [bot_text(lang, "error.retryChip")]
+        quick_replies = [_wiederholen_chip(req, lang)]  # Paket 19 (N-23)
     elif _lp_qr_mode == "none" or _lp_qr_count <= 0:
         quick_replies = []
     else:
