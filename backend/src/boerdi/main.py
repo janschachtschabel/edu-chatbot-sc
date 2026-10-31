@@ -272,6 +272,12 @@ def create_app() -> FastAPI:
     from boerdi.services.config_conflict import BereichNichtSpeicherbar
 
     app.add_exception_handler(BereichNichtSpeicherbar, nicht_speicherbar_antwort)
+    # Paket 19 (N-5): eine 422 nennt Ort, Art und Satz — nie die Eingabe (``input``/``ctx``).
+    from fastapi.exceptions import RequestValidationError
+
+    from boerdi.api.pruef_fehler import pruef_fehler_antwort
+
+    app.add_exception_handler(RequestValidationError, pruef_fehler_antwort)
 
     # studio-bff (P9-1): /studio/api/* → /api/* with key injection, cookie-gated.
     # Registered BEFORE CORS on purpose: ``add_middleware`` inserts at the front,
