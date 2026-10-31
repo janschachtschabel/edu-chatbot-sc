@@ -39,6 +39,20 @@ from boerdi.services import llm
 _logger = logging.getLogger(__name__)
 
 
+async def _schliessen(stream: Any) -> None:
+    """Den Anbieter-Strom schließen (LiteLLM ``CustomStreamWrapper.aclose``) — wirft nie.
+
+    Paket 19 (Audit 2026-10-31, N-26). LiteLLM schirmt das Schließen selbst gegen den
+    Abbruch ab; ein Fehler dabei darf den eigentlichen Ausgang nicht überdecken."""
+    schliessen = getattr(stream, "aclose", None)
+    if schliessen is None:
+        return
+    try:
+        await schliessen()
+    except Exception:  # noqa: BLE001
+        _logger.debug("LLM-Strom: Schließen gescheitert", exc_info=True)
+
+
 class _StreamedMessage:
     """Lightweight stand-in for ``ChatCompletionMessage`` produced by
     streaming. Has the attributes ``content``, ``tool_calls`` (each with
@@ -245,50 +259,55 @@ async def _stream_completion(
 
     async with metrics.llm_messung("strom"), llm.semaphore():
         stream = await llm._acompletion(**built)
-        async for chunk in stream:
-            # Final chunk in OpenAI's stream often carries the cumulative usage
-            # (only when stream_options.include_usage is set). Capture it so
-            # extract_usage works below just like for non-streaming responses.
-            if getattr(chunk, "usage", None) is not None:
-                aggregate.usage = chunk.usage
-            if getattr(chunk, "model", None):
-                aggregate.model = llm.antwort_modell(chunk.model, resolved)
-            if not chunk.choices:
-                continue
-            ch0 = chunk.choices[0]
-            delta = getattr(ch0, "delta", None)
-            if ch0.finish_reason:
-                aggregate.choices[0].finish_reason = ch0.finish_reason
-            if delta is None:
-                continue
-            if getattr(delta, "role", None):
-                msg.role = delta.role
-            if getattr(delta, "content", None):
-                # Gesammelt, nicht gesendet (Plan Token-Streaming, E-S1): eine
-                # Vorrede vor Werkzeugaufrufen blitzte sonst auf und verschwände.
-                content_parts.append(delta.content)
-            if getattr(delta, "tool_calls", None):
-                for tc_delta in delta.tool_calls:
-                    idx = getattr(tc_delta, "index", 0) or 0
-                    slot = tool_calls_accum.setdefault(idx, {
-                        "id": "", "name": "", "args_buf": "", "extractor": None,
-                    })
-                    if getattr(tc_delta, "id", None):
-                        slot["id"] = tc_delta.id
-                    fn = getattr(tc_delta, "function", None)
-                    if fn is not None:
-                        if getattr(fn, "name", None):
-                            slot["name"] = fn.name
-                            # Lazily attach the JSON-stream extractor for respond_to_user
-                            if slot["name"] == "respond_to_user" and slot["extractor"] is None:
-                                slot["extractor"] = _RespondToUserExtractor(_safe_on_token)
-                                # Replay any args we received before the name arrived
-                                if slot["args_buf"]:
-                                    slot["extractor"].feed(slot["args_buf"])
-                        if getattr(fn, "arguments", None):
-                            slot["args_buf"] += fn.arguments
-                            if slot["extractor"] is not None:
-                                slot["extractor"].feed(fn.arguments)
+        # Paket 19 (Audit 2026-10-31, N-26): bricht der Verbraucher ab (Agent-Frist, Client
+        # legt auf), bliebe die HTTP-Verbindung des Stroms bis zum GC offen.
+        try:
+            async for chunk in stream:
+                # Final chunk in OpenAI's stream often carries the cumulative usage
+                # (only when stream_options.include_usage is set). Capture it so
+                # extract_usage works below just like for non-streaming responses.
+                if getattr(chunk, "usage", None) is not None:
+                    aggregate.usage = chunk.usage
+                if getattr(chunk, "model", None):
+                    aggregate.model = llm.antwort_modell(chunk.model, resolved)
+                if not chunk.choices:
+                    continue
+                ch0 = chunk.choices[0]
+                delta = getattr(ch0, "delta", None)
+                if ch0.finish_reason:
+                    aggregate.choices[0].finish_reason = ch0.finish_reason
+                if delta is None:
+                    continue
+                if getattr(delta, "role", None):
+                    msg.role = delta.role
+                if getattr(delta, "content", None):
+                    # Gesammelt, nicht gesendet (Plan Token-Streaming, E-S1): eine
+                    # Vorrede vor Werkzeugaufrufen blitzte sonst auf und verschwände.
+                    content_parts.append(delta.content)
+                if getattr(delta, "tool_calls", None):
+                    for tc_delta in delta.tool_calls:
+                        idx = getattr(tc_delta, "index", 0) or 0
+                        slot = tool_calls_accum.setdefault(idx, {
+                            "id": "", "name": "", "args_buf": "", "extractor": None,
+                        })
+                        if getattr(tc_delta, "id", None):
+                            slot["id"] = tc_delta.id
+                        fn = getattr(tc_delta, "function", None)
+                        if fn is not None:
+                            if getattr(fn, "name", None):
+                                slot["name"] = fn.name
+                                # Lazily attach the JSON-stream extractor for respond_to_user
+                                if slot["name"] == "respond_to_user" and slot["extractor"] is None:
+                                    slot["extractor"] = _RespondToUserExtractor(_safe_on_token)
+                                    # Replay any args we received before the name arrived
+                                    if slot["args_buf"]:
+                                        slot["extractor"].feed(slot["args_buf"])
+                            if getattr(fn, "arguments", None):
+                                slot["args_buf"] += fn.arguments
+                                if slot["extractor"] is not None:
+                                    slot["extractor"].feed(fn.arguments)
+        finally:
+            await _schliessen(stream)
 
     # Live-Stream-Filter leeren — letzten Sicherheits-Tail (Hold-back) freigeben.
     _safe_on_token.flush()
