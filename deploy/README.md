@@ -730,7 +730,10 @@ ohne eigenen Handler. Für eine akute Analyse `LOG_CONTENT=true` und `LOG_LEVEL=
 dann stehen Werkzeugargumente und die Protokolle von LiteLLM, OpenAI-SDK und MCP-Client auf DEBUG;
 der Start warnt, solange der Schalter an ist. Ausnahmetexte werden beim Formatieren geschwärzt
 (Postgres-`DETAIL:`, Pydantic-`input_value=`). OpenTelemetry misst die Pfade mit Sitzungs-ID
-(`/api/sessions/…`, `/api/usage/session/…`) nicht.
+(`/api/sessions/…`, `/api/usage/session/…`) nicht; alle übrigen Server-Spans tragen statt des
+Pfads die Routen-Vorlage (`/api/eval/runs/{run_id}`, Paket 19), ohne passende Route gar keinen
+Pfad. `traceparent` geht nur an die b-api und den eigenen MCP-Server, nicht an OpenAI und nicht
+an fremde MCP-Server.
 
 **Traefiks Zugriffslog (Paket 19, H-1)** schreibt JSON ohne Pfad, Query und Kopfzeilen
 (`--accesslog.format=json`, `fields.names.RequestPath=drop`, `fields.headers.defaultmode=drop`):

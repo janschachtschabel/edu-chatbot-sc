@@ -84,6 +84,7 @@ def test_server_spans_ohne_ip_browserkennung_und_abfrage():
         "http.user_agent": "Mozilla/5.0 Probe", "url.query": "session_id=geheim",
         "http.url": "http://x/api/quality/logs?session_id=geheim",
         "http.target": "/api/quality/logs?session_id=geheim", "http.method": "GET",
+        "http.route": "/api/quality/logs",
     }) as span:
         ohne_personenbezug(span, {})
         attribute = dict(span.attributes)
@@ -153,3 +154,116 @@ def test_eine_beschreibung_ohne_doppelpunkt_geht_nicht_wortlich_hinaus() -> None
         span.set_status(Status(StatusCode.ERROR, "Key (session_id)=(bb-geheim) is not present"))
     (fertig,) = innen.get_finished_spans()
     assert "geheim" not in (fertig.status.description or "")
+
+
+_SID = "bb-0123456789abcdef0123456789abcdef"
+
+
+def test_server_spans_tragen_die_route_statt_des_pfads():
+    """Paket 19 (H-1): der Pfad trägt Kennungen (Sitzung, Lauf, Schnappschuss) — an den Collector
+    geht die Routen-Vorlage, nie der Pfad."""
+    from opentelemetry.sdk.trace import TracerProvider
+
+    from boerdi.obs.otel import ohne_personenbezug
+
+    route = "/api/usage/session/{session_id}"
+    tracer = TracerProvider().get_tracer("probe")
+    with tracer.start_as_current_span(f"GET {route}", attributes={
+        "http.route": route, "http.target": f"/api/usage/session/{_SID}?x=1",
+        "url.path": f"/api/usage/session/{_SID}",
+        "http.url": f"https://boerdi.example/api/usage/session/{_SID}?x=1",
+        "url.full": f"https://boerdi.example/api/usage/session/{_SID}",
+    }) as span:
+        ohne_personenbezug(span, {})
+        attribute = dict(span.attributes)
+    assert _SID not in str(attribute)
+    assert attribute["http.target"] == route and attribute["url.path"] == route
+    assert attribute["http.url"] == f"https://boerdi.example{route}"
+    assert attribute["url.full"] == f"https://boerdi.example{route}"
+
+
+def test_ohne_route_geht_kein_pfad_hinaus():
+    """Ein Pfad ohne passende Route (404, Abtaster) kann alles tragen — dann bleibt nur der Host."""
+    from opentelemetry.sdk.trace import TracerProvider
+
+    from boerdi.obs.otel import ohne_personenbezug
+
+    tracer = TracerProvider().get_tracer("probe")
+    with tracer.start_as_current_span("GET", attributes={
+        "http.target": f"/irgendwo/{_SID}", "http.url": f"https://boerdi.example/irgendwo/{_SID}",
+    }) as span:
+        ohne_personenbezug(span, {})
+        attribute = dict(span.attributes)
+    assert _SID not in str(attribute)
+    assert attribute["http.url"].startswith("https://boerdi.example/")
+
+
+def test_der_echte_server_span_traegt_keine_kennung_aus_dem_pfad() -> None:
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    exporter = InMemorySpanExporter()
+    app = create_app()
+
+    @app.get("/probe-otel/{kennung}")
+    def _probe(kennung: str) -> dict:
+        return {}
+
+    assert otel.setup_otel(app, exporter=exporter) is True
+    assert TestClient(app).get(f"/probe-otel/{_SID}?q=geheim").status_code == 200
+    otel.force_flush()
+    spans = exporter.get_finished_spans()
+    werte = [str(v) for s in spans for v in s.attributes.values()]
+    assert not [w for w in werte if _SID in w or "geheim" in w]
+    assert [s for s in spans if s.attributes.get("http.target") == "/probe-otel/{kennung}"]
+
+
+def test_traceparent_geht_nur_an_eigene_dienste(monkeypatch) -> None:
+    """Paket 19 (N-2): ``traceparent`` verrät Fremden (OpenAI, Fremd-MCP), welche Aufrufe zu einem
+    Zug gehören — er geht nur an die b-api und den eigenen MCP-Server (wie ``trace_id``)."""
+    import asyncio
+
+    import httpcore
+    import httpx
+    from opentelemetry import trace as ot_trace
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    monkeypatch.setenv("B_API_BASE_URL", "https://b-api.example/api")
+    monkeypatch.setenv("MCP_SERVER_URL", "https://mcp.example:8443/mcp")
+    get_settings.cache_clear()
+    assert otel.setup_otel(create_app(), exporter=InMemorySpanExporter()) is True
+    gesehen: dict[str, dict[str, str]] = {}
+
+    class _Pool:
+        async def __aenter__(self) -> "_Pool":
+            return self
+
+        async def __aexit__(self, *_a) -> None:
+            return None
+
+        async def handle_async_request(self, request: httpcore.Request) -> httpcore.Response:
+            ziel = f"{request.url.host.decode()}:{request.url.port or 443}"
+            gesehen[ziel] = {k.decode().lower(): v.decode() for k, v in request.headers}
+            return httpcore.Response(200, content=b"{}")
+
+    async def _abruf(url: str) -> None:
+        transport = httpx.AsyncHTTPTransport()
+        transport._pool = _Pool()  # kein Netz: die gebaute Anfrage wird hier abgefangen
+        async with httpx.AsyncClient(transport=transport) as client:
+            await client.get(url)
+
+    async def _lauf() -> None:
+        with ot_trace.get_tracer("probe").start_as_current_span("zug"):
+            for url in ("https://b-api.example/api/openai/responses", "https://mcp.example:8443/mcp",
+                        "https://api.openai.com/v1/responses", "https://fremd.example/mcp",
+                        "https://mcp.example/mcp"):
+                await _abruf(url)
+
+    asyncio.run(_lauf())
+    assert "traceparent" in gesehen["b-api.example:443"]
+    assert "traceparent" in gesehen["mcp.example:8443"]
+    for fremd in ("api.openai.com:443", "fremd.example:443", "mcp.example:443"):
+        assert "traceparent" not in gesehen[fremd], fremd
