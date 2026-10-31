@@ -46,6 +46,7 @@ from boerdi.services import betriebsschalter, prompt_ablage
 from boerdi.services.db_sessions import save_message
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
 from boerdi.services.fehlertext import antwort_fehlertext
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.anmeldung import abgelehnt_in_diesem_zug
 from boerdi.services.sitzungssperre import SitzungBeschaeftigt
 from boerdi.services.token_stream import TokenStrom
@@ -124,6 +125,11 @@ async def chat(
                 resp = _anmeldestand(result.get("early_response") or result.get("response"))
                 return antwort_fuer(await _postprocess_response_for_widget_modes(req, resp),
                                     intern)
+            except LlmAusgelastet as last:
+                # Paket 19 (Review 19-5, 6): Last, kein Fehler — wie im Strom (N-22) INFO
+                # statt Traceback; die Blase sagt „ausgelastet“ ohne Fehlernummer.
+                logger.info("chat endpoint: kein LLM-Platz frei — Zug ausgelastet")
+                return antwort_fuer(await _fehlerblase(session, req, last), intern)
             except Exception as impl_err:
                 # Top-level safety net: a config bug, a pattern-engine attribute
                 # error, a DB hiccup — a chat bubble with the error number (Paket 18C/D)
@@ -249,6 +255,12 @@ async def _stream_turn(
                 state = await run_turn(graph, TurnContext(req=req))
                 await _record_usage(session, req.session_id, state)
                 return _anmeldestand(state.get("early_response") or state.get("response"))
+            except LlmAusgelastet:
+                # Paket 19 (Audit N-22): Last, kein Fehler. Der Strom zeigt, was im Verlauf
+                # steht — die „ausgelastet“-Blase samt „Nochmal versuchen“ als ``result``,
+                # nicht einen ``error``-Rahmen mit Fehlernummer (den die Blase nicht trägt).
+                logger.info("chat_stream: kein LLM-Platz frei — Zug ausgelastet")
+                return await _fehlerblase(session, req, LlmAusgelastet())
             except Exception as impl_err:
                 logger.exception("chat_stream impl failed: %s", impl_err)
                 # In den Verlauf wie beim POST-Weg — legte der Client auf, holt das

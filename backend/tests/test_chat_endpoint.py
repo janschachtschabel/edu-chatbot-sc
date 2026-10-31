@@ -184,6 +184,21 @@ def test_error_persist_failure_never_masks_bubble(monkeypatch, client):
     assert "schiefgelaufen" in r.json()["content"]
 
 
+def test_ausgelastet_im_post_weg_ohne_traceback(monkeypatch, client, caplog):
+    """Review 19-5 (6): wie im Strom (N-22) — Last ist kein Fehler; die Blase ohne Nummer."""
+    import logging
+
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services.llm_parallel import LlmAusgelastet
+
+    _patch(monkeypatch, exc=LlmAusgelastet("kein Platz"))
+    with caplog.at_level(logging.DEBUG, logger=chat_api.__name__):
+        body = _post(client).json()
+    assert body["content"] == bot_text("de", "error.llmBusy")
+    zeilen = [r for r in caplog.records if r.name == chat_api.__name__]
+    assert zeilen and all(r.levelno <= logging.INFO for r in zeilen)
+
+
 @pytest.mark.parametrize("umgebung", [
     {"page_event": "context_open"},
     {"tour_action": "tick"},

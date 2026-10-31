@@ -205,6 +205,28 @@ async def test_ein_gescheiterter_zug_hinterlaesst_die_fehlerblase_im_verlauf(mon
     assert "boom" not in gespeichert.calls[0][2]      # der Satz, nicht das Innenleben
 
 
+async def test_ausgelastet_im_strom_ist_dieselbe_blase_wie_im_verlauf(monkeypatch, caplog):
+    """Audit N-22: entkam ``LlmAusgelastet`` dem Graphen, stand im Verlauf die „ausgelastet“-
+    Blase ohne Nummer, der Strom meldete aber einen Fehler MIT Nummer. Jetzt geht die Blase
+    als ``result`` hinaus — samt „Nochmal versuchen“, ohne Traceback im Log."""
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services.llm_parallel import LlmAusgelastet
+
+    _patch(monkeypatch, exc=LlmAusgelastet("kein Platz"))
+    _fake_locks(monkeypatch)
+    gespeichert = _Gespeichert()
+    monkeypatch.setattr(chat_api, "save_message", gespeichert)
+    with caplog.at_level(logging.DEBUG):
+        frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
+    assert not any(f.startswith("event: error") for f in frames)
+    ergebnis = next(f for f in frames if f.startswith("event: result"))
+    daten = json.loads(ergebnis.split("data: ", 1)[1])
+    assert daten["content"] == bot_text("de", "error.llmBusy") == gespeichert.calls[0][2]
+    assert daten["quick_replies"] == [bot_text("de", "error.retryChip")]
+    # Ohne Traceback (die DEBUG-Zeile zum Rollback der Attrappen-Sitzung zählt nicht).
+    assert not any(r.exc_info for r in caplog.records if r.levelno >= logging.INFO)
+
+
 async def test_ein_hintergrund_ping_hinterlaesst_keine_blase(monkeypatch):
     _patch(monkeypatch, exc=RuntimeError("boom"))
     _fake_locks(monkeypatch)
