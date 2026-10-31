@@ -141,3 +141,42 @@ def _frische_einstellungen():
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+def test_ein_abbruch_gibt_den_platz_erst_nach_dem_kindprozess_frei(monkeypatch):
+    """Paket 19 (Audit 2026-10-31, N-31): „eine Umwandlung zugleich“ gab bei Abbruch des
+    Aufrufers sofort frei, Thread und Kindprozess liefen weiter — die nächste startete
+    daneben (Speicherdruck auf 2 Kernen). Der Abbruch kommt trotzdem sofort an."""
+    import threading
+
+    frei = threading.Event()
+    laufend = [0, 0]
+
+    def _ausfuehren(funktion, args, frist_s, max_mb):
+        laufend[0] += 1
+        laufend[1] = max(laufend)
+        frei.wait(5)
+        laufend[0] -= 1
+        return "ok"
+
+    monkeypatch.setattr(kind, "_ausfuehren", _ausfuehren)
+
+    async def _ablauf():
+        erste = asyncio.create_task(kind.im_kindprozess(helfer.schlafe, 0))
+        await asyncio.sleep(0.05)
+        erste.cancel()
+        beginn = time.monotonic()
+        with pytest.raises(asyncio.CancelledError):
+            await erste
+        abbruch_s = time.monotonic() - beginn
+        zweite = asyncio.create_task(kind.im_kindprozess(helfer.schlafe, 0))
+        await asyncio.sleep(0.1)
+        startete_daneben = laufend[1] > 1
+        frei.set()
+        return abbruch_s, startete_daneben, await zweite
+
+    abbruch_s, startete_daneben, ergebnis = asyncio.run(_ablauf())
+    assert abbruch_s < 1.0
+    assert not startete_daneben
+    assert ergebnis == "ok"
+    assert laufend[1] == 1
