@@ -34,7 +34,7 @@ from boerdi.api.ratelimit import peer_ip, zug_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.session_locks import sitzung_sperren
 from boerdi.api.sse import sse_turn
-from boerdi.api.turn_auth import darf_diagnose, uebernimm_zugang
+from boerdi.api.turn_auth import darf_diagnose, pruefe_oeffentliche_kennung, uebernimm_zugang
 from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
@@ -109,6 +109,7 @@ async def chat(
     ``response`` (normal path). Any unhandled error becomes a graceful bubble
     instead of an HTTP 500 so the widget shows something actionable.
     """
+    pruefe_oeffentliche_kennung(request, req.session_id)  # Paket 19, M-5
     await uebernimm_zugang(request)
     intern = darf_diagnose(request)
     try:
@@ -302,6 +303,7 @@ async def chat_stream(
     # ``description`` in das eingefrorene OpenAPI-Dokument ein — der Zusatz hier
     # hat den Vertragstest brechen lassen. Gemessen 2026-08-10; die Kopfzeile
     # selbst blieb unsichtbar (``parameters`` bleibt ``None``).
+    pruefe_oeffentliche_kennung(request, req.session_id)  # Paket 19, M-5
     await uebernimm_zugang(request)
     return StreamingResponse(
         _stream_turn(req, request, sitzungen,

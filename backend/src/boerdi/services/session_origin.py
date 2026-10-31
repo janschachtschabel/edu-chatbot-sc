@@ -23,6 +23,13 @@ from sqlalchemy import ColumnElement, and_, or_
 EVAL_PREFIX: Final = "eval-"
 LOADTEST_PREFIX: Final = "loadtest-"
 STUDIO_PREFIX: Final = "studio-"
+#: Paket 19 (Audit M-5): diese Präfixe darf nur die Anlage selbst wählen — am öffentlichen
+#: Eingang weist ``api/turn_auth.pruefe_oeffentliche_kennung`` sie ab. Groß/klein wie
+#: :func:`scope_sql` (``LIKE`` unterscheidet): ``Eval-x`` zählt als Betrieb und bleibt offen.
+RESERVIERTE_PRAEFIXE: Final = (EVAL_PREFIX, LOADTEST_PREFIX, STUDIO_PREFIX)
+#: Paket 19 (N-9): die Kennung ist der einzige Schlüssel eines Verlaufs — öffentlich (Chat und
+#: Lese-Endpunkt) mindestens so lang. Das Widget erzeugt ``bb-<uuid>`` (39 Zeichen).
+MIN_OEFFENTLICHE_KENNUNG: Final = 16
 #: Quelle der Aufträge, die der Auftragstester des Studios über ``/studio/api/agent``
 #: auslöst (Paket 9, Review Paket 7 MINOR 31) — Probeläufe ohne Sitzung, kein Betrieb.
 STUDIO_QUELLE: Final = "studio-probe"

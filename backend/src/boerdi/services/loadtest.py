@@ -39,6 +39,7 @@ import asyncio
 import logging
 import statistics
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -501,6 +502,13 @@ def _engstelle(ergebnisse: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "anteile": {k: round(v / summe, 3) if summe else 0.0 for k, v in mediane.items()}}
 
 
+def lasttest_kennung(run_id: str, stage_idx: int) -> str:
+    """Eine Sitzungskennung je virtuellem Nutzer: Lauf und Stufe zum Wiederfinden, dahinter
+    ``uuid4().hex`` — die Kennung ist am offenen Lese-Endpunkt der einzige Schlüssel des
+    Verlaufs (Paket 19, Audit N-9; vorher ``…-s<Stufe>-<Nummer>``, etwa 20 Bit)."""
+    return f"{LOADTEST_PREFIX}{run_id[:8]}-s{stage_idx}-{uuid.uuid4().hex}"
+
+
 async def _run_stage(
     app: Any, run_id: str, stage_idx: int, concurrency: int, kinds: list[str],
     *, engine: str = "default",
@@ -515,7 +523,7 @@ async def _run_stage(
         ip = f"198.51.100.{(i % 50) + 1}"
         transport = httpx.ASGITransport(app=app, client=(ip, 50000 + i))
         topic = _TOPICS[(stage_idx * 7 + i) % len(_TOPICS)]
-        sid = f"{LOADTEST_PREFIX}{run_id[:8]}-s{stage_idx}-{i}"
+        sid = lasttest_kennung(run_id, stage_idx)
         async with sem, httpx.AsyncClient(
             transport=transport, base_url="http://loadtest.local",
         ) as client:

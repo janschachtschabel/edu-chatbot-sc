@@ -23,6 +23,7 @@ from boerdi.api.deps import (
 from boerdi.services.llm_auth import setze_llm_schluessel
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import is_personal_block, set_turn_auth_block
+from boerdi.services.session_origin import MIN_OEFFENTLICHE_KENNUNG, RESERVIERTE_PRAEFIXE
 from boerdi.settings import get_settings, studio_schluessel_zu_kurz
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,35 @@ def darf_diagnose(request: Request) -> bool:
         return True
     return (not expected_studio_key() and not studio_schluessel_zu_kurz()
             and get_settings().allow_open_admin)
+
+
+def pruefe_oeffentliche_kennung(request: Request, session_id: str) -> None:
+    """Reservierte Präfixe (``eval-``, ``loadtest-``, ``studio-``) nur für Züge der Anlage
+    (Paket 19, Audit M-5). Am Präfix liest die Anlage die Herkunft einer Sitzung
+    (``services/session_origin``); ein öffentlicher Aufrufer, der ``eval-…`` wählte, verschwand
+    aus den Sichten „production“ (Kosten, Nutzung, Qualität, Sitzungsliste).
+
+    Erlaubt wie :func:`darf_diagnose`: Studio-Proxy, gültiger Studio-Schlüssel (Eval, Lasttest)
+    und der reine Entwicklungsmodus — dort ist ohnehin alles offen, und Lasttest wie Eval laufen
+    lokal ohne Schlüssel.
+
+    Dazu die Mindestlänge :data:`MIN_OEFFENTLICHE_KENNUNG` (Paket 19, N-9; Review, Punkt 1):
+    der Zug lädt den Verlauf der Kennung in den Prompt — mit einer erratenen kurzen Kennung
+    hätte „wiederhole unser Gespräch“ ein fremdes Gespräch ausgegeben."""
+    reserviert = session_id.startswith(RESERVIERTE_PRAEFIXE)
+    zu_kurz = len(session_id) < MIN_OEFFENTLICHE_KENNUNG
+    if not (reserviert or zu_kurz) or darf_diagnose(request):
+        return
+    # 422 als Zahl: Starlette benennt die Konstante gerade um (…_ENTITY → …_CONTENT).
+    if reserviert:
+        raise HTTPException(
+            status_code=422,
+            detail="session_id: prefixes eval-, loadtest- and studio- are reserved",
+        )
+    raise HTTPException(
+        status_code=422,
+        detail=f"session_id: at least {MIN_OEFFENTLICHE_KENNUNG} characters",
+    )
 
 
 def uebernimm_llm_schluessel(request: Request, *, pflicht: bool = True) -> None:

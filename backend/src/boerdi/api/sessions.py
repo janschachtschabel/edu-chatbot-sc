@@ -52,6 +52,7 @@ from boerdi.services.db_sessions import (
 from boerdi.services.db_sessions import delete_session as db_delete_session
 from boerdi.services.session_admin import db_stats as get_db_stats
 from boerdi.services.session_admin import list_sessions_admin, optimize_database
+from boerdi.services.session_origin import MIN_OEFFENTLICHE_KENNUNG
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,10 @@ public_router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 # ``fullmatch``, because ``$`` let a trailing newline through.
 _SESSION_ID_RE = re.compile(SITZUNGSKENNUNG)
 _MAX_MESSAGES_LIMIT = 200
+#: Paket 19 (Audit N-9): die Kennung ist hier der einzige Schlüssel. Kürzer antwortet der offene
+#: Lese-Endpunkt wie für eine unbekannte Sitzung, ohne zu suchen. Dieselbe Grenze am Chat
+#: (``turn_auth.pruefe_oeffentliche_kennung``).
+_MIN_OEFFENTLICHE_KENNUNG = MIN_OEFFENTLICHE_KENNUNG
 
 
 def _validate_session_id(session_id: str) -> None:
@@ -296,4 +301,8 @@ async def get_session_messages(
     # Review 2026-10-30: der Verlauf ist privat, und seine Form hängt an der Freigabe — kein
     # Zwischenspeicher (Browser, Proxy) darf ihn halten oder einer anderen Anfrage geben.
     response.headers["Cache-Control"] = "private, no-store"
+    if not intern and len(session_id) < _MIN_OEFFENTLICHE_KENNUNG:
+        # Paket 19 (N-9): wie eine unbekannte Sitzung — kein Raten kurzer Kennungen. Das Studio
+        # (``intern``) liest auch alte kurze Kennungen weiter.
+        return []
     return verlauf_fuer(await get_messages(session, session_id, limit, zugakte=intern), intern)

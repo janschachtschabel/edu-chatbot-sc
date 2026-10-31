@@ -198,6 +198,10 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
     "turn_auth.py": {
         "'b-api key required: Authorization: Bearer <key> (B_API_KEY_MODE=forward)'":
             "Protokoll-Meldung an den b-api-Proxy (Paket 17, AB2), kein Redaktions-Text",
+        "'session_id: prefixes eval-, loadtest- and studio- are reserved'":
+            "Protokoll-Meldung (Paket 19, M-5): das Widget wählt nie ein solches Präfix",
+        "f'session_id: at least {MIN_OEFFENTLICHE_KENNUNG} characters'":
+            "Protokoll-Meldung (Paket 19, N-9): das Widget erzeugt `bb-<uuid>` (39 Zeichen)",
     },
     "widget.py": {
         "'invalid path'": "Auslieferung von Dateien, kein Redaktions-Text",
