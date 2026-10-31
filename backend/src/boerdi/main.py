@@ -233,7 +233,10 @@ async def _lifespan(app: FastAPI):
         await cancel_and_drain([takt, skill_takt, *master_skill_dienst.laufende_uebernahmen()],
                                bezeichnung="Herunterfahren")
         config_loader.bind_store(None)
-        await store.stop(frist_s=max(0.0, ende - uhr.time()))
+        # Paket 19 (N-25): mindestens 0,5 s — mit 0 warnte jedes Herunterfahren nach langem
+        # Abbruch der Takte „abgebrochene Aufgabe … nicht beendet“ (der Puffer der Gnadenfrist
+        # deckt die halbe Sekunde, ``test_das_herunterfahren_passt_in_die_gnadenfrist``).
+        await store.stop(frist_s=max(0.5, ende - uhr.time()))
         await engine.dispose()
 
 

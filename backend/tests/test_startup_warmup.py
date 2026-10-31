@@ -175,6 +175,31 @@ async def test_lifespan_actually_spawns_the_warmups(monkeypatch, fake_infra):
     assert 0.0 <= frist <= ABBRUCH_FRIST_S - 0.25
 
 
+async def test_der_listener_bekommt_auch_nach_verbrauchter_frist_einen_rest(
+        monkeypatch, fake_infra):
+    """Paket 19 (N-25): verbrauchten die Takte die ganze Abbruchfrist, bekam der Listener
+    ``frist_s=0`` — und warnte bei jedem Herunterfahren „1 abgebrochene Aufgabe … nicht
+    beendet“. Er bekommt mindestens eine halbe Sekunde."""
+    import boerdi.main as main_mod
+
+    monkeypatch.setattr(main_mod, "spawn_startup_warmups", lambda: None)
+    monkeypatch.setattr(main_mod, "ABBRUCH_FRIST_S", 0.1)
+
+    async def _zaeher_takt():
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.3)  # länger als die ganze (verkürzte) Frist
+            raise
+
+    monkeypatch.setattr(main_mod, "starte_master_skill_takt",
+                        lambda: asyncio.create_task(_zaeher_takt()))
+
+    async with main_mod._lifespan(_FakeApp()):
+        await asyncio.sleep(0.05)
+    assert fake_infra == [0.5]
+
+
 class _FakeApp:
     """Minimaler FastAPI-Ersatz: der Lifespan schreibt nur auf ``app.state``."""
 
