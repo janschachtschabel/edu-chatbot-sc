@@ -46,6 +46,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest
+from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
 from boerdi.services.db_sessions import get_messages, get_or_create_session
@@ -94,6 +95,9 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
         "turn_count": row.get("turn_count") or 0,
         "tour_state": row.get("tour_state") or {},
     }
+    # Paket 19 (Audit 2026-10-31, H-5): die beiden Lesezugriffe abschließen — die
+    # Zustimmungs-Prüfung darunter fragt bei offenem Vorgang ein LLM.
+    await verbindung_freigeben(session)
     # Ein offener Schreib-Vorgang gilt nur für den direkt folgenden Zug. Verworfen
     # wird HIER, vor jedem frühen Ausgang: Tour und Kontext-Gruß beenden den Zug
     # vor dem Vorlauf, und ein erst dort verworfener Vorgang überdauerte sie

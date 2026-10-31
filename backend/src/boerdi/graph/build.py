@@ -43,6 +43,11 @@ at build time; ``memory_fetch`` for ``assess`` is likewise the concrete
 ``get_memory`` bound to this session. Building + compiling per request is cheap next
 to a turn's LLM latency and keeps every seam request-scoped.
 
+Connection release (Paket 19, H-5): every node is wrapped so that a read-only
+transaction it leaves open is committed before the next node starts, and
+``memory_fetch`` releases right after reading — the shared session must not hold its
+pooled connection over MCP, moderation or LLM calls (``db/verbindung``).
+
 simplify: compiled WITHOUT a checkpointer. Turn state is durable in our own tables
 (``setup`` loads session_state, ``persist`` writes it); a LangGraph checkpointer
 would duplicate that and buys only interrupt/resume/time-travel, none of which the
@@ -60,6 +65,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.graph.nodes.assemble import assemble
 from boerdi.graph.nodes.assess import assess
 from boerdi.graph.nodes.context_greeting import context_greeting
@@ -91,6 +97,38 @@ async def _persist_user_message(ctx: TurnContext, session: AsyncSession) -> Turn
     preflight. Bare await like ALT — a DB failure propagates to the endpoint."""
     await save_message(session, ctx.req.session_id, "user", ctx.req.message)
     return ctx
+
+
+async def _gedaechtnis_lesen(
+    session: AsyncSession, session_id: str, *args: Any, **kwargs: Any,
+) -> list[dict]:
+    """``memory_fetch`` für ``assess``: ``get_memory``, danach die Verbindung frei.
+
+    Paket 19 (Audit 2026-10-31, H-5): ``assess`` liest das Gedächtnis und ruft danach die
+    Klassifikation — die Lese-Transaktion hielt die Verbindung über alle LLM-Aufrufe bis
+    ``persist`` (``db/verbindung``)."""
+    try:
+        return await get_memory(session, session_id, *args, **kwargs)
+    finally:
+        await verbindung_freigeben(session)
+
+
+def _mit_freigabe(action: Any, session: AsyncSession) -> Any:
+    """Einen Knoten so umhüllen, dass er die Verbindung des Zugs frei zurücklässt.
+
+    Paket 19 (H-5): zwischen den Knoten liegen MCP (``page_context_enrich``), Moderation
+    und LLM (``preflight``, ``assess``, ``respond``). Was ein Knoten nur gelesen hat, darf
+    die Verbindung nicht über den nächsten tragen. Nur nach regulärem Ende — eine Ausnahme
+    behandelt der Endpunkt (Rollback in ``_fehlerblase``). ``functools.wraps`` hält die
+    Signatur für LangGraph sichtbar (wie ``obs/zeiten.messe_knoten``)."""
+
+    @functools.wraps(action)
+    async def huelle(ctx: Any, *args: Any, **kwargs: Any) -> Any:
+        ergebnis = await action(ctx, *args, **kwargs)
+        await verbindung_freigeben(session)
+        return ergebnis
+
+    return huelle
 
 
 async def _log_turn_safety(ctx: TurnContext, session: AsyncSession) -> TurnContext:
@@ -152,8 +190,9 @@ def build_turn_graph(
     streaming). ``progress`` (C9) reaches the four nodes that report a step to the
     SSE stream; omitted (``POST /api/chat``) it becomes a sink-less no-op, so the
     nodes call it unconditionally. ``memory_fetch`` for ``assess`` is ``get_memory``
-    bound to this session. ``engine`` (A4) picks the machine that answers this
-    turn — ``"pattern"`` (the default, and the shipped one) or ``"agent"``;
+    bound to this session (releasing the connection afterwards, H-5). ``engine`` (A4)
+    picks the machine that answers this turn — ``"pattern"`` (the default, and the
+    shipped one) or ``"agent"``;
     ``services/engine_choice.choose_engine`` resolves it at the HTTP edge. It
     reaches ``assess`` (no classifier), ``merge`` (the type slots last one
     turn), ``route`` (no pattern selection, no fast-paths), ``respond``
@@ -165,14 +204,15 @@ def build_turn_graph(
     ``.ainvoke(TurnContext(req=...))`` runs the turn and yields a state dict — read
     ``early_response or response`` from it.
     """
-    memory_fetch = functools.partial(get_memory, session)
+    memory_fetch = functools.partial(_gedaechtnis_lesen, session)
     progress = progress or TurnProgress()
 
     g: StateGraph = StateGraph(TurnContext)
 
     def knoten(name: str, action: Any) -> None:
-        # Jeder Knoten bucht seine Dauer in den Debug-Block (Plan 2026-09-30, T8).
-        g.add_node(name, messe_knoten(name, action))
+        # Jeder Knoten bucht seine Dauer in den Debug-Block (Plan 2026-09-30, T8) und
+        # lässt die Verbindung frei zurück (Paket 19, H-5).
+        g.add_node(name, messe_knoten(name, _mit_freigabe(action, session)))
 
     knoten("setup", functools.partial(setup, session=session, peer_ip=peer_ip))
     knoten("tour", functools.partial(tour, session=session))

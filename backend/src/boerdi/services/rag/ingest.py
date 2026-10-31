@@ -22,6 +22,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import RagChunk, RagDocument
+from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.rag_chunking import chunk_markdown
 from boerdi.services.rag.embed import embed_many, expected_dim
 
@@ -56,15 +57,19 @@ async def ingest_document(
     """
     chunks = chunk_markdown(markdown_content)
 
-    doc = RagDocument(area=area, title=title, source=source)
-    session.add(doc)
-    await session.flush()  # assigns doc.id for the FK
-
     # W10: gedeckelt nebenlaeufig statt streng seriell. Vorher wartete jeder
     # Chunk auf den Netz-Roundtrip des vorigen; bei 906 Chunks sind das 906
     # Wartezeiten hintereinander. `embed_many` haelt die Reihenfolge (gather)
     # und laeuft im eigenen Kanal, damit der Import den Chat nicht belegt.
+    # Paket 19 (Audit 2026-10-31, H-5/M-10): VOR dem ersten Schreiben — sonst stand die
+    # Verbindung über die ganze Einbettung (Minuten) „idle in transaction“, und
+    # ``DB_IDLE_IN_TRANSACTION_TIMEOUT_S`` beendete sie.
+    await verbindung_freigeben(session)
     vektoren = await embed_many(chunks, kind="passage")
+
+    doc = RagDocument(area=area, title=title, source=source)
+    session.add(doc)
+    await session.flush()  # assigns doc.id for the FK
     dim = expected_dim()
     eingebettet = 0
     for i, (chunk, emb) in enumerate(zip(chunks, vektoren, strict=True)):
@@ -145,6 +150,8 @@ async def embed_missing_chunks(session: AsyncSession) -> tuple[int, int]:
     )).all()
     if not rows:
         return 0, 0
+    # Paket 19 (H-5/M-10): die Lese-Transaktion nicht über die Einbettung halten.
+    await verbindung_freigeben(session)
 
     # W10: erst nebenlaeufig einbetten (Netz), dann seriell schreiben (DB).
     # Die Trennung ist Absicht: die Savepoint-Isolation je Zeile bleibt exakt

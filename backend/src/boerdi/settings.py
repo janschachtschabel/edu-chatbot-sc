@@ -477,9 +477,10 @@ class Settings(BaseSettings):
         validation_alias=_env("DATABASE_URL"),
         description="dev default matches deploy/compose.dev.yml",
     )
-    # Paket 10 (Audit 2026-10-10, M-8): der Verbindungs-Pool je Replik. Ein Zug hält
-    # seine Sitzung über die LLM-Aufrufe hinweg; die Vorgaben sind die von
-    # SQLAlchemy (5 + 10) — ohne Eintrag ändert sich nichts.
+    # Paket 10 (Audit 2026-10-10, M-8): der Verbindungs-Pool je Replik; die Vorgaben sind
+    # die von SQLAlchemy (5 + 10). Seit Paket 19 (H-5) hält ein Zug seine Verbindung nur
+    # noch während der Abfragen, nicht über LLM und MCP — 15 Verbindungen tragen damit
+    # weit mehr als 15 gleichzeitige Züge.
     db_pool_size: int = Field(5, ge=1, validation_alias=_env("DB_POOL_SIZE"))
     db_max_overflow: int = Field(10, ge=0, validation_alias=_env("DB_MAX_OVERFLOW"))
     rate_limit_storage_uri: str = Field(
