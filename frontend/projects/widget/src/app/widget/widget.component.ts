@@ -310,6 +310,8 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     // Panel garantiert schon sichtbar (nicht mehr `display: none`) und der Hook
     // läuft auch in einem Tab, der gerade keine Frames zeichnet.
     afterRender: (cb) => afterNextRender(cb, { injector: this.injector }),
+    // Paket 19 (M-13): zugeklappt läuft keine Aufnahme ungesehen weiter.
+    discardRecording: () => this.shell()?.discardRecording(),
   });
 
   /** Studio-Config + Trusted-Domains (`guide-boot.ts`). */

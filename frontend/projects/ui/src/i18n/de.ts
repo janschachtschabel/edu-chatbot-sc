@@ -217,6 +217,10 @@ export const DE: Catalogue = {
   'error.learningPath': 'Den Lernpfad für "{title}" konnte ich leider nicht erstellen. Versuch es nochmal!',
   'error.tourStart': 'Entschuldigung, die Tour konnte gerade nicht gestartet werden. Bitte versuch es nochmal.',
   'error.transcription': 'Spracheingabe konnte nicht verarbeitet werden. Bitte tippe deine Nachricht.',
+  /** Paket 19 (N-38): Mikrofon verweigert oder nicht vorhanden — vorher endete
+   *  das stumm. Ein Satz für beide Fälle: die Abhilfe ist dieselbe. */
+  'error.micDenied': 'Ich komme nicht an dein Mikrofon. Erlaube den Zugriff in deinem Browser '
+    + 'oder tippe deine Frage einfach ein.',
   'error.generic': 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.',
   /** Paket 18C/D: der Strom meldete eine Fehlernummer — im Studio führt sie zum Zug.
    *  Satzende wie in der gespeicherten Blase des Backends (`error.internal`). */

@@ -810,6 +810,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     return p === true || p === 'true' ? this.sessionId : '';
   }
 
+  /** **Public** — laufende Aufnahme stoppen und verwerfen, ohne Transkription und
+   *  ohne Senden (Paket 19, M-13). Die Widget-Hülle ruft es beim Zuklappen. */
+  discardRecording(): void {
+    this._speech.verwerfen();
+  }
+
   /** Bot-Antwort vorlesen (bzw. laufende Ausgabe stoppen). */
   speakText(text: string): void {
     this._speech.speakText(text);

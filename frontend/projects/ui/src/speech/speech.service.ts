@@ -67,6 +67,13 @@ export class SpeechService {
   private audioChunks: Blob[] = [];
   private recordingTimer: ReturnType<typeof setInterval> | null = null;
   private speechBusy = false; // guard against double-click
+  /** Paket 19 (M-13): Merker der laufenden Aufnahme. Je Aufnahme ein eigenes
+   *  Objekt (Review): `onstop` und die Transkription lesen den Merker IHRER
+   *  Aufnahme, eine spätere Aufnahme setzt ihn nicht zurück. */
+  private aufnahme: { verworfen: boolean } | null = null;
+  /** Nach `destroy()` startet keine Aufnahme mehr (auch keine, deren
+   *  Mikrofon-Freigabe gerade noch aussteht). */
+  private zerstoert = false;
 
   // ── TTS-State ───────────────────────────────────────────────────
   private currentAudio: HTMLAudioElement | null = null;
@@ -95,20 +102,36 @@ export class SpeechService {
       this.recordingSeconds = 0;
       try {
         await this.startRecording();
-      } catch {
+      } catch (err) {
         // 8-6/zoneless: diese Rücknahme passiert NACH einem `await` (typischer
         // Fall: der Nutzer verweigert den Mikrofon-Zugriff), also außerhalb des
         // Klick-Turns. Ohne `runInZone` plant nichts eine Prüfung — der
         // Mikro-Button bliebe im Aufnahme-Zustand und das Eingabefeld gesperrt.
         // In ALT übernahm das zone.js.
         this.ctx.runInZone(() => { this.isRecording = false; });
+        // Paket 19 (Audit 2026-10-31 N-38): sonst endete ein verweigertes (oder
+        // fehlendes) Mikrofon stumm — die Person wusste nicht, warum nichts kam.
+        if (!this.zerstoert) {
+          console.warn('boerdi: Mikrofon nicht verfügbar —', fehlerKurz(err));
+          this.ctx.addBotMessage(this.ctx.t('error.micDenied'));
+        }
       }
       this.speechBusy = false;
     }
   }
 
   private async startRecording() {
+    const aufnahme = { verworfen: false };
+    this.aufnahme = aufnahme;
+    const verworfen = () => aufnahme.verworfen || this.zerstoert;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (verworfen()) {
+      // Zugeklappt oder entfernt, während der Browser noch nach der Freigabe
+      // fragte: das Mikrofon gleich wieder abgeben, nicht aufnehmen.
+      stream.getTracks().forEach(t => t.stop());
+      this.ctx.runInZone(() => { this.isRecording = false; });
+      return;
+    }
     this.mediaRecorder = new MediaRecorder(stream);
     this.audioChunks = [];
 
@@ -119,17 +142,24 @@ export class SpeechService {
     this.mediaRecorder.onstop = () => {
       const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
       stream.getTracks().forEach(t => t.stop());
+      this.audioChunks = [];
 
       this.ctx.runInZone(async () => {
         this.isRecording = false;
         this.stopRecordingTimer();
+        // Paket 19 (M-13): verworfen (Panel zugeklappt, Widget entfernt) —
+        // nichts hochladen, nichts als Zug senden.
+        if (verworfen()) return;
 
         try {
           const text = await this.ctx.transcribe(blob);
+          // Review: auch während der Transkription kann verworfen werden.
+          if (verworfen()) return;
           if (text) {
             this.ctx.onTranscript(text);
           }
         } catch (err) {
+          if (verworfen()) return;
           // Review 2026-10-30: nur die Art — ein Fehlertext kann Teile der Aufnahme tragen.
           console.error('Transcription error:', fehlerKurz(err));
           this.ctx.addBotMessage(this.ctx.t('error.transcription'));
@@ -346,11 +376,25 @@ export class SpeechService {
     }
   }
 
+  /** Laufende Aufnahme stoppen UND verwerfen: Mikrofon frei, keine Transkription,
+   *  kein Senden (Paket 19, Audit 2026-10-31 M-13). Die Widget-Hülle ruft das beim
+   *  Zuklappen (auch per Escape) — die Aufnahme-Anzeige ist dann unsichtbar. Ohne
+   *  laufende Aufnahme ein No-Op; die nächste Aufnahme läuft wieder normal. */
+  verwerfen(): void {
+    if (!this.isRecording) return;
+    if (this.aufnahme) this.aufnahme.verworfen = true;
+    try { this.stopRecording(); } catch { /* ignore */ }
+  }
+
   /** Teardown aus ``ChatComponent.ngOnDestroy`` (B9, 2026-06-10):
    *  laufende Aufnahme/TTS beim Zerstören stoppen — sonst bleibt das
    *  Mikrofon aktiv (Privacy!), der Recording-Timer tickt weiter und
-   *  eine laufende Sprachausgabe spielt ins Leere. */
+   *  eine laufende Sprachausgabe spielt ins Leere. Seit Paket 19 (M-13) wird
+   *  die Aufnahme dabei verworfen: `onstop` lud sie sonst noch hoch und
+   *  schickte das Transkript als Zug an die zerstörte Shell. */
   destroy(): void {
+    this.zerstoert = true;
+    if (this.aufnahme) this.aufnahme.verworfen = true;
     try { this.stopRecording(); } catch { /* ignore */ }
     try {
       (this.mediaRecorder as any)?.stream?.getTracks?.()

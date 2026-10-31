@@ -16,6 +16,10 @@ export interface PanelStateContext {
   focusInput: () => void;
   /** Floating-Button fokussieren (nach dem Schließen). */
   focusFab: () => void;
+  /** Laufende Mikrofon-Aufnahme stoppen und verwerfen — nichts transkribieren,
+   *  nichts senden (Paket 19, Audit 2026-10-31 M-13). Zugeklappt ist die
+   *  Aufnahme-Anzeige unsichtbar; das Mikrofon liefe sonst ungesehen weiter. */
+  discardRecording: () => void;
   /** `cb` ausführen, NACHDEM Angular gerendert hat.
    *
    *  8-6: ALT stapelte hier zwei `requestAnimationFrame` — unter zone.js war die
@@ -113,6 +117,8 @@ export class PanelState {
         });
       } catch { /* ignore */ }
     } else {
+      // M-13: zugeklappt (auch per Escape) ist die Aufnahme-Anzeige unsichtbar.
+      try { this.ctx.discardRecording(); } catch { /* ignore */ }
       // A11y: Fokus zurück auf den FAB — er wird beim Schließen erst neu
       // gerendert, existiert also vorher gar nicht.
       try {

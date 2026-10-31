@@ -21,6 +21,7 @@ function mkCtx(sessionId: () => string | undefined = () => 'bb-x') {
     scrollToLatest: () => calls.push('scroll'),
     focusInput: () => calls.push('focusInput'),
     focusFab: () => calls.push('focusFab'),
+    discardRecording: () => calls.push('discardRecording'),
     // Im Test synchron: pinnt die Verdrahtung, nicht das Render-Timing.
     afterRender: (cb) => { calls.push('afterRender'); cb(); },
   };
@@ -81,6 +82,17 @@ describe('PanelState Öffnen/Schließen', () => {
     new PanelState(ctx).setExpanded(true);
     expect(calls).toContain('scroll');
     expect(calls).toContain('focusInput');
+  });
+
+  // Paket 19, Audit 2026-10-31 M-13: Zuklappen (auch per Escape) stoppte die
+  // Aufnahme nicht — die Anzeige war dann unsichtbar, das Mikrofon lief weiter.
+  it('Schließen verwirft eine laufende Aufnahme, Öffnen nicht (M-13)', () => {
+    const { ctx, calls } = mkCtx();
+    const p = new PanelState(ctx);
+    p.setExpanded(true);
+    expect(calls).not.toContain('discardRecording');
+    p.onEscape();
+    expect(calls.filter((c) => c === 'discardRecording')).toHaveLength(1);
   });
 
   it('Schließen gibt den Fokus an den FAB zurück (A11y)', () => {

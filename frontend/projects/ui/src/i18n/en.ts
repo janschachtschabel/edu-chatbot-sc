@@ -155,6 +155,8 @@ export const EN: Catalogue = {
   'error.learningPath': 'Sorry, I could not create the learning path for “{title}”. Please try again!',
   'error.tourStart': 'Sorry, the tour could not be started just now. Please try again.',
   'error.transcription': 'Voice input could not be processed. Please type your message.',
+  'error.micDenied': 'I cannot reach your microphone. Allow access in your browser '
+    + 'or simply type your question.',
   'error.generic': 'Sorry, something went wrong. Please try again.',
   'error.genericNumber': 'Sorry, something went wrong. Please try again. (Error number: {nummer})',
   'debug.onlyInStudio': 'The full diagnostics of this answer (persona, signals, trace, cost) are in the Studio under “Sessions”.',
