@@ -8,6 +8,12 @@ Dedicated raw connection on purpose: LISTEN must outlive pooled checkouts.
 The background task reconnects with backoff when the connection drops and then
 reports the reconnect (``on_reconnect``), because notifications sent in between
 are lost; callback errors are logged and never kill the listener.
+
+Paket 19 (Audit 2026-10-31, M-1): ``is_closed()`` sees only a connection asyncpg
+itself noticed as closed. One cut silently (NAT timeout, failover without RST) stayed
+"open", no notification arrived and ``on_reconnect`` never ran. Every ``_PING_TAKT_S``
+the listener now asks ``SELECT 1`` under ``_PING_FRIST_S``; no answer means reconnect
+(and therefore resync).
 """
 
 from __future__ import annotations
@@ -26,6 +32,9 @@ logger = logging.getLogger(__name__)
 
 _RECONNECT_DELAY_S = 2.0
 _HEALTH_POLL_S = 1.0
+#: Takt und Frist der Lebensprobe auf der LISTEN-Verbindung (Paket 19, M-1).
+_PING_TAKT_S = 15.0
+_PING_FRIST_S = 5.0
 
 
 def asyncpg_dsn(sqlalchemy_url: str) -> str:
@@ -70,6 +79,11 @@ class ConfigChangeListener:
         self._stopped = False
         self._task = asyncio.create_task(self._run(), name="config-notify-listener")
 
+    @property
+    def verbunden(self) -> bool:
+        """``LISTEN`` steht (für ``/ready`` über ``ConfigStore.bereit``)."""
+        return self._connected.is_set()
+
     async def wait_connected(self, timeout: float = 5.0) -> None:
         await asyncio.wait_for(self._connected.wait(), timeout)
 
@@ -109,16 +123,38 @@ class ConfigChangeListener:
                 if connected_before:
                     self._report_reconnect()
                 connected_before = True
-                while not self._stopped and not conn.is_closed():
-                    await asyncio.sleep(_HEALTH_POLL_S)
+                await self._wache(conn)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                logger.warning("config-notify listener error: %s — reconnecting", e)
+                logger.warning("config-notify listener error: %s — reconnecting",
+                               type(e).__name__ if isinstance(e, TimeoutError) else e)
             finally:
                 self._connected.clear()
                 if conn is not None and not conn.is_closed():
-                    with contextlib.suppress(Exception):
-                        await conn.close()
+                    await _schliessen(conn)
             if not self._stopped:
                 await asyncio.sleep(_RECONNECT_DELAY_S)
+
+    async def _wache(self, conn: asyncpg.Connection) -> None:
+        """Bis zum Ende der Verbindung: ``is_closed`` im Sekundentakt, ``SELECT 1`` im
+        Takt ``_PING_TAKT_S`` — eine Probe ohne Antwort binnen ``_PING_FRIST_S`` wirft."""
+        uhr = asyncio.get_running_loop()
+        naechste_probe = uhr.time() + _PING_TAKT_S
+        while not self._stopped and not conn.is_closed():
+            await asyncio.sleep(_HEALTH_POLL_S)
+            if uhr.time() >= naechste_probe:
+                async with asyncio.timeout(_PING_FRIST_S):
+                    await conn.fetchval("SELECT 1")
+                naechste_probe = uhr.time() + _PING_TAKT_S
+
+
+async def _schliessen(conn: asyncpg.Connection) -> None:
+    """Höflich schließen, aber nicht hängen: eine still gekappte Verbindung beantwortet
+    auch das Abschiedspaket nicht — dann hart beenden."""
+    try:
+        async with asyncio.timeout(_PING_FRIST_S):
+            await conn.close()
+    except Exception:  # noqa: BLE001
+        with contextlib.suppress(Exception):
+            conn.terminate()

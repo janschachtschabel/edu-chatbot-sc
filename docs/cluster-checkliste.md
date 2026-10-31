@@ -64,6 +64,9 @@ Die Helm-Vorlage (`deploy/helm/values.example.yaml`) trägt sie bereits; hier st
   der Abfragen, nicht über LLM und MCP; jede Verbindung trägt Fristen (`DB_*_TIMEOUT_S`). Die
   Server-Fristen setzt die App per `SET` nach dem Verbindungsaufbau, nicht als Startparameter —
   PgBouncer lehnt unbekannte Startparameter ab.
+* **Config-Abgleich:** neben NOTIFY gleicht jede Kopie alle 60 s die Versionen der Bereiche ab
+  und prüft die LISTEN-Verbindung alle 15 s mit `SELECT 1`. `/ready` meldet `konfiguration`,
+  wenn weder LISTEN steht noch der Abgleich in drei Takten gelang.
 * **Gnadenfrist ≥ 75 s:** bis 5 s schließt der Pod seine Läufe, Uvicorn wartet bis 30 s auf
   offene Anfragen, danach der Lebenszyklus bis 25 s auf nachlaufende Züge, plus Abbruch und
   Abbau (5 + 5 + 2 s). Compose: `stop_grace_period: 75s`. Kubernetes:
