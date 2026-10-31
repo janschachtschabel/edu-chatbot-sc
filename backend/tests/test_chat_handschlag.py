@@ -21,6 +21,9 @@ import boerdi.api.chat_handschlag as handschlag_mod
 import boerdi.api.sse as sse_api
 from boerdi.api.schemas import ChatRequest, ChatResponse
 
+#: Paket 19 (N-9): öffentliche Kennungen brauchen mindestens 16 Zeichen.
+SID = "bb-0123456789abcdef"
+
 
 def _fabrik(log: list | None = None):
     @contextlib.asynccontextmanager
@@ -49,18 +52,18 @@ def _verlauf(monkeypatch, *, gespeichert: bool = True, letzte=None, fehler=None,
 
 async def test_der_handschlag_nennt_die_letzte_id_vor_dem_zug(monkeypatch):
     _verlauf(monkeypatch, letzte=41)
-    assert await handschlag_mod.handschlag("bb-1", _fabrik()) == {"history": True, "after_id": 41}
+    assert await handschlag_mod.handschlag(SID, _fabrik()) == {"history": True, "after_id": 41}
 
 
 async def test_eine_neue_sitzung_beginnt_bei_null(monkeypatch):
     _verlauf(monkeypatch, letzte=None)
-    assert await handschlag_mod.handschlag("bb-1", _fabrik()) == {"history": True, "after_id": 0}
+    assert await handschlag_mod.handschlag(SID, _fabrik()) == {"history": True, "after_id": 0}
 
 
 async def test_ohne_gespeicherten_verlauf_meldet_er_das_und_liest_nichts(monkeypatch):
     log: list = []
     _verlauf(monkeypatch, gespeichert=False, log=log)
-    daten = await handschlag_mod.handschlag("bb-1", _fabrik(log))
+    daten = await handschlag_mod.handschlag(SID, _fabrik(log))
     assert daten == {"history": False, "after_id": None}
     assert log == []                      # keine Sitzung, keine Abfrage
 
@@ -68,7 +71,7 @@ async def test_ohne_gespeicherten_verlauf_meldet_er_das_und_liest_nichts(monkeyp
 async def test_scheitert_der_blick_bleibt_nur_die_id_offen(monkeypatch):
     """Dann ordnet das Widget wie vor dem Review nur über den Text zu."""
     _verlauf(monkeypatch, fehler=RuntimeError("db weg"))
-    assert await handschlag_mod.handschlag("bb-1", _fabrik()) == {"history": True, "after_id": None}
+    assert await handschlag_mod.handschlag(SID, _fabrik()) == {"history": True, "after_id": None}
 
 
 async def test_ein_haengender_blick_haelt_den_handschlag_nicht_auf(monkeypatch):
@@ -80,7 +83,7 @@ async def test_ein_haengender_blick_haelt_den_handschlag_nicht_auf(monkeypatch):
     monkeypatch.setattr(handschlag_mod, "last_message_id", _haengt)
     monkeypatch.setattr(handschlag_mod, "_FRIST_S", 0.05)
     async with asyncio.timeout(1):
-        daten = await handschlag_mod.handschlag("bb-1", _fabrik())
+        daten = await handschlag_mod.handschlag(SID, _fabrik())
     assert daten == {"history": True, "after_id": None}
 
 
@@ -108,7 +111,7 @@ class _GatedGraph:
         except asyncio.CancelledError:
             self.abgebrochen = True
             raise
-        return {"response": ChatResponse(session_id="bb-1", content="FERTIG")}
+        return {"response": ChatResponse(session_id=SID, content="FERTIG")}
 
 
 def _zug(monkeypatch, graph) -> None:
@@ -123,7 +126,7 @@ def _zug(monkeypatch, graph) -> None:
 
 
 def _req():
-    return ChatRequest.model_validate({"session_id": "bb-1", "message": "Ja", "environment": {}})
+    return ChatRequest.model_validate({"session_id": SID, "message": "Ja", "environment": {}})
 
 
 def _daten(frame: str) -> dict:
@@ -150,7 +153,7 @@ async def test_gelesen_wird_vor_dem_start_des_zuges(monkeypatch):
     _zug(monkeypatch, graph)
     _verlauf(monkeypatch, letzte=12, log=log)
     [f async for f in chat_api._stream_turn(_req(), _Req(), _fabrik())]
-    assert log == [("lesen", "bb-1"), "zug"]
+    assert log == [("lesen", SID), "zug"]
 
 
 async def test_ohne_verlauf_bricht_das_auflegen_den_zug_ab(monkeypatch):

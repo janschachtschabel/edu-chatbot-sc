@@ -25,12 +25,15 @@ from boerdi.api.schemas import ChatResponse
 from boerdi.main import create_app
 from boerdi.settings import get_settings
 
+#: Paket 19 (N-9): öffentliche Kennungen brauchen mindestens 16 Zeichen.
+SID = "bb-0123456789abcdef"
+
 _SESSION = object()  # sentinel: whatever get_session yields must reach build_turn_graph
 
 
 def _ok(content="X"):
     """A normal-path graph result dict carrying a ChatResponse under ``response``."""
-    return {"response": ChatResponse(session_id="bb-1", content=content)}
+    return {"response": ChatResponse(session_id=SID, content=content)}
 
 
 @pytest.fixture()
@@ -82,7 +85,7 @@ def _patch(monkeypatch, *, result=None, exc=None):
 
 
 def _post(client, **over):
-    body = {"session_id": "bb-1", "message": "hallo", "environment": {}}
+    body = {"session_id": SID, "message": "hallo", "environment": {}}
     body.update(over)
     return client.post("/api/chat", json=body)
 
@@ -98,8 +101,8 @@ def test_returns_response_from_graph(monkeypatch, client):
 
 def test_early_response_takes_precedence_over_response(monkeypatch, client):
     _patch(monkeypatch, result={
-        "early_response": ChatResponse(session_id="bb-1", content="EARLY"),
-        "response": ChatResponse(session_id="bb-1", content="NORMAL"),
+        "early_response": ChatResponse(session_id=SID, content="EARLY"),
+        "response": ChatResponse(session_id=SID, content="NORMAL"),
     })
     assert _post(client).json()["content"] == "EARLY"
 
@@ -126,7 +129,7 @@ def test_chat_returns_200_under_active_rate_limit(monkeypatch):
     app = create_app()
     app.dependency_overrides[get_session] = lambda: _SESSION
     limited = TestClient(app, raise_server_exceptions=False)
-    r = limited.post("/api/chat", json={"session_id": "bb-1", "message": "hallo"})
+    r = limited.post("/api/chat", json={"session_id": SID, "message": "hallo"})
     assert r.status_code == 200
     assert r.json()["content"] == "HI"
     assert "x-ratelimit-limit" in {k.lower() for k in r.headers}
@@ -137,7 +140,7 @@ def test_turncontext_seeded_from_request(monkeypatch, client):
     graph, _, _ = _patch(monkeypatch, result=_ok())
     _post(client, message="frage?")
     assert graph.invoked_with.req.message == "frage?"
-    assert graph.invoked_with.req.session_id == "bb-1"
+    assert graph.invoked_with.req.session_id == SID
 
 
 def test_widget_postprocess_output_is_returned(monkeypatch, client):
@@ -227,7 +230,7 @@ def test_session_lock_acquired_and_released(monkeypatch, client):
     _patch(monkeypatch, result=_ok())
     events = _sperre(monkeypatch)
     _post(client)
-    assert events == [("acquire", "bb-1"), ("release", "bb-1")]
+    assert events == [("acquire", SID), ("release", SID)]
 
 
 def test_eine_beschaeftigte_sitzung_bekommt_409(monkeypatch, client):
@@ -235,7 +238,7 @@ def test_eine_beschaeftigte_sitzung_bekommt_409(monkeypatch, client):
     anderen Kopie — läuft nicht parallel, sondern hört „beschäftigt“."""
     _patch(monkeypatch, result=_ok())
     _sperre(monkeypatch, beschaeftigt=True)
-    r = client.post("/api/chat", json={"session_id": "bb-1", "message": "hi"})
+    r = client.post("/api/chat", json={"session_id": SID, "message": "hi"})
     assert r.status_code == 409
     assert "beschäftigt" in r.json()["detail"]
 
@@ -253,7 +256,7 @@ def test_ein_datenbankfehler_an_der_sperre_wird_zur_blase(monkeypatch, client):
         yield  # pragma: no cover
 
     monkeypatch.setattr(chat_api, "sitzung_sperren", _kaputt)
-    r = client.post("/api/chat", json={"session_id": "bb-1", "message": "hi"})
+    r = client.post("/api/chat", json={"session_id": SID, "message": "hi"})
     assert r.status_code == 200
     body = r.json()
     assert body["ui"]["pattern"] == "ERROR: unhandled_chat_exception"
@@ -265,7 +268,7 @@ def test_ein_datenbankfehler_an_der_sperre_wird_zur_blase(monkeypatch, client):
 def test_error_bubble_follows_widget_language(monkeypatch, client):
     _patch(monkeypatch, exc=RuntimeError("boom"))
     r = client.post("/api/chat", json={
-        "session_id": "bb-1", "message": "hi",
+        "session_id": SID, "message": "hi",
         "environment": {"locale": "en-GB"},
     })
     body = r.json()
@@ -318,7 +321,7 @@ def _mit_block_beobachter(monkeypatch):
 def _post_mit(client, headers=None):
     return client.post(
         "/api/chat",
-        json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+        json={"session_id": SID, "message": "hallo", "environment": {}},
         headers=headers or {},
     )
 
@@ -396,7 +399,7 @@ def test_verbrauch_wird_am_zugende_geschrieben(monkeypatch, client):
     assert _post(client).status_code == 200
     assert len(calls) == 1
     session, session_id, uebergeben, _maschine = calls[0]
-    assert session is _SESSION and session_id == "bb-1"
+    assert session is _SESSION and session_id == SID
     assert uebergeben is acc  # Identität: derselbe Merkposten, keine Kopie
 
 
@@ -405,7 +408,7 @@ def test_verbrauch_auch_bei_direkt_aktion_mit_frueh_antwort(monkeypatch, client)
     acc = {"models": {"m": {"prompt": 7, "completion": 1, "cached": 0,
                             "reasoning": 0, "calls": 1}}}
     _patch(monkeypatch, result={
-        "early_response": ChatResponse(session_id="bb-1", content="EARLY"),
+        "early_response": ChatResponse(session_id=SID, content="EARLY"),
         "usage": acc,
     })
     calls = _spy_usage(monkeypatch)
@@ -430,7 +433,7 @@ def test_der_verbrauch_traegt_die_maschine_des_debug_blocks(monkeypatch, client)
     ``response.debug.engine`` und nicht ein zweites Mal aus der Kopfzeile."""
     from boerdi.api.schemas import DebugInfo
 
-    antwort = ChatResponse(session_id="bb-1", content="HI",
+    antwort = ChatResponse(session_id=SID, content="HI",
                            debug=DebugInfo(engine="agent"))
     _patch(monkeypatch, result={"response": antwort, "usage": {"models": {}}})
     calls = _spy_usage(monkeypatch)
@@ -442,7 +445,7 @@ def test_fruehausstieg_bucht_ohne_maschine(monkeypatch, client):
     """Eine Direktaktion antwortet vor jeder Maschine; ihr Verbrauch gehört
     keiner der drei (AG-1)."""
     _patch(monkeypatch, result={
-        "early_response": ChatResponse(session_id="bb-1", content="EARLY"),
+        "early_response": ChatResponse(session_id=SID, content="EARLY"),
         "usage": {"models": {}}})
     calls = _spy_usage(monkeypatch)
     _post(client)
@@ -503,7 +506,7 @@ def test_die_fehlerblase_sieht_trace_id_und_zugakte_des_zuges(monkeypatch, clien
     graph, _, _ = _patch(monkeypatch)
     _scheitert_nach_einem_aufruf(graph)
     gesehen = _kontext_beim_speichern(monkeypatch)
-    client.post("/api/chat", json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+    client.post("/api/chat", json={"session_id": SID, "message": "hallo", "environment": {}},
                 headers={"x-client-trace-id": "zug-4711-abcdef"})
     assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]
 
@@ -514,7 +517,7 @@ def _antwort_mit_persona(monkeypatch):
     from boerdi.api.schemas import DebugInfo
 
     _patch(monkeypatch, result={"response": ChatResponse(
-        session_id="bb-1", content="x",
+        session_id=SID, content="x",
         debug=DebugInfo(pattern="M04", intent="I03", persona="P-LEH"))})
 
 
@@ -531,7 +534,7 @@ def test_mit_studio_schluessel_kommt_debug_dazu(monkeypatch, client):
     monkeypatch.setenv("STUDIO_API_KEY", "schluessel-1")
     get_settings.cache_clear()
     _antwort_mit_persona(monkeypatch)
-    r = client.post("/api/chat", json={"session_id": "bb-1", "message": "hallo"},
+    r = client.post("/api/chat", json={"session_id": SID, "message": "hallo"},
                     headers={"X-Studio-Key": "schluessel-1"})
     assert r.json()["debug"]["persona"] == "P-LEH"
 
@@ -547,6 +550,6 @@ def test_die_fehlerblase_nennt_die_fehlernummer_des_zuges(monkeypatch, client):
     """Paket 18C/D (3.4): die Nummer sind die ersten 12 Zeichen der Trace-ID — im Studio
     führt sie über die Suche zum Zug."""
     _patch(monkeypatch, exc=RuntimeError("boom"))
-    r = client.post("/api/chat", json={"session_id": "bb-1", "message": "x", "environment": {}},
+    r = client.post("/api/chat", json={"session_id": SID, "message": "x", "environment": {}},
                     headers={"x-client-trace-id": "4f2a9c01d3b7e6a8deadbeef"})
     assert r.json()["content"].endswith("(Fehlernummer: 4f2a9c01d3b7)")

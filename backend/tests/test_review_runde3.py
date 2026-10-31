@@ -15,6 +15,9 @@ from boerdi.main import create_app
 from boerdi.services import llm_auth
 from boerdi.settings import get_settings
 
+#: Paket 19 (N-9): öffentliche Kennungen brauchen mindestens 16 Zeichen.
+SID = "bb-0123456789abcdef"
+
 _PROXY_SCHLUESSEL = "k" * 36
 _ENV_SCHLUESSEL = "schluessel-der-anlage"
 _STUDIO = "studio-schluessel-fuer-tests-0123456789"
@@ -61,7 +64,7 @@ def _zug_beobachten(monkeypatch) -> dict:
     class _Graph:
         async def ainvoke(self, state):
             gesehen["schluessel"] = llm_auth.b_api_schluessel()
-            return {"response": ChatResponse(session_id="bb-1", content="X")}
+            return {"response": ChatResponse(session_id=SID, content="X")}
 
     async def _pp(req, resp, *a, **k):
         return resp
@@ -93,7 +96,7 @@ def _zug_beobachten(monkeypatch) -> dict:
     return gesehen
 
 
-_CHAT = {"session_id": "bb-1", "message": "hallo", "environment": {}}
+_CHAT = {"session_id": SID, "message": "hallo", "environment": {}}
 _WEGE = {
     "chat": ("post", "/api/chat", {"json": _CHAT}),
     "chat-strom": ("post", "/api/chat/stream", {"json": _CHAT}),

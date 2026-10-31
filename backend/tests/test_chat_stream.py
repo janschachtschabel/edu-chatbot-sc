@@ -38,6 +38,9 @@ from boerdi.main import create_app
 from boerdi.obs.progress import TurnProgress
 from boerdi.settings import get_settings
 
+#: Paket 19 (N-9): öffentliche Kennungen brauchen mindestens 16 Zeichen.
+SID = "bb-0123456789abcdef"
+
 _SESSION = object()  # sentinel: the session the turn opens must reach build_turn_graph
 
 #: Der Handschlag dieses Moduls (Review Paket 7, A-7/C-4). Der echte liest den
@@ -75,13 +78,13 @@ def _fabrik(log: list | None = None):
 
 def _ok(content="X"):
     """A normal-path graph state dict carrying a ChatResponse under ``response``."""
-    return {"response": ChatResponse(session_id="bb-1", content=content)}
+    return {"response": ChatResponse(session_id=SID, content=content)}
 
 
 def _req():
     """A ChatRequest seeded exactly like the HTTP body in the TestClient tests."""
     return ChatRequest.model_validate(
-        {"session_id": "bb-1", "message": "hallo", "environment": {}}
+        {"session_id": SID, "message": "hallo", "environment": {}}
     )
 
 
@@ -198,7 +201,7 @@ async def test_ein_gescheiterter_zug_hinterlaesst_die_fehlerblase_im_verlauf(mon
     monkeypatch.setattr(chat_api, "save_message", gespeichert)
     frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
     assert any(f.startswith("event: error") for f in frames)
-    assert [(sid, rolle) for sid, rolle, _t, _k in gespeichert.calls] == [("bb-1", "assistant")]
+    assert [(sid, rolle) for sid, rolle, _t, _k in gespeichert.calls] == [(SID, "assistant")]
     assert "boom" not in gespeichert.calls[0][2]      # der Satz, nicht das Innenleben
 
 
@@ -207,7 +210,7 @@ async def test_ein_hintergrund_ping_hinterlaesst_keine_blase(monkeypatch):
     _fake_locks(monkeypatch)
     gespeichert = _Gespeichert()
     monkeypatch.setattr(chat_api, "save_message", gespeichert)
-    req = ChatRequest.model_validate({"session_id": "bb-1", "message": "[context-open]",
+    req = ChatRequest.model_validate({"session_id": SID, "message": "[context-open]",
                                       "environment": {"page_event": "context_open"}})
     await _drain(chat_api._stream_turn(req, _Req(), _fabrik()))
     assert gespeichert.calls == []
@@ -226,7 +229,7 @@ def client(monkeypatch):
 
 
 def _post(client):
-    body = {"session_id": "bb-1", "message": "hallo", "environment": {}}
+    body = {"session_id": SID, "message": "hallo", "environment": {}}
     return client.post("/api/chat/stream", json=body)
 
 
@@ -252,8 +255,8 @@ def test_result_frame_carries_the_response(monkeypatch, client):
 
 def test_early_response_wins_in_stream(monkeypatch, client):
     _patch(monkeypatch, result={
-        "early_response": ChatResponse(session_id="bb-1", content="EARLY"),
-        "response": ChatResponse(session_id="bb-1", content="NORMAL"),
+        "early_response": ChatResponse(session_id=SID, content="EARLY"),
+        "response": ChatResponse(session_id=SID, content="NORMAL"),
     })
     r = _post(client)
     assert "EARLY" in r.text
@@ -289,7 +292,7 @@ def test_der_block_gilt_auch_im_gestreamten_zug(monkeypatch, client):
 
     client.post(
         "/api/chat/stream",
-        json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+        json={"session_id": SID, "message": "hallo", "environment": {}},
         headers={"WLO-Access-Block": "wlo2.person-y"},
     )
     assert gesehen["auth"] == "Bearer wlo2.person-y"
@@ -404,8 +407,8 @@ async def test_session_lock_acquired_and_released(monkeypatch):
     _patch(monkeypatch, result=_ok())
     events = _fake_locks(monkeypatch)
     await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
-    assert ("acquire", "bb-1") in events
-    assert ("release", "bb-1") in events
+    assert ("acquire", SID) in events
+    assert ("release", SID) in events
 
 
 class _GatedGraph:
@@ -446,9 +449,9 @@ async def test_nach_dem_abbruch_rechnet_der_zug_zu_ende(monkeypatch):
     frames = await _drain(chat_api._stream_turn(_req(), _Req(disconnected=True), _fabrik()))
 
     assert frames == [_CONNECTED]  # kein result: niemand hört zu
-    assert ("release", "bb-1") not in events               # der Zug läuft noch
+    assert ("release", SID) not in events               # der Zug läuft noch
     graph.frei.set()
-    await _bis(lambda: ("release", "bb-1") in events)
+    await _bis(lambda: ("release", SID) in events)
     assert not graph.abgebrochen
 
 
@@ -465,9 +468,9 @@ async def test_auch_ein_geschlossener_strom_laesst_den_zug_zu_ende_rechnen(monke
     await agen.__anext__()          # connected
     await agen.__anext__()          # keepalive — der Zug läuft
     await agen.aclose()
-    assert ("release", "bb-1") not in events
+    assert ("release", SID) not in events
     graph.frei.set()
-    await _bis(lambda: ("release", "bb-1") in events)
+    await _bis(lambda: ("release", SID) in events)
     assert not graph.abgebrochen
 
 
@@ -494,7 +497,7 @@ async def test_der_nachlauf_rechnet_auf_einer_eigenen_sitzung_zu_ende(monkeypatc
     assert log == ["open"]                       # der Strom ist zu, die Sitzung nicht
     assert builds == [_SESSION]
     graph.frei.set()
-    await _bis(lambda: ("release", "bb-1") in events)
+    await _bis(lambda: ("release", SID) in events)
     assert log == ["open", "close"]
 
 async def test_im_agent_endpunkt_bricht_der_abbruch_weiter_ab():
@@ -693,7 +696,7 @@ async def test_progress_after_an_exception_still_yields_the_error_frame(monkeypa
 
 async def test_keepalive_emitted_during_slow_turn(monkeypatch):
     release = asyncio.Event()
-    resp = ChatResponse(session_id="bb-1", content="DONE")
+    resp = ChatResponse(session_id=SID, content="DONE")
 
     class _GatedGraph:
         async def ainvoke(self, state):
@@ -735,7 +738,7 @@ def test_verbrauch_wird_auch_im_stream_geschrieben(monkeypatch, client):
     monkeypatch.setattr(chat_api, "record_turn_usage", _fake)
     assert _post(client).status_code == 200
     assert len(calls) == 1
-    assert calls[0][0] is _SESSION and calls[0][1] == "bb-1"
+    assert calls[0][0] is _SESSION and calls[0][1] == SID
     assert calls[0][2] is acc
 
 
@@ -760,7 +763,7 @@ def test_der_schluessel_des_proxys_gilt_auch_im_gestreamten_zug(monkeypatch, cli
     monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
     monkeypatch.setattr(chat_api, "_postprocess_response_for_widget_modes", _passthrough_pp)
     client.post("/api/chat/stream",
-                json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+                json={"session_id": SID, "message": "hallo", "environment": {}},
                 headers={"Authorization": "Bearer " + "s" * 36})
     assert gesehen["schluessel"] == "s" * 36
 
@@ -773,7 +776,7 @@ def test_auch_im_strom_sieht_die_fehlerblase_trace_id_und_zugakte(monkeypatch, c
     _scheitert_nach_einem_aufruf(graph)
     gesehen = _kontext_beim_speichern(monkeypatch)
     r = client.post("/api/chat/stream",
-                    json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+                    json={"session_id": SID, "message": "hallo", "environment": {}},
                     headers={"x-client-trace-id": "zug-4711-abcdef"})
     assert "event: error\n" in r.text
     assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]
@@ -789,7 +792,7 @@ def test_das_ergebnis_im_strom_traegt_nur_ui(monkeypatch, client):
     from boerdi.api.schemas import DebugInfo
 
     _patch(monkeypatch, result={"response": ChatResponse(
-        session_id="bb-1", content="x", debug=DebugInfo(pattern="M04"))})
+        session_id=SID, content="x", debug=DebugInfo(pattern="M04"))})
     nutzlast = _ergebnis(_post(client))
     assert nutzlast["ui"]["pattern"] == "M04" and nutzlast["debug"] is None
 
@@ -800,8 +803,8 @@ def test_mit_studio_schluessel_traegt_der_strom_debug(monkeypatch, client):
     monkeypatch.setenv("STUDIO_API_KEY", "schluessel-1")
     get_settings.cache_clear()
     _patch(monkeypatch, result={"response": ChatResponse(
-        session_id="bb-1", content="x", debug=DebugInfo(pattern="M04", persona="P-LEH"))})
-    r = client.post("/api/chat/stream", json={"session_id": "bb-1", "message": "hallo"},
+        session_id=SID, content="x", debug=DebugInfo(pattern="M04", persona="P-LEH"))})
+    r = client.post("/api/chat/stream", json={"session_id": SID, "message": "hallo"},
                     headers={"X-Studio-Key": "schluessel-1"})
     assert _ergebnis(r)["debug"]["persona"] == "P-LEH"
 
@@ -811,7 +814,7 @@ def test_der_fehlerrahmen_nennt_die_fehlernummer(monkeypatch, client):
     Person sie erst nach dem Neuladen (in der gespeicherten Blase)."""
     _patch(monkeypatch, exc=RuntimeError("boom"))
     r = client.post("/api/chat/stream",
-                    json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+                    json={"session_id": SID, "message": "hallo", "environment": {}},
                     headers={"x-client-trace-id": "4f2a9c01d3b7e6a8"})
     rahmen = [z for z in r.text.split("\n\n") if z.startswith("event: error")]
     assert json.loads(rahmen[0].split("data: ", 1)[1]) == {
