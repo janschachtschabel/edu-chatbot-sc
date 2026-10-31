@@ -325,3 +325,23 @@ def test_ein_abgewiesener_zugang_traegt_die_art_auth(monkeypatch, status):
     _patch_session(monkeypatch, _FakeSession(call_exc=gruppe))
     out = asyncio.run(call_tool("wlo_x", {}))
     assert out["error"]["kind"] == "auth"
+
+
+class _HaengendeListe(_FakeSession):
+    async def list_tools(self):
+        await asyncio.sleep(5)
+
+
+def test_discover_endet_nach_der_gesamtfrist(monkeypatch):
+    """Paket 19 (Audit 2026-10-31, N-27): ``discover_server_tools`` hatte keine
+    Gesamtfrist (SDK ``read=300``); ``GET /mcp-servers`` fragt nacheinander — bis
+    5 min je schweigendem Fremdserver. Jetzt dieselbe Frist wie ``_call_tool``."""
+    import time
+
+    _patch_session(monkeypatch, _HaengendeListe())
+    monkeypatch.setattr(transport_mod, "_frist_s", lambda: 0.2)
+
+    beginn = time.monotonic()
+    with pytest.raises(TimeoutError):
+        asyncio.run(discover_server_tools("https://u/mcp"))
+    assert time.monotonic() - beginn < 1.0

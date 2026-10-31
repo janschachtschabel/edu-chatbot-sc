@@ -309,7 +309,10 @@ async def discover_server_tools(url: str) -> list[dict[str, str]]:
     vom Studio beim Registrieren eines neuen MCP-Servers. Transportfehler
     propagieren (der aufrufende Endpoint fängt sie) — wie ALTs raise-on-failure.
     """
-    async with _open_session(resolve_mcp_url(url)) as session:
+    # Paket 19 (Audit 2026-10-31, N-27): dieselbe Gesamtfrist wie ``_call_tool`` — ohne sie
+    # galt nur das SDK (``read=300``), und ``GET /mcp-servers`` fragt nacheinander.
+    # ``TimeoutError`` geht an den Aufrufer wie jeder Transportfehler.
+    async with asyncio.timeout(_frist_s()), _open_session(resolve_mcp_url(url)) as session:
         listing = await session.list_tools()
     # Paket 11 (E): Schema und Lesend-Markierung für „Werkzeuge übernehmen“ im Studio.
     return [
