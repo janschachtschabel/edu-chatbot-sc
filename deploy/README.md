@@ -622,7 +622,9 @@ Migrationen laufen nie im Web-Prozess: nach jedem neuen Image erst den Migration
 ### Backup
 
 Läuft von selbst (`pg-backup`, täglich, Aufbewahrung `BACKUP_KEEP_DAYS`, Default
-14). Es ist eine `sleep 86400`-Schleife und kein cron: das offizielle
+14). Die Dumps enthalten alles, auch Verläufe und Protokolle, deren Frist abgelaufen
+ist — sie verlängern jede Aufbewahrungsfrist um bis zu `BACKUP_KEEP_DAYS` Tage
+(„Was der Server von selbst löscht“). Es ist eine `sleep 86400`-Schleife und kein cron: das offizielle
 Postgres-Image bringt keinen Cron-Daemon mit, und ein zweites Image dafür wäre
 mehr Lieferkette als Nutzen. Preis: der Takt verschiebt sich bei jedem Neustart
 des Containers.
@@ -645,13 +647,15 @@ Kopien nur einer zugleich) löscht, was älter ist als seine Frist — **unwider
 |---|---|---|
 | Chatnachrichten und Sitzungsgedächtnis | 30 Tage | Studio → Datenschutz (`01-base/privacy-config`) |
 | Gesprächsstand ruhender Sitzungen (Thema, Seitentitel, Suchbegriffe, Signale, Tour) | dieselbe, ab der letzten Aktivität | wie oben |
-| Sicherheitsprotokoll | 90 Tage | Studio → Agent „Rolle & Schutz“ bzw. Muster „Identität & Schutz“ (`01-base/safety-config`) |
+| Sicherheitsprotokoll | 30 Tage (bis Paket 19: 90) | Studio → Agent „Rolle & Schutz“ bzw. Muster „Identität & Schutz“ (`01-base/safety-config`) |
 | Qualitätsprotokoll | 180 Tage | Studio → Gemeinsam → Datenschutz (`01-base/quality-log-config`) |
 | Text im Qualitätsprotokoll (Nachricht, erkannte Begriffe, Begründungen, Fehlertexte) | wie die Chatnachrichten (30 Tage) — die Zeile mit ihren Kennzahlen bleibt bis zur Protokollfrist | wie die Chatnachrichten |
 
 Das Sicherheitsprotokoll hält die ersten 500 Zeichen der Nachricht und die IP
-(riskante und gedrosselte Züge, mit `log_all_turns` alle) — also länger als die
-Nachrichten selbst; bei Bedarf die Fristen angleichen. Im Qualitätsprotokoll leert
+(riskante und gedrosselte Züge, mit `log_all_turns` alle) — seit Paket 19 (Entscheid
+P19-E4) so lange wie die Nachrichten selbst, nicht mehr dreimal so lange. Eine im Studio
+unberührte Anlage folgt der neuen Vorgabe beim nächsten `migrate`
+(`import-config --werksabgleich`); eine dort gesetzte eigene Frist bleibt. Im Qualitätsprotokoll leert
 der Lauf den Text nach der Gesprächsfrist (seit Paket 16, Marke `text_geleert`;
 Teilindex aus Migration 0013).
 
@@ -660,7 +664,10 @@ ginge die Kostenübersicht mit); löschen lassen sie sich einzeln in der Studio-
 „Sessions“ oder über „Gespräche löschen“. Das Studio zeigt unter Datenschutz →
 Aufbewahrung je Bereich, was fällig ist, und löst den Lauf auf Wunsch sofort aus.
 **Die Sicherungen** (`pg-backup`) enthalten gelöschte Daten noch bis zu
-`BACKUP_KEEP_DAYS` Tage — eine Auskunft oder Löschung auf Anfrage muss sie mitdenken.
+`BACKUP_KEEP_DAYS` Tage (Vorgabe 14) — jede Frist oben verlängert sich damit
+tatsächlich um bis zu 14 Tage (Verlauf also bis 44 statt 30 Tage), und eine Auskunft
+oder Löschung auf Anfrage muss die Dumps mitdenken. Wer das nicht will, setzt
+`BACKUP_KEEP_DAYS` kürzer und nennt die Zahl im Verzeichnis der Verarbeitungstätigkeiten.
 
 **Auf `b-api-academiccloud`** gibt es keine Moderation (die Nachrichten bleiben dort),
 aber die Einbettungen für die Wissenssuche gehen über den OpenAI-Pfad der b-api an

@@ -80,9 +80,10 @@ _Tage = Annotated[int, Field(ge=0), BeforeValidator(_keine_wahrheitswerte)]
 class SafetyLoggingBlock(AreaModel):
     enabled: bool = True
     log_all_turns: bool = False
-    # Wie im Auslieferungsstand (Paket 9, Review Paket 7 MINOR 15): fehlte das Feld,
-    # löschte der Lauf nach 30 statt 90 Tagen — unwiderruflich.
-    retention_days: _Tage = 90
+    # Wie im Auslieferungsstand (Paket 9, Review Paket 7 MINOR 15: Modell und Seed
+    # gingen auseinander). Paket 19 (P19-E4, Nutzer 2026-10-31): 30 statt 90 Tage — die
+    # Einträge halten 500 Zeichen der Nachricht und die IP, so lange wie der Verlauf.
+    retention_days: _Tage = 30
 
 
 #: D-14 (Nutzer, 2026-09-27): die Antwort des Agent-Endpunkts auf eine Krise —

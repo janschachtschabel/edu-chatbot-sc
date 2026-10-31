@@ -98,4 +98,5 @@ rate_limits:
 logging:
   enabled: true
   log_all_turns: false
-  retention_days: 90
+  # Paket 19 (P19-E4): 30 Tage wie der Verlauf (bis dahin 90).
+  retention_days: 30

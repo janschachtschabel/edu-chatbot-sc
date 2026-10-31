@@ -251,7 +251,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - Werte in `deploy/helm/values.example.yaml`: Requests 500m CPU / 1 GiB, Limit 2 GiB.
 - Der ganze Stack lief bisher auf 2 Kernen / 4 GB.
 - Der Reranker lädt etwa 135 MB ins RAM je Pod.
-- Speicher: Postgres wächst mit Verlauf (30 Tage; je Antwort seit Paket 18C/D die Zugakte im Diagnoseteil — Werkzeugaufrufe mit Argumenten, gedeckelt auf 1 000 Zeichen je Wert und 50 Aufrufe je Zug, nur im Studio sichtbar), Qualitätsprotokoll (180 Tage, Nutzertext nach 30 Tagen geleert) und Sicherheitsprotokoll (90 Tage). **Sitzungen und Verbrauchszahlen (`usage_events`) werden nie automatisch gelöscht** — sie wachsen dauerhaft. Das Modell-Volume (1 GiB) braucht es nur mit eingeschaltetem Reranker.
+- Speicher: Postgres wächst mit Verlauf (30 Tage; je Antwort seit Paket 18C/D die Zugakte im Diagnoseteil — Werkzeugaufrufe mit Argumenten, gedeckelt auf 1 000 Zeichen je Wert und 50 Aufrufe je Zug, nur im Studio sichtbar), Qualitätsprotokoll (180 Tage, Nutzertext nach 30 Tagen geleert) und Sicherheitsprotokoll (30 Tage, bis Paket 19: 90); die Tagessicherungen (`pg-backup`, `BACKUP_KEEP_DAYS`, Vorgabe 14) halten alles bis zu 14 Tage länger — im Cluster gilt das für jede eigene Sicherung entsprechend. **Sitzungen und Verbrauchszahlen (`usage_events`) werden nie automatisch gelöscht** — sie wachsen dauerhaft. Das Modell-Volume (1 GiB) braucht es nur mit eingeschaltetem Reranker.
 
 ## 11 Konfiguration und Secrets
 

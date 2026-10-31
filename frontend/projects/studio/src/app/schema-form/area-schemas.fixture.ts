@@ -2904,7 +2904,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "boolean"
           },
           "retention_days": {
-            "default": 90,
+            "default": 30,
             "minimum": 0,
             "title": "Retention Days",
             "type": "integer"
@@ -3063,7 +3063,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": {
           "enabled": true,
           "log_all_turns": false,
-          "retention_days": 90
+          "retention_days": 30
         }
       }
     },
