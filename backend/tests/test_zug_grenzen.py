@@ -109,3 +109,181 @@ def test_peer_ip_fuer_die_logs_bleibt_die_volle_adresse():
 
 def test_der_limiter_zaehlt_ipv6_je_netz():
     assert ratelimit.limiter._key_func is ratelimit.drossel_schluessel
+
+
+# ── Modell, Lader, Speichern ───────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("wert", ["", "off", "OFF", "30/minute", "10/second;500/hour"])
+def test_gueltige_werte(wert):
+    assert TurnLimitsBlock(anonymous=wert, authenticated=wert).anonymous == wert
+
+
+@pytest.mark.parametrize("wert", ["viel", "30 pro minute", "30/fortnight"])
+def test_ungueltige_werte_werden_beim_speichern_abgewiesen(wert):
+    with pytest.raises(ValidationError):
+        SafetyConfigArea.model_validate({"turn_limits": {"anonymous": wert}})
+    fehler = modell_fehler(_SICHERHEIT, {"turn_limits": {"authenticated": wert}})
+    assert fehler and "turn_limits" in str(fehler)
+
+
+def test_vorgabe_beide_wie_rate_limit_chat(monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_CHAT", "77/minute")
+    get_settings.cache_clear()
+    assert load_turn_limits() == {"anonymous": "77/minute", "authenticated": "77/minute"}
+    _grenzen(anonym="", angemeldet="  ")
+    assert load_turn_limits() == {"anonymous": "77/minute", "authenticated": "77/minute"}
+
+
+def test_studio_werte_gelten(monkeypatch):
+    _grenzen(anonym="5/minute", angemeldet="off")
+    assert load_turn_limits() == {"anonymous": "5/minute", "authenticated": "off"}
+
+
+def test_ein_kaputter_gespeicherter_wert_faellt_auf_die_vorgabe(monkeypatch):
+    """Am Speichern vorbei (direkt in der DB) — der Zug darf daran nicht scheitern."""
+    monkeypatch.setenv("RATE_LIMIT_CHAT", "77/minute")
+    get_settings.cache_clear()
+    config_loader.bind_store(_Store({_SICHERHEIT: {"turn_limits": {"anonymous": "kaputt",
+                                                                    "authenticated": 5}}}))
+    assert load_turn_limits() == {"anonymous": "77/minute", "authenticated": "77/minute"}
+
+
+def test_der_startwaechter_fuer_rate_limit_chat_bleibt(monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_CHAT", "kaputt")
+    get_settings.cache_clear()
+    with pytest.raises(ValidationError):
+        get_settings()
+
+
+# ── Wirkung am Chat ────────────────────────────────────────────────────────
+
+
+@pytest.fixture()
+def chat(monkeypatch):
+    class _Graph:
+        async def ainvoke(self, state):
+            return {"response": ChatResponse(session_id="bb-1", content="OK")}
+
+    async def _pp(req, resp, *a, **k):
+        return resp
+
+    monkeypatch.setattr(chat_api, "build_turn_graph", lambda **k: _Graph())
+    monkeypatch.setattr(chat_api, "_postprocess_response_for_widget_modes", _pp)
+    monkeypatch.setenv("RATE_LIMIT_CHAT", "100/minute")
+    get_settings.cache_clear()
+    app = create_app()
+    app.dependency_overrides[get_session] = lambda: object()
+    client = TestClient(app, raise_server_exceptions=False)
+
+    def senden(**koepfe: str):
+        return client.post("/api/chat", json={"session_id": "bb-zug-grenzen-test",
+                                              "message": "hallo"}, headers=koepfe)
+
+    return senden
+
+
+def test_anonyme_zuege_folgen_der_anonymen_grenze(chat):
+    _grenzen(anonym="2/minute", angemeldet="5/minute")
+    assert chat().status_code == 200
+    assert chat().status_code == 200
+    assert chat().status_code == 429
+
+
+def test_bestaetigte_personen_folgen_der_angemeldeten_grenze(chat):
+    _grenzen(anonym="1/minute", angemeldet="3/minute")
+    _als_bestaetigt(_BLOCK)
+    for _ in range(3):
+        assert chat(**{"WLO-Access-Block": _BLOCK}).status_code == 200
+    assert chat(**{"WLO-Access-Block": _BLOCK}).status_code == 429
+
+
+def test_ein_gefaelschter_block_zaehlt_anonym(chat):
+    """Die Form allein reicht nicht — nur der Zwischenspeicher der Anmeldung zählt."""
+    _grenzen(anonym="1/minute", angemeldet="50/minute")
+    assert chat(**{"WLO-Access-Block": "wlo2.gefaelscht"}).status_code == 200
+    assert chat(**{"WLO-Access-Block": "wlo2.gefaelscht-zwei"}).status_code == 429
+
+
+def test_ein_abgelaufener_eintrag_zaehlt_anonym(chat):
+    _grenzen(anonym="1/minute", angemeldet="50/minute")
+    anmeldung._cache[auth.fingerabdruck(_BLOCK)] = (
+        time.monotonic() - 1, anmeldung.Befund(person=True, kennung="p:x"))
+    assert chat(**{"WLO-Access-Block": "wlo2.jemand-anderes"}).status_code == 200
+    assert chat(**{"WLO-Access-Block": _BLOCK}).status_code == 429
+
+
+def test_ein_interner_zug_folgt_der_angemeldeten_grenze(chat):
+    _grenzen(anonym="1/minute", angemeldet="3/minute")
+    for _ in range(3):
+        assert chat(**{"X-Studio-Key": _SCHLUESSEL}).status_code == 200
+    assert chat(**{"X-Studio-Key": _SCHLUESSEL}).status_code == 429
+
+
+def test_aus_schaltet_nur_die_eine_stufe_ab(chat):
+    _grenzen(anonym="off", angemeldet="1/minute")
+    for _ in range(5):
+        assert chat().status_code == 200
+    r = chat()
+    assert "x-ratelimit-limit" not in {k.lower() for k in r.headers}
+
+
+def test_ohne_studio_wert_gilt_rate_limit_chat(chat, monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_CHAT", "2/minute")
+    get_settings.cache_clear()
+    assert chat().status_code == 200
+    assert chat().status_code == 200
+    assert chat().status_code == 429
+
+
+def test_die_aenderung_im_studio_wirkt_ohne_neustart(chat):
+    _grenzen(anonym="1/minute")
+    assert chat().status_code == 200
+    assert chat().status_code == 429
+    _grenzen(anonym="5/minute")
+    assert chat().status_code == 200
+
+
+# ── Review, Punkt 7: Studio lockert den Betreiber-Schutz ───────────────────
+
+
+@pytest.mark.parametrize("wert,vorgabe,lockerer", [
+    ("off", "120/minute", True),
+    ("200/minute", "120/minute", True),
+    ("120/minute", "120/minute", False),
+    ("60/minute", "120/minute", False),
+    ("3/second", "120/minute", True),       # 180 je Minute
+    ("1/second", "120/minute", False),      # 60 je Minute
+    ("10/second;100/minute", "120/minute", False),
+    ("100/minute", "10/second;500/hour", True),  # 6 000 je Stunde
+    ("100/minute", "off", False),
+    ("off", "off", False),
+])
+def test_ist_lockerer(wert, vorgabe, lockerer):
+    from boerdi.settings import ist_lockerer
+
+    assert ist_lockerer(wert, vorgabe) is lockerer
+
+
+def test_lockerer_wert_warnt_beim_laden(monkeypatch, caplog):
+    from boerdi.obs import drossel
+
+    drossel.zuruecksetzen()
+    monkeypatch.setenv("RATE_LIMIT_CHAT", "120/minute")
+    get_settings.cache_clear()
+    _grenzen(anonym="off", angemeldet="60/minute")
+    with caplog.at_level("WARNING"):
+        load_turn_limits()
+        load_turn_limits()
+    meldungen = [r.getMessage() for r in caplog.records if "lockerer" in r.getMessage()]
+    assert len(meldungen) == 1  # gedrosselt, nur die anonyme Stufe
+    assert "anonymous" in meldungen[0]
+    drossel.zuruecksetzen()
+
+
+def test_lockerer_wert_warnt_beim_speichern(monkeypatch, caplog):
+    monkeypatch.setenv("RATE_LIMIT_CHAT", "120/minute")
+    get_settings.cache_clear()
+    with caplog.at_level("WARNING"):
+        assert modell_fehler(_SICHERHEIT, {"turn_limits": {"authenticated": "500/minute"}}) == []
+    assert any("lockerer" in r.getMessage() for r in caplog.records)

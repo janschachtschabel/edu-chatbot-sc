@@ -515,15 +515,7 @@ class Settings(BaseSettings):
     def _pruefe_rate_limit_chat(cls, v: str) -> str:
         """Paket 18F: ein ungültiges Limit verhindert den Start. Bisher scheiterte slowapi erst
         je Anfrage am Parsen — eine Fehlerzeile je Anfrage, und das Limit war faktisch aus."""
-        if v.strip().lower() in RATE_LIMIT_AUS:
-            return v
-        try:
-            parse_many(v)
-        except ValueError as fehler:
-            raise ValueError(
-                f"RATE_LIMIT_CHAT={v!r} ist kein gültiges Limit — Form „120/minute“ oder "
-                f"„10/second;500/hour“, abschalten mit {'|'.join(RATE_LIMIT_AUS)}") from fehler
-        return v
+        return pruefe_drosselgrenze(v)
 
     @field_validator("log_level")
     @classmethod
@@ -721,3 +713,36 @@ def studio_schluessel_zu_kurz() -> bool:
     Verwaltungsrouten zu (503), auch mit ``BOERDI_ALLOW_OPEN_ADMIN``: wer einen Schlüssel setzt,
     wollte ein Schloss, kein offenes Tor."""
     return 0 < len(_studio_schluessel_roh()) < STUDIO_GEHEIMNIS_MINDESTLAENGE
+
+
+def pruefe_drosselgrenze(wert: str, name: str = "RATE_LIMIT_CHAT") -> str:
+    """Eine Grenze wie ``120/minute`` oder ``10/second;500/hour``, oder ein Aus-Wort
+    (:data:`RATE_LIMIT_AUS`). Sonst ``ValueError`` — für ``RATE_LIMIT_CHAT`` beim Start, für die
+    Zug-Grenzen im Studio beim Speichern (Paket 19, M-4)."""
+    if wert.strip().lower() in RATE_LIMIT_AUS:
+        return wert
+    try:
+        parse_many(wert)
+    except ValueError as fehler:
+        raise ValueError(
+            f"{name}={wert!r} ist kein gültiges Limit — Form „120/minute“ oder "
+            f"„10/second;500/hour“, abschalten mit {'|'.join(RATE_LIMIT_AUS)}") from fehler
+    return wert
+
+
+def ist_lockerer(wert: str, vorgabe: str) -> bool:
+    """Erlaubt die Grenze ``wert`` in einem Fenster der ``vorgabe`` mehr Anfragen als diese?
+    (Paket 19, Review Punkt 7: das Studio kann den Betreiber-Schutz ``RATE_LIMIT_CHAT`` lockern —
+    das soll im Log stehen.) ``off`` ist lockerer als jede Grenze; ist die Vorgabe aus, ist
+    nichts lockerer. Je Fenster der Vorgabe zählt das strengste Fenster von ``wert``: ein
+    kürzeres wird auf die Fensterlänge hochgerechnet, ein längeres deckelt mit seiner Zahl."""
+    if vorgabe.strip().lower() in RATE_LIMIT_AUS:
+        return False
+    if wert.strip().lower() in RATE_LIMIT_AUS:
+        return True
+    eigene = [(g.amount, g.get_expiry()) for g in parse_many(wert)]
+    for menge, sekunden in ((g.amount, g.get_expiry()) for g in parse_many(vorgabe)):
+        erlaubt = min(m * (sekunden // s) if s <= sekunden else m for m, s in eigene)
+        if erlaubt > menge:
+            return True
+    return False

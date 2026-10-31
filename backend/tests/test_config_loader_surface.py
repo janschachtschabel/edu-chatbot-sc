@@ -60,6 +60,7 @@ ZERO_ARG_CONTRACT: dict[str, type] = {
     "load_states": list,
     "load_tie_breaker_config": dict,
     "load_tone_modifiers_config": dict,
+    "load_turn_limits": dict,
     "load_website_tour_config": dict,
     "load_welcome_config": dict,
     "load_widget_modes_config": dict,

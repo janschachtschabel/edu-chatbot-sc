@@ -105,3 +105,55 @@ limiter = Limiter(
 
 # decorator for the public §5.1 endpoints (chat, stream, speech, history)
 public_rate_limit = limiter.limit(_chat_limit, exempt_when=_limit_disabled)
+
+
+# ── Zug-Grenzen (Paket 19, Audit M-4 / Entscheid P19-E3) ───────────────
+#
+# Die vier Zug-Routen (``/api/chat``, ``/api/chat/stream``, ``/api/agent``, ``/api/agent/stream``)
+# tragen eine eigene, im Studio einstellbare Grenze — je Stufe: ``anonymous`` und
+# ``authenticated`` (``01-base/safety-config`` → ``turn_limits``, leer = ``RATE_LIMIT_CHAT``).
+# Gezählt wird weiter je Route (slowapi: ``scope`` = Endpunkt) und je Stufe getrennt: die Stufe
+# steht im Schlüssel, die Grenze liest slowapi je Anfrage aus ihm (``limit_value`` mit
+# ``key``-Parameter). Sprach- und Verlaufs-Routen behalten ``public_rate_limit``.
+
+ANONYM = "anonymous"
+ANGEMELDET = "authenticated"
+
+
+def zug_stufe(request) -> str:
+    """``authenticated`` nur für eine vom MCP bestätigte Person im Zwischenspeicher der Anmeldung
+    oder einen Zug der Anlage — sonst ``anonymous``. Die Form des Blocks allein zählt nie: ein
+    gefälschter Block bekommt die Grenze der Anonymen. Der erste Zug einer Person zählt deshalb
+    anonym (ihre Bestätigung entsteht erst im Zug); danach gilt sie ``POSITIV_S`` lang."""
+    from boerdi.api.turn_auth import ACCESS_BLOCK_HEADER, ist_interner_zug  # zirkulär
+    from boerdi.services.mcp.anmeldung import ist_bestaetigte_person
+
+    if ist_bestaetigte_person(request.headers.get(ACCESS_BLOCK_HEADER)):
+        return ANGEMELDET
+    return ANGEMELDET if ist_interner_zug(request) else ANONYM
+
+
+def zug_schluessel(request) -> str:
+    """Stufe und Netz — z. B. ``anonymous:203.0.113.7`` oder ``authenticated:2001:db8::/64``."""
+    return f"{zug_stufe(request)}:{drossel_schluessel(request)}"
+
+
+def _grenze_der_stufe(stufe: str) -> str:
+    from boerdi.services.config_loader import load_turn_limits  # Lader zieht viel nach
+
+    return load_turn_limits().get(stufe) or get_settings().rate_limit_chat
+
+
+def _zug_grenze(key: str) -> str:
+    """Die Grenze für den Schlüssel aus :func:`zug_schluessel` — nie eine, die slowapi nicht
+    parsen kann (siehe :func:`_chat_limit`)."""
+    wert = _grenze_der_stufe(key.split(":", 1)[0])
+    return _OFF_PLACEHOLDER if wert.strip().lower() in _OFF_TOKENS else wert
+
+
+def _zug_aus(request) -> bool:
+    return _grenze_der_stufe(zug_stufe(request)).strip().lower() in _OFF_TOKENS
+
+
+# decorator for the four turn endpoints (chat, chat/stream, agent, agent/stream)
+zug_rate_limit = limiter.limit(_zug_grenze, key_func=zug_schluessel, exempt_when=_zug_aus)

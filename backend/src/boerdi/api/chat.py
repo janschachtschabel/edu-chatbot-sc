@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from boerdi.api.chat_handschlag import handschlag
 from boerdi.api.deps import get_session, get_session_factory, require_studio_key, todo
 from boerdi.api.publikum import antwort_fuer
-from boerdi.api.ratelimit import peer_ip, public_rate_limit
+from boerdi.api.ratelimit import peer_ip, zug_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.session_locks import sitzung_sperren
 from boerdi.api.sse import sse_turn
@@ -92,7 +92,7 @@ async def _record_usage(session: AsyncSession, session_id: str, state: dict) -> 
 
 
 @public_router.post("/api/chat", response_model=ChatResponse)
-@public_rate_limit
+@zug_rate_limit
 async def chat(
     req: ChatRequest,
     request: Request,
@@ -281,7 +281,7 @@ async def _stream_turn(
 
 
 @public_router.post("/api/chat/stream")
-@public_rate_limit
+@zug_rate_limit
 async def chat_stream(
     req: ChatRequest,
     request: Request,

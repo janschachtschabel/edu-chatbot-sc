@@ -12,7 +12,7 @@ from boerdi.obs.drossel import gedrosselt
 from boerdi.services.config_loader._store import area
 from boerdi.services.config_loader.repo_and_cards import get_repo_base_url
 from boerdi.services.config_loader.schalter import FEHLT, als_schalter
-from boerdi.settings import get_settings
+from boerdi.settings import get_settings, ist_lockerer, pruefe_drosselgrenze
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,45 @@ def load_policy_config() -> dict[str, Any]:
 
 def load_safety_config() -> dict[str, Any]:
     return area("01-base/safety-config")
+
+
+#: Die zwei Stufen der Zug-Grenzen (Paket 19, M-4) — Schlüssel in ``turn_limits``.
+ZUG_STUFEN = ("anonymous", "authenticated")
+
+
+def load_turn_limits() -> dict[str, str]:
+    """Die Zug-Grenzen je Stufe, fertig zum Gebrauch (Paket 19, M-4 / Entscheid P19-E3).
+
+    Kuratiert wie die übrigen Lader: genau ``anonymous`` und ``authenticated``. Leer, fehlend
+    oder unbrauchbar (am Speichern vorbei, etwa direkt in der DB) ⇒ ``RATE_LIMIT_CHAT`` — ein
+    Zug scheitert nie an der Config; das Unbrauchbare meldet eine gedrosselte Warnung, ohne den
+    Wert. ``off`` bleibt ``off``: das Abschalten liest ``api/ratelimit``.
+    """
+    vorgabe = get_settings().rate_limit_chat
+    block = area("01-base/safety-config").get("turn_limits")
+    if not isinstance(block, dict):
+        block = {}
+    grenzen: dict[str, str] = {}
+    for stufe in ZUG_STUFEN:
+        wert = block.get(stufe)
+        if wert is None or (isinstance(wert, str) and not wert.strip()):
+            grenzen[stufe] = vorgabe
+            continue
+        try:
+            if not isinstance(wert, str):
+                raise ValueError(type(wert).__name__)
+            grenzen[stufe] = pruefe_drosselgrenze(wert, "turn_limits")
+            if ist_lockerer(wert, vorgabe):
+                # Review, Punkt 7: das Studio darf den Betreiber-Schutz lockern — sichtbar.
+                gedrosselt(logger, logging.WARNING, f"turn_limits:{stufe}:locker", 3600.0,
+                           "turn_limits.%s=%r ist lockerer als RATE_LIMIT_CHAT=%r",
+                           stufe, wert, vorgabe)
+        except ValueError:
+            gedrosselt(logger, logging.WARNING, f"turn_limits:{stufe}", 300.0,
+                       "turn_limits.%s ist unbrauchbar (%s) — es gilt RATE_LIMIT_CHAT",
+                       stufe, type(wert).__name__)
+            grenzen[stufe] = vorgabe
+    return grenzen
 
 
 def load_quality_log_config() -> dict[str, Any]:

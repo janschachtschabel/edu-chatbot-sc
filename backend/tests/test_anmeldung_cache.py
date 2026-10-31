@@ -89,3 +89,20 @@ def test_ein_treffer_frischt_die_reihenfolge_auf():
     _zug("wlo2.person-6", person=True)
     assert _fp("wlo2.person-0") in anmeldung._cache
     assert _fp("wlo2.person-1") not in anmeldung._cache
+
+
+def test_ist_bestaetigte_person_liest_nur_den_speicher():
+    assert anmeldung.ist_bestaetigte_person("wlo2.person-x") is False
+    _zug("wlo2.person-x", person=True)
+    assert anmeldung.ist_bestaetigte_person("wlo2.person-x") is True
+    assert anmeldung.ist_bestaetigte_person(" wlo2.person-x ") is True
+    _zug("wlo2.falsch-x", person=False)
+    assert anmeldung.ist_bestaetigte_person("wlo2.falsch-x") is False
+    assert anmeldung.ist_bestaetigte_person(None) is False
+    assert anmeldung.ist_bestaetigte_person("wlo-anon.irgendwas") is False
+
+
+def test_ist_bestaetigte_person_achtet_auf_den_verfall():
+    anmeldung._cache[_fp("wlo2.alt")] = (time.monotonic() - 1,
+                                         anmeldung.Befund(person=True, kennung="p:x"))
+    assert anmeldung.ist_bestaetigte_person("wlo2.alt") is False

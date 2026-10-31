@@ -76,6 +76,16 @@ def _verdraengen() -> None:
         _cache.pop(opfer, None)
 
 
+def ist_bestaetigte_person(block: str | None) -> bool:
+    """Liegt für ``block`` eine bestätigte, noch gültige Person im Speicher? Fragt nie den
+    Server und ändert nichts — für die Drosselung, die vor der Übernahme des Blocks entscheidet
+    (Paket 19, M-4 / P19-E3). Ein erfundener oder abgelaufener Block ist keine Person."""
+    if not auth.is_personal_block(block):
+        return False
+    gemerkt = _cache.get(auth.fingerabdruck(block))
+    return gemerkt is not None and gemerkt[0] > time.monotonic() and gemerkt[1].person
+
+
 async def bestaetige_anmeldung() -> Befund:
     """Einmal je Zug, gleich nach ``api/turn_auth.adopt_turn_auth_block``."""
     if not auth.zug_block_wirkt_persoenlich():
