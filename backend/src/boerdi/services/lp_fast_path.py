@@ -54,6 +54,7 @@ from boerdi.domain.quick_reply_policy import (
 )
 from boerdi.i18n import resolve_locale
 from boerdi.obs.log_inhalt import inhalt
+from boerdi.obs.tasks import _retrieve_task_exception, merke_zug_aufgabe
 from boerdi.services.llm_learning_path import generate_learning_path_text
 from boerdi.services.llm_parallel import blase_gezeigt
 from boerdi.services.mcp.client import call_mcp_tool
@@ -374,6 +375,10 @@ async def run_lp_fast_path(
                         count=_lp_qr_count,
                         lang=resolve_locale(req.environment.locale),
                     ))
+                    # Paket 19 (N-30): wie im Antwort-Knoten — Ausnahme abholen, und
+                    # scheitert der Zug vor ``assemble``, räumt ``run_turn`` ab.
+                    _qr_spec_task.add_done_callback(_retrieve_task_exception)
+                    merke_zug_aufgabe(_qr_spec_task)
                 except Exception as _sqr_err:
                     logger.warning("speculative QR start (M09) failed: %s", _sqr_err)
                     _qr_spec_task = None

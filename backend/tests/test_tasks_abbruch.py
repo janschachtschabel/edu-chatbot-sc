@@ -184,3 +184,55 @@ def test_auf_debug_nur_der_typ_der_ausnahme(caplog):
         asyncio.run(szenario())
     assert any("ValueError" in r.getMessage() for r in caplog.records)
     assert not any("geheime Eingabe" in r.getMessage() for r in caplog.records)
+
+
+# ── Paket 19 (N-30): Aufgaben eines Zugs werden am Zugende abgeräumt ─────────────
+
+def test_zug_aufgaben_werden_am_ende_abgebrochen():
+    async def szenario() -> tuple[bool, bool]:
+        obs_tasks.binde_zug_aufgaben()
+        offen = asyncio.create_task(asyncio.sleep(10))
+        fertig = asyncio.create_task(asyncio.sleep(0))
+        obs_tasks.merke_zug_aufgabe(offen)
+        obs_tasks.merke_zug_aufgabe(fertig)
+        await fertig
+        assert await obs_tasks.raeume_zug_aufgaben() == 1
+        return offen.cancelled(), fertig.cancelled()
+
+    assert asyncio.run(szenario()) == (True, False)
+
+
+def test_ohne_gebundenen_zug_ist_merken_harmlos():
+    async def szenario() -> int:
+        obs_tasks._zug_aufgaben.set(None)
+        t = asyncio.create_task(asyncio.sleep(0))
+        obs_tasks.merke_zug_aufgabe(t)
+        await t
+        return await obs_tasks.raeume_zug_aufgaben()
+
+    assert asyncio.run(szenario()) == 0
+
+
+def test_run_turn_raeumt_bei_einem_fehler_im_graphen_ab():
+    """Audit N-30: der spekulative Schnellantwort-Task wurde nur im Normalpfad abgebrochen;
+    scheiterte der Zug dazwischen, lief er weiter (Platz bis 75 s, Kosten ungebucht)."""
+    from boerdi.api.schemas import ChatRequest
+    from boerdi.graph import build as build_mod
+    from boerdi.graph.state import TurnContext
+
+    gestartet: list[asyncio.Task] = []
+
+    class _Graph:
+        async def ainvoke(self, _ctx):
+            t = asyncio.create_task(asyncio.sleep(10))
+            obs_tasks.merke_zug_aufgabe(t)
+            gestartet.append(t)
+            raise RuntimeError("Knoten scheitert")
+
+    async def szenario() -> bool:
+        with pytest.raises(RuntimeError):
+            await build_mod.run_turn(_Graph(), TurnContext(req=ChatRequest(
+                session_id="s-n30", message="x")))
+        return gestartet[0].cancelled()
+
+    assert asyncio.run(szenario()) is True

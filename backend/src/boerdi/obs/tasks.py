@@ -14,6 +14,7 @@ create_task + starke Referenz (der Loop hält nur Weak-Refs) + Exception-Retriev
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 from collections.abc import Iterable
 from typing import Any
@@ -83,6 +84,41 @@ def _retrieve_task_exception(task: asyncio.Task) -> None:
             logger.debug("background task ended with %s", type(exc).__name__)
     except (asyncio.CancelledError, asyncio.InvalidStateError):
         pass
+
+
+# ── Aufgaben eines Zugs (Paket 19, N-30) ──────────────────────────────
+# Der spekulative Schnellantwort-Aufruf startet in ``respond`` (bzw. im Lernpfad-
+# Schnellweg) und wird erst in ``assemble`` verbraucht oder abgebrochen. Scheiterte der
+# Zug dazwischen oder wurde er abgebrochen, lief er weiter — mit seinem Platz in der
+# LLM-Engstelle und ungebuchten Kosten. Eine Liste je Zug, gebunden VOR dem Graphen
+# (``graph/build.begin_turn``): LangGraph-Knoten laufen in Kontextkopien und teilen so das
+# Objekt; ``run_turn`` räumt sie im ``finally`` ab.
+_zug_aufgaben: contextvars.ContextVar[list[asyncio.Task] | None] = contextvars.ContextVar(
+    "_zug_aufgaben", default=None)
+
+
+def binde_zug_aufgaben() -> None:
+    """Eine frische Aufgabenliste für den Zug binden — einmal, vor dem Graphen."""
+    _zug_aufgaben.set([])
+
+
+def merke_zug_aufgabe(task: asyncio.Task) -> None:
+    """``task`` am Zugende abräumen, falls er dann noch läuft. Ohne gebundenen Zug (Tests,
+    Aufrufe außerhalb des Graphen) nichts — der Aufrufer bleibt dann selbst zuständig."""
+    liste = _zug_aufgaben.get()
+    if liste is not None:
+        liste.append(task)
+
+
+async def raeume_zug_aufgaben() -> int:
+    """Die noch laufenden Aufgaben des Zugs abbrechen und abwarten (:func:`cancel_and_drain`);
+    gibt ihre Zahl zurück. Verbrauchte Aufgaben sind fertig und bleiben unberührt."""
+    liste = _zug_aufgaben.get()
+    if not liste:
+        return 0
+    offen = [t for t in liste if not t.done()]
+    liste.clear()
+    return await cancel_and_drain(offen, bezeichnung="zug")
 
 
 # Starke Referenzen auf fire-and-forget-Tasks: der Event-Loop hält nur
