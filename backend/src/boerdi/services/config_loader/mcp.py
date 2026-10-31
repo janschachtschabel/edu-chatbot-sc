@@ -12,7 +12,7 @@ from typing import Any
 from boerdi.domain.werkzeug_freigabe import VORGABE_AUS, ohne_vorgabe
 from boerdi.services.config_loader import _store
 from boerdi.services.config_loader._store import area
-from boerdi.services.config_loader.schalter import als_schalter
+from boerdi.services.config_loader.schalter import FEHLT, als_schalter
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -49,8 +49,12 @@ def load_mcp_servers() -> list[dict[str, Any]]:
 
 
 def get_enabled_mcp_servers() -> list[dict[str, Any]]:
+    """Paket 19 (Audit N-21): ein gespeichertes ``enabled: null`` schaltet einen FREMDEN
+    Server nicht wieder ein (``null_heisst=False``) — ein fehlender Schlüssel bleibt „an“.
+    Der eigene Server (``wlo-mcp``) behält die Vorgabe: ohne ihn sucht der Chat nichts."""
     return [s for s in load_mcp_servers()
-            if als_schalter(s.get("enabled"), True, name="mcp_servers.enabled")]
+            if als_schalter(s.get("enabled", FEHLT), True, name="mcp_servers.enabled",
+                            null_heisst=None if s["id"] == _PRIMARY_ID else False)]
 
 
 async def save_mcp_servers(

@@ -180,3 +180,55 @@ def test_datenschutz_fehlender_schluessel_gilt_als_vorgabe():
     cl.bind_store(_Store({"01-base/privacy-config": {"logging": {"messages": False}}}))
     assert cl.load_privacy_config() == {
         "messages": False, "memory": True, "quality": True, "safety": True}
+
+
+# ── Paket 19 (Audit N-21): ``null`` schaltet einen Datenschutz-/Sicherheitsschalter nicht ein ──
+
+def test_null_heisst_aus_mit_einer_warnung(caplog):
+    from boerdi.services.config_loader.schalter import FEHLT
+
+    with caplog.at_level(logging.WARNING):
+        assert als_schalter(None, True, name="mcp_servers.enabled", null_heisst=False) is False
+        assert als_schalter(None, True, name="mcp_servers.enabled", null_heisst=False) is False
+    assert len([r for r in caplog.records if "mcp_servers.enabled" in r.getMessage()]) == 1
+    # Fehlt der Schlüssel, gilt weiter die Vorgabe — nur ein gespeichertes ``null`` ist aus.
+    assert als_schalter(FEHLT, True, name="mcp_servers.enabled", null_heisst=False) is True
+    assert als_schalter("false", True, name="mcp_servers.enabled", null_heisst=False) is False
+    assert als_schalter(True, True, name="mcp_servers.enabled", null_heisst=False) is True
+
+
+def test_harmlose_schalter_behalten_die_vorgabe_bei_null():
+    assert als_schalter(None, True, name="website_tour.enabled") is True
+
+
+def test_ein_abgeschalteter_fremdserver_bleibt_bei_null_aus():
+    """Ein Altbestand-``null`` schaltete einen abgeschalteten Fremdserver wieder ein."""
+    cl.bind_store(_Store({"05-knowledge/mcp-servers": {"servers": [
+        {"id": "fremd-null", "url": "https://fremd.example/mcp", "enabled": None},
+        {"id": "fremd-ohne", "url": "https://ohne.example/mcp"},
+    ]}}))
+    assert [s["id"] for s in cl.get_enabled_mcp_servers()] == ["fremd-ohne"]
+
+
+def test_das_qualitaetsprotokoll_bleibt_bei_null_aus(monkeypatch):
+    from boerdi.services.turn_quality import qualitaetsprotokoll_an
+
+    monkeypatch.setattr("boerdi.services.config_loader.load_quality_log_config",
+                        lambda: {"logging": {"enabled": None}})
+    monkeypatch.setattr("boerdi.services.config_loader.load_privacy_config",
+                        lambda: {"quality": True})
+    assert qualitaetsprotokoll_an() is False
+    monkeypatch.setattr("boerdi.services.config_loader.load_quality_log_config",
+                        lambda: {"logging": {}})
+    assert qualitaetsprotokoll_an() is True  # fehlt der Schlüssel: Vorgabe „an“
+
+
+def test_null_heisst_gilt_auch_fuer_einen_unlesbaren_wert(caplog):
+    """Review 19-5 (8): ein kaputter Wert an einem sicherheitsnahen Schalter ist genauso
+    wenig ein „an“ wie ein gespeichertes ``null``."""
+    with caplog.at_level(logging.WARNING):
+        assert als_schalter("vielleicht", True, name="quality_log.logging.enabled",
+                            null_heisst=False) is False
+    meldungen = [r.getMessage() for r in caplog.records
+                 if "quality_log.logging.enabled" in r.getMessage()]
+    assert len(meldungen) == 1 and "vielleicht" not in meldungen[0]

@@ -46,10 +46,12 @@ def qualitaetsprotokoll_an() -> bool:
     (Paket 16, D3) fragt dasselbe, um zu sagen, wenn sie nichts Neues zu zählen hat."""
     from boerdi.services.config_loader import load_privacy_config, load_quality_log_config
     from boerdi.services.config_loader.safety import melde_datenschutz_unlesbar
-    from boerdi.services.config_loader.schalter import als_schalter
+    from boerdi.services.config_loader.schalter import FEHLT, als_schalter
 
     cfg = load_quality_log_config().get("logging") or {}
-    if not als_schalter(cfg.get("enabled"), True, name="quality_log.logging.enabled"):
+    # Paket 19 (Audit N-21): ein gespeichertes ``null`` schaltet das Protokoll nicht ein.
+    if not als_schalter(cfg.get("enabled", FEHLT), True, name="quality_log.logging.enabled",
+                        null_heisst=False):
         return False
     try:
         return load_privacy_config().get("quality", True)

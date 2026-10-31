@@ -25,7 +25,8 @@ _BOOL = TypeAdapter(bool)
 FEHLT: Any = object()
 
 
-def als_schalter(wert: Any, vorgabe: bool, *, name: str, streng: bool = False) -> bool:
+def als_schalter(wert: Any, vorgabe: bool, *, name: str, streng: bool = False,
+                 null_heisst: bool | None = None) -> bool:
     """``wert`` als Schalter, wie das Gate ihn liest; :data:`FEHLT` → ``vorgabe``, ebenso
     ``None`` — außer bei ``streng``: dort ist ein gespeichertes ``null`` unbrauchbar (Review
     18E-1: ``bool(None)`` war „aus“, die Vorgabe wäre „an“).
@@ -34,7 +35,20 @@ def als_schalter(wert: Any, vorgabe: bool, *, name: str, streng: bool = False) -
     Datenbank vorbei) ergibt ``vorgabe`` und eine Warnung je Schalter und Prozess — mit dem
     Typ, nicht dem Wert. ``streng`` wirft stattdessen ``ValueError``: für Schalter, bei denen
     die Vorgabe die falsche Richtung wäre (Datenschutz, siehe ``safety.load_privacy_config``).
+
+    ``null_heisst`` (Paket 19, Audit N-21): was ein gespeichertes ``null`` bedeutet, mit einer
+    Warnung je Schalter und Prozess — für sicherheits- und datenschutznahe Schalter mit
+    Vorgabe „an“, die ein Altbestand-``null`` nicht wieder einschalten darf (ein
+    abgeschalteter Fremdserver, das Qualitätsprotokoll), ohne dass der Leser scheitert. Ein
+    fehlender Schlüssel bleibt die Vorgabe — der Aufrufer liest mit ``.get(name, FEHLT)``.
+    Derselbe Wert gilt für einen unbrauchbaren Wert (Review 19-5). Harmlose UI-Schalter lassen
+    es weg: dort gilt bei ``null`` weiter die Vorgabe.
     """
+    if wert is None and null_heisst is not None and not streng:
+        gedrosselt(logger, logging.WARNING, f"schalter-null:{name}", math.inf,
+                   "Konfiguration %s ist null — gilt als %s", name,
+                   "an" if null_heisst else "aus")
+        return null_heisst
     if wert is FEHLT or (wert is None and not streng):
         return vorgabe
     try:
@@ -42,7 +56,9 @@ def als_schalter(wert: Any, vorgabe: bool, *, name: str, streng: bool = False) -
     except ValidationError:
         if streng:
             raise ValueError(f"{name}: kein Schalterwert ({type(wert).__name__})") from None
+        # Review 19-5 (8): ein unlesbarer Wert ist so wenig ein „an“ wie ein ``null``.
+        ersatz = vorgabe if null_heisst is None else null_heisst
         gedrosselt(logger, logging.WARNING, f"schalter:{name}", math.inf,
-                   "Konfiguration %s ist kein Schalterwert (%s) — es gilt die Vorgabe %s",
-                   name, type(wert).__name__, vorgabe)
-        return vorgabe
+                   "Konfiguration %s ist kein Schalterwert (%s) — es gilt %s",
+                   name, type(wert).__name__, ersatz)
+        return ersatz
