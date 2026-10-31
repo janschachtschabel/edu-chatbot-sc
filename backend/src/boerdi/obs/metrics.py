@@ -70,6 +70,13 @@ LLM_SCHLUESSEL_ABGELEHNT = Counter(
 LLM_PLATZ_FRIST = Counter(
     "boerdi_llm_platz_frist_total",
     "Chat-Aufrufe ohne LLM-Platz binnen LLM_SLOT_WAIT_S — der Zug galt als ausgelastet")
+# Paket 19 (H-3, Review): Studio-Cookie/-Schlüssel — gezählte Fehlversuche, mit 429 abgewiesene
+# Prüfungen (Sperre) und Prüfungen ohne erreichbaren Zähler. Alle Reihen stehen von Anfang an.
+STUDIO_FEHLVERSUCHE = Counter(
+    "boerdi_studio_auth_failures_total",
+    "Studio-Anmeldung: Fehlversuche, Sperren (429) und Zähler-Ausfälle", ["ausgang"])
+for _ausgang in ("fehlversuch", "gesperrt", "zaehler_aus"):
+    STUDIO_FEHLVERSUCHE.labels(_ausgang)
 
 log = logging.getLogger(__name__)
 

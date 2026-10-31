@@ -12,12 +12,14 @@ import inspect
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from boerdi.api import deps
 
 
 def _call(header=None):
-    return asyncio.run(deps.require_studio_key(x_studio_key=header))
+    anfrage = Request({"type": "http", "method": "GET", "path": "/", "headers": []})
+    return asyncio.run(deps.require_studio_key(anfrage, x_studio_key=header))
 
 
 def test_no_key_configured_fails_closed(monkeypatch):

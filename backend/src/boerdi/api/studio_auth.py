@@ -29,10 +29,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security import APIKeyCookie
+from starlette.requests import HTTPConnection
 
 from boerdi.settings import get_settings
+from boerdi.api import fehlversuche
 
 COOKIE_NAME = "boerdi_studio_auth"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 d, ALT login/route.ts:47
@@ -108,9 +110,35 @@ def authorize(cookie: str | None) -> tuple[int, str] | None:
     return (status.HTTP_401_UNAUTHORIZED, _UNAUTHORIZED_DETAIL)
 
 
-async def require_studio_cookie(cookie: str | None = Security(studio_cookie)) -> None:
+def authorize_request(request: HTTPConnection, cookie: str | None) -> tuple[int, str] | None:
+    """:func:`authorize` plus the failed-attempt brake (Paket 19, H-3, ``api/fehlversuche``).
+
+    Only a PRESENTED cookie is a guess: a wrong one is counted, and once the IP has used up its
+    attempts every presented cookie gets 429 — a correct one too, or 429 vs 200 would reveal
+    the hit. No cookie = the first visit, never counted.
+    """
+    vorgelegt = bool(cookie)
+    if vorgelegt and _gate_state() == _GUARDED and fehlversuche.gesperrt(request):
+        return fehlversuche.zu_viele()
+    denial = authorize(cookie)
+    if denial is not None and denial[0] == status.HTTP_401_UNAUTHORIZED and vorgelegt:
+        fehlversuche.zaehle_fehlversuch(request, cookie or "")
+    return denial
+
+
+def denial_headers(denial: tuple[int, str]) -> dict[str, str] | None:
+    """``Retry-After`` on a 429 from the brake."""
+    if denial[0] == status.HTTP_429_TOO_MANY_REQUESTS:
+        return {"Retry-After": str(fehlversuche.RETRY_AFTER_S)}
+    return None
+
+
+async def require_studio_cookie(
+    request: Request, cookie: str | None = Security(studio_cookie),
+) -> None:
     """FastAPI dependency for the BFF's own routes (``Security`` so the cookie
     scheme shows up in the OpenAPI contract, like ``require_studio_key``)."""
-    denial = authorize(cookie)
+    denial = authorize_request(request, cookie)
     if denial is not None:
-        raise HTTPException(status_code=denial[0], detail=denial[1])
+        raise HTTPException(status_code=denial[0], detail=denial[1],
+                            headers=denial_headers(denial))

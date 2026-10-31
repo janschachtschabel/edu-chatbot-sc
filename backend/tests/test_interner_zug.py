@@ -99,7 +99,7 @@ def test_require_studio_key_mit_nicht_ascii_schluessel_sagt_401(umgebung):
 
     umgebung(passwort="pw", schluessel="kä", offen=False)
     with pytest.raises(HTTPException) as e:
-        asyncio.run(require_studio_key("k"))
+        asyncio.run(require_studio_key(_anfrage(), "k-studio-testkey"))
     assert e.value.status_code == 401
 
 

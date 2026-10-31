@@ -43,7 +43,12 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from boerdi.api.deps import expected_studio_key
 from boerdi.api.scope_pfad import route_path
-from boerdi.api.studio_auth import COOKIE_NAME, authorize, gate_is_open
+from boerdi.api.studio_auth import (
+    COOKIE_NAME,
+    authorize_request,
+    denial_headers,
+    gate_is_open,
+)
 
 PREFIX = "/studio/api"
 #: Merker im ASGI-Scope einer umgeschriebenen Anfrage: sie kam über das Studio
@@ -167,9 +172,11 @@ class StudioProxyMiddleware:
             return
 
         request = Request(scope)
-        denial = authorize(request.cookies.get(COOKIE_NAME))
+        # Paket 19 (H-3): falsche Cookies zählen je IP, danach 429 (``api/fehlversuche``).
+        denial = authorize_request(request, request.cookies.get(COOKIE_NAME))
         if denial is not None:
-            response = JSONResponse({"detail": denial[1]}, status_code=denial[0])
+            response = JSONResponse({"detail": denial[1]}, status_code=denial[0],
+                                    headers=denial_headers(denial))
             await response(scope, receive, send)
             return
         if _fremde_seite(request):
