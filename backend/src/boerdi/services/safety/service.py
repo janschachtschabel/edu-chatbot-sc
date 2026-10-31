@@ -27,6 +27,7 @@ import time
 from typing import Any
 
 from boerdi.api.schemas import SafetyDecision
+from boerdi.obs.drossel import gedrosselt
 from boerdi.services.config_loader import load_safety_config
 from boerdi.services.safety import legal, moderation
 from boerdi.services.safety.regex_gate import (
@@ -38,6 +39,9 @@ from boerdi.services.safety.regex_gate import (
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+#: Paket 19 (N-17): eine Ausfall-Zeile je Minute, Stufe und Fehlerart, nicht je Zug.
+_AUSFALL_ABSTAND_S = 60.0
 
 # OpenAI moderation category → deutsches Rechtsfeld (ALT llm merge map).
 _CAT_TO_LEGAL = {
@@ -307,9 +311,11 @@ async def assess_safety(
             # but not silently: without this line a permanently broken stage
             # looks exactly like a clean run, and a safety layer that is quietly
             # switched off is worse than one that is loudly missing
-            # (audit 2026-08-12, F-9).
-            logger.warning(
-                "safety stage %s failed, continuing without it: %s: %s",
+            # (audit 2026-08-12, F-9). Paket 19 (N-17): gedrosselt — die Entscheidung trägt
+            # den Ausfall je Zug (``stages_failed``), das Log einmal je Minute.
+            gedrosselt(
+                logger, logging.WARNING, f"stufe:{name}:{type(res).__name__}",
+                _AUSFALL_ABSTAND_S, "safety stage %s failed, continuing without it: %s: %s",
                 name, type(res).__name__, res,
             )
             decision.stages_failed.append(_STUFEN_ID[name])

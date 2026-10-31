@@ -15,10 +15,15 @@ import json
 import logging
 
 from boerdi.obs import metrics
+from boerdi.obs.drossel import gedrosselt
 from boerdi.services.llm import chat_completion
 from boerdi.services.llm_parallel import LlmAusgelastet
 
 logger = logging.getLogger(__name__)
+
+#: Paket 19 (N-17): eine Ausfall-Zeile je Minute und Fehlerart, nicht je Zug — den Alarm trägt
+#: ``boerdi_safety_stage_total``.
+_AUSFALL_ABSTAND_S = 60.0
 
 _LEGAL_SYSTEM = """Du bist ein juristischer Sicherheits-Klassifikator für einen Bildungs-Chatbot.
 Prüfe die Nutzeranfrage auf Verstöße gegen deutsches Recht.
@@ -87,7 +92,8 @@ async def classify_legal(
         metrics.sicherheitsstufe("llm_legal", "ausgelastet")
         return {}
     except Exception as e:  # noqa: BLE001 — fail-open by design (regex floor stays)
-        logger.warning("LLM legal classifier failed: %s", e)
+        gedrosselt(logger, logging.WARNING, f"legal:{type(e).__name__}", _AUSFALL_ABSTAND_S,
+                   "LLM legal classifier failed: %s", e)
         metrics.sicherheitsstufe("llm_legal", "fehler")
         return {}
     metrics.sicherheitsstufe("llm_legal", "ok")
