@@ -63,7 +63,7 @@ from boerdi.i18n.bot_text import bot_text
 from boerdi.services import page_context
 from boerdi.services.config_loader import get_repo_base_url, load_context_actions
 from boerdi.services.db_sessions import save_message, update_session
-from boerdi.services.page_duplicate import find_existing_by_url
+from boerdi.services.page_duplicate import DublettenpruefungUnklar, find_existing_by_url
 
 logger = logging.getLogger(__name__)
 
@@ -320,10 +320,10 @@ async def _known_page(page_kind: str, page_ctx: dict[str, Any]) -> dict[str, str
     offer to add the page never appears when the page is already in — rather
     than relying on the model to follow M20 once the person has clicked.
 
-    ``None`` covers two cases on purpose: nothing found, and could not ask. The
-    greeting they share claims nothing about duplicates ("I can look at the page
-    and suggest it"), so both are the same honest statement — a separate error
-    text would be a distinction without a difference.
+    ``None`` means nothing found. Could the holdings not be asked, this raises
+    :class:`DublettenpruefungUnklar` (Paket 19, audit M-9) — until then that case
+    also read as ``None``, and the greeting offered to add a page whose duplicate
+    check never ran.
     """
     if page_kind != "external":
         return None
@@ -335,9 +335,11 @@ async def _known_page(page_kind: str, page_ctx: dict[str, Any]) -> dict[str, str
     try:
         return await find_existing_by_url(
             _pruefadresse(url), (page_ctx.get("document_title") or "").strip())
-    except Exception as err:  # find_existing_by_url is best-effort by contract
-        logger.warning("duplicate check skipped: %s", err)
-        return None
+    except DublettenpruefungUnklar:
+        raise
+    except Exception as err:  # anything else is just as unclear — never "not found"
+        logger.warning("duplicate check failed (%s) — unclear", type(err).__name__)
+        raise DublettenpruefungUnklar("find_existing_by_url") from None
 
 
 #: Welcher Satz zu welcher Ausbeute passt — Schlüssel ist ``(Materialien?,
@@ -436,7 +438,15 @@ async def maybe_context_greeting(
         return _empty_response(req.session_id)
 
     fields = {**fields, "bestand": _stock_sentence(meta, lang)}
-    known = await _known_page(page_kind, page_ctx)
+    try:
+        known = await _known_page(page_kind, page_ctx)
+    except DublettenpruefungUnklar:
+        # Paket 19 (M-9): ohne Prüfung kein Angebot, die Seite aufzunehmen — und der
+        # Gruß sagt es in seinem Text. Also schweigt er, unvermerkt: die nächste
+        # Meldung der Seite fragt den Bestand erneut.
+        logger.info("context_greeting: Dublettenprüfung unklar — kein Gruß page_kind=%s",
+                    page_kind)
+        return _empty_response(req.session_id)
     if known:
         # The page is already a WLO record — say which one and point at it,
         # instead of offering to add it a second time.

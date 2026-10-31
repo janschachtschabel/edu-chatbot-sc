@@ -18,6 +18,7 @@ and the assertion indices shift by one.
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 
@@ -25,6 +26,7 @@ from boerdi.api.schemas import ChatRequest
 from boerdi.domain import gruss_vermerk
 from boerdi.graph.nodes import context_greeting as g
 from boerdi.graph.state import TurnContext
+from boerdi.services.page_duplicate import DublettenpruefungUnklar
 
 _SESSION = object()  # sentinel — the patched DB writes ignore it
 #: Review 19-1: der Vermerk ist ein HMAC mit einem Salz je Sitzung. Hier fest, damit die
@@ -717,10 +719,9 @@ def test_suche_und_fremde_seite_blockieren_einander_nicht(monkeypatch):
 # hier, damit das Angebot gar nicht erst erscheint, wenn es die Seite schon
 # gibt — statt sich darauf zu verlassen, dass das Modell M20 befolgt.
 #
-# ZWEI Zweige, nicht drei: der Negativ-Text behauptet nichts über Dubletten
-# („Ich kann mir die Seite ansehen und sie vorschlagen"), also ist „nichts
-# gefunden" dieselbe ehrliche Aussage wie „konnte nicht fragen". Ein eigener
-# Fehlertext wäre eine Unterscheidung ohne Unterschied.
+# DREI Ausgänge (Paket 19, Audit M-9): „nichts gefunden" ist nicht dasselbe wie
+# „konnte nicht fragen". Bei gestörter Prüfung bot der Gruß das Aufnehmen an,
+# ohne dass die M20-Vorbedingung erfüllt war — Dubletten wurden möglich.
 
 def _external_ctx(url: str = "https://beispiel.org/artikel") -> dict:
     return {"page_kind": "external", "page_host": "beispiel.org", "page_url": url}
@@ -767,13 +768,27 @@ def test_unbekannte_seite_bietet_das_aufnehmen_an(monkeypatch):
     assert "Nimm diese Seite in WLO auf" in "\n".join(resp.quick_replies)
 
 
-def test_gescheiterte_pruefung_behauptet_keine_dublette(monkeypatch):
-    _patch_io(monkeypatch)
-    _patch_lookup(monkeypatch, boom=True)
-    resp = asyncio.run(g.maybe_context_greeting(
-        _SESSION, _req(), _env(page_context=_external_ctx()), _state(_resolved()), ["prev"]))
-    assert "beispiel.org" in resp.content     # ehrlicher Normaltext, kein Fehlertext
-    assert "Nimm diese Seite in WLO auf" in "\n".join(resp.quick_replies)
+@pytest.mark.parametrize("fehler", [
+    DublettenpruefungUnklar("search_wlo_content"), RuntimeError("mcp down"),
+], ids=["unklar", "ausnahme"])
+def test_gescheiterte_pruefung_bietet_das_aufnehmen_nicht_an(monkeypatch, caplog, fehler):
+    """Unklar heißt: kein Anlege-Angebot. Der Gruß schweigt und bleibt unvermerkt — die
+    nächste Meldung der Seite fragt den Bestand erneut."""
+    calls = _patch_io(monkeypatch)
+
+    async def fake(url, title):
+        raise fehler
+
+    monkeypatch.setattr(g, "find_existing_by_url", fake)
+    state = _state(_resolved())
+    with caplog.at_level(logging.DEBUG):
+        resp = asyncio.run(g.maybe_context_greeting(
+            _SESSION, _req(), _env(page_context=_external_ctx()), state, ["prev"]))
+    assert resp.content == ""
+    assert "Nimm diese Seite in WLO auf" not in "\n".join(resp.quick_replies)
+    assert not state["entities"].get("_greeted_pages")
+    assert calls["update"] == [] and calls["save"] == []
+    assert not any("beispiel.org" in r.getMessage() or r.exc_info for r in caplog.records)
 
 
 def test_ohne_adresse_wird_gar_nicht_geprueft(monkeypatch):
