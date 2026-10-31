@@ -140,6 +140,8 @@ describe('ChatApiClient', () => {
     });
   });
 
+  // Paket 19, Audit 2026-10-31 N-1: die Herkunftsseite (`document.referrer`) trägt
+  // oft Suchbegriffe in der Query; das Backend liest das Feld nicht.
   // Review zu M-15: der POST-Rückfall eines Zugs darf eine eigene Frist haben.
   it('post reicht eine Frist an postChat durch (M-15)', async () => {
     vi.useFakeTimers();
@@ -154,6 +156,18 @@ describe('ChatApiClient', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('environment.referrer nimmt nie document.referrer (N-1)', async () => {
+    const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
+    Object.defineProperty(document, 'referrer', { configurable: true, value: 'https://suche.example/?q=geheim' });
+    try {
+      await new ChatApiClient({ fetchImpl }).post('s', 'm');
+    } finally {
+      delete (document as { referrer?: string }).referrer;
+    }
+    expect(calls[0].body.environment.referrer).toBe('direkt');
+    expect(JSON.stringify(calls[0].body)).not.toContain('geheim');
   });
 
   // ── Sprache des Widgets (C1-f1) ────────────────────────────────────────

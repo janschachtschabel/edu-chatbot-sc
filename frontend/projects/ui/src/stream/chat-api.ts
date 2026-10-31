@@ -347,7 +347,9 @@ export class ChatApiClient {
       device: env?.device || detectDevice(),
       locale: env?.locale || this.uiLocale || navigator.language || 'de-DE',
       session_duration: Math.floor((Date.now() - this.startTime) / 1000),
-      referrer: env?.referrer || document.referrer || 'direkt',
+      // Paket 19 (N-1): nie `document.referrer` — die Herkunftsseite trägt oft
+      // Suchbegriffe, und das Backend liest das Feld nicht.
+      referrer: env?.referrer || 'direkt',
       guide_mode: env?.guide_mode ?? this.guideMode,
       host: env?.host ?? this.guideHost,
       tour_action: env?.tour_action,

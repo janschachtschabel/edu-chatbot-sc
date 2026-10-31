@@ -603,7 +603,7 @@ und Titel der Gastseite zusätzlich bei. Die Felder
 | `search_query` | aktueller Suchbegriff der Gastseite |
 | `search_filters` | `{ publisher?: string[] }` |
 | `page_text` | Titel + sichtbarer Text der Seite (Server-Budget 200 000 Zeichen) |
-| `page_url`, `page_host` | volle Adresse und Hostname |
+| `page_url`, `page_host` | Adresse und Hostname. Die eigene Erkennung schickt seit Paket 19 nur Pfad plus Seiten-Kennung (`v`, `id`, `p`, `page_id`) — keine übrige Query, keinen Anker. Liefert ihr `page_url` selbst, kürzt genauso |
 | `title` | Seitentitel des Tabs (Alias: `document_title` gewinnt, wenn beide gesetzt) |
 
 Alle **Text**felder dieser Tabelle — also alle außer `search_filters`, das ein Objekt bleibt — werden serverseitig zu Zeichenketten normalisiert: ein numerisches Enum als `page_kind` oder eine Zahl-ID (`collection_id: 4711` → `"4711"`) bricht den Zug also nicht. Nicht gesetzte Felder (`null`) bleiben ungesetzt.
