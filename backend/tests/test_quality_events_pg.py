@@ -259,3 +259,22 @@ def test_log_quality_event_ohne_angaben_bleiben_die_felder_leer(test_db) -> None
     d = _run(scenario).data
     assert (d["locale"], d["page_type"], d["engine"]) == ("", "", "")
 
+
+
+def test_log_quality_event_speichert_die_seite_ohne_query(test_db) -> None:
+    """Paket 20 (A2): Suchbegriffe im Query der Gastseite bleiben nicht 180 Tage liegen —
+    weder in der flachen Spalte noch im Debug-Abbild; der Debug-Block des Zugs bleibt."""
+    from boerdi.obs.quality_events import log_quality_event
+
+    debug = {"pattern": "", "context": {"page": "/suche?q=geheim&x=1#treffer", "locale": "de"}}
+
+    async def scenario(session):
+        await log_quality_event(session, "bb-q4", "hallo", 1, debug,
+                                page="https://gast.example/suche?q=geheim#treffer")
+        return await _one_quality(session)
+
+    d = _run(scenario).data
+    assert d["page"] == "https://gast.example/suche"
+    assert d["debug"]["context"]["page"] == "/suche"
+    assert d["debug"]["context"]["locale"] == "de"
+    assert debug["context"]["page"] == "/suche?q=geheim&x=1#treffer"
