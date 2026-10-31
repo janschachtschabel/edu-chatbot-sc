@@ -239,7 +239,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
     Paket 18F 20). Ein ungültiger Wert verhindert den Start. Ohne `TRUST_FORWARDED_FOR`
     hinter einem Proxy teilen sich alle Nutzer eine IP. Das Widget nennt bei 429 die
     Wartezeit aus `Retry-After`.
-  - **DB-Verbindungen:** 5+10 je Pod, eine LISTEN-Verbindung und kurz eine für `/ready`. Also `max_connections ≥ N×17 + Reserve` oder PgBouncer (Session-Modus, wegen LISTEN).
+  - **DB-Verbindungen:** 5+10 je Pod, bis 4 für die Sitzungssperre, eine LISTEN-Verbindung und kurz eine für `/ready`. Also `max_connections ≥ N × (DB_POOL_SIZE + DB_MAX_OVERFLOW + 6) + Reserve` (Vorgaben: N×21; beim Rolling Update die Surge-Pods mitzählen) oder PgBouncer (Session-Modus, wegen LISTEN). Fristen je Verbindung: `DB_STATEMENT_TIMEOUT_S` 60, `DB_COMMAND_TIMEOUT_S` 90, `DB_IDLE_IN_TRANSACTION_TIMEOUT_S` 300, `DB_LOCK_TIMEOUT_S` 30 (Paket 19) — die Server-Fristen per `SET` nach dem Verbinden, nicht im Startpaket (PgBouncer-tauglich).
   - **MCP-Server:** Er drosselt auf 120 Anfragen je Minute **je IP**, und alle Pods teilen sich eine Egress-IP. Die Freischaltung klärt das MCP-Team.
   - **Herunterfahren:** bis 72 s (5 s Läufe schließen, 30 s Verbindungen, 25 s Nachlauf, 10 s Abbruch und Aufräumen, 2 s Verbindungen schließen), eingestellt 75 s, **plus** preStop (5 s) plus Luft = 85 s (Values) — Kubernetes zieht preStop von der Frist ab.
 - **Abnahme:** `docs/cluster-checkliste.md` (Zusagen 1–8, davon SSE über den Load-Balancer und der verlustfreie Shutdown am laufenden Cluster).

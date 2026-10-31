@@ -103,7 +103,10 @@ async def sitzung_sperren(request: Request, session_id: str) -> AsyncIterator[No
     (ein Prozess ohne Lebenszyklus, etwa manche Tests) die bisherige Sperre im
     Prozess — dort wartet er wie zuvor.
     """
-    engine = getattr(request.app.state, "engine", None)
+    # Paket 19 (Audit 2026-10-31, H-5): die eigene kleine Engine der Sperre, wo der
+    # Lebenszyklus sie gebaut hat — ein ausgeschöpfter Chat-Pool hält sie nicht auf.
+    engine = (getattr(request.app.state, "sperr_engine", None)
+              or getattr(request.app.state, "engine", None))
     if engine is not None:
         async with sitzungssperre(engine, session_id):
             yield

@@ -81,7 +81,9 @@ postgresql:
   # Die App liest nur das Secret DATABASE_URL; diese Angaben dienen dem Chart, es daraus
   # zu bauen. POSTGRES_PASSWORD braucht nur die mitgelieferte Datenbank.
   external: {host: boerdi-postgres, port: 5432, database: boerdi, user: boerdi}
-  # Pool je Pod 5+10, eine LISTEN-Verbindung, kurz eine für /ready — max_connections >= N×17 + Reserve.
+  # Pool je Pod 5+10, Sitzungssperre bis 4, eine LISTEN-Verbindung, kurz eine für /ready —
+  # max_connections >= N × (DB_POOL_SIZE + DB_MAX_OVERFLOW + 6) + Reserve, mit den Vorgaben N×21;
+  # N zählt die Surge-Pods beim Rolling Update mit.
 valkey:
   enabled: true           # Rate-Limit-Zähler über alle Pods (RATE_LIMIT_STORAGE_URI)
   persistence: false

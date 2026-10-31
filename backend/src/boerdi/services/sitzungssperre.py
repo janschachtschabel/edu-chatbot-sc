@@ -16,6 +16,18 @@ fiele. Sie ist ein Eintrag in ``session_locks`` (Migration 0008):
 
 Jede Abfrage ist eine kurze eigene Transaktion: keine Verbindung bleibt über den
 Zug gehalten (der Pool reicht sonst bei vielen parallelen Zügen nicht).
+
+**Paket 19 (Audit 2026-10-31):**
+
+* **Eigene kleine Engine** (H-5, :func:`sperr_engine`): lief die Sperre über den Pool der
+  Züge, scheiterte unter Last ``_verlaengern`` (30 s Wartezeit auf eine Verbindung), und
+  nach der TTL übernahm ein zweiter Zug derselben Sitzung — beide liefen parallel. Im
+  Cluster bleibt sie unverändert in Postgres.
+* **Frist je Abfrage** (M-10, ``db_frist_s``): ein Nehmen ohne Antwort (Netzpartition ohne
+  RST) hing den Zug unbegrenzt auf; ``warten_s`` wird nur zwischen zwei Versuchen geprüft.
+* **Nehmen im ``try``** (N-28): ein Abbruch nach dem Commit von ``_nehmen`` erreichte kein
+  ``finally``, die Sitzung blieb bis zur TTL „beschäftigt“. Freigegeben wird jetzt immer,
+  mit dem eigenen ``owner`` — fremde Einträge bleiben unberührt.
 """
 
 from __future__ import annotations
@@ -30,8 +42,10 @@ from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from boerdi.db.session import make_engine
 from boerdi.obs.log_inhalt import kennung
 from boerdi.obs.tasks import cancel_and_drain
+from boerdi.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +58,11 @@ ABFRAGE_S = 0.5
 TTL_S = 60
 #: Takt der Verlängerung; deutlich unter ``TTL_S``.
 TAKT_S = 20.0
+#: Frist je Abfrage (Nehmen, Verlängern, Freigeben) samt Warten auf eine Verbindung.
+DB_FRIST_S = 10.0
+#: Pool der eigenen Engine: Nehmen, Verlängern und Freigeben dauern Millisekunden.
+POOL_GROESSE = 2
+POOL_UEBERLAUF = 2
 
 _NEHMEN = text("""
     INSERT INTO session_locks (session_id, owner, expires_at)
@@ -67,18 +86,37 @@ class SitzungBeschaeftigt(Exception):
     sse_code = "session_busy"
 
 
-async def _nehmen(engine: AsyncEngine, sid: str, owner: str, ttl_s: float) -> bool:
-    async with engine.begin() as conn:
+def sperr_engine(settings: Settings) -> AsyncEngine:
+    """Die eigene kleine Engine der Sperre (Paket 19, H-5) — Lebenszyklus in ``main``."""
+    return make_engine(settings, pool_size=POOL_GROESSE, max_overflow=POOL_UEBERLAUF,
+                       pool_timeout=DB_FRIST_S)
+
+
+async def _nehmen(engine: AsyncEngine, sid: str, owner: str, ttl_s: float,
+                  frist_s: float = DB_FRIST_S) -> bool:
+    async with asyncio.timeout(frist_s), engine.begin() as conn:
         zeile = (await conn.execute(_NEHMEN, {"sid": sid, "owner": owner, "ttl": ttl_s})).first()
     return zeile is not None
 
 
+async def _freigeben(engine: AsyncEngine, sid: str, owner: str,
+                     frist_s: float = DB_FRIST_S) -> None:
+    try:
+        async with asyncio.timeout(frist_s), engine.begin() as conn:
+            await conn.execute(_FREIGEBEN, {"sid": sid, "owner": owner})
+    except Exception:
+        # Ohne Freigabe verfällt sie nach ``ttl_s`` — kein Grund, den Zug
+        # nachträglich scheitern zu lassen.
+        logger.warning("Sitzungssperre %s: Freigabe fehlgeschlagen", kennung(sid),
+                       exc_info=True)
+
+
 async def _verlaengern(engine: AsyncEngine, sid: str, owner: str,
-                       ttl_s: float, takt_s: float) -> None:
+                       ttl_s: float, takt_s: float, *, frist_s: float = DB_FRIST_S) -> None:
     while True:
         await asyncio.sleep(takt_s)
         try:
-            async with engine.begin() as conn:
+            async with asyncio.timeout(frist_s), engine.begin() as conn:
                 ergebnis = await conn.execute(
                     _VERLAENGERN, {"sid": sid, "owner": owner, "ttl": ttl_s})
         except Exception:
@@ -100,18 +138,33 @@ async def _verlaengern(engine: AsyncEngine, sid: str, owner: str,
 async def sitzungssperre(
     engine: AsyncEngine, session_id: str, *,
     warten_s: float = WARTEN_S, abfrage_s: float = ABFRAGE_S,
-    ttl_s: float = TTL_S, takt_s: float = TAKT_S,
+    ttl_s: float = TTL_S, takt_s: float = TAKT_S, db_frist_s: float = DB_FRIST_S,
 ) -> AsyncIterator[None]:
     """Halte die Sperre der Sitzung für die Dauer des Blocks — oder wirf
-    :class:`SitzungBeschaeftigt`, wenn sie in ``warten_s`` nicht frei wird."""
+    :class:`SitzungBeschaeftigt`, wenn sie in ``warten_s`` nicht frei wird.
+
+    Eine Abfrage ohne Antwort binnen ``db_frist_s`` wirft ``TimeoutError`` (der Endpunkt
+    zeigt die Fehlerblase)."""
     owner = uuid4().hex
     frist = time.monotonic() + warten_s
-    while not await _nehmen(engine, session_id, owner, ttl_s):
-        if time.monotonic() >= frist:
-            raise SitzungBeschaeftigt(session_id)
-        await asyncio.sleep(abfrage_s)
-    waechter = asyncio.create_task(_verlaengern(engine, session_id, owner, ttl_s, takt_s))
+    waechter: asyncio.Task[None] | None = None
+    # Kann der Eintrag uns gehören? Ja, sobald ein Nehmen läuft — es kann committet haben,
+    # bevor ein Abbruch oder die Frist es unterbrach. Nein nach einem Nehmen, das sicher
+    # ``False`` lieferte (Review 19-4: „beschäftigt“ kostete sonst ein DELETE).
+    vielleicht_unser = False
     try:
+        # Paket 19 (N-28): im ``try`` — auch ein Abbruch direkt nach dem Commit von
+        # ``_nehmen`` gibt unten frei.
+        while True:
+            vielleicht_unser = True
+            if await _nehmen(engine, session_id, owner, ttl_s, db_frist_s):
+                break
+            vielleicht_unser = False
+            if time.monotonic() >= frist:
+                raise SitzungBeschaeftigt(session_id)
+            await asyncio.sleep(abfrage_s)
+        waechter = asyncio.create_task(_verlaengern(
+            engine, session_id, owner, ttl_s, takt_s, frist_s=db_frist_s))
         yield
     finally:
         # Paket 18E: ein Abbruch des Zugs während des Wartens kommt durch — die Freigabe
@@ -119,11 +172,5 @@ async def sitzungssperre(
         try:
             await cancel_and_drain([waechter])
         finally:
-            try:
-                async with engine.begin() as conn:
-                    await conn.execute(_FREIGEBEN, {"sid": session_id, "owner": owner})
-            except Exception:
-                # Ohne Freigabe verfällt sie nach ``ttl_s`` — kein Grund, den Zug
-                # nachträglich scheitern zu lassen.
-                logger.warning("Sitzungssperre %s: Freigabe fehlgeschlagen",
-                               kennung(session_id), exc_info=True)
+            if vielleicht_unser:
+                await _freigeben(engine, session_id, owner, db_frist_s)

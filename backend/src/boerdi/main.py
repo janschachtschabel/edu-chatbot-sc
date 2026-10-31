@@ -204,6 +204,7 @@ async def _lifespan(app: FastAPI):
     from boerdi.services import config_loader
     from boerdi.services.config_store import ConfigStore
     from boerdi.services.loadtest import sweep_orphaned_loadtests
+    from boerdi.services.sitzungssperre import sperr_engine
 
     settings = get_settings()
     engine = make_engine(settings)
@@ -213,6 +214,9 @@ async def _lifespan(app: FastAPI):
     await store.preload([meta["area"] for meta in await store.list_areas()])
     config_loader.bind_store(store)
     app.state.engine = engine
+    # Paket 19 (Audit 2026-10-31, H-5): die Sitzungssperre der Chat-Züge über eine eigene
+    # kleine Engine — unter Last wartet sie nicht hinter den Zügen auf eine Verbindung.
+    app.state.sperr_engine = sperr_engine(settings)
     app.state.session_factory = make_session_factory(engine)  # api.deps.get_session
     app.state.config_store = store
     # V9 housekeeping: a crashed loadtest can leave a ``running`` row that would
@@ -255,6 +259,7 @@ async def _lifespan(app: FastAPI):
         # deckt die halbe Sekunde, ``test_das_herunterfahren_passt_in_die_gnadenfrist``).
         await store.stop(frist_s=max(0.5, ende - uhr.time()))
         await engine.dispose()
+        await app.state.sperr_engine.dispose()
 
 
 def create_app() -> FastAPI:
