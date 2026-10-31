@@ -562,7 +562,8 @@ async def _einzelaufruf(
         # Auch die extrahierten queryMetas mit-cachen, damit Cache-Hits die
         # strukturierten Filter-Daten (URI-resolved discipline /
         # educationalContext / learningResourceType) wieder re-emitten können —
-        # siehe Re-Emit-Logik im Cache-Hit-Zweig oben.
-        if _extracted_metas_this_call:
+        # siehe Re-Emit-Logik im Cache-Hit-Zweig oben. Nur zu einem gespeicherten Wert
+        # (Paket 19, M-11: ein zu großer bleibt draußen — seine Metas sonst für immer).
+        if _extracted_metas_this_call and cache_key in _TOOL_CACHE:
             _TOOL_META_CACHE[cache_key] = _extracted_metas_this_call
     return response, "", False

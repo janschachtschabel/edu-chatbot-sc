@@ -495,6 +495,11 @@ class Settings(BaseSettings):
     db_idle_in_transaction_timeout_s: float = Field(
         300.0, ge=0, validation_alias=_env("DB_IDLE_IN_TRANSACTION_TIMEOUT_S"))
     db_lock_timeout_s: float = Field(30.0, ge=0, validation_alias=_env("DB_LOCK_TIMEOUT_S"))
+    # Paket 19 (Audit 2026-10-31, M-11): Deckel des MCP-Werkzeug-Caches nach Größe (Zeichen).
+    mcp_tool_cache_max_chars: int = Field(
+        20_000_000, ge=0, validation_alias=_env("MCP_TOOL_CACHE_MAX_CHARS"))
+    mcp_tool_cache_max_entry_chars: int = Field(
+        1_000_000, ge=0, validation_alias=_env("MCP_TOOL_CACHE_MAX_ENTRY_CHARS"))
     rate_limit_storage_uri: str = Field(
         "memory://", validation_alias=_env("RATE_LIMIT_STORAGE_URI"),
         description="slowapi storage; valkey://... in cluster (P10-6)",

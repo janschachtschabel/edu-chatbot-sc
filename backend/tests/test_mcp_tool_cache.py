@@ -242,3 +242,63 @@ def test_ein_abgelaufener_eintrag_nimmt_seine_metas_mit(monkeypatch):
     monkeypatch.setattr(tool_cache._time, "time", lambda: jetzt + 10 ** 7)
     assert _cache_get(key) is None
     assert key not in tool_cache._TOOL_META_CACHE
+
+
+# ── Paket 19 (Audit 2026-10-31, M-11): Deckel nach Größe ────────────────────
+# Gedeckelt war nur die Zahl (1024); seit ``maxChars`` fiel, trägt ein Eintrag bis
+# 200 000 Zeichen (``get_url_text`` & Co.) — bis ~400 MB je Prozess.
+def _grenzen(monkeypatch, gesamt: int, einzeln: int) -> None:
+    from boerdi.settings import get_settings
+
+    monkeypatch.setenv("MCP_TOOL_CACHE_MAX_CHARS", str(gesamt))
+    monkeypatch.setenv("MCP_TOOL_CACHE_MAX_ENTRY_CHARS", str(einzeln))
+    get_settings.cache_clear()
+
+
+def test_der_cache_verdraengt_nach_groesse_die_aeltesten(monkeypatch):
+    from boerdi.settings import get_settings
+
+    _grenzen(monkeypatch, gesamt=250, einzeln=200)
+    try:
+        clear_tool_cache()
+        a, b, c = (_cache_key("get_url_text", {"url": u}) for u in "abc")
+        _cache_set(a, "x" * 100)
+        _cache_set(b, "y" * 100)
+        _cache_set(c, "z" * 100)  # 300 > 250 → der älteste (a) fällt
+        assert _cache_get(a) is None
+        assert _cache_get(b) == "y" * 100
+        assert _cache_get(c) == "z" * 100
+        assert get_tool_cache_stats()["chars"] == 200
+    finally:
+        clear_tool_cache()
+        get_settings.cache_clear()
+
+
+def test_ein_sehr_grosser_text_wird_nicht_zwischengespeichert(monkeypatch):
+    from boerdi.settings import get_settings
+
+    _grenzen(monkeypatch, gesamt=10_000, einzeln=50)
+    try:
+        clear_tool_cache()
+        key = _cache_key("get_url_text", {"url": "gross"})
+        _cache_set(key, "klein")
+        _cache_set(key, "g" * 51)  # zu groß: kein Eintrag, und der alte Wert gilt nicht mehr
+        assert _cache_get(key) is None
+        assert get_tool_cache_stats()["chars"] == 0
+    finally:
+        clear_tool_cache()
+        get_settings.cache_clear()
+
+
+def test_ersetzen_und_ablaufen_halten_die_summe_richtig(monkeypatch):
+    from boerdi.services.mcp import tool_cache
+
+    clear_tool_cache()
+    key = _cache_key("search_wlo_content", {"q": "summe"})
+    _cache_set(key, "a" * 10)
+    _cache_set(key, "b" * 4)
+    assert get_tool_cache_stats()["chars"] == 4
+    jetzt = tool_cache._time.time()
+    monkeypatch.setattr(tool_cache._time, "time", lambda: jetzt + 10 ** 7)
+    assert _cache_get(key) is None
+    assert get_tool_cache_stats()["chars"] == 0

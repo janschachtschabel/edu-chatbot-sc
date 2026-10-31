@@ -212,6 +212,8 @@ env:
   MASTER_SKILL_NODE_ID: "535cabca-47e4-4cbf-9cab-ca47e40cbf4e"
   MCP_CALL_TIMEOUT_S: "60.0"
   MCP_SERVER_URL: "https://wlo-mcp.87.106.195.152.nip.io/mcp"   # Staging-MCP — Prod-Adresse eintragen, sobald vorhanden
+  MCP_TOOL_CACHE_MAX_CHARS: "20000000"
+  MCP_TOOL_CACHE_MAX_ENTRY_CHARS: "1000000"
   OPENAI_BASE_URL: ""
   OPENAI_MODEL: ""
   OTEL_EXPORTER_OTLP_ENDPOINT: ""

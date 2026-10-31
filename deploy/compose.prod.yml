@@ -228,6 +228,8 @@ services:
       RAG_MAX_CHARS_PER_AREA: ${RAG_MAX_CHARS_PER_AREA:-}
       MCP_SERVER_URL: ${MCP_SERVER_URL:-}
       MCP_CALL_TIMEOUT_S: ${MCP_CALL_TIMEOUT_S:-}
+      MCP_TOOL_CACHE_MAX_CHARS: ${MCP_TOOL_CACHE_MAX_CHARS:-}
+      MCP_TOOL_CACHE_MAX_ENTRY_CHARS: ${MCP_TOOL_CACHE_MAX_ENTRY_CHARS:-}
       # Geheimnis (C2): Zugangsblock des MCP-Servers, aus der .env auf dem
       # Server. Leer = anonym lesend. Siehe deploy/README.md.
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
