@@ -39,6 +39,18 @@ from boerdi.db.models import QualityLog, SafetyLog
 from boerdi.obs import trace_id
 
 
+def _ohne_query(adresse: Any) -> str:
+    """Die Seitenadresse ohne Query und Anker (Paket 20, A2).
+
+    Die Zeile hält sie 180 Tage. Schickt eine Einbettung Suchbegriffe oder Kennungen im
+    Query mit, blieben sie sonst so lange liegen; für die Auswertung zählt nur der Pfad.
+    """
+    text = str(adresse or "")
+    for zeichen in ("?", "#"):
+        text = text.split(zeichen, 1)[0]
+    return text
+
+
 def _field(decision: Any, name: str, default: Any) -> Any:
     """Read one field from a safety ``decision`` that may be an object, a dict
     (ALT direct-action path), or ``None`` (rate-limit path)."""
@@ -129,6 +141,10 @@ async def log_quality_event(
     # Aufbewahrungslauf nach der Frist der Gespräche (D1), diese drei Facetten bleiben.
     context = debug_info.get("context") or {}
     entities = debug_info.get("entities") or {}
+    if isinstance(context, dict) and context.get("page"):
+        # Kopien: der Debug-Block des Zugs (Antwort, Studio-Ansicht) bleibt unberührt.
+        context = {**context, "page": _ohne_query(context["page"])}
+        debug_info = {**debug_info, "context": context}
 
     eliminated = debug_info.get("phase1_eliminated", [])
     candidates_count = len(scores)
@@ -162,7 +178,7 @@ async def log_quality_event(
                 "length_setting": p3.get("length", ""),
                 "degradation": bool(p3.get("degradation")),
                 "missing_slots": p3.get("missing_slots", []),
-                "page": page,
+                "page": _ohne_query(page),
                 "device": device,
                 "locale": str(context.get("locale") or ""),
                 "page_type": str(entities.get("page_type") or ""),

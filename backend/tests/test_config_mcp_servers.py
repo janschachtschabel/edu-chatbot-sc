@@ -52,10 +52,12 @@ def saved(monkeypatch) -> list[list]:
     """
     calls: list[list] = []
     _SEEN_VERSIONS.clear()
+    _SEEN_CREATE.clear()
 
-    async def _save(servers, *, expected_version=None):
+    async def _save(servers, *, expected_version=None, create_only=False):
         calls.append(servers)
         _SEEN_VERSIONS.append(expected_version)
+        _SEEN_CREATE.append(create_only)
         return 4
 
     monkeypatch.setattr(config_loader, "save_mcp_servers", _save)
@@ -63,6 +65,7 @@ def saved(monkeypatch) -> list[list]:
 
 
 _SEEN_VERSIONS: list[int | None] = []
+_SEEN_CREATE: list[bool] = []
 
 
 @pytest.fixture()
@@ -122,12 +125,19 @@ def test_put_hands_the_expected_version_to_the_store(client, saved) -> None:
     assert _SEEN_VERSIONS == [3]
 
 
+def test_put_hands_create_to_the_store(client, saved) -> None:
+    # Paket 20 (A3): ohne bekannte Version legt das Studio nur an, statt blind zu überschreiben.
+    body = {**_body("http://8.8.8.8/mcp"), "create": True}
+    assert client.put("/api/config/mcp-servers", headers=_AUTH, json=body).status_code == 200
+    assert (_SEEN_VERSIONS, _SEEN_CREATE) == ([None], [True])
+
+
 def test_a_conflict_is_a_409_with_who_and_when(client, monkeypatch) -> None:
     from datetime import UTC, datetime
 
     from boerdi.services.config_conflict import ConfigConflict
 
-    async def _save(servers, *, expected_version=None):
+    async def _save(servers, *, expected_version=None, create_only=False):
         raise ConfigConflict("05-knowledge/mcp-servers", {
             "version": 5, "updated_by": "studio",
             "updated_at": datetime(2026, 10, 3, 20, 41, tzinfo=UTC)})
@@ -373,3 +383,83 @@ def test_raw_file_put_accepts_public_url(client, file_written) -> None:
     })
     assert r.status_code == 200
     assert len(file_written) == 1
+
+
+def _im_ereignis_loop() -> bool:
+    import asyncio
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+def test_put_loest_die_adressen_ausserhalb_des_ereignis_loops_auf(client, saved,
+                                                                  monkeypatch) -> None:
+    # Paket 20 (B1): ``getaddrinfo`` blockiert — im Loop hielte ein langsamer DNS den
+    # ganzen Prozess an, nicht nur diesen Aufruf.
+    from boerdi.api import config_guards
+    im_loop: list[bool] = []
+    monkeypatch.setattr(config_guards, "assert_public_url",
+                        lambda url: im_loop.append(_im_ereignis_loop()))
+    r = client.put("/api/config/mcp-servers", headers=_AUTH, json=_body("http://8.8.8.8/mcp"))
+    assert r.status_code == 200
+    assert im_loop == [False]
+
+
+def test_wiederherstellen_prueft_ausserhalb_des_ereignis_loops(monkeypatch) -> None:
+    # Paket 20 (B1): die Restore-Prüfung löst je weiterem MCP-Server eines ZIPs Namen auf.
+    import asyncio
+
+    from boerdi.api import config_snapshots
+
+    class _Halt(Exception):
+        pass
+
+    im_loop: list[bool] = []
+
+    def _pruefe(areas, lang):
+        im_loop.append(_im_ereignis_loop())
+        raise _Halt
+
+    monkeypatch.setattr(config_snapshots, "_lies_zip", lambda blob, lang: {})
+    monkeypatch.setattr(config_snapshots, "pruefe_bereiche", _pruefe)
+    with pytest.raises(_Halt):
+        asyncio.run(config_snapshots._apply_config(b"", "de"))
+    assert im_loop == [False]
+
+
+def test_put_data_prueft_ausserhalb_des_ereignis_loops(client, monkeypatch) -> None:
+    # Paket 20 (B1): derselbe Wächter am Bereichs-Speichern (``PUT /config/data``).
+    from fastapi import HTTPException
+
+    from boerdi.api import config as config_api
+    im_loop: list[bool] = []
+
+    def _waechter(key, data, lang):
+        im_loop.append(_im_ereignis_loop())
+        raise HTTPException(400, "gestoppt")  # vor dem Schreiben: kein Store nötig
+
+    monkeypatch.setattr(config_api, "_assert_area_document_safe", _waechter)
+    r = client.put("/api/config/data/01-base/welcome-config", headers=_AUTH, json={"data": {}})
+    assert r.status_code == 400
+    assert im_loop == [False]
+
+
+def test_create_auf_eine_vorhandene_liste_sagt_es_gibt_sie_schon(client, monkeypatch) -> None:
+    # Review Paket 20 (5): wie ``/config/data`` die Meldung „gibt es schon“, nicht „geändert von“.
+    from datetime import UTC, datetime
+
+    from boerdi.services.config_conflict import ConfigConflict
+
+    async def _save(servers, *, expected_version=None, create_only=False):
+        raise ConfigConflict("05-knowledge/mcp-servers", {
+            "version": 5, "updated_by": "studio",
+            "updated_at": datetime(2026, 10, 31, 20, 0, tzinfo=UTC)})
+
+    monkeypatch.setattr(config_loader, "save_mcp_servers", _save)
+    r = client.put("/api/config/mcp-servers", headers=_AUTH,
+                   json={**_body("http://8.8.8.8/mcp"), "create": True})
+    assert r.status_code == 409
+    assert r.json()["detail"]["version"] == 5
+    assert "schon" in r.json()["detail"]["message"]

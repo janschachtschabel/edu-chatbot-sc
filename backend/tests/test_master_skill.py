@@ -82,6 +82,34 @@ async def test_zweiter_zug_holt_nicht_erneut(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_gleichzeitige_erstzuege_teilen_einen_abruf(monkeypatch) -> None:
+    """Paket 20 (B2): nach einem Neustart holte jeder Zug ohne Stand selbst — N Züge,
+    N MCP-Sitzungen. Jetzt warten sie auf denselben Abruf; ein abgebrochener Zug bricht
+    ihn nicht für die anderen ab."""
+    import asyncio
+    _schalter(monkeypatch, an=True)
+    zaehler = {"n": 0}
+    freigabe = asyncio.Event()
+
+    async def _fake(name, args, **_kw):
+        zaehler["n"] += 1
+        await freigabe.wait()
+        return "# Anleitung\n\nInhalt."
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    zuege = [asyncio.create_task(master_skill.prompt_block(None)) for _ in range(5)]
+    for _ in range(20):
+        await asyncio.sleep(0)
+    zuege[0].cancel()
+    freigabe.set()
+    ergebnisse = await asyncio.gather(*zuege[1:])
+
+    assert zaehler["n"] == 1, "jeder Zug hat selbst geholt"
+    assert all(e and "Inhalt." in e for e in ergebnisse)
+    assert master_skill._erstabrufe == {}
+
+
+@pytest.mark.asyncio
 async def test_abgeschaltet_wird_nicht_geholt(monkeypatch) -> None:
     _schalter(monkeypatch, an=False)
 

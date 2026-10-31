@@ -511,6 +511,14 @@ describe("McpRegistryComponent — Konflikt beim Speichern (Paket 4, D5)", () =>
     expect(req.request.body.expected_version).toBe(4);
   });
 
+  it("schreibt ohne X-Config-Version nicht bedingungslos, sondern legt nur an (Paket 20)", async () => {
+    const h = await mount(SERVERS);
+    await zweitenEinschalten(h);
+    const req = h.http.expectOne("/studio/api/config/mcp-servers");
+    expect(req.request.body.create).toBe(true);
+    expect(req.request.body).not.toHaveProperty("expected_version");
+  });
+
   it("zeigt nach 409 den Hinweis und speichert trotzdem gegen die gemeldete Version", async () => {
     const h = await mount(SERVERS, 4);
     await zweitenEinschalten(h);

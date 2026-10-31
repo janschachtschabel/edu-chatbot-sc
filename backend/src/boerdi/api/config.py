@@ -99,7 +99,7 @@ async def update_config_file(file: ConfigFile, lang: Lang) -> dict:
         key, data = cl.parse_config_file(file.path, file.content)
     except (yaml.YAMLError, ValueError) as e:
         raise HTTPException(400, msg(lang, "file.unreadable", error=e)) from e
-    _assert_area_document_safe(key, data, lang)
+    await asyncio.to_thread(_assert_area_document_safe, key, data, lang)
     fehler = modell_fehler(key, data)
     if fehler:
         raise HTTPException(status_code=422, detail=fehler)
@@ -140,6 +140,9 @@ class AreaData(BaseModel):
 class McpServerUpdate(BaseModel):
     servers: list[dict]
     expected_version: int | None = None
+    # Paket 20 (A3): wie ``AreaData`` — ohne bekannte Version schreibt das Studio nur,
+    # wenn noch keine Zeile da ist, statt bedingungslos.
+    create: bool = False
 
 
 @router.put("/mcp-servers")
@@ -154,11 +157,12 @@ async def update_mcp_servers(data: McpServerUpdate, lang: Lang) -> dict:
     may deliberately point inside the network, and ``save_mcp_servers`` strips it
     before writing regardless.
     """
-    _assert_servers_public(data.servers, lang)
+    await asyncio.to_thread(_assert_servers_public, data.servers, lang)
     try:
-        version = await cl.save_mcp_servers(data.servers, expected_version=data.expected_version)
+        version = await cl.save_mcp_servers(data.servers, expected_version=data.expected_version,
+                                            create_only=data.create)
     except ConfigConflict as e:
-        raise konflikt_antwort(e, lang) from e
+        raise konflikt_antwort(e, lang, anlegen=data.create) from e
     return {"status": "saved", "count": len(data.servers), "version": version}
 
 
@@ -255,7 +259,7 @@ async def update_area_data(area: str, payload: AreaData, lang: Lang) -> dict:
     absent optional field and rewrite the document the editor saw.
     """
     key, _ = _resolve_area(area, file_key=True)
-    _assert_area_document_safe(key, payload.data, lang)
+    await asyncio.to_thread(_assert_area_document_safe, key, payload.data, lang)
     # One gate for the form, the raw text and the restore (Paket 4, D3).
     fehler = modell_fehler(key, payload.data)
     if fehler:

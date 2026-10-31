@@ -148,7 +148,9 @@ export class McpRegistryStore {
       const expected = force && conflict ? conflict.version : this.version();
       await this.api.put('/config/mcp-servers', {
         servers: this.servers(),
-        ...(expected === null ? {} : { expected_version: expected }),
+        // Paket 20 (A3): ohne Version nur anlegen (409, wenn es die Liste schon gibt) —
+        // vorher schrieb das bedingungslos, auch nach einem Konflikt ohne Versionsangabe.
+        ...(expected === null ? { create: true } : { expected_version: expected }),
       });
       // Re-read rather than trust the local copy: the backend strips UI meta,
       // restores the primary if it went missing, and re-enriches descriptions.

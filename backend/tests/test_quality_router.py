@@ -136,23 +136,36 @@ def test_clear_confirm_true_bypasses_guard(client, monkeypatch):
     assert len(calls) == 1
 
 
-def test_clear_scope_not_all_bypasses_guard(client, monkeypatch):
-    calls = _fake(monkeypatch, "clear_quality_logs_svc", 4)
-    r = client.post("/api/quality/logs/clear", params={"scope": "eval"}, headers=_AUTH)
+@pytest.mark.parametrize("params", [
+    {"scope": "production"}, {"scope": "eval"}, {"engine": "agent"},
+    {"scope": "production", "engine": "pattern"},
+])
+def test_umfang_oder_maschine_allein_brauchen_die_bestaetigung(client, monkeypatch, params):
+    # Paket 20 (A1): ``scope=production`` traf fast die ganze Tabelle, die Maschine die
+    # Hälfte — beide zählten als Filter, und das DELETE lief ohne ``confirm``.
+    calls = _fake(monkeypatch, "clear_quality_logs_svc", 99)
+    r = client.post("/api/quality/logs/clear", params=params, headers=_AUTH)
+    assert r.status_code == 400
+    assert calls == []
+
+
+def test_umfang_und_maschine_wirken_mit_bestaetigung(client, monkeypatch):
+    # Paket 13 (E5): zeigt die Liste nur Agent-Züge, löscht „Alle löschen“ nur diese.
+    calls = _fake(monkeypatch, "clear_quality_logs_svc", 2)
+    r = client.post("/api/quality/logs/clear",
+                    params={"scope": "eval", "engine": "agent", "confirm": "true"}, headers=_AUTH)
     assert r.status_code == 200
     _, kwargs = calls[0]
     assert kwargs == {"session_id": "", "pattern_id": "", "intent_id": "", "scope": "eval",
-                      "engine": None}
+                      "engine": "agent"}
 
 
-def test_clear_nach_maschine_loescht_nur_deren_zuege(client, monkeypatch):
-    # Paket 13 (E5): zeigt die Liste nur Agent-Züge, löscht „Alle löschen“ nur diese — die
-    # Maschine schränkt ein und zählt deshalb als Filter.
-    calls = _fake(monkeypatch, "clear_quality_logs_svc", 2)
-    r = client.post("/api/quality/logs/clear", params={"engine": "agent"}, headers=_AUTH)
+def test_eine_echte_einschraenkung_braucht_keine_bestaetigung(client, monkeypatch):
+    calls = _fake(monkeypatch, "clear_quality_logs_svc", 1)
+    r = client.post("/api/quality/logs/clear",
+                    params={"scope": "production", "pattern_id": "M04"}, headers=_AUTH)
     assert r.status_code == 200
-    _, kwargs = calls[0]
-    assert kwargs["engine"] == "agent"
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize("params", [

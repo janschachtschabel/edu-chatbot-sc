@@ -259,3 +259,20 @@ def test_herstellen_weist_einen_unbekannten_modus_vor_allem_anderen_ab(tmp_path)
     with pytest.raises(ValueError):
         _herstellen(tmp_path, "alles", protokoll=protokoll)
     assert protokoll == []
+
+
+def test_herstellen_prueft_ausserhalb_des_ereignis_loops(tmp_path):
+    # Paket 20 (B1): die Prüfung löst die Adressen weiterer MCP-Server auf (``getaddrinfo``,
+    # blockierend) — im Loop hielte ein langsamer DNS den ganzen Prozess an.
+    im_loop: list[bool] = []
+
+    def pruefe(seed):
+        try:
+            asyncio.get_running_loop()
+            im_loop.append(True)
+        except RuntimeError:
+            im_loop.append(False)
+        return seed
+
+    _herstellen(tmp_path, "exact", pruefen=pruefe)
+    assert im_loop == [False]

@@ -88,11 +88,13 @@ export class QualityLogsComponent {
 
   /** Paket 13 (E5): zeigt die Liste nur die Züge einer Maschine, löscht der Sammel-Knopf nur
    *  diese — Knopf und Frage sagen es, statt „Alle“ zu behaupten. */
-  readonly eingeschraenkt = computed(() => this.hasFilter() || !!this.engine());
+  readonly eingeschraenkt = computed(
+    () => this.hasFilter() || !!this.engine() || this.scope() !== 'all');
 
   readonly bulkQuestion = computed(() => {
     const filters = this.filters();
     const engine = this.engine();
+    const scope = this.scope();
     if (!this.eingeschraenkt()) return this.t('qualLogs.bulk.all');
     // Nur die gesetzten Filter, in fester Reihenfolge; das Komma bleibt ein
     // Komma — die Aufzählung ist technisch, keine Prosa für `list()`.
@@ -101,6 +103,8 @@ export class QualityLogsComponent {
       filters.intentId && this.t('qualLogs.filter.intent', { id: filters.intentId }),
       filters.sessionId && this.t('qualLogs.filter.session', { id: filters.sessionId }),
       engine && this.t('qualLogs.filter.engine', { engine: this.t(`effect.engine.${engine}`) }),
+      // Paket 20 (A1): der Umfang gehört in die Frage — „Produktion“ trifft fast alles.
+      scope !== 'all' && this.t('qualLogs.filter.scope', { scope: this.t(`origin.${scope}`) }),
     ].filter(Boolean);
     return this.t('qualLogs.bulk.filtered', { parts: parts.join(', ') });
   });
