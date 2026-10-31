@@ -1480,6 +1480,11 @@
       },
       "McpServerUpdate": {
         "properties": {
+          "create": {
+            "default": false,
+            "title": "Create",
+            "type": "boolean"
+          },
           "expected_version": {
             "anyOf": [
               {

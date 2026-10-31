@@ -94,7 +94,7 @@ def test_das_speichern_schreibt_die_vorgabe_nicht_fest(monkeypatch):
     geschrieben: list = []
 
     class _Fake:
-        async def put(self, key, data, *, updated_by, expected_version=None):
+        async def put(self, key, data, *, updated_by, expected_version=None, create_only=False):
             geschrieben.append(data)
             return 1
 
@@ -108,6 +108,24 @@ def test_das_speichern_schreibt_die_vorgabe_nicht_fest(monkeypatch):
     primaer, weiterer = geschrieben[0]["servers"]
     assert "werkzeuge_aus" not in primaer               # die Vorgabe: nicht gepflegt
     assert weiterer["werkzeuge_aus"] == ["suche_x"]     # gepflegt bleibt gepflegt
+
+
+def test_das_speichern_reicht_create_an_den_store(monkeypatch):
+    """Paket 20 (A3): ohne Weitergabe schriebe „Trotzdem speichern“ ohne Version wieder
+    bedingungslos — der Router-Test ersetzt ``save_mcp_servers`` ganz und sähe das nicht."""
+    from boerdi.services.config_loader import _store as store_mod
+    from boerdi.services.config_loader import mcp as mcp_loader
+    bedingungen: list = []
+
+    class _Fake:
+        async def put(self, key, data, *, updated_by, expected_version=None, create_only=False):
+            bedingungen.append((expected_version, create_only))
+            return 1
+
+    monkeypatch.setattr(store_mod, "_store", _Fake())
+    asyncio.run(mcp_loader.save_mcp_servers([{"id": "wlo-mcp"}], create_only=True))
+    asyncio.run(mcp_loader.save_mcp_servers([{"id": "wlo-mcp"}], expected_version=7))
+    assert bedingungen == [(None, True), (7, False)]
 
 
 def test_uebernommene_lesende_werkzeuge_eines_weiteren_servers_tragen_einen_schalter(monkeypatch):

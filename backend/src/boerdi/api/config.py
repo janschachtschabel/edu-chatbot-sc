@@ -140,6 +140,9 @@ class AreaData(BaseModel):
 class McpServerUpdate(BaseModel):
     servers: list[dict]
     expected_version: int | None = None
+    # Paket 20 (A3): wie ``AreaData`` — ohne bekannte Version schreibt das Studio nur,
+    # wenn noch keine Zeile da ist, statt bedingungslos.
+    create: bool = False
 
 
 @router.put("/mcp-servers")
@@ -156,9 +159,10 @@ async def update_mcp_servers(data: McpServerUpdate, lang: Lang) -> dict:
     """
     _assert_servers_public(data.servers, lang)
     try:
-        version = await cl.save_mcp_servers(data.servers, expected_version=data.expected_version)
+        version = await cl.save_mcp_servers(data.servers, expected_version=data.expected_version,
+                                            create_only=data.create)
     except ConfigConflict as e:
-        raise konflikt_antwort(e, lang) from e
+        raise konflikt_antwort(e, lang, anlegen=data.create) from e
     return {"status": "saved", "count": len(data.servers), "version": version}
 
 

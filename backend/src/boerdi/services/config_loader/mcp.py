@@ -59,6 +59,7 @@ def get_enabled_mcp_servers() -> list[dict[str, Any]]:
 
 async def save_mcp_servers(
     servers: list[dict[str, Any]], *, expected_version: int | None = None,
+    create_only: bool = False,
 ) -> int:
     """Persist the registry: strip UI meta + primary URL; primary always
     restored at index 0 (ALT protection against dropping it). Returns the
@@ -92,5 +93,5 @@ async def save_mcp_servers(
         raise RuntimeError("config store not bound")
     return await _store._store.put(
         "05-knowledge/mcp-servers", {"servers": cleaned}, updated_by="studio",
-        expected_version=expected_version,
+        expected_version=expected_version, create_only=create_only,
     )
