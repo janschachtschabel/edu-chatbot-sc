@@ -35,9 +35,14 @@ from boerdi.api import (
     widget_demo_snippet,
 )
 
-#: Beide Melde-Attribute sind auf den Live-Seiten an: sonst bliebe der
+#: Die Melde-Attribute sind auf den Live-Seiten an: sonst bliebe der
 #: Ereignis-Spiegel leer, und die Seite sähe kaputt aus statt still.
-_EMIT = {"emit-guide-suggestion": "true", "emit-routing-debug": "true"}
+#: ``emit-query-meta`` seit Paket 19 (N-6) — vorher war das Ereignis immer an.
+_EMIT = {
+    "emit-guide-suggestion": "true",
+    "emit-routing-debug": "true",
+    "emit-query-meta": "true",
+}
 
 #: Der Kasten der eingebetteten Seite. Er ist die Seite, nicht Zierrat:
 #: rahmenlos legt mit dem Rahmen auch die eigene Grösse ab, ein Element also, das

@@ -674,7 +674,7 @@ Widget                Backend                        Außen
   │                   │ assemble: Karten · Boxen · Quick-Replies · Links
   │                   │ persist: Zustand · Nachricht · Kennzahlen
   │◀── event: result ─┤
-  │ Ereignisse an die Gastseite: query-meta, ggf. guide-suggestion
+  │ Ereignisse an die Gastseite (je nach emit-*): query-meta, guide-suggestion
 ```
 
 ### 9.2 Eine Redaktions-Änderung

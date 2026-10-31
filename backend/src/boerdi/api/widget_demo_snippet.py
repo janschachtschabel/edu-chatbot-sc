@@ -28,6 +28,7 @@ DEMO_ONLY_ATTRS = (
     "auto-context",
     "emit-guide-suggestion",
     "emit-routing-debug",
+    "emit-query-meta",
 )
 
 #: Was das Element selbst setzt (Host-Bindings bzw. Angular). Dieselbe Liste wie

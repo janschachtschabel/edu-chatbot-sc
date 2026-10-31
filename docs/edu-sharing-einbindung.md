@@ -283,6 +283,7 @@ Alle Werte sind HTML-Attribute, also Zeichenketten; boolesche nehmen
 | `intercept-edu-sharing-links` | `false` | `true` = Link-Klicks abfangen statt navigieren → `linkClicked` mit Pfad+Query. Für eine SPA, die selbst routen will |
 | `emit-guide-suggestion` | `false` | `boerdi:guide-suggestion` einschalten (§7) |
 | `emit-routing-debug` | `false` | `boerdi:routing-debug` einschalten (§7) |
+| `emit-query-meta` | `false` | `boerdi:query-meta` einschalten (§7); bis Paket 19 immer an |
 
 ### Was zur Laufzeit noch wirkt
 
@@ -459,7 +460,7 @@ window.addEventListener('boerdi:guide-suggestion', (e) => {
 | Ereignis | wann | Nutzlast |
 |---|---|---|
 | `boerdi:page-action` | der Bot schlägt eine Seiten-Aktion vor | `{action, payload}` — heute gefeuert: `navigate`, `show_results`, `canvas_show_cards` |
-| `boerdi:query-meta` | nach jedem Zug mit Suche — **immer an**, kein Opt-in | `{queries: [{tool_name, query_type, search_term, criteria[], pagination, repository_url, search_url}]}` |
+| `boerdi:query-meta` | nach jedem Zug mit Suche — **`emit-query-meta="true"` nötig** (seit Paket 19; vorher immer an) | `{queries: [{tool_name, query_type, search_term, criteria[], pagination, repository_url, search_url}]}` |
 | `boerdi:guide-suggestion` | jeder Zug mit verlinkbarem Treffer — **`emit-guide-suggestion="true"` nötig** | `{url, title, node_id, node_type, query, alternatives[]}` |
 | `boerdi:routing-debug` | jeder Bot-Zug — **`emit-routing-debug="true"` nötig** | `{message, pattern, intent, state, persona, tools_called[], rag_areas[], sources[], modifier{…}, signals[]}` — `persona` und `signals` seit Paket 18C/D nur mit Freigabe (Studio), sonst leer |
 
@@ -481,7 +482,8 @@ ignoriert ihr, statt daran zu scheitern.
 
 **Wer das Element in Angular einbaut** (ihr seid eine Angular-SPA), bekommt vier
 Outputs mit identischer Nutzlast: `linkClicked` (Zeichenkette, nur mit
-`intercept-edu-sharing-links`), `guideSuggestion`, `routingDebug`, `queryMeta`.
+`intercept-edu-sharing-links`), `guideSuggestion`, `routingDebug`, `queryMeta`
+(wie das Ereignis nur mit `emit-query-meta`).
 `page-action` ist **nicht** dabei — es erreicht eine Gastseite ausschließlich als
 `window`-Ereignis.
 
