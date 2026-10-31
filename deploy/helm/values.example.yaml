@@ -132,8 +132,8 @@ secretEnv:
     - MCP_AUTH_TOKEN
     - OPENAI_API_KEY
     - POSTGRES_PASSWORD
-    - STUDIO_API_KEY
-    - STUDIO_PASSWORD
+    - STUDIO_API_KEY      # mindestens 12 Zeichen (Paket 19), sonst Verwaltung gesperrt
+    - STUDIO_PASSWORD     # mindestens 12 Zeichen (Paket 19), sonst Studio gesperrt
 
 # Von Image bzw. Build gesetzt (Dockerfile-ENV) — nur bei abweichendem Aufbau angeben:
 imageEnv:

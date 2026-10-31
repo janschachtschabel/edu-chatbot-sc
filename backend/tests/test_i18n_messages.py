@@ -176,6 +176,9 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'Studio API key required'": "Betreiber-Meldung, kein Redaktions-Text",
         "'Admin endpoints are disabled: STUDIO_API_KEY is not configured. "
         "Set it, or set BOERDI_ALLOW_OPEN_ADMIN=1 for local development.'": "dito",
+        "f'Admin endpoints are disabled: STUDIO_API_KEY is shorter than "
+        "{STUDIO_GEHEIMNIS_MINDESTLAENGE} characters. Set a longer one "
+        "(a random value is best).'": "dito (Paket 19, P19-E2)",
         "f'not implemented yet (arrives with {package})'": "Vertrags-Stub, kein Betrieb",
     },
     "sessions.py": {

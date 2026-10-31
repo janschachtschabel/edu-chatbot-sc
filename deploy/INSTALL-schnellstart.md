@@ -203,6 +203,8 @@ grep -E '^STUDIO_(PASSWORD|API_KEY)=' /opt/boerdi/deploy/.env
 
 `STUDIO_PASSWORD` ist die Anmeldung für Menschen, `STUDIO_API_KEY` der
 Maschine-zu-Maschine-Schlüssel. Beide gehören in einen Passwortspeicher.
+**Beide mindestens 12 Zeichen** (Paket 19) — kürzer bleiben Studio bzw. Verwaltung
+gesperrt (503, `ERROR` beim Start). Die Befehle oben erzeugen 32 bzw. 64 Zeichen.
 
 ---
 

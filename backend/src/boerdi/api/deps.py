@@ -24,7 +24,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from boerdi.api import fehlversuche
 from boerdi.i18n import Locale, resolve_locale
 from boerdi.services.session_origin import Scope
-from boerdi.settings import get_settings, studio_schluessel
+from boerdi.settings import (
+    STUDIO_GEHEIMNIS_MINDESTLAENGE,
+    get_settings,
+    studio_schluessel,
+    studio_schluessel_zu_kurz,
+)
 
 _HEADER = "X-Studio-Key"
 
@@ -74,11 +79,22 @@ async def require_studio_key(
 
     - No real key configured → 503 (admin disabled), UNLESS
       ``BOERDI_ALLOW_OPEN_ADMIN`` is set (explicit dev opt-in) → no-op.
+    - Key set but shorter than ``STUDIO_GEHEIMNIS_MINDESTLAENGE`` → 503, the flag
+      notwithstanding (Paket 19, P19-E2).
     - Key configured but request key missing/wrong → 401; a presented wrong key counts as a
       failed attempt per IP, and an IP that used up its attempts gets 429 for every presented
       key (Paket 19, H-3, ``api/fehlversuche``).
     """
     expected = expected_studio_key()
+    if not expected and studio_schluessel_zu_kurz():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Admin endpoints are disabled: STUDIO_API_KEY is shorter than "
+                f"{STUDIO_GEHEIMNIS_MINDESTLAENGE} characters. Set a longer one "
+                "(a random value is best)."
+            ),
+        )
     if not expected:
         if get_settings().allow_open_admin:
             return  # explicit local-dev opt-in — admin intentionally open

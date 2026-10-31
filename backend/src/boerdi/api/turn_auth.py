@@ -23,7 +23,7 @@ from boerdi.api.deps import (
 from boerdi.services.llm_auth import setze_llm_schluessel
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import is_personal_block, set_turn_auth_block
-from boerdi.settings import get_settings
+from boerdi.settings import get_settings, studio_schluessel_zu_kurz
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,8 @@ def ist_interner_zug(request: Request) -> bool:
 
     erwartet = expected_studio_key()
     if ueber_studio(request):
-        return not (gate_is_open() and erwartet)
+        # Ein zu kurzer Schlüssel ist gesetzt, nur unbrauchbar (Paket 19) — kein Entwicklungsmodus.
+        return not (gate_is_open() and (erwartet or studio_schluessel_zu_kurz()))
     gegeben = (request.headers.get("x-studio-key") or "").strip()
     if not gegeben:
         return False
@@ -108,7 +109,8 @@ def darf_diagnose(request: Request) -> bool:
     den gemeinsamen Schlüssel."""
     if ist_interner_zug(request):
         return True
-    return not expected_studio_key() and get_settings().allow_open_admin
+    return (not expected_studio_key() and not studio_schluessel_zu_kurz()
+            and get_settings().allow_open_admin)
 
 
 def uebernimm_llm_schluessel(request: Request, *, pflicht: bool = True) -> None:

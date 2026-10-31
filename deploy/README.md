@@ -87,7 +87,12 @@ Jaeger-UI, bewusst host-lokal.
 Sechs Werte **müssen** gesetzt sein, sonst startet der Stack gar nicht erst —
 ein Compose-Default für ein Passwort wäre ein ausgeliefertes Dev-Secret:
 `POSTGRES_PASSWORD`, `STUDIO_API_KEY`, `STUDIO_PASSWORD`, `CORS_ORIGINS`,
-`PUBLIC_HOST`, `ACME_EMAIL`. `CORS_ORIGINS` **wirkt erst mit**
+`PUBLIC_HOST`, `ACME_EMAIL`. `STUDIO_API_KEY` und `STUDIO_PASSWORD` brauchen
+**mindestens 12 Zeichen** (Paket 19), sonst bleiben Verwaltung bzw. Studio mit 503 gesperrt —
+am besten Zufallswerte (`openssl rand -base64 24`): das Studio-Cookie ist eine Funktion des
+Passworts und lässt sich offline raten. Fehlversuche bremst die Anlage je IP (10/Minute, dann 429);
+eine Sperre steht als WARNING im Log und in `boerdi_studio_auth_failures_total{ausgang="gesperrt"}`.
+`CORS_ORIGINS` **wirkt erst mit**
 `CORS_ALLOW_ALL=false` — die Vorgabe ist offen, siehe Abnahme-Zeile unten. Prüfen ohne zu starten:
 
 ```bash

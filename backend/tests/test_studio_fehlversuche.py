@@ -239,3 +239,69 @@ def test_faellt_der_zaehler_aus_bleibt_der_vergleich(client, monkeypatch, caplog
     meldungen = [r for r in caplog.records if r.name == "boerdi.api.fehlversuche"]
     assert len(meldungen) == 1
     assert not meldungen[0].exc_info
+
+
+# ── Mindestlänge (P19-E2) ──────────────────────────────────────────────────
+
+
+def test_ein_kurzes_passwort_haelt_das_studio_zu(monkeypatch, client):
+    monkeypatch.setenv("STUDIO_PASSWORD", "kurz-11-zei")
+    get_settings.cache_clear()
+    r = _mit_cookie(client, SITZUNG, studio_token("kurz-11-zei"))
+    assert r.status_code == 503
+    assert "12" in r.json()["detail"]
+    r = client.post("/studio/api/auth/login", json={"password": "kurz-11-zei"})
+    assert r.status_code == 503
+    assert "12" in r.json()["detail"]
+
+
+def test_ein_kurzes_passwort_oeffnet_auch_mit_open_admin_nicht(monkeypatch, client):
+    monkeypatch.setenv("STUDIO_PASSWORD", "kurz")
+    monkeypatch.setenv("BOERDI_ALLOW_OPEN_ADMIN", "1")
+    get_settings.cache_clear()
+    assert client.get(SITZUNG).status_code == 503
+    assert client.get(PROBE_PROXY).status_code == 503
+
+
+def test_zwoelf_zeichen_genuegen(monkeypatch, client):
+    monkeypatch.setenv("STUDIO_PASSWORD", "genau-12-zei")
+    get_settings.cache_clear()
+    r = _mit_cookie(client, SITZUNG, studio_token("genau-12-zei"))
+    assert r.status_code == 200
+
+
+def test_ein_kurzer_schluessel_haelt_die_verwaltung_zu(monkeypatch, client):
+    monkeypatch.setenv("STUDIO_API_KEY", "kurz-11-zei")
+    get_settings.cache_clear()
+    r = client.get(PROBE_DIREKT, headers={"X-Studio-Key": "kurz-11-zei"})
+    assert r.status_code == 503
+    assert "12" in r.json()["detail"]
+
+
+def test_ein_kurzer_schluessel_oeffnet_auch_mit_open_admin_nicht(monkeypatch):
+    from boerdi.api.deps import require_studio_key
+    from boerdi.api.turn_auth import darf_diagnose
+
+    monkeypatch.setenv("STUDIO_API_KEY", "kurz")
+    monkeypatch.setenv("BOERDI_ALLOW_OPEN_ADMIN", "1")
+    monkeypatch.delenv("STUDIO_PASSWORD", raising=False)
+    get_settings.cache_clear()
+    anfrage = Request({"type": "http", "method": "GET", "path": "/", "headers": []})
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(require_studio_key(anfrage, None))
+    assert e.value.status_code == 503
+    # der Entwicklungsmodus (offen, OHNE Schlüssel) gilt nicht: ein Schlüssel ist gesetzt
+    assert darf_diagnose(anfrage) is False
+
+
+def test_der_start_meldet_kurze_geheimnisse_als_error(monkeypatch, caplog):
+    monkeypatch.setenv("STUDIO_PASSWORD", "pw-xyz")
+    monkeypatch.setenv("STUDIO_API_KEY", "key-xyz")
+    get_settings.cache_clear()
+    with caplog.at_level(logging.ERROR, logger="startup"):
+        _warn_insecure_config(get_settings())
+    fehler = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert any("STUDIO_PASSWORD" in m and "12" in m for m in fehler)
+    assert any("STUDIO_API_KEY" in m and "12" in m for m in fehler)
+    # nie der Wert selbst
+    assert not any("pw-xyz" in m or "key-xyz" in m for m in fehler)

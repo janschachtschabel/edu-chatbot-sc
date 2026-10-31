@@ -55,7 +55,12 @@ from boerdi.services import master_skill as master_skill_dienst
 from boerdi.services.master_skill import starte as starte_master_skill_takt
 from boerdi.services.safety import moderation
 from boerdi.services.warmup import spawn_startup_warmups
-from boerdi.settings import UMBENANNTE_VARIABLEN, Settings, get_settings
+from boerdi.settings import (
+    STUDIO_GEHEIMNIS_MINDESTLAENGE,
+    UMBENANNTE_VARIABLEN,
+    Settings,
+    get_settings,
+)
 
 log = logging.getLogger("startup")
 
@@ -85,6 +90,18 @@ def _warn_insecure_config(settings: Settings) -> None:
             "Staging/Produktion einen langen Zufallswert setzen; lokal öffnet "
             "BOERDI_ALLOW_OPEN_ADMIN=1."
         )
+    # Paket 19 (H-3, P19-E2): zu kurze Geheimnisse halten Studio bzw. Verwaltung zu. ERROR, nie
+    # der Wert — die Länge allein sagt, was zu tun ist.
+    if (key and not key.upper().startswith("CHANGE_ME")
+            and len(key) < STUDIO_GEHEIMNIS_MINDESTLAENGE):
+        log.error("STUDIO_API_KEY ist kürzer als %d Zeichen — die Verwaltungsrouten bleiben "
+                  "GESPERRT (503). Einen langen Zufallswert setzen.",
+                  STUDIO_GEHEIMNIS_MINDESTLAENGE)
+    passwort = settings.studio_password.get_secret_value().strip()
+    if (passwort and not passwort.upper().startswith("CHANGE_ME")
+            and len(passwort) < STUDIO_GEHEIMNIS_MINDESTLAENGE):
+        log.error("STUDIO_PASSWORD ist kürzer als %d Zeichen — das Studio bleibt GESPERRT (503). "
+                  "Ein längeres Passwort setzen.", STUDIO_GEHEIMNIS_MINDESTLAENGE)
     if key and not key.isascii():
         # Review 2026-10-30: Kopfzeilen kommen als latin-1 an — ein solcher Schlüssel passt nie.
         log.warning("⚠ STUDIO_API_KEY enthält Zeichen außerhalb von ASCII — keine Anfrage kann "

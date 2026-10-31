@@ -694,9 +694,30 @@ def get_settings() -> Settings:
     return Settings()
 
 
+#: Paket 19 (Audit H-3, Entscheid P19-E2): kürzer bleibt das Studio (``STUDIO_PASSWORD``) bzw.
+#: der Schlüssel (``STUDIO_API_KEY``) verschlossen — das Cookie ist eine reine Funktion des
+#: Passworts und lässt sich ohne Server raten.
+STUDIO_GEHEIMNIS_MINDESTLAENGE = 12
+
+
+def _studio_schluessel_roh() -> str:
+    key = get_settings().studio_api_key.get_secret_value().strip()
+    return "" if key.upper().startswith("CHANGE_ME") else key
+
+
 def studio_schluessel() -> str:
     """Der konfigurierte Studio-Schlüssel, oder "" ohne. ``CHANGE_ME…``-Platzhalter gelten als
     nicht gesetzt — ein vergessener Vorlagewert darf nie als Schlüssel wirken. Die eine Stelle
-    für API (``api/deps.expected_studio_key``) und interne Aufrufer (Lasttest, Eval-Runner)."""
-    key = get_settings().studio_api_key.get_secret_value().strip()
-    return "" if key.upper().startswith("CHANGE_ME") else key
+    für API (``api/deps.expected_studio_key``) und interne Aufrufer (Lasttest, Eval-Runner).
+
+    Seit Paket 19 auch "" für einen zu kurzen Schlüssel (:func:`studio_schluessel_zu_kurz`): er
+    passt dann auf keine Anfrage, und kein interner Aufrufer schickt ihn mit."""
+    key = _studio_schluessel_roh()
+    return key if len(key) >= STUDIO_GEHEIMNIS_MINDESTLAENGE else ""
+
+
+def studio_schluessel_zu_kurz() -> bool:
+    """Gesetzt, aber kürzer als :data:`STUDIO_GEHEIMNIS_MINDESTLAENGE` — dann bleiben die
+    Verwaltungsrouten zu (503), auch mit ``BOERDI_ALLOW_OPEN_ADMIN``: wer einen Schlüssel setzt,
+    wollte ein Schloss, kein offenes Tor."""
+    return 0 < len(_studio_schluessel_roh()) < STUDIO_GEHEIMNIS_MINDESTLAENGE
