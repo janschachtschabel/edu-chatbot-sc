@@ -22,10 +22,23 @@ import asyncio
 import pytest
 
 from boerdi.api.schemas import ChatRequest
+from boerdi.domain import gruss_vermerk
 from boerdi.graph.nodes import context_greeting as g
 from boerdi.graph.state import TurnContext
 
 _SESSION = object()  # sentinel — the patched DB writes ignore it
+#: Review 19-1: der Vermerk ist ein HMAC mit einem Salz je Sitzung. Hier fest, damit die
+#: Helfer, die je Lauf einen frischen Zustand bauen, denselben Vermerk wiedererkennen.
+_SALZ = "0f" * 16
+
+
+@pytest.fixture(autouse=True)
+def _festes_salz(monkeypatch):
+    monkeypatch.setattr(gruss_vermerk, "neues_salz", lambda: _SALZ)
+
+
+def verdeckt(signatur: str) -> str:
+    return gruss_vermerk.verdeckt(signatur, _SALZ)
 
 
 def _req(session_id: str = "s1", message: str = "") -> ChatRequest:
@@ -147,7 +160,7 @@ def test_collection_greeting_full(monkeypatch):
     assert '"collection_id": "C1"' in joined
     assert "__guide__|Inhalt melden|" in joined
     # dedup recorded + persisted exactly once each
-    assert _sig_collection() in state["entities"]["_greeted_pages"]
+    assert verdeckt(_sig_collection()) in state["entities"]["_greeted_pages"]
     assert len(calls["update"]) == 1
     assert len(calls["save"]) == 1 and calls["save"][0][2] == "assistant"
 
@@ -234,7 +247,7 @@ def test_greeted_pages_fifo_cap_20(monkeypatch):
     greeted = state["entities"]["_greeted_pages"]
     assert len(greeted) == 20            # capped
     assert "sig0" not in greeted         # oldest evicted
-    assert _sig_collection() in greeted
+    assert verdeckt(_sig_collection()) in greeted
 
 
 # ── Node adapter: context_greeting(ctx, session) ────────────────────────────
@@ -435,7 +448,8 @@ def _fremd_lauf(monkeypatch, url, greeted=None, host="de.wikipedia.org"):
     """Ein Begrüßungslauf auf einer fremden Seite → (Antwort, Merkliste)."""
     _patch_io(monkeypatch)
     monkeypatch.setattr(g, "find_existing_by_url", _keine_dublette)
-    state = {"entities": {"_greeted_pages": list(greeted or [])}}
+    # Das Salz gehört zur Sitzung wie die Merkliste (Review 19-1) — es kommt mit.
+    state = {"entities": {"_greeted_pages": list(greeted or []), "_gruss_salz": _SALZ}}
     resp = asyncio.run(g.maybe_context_greeting(
         _SESSION, _req(),
         _env(page_context={"page_kind": "external", "page_host": host,
@@ -475,6 +489,44 @@ def test_ein_anker_wechselt_die_seite_nicht(monkeypatch):
     assert anker.content == ""
 
 
+def test_der_vermerk_traegt_die_adresse_nicht(monkeypatch):
+    """Paket 19 (M-8): die Adresse fremder Seiten samt Query (Suchbegriffe, Tokens) stand im
+    Klartext in ``sessions.entities._greeted_pages`` — 30 Tage Browserverlauf."""
+    _, gemerkt = _fremd_lauf(
+        monkeypatch, "https://de.wikipedia.org/wiki/Sonne?suche=geheim&token=abc")
+    assert gemerkt and "wikipedia" not in str(gemerkt) and "geheim" not in str(gemerkt)
+
+
+def test_ein_klartext_vermerk_von_vor_dem_deploy_gruesst_nicht_doppelt(monkeypatch):
+    url = "https://de.wikipedia.org/wiki/Sonne"
+    alt = g._greeting_signature(
+        "external", {"page_kind": "external", "page_host": "de.wikipedia.org", "page_url": url},
+        {"host": "de.wikipedia.org", "title": "de.wikipedia.org"})
+    assert url in alt  # Vorbedingung: so stand es bisher in der Liste
+    nochmal, gemerkt = _fremd_lauf(monkeypatch, url, greeted=[alt])
+    assert nochmal.content == ""
+    assert gemerkt == [alt]  # ohne Gruß kein neuer Vermerk
+
+
+def test_das_salz_entsteht_mit_dem_ersten_vermerk_und_bleibt_intern(monkeypatch):
+    """Review 19-1: ein Salz je Sitzung (``_gruss_salz``), angelegt beim ersten Vermerk und
+    danach wiederverwendet; es steht nur unter einem internen ``_``-Schlüssel."""
+    salze = iter(["aa" * 16, "bb" * 16])
+    monkeypatch.setattr(gruss_vermerk, "neues_salz", lambda: next(salze))
+    _patch_io(monkeypatch)
+    monkeypatch.setattr(g, "find_existing_by_url", _keine_dublette)
+    state = {"entities": {}}
+    for pfad in ("Sonne", "Mond", "Sonne"):
+        resp = asyncio.run(g.maybe_context_greeting(
+            _SESSION, _req(),
+            _env(page_context={"page_kind": "external", "page_host": "de.wikipedia.org",
+                               "page_url": f"https://de.wikipedia.org/wiki/{pfad}"}),
+            state, ["prev"]))
+        assert "aa" * 16 not in resp.model_dump_json()
+    assert state["entities"]["_gruss_salz"] == "aa" * 16
+    assert len(state["entities"]["_greeted_pages"]) == 2  # die Sonne nur einmal
+
+
 def test_ohne_adresse_bleibt_es_beim_host(monkeypatch):
     """Ein älteres Widget-Bündel schickt nur den Hostnamen. Dann gilt weiter das
     bisherige Verhalten statt eines leeren Zusatzes, der alles neu begrüßte."""
@@ -494,7 +546,7 @@ def test_die_eigene_startseite_bleibt_hostweise(monkeypatch):
     _patch_io(monkeypatch)
 
     def _lauf(url, greeted):
-        state = {"entities": {"_greeted_pages": list(greeted)}}
+        state = {"entities": {"_greeted_pages": list(greeted), "_gruss_salz": _SALZ}}
         resp = asyncio.run(g.maybe_context_greeting(
             _SESSION, _req(),
             _env(page_context={"page_kind": "home",
@@ -516,7 +568,7 @@ def test_eine_sammlung_bleibt_an_ihrer_kennung(monkeypatch):
 
     def _lauf(url, greeted):
         state = _state(_resolved(title="Optik"))
-        state["entities"]["_greeted_pages"] = list(greeted)
+        state["entities"].update(_greeted_pages=list(greeted), _gruss_salz=_SALZ)
         resp = asyncio.run(g.maybe_context_greeting(
             _SESSION, _req(),
             _env(page_context={**_collection_ctx(), "page_url": url}),
@@ -748,6 +800,24 @@ def test_andere_seitenarten_loesen_keine_pruefung_aus(monkeypatch):
         _env(page_context={"page_kind": "home", "page_host": "wirlernenonline.de"}),
         _state(_resolved()), ["prev"]))
     assert seen == []
+
+
+@pytest.mark.parametrize(("url", "geprueft"), [
+    ("https://beispiel.org/artikel?token=geheim&mail=a%40b.de&code=x#teil",
+     "https://beispiel.org/artikel"),
+    ("https://www.youtube.com/watch?v=abc123&t=42s&list=PL1&utm_source=x",
+     "https://www.youtube.com/watch?v=abc123"),
+    ("https://blog.example/?p=17&session=geheim", "https://blog.example/?p=17"),
+])
+def test_die_dublettenpruefung_bekommt_die_adresse_ohne_fremde_parameter(
+        monkeypatch, url, geprueft):
+    """Paket 19 (M-8): die Adresse ging samt Query an den MCP-Server — Tokens, E-Mails,
+    ``code=`` fremder Seiten. Es bleiben nur Parameter, die eine Seite bezeichnen (``v=``)."""
+    _patch_io(monkeypatch)
+    seen = _patch_lookup(monkeypatch, None)
+    asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=_external_ctx(url)), _state(_resolved()), ["prev"]))
+    assert [u for u, _t in seen] == [geprueft]
 
 
 def test_die_beiden_backend_listen_nennen_dieselben_arten():

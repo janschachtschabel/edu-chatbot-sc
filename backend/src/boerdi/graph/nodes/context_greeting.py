@@ -45,6 +45,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -77,6 +78,9 @@ _OBJECT_KINDS = ("collection", "content", "topic")
 _GREETABLE_KINDS = (*_OBJECT_KINDS, "search", "home", "external", "editorial")
 _GREETED_KEY = "_greeted_pages"
 _GREETED_CAP = 20
+#: Das Salz der Gruß-Vermerke dieser Sitzung (Review 19-1, ``gruss_vermerk``) — intern
+#: (``_``), also weder im Prompt noch in der öffentlichen Antwort.
+_SALZ_KEY = "_gruss_salz"
 
 # The widget names WHICH case it is. ``context_open`` continues a conversation;
 # ``context_open_initial`` is the very first load, where an empty history is the
@@ -198,6 +202,9 @@ def _greeting_signature(
     Der Schlüssel ändert sich damit für fremde Seiten. Laufende Sitzungen tragen
     noch die alten Einträge; die betroffene Seite meldet sich einmalig ein
     zweites Mal. Das ist der ganze Übergang.
+
+    Vermerkt wird seit Paket 19 (M-8) nur ein HMAC dieses Schlüssels mit dem Salz
+    der Sitzung (``gruss_vermerk.verdeckt``) — er trägt Adresse und Suchbegriff.
     """
     return "|".join((
         page_kind,
@@ -283,6 +290,27 @@ def _known_page_pills(
     return [f"__guide__|{label}|{url}"]
 
 
+#: Abfrage-Parameter, die eine Seite bezeichnen statt eine Person oder ihre Sitzung
+#: (Paket 19, M-8): YouTube-Video, WordPress-Beitrag und -Seite, generische Kennung —
+#: dieselbe Liste, die das Widget beim Kürzen von ``page_url`` behält
+#: (``ui/src/page-context/page-context-detector.ts``). Alles andere — Suchbegriffe,
+#: Tokens, E-Mail-Adressen, ``code=`` fremder Seiten — geht nicht an den MCP-Server
+#: (auch nicht von einem älteren Widget-Bündel). Die Adresse eines WLO-Eintrags mit
+#: weiteren Parametern trifft dann nicht mehr über die Adresse, die Titelsuche bleibt.
+_PRUEF_PARAMETER = frozenset({"v", "id", "p", "page_id"})
+
+
+def _pruefadresse(url: str) -> str:
+    """``url`` für die Dublettenprüfung: ohne Anker und ohne fremde Abfrage-Parameter."""
+    try:
+        teile = urlsplit(url)
+        behalten = [(k, w) for k, w in parse_qsl(teile.query, keep_blank_values=True)
+                    if k in _PRUEF_PARAMETER]
+    except ValueError:
+        return url.split("?", 1)[0].split("#", 1)[0]
+    return urlunsplit(teile._replace(query=urlencode(behalten), fragment=""))
+
+
 async def _known_page(page_kind: str, page_ctx: dict[str, Any]) -> dict[str, str] | None:
     """The WLO record for this foreign page, if the holdings already hold one.
 
@@ -305,7 +333,8 @@ async def _known_page(page_kind: str, page_ctx: dict[str, Any]) -> dict[str, str
         # host would answer about a different page than the one in front of us.
         return None
     try:
-        return await find_existing_by_url(url, (page_ctx.get("document_title") or "").strip())
+        return await find_existing_by_url(
+            _pruefadresse(url), (page_ctx.get("document_title") or "").strip())
     except Exception as err:  # find_existing_by_url is best-effort by contract
         logger.warning("duplicate check skipped: %s", err)
         return None
@@ -398,7 +427,8 @@ async def maybe_context_greeting(
     greeted = entities.get(_GREETED_KEY)
     if not isinstance(greeted, list):
         greeted = []
-    if gruss_vermerk.schon_begruesst(greeted, signature, lang):
+    salz = entities.get(_SALZ_KEY) if isinstance(entities.get(_SALZ_KEY), str) else None
+    if gruss_vermerk.schon_begruesst(greeted, signature, lang, salz):
         return _empty_response(req.session_id)
 
     cfg = load_context_actions()
@@ -437,7 +467,9 @@ async def maybe_context_greeting(
     # Record the dedup marker (FIFO cap — a list, because entities is jsonb-
     # persisted; one entry per page, in its latest language — ``gruss_vermerk``)
     # and persist it explicitly on the short-circuit path.
-    greeted = gruss_vermerk.vermerken(greeted, signature, lang, _GREETED_CAP)
+    if not salz:
+        salz = entities[_SALZ_KEY] = gruss_vermerk.neues_salz()
+    greeted = gruss_vermerk.vermerken(greeted, signature, lang, _GREETED_CAP, salz)
     entities[_GREETED_KEY] = greeted
 
     # Persistence must not break the turn — but an unsaved greeting stays silent
