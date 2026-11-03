@@ -1314,8 +1314,8 @@ Schema kommt es bei **jedem** Zug, auch wenn `result` null ist. Genau so ist es
 gemeint: ein an der Frist abgeschnittener Lauf soll für euch nicht aussehen wie
 einer, der nichts zu sagen hatte.
 
-**Alle `stop_reason`-Werte** — die Schleife kennt genau acht, und nur bei
-zweien darf ein `result` erwartet werden:
+**Alle `stop_reason`-Werte** — die Schleife kennt genau neun, dazu `safety`
+vor der Schleife; nur bei zweien darf ein `result` erwartet werden:
 
 | `stop_reason` | Bedeutung | `result` zu erwarten? |
 |---|---|---|
@@ -1326,6 +1326,8 @@ zweien darf ein `result` erwartet werden:
 | `max_iterations` | Iterationsdeckel erreicht (Vorgabe 20) | nein |
 | `no_progress` | Dasselbe Werkzeug zweimal mit denselben Argumenten — Stillstand | nein |
 | `error` | Der Anbieter-Aufruf scheiterte | nein |
+| `empty` | Das Modell lieferte weder Werkzeug noch Text (Aussetzer des Anbieters); der Chat zeigt einen ehrlichen Ersatzsatz | nein |
+| `safety` | Nur `POST /api/agent` (§7): das Sicherheits-Gate hat den Auftrag gestoppt, die Schleife lief nicht | nein |
 | `frage` | Der Lauf hat der Person eine Auswahl gestellt (UI-Modul `ui_entscheidung`, seit U1-d1); sie antwortet im Auswahlfeld, ihr nächster Zug geht weiter. Kein Fehler — wie `text` behandeln. Nur mit einem Widget, das das Modul meldet (`environment.ui_module`) | nein |
 
 Behandelt die vier Deckel-Fälle sichtbar: sie heißen „die Anfrage war zu groß",

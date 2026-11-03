@@ -57,7 +57,34 @@ die Kurzfassung.
   Kurzfassung (Auswahlfeld, Themenbaum, Schnellantworten, Anrede der Lehrkräfte), je in den
   Fassungen Vorlage, Editor und Fett. Zusammen mit `test_mcp_tool_defs.py`: 215 bestanden.
 - UI-Modul-Tests (`tests/test_ui_*.py`, `test_inhaltsrahmen_werkzeug.py`): 375 bestanden.
-- **Noch nicht gemessen:** Der Container holt den Master-Skill aus dem WLO-Knoten
-  (`get_skill`, `MASTER_SKILL_NODE_ID`). Die Wirkung zeigt erst ein Golden-Lauf
-  (`evals/ui-module-flows.yaml` und Seed-Suite, Agent), nachdem die Redaktion die Fassung in den
-  Knoten übertragen hat; danach `scripts/check_master_skill.py`.
+- Der Container holt den Master-Skill aus dem WLO-Knoten (`get_skill`,
+  `MASTER_SKILL_NODE_ID`); die Wirkung zeigt erst ein Golden-Lauf, nachdem die Fassung im Knoten
+  steht — siehe „Messung nach dem Upload“.
+
+## Messung nach dem Upload
+
+Golden-Lauf 2026-11-03 (Agent) nach der Übertragung in den Knoten — Reports
+`evals/reports/golden-20261103-122516-ms-ui-agent.json` (UI-Abläufe) und
+`…-123158-ms-seed-agent.json` (Seed-Suite):
+
+| Satz | vorher (11:26/11:32) | nachher (12:25/12:31) |
+|---|---|---|
+| UI-Abläufe, hart | 28/32 (87,5 %) | 27/31 (87,1 %) |
+| Seed-Suite, hart | 90/91 (98,9 %) | 89/91 (97,8 %) |
+
+- **Auswahlfeld:** GV-UI-4 Zug 1 zeigt jetzt `ui_entscheidung` (samt Trefferliste). GV-UI-3 Zug 1
+  (sucht und fragt nicht) und GV-UI-5 Zug 1 (erklärt, kein Block) weiter ohne.
+- **Begleittext schwach:** neben dem Auswahlfeld nur „Bitte wähle unten aus.“ — geduzt gegenüber
+  einer Lehrkraft, ohne Einordnung der Treffer.
+- **`qr` falsch gezählt:** GV-UI-4 Zug 1 fiel bei `qr` durch, obwohl unter einer offenen Frage
+  absichtlich keine Schnellantworten stehen — ein Fehler des Runners, nicht der Antwort.
+- **Themenbaum zum Unterthema:** GV-UI-1 Zug 2 zeigt einen Themenbaum (`ui` besteht), aber
+  wieder den des Fachs (Aufruf mit `subject`, Antwort aus dem Werkzeug-Cache) und bittet, „Optik“
+  selbst aufzuklappen; der Optik-Zweig mit eigener Kennung kam nicht.
+- **Anrede:** GV-ELT-1 Zug 2 und 3 duzen eine Elternperson (Erwartung Sie). GV-UI-5 Zug 2 ist ein
+  Messfehler der Heuristik („Sie zählt …“ meint die Zahl).
+
+Folgen im Gesamt-Review ([`2026-11-03-review-u1-gesamt.md`](2026-11-03-review-u1-gesamt.md)):
+Begleittext-Regel und M03-Ausnahme in der Kurzfassung und der Beschreibung von
+`ui_entscheidung`, `qr` unter einer offenen Frage nicht gestellt. Die Kurzfassung ist damit
+erneut geändert und muss wieder in den Knoten.

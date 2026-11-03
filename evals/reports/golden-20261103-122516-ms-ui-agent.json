@@ -1,0 +1,4377 @@
+{
+  "chat_url": "http://127.0.0.1:8180/api/chat",
+  "engine": "agent",
+  "chat_headers": [
+    "X-Boerdi-Engine",
+    "X-Studio-Key"
+  ],
+  "ui_module": [
+    "ui_entscheidung",
+    "ui_inhaltsrahmen",
+    "ui_linkbox",
+    "ui_themenbaum",
+    "ui_trefferliste"
+  ],
+  "started_utc": "20261103-122516",
+  "duration_s": 127.8,
+  "golden_metrics": {
+    "categories": [
+      "register",
+      "structure",
+      "tools_any",
+      "tools_none",
+      "tools_max",
+      "text",
+      "ui",
+      "qr",
+      "host"
+    ],
+    "totals": {
+      "register": 2,
+      "structure": 4,
+      "tools_any": 0,
+      "tools_none": 0,
+      "tools_max": 0,
+      "text": 0,
+      "ui": 12,
+      "qr": 13,
+      "host": 6
+    },
+    "passed": {
+      "register": 1,
+      "structure": 4,
+      "tools_any": 0,
+      "tools_none": 0,
+      "tools_max": 0,
+      "text": 0,
+      "ui": 10,
+      "qr": 12,
+      "host": 6
+    },
+    "rates": {
+      "register": 0.5,
+      "structure": 1.0,
+      "tools_any": null,
+      "tools_none": null,
+      "tools_max": null,
+      "text": null,
+      "ui": 0.833,
+      "qr": 0.923,
+      "host": 1.0
+    },
+    "overall_pass_rate": 0.871,
+    "hard_passed": 27,
+    "hard_total": 31,
+    "flows": 7,
+    "turns": 13,
+    "fallback_turns": 0,
+    "latency": {
+      "turns": 13,
+      "p50_ms": 7867,
+      "p95_ms": 26761,
+      "max_ms": 26761,
+      "total_ms": 127759
+    },
+    "per_turn": [
+      {
+        "flow": "GV-UI-1",
+        "title": "(nur Agent) Themenbaum Physik → tiefer in die Optik",
+        "turn": 1,
+        "message": "Ich unterrichte Physik in der Mittelstufe und will mir erst mal einen Überblick verschaffen. Welche Themen gibt es bei WirLernenOnline in Physik?",
+        "expected": {
+          "register": "sie",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_themenbaum"
+          ],
+          "ui_none": [
+            "ui_entscheidung"
+          ],
+          "qr": true,
+          "must_offer": "Der Themenbaum des Fachportals Physik (Unterthemen wie Mechanik, Optik, Elektrizitätslehre, Wärmelehre) als aufklappbarer Baum, dazu ein Satz, wie es weitergeht (ein Thema öffnen oder Material dazu suchen)."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "ui_themenbaum"
+          ],
+          "tool_calls": 1,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 231,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_themenbaum"
+          ]
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 14216
+      },
+      {
+        "flow": "GV-UI-1",
+        "title": "(nur Agent) Themenbaum Physik → tiefer in die Optik",
+        "turn": 2,
+        "message": "Gehen Sie bitte bei der Optik eine Ebene tiefer — was gibt es dort alles?",
+        "expected": {
+          "register": "sie",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_themenbaum",
+            "ui_trefferliste"
+          ],
+          "ui_none": [],
+          "qr": true,
+          "must_offer": "Die Unterthemen der Optik (etwa Lichtbrechung, Reflexion, Linsen, Farben) als Baum — nicht noch einmal der ganze Physik-Baum; erreicht der Bot den Optik-Knoten nicht, ehrlich Material zur Optik als Trefferliste."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "ui_themenbaum"
+          ],
+          "tool_calls": 1,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 69,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_themenbaum"
+          ]
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 6387
+      },
+      {
+        "flow": "GV-UI-2",
+        "title": "(nur Agent) Themenbaum Biologie → Material zu einem Unterthema",
+        "turn": 1,
+        "message": "Zeigen Sie mir bitte die Themenstruktur für Biologie, ich plane gerade das neue Schulhalbjahr.",
+        "expected": {
+          "register": "sie",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_themenbaum"
+          ],
+          "ui_none": [],
+          "qr": true,
+          "must_offer": "Der Themenbaum des Fachportals Biologie mit seinen Unterthemen (etwa Zellbiologie, Genetik, Ökologie, Humanbiologie) und ein Anschlussangebot."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "ui_themenbaum"
+          ],
+          "tool_calls": 1,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 146,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_themenbaum"
+          ]
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 6488
+      },
+      {
+        "flow": "GV-UI-2",
+        "title": "(nur Agent) Themenbaum Biologie → Material zu einem Unterthema",
+        "turn": 2,
+        "message": "Gut, zur Ökologie hätte ich gern Material für die 9. Klasse — am liebsten Arbeitsblätter.",
+        "expected": {
+          "register": "sie",
+          "structure": "cards",
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_trefferliste"
+          ],
+          "ui_none": [],
+          "qr": true,
+          "must_offer": "Material-Treffer zur Ökologie für Klasse 9, bevorzugt Arbeitsblätter, als Trefferliste mit einem Anschlussangebot."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "search_wlo_collections",
+            "search_wlo_content"
+          ],
+          "tool_calls": 2,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 3,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 512,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_trefferliste"
+          ]
+        },
+        "checks": {
+          "register": null,
+          "structure": true,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 16635
+      },
+      {
+        "flow": "GV-UI-3",
+        "title": "(nur Agent) Fach offen → Auswahlfeld → Treffer",
+        "turn": 1,
+        "message": "Ich brauche Material zum Thema Energie für meine 7. Klasse.",
+        "expected": {
+          "register": "any",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_entscheidung"
+          ],
+          "ui_none": [],
+          "qr": true,
+          "must_offer": "Eine kurze Rückfrage mit Auswahlfeld, für welches Fach das Material sein soll (etwa Physik, Biologie, Chemie, Erdkunde) — noch keine Treffer."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "search_wlo_all"
+          ],
+          "tool_calls": 1,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 8,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 433,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_trefferliste"
+          ]
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": false,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 9456
+      },
+      {
+        "flow": "GV-UI-3",
+        "title": "(nur Agent) Fach offen → Auswahlfeld → Treffer",
+        "turn": 2,
+        "message": "Physik",
+        "expected": {
+          "register": "any",
+          "structure": "cards",
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_trefferliste"
+          ],
+          "ui_none": [
+            "ui_entscheidung"
+          ],
+          "qr": true,
+          "must_offer": "Material-Treffer zu Energie im Physikunterricht der 7. Klasse (Energieformen, Energieumwandlung) als Trefferliste."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "search_wlo_all"
+          ],
+          "tool_calls": 1,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 8,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 418,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_trefferliste"
+          ],
+          "ui_antwort": {
+            "status": "keine_frage",
+            "gewaehlt": []
+          }
+        },
+        "checks": {
+          "register": null,
+          "structure": true,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 7867
+      },
+      {
+        "flow": "GV-UI-4",
+        "title": "(nur Agent) Stunde planen: Bausteine wählen (Mehrfachwahl) → Verlaufsplan",
+        "turn": 1,
+        "message": "Ich plane eine Doppelstunde Biologie zur Photosynthese in Klasse 8. Was könnte da alles rein? Geben Sie mir die Bausteine bitte zur Auswahl.",
+        "expected": {
+          "register": "any",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_entscheidung"
+          ],
+          "ui_none": [],
+          "qr": true,
+          "must_offer": "Ein Auswahlfeld mit mehreren wählbaren Bausteinen der Stunde (etwa Einstieg, Experiment, Arbeitsblatt, Quiz, Sicherung), mehrere zugleich wählbar."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "search_wlo_all"
+          ],
+          "tool_calls": 1,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 7,
+          "idocs": 0,
+          "qr": 0,
+          "content_len": 73,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_entscheidung",
+            "ui_trefferliste"
+          ]
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": false,
+          "host": true
+        },
+        "latency_ms": 9340
+      },
+      {
+        "flow": "GV-UI-4",
+        "title": "(nur Agent) Stunde planen: Bausteine wählen (Mehrfachwahl) → Verlaufsplan",
+        "turn": 2,
+        "message": "Experiment oder Beobachtung\nWir haben 90 Minuten; Material für einen Versuch mit Wasserpest ist da.",
+        "expected": {
+          "register": "sie",
+          "structure": "idoc",
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_inhaltsrahmen"
+          ],
+          "ui_none": [],
+          "qr": true,
+          "must_offer": "Ein Verlaufsplan für 90 Minuten als Dokument mit den gewählten Bausteinen in sinnvoller Reihenfolge (Einstieg, Experiment, Arbeitsblatt, Quiz), mit Zeiten und Sozialformen."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "get_skill_registry",
+            "get_compendium_text",
+            "search_wlo_content",
+            "get_nodes_details"
+          ],
+          "tool_calls": 4,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 1,
+          "idocs": 1,
+          "qr": 2,
+          "content_len": 204,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_inhaltsrahmen",
+            "ui_trefferliste"
+          ],
+          "ui_antwort": {
+            "status": "gesendet",
+            "gewaehlt": [
+              "Experiment oder Beobachtung"
+            ]
+          }
+        },
+        "checks": {
+          "register": null,
+          "structure": true,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 26761
+      },
+      {
+        "flow": "GV-UI-5",
+        "title": "(nur Agent) Schülerin: Brüche verstehen — Einstieg finden",
+        "turn": 1,
+        "message": "ich versteh brüche einfach nicht. wo fang ich da überhaupt an?",
+        "expected": {
+          "register": "du",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_entscheidung",
+            "ui_trefferliste"
+          ],
+          "ui_none": [
+            "ui_themenbaum"
+          ],
+          "qr": true,
+          "must_offer": "Ermutigend und geduzt: entweder eine kurze Rückfrage nach Klasse oder Vorwissen (Auswahlfeld) oder gleich einfache Einstiegsmaterialien zu Brüchen."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [],
+          "tool_calls": 0,
+          "skills": [],
+          "register": "du",
+          "sie": 0,
+          "du": 5,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 679,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": []
+        },
+        "checks": {
+          "register": true,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": false,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 5462
+      },
+      {
+        "flow": "GV-UI-5",
+        "title": "(nur Agent) Schülerin: Brüche verstehen — Einstieg finden",
+        "turn": 2,
+        "message": "6. Klasse, ich weiß nicht mal, was Zähler und Nenner sind",
+        "expected": {
+          "register": "du",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [],
+          "ui_none": [],
+          "qr": true,
+          "must_offer": "Eine einfache Erklärung von Zähler und Nenner (etwa am Beispiel einer Pizza), dazu ein bis zwei passende Übungen oder Lernvideos für Klasse 6."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [],
+          "tool_calls": 0,
+          "skills": [],
+          "register": "sie",
+          "sie": 2,
+          "du": 0,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 453,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [],
+          "ui_antwort": {
+            "status": "keine_frage",
+            "gewaehlt": []
+          }
+        },
+        "checks": {
+          "register": false,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": null,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 3852
+      },
+      {
+        "flow": "GV-UI-6",
+        "title": "Gegenprobe: Smalltalk und Frage zu WLO — kein Auswahlfeld, kein Baum",
+        "turn": 1,
+        "message": "Hallo! Na, wie läuft's bei dir heute so?",
+        "expected": {
+          "register": "any",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [],
+          "ui_none": [
+            "ui_themenbaum"
+          ],
+          "qr": true,
+          "must_offer": "Eine freundliche, kurze Antwort und ein Angebot, wobei der Bot helfen kann (Material suchen, Unterricht planen)."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [],
+          "tool_calls": 0,
+          "skills": [],
+          "register": "du",
+          "sie": 0,
+          "du": 2,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 218,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": []
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 4360
+      },
+      {
+        "flow": "GV-UI-6",
+        "title": "Gegenprobe: Smalltalk und Frage zu WLO — kein Auswahlfeld, kein Baum",
+        "turn": 2,
+        "message": "Hat WirLernenOnline eigentlich Öffnungszeiten oder einen Support, den man anrufen kann?",
+        "expected": {
+          "register": "any",
+          "structure": null,
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [],
+          "ui_none": [
+            "ui_entscheidung",
+            "ui_themenbaum"
+          ],
+          "qr": true,
+          "must_offer": "Eine direkte Antwort: WirLernenOnline ist rund um die Uhr online erreichbar; Kontakt- bzw. Support-Weg, soweit aus dem Wissen belegbar — ohne Rückfrage."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "wissen_suchen"
+          ],
+          "tool_calls": 1,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 383,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": []
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 7482
+      },
+      {
+        "flow": "GV-UI-7",
+        "title": "Beide Maschinen: Materialsuche → Trefferliste",
+        "turn": 1,
+        "message": "Haben Sie ein kurzes Video zur Lichtbrechung für meine 8. Klasse?",
+        "expected": {
+          "register": "sie",
+          "structure": "cards",
+          "tools_any": [],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "ui_any": [
+            "ui_trefferliste"
+          ],
+          "ui_none": [
+            "ui_entscheidung"
+          ],
+          "qr": true,
+          "must_offer": "Video-Treffer zur Lichtbrechung für Klasse 8 als Trefferliste mit einem Anschlussangebot."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "search_wlo_all"
+          ],
+          "tool_calls": 1,
+          "skills": [],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 6,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 448,
+          "text_found": [],
+          "text_forbidden": [],
+          "ui_module": [
+            "ui_trefferliste"
+          ]
+        },
+        "checks": {
+          "register": null,
+          "structure": true,
+          "tools_any": null,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "ui": true,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 9453
+      }
+    ],
+    "per_flow": {
+      "GV-UI-1": {
+        "title": "(nur Agent) Themenbaum Physik → tiefer in die Optik",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 0,
+          "total": 0
+        },
+        "structure": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_any": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "ui": {
+          "ok": 2,
+          "total": 2
+        },
+        "qr": {
+          "ok": 2,
+          "total": 2
+        },
+        "host": {
+          "ok": 0,
+          "total": 0
+        }
+      },
+      "GV-UI-2": {
+        "title": "(nur Agent) Themenbaum Biologie → Material zu einem Unterthema",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 0,
+          "total": 0
+        },
+        "structure": {
+          "ok": 1,
+          "total": 1
+        },
+        "tools_any": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "ui": {
+          "ok": 2,
+          "total": 2
+        },
+        "qr": {
+          "ok": 2,
+          "total": 2
+        },
+        "host": {
+          "ok": 1,
+          "total": 1
+        }
+      },
+      "GV-UI-3": {
+        "title": "(nur Agent) Fach offen → Auswahlfeld → Treffer",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 0,
+          "total": 0
+        },
+        "structure": {
+          "ok": 1,
+          "total": 1
+        },
+        "tools_any": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "ui": {
+          "ok": 1,
+          "total": 2
+        },
+        "qr": {
+          "ok": 2,
+          "total": 2
+        },
+        "host": {
+          "ok": 2,
+          "total": 2
+        }
+      },
+      "GV-UI-4": {
+        "title": "(nur Agent) Stunde planen: Bausteine wählen (Mehrfachwahl) → Verlaufsplan",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 0,
+          "total": 0
+        },
+        "structure": {
+          "ok": 1,
+          "total": 1
+        },
+        "tools_any": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "ui": {
+          "ok": 2,
+          "total": 2
+        },
+        "qr": {
+          "ok": 1,
+          "total": 2
+        },
+        "host": {
+          "ok": 2,
+          "total": 2
+        }
+      },
+      "GV-UI-5": {
+        "title": "(nur Agent) Schülerin: Brüche verstehen — Einstieg finden",
+        "zielgruppe": "P-LER",
+        "register": {
+          "ok": 1,
+          "total": 2
+        },
+        "structure": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_any": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "ui": {
+          "ok": 0,
+          "total": 1
+        },
+        "qr": {
+          "ok": 2,
+          "total": 2
+        },
+        "host": {
+          "ok": 0,
+          "total": 0
+        }
+      },
+      "GV-UI-6": {
+        "title": "Gegenprobe: Smalltalk und Frage zu WLO — kein Auswahlfeld, kein Baum",
+        "zielgruppe": "P-AND",
+        "register": {
+          "ok": 0,
+          "total": 0
+        },
+        "structure": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_any": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "ui": {
+          "ok": 2,
+          "total": 2
+        },
+        "qr": {
+          "ok": 2,
+          "total": 2
+        },
+        "host": {
+          "ok": 0,
+          "total": 0
+        }
+      },
+      "GV-UI-7": {
+        "title": "Beide Maschinen: Materialsuche → Trefferliste",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 0,
+          "total": 0
+        },
+        "structure": {
+          "ok": 1,
+          "total": 1
+        },
+        "tools_any": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "ui": {
+          "ok": 1,
+          "total": 1
+        },
+        "qr": {
+          "ok": 1,
+          "total": 1
+        },
+        "host": {
+          "ok": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  "conversations": [
+    {
+      "kind": "golden",
+      "flow_id": "GV-UI-1",
+      "title": "(nur Agent) Themenbaum Physik → tiefer in die Optik",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "erwartung": "Eine Physiklehrkraft verschafft sich einen Überblick über die Physik-Themen in WirLernenOnline: der Bot zeigt den Themenbaum des Fachportals und geht auf Nachfrage eine Ebene tiefer in die Optik (als Baum, sonst als Treffer zur Optik) — gesiezt, ohne Rückfrage, im ersten Zug ohne Materialliste statt Baum.",
+      "intent_id": "",
+      "session_id": "eval-4e44f4d1743b",
+      "turns": [
+        {
+          "user": "Ich unterrichte Physik in der Mittelstufe und will mir erst mal einen Überblick verschaffen. Welche Themen gibt es bei WirLernenOnline in Physik?",
+          "bot": "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nHier ist der Themenbaum zum WLO-Fachportal Physik. Er zeigt 17 Themenbereiche; 16 davon lassen sich weiter aufklappen, und einige Zweige sind umfangreicher als die erste Übersicht.\n\n---\n[UI-Modul ui_themenbaum — vom Nutzer sichtbar]\n\n**Physik**\n\n- [Akustik](https://repository.staging.openeduhub.net/edu-sharing/components/render/c0a79a8d-9f29-4056-8e1e-c0cec3f41f34)\n  - [Akustische Schwingungen & Wellen](https://repository.staging.openeduhub.net/edu-sharing/components/render/f427eb5f-6d9b-4133-aae7-2ad9f6911a68)\n  - [menschl. Stimme & Gehör (s. Biologie)](https://repository.staging.openeduhub.net/edu-sharing/components/render/89eb5d3e-58bb-4b2a-94a1-12bc18071737)\n  - [Phänomene](https://repository.staging.openeduhub.net/edu-sharing/components/render/f35980cd-1ee9-426b-923d-422e60b6bccb)\n  - [Schallgeschwindigkeit](https://repository.staging.openeduhub.net/edu-sharing/components/render/5de85c18-6451-47fd-a9f0-4e32108959ee)\n- [Astronomie](https://repository.staging.openeduhub.net/edu-sharing/components/render/3c044300-e8da-4f49-a693-eddf5f3ef73f)\n  - [Einführung / Grundlagen](https://repository.staging.openeduhub.net/edu-sharing/components/render/6481eff0-eb1d-45b7-b099-ddc9f670db0a)\n  - [Kosmologie](https://repository.staging.openeduhub.net/edu-sharing/components/render/99db3d61-6683-42e9-8ea0-c8e14534c96e)\n  - [Planetensystem](https://repository.staging.openeduhub.net/edu-sharing/components/render/df13c01a-dd5e-4fb5-b570-845fed00fbd0)\n  - [Sonne / Fixsterne](https://repository.staging.openeduhub.net/edu-sharing/components/render/5f0754ed-10d1-4845-9e4f-57f35f7f787d)\n  - [Sternbeobachtung](https://repository.staging.openeduhub.net/edu-sharing/components/render/0b1181fe-a29b-4930-903a-9cbdf2c77edb)\n- [Atomph",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 1.2533751425646102e-05,
+                "harassment/threatening": 1.3420013504783412e-06,
+                "hate": 1.5689549727726036e-06,
+                "hate/threatening": 4.0929110499856e-07,
+                "illicit": 4.238847419937498e-05,
+                "illicit/violent": 1.8814207550495463e-05,
+                "self_harm": 2.97731143841062e-06,
+                "self_harm/instructions": 8.139692624947503e-07,
+                "self_harm/intent": 3.169325442919291e-06,
+                "sexual": 5.144221374220898e-06,
+                "sexual/minors": 3.535625074174432e-06,
+                "violence": 3.6478537675800286e-06,
+                "violence/graphic": 5.255395707074638e-07
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "ui_themenbaum"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 34574,
+              "completion_tokens": 117,
+              "cached_tokens": 17234,
+              "reasoning_tokens": 0,
+              "calls": 2,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 34574,
+                  "completion": 117,
+                  "cached": 17234,
+                  "reasoning": 0,
+                  "calls": 2
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 34574,
+                  "completion": 117,
+                  "cached": 17234,
+                  "reasoning": 0,
+                  "calls": 2,
+                  "ms": 8617
+                }
+              },
+              "zeiten_ms": {
+                "setup": 41,
+                "tour": 5,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 17,
+                "preflight": 0,
+                "assess.safety": 604,
+                "assess": 605,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 1,
+                "route": 40,
+                "respond.werkzeuge": 4135,
+                "respond": 12755,
+                "assemble": 0,
+                "persist": 37
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: ui_themenbaum",
+                "duration_ms": 8637,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "ui_themenbaum",
+                      "argumente": [
+                        "subject"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 8637,
+                  "prompt_tokens": 17237,
+                  "cached_tokens": 0,
+                  "completion_tokens": 21
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: respond_to_user",
+                "duration_ms": 4116,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 4116,
+                  "prompt_tokens": 17337,
+                  "cached_tokens": 17234,
+                  "completion_tokens": 96
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 12753,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 2
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "ui_themenbaum",
+                "status": "success",
+                "item_count": 17,
+                "error": "",
+                "latency_ms": 4123
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_themenbaum"
+              ],
+              "ui_none": [
+                "ui_entscheidung"
+              ],
+              "qr": true,
+              "must_offer": "Der Themenbaum des Fachportals Physik (Unterthemen wie Mechanik, Optik, Elektrizitätslehre, Wärmelehre) als aufklappbarer Baum, dazu ein Satz, wie es weitergeht (ein Thema öffnen oder Material dazu suchen)."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "ui_themenbaum"
+              ],
+              "tool_calls": 1,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 231,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_themenbaum"
+              ]
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": null
+            }
+          },
+          "ui_module": [
+            "ui_themenbaum"
+          ],
+          "cards_count": 0,
+          "response_length": 231,
+          "latency_ms": 14216,
+          "anwendungsfall": "orientieren"
+        },
+        {
+          "user": "Gehen Sie bitte bei der Optik eine Ebene tiefer — was gibt es dort alles?",
+          "bot": "Öffne im Themenbaum den Bereich „Optik“, um die Unterthemen zu sehen.\n\n---\n[UI-Modul ui_themenbaum — vom Nutzer sichtbar]\n\n**Physik**\n\n- [Akustik](https://repository.staging.openeduhub.net/edu-sharing/components/render/c0a79a8d-9f29-4056-8e1e-c0cec3f41f34)\n  - [Akustische Schwingungen & Wellen](https://repository.staging.openeduhub.net/edu-sharing/components/render/f427eb5f-6d9b-4133-aae7-2ad9f6911a68)\n  - [menschl. Stimme & Gehör (s. Biologie)](https://repository.staging.openeduhub.net/edu-sharing/components/render/89eb5d3e-58bb-4b2a-94a1-12bc18071737)\n  - [Phänomene](https://repository.staging.openeduhub.net/edu-sharing/components/render/f35980cd-1ee9-426b-923d-422e60b6bccb)\n  - [Schallgeschwindigkeit](https://repository.staging.openeduhub.net/edu-sharing/components/render/5de85c18-6451-47fd-a9f0-4e32108959ee)\n- [Astronomie](https://repository.staging.openeduhub.net/edu-sharing/components/render/3c044300-e8da-4f49-a693-eddf5f3ef73f)\n  - [Einführung / Grundlagen](https://repository.staging.openeduhub.net/edu-sharing/components/render/6481eff0-eb1d-45b7-b099-ddc9f670db0a)\n  - [Kosmologie](https://repository.staging.openeduhub.net/edu-sharing/components/render/99db3d61-6683-42e9-8ea0-c8e14534c96e)\n  - [Planetensystem](https://repository.staging.openeduhub.net/edu-sharing/components/render/df13c01a-dd5e-4fb5-b570-845fed00fbd0)\n  - [Sonne / Fixsterne](https://repository.staging.openeduhub.net/edu-sharing/components/render/5f0754ed-10d1-4845-9e4f-57f35f7f787d)\n  - [Sternbeobachtung](https://repository.staging.openeduhub.net/edu-sharing/components/render/0b1181fe-a29b-4930-903a-9cbdf2c77edb)\n- [Atomph",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 0.005792489508683397,
+                "harassment/threatening": 4.173157606777201e-05,
+                "hate": 0.00011695102650555148,
+                "hate/threatening": 4.264746818557914e-06,
+                "illicit": 0.0038152295204225504,
+                "illicit/violent": 4.272078909473254e-05,
+                "self_harm": 0.00046507958231904967,
+                "self_harm/instructions": 0.00021517880026805696,
+                "self_harm/intent": 0.00021659756423044233,
+                "sexual": 0.000138852327569001,
+                "sexual/minors": 1.3765463368900109e-05,
+                "violence": 0.0005385266023448675,
+                "violence/graphic": 1.0229985472581487e-05
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "ui_themenbaum"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 34742,
+              "completion_tokens": 94,
+              "cached_tokens": 34552,
+              "reasoning_tokens": 0,
+              "calls": 2,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 34742,
+                  "completion": 94,
+                  "cached": 34552,
+                  "reasoning": 0,
+                  "calls": 2
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 34742,
+                  "completion": 94,
+                  "cached": 34552,
+                  "reasoning": 0,
+                  "calls": 2,
+                  "ms": 5036
+                }
+              },
+              "zeiten_ms": {
+                "setup": 8,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 5,
+                "preflight": 0,
+                "assess.safety": 612,
+                "assess": 613,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond.werkzeuge": 13,
+                "respond": 5051,
+                "assemble": 0,
+                "persist": 31
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S3",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: ui_themenbaum",
+                "duration_ms": 2488,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "ui_themenbaum",
+                      "argumente": [
+                        "subject"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 2488,
+                  "prompt_tokens": 17321,
+                  "cached_tokens": 17234,
+                  "completion_tokens": 21
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: respond_to_user",
+                "duration_ms": 2561,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 2561,
+                  "prompt_tokens": 17421,
+                  "cached_tokens": 17318,
+                  "completion_tokens": 73
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 5049,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 2
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "ui_themenbaum",
+                "status": "success",
+                "item_count": 17,
+                "error": "",
+                "latency_ms": 1
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_themenbaum",
+                "ui_trefferliste"
+              ],
+              "ui_none": [],
+              "qr": true,
+              "must_offer": "Die Unterthemen der Optik (etwa Lichtbrechung, Reflexion, Linsen, Farben) als Baum — nicht noch einmal der ganze Physik-Baum; erreicht der Bot den Optik-Knoten nicht, ehrlich Material zur Optik als Trefferliste."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "ui_themenbaum"
+              ],
+              "tool_calls": 1,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 69,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_themenbaum"
+              ]
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": null
+            }
+          },
+          "ui_module": [
+            "ui_themenbaum"
+          ],
+          "cards_count": 0,
+          "response_length": 69,
+          "latency_ms": 6387,
+          "anwendungsfall": "orientieren"
+        }
+      ]
+    },
+    {
+      "kind": "golden",
+      "flow_id": "GV-UI-2",
+      "title": "(nur Agent) Themenbaum Biologie → Material zu einem Unterthema",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "erwartung": "Eine Biologielehrkraft lässt sich die Themen des Fachportals Biologie zeigen und will dann zu einem Unterthema konkretes Material: erst der Baum, danach Treffer aus dem Bestand.",
+      "intent_id": "",
+      "session_id": "eval-b1aa96eaf857",
+      "turns": [
+        {
+          "user": "Zeigen Sie mir bitte die Themenstruktur für Biologie, ich plane gerade das neue Schulhalbjahr.",
+          "bot": "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nHier ist die Themenstruktur für Biologie – passend als Ausgangspunkt für die Halbjahresplanung.\n\n---\n[UI-Modul ui_themenbaum — vom Nutzer sichtbar]\n\n**Biologie**\n\n- [Chemische Grundlagen](https://repository.staging.openeduhub.net/edu-sharing/components/render/220f48a8-4b53-4179-919d-7cd238ed567e)\n  - [Chemische Begriffe in der Biologie](https://repository.staging.openeduhub.net/edu-sharing/components/render/c6e3cdd4-b184-4b3a-a279-3187fca6404c)\n  - [Kohlenstoff - Grundstein der molekularen Vielfalt](https://repository.staging.openeduhub.net/edu-sharing/components/render/d510768c-cf8c-4ff8-a6c7-ae3ae1b7fc2e)\n  - [Luft und Atmosphäre](https://repository.staging.openeduhub.net/edu-sharing/components/render/81445550-fcc4-4f9e-99af-652dda269175)\n  - [Makromoleküle (Kohlenhydrate, Proteine, Lipide)](https://repository.staging.openeduhub.net/edu-sharing/components/render/ea556fb2-30d5-41e1-90af-a1aef6d42694)\n  - [Wasser - Grundstoff des Lebens](https://repository.staging.openeduhub.net/edu-sharing/components/render/a5ce08a9-1e78-4028-bf5e-9205f598f11a)\n- [Evolution](https://repository.staging.openeduhub.net/edu-sharing/components/topic-pages?collectionId=2e674483-0eae-4088-b51a-c4f4bbf86bcc)\n  - [Arten und Populationen](https://repository.staging.openeduhub.net/edu-sharing/components/render/ce0b7b1e-e517-4fd2-a819-6b99b660ed85)\n  - [Entwicklung der Lebewesen](https://repository.staging.openeduhub.net/edu-sharing/components/render/117b097c-b0c5-4373-a668-f911c6478636)\n  - [Entwicklungsgeschichte der Erde](https://repository.staging.openeduhub.net/edu-sharing/components/render/dd23db5b-f04f-413f-80cb-9406907b7056)\n  - [Evolutionst",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 6.709224499600877e-06,
+                "harassment/threatening": 4.495181578513688e-07,
+                "hate": 2.6688529572628562e-06,
+                "hate/threatening": 1.8738753836511972e-07,
+                "illicit": 2.234163601827719e-05,
+                "illicit/violent": 6.814872211615988e-06,
+                "self_harm": 1.8342893327886845e-06,
+                "self_harm/instructions": 4.0929110499856e-07,
+                "self_harm/intent": 2.355261854303796e-06,
+                "sexual": 2.8240807799315707e-05,
+                "sexual/minors": 5.920916517463734e-06,
+                "violence": 3.535625074174432e-06,
+                "violence/graphic": 6.339210403977636e-07
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "ui_themenbaum"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 34534,
+              "completion_tokens": 91,
+              "cached_tokens": 34417,
+              "reasoning_tokens": 0,
+              "calls": 2,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 34534,
+                  "completion": 91,
+                  "cached": 34417,
+                  "reasoning": 0,
+                  "calls": 2
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 34534,
+                  "completion": 91,
+                  "cached": 34417,
+                  "reasoning": 0,
+                  "calls": 2,
+                  "ms": 3719
+                }
+              },
+              "zeiten_ms": {
+                "setup": 10,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 6,
+                "preflight": 0,
+                "assess.safety": 333,
+                "assess": 334,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond.werkzeuge": 1982,
+                "respond": 5704,
+                "assemble": 0,
+                "persist": 25
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: ui_themenbaum",
+                "duration_ms": 3541,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "ui_themenbaum",
+                      "argumente": [
+                        "subject"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 3541,
+                  "prompt_tokens": 17224,
+                  "cached_tokens": 17196,
+                  "completion_tokens": 21
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: respond_to_user",
+                "duration_ms": 2160,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 2160,
+                  "prompt_tokens": 17310,
+                  "cached_tokens": 17221,
+                  "completion_tokens": 70
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 5701,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 2
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "ui_themenbaum",
+                "status": "success",
+                "item_count": 12,
+                "error": "",
+                "latency_ms": 1976
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_themenbaum"
+              ],
+              "ui_none": [],
+              "qr": true,
+              "must_offer": "Der Themenbaum des Fachportals Biologie mit seinen Unterthemen (etwa Zellbiologie, Genetik, Ökologie, Humanbiologie) und ein Anschlussangebot."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "ui_themenbaum"
+              ],
+              "tool_calls": 1,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 146,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_themenbaum"
+              ]
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": null
+            }
+          },
+          "ui_module": [
+            "ui_themenbaum"
+          ],
+          "cards_count": 0,
+          "response_length": 146,
+          "latency_ms": 6488,
+          "anwendungsfall": "orientieren"
+        },
+        {
+          "user": "Gut, zur Ökologie hätte ich gern Material für die 9. Klasse — am liebsten Arbeitsblätter.",
+          "bot": "Ich habe **14 Treffer** zu Arbeitsblättern rund um Ökologie für Biologie in der Sekundarstufe I gefunden. Die Suche filtert nach Klassenstufe nicht genauer als nach Schulstufe; die Passung speziell für Klasse 9 ist daher nicht bei allen Materialien geprüft. Besonders passend wirken etwa Materialien zu Ambrosia und biologischer Schädlingsbekämpfung, Boden sowie globalem Wasserverbrauch. Die Trefferkarten zeigen Details zu Inhalt und Lizenz; mehrere Angebote sind Unterrichtseinheiten mit Arbeitsblattanteilen.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 3 Treffer]\n  - **Bienen und Ökologie** — https://repository.staging.openeduhub.net/edu-sharing/components/render/06983d8f-829f-496f-980b-a702783d5119\n    Das Arbeitsblatt der Bayerischen Landesanstalt für Weinbau und Gartenbau stellt die experimentelle Untersuchung der ökologischen Beziehungen der Honigbiene, auch im Freiland, vor.\n  - **Ambrosia-Invasion** — https://repository.staging.openeduhub.net/edu-sharing/components/render/ec74b90e-cbc3-4b06-b7f4-ffd65dc6984f\n    Ambrosia oder Ambrosia artemisiifolia ist eine invasive Pflanze, die sich in ganz Europa ausbreitet. Aufgrund von Krankheiten durch ihre allergenen Pollen und dem Konkurrenzkampf mit Nutzpflanzen, ent\n  - **IdeenSet Boden** — https://repository.staging.openeduhub.net/edu-sharing/components/render/d42820f5-d048-4d28-a820-f5d048dd2895\n    Boden ist eine limitierte, ökologisch und ökonomisch wertvolle, nicht erneuerbare Ressource. Die mit der Berner Fachhochschule entwickelten Unterrichtsmaterialien ermöglichen es Lernenden des 2. und 3",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 5.9766937110286536e-05,
+                "harassment/threatening": 1.2731104162213555e-05,
+                "hate": 1.1235328063870752e-05,
+                "hate/threatening": 3.8831109868779005e-06,
+                "illicit": 0.005303945811147708,
+                "illicit/violent": 5.7031570707833595e-05,
+                "self_harm": 1.0720880092159908e-05,
+                "self_harm/instructions": 3.944258675190877e-06,
+                "self_harm/intent": 0.00021732209397159474,
+                "sexual": 2.95957113513077e-05,
+                "sexual/minors": 1.0071400221737608e-05,
+                "violence": 1.6346470245419304e-05,
+                "violence/graphic": 3.4268490542555014e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "search_wlo_collections",
+              "search_wlo_content"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 56035,
+              "completion_tokens": 257,
+              "cached_tokens": 51868,
+              "reasoning_tokens": 0,
+              "calls": 3,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 56035,
+                  "completion": 257,
+                  "cached": 51868,
+                  "reasoning": 0,
+                  "calls": 3
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 56035,
+                  "completion": 257,
+                  "cached": 51868,
+                  "reasoning": 0,
+                  "calls": 3,
+                  "ms": 10769
+                }
+              },
+              "zeiten_ms": {
+                "setup": 5,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 5,
+                "preflight": 0,
+                "assess.safety": 1205,
+                "assess": 1206,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond.werkzeuge": 4205,
+                "respond": 14978,
+                "assemble": 1,
+                "persist": 41
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S3",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: search_wlo_collections",
+                "duration_ms": 5163,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "search_wlo_collections",
+                      "argumente": [
+                        "discipline",
+                        "educationalContext",
+                        "maxResults",
+                        "query"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 5163,
+                  "prompt_tokens": 17289,
+                  "cached_tokens": 17221,
+                  "completion_tokens": 44
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: search_wlo_content",
+                "duration_ms": 3574,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "search_wlo_content",
+                      "argumente": [
+                        "discipline",
+                        "educationalContext",
+                        "learningResourceType",
+                        "maxResults",
+                        "query"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 3574,
+                  "prompt_tokens": 17364,
+                  "cached_tokens": 17286,
+                  "completion_tokens": 51
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 3: respond_to_user",
+                "duration_ms": 6239,
+                "data": {
+                  "runde": 3,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 6239,
+                  "prompt_tokens": 21382,
+                  "cached_tokens": 17361,
+                  "completion_tokens": 162
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 14976,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 3
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "search_wlo_collections",
+                "status": "success",
+                "item_count": 0,
+                "error": "",
+                "latency_ms": 2995
+              },
+              {
+                "tool": "search_wlo_content",
+                "status": "success",
+                "item_count": 23,
+                "error": "",
+                "latency_ms": 1209
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": "cards",
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_trefferliste"
+              ],
+              "ui_none": [],
+              "qr": true,
+              "must_offer": "Material-Treffer zur Ökologie für Klasse 9, bevorzugt Arbeitsblätter, als Trefferliste mit einem Anschlussangebot."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "search_wlo_collections",
+                "search_wlo_content"
+              ],
+              "tool_calls": 2,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 3,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 512,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_trefferliste"
+              ]
+            },
+            "checks": {
+              "register": null,
+              "structure": true,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": true
+            }
+          },
+          "ui_module": [
+            "ui_trefferliste"
+          ],
+          "cards_count": 3,
+          "response_length": 512,
+          "latency_ms": 16635,
+          "anwendungsfall": "suchen"
+        }
+      ]
+    },
+    {
+      "kind": "golden",
+      "flow_id": "GV-UI-3",
+      "title": "(nur Agent) Fach offen → Auswahlfeld → Treffer",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "erwartung": "Eine Lehrkraft sucht Material zum Thema Energie für Klasse 7, ohne das Fach zu nennen: der Bot fragt mit einem Auswahlfeld nach dem Fach, und nach der Antwort kommen passende Treffer — keine zweite Rückfrage.",
+      "intent_id": "",
+      "session_id": "eval-486e8debd93a",
+      "turns": [
+        {
+          "user": "Ich brauche Material zum Thema Energie für meine 7. Klasse.",
+          "bot": "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nFür die 7. Klasse gibt es passende Materialien aus mehreren Blickwinkeln: etwa zu Energieformen und mechanischer Energie sowie zu erneuerbaren Energien und Energiewende. Die Suche ergab viele Treffer; die angezeigte Auswahl umfasst Physik- und fächerübergreifende Materialien. Ein Teil davon ist als Archiv gekennzeichnet oder behandelt eher Energiewende als Grundlagen der Energie.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 8 Treffer]\n  - **Energie und Strom** — https://repository.staging.openeduhub.net/edu-sharing/components/topic-pages?collectionId=a1e68fc6-6f11-40fa-bb36-fb0a3cc23a46\n    Themenseite \"Energie und Strom\" — kuratierte Einstiegsseite mit Sammlungen, Materialien und weiterführenden Links, von der WLO-Fachredaktion zusammengestellt.\n  - **Maßnahmen zur Bekämpfung klimawandel** — https://repository.staging.openeduhub.net/edu-sharing/components/topic-pages?collectionId=322709b3-9189-498b-a709-b39189c98b53\n    Zur Bekämpfung des Klimawandels sind zahlreiche Maßnahmen erforderlich, die von individuellen Verhaltensänderungen bis zu globalen politischen Entscheidungen reichen. Effiziente Energienutzung, der Au\n  - **Energie und Energiewende** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=81e8ff01-0709-4bf4-8ddd-796cd89013b8&q=Ich%20brauche%20Material%20zum%20Thema%20Energie%20f%C3%BCr%20meine%207.%20Klasse.\n    In dieser Untersammlung finden sich Unterrichtsmaterialien zum Thema Energie: Es gibt zum Beispiel Arbeitsblätter und andere Materialien zu fossilen Energiequellen und erneuerbaren Energien und zu dem\n  - **Mechanische Energie** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=ffa05eb0-d428-4b2b-9b06-755bdbcbc0bd&q=Ich%20brauche%20Material%20zum%20Thema%20Energie%20f%C3%BCr%20meine%207.%20Klasse.\n    Energie ist eine komplexe Größe, die in verschiedenen Formen vorkommt. Sie kann in unterschiedlichen Prozessen von einer Form in die andere umgewandelt werden. Neben elektrischer Energie und Strahlung\n  - **Mechanische Wellen** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=13922d17-57c7-44f6-994c-6c35811752d1&q=Ich%20brauche%20Material%20zum%20Thema%20Energie%20f%C3%BCr%20meine%207.%20Klasse.\n    Breiten sich mechanische Schwingungen im Raum aus, so entstehen mechanische Wellen. Typische Beispiele für derartige Wellen sind Wasserwellen. Mit solchen mechanischen Wellen lassen sich bereits für W\n  - **Umweltfreundlich Energie erzeugen (Schülerheft/SEK) [Archiv]** — https://repository.staging.openeduhub.net/edu-sharing/components/render/acc328af-f2bc-4d93-9c6a-3aa51173a011\n    In sechs Kapiteln wird der Bogen gespannt vom \"Energiesystem der Zukunft\" über die \"Energiewende zu Hause\" bis zu Berufsbildern in der Branche. Vorschläge für Experimente zu Wind-, Wasser-, Sonnen- un\n  - **Bereit zur Wende? Die Energiewende erfahren – verstehen – selber machen | Portal Globales Lernen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/3d894e09-3948-4d4b-ac77-84c5950f3b2e\n    Die Energiewende genießt eine hohe Akzeptanz in der Bevölkerung. Trotz dieser Akzeptanz bleibt sie jedoch eher ein abstraktes Konstrukt als gelebte Realität. Diese Diskrepanz wurde zum Anlass genommen\n  - **Lingo Global zum Thema \"Grüne Energie\" | Portal Globales Lernen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/2089961b-9cba-4b89-a448-358b8d20bbf5\n    Energieversorgung und Energiekonsum beherrschen seit Wochen die Schlagzeilen. Die erneuerbaren oder grünen Energien stellt das Lingo Global-Magazin Deutschlernenden in dieser Ausgabe vor – für mehr Na",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 4.955359475635505e-05,
+                "harassment/threatening": 4.1335397768930325e-06,
+                "hate": 1.2931563954607948e-05,
+                "hate/threatening": 2.97731143841062e-06,
+                "illicit": 0.007551459267723239,
+                "illicit/violent": 0.0016233762788016497,
+                "self_harm": 1.2632042438707805e-05,
+                "self_harm/instructions": 3.944258675190877e-06,
+                "self_harm/intent": 0.00022668099229563676,
+                "sexual": 2.6947915555885546e-05,
+                "sexual/minors": 1.3552078562406772e-05,
+                "violence": 1.177445922838707e-05,
+                "violence/graphic": 1.7231572752142392e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "search_wlo_all"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 37905,
+              "completion_tokens": 169,
+              "cached_tokens": 34409,
+              "reasoning_tokens": 0,
+              "calls": 2,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 37905,
+                  "completion": 169,
+                  "cached": 34409,
+                  "reasoning": 0,
+                  "calls": 2
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 37905,
+                  "completion": 169,
+                  "cached": 34409,
+                  "reasoning": 0,
+                  "calls": 2,
+                  "ms": 6472
+                }
+              },
+              "zeiten_ms": {
+                "setup": 10,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 9,
+                "preflight": 0,
+                "assess.safety": 588,
+                "assess": 589,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond.werkzeuge": 1910,
+                "respond": 8385,
+                "assemble": 1,
+                "persist": 42
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: search_wlo_all",
+                "duration_ms": 5609,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "search_wlo_all",
+                      "argumente": [
+                        "educationalContext",
+                        "maxCollections",
+                        "maxContent",
+                        "query"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 5609,
+                  "prompt_tokens": 17216,
+                  "cached_tokens": 17196,
+                  "completion_tokens": 41
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: respond_to_user",
+                "duration_ms": 2775,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 2775,
+                  "prompt_tokens": 20689,
+                  "cached_tokens": 17213,
+                  "completion_tokens": 128
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 8384,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 2
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "search_wlo_all",
+                "status": "success",
+                "item_count": 1,
+                "error": "",
+                "latency_ms": 1910
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "any",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_entscheidung"
+              ],
+              "ui_none": [],
+              "qr": true,
+              "must_offer": "Eine kurze Rückfrage mit Auswahlfeld, für welches Fach das Material sein soll (etwa Physik, Biologie, Chemie, Erdkunde) — noch keine Treffer."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "search_wlo_all"
+              ],
+              "tool_calls": 1,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 8,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 433,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_trefferliste"
+              ]
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": false,
+              "qr": true,
+              "host": true
+            }
+          },
+          "ui_module": [
+            "ui_trefferliste"
+          ],
+          "cards_count": 8,
+          "response_length": 433,
+          "latency_ms": 9456,
+          "anwendungsfall": "suchen"
+        },
+        {
+          "user": "Physik",
+          "bot": "Für Physik in Klasse 7 habe ich die Suche auf Sekundarstufe I eingegrenzt. Die Treffer enthalten Grundlagenmaterial zu Energie und Energieflussdiagrammen sowie den Lernpfad „Energie/Referate“; außerdem gibt es Material zu Energietransport. Die Suche ergab 578 passende Inhalte insgesamt, daher sind das nur einige der angezeigten Treffer. Grundlage: WLO-Suche nach „Energie“ mit den Filtern Physik und Sekundarstufe I.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 8 Treffer]\n  - **Energie und Strom** — https://repository.staging.openeduhub.net/edu-sharing/components/topic-pages?collectionId=a1e68fc6-6f11-40fa-bb36-fb0a3cc23a46\n    Themenseite \"Energie und Strom\" — kuratierte Einstiegsseite mit Sammlungen, Materialien und weiterführenden Links, von der WLO-Fachredaktion zusammengestellt.\n  - **Maßnahmen zur Bekämpfung klimawandel** — https://repository.staging.openeduhub.net/edu-sharing/components/topic-pages?collectionId=322709b3-9189-498b-a709-b39189c98b53\n    Zur Bekämpfung des Klimawandels sind zahlreiche Maßnahmen erforderlich, die von individuellen Verhaltensänderungen bis zu globalen politischen Entscheidungen reichen. Effiziente Energienutzung, der Au\n  - **Energie und Energiewende** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=81e8ff01-0709-4bf4-8ddd-796cd89013b8&q=Physik\n    In dieser Untersammlung finden sich Unterrichtsmaterialien zum Thema Energie: Es gibt zum Beispiel Arbeitsblätter und andere Materialien zu fossilen Energiequellen und erneuerbaren Energien und zu dem\n  - **fossile Energieträger** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=b9924acc-742e-4f65-9a72-ba0ee47f74b9&q=Physik\n    Hier findest du alle Materialien zur Ressource \"Fossile Energieträger\".\n  - **Phase 1: Inhalte, Werkzeuge und Pattern (Nachhaltige Energie)** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=4f23d8a4-9538-4a89-8b21-19fa16d0ac85&q=Physik\n  - **Energie | Wir lernen online** — https://repository.staging.openeduhub.net/edu-sharing/components/render/391d7fd5-8952-4090-b599-e6e0852eca3a\n    Die Energie ist eine der wichtigsten und gleichzeitig schwierigsten Größen der Physik: Ihre Gesamtmenge ändert sich nie, und doch lässt sie sich nicht beliebig nutzen. Sie tritt in vielen verschiedene\n  - **Umweltfreundlich Energie erzeugen (Schülerheft/SEK) [Archiv]** — https://repository.staging.openeduhub.net/edu-sharing/components/render/acc328af-f2bc-4d93-9c6a-3aa51173a011\n    In sechs Kapiteln wird der Bogen gespannt vom \"Energiesystem der Zukunft\" über die \"Energiewende zu Hause\" bis zu Berufsbildern in der Branche. Vorschläge für Experimente zu Wind-, Wasser-, Sonnen- un\n  - **Energieflussdiagramme - Artikel** — https://repository.staging.openeduhub.net/edu-sharing/components/render/bca7e58b-731c-4e5b-a811-d82df0f2f7cb\n    In dem vorliegenden Artikel von Jaochim Lerch werden Energieflussdiagramme im Technikunterricht der Sekundarstufe I thematisiert. Im Artikel befinden sich Abbildungen, die unterschiedliche Energieflus",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 4.198630823683514e-06,
+                "harassment/threatening": 5.955139348629957e-07,
+                "hate": 1.0783312222985275e-06,
+                "hate/threatening": 7.338209805254082e-08,
+                "illicit": 1.4202364022997911e-05,
+                "illicit/violent": 2.234163601827719e-05,
+                "self_harm": 1.8342893327886845e-06,
+                "self_harm/instructions": 4.289333109916098e-07,
+                "self_harm/intent": 7.296379465971514e-07,
+                "sexual": 1.3982207564732913e-05,
+                "sexual/minors": 7.411279871974134e-07,
+                "violence": 1.3765463368900109e-05,
+                "violence/graphic": 7.889262586245034e-07
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "search_wlo_all"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 38571,
+              "completion_tokens": 194,
+              "cached_tokens": 35001,
+              "reasoning_tokens": 0,
+              "calls": 2,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 38571,
+                  "completion": 194,
+                  "cached": 35001,
+                  "reasoning": 0,
+                  "calls": 2
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 38571,
+                  "completion": 194,
+                  "cached": 35001,
+                  "reasoning": 0,
+                  "calls": 2,
+                  "ms": 4699
+                }
+              },
+              "zeiten_ms": {
+                "setup": 5,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 7,
+                "preflight": 0,
+                "assess.safety": 377,
+                "assess": 377,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond.werkzeuge": 2324,
+                "respond": 7041,
+                "assemble": 1,
+                "persist": 36
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S3",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: search_wlo_all",
+                "duration_ms": 3933,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "search_wlo_all",
+                      "argumente": [
+                        "discipline",
+                        "educationalContext",
+                        "maxCollections",
+                        "maxContent",
+                        "query"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 3933,
+                  "prompt_tokens": 17791,
+                  "cached_tokens": 17213,
+                  "completion_tokens": 47
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: respond_to_user",
+                "duration_ms": 3091,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 3091,
+                  "prompt_tokens": 20780,
+                  "cached_tokens": 17788,
+                  "completion_tokens": 147
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 7024,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 2
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "search_wlo_all",
+                "status": "success",
+                "item_count": 1,
+                "error": "",
+                "latency_ms": 2324
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "any",
+              "structure": "cards",
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_trefferliste"
+              ],
+              "ui_none": [
+                "ui_entscheidung"
+              ],
+              "qr": true,
+              "must_offer": "Material-Treffer zu Energie im Physikunterricht der 7. Klasse (Energieformen, Energieumwandlung) als Trefferliste."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "search_wlo_all"
+              ],
+              "tool_calls": 1,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 8,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 418,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_trefferliste"
+              ],
+              "ui_antwort": {
+                "status": "keine_frage",
+                "gewaehlt": []
+              }
+            },
+            "checks": {
+              "register": null,
+              "structure": true,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": true
+            }
+          },
+          "ui_module": [
+            "ui_trefferliste"
+          ],
+          "cards_count": 8,
+          "response_length": 418,
+          "latency_ms": 7867,
+          "anwendungsfall": "suchen"
+        }
+      ]
+    },
+    {
+      "kind": "golden",
+      "flow_id": "GV-UI-4",
+      "title": "(nur Agent) Stunde planen: Bausteine wählen (Mehrfachwahl) → Verlaufsplan",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "erwartung": "Eine Lehrkraft plant eine Doppelstunde Photosynthese für Klasse 8 und lässt sich die möglichen Bausteine zur Auswahl geben: der Bot fragt mit einem Auswahlfeld (mehrere möglich), nach der Wahl steht ein Verlaufsplan mit genau diesen Bausteinen als Dokument.",
+      "intent_id": "",
+      "session_id": "eval-953f55ccfff5",
+      "turns": [
+        {
+          "user": "Ich plane eine Doppelstunde Biologie zur Photosynthese in Klasse 8. Was könnte da alles rein? Geben Sie mir die Bausteine bitte zur Auswahl.",
+          "bot": "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nBitte wähle unten aus.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 7 Treffer]\n  - **Chemie** — https://repository.staging.openeduhub.net/edu-sharing/components/topic-pages?collectionId=4940d5da-9b21-4ec0-8824-d16e0409e629\n    Bild-Quelle und -Lizenz: Bild von deepakrit auf Pixabay 2\n  - **Photosynthese** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=02edf941-de62-4e08-8711-f1b1f1e4b7eb&q=Ich%20plane%20eine%20Doppelstunde%20Biologie%20zur%20Photosynthese%20in%20Klasse%208.%20Was%20k%C3%B6nnte%20da%20alles%20rein%3F%20Geben%20Sie%20mir%20die%20Bausteine%20bitte%20zur%20Auswahl.\n  - **Photosynthese** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=d38101c1-9a43-414b-a51f-e2dcff0add44&q=Ich%20plane%20eine%20Doppelstunde%20Biologie%20zur%20Photosynthese%20in%20Klasse%208.%20Was%20k%C3%B6nnte%20da%20alles%20rein%3F%20Geben%20Sie%20mir%20die%20Bausteine%20bitte%20zur%20Auswahl.\n    In dieser Untersammlung werden Unterrichtsmaterialien zum Thema Photosynthese zusammengestellt.\n  - **Moose** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=501e0bc8-3996-4363-b431-e174e36c6f01&q=Ich%20plane%20eine%20Doppelstunde%20Biologie%20zur%20Photosynthese%20in%20Klasse%208.%20Was%20k%C3%B6nnte%20da%20alles%20rein%3F%20Geben%20Sie%20mir%20die%20Bausteine%20bitte%20zur%20Auswahl.\n    In dieser Untersammlung geht es um die Gruppe der Moose: Ihre Systematik, ihre Struktur, ihre Entwicklung, ihre Lebensräume und ihre Nutzung.\n  - **Photosynthese** — https://repository.staging.openeduhub.net/edu-sharing/components/render/f7d88bc3-6f77-4469-b4c6-d4771396d1be\n    - Photosynthese\n- galaxia1409\n- 30.06.2020\n- Allgemeine Hochschulreife\n- Biologie\n- 7\nUm die Lizenzinformationen zu sehen, klicken Sie bitte den gewünschten Inhalt an.\nName:\nPhotosynthese\n10.07.2017\nS\n  - **Photosynthese - Lichtreaktion** — https://repository.staging.openeduhub.net/edu-sharing/components/render/fc7deba8-a26d-407b-99c0-d13b0e80eb70\n    Die Photosynthese besteht aus zwei verschiedenen Reaktionen: den Primärprozess, der auch Lichtreaktion genannt wird und sowohl licht- als auch temperaturunabhängig ist, und dem Sekundärprozess, auch D\n  - **Photosynthese - Ein Fall für Zwei (Teil 1 von 2)** — https://repository.staging.openeduhub.net/edu-sharing/components/render/43bfdd36-6927-4894-910e-809a99d1578a\n    Ohne Chlorophyll und Carotinoide kann keine Photosynthese stattfinden. Schritt für Schritt erklärt Prof. Dr. Tausch der Bergischen Universität Wuppertal was diese Begriffe bedeuten und welche Rolle si\n\n---\n[UI-Modul ui_entscheidung — vom Nutzer sichtbar]\n\nWelche Bausteine sollen in die Doppelstunde einfließen?\n\n1. Grundidee und Bedeutung — Was Pflanzen aufnehmen und abgeben; warum Photosynthese wichtig ist\n2. Stoffe und Reaktionsgleichung — Kohlenstoffdioxid, Wasser, Traubenzucker und Sauerstoff\n3. Blatt und Chlorophyll — Wo Photosynthese stattfindet und welche Rolle Blattgrün spielt\n4. Experiment oder Beobachtung — Zum Beispiel Sauerstoffnachweis oder Einfluss von Licht\n5. Licht und Energie — Licht als Energiequelle der Photosynthese\n6. Transfer und Alltag — Pflanzen, Nahrungsketten, Sauerstoff und Klima",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 0.0005558740293833221,
+                "harassment/threatening": 1.3135179706526775e-05,
+                "hate": 9.461262661302227e-06,
+                "hate/threatening": 3.321419494792514e-06,
+                "illicit": 0.028388167510084703,
+                "illicit/violent": 0.0015963947130223704,
+                "self_harm": 0.00045459430255551965,
+                "self_harm/instructions": 0.0002169552172070121,
+                "self_harm/intent": 0.0002250791783627945,
+                "sexual": 5.9766937110286536e-05,
+                "sexual/minors": 5.4421326243255744e-05,
+                "violence": 1.4653129390717958e-05,
+                "violence/graphic": 3.7636447180974406e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "search_wlo_all"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 38078,
+              "completion_tokens": 270,
+              "cached_tokens": 34431,
+              "reasoning_tokens": 0,
+              "calls": 2,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 38078,
+                  "completion": 270,
+                  "cached": 34431,
+                  "reasoning": 0,
+                  "calls": 2
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 38078,
+                  "completion": 270,
+                  "cached": 34431,
+                  "reasoning": 0,
+                  "calls": 2,
+                  "ms": 6898
+                }
+              },
+              "zeiten_ms": {
+                "setup": 13,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 7,
+                "preflight": 0,
+                "assess.safety": 241,
+                "assess": 242,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond.werkzeuge": 1734,
+                "respond": 8636,
+                "assemble": 1,
+                "persist": 35
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: search_wlo_all",
+                "duration_ms": 4295,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "search_wlo_all",
+                      "argumente": [
+                        "discipline",
+                        "educationalContext",
+                        "maxCollections",
+                        "maxContent",
+                        "query"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 4295,
+                  "prompt_tokens": 17238,
+                  "cached_tokens": 17196,
+                  "completion_tokens": 48
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: ui_entscheidung",
+                "duration_ms": 4339,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "ui_entscheidung",
+                      "argumente": [
+                        "frage",
+                        "freitext",
+                        "mehrfach",
+                        "optionen"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 4339,
+                  "prompt_tokens": 20840,
+                  "cached_tokens": 17235,
+                  "completion_tokens": 222
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: frage",
+                "duration_ms": 8634,
+                "data": {
+                  "stop_reason": "frage",
+                  "runden": 2
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "search_wlo_all",
+                "status": "success",
+                "item_count": 1,
+                "error": "",
+                "latency_ms": 1733
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "any",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_entscheidung"
+              ],
+              "ui_none": [],
+              "qr": true,
+              "must_offer": "Ein Auswahlfeld mit mehreren wählbaren Bausteinen der Stunde (etwa Einstieg, Experiment, Arbeitsblatt, Quiz, Sicherung), mehrere zugleich wählbar."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "search_wlo_all"
+              ],
+              "tool_calls": 1,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 7,
+              "idocs": 0,
+              "qr": 0,
+              "content_len": 73,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_entscheidung",
+                "ui_trefferliste"
+              ]
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": false,
+              "host": true
+            }
+          },
+          "ui_module": [
+            "ui_entscheidung",
+            "ui_trefferliste"
+          ],
+          "cards_count": 7,
+          "response_length": 73,
+          "latency_ms": 9340,
+          "anwendungsfall": "zusammenstellen"
+        },
+        {
+          "user": "Experiment oder Beobachtung\nWir haben 90 Minuten; Material für einen Versuch mit Wasserpest ist da.",
+          "bot": "Hier ist ein 90-minütiger Ablauf mit Wasserpest-Versuch, Auswertung und Sicherung. Ich habe mich auf die verfügbaren WLO-Materialien gestützt; den konkreten Versuchsaufbau vor Ort konnte ich nicht prüfen.\n\n---\n[Inline-Document — vom Nutzer sichtbar: Doppelstunde Biologie: Photosynthese mit Wasserpest (90 Minuten)]\n\n# Doppelstunde: Photosynthese mit Wasserpest\n\n**Klasse:** 8 · **Fach:** Biologie · **Dauer:** 90 Minuten  \n**Leitfrage:** Was zeigt uns die Wasserpest über die Photosynthese?\n\n## Lernziele\nDie Lernenden beobachten einen Versuch mit Wasserpest, dokumentieren Bedingungen und Beobachtungen und entwickeln eine einfache Erklärung: Pflanzen nutzen Licht, um aus Wasser und Kohlenstoffdioxid energiereiche Stoffe aufzubauen; dabei wird Sauerstoff frei. Sie unterscheiden Beobachtung und Deutung.\n\n## Ablauf\n\n| Zeit | Phase | Ablauf und Sozialform |\n|---|---|---|\n| 0–8 Min. | Einstieg | Wasserpest zeigen, Leitfrage stellen: „Was könnte aus den Bläschen entstehen – und wodurch entstehen sie?“ Vermutungen einzeln notieren. |\n| 8–15 Min. | Versuch planen | Gemeinsam Variablen festlegen: Licht als Bedingung, Wasserpest als Untersuchungsobjekt. Wenn möglich eine Kontrollbedingung ohne Licht oder ohne Pflanze einrichten. Vorhersage formulieren. |\n| 15–40 Min. | Experiment | Gruppen beobachten die Wasserpest unter den vorhandenen Versuchsbedingungen. Bläschenzahl in festen Zeitabständen zählen oder Veränderungen beschreiben; Versuchsaufbau skizzieren. Kontrollbedingungen parallel beobachten. **Sicherheit:** nur nach schulischer Versuchsanleitung arbeiten; Glas und Lichtquelle umsichtig verwenden. |\n| 40–50 Min. | Auswertung | Gruppen vergleichen Beobachtungen. Leitfragen: Wo traten Bläschen auf? Was war gleich/anders? Welche Erklärung passt zu den Kontrollen? Die Bläschen sind ein Hinweis auf ein entstehendes Gas, allein aber noch kein sicherer Nachweis für dessen Identität. |\n| 50–62 Min. | Fachliche Sicherung | Beobachtung und Deutung ordnen: Bei Licht läuft Photosynthese ab; Sauerstoff wird frei. Pflanzen bilden dabei energiereiche Stoffe aus Wasser und Kohlenstoffdioxid. Die vereinfachte Wortgleichung gemeinsam festhalten: **Kohlenstoffdioxid + Wasser —(Licht, Chlorophyll)→ Traubenzucker + Sauerstoff**. |\n| 62–74 Min. | Modell/Transfer | Lernende zeichnen ein einfaches Schema: Licht trifft auf ein grünes Blatt; Wasser und Kohlenstoffdioxid gelangen hinein; Sauerstoff wird abgegeben; Zucker dient der Pflanze als energiereicher Stoff. Begriffe mit Pfeilen eintragen. |\n| 74–84 Min. | Anwendung | Partneraufgabe: Erkläre, warum eine Pflanze im Dunkeln nicht dauerhaft wachsen kann. Nutze mindestens drei Begriffe aus der Sicherung. Anschließend zwei Antworten vergleichen. |\n| 84–90 Min. | Exit-Ticket | Drei kurze Antworten: 1. Was wurde beobachtet? 2. Was ist die Deutung? 3. Welche Rolle spielt Licht? Einsammeln als Lernstandscheck. |\n\n## Vorbereitung und Material\nWasserpest und das bereits vorhandene Versuchsgerät; Lichtquelle bzw. Beleuchtung gemäß vorhandenem Aufbau; Timer; Beobachtungsbogen oder Heft; Tafel/Projektionsfläche. Kontrollbedingung nur einrichten, wenn das vorhandene Material und der Versuchsaufbau dies erlauben.\n\n## Differenzierung\n- **Unterstützung:** Satzstarter („Ich beobachte …“, „Das könnte bedeuten …“) und Wortkarten: Licht, Wasser, Kohlenstoffdioxid, Sauerstoff, Zucker.\n- **Vertiefung:** Überlegen, warum die Bläschenzahl allein kein exakter Maßstab für die Photosyntheserate ist (z. B. Größe der Pflanze, Lichtstärke, Temperatur, Zählfehler).\n\n## Hinweise zur Grundlage\nDer WLO-Treffer „Photosynthese“ enthält unter anderem Versuche zu Sauerstoff- und Stärkenachweis; das WLO-Material „Die Zelle“ beschreibt Wasserpest-Beobachtung und Chloroplasten. Ein weiteres WLO-Material erläutert die Lichtreaktion, ist aber fachlich anspruchsvoller und für Klasse 8 nicht als zentrale Grundlage dieses Ablaufs verwendet. Die Photosynthese-Sammlung hat keinen redaktionellen Kompendiumstext. Der konkrete Wasserpest-Aufbau wurde nicht geprüft; deshalb sind Durchführung und Nachweis an das vorhandene Versuchsprotokoll anzupassen.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 1 Treffer]\n  - **Die Zelle** — https://repository.staging.openeduhub.net/edu-sharing/components/render/7cf9a059-b604-44ea-95d2-86b9d0aa8dd7\n    - Die Zelle\n- SynLLOER\n- 30.06.2020\n- Biologie\n- 8\nUm die Lizenzinformationen zu sehen, klicken Sie bitte den gewünschten Inhalt an.\nName:\nDie Zelle\n11.03.2018\nMikroskopieren\nVergesst nicht, einen Tro",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 6.302758756443267e-06,
+                "harassment/threatening": 1.2219076020491008e-06,
+                "hate": 2.212566909570261e-06,
+                "hate/threatening": 1.816222403812674e-07,
+                "illicit": 4.006369222920725e-06,
+                "illicit/violent": 1.141223854434603e-05,
+                "self_harm": 4.400118457925303e-06,
+                "self_harm/instructions": 3.9669859149467314e-07,
+                "self_harm/intent": 2.0785170435063726e-06,
+                "sexual": 7.967300986103147e-06,
+                "sexual/minors": 1.3846004563753396e-06,
+                "violence": 4.006369222920725e-06,
+                "violence/graphic": 3.120191139396651e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "get_skill_registry",
+              "get_compendium_text",
+              "search_wlo_content",
+              "get_nodes_details"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 96636,
+              "completion_tokens": 1353,
+              "cached_tokens": 91921,
+              "reasoning_tokens": 0,
+              "calls": 5,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 96636,
+                  "completion": 1353,
+                  "cached": 91921,
+                  "reasoning": 0,
+                  "calls": 5
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 96636,
+                  "completion": 1353,
+                  "cached": 91921,
+                  "reasoning": 0,
+                  "calls": 5,
+                  "ms": 22026
+                }
+              },
+              "zeiten_ms": {
+                "setup": 17,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 6,
+                "preflight": 0,
+                "assess.safety": 627,
+                "assess": 628,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond.werkzeuge": 3670,
+                "respond": 25703,
+                "assemble": 1,
+                "persist": 40
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S3",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: get_skill_registry",
+                "duration_ms": 2675,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "get_skill_registry",
+                      "argumente": [
+                        "collectionId"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 2675,
+                  "prompt_tokens": 17780,
+                  "cached_tokens": 17235,
+                  "completion_tokens": 42
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: get_compendium_text",
+                "duration_ms": 2764,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "get_compendium_text",
+                      "argumente": [
+                        "nodeId",
+                        "query"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 2764,
+                  "prompt_tokens": 17936,
+                  "cached_tokens": 17777,
+                  "completion_tokens": 65
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 3: search_wlo_content, get_nodes_details",
+                "duration_ms": 4402,
+                "data": {
+                  "runde": 3,
+                  "werkzeuge": [
+                    {
+                      "name": "search_wlo_content",
+                      "argumente": [
+                        "discipline",
+                        "educationalContext",
+                        "maxResults",
+                        "query"
+                      ]
+                    },
+                    {
+                      "name": "get_nodes_details",
+                      "argumente": [
+                        "nodeIds"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 4402,
+                  "prompt_tokens": 18106,
+                  "cached_tokens": 17933,
+                  "completion_tokens": 148
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 4: ui_inhaltsrahmen",
+                "duration_ms": 13609,
+                "data": {
+                  "runde": 4,
+                  "werkzeuge": [
+                    {
+                      "name": "ui_inhaltsrahmen",
+                      "argumente": [
+                        "art",
+                        "markdown",
+                        "titel"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 13609,
+                  "prompt_tokens": 20876,
+                  "cached_tokens": 18103,
+                  "completion_tokens": 1000
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 5: respond_to_user",
+                "duration_ms": 2251,
+                "data": {
+                  "runde": 5,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 2251,
+                  "prompt_tokens": 21938,
+                  "cached_tokens": 20873,
+                  "completion_tokens": 98
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 25701,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 5
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "get_skill_registry",
+                "status": "success",
+                "item_count": 1,
+                "error": "",
+                "latency_ms": 931
+              },
+              {
+                "tool": "get_compendium_text",
+                "status": "success",
+                "item_count": 1,
+                "error": "",
+                "latency_ms": 890
+              },
+              {
+                "tool": "search_wlo_content",
+                "status": "success",
+                "item_count": 3,
+                "error": "",
+                "latency_ms": 921
+              },
+              {
+                "tool": "get_nodes_details",
+                "status": "success",
+                "item_count": 1,
+                "error": "",
+                "latency_ms": 925
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": "idoc",
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_inhaltsrahmen"
+              ],
+              "ui_none": [],
+              "qr": true,
+              "must_offer": "Ein Verlaufsplan für 90 Minuten als Dokument mit den gewählten Bausteinen in sinnvoller Reihenfolge (Einstieg, Experiment, Arbeitsblatt, Quiz), mit Zeiten und Sozialformen."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "get_skill_registry",
+                "get_compendium_text",
+                "search_wlo_content",
+                "get_nodes_details"
+              ],
+              "tool_calls": 4,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 1,
+              "idocs": 1,
+              "qr": 2,
+              "content_len": 204,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_inhaltsrahmen",
+                "ui_trefferliste"
+              ],
+              "ui_antwort": {
+                "status": "gesendet",
+                "gewaehlt": [
+                  "Experiment oder Beobachtung"
+                ]
+              }
+            },
+            "checks": {
+              "register": null,
+              "structure": true,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": true
+            }
+          },
+          "ui_module": [
+            "ui_inhaltsrahmen",
+            "ui_trefferliste"
+          ],
+          "cards_count": 1,
+          "response_length": 204,
+          "latency_ms": 26761,
+          "anwendungsfall": "zusammenstellen"
+        }
+      ]
+    },
+    {
+      "kind": "golden",
+      "flow_id": "GV-UI-5",
+      "title": "(nur Agent) Schülerin: Brüche verstehen — Einstieg finden",
+      "persona_id": "*",
+      "zielgruppe": "P-LER",
+      "erwartung": "Eine Schülerin versteht Brüche nicht und weiß nicht, wo sie anfangen soll: der Bot duzt, klärt Klassenstufe oder Vorwissen (gern per Auswahlfeld) oder bietet gleich einfache Lernmaterialien an, und erklärt danach in einfachen Worten den Anfang.",
+      "intent_id": "",
+      "session_id": "eval-027d78867b3f",
+      "turns": [
+        {
+          "user": "ich versteh brüche einfach nicht. wo fang ich da überhaupt an?",
+          "bot": "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nFang mit der Grundidee an: Ein **Bruch** beschreibt, wie viele gleich große Teile du von einem Ganzen meinst.\n\nZum Beispiel: Stell dir eine Pizza vor, die in **4 gleich große Stücke** geteilt ist. Wenn du **1 Stück** nimmst, ist das **1/4** („ein Viertel“).\n\n- Die **untere Zahl** sagt, in wie viele gleiche Teile das Ganze geteilt ist: **4**.\n- Die **obere Zahl** sagt, wie viele dieser Teile du meinst: **1**.\n\nAlso bedeutet **3/4**: Das Ganze ist in 4 gleiche Teile geteilt, und du nimmst 3 davon. Wichtig ist zuerst nur: Die Teile müssen gleich groß sein.\n\nWir können danach ganz langsam üben, Brüche zu lesen oder zu malen.",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 0.0007384683008385083,
+                "harassment/threatening": 0.0007768233472384458,
+                "hate": 0.001236461330178661,
+                "hate/threatening": 1.3765463368900109e-05,
+                "illicit": 0.028485985530353877,
+                "illicit/violent": 0.0021620766521923745,
+                "self_harm": 0.014991024309806875,
+                "self_harm/instructions": 0.0003360009531896776,
+                "self_harm/intent": 0.00807208478598321,
+                "sexual": 0.0007433895060961777,
+                "sexual/minors": 4.238847419937498e-05,
+                "violence": 0.03242376347126302,
+                "violence/graphic": 0.0035113396521894583
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 17218,
+              "completion_tokens": 278,
+              "cached_tokens": 17196,
+              "reasoning_tokens": 47,
+              "calls": 1,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 17218,
+                  "completion": 278,
+                  "cached": 17196,
+                  "reasoning": 47,
+                  "calls": 1
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 17218,
+                  "completion": 278,
+                  "cached": 17196,
+                  "reasoning": 47,
+                  "calls": 1,
+                  "ms": 4227
+                }
+              },
+              "zeiten_ms": {
+                "setup": 14,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 6,
+                "preflight": 0,
+                "assess.safety": 764,
+                "assess": 765,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 1,
+                "route": 2,
+                "respond": 4230,
+                "assemble": 0,
+                "persist": 27
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S1",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: respond_to_user",
+                "duration_ms": 4227,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 4227,
+                  "prompt_tokens": 17218,
+                  "cached_tokens": 17196,
+                  "completion_tokens": 278
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 4227,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 1
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": []
+          },
+          "golden": {
+            "expected": {
+              "register": "du",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_entscheidung",
+                "ui_trefferliste"
+              ],
+              "ui_none": [
+                "ui_themenbaum"
+              ],
+              "qr": true,
+              "must_offer": "Ermutigend und geduzt: entweder eine kurze Rückfrage nach Klasse oder Vorwissen (Auswahlfeld) oder gleich einfache Einstiegsmaterialien zu Brüchen."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [],
+              "tool_calls": 0,
+              "skills": [],
+              "register": "du",
+              "sie": 0,
+              "du": 5,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 679,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": []
+            },
+            "checks": {
+              "register": true,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": false,
+              "qr": true,
+              "host": null
+            }
+          },
+          "ui_module": [],
+          "cards_count": 0,
+          "response_length": 679,
+          "latency_ms": 5462,
+          "anwendungsfall": "erklaeren"
+        },
+        {
+          "user": "6. Klasse, ich weiß nicht mal, was Zähler und Nenner sind",
+          "bot": "Kein Problem — wir starten ganz vorne. Bei einem Bruch wie **3/5** ist die **Zahl oben** der **Zähler**: Sie zählt, wie viele Teile gemeint sind. Die **Zahl unten** ist der **Nenner**: Sie nennt, in wie viele gleich große Teile das Ganze geteilt ist.\n\nBei **3/5** ist also 3 der Zähler und 5 der Nenner: Das Ganze ist in 5 gleich große Teile geteilt, und 3 davon sind gemeint. Merksatz: **Nenner unten = Anzahl der Teile; Zähler oben = gezählte Teile.**",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 0.0007337515861650474,
+                "harassment/threatening": 3.8831109868779005e-06,
+                "hate": 4.655269187520153e-05,
+                "hate/threatening": 7.183260399857925e-07,
+                "illicit": 7.602479448313689e-06,
+                "illicit/violent": 4.198630823683514e-06,
+                "self_harm": 7.843789122138342e-06,
+                "self_harm/instructions": 1.5689549727726036e-06,
+                "self_harm/intent": 0.00021228441957103978,
+                "sexual": 2.0662982488383408e-05,
+                "sexual/minors": 5.829126566113866e-06,
+                "violence": 1.0554685795431098e-05,
+                "violence/graphic": 3.535625074174432e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 17428,
+              "completion_tokens": 188,
+              "cached_tokens": 17215,
+              "reasoning_tokens": 0,
+              "calls": 1,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 17428,
+                  "completion": 188,
+                  "cached": 17215,
+                  "reasoning": 0,
+                  "calls": 1
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 17428,
+                  "completion": 188,
+                  "cached": 17215,
+                  "reasoning": 0,
+                  "calls": 1,
+                  "ms": 3026
+                }
+              },
+              "zeiten_ms": {
+                "setup": 6,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 6,
+                "preflight": 0,
+                "assess.safety": 303,
+                "assess": 304,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond": 3029,
+                "assemble": 0,
+                "persist": 23
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S1",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: respond_to_user",
+                "duration_ms": 3026,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 3026,
+                  "prompt_tokens": 17428,
+                  "cached_tokens": 17215,
+                  "completion_tokens": 188
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 3026,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 1
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": []
+          },
+          "golden": {
+            "expected": {
+              "register": "du",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [],
+              "ui_none": [],
+              "qr": true,
+              "must_offer": "Eine einfache Erklärung von Zähler und Nenner (etwa am Beispiel einer Pizza), dazu ein bis zwei passende Übungen oder Lernvideos für Klasse 6."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [],
+              "tool_calls": 0,
+              "skills": [],
+              "register": "sie",
+              "sie": 2,
+              "du": 0,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 453,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [],
+              "ui_antwort": {
+                "status": "keine_frage",
+                "gewaehlt": []
+              }
+            },
+            "checks": {
+              "register": false,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": null,
+              "qr": true,
+              "host": null
+            }
+          },
+          "ui_module": [],
+          "cards_count": 0,
+          "response_length": 453,
+          "latency_ms": 3852,
+          "anwendungsfall": "erklaeren"
+        }
+      ]
+    },
+    {
+      "kind": "golden",
+      "flow_id": "GV-UI-6",
+      "title": "Gegenprobe: Smalltalk und Frage zu WLO — kein Auswahlfeld, kein Baum",
+      "persona_id": "*",
+      "zielgruppe": "P-AND",
+      "erwartung": "Bei Smalltalk und einer einfachen Frage zu WirLernenOnline antwortet der Bot direkt — ohne Auswahlfeld und ohne Themenbaum.",
+      "intent_id": "",
+      "session_id": "eval-456c2b76cc30",
+      "turns": [
+        {
+          "user": "Hallo! Na, wie läuft's bei dir heute so?",
+          "bot": "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nHallo! Alles gut — ich bin bereit, dir bei der Suche nach Lernmaterialien, beim Erklären von Themen oder beim Erstellen eines Arbeitsblatts zu helfen. Was hast du vor?",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 4.173157606777201e-05,
+                "harassment/threatening": 3.4268490542555014e-06,
+                "hate": 1.0554685795431098e-05,
+                "hate/threatening": 3.1875652166284776e-07,
+                "illicit": 8.092757566536092e-06,
+                "illicit/violent": 6.40200641038395e-06,
+                "self_harm": 1.3765463368900109e-05,
+                "self_harm/instructions": 2.01456908529364e-06,
+                "self_harm/intent": 4.98595821272702e-06,
+                "sexual": 0.00012843081201339694,
+                "sexual/minors": 8.481104172358076e-06,
+                "violence": 0.00048422495919655346,
+                "violence/graphic": 2.4300240743279605e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 17215,
+              "completion_tokens": 84,
+              "cached_tokens": 17196,
+              "reasoning_tokens": 0,
+              "calls": 1,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 17215,
+                  "completion": 84,
+                  "cached": 17196,
+                  "reasoning": 0,
+                  "calls": 1
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 17215,
+                  "completion": 84,
+                  "cached": 17196,
+                  "reasoning": 0,
+                  "calls": 1,
+                  "ms": 3210
+                }
+              },
+              "zeiten_ms": {
+                "setup": 14,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 6,
+                "preflight": 0,
+                "assess.safety": 555,
+                "assess": 556,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond": 3212,
+                "assemble": 0,
+                "persist": 32
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S1",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: respond_to_user",
+                "duration_ms": 3210,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 3210,
+                  "prompt_tokens": 17215,
+                  "cached_tokens": 17196,
+                  "completion_tokens": 84
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 3210,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 1
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": []
+          },
+          "golden": {
+            "expected": {
+              "register": "any",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [],
+              "ui_none": [
+                "ui_themenbaum"
+              ],
+              "qr": true,
+              "must_offer": "Eine freundliche, kurze Antwort und ein Angebot, wobei der Bot helfen kann (Material suchen, Unterricht planen)."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [],
+              "tool_calls": 0,
+              "skills": [],
+              "register": "du",
+              "sie": 0,
+              "du": 2,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 218,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": []
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": null
+            }
+          },
+          "ui_module": [],
+          "cards_count": 0,
+          "response_length": 218,
+          "latency_ms": 4360,
+          "anwendungsfall": "sonstiges"
+        },
+        {
+          "user": "Hat WirLernenOnline eigentlich Öffnungszeiten oder einen Support, den man anrufen kann?",
+          "bot": "In den WLO-Informationen finde ich **keine Angaben zu Öffnungszeiten oder einer telefonischen Supportnummer**. Als Kontaktwege sind ein Kontaktformular auf der Website sowie **redaktion@wirlernenonline.de** (Projektbüro) und **kommunikation@wirlernenonline.de** (Kommunikationsteam) genannt. Grundlage: WLO-FAQ; ob diese Kontaktdaten aktuell sind, konnte ich nicht unabhängig prüfen.",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 0.0005398135517506113,
+                "harassment/threatening": 9.761566060239504e-06,
+                "hate": 4.173157606777201e-05,
+                "hate/threatening": 1.8925148246037342e-06,
+                "illicit": 0.003808004814309869,
+                "illicit/violent": 1.8522574326531083e-05,
+                "self_harm": 0.0004598299174656405,
+                "self_harm/instructions": 5.391084403253366e-06,
+                "self_harm/intent": 0.000218704237257557,
+                "sexual": 8.040859356292355e-05,
+                "sexual/minors": 1.7674513810355872e-05,
+                "violence": 0.0004979376456416367,
+                "violence/graphic": 3.8831109868779005e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "wissen_suchen"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 36274,
+              "completion_tokens": 181,
+              "cached_tokens": 34504,
+              "reasoning_tokens": 0,
+              "calls": 2,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 36274,
+                  "completion": 181,
+                  "cached": 34504,
+                  "reasoning": 0,
+                  "calls": 2
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 36274,
+                  "completion": 181,
+                  "cached": 34504,
+                  "reasoning": 0,
+                  "calls": 2,
+                  "ms": 5327
+                }
+              },
+              "zeiten_ms": {
+                "setup": 5,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 8,
+                "preflight": 0,
+                "assess.safety": 336,
+                "assess": 337,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 0,
+                "route": 1,
+                "respond": 6542,
+                "assemble": 0,
+                "persist": 40
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S1",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: wissen_suchen",
+                "duration_ms": 2980,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "wissen_suchen",
+                      "argumente": [
+                        "frage"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 2980,
+                  "prompt_tokens": 17295,
+                  "cached_tokens": 17212,
+                  "completion_tokens": 46
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: respond_to_user",
+                "duration_ms": 3559,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 3559,
+                  "prompt_tokens": 18979,
+                  "cached_tokens": 17292,
+                  "completion_tokens": 135
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 6539,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 2
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": []
+          },
+          "golden": {
+            "expected": {
+              "register": "any",
+              "structure": null,
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [],
+              "ui_none": [
+                "ui_entscheidung",
+                "ui_themenbaum"
+              ],
+              "qr": true,
+              "must_offer": "Eine direkte Antwort: WirLernenOnline ist rund um die Uhr online erreichbar; Kontakt- bzw. Support-Weg, soweit aus dem Wissen belegbar — ohne Rückfrage."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "wissen_suchen"
+              ],
+              "tool_calls": 1,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 383,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": []
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": null
+            }
+          },
+          "ui_module": [],
+          "cards_count": 0,
+          "response_length": 383,
+          "latency_ms": 7482,
+          "anwendungsfall": "wlo_wissen"
+        }
+      ]
+    },
+    {
+      "kind": "golden",
+      "flow_id": "GV-UI-7",
+      "title": "Beide Maschinen: Materialsuche → Trefferliste",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "erwartung": "Eine Lehrkraft sucht ein Video zur Lichtbrechung für Klasse 8: in beiden Maschinen erscheinen die Treffer als Trefferliste, ohne Rückfrage.",
+      "intent_id": "",
+      "session_id": "eval-3556dad2d71d",
+      "turns": [
+        {
+          "user": "Haben Sie ein kurzes Video zur Lichtbrechung für meine 8. Klasse?",
+          "bot": "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nJa. Für die 8. Klasse passen mehrere kurze Videos zur Lichtbrechung; besonders anschaulich ist das Video zur Brechung beim Übergang von Luft zu Wasser mit milchgefärbtem Wasser. Außerdem gibt es ein einfach erklärendes Video und Experimente zu Luft–Glas und Wasser–Luft. Die Treffer sind aus der WLO-Suche nach Videos für die Sekundarstufe I; Laufzeiten konnte ich in den Suchangaben nicht prüfen.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 6 Treffer]\n  - **Farben** — https://repository.staging.openeduhub.net/edu-sharing/components/topic-pages?collectionId=95f2002f-1745-4b47-889d-8376af38fe41\n    Themenseite \"Farben\" — kuratierte Einstiegsseite mit Sammlungen, Materialien und weiterführenden Links, von der WLO-Fachredaktion zusammengestellt.\n  - **Optik** — https://repository.staging.openeduhub.net/edu-sharing/components/topic-pages?collectionId=9e7ae956-e9df-430f-bace-f3db4b910013\n    Themenseite \"Optik\" — kuratierte Einstiegsseite mit Sammlungen, Materialien und weiterführenden Links, von der WLO-Fachredaktion zusammengestellt.\n  - **Brechung** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=c6200d4c-443c-4f32-b9d3-e6ff2f362e71&q=Haben%20Sie%20ein%20kurzes%20Video%20zur%20Lichtbrechung%20f%C3%BCr%20meine%208.%20Klasse%3F\n  - **Lichtbrechung an Grenzflächen mit PhET Animationen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/b21af419-5f8a-40c6-9b27-adc73bd8f379\n    In dieser Unterrichtseinheit arbeiten die Schülerinnen und Schüler mit dem Notebook oder PC und lernen mit einem Lernvideo und interaktiven Simulationen die Lichtbrechung kennen. Dazu arbeiten die Sch\n  - **Lichtbrechung beim Übergang von Luft zu Wasser mit Milch sichtbar gemacht** — https://repository.staging.openeduhub.net/edu-sharing/components/render/a4844504-4e1a-4edb-9edc-ad17d63d1b34\n    In diesem Video zeige ich dir mit einem Laser und mit milchgefärbtem Wasser, wie das Licht beim Übergang von Luft in Wasser gebrochen wird.\n  - **Lichtbrechung beim Übergang von Wasser in Luft - Experiment** — https://repository.staging.openeduhub.net/edu-sharing/components/render/feb363e9-bf0e-4272-b100-e4c61e05db87\n    In diesem Video seht ihr die Brechung von Lichtstrahlen beim Übergang von Wasser in Luft.",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "stages_failed": [],
+              "categories": {
+                "harassment": 9.697519677825862e-05,
+                "harassment/threatening": 1.488384825728813e-05,
+                "hate": 1.3982207564732913e-05,
+                "hate/threatening": 3.822911232549001e-06,
+                "illicit": 0.007610863863871094,
+                "illicit/violent": 9.399438806628559e-05,
+                "self_harm": 0.00045357744795714874,
+                "self_harm/instructions": 5.144221374220898e-06,
+                "self_harm/intent": 0.00022388481049310266,
+                "sexual": 5.527786369235996e-05,
+                "sexual/minors": 3.799845147518645e-05,
+                "violence": 0.000566725899170637,
+                "violence/graphic": 2.5315637215092633e-05
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "search_wlo_all"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 36604,
+              "completion_tokens": 201,
+              "cached_tokens": 34415,
+              "reasoning_tokens": 0,
+              "calls": 2,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 36604,
+                  "completion": 201,
+                  "cached": 34415,
+                  "reasoning": 0,
+                  "calls": 2
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 36604,
+                  "completion": 201,
+                  "cached": 34415,
+                  "reasoning": 0,
+                  "calls": 2,
+                  "ms": 6115
+                }
+              },
+              "zeiten_ms": {
+                "setup": 20,
+                "tour": 0,
+                "page_context_enrich": 0,
+                "context_greeting": 0,
+                "persist_user": 7,
+                "preflight": 1,
+                "assess.safety": 708,
+                "assess": 710,
+                "safety_log": 0,
+                "pruefung_fehlt": 0,
+                "merge": 1,
+                "route": 2,
+                "respond.werkzeuge": 2024,
+                "respond": 8144,
+                "assemble": 1,
+                "persist": 35
+              },
+              "prompts": {
+                "agent.kopf": "4cd767995c95",
+                "agent.master_skill": "fa37bf1e7e72"
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            },
+            "engine": "agent",
+            "runden": [
+              {
+                "step": "agent_round",
+                "label": "Runde 1: search_wlo_all",
+                "duration_ms": 3639,
+                "data": {
+                  "runde": 1,
+                  "werkzeuge": [
+                    {
+                      "name": "search_wlo_all",
+                      "argumente": [
+                        "educationalContext",
+                        "learningResourceType",
+                        "maxCollections",
+                        "maxContent",
+                        "query"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 3639,
+                  "prompt_tokens": 17222,
+                  "cached_tokens": 17196,
+                  "completion_tokens": 50
+                }
+              },
+              {
+                "step": "agent_round",
+                "label": "Runde 2: respond_to_user",
+                "duration_ms": 4503,
+                "data": {
+                  "runde": 2,
+                  "werkzeuge": [
+                    {
+                      "name": "respond_to_user",
+                      "argumente": [
+                        "quick_replies",
+                        "text"
+                      ]
+                    }
+                  ],
+                  "dauer_ms": 4503,
+                  "prompt_tokens": 19382,
+                  "cached_tokens": 17219,
+                  "completion_tokens": 151
+                }
+              },
+              {
+                "step": "agent_stop",
+                "label": "Ende: text",
+                "duration_ms": 8142,
+                "data": {
+                  "stop_reason": "text",
+                  "runden": 2
+                }
+              }
+            ],
+            "werkzeug_ergebnisse": [
+              {
+                "tool": "search_wlo_all",
+                "status": "success",
+                "item_count": 1,
+                "error": "",
+                "latency_ms": 2024
+              }
+            ]
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": "cards",
+              "tools_any": [],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "ui_any": [
+                "ui_trefferliste"
+              ],
+              "ui_none": [
+                "ui_entscheidung"
+              ],
+              "qr": true,
+              "must_offer": "Video-Treffer zur Lichtbrechung für Klasse 8 als Trefferliste mit einem Anschlussangebot."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "search_wlo_all"
+              ],
+              "tool_calls": 1,
+              "skills": [],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 6,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 448,
+              "text_found": [],
+              "text_forbidden": [],
+              "ui_module": [
+                "ui_trefferliste"
+              ]
+            },
+            "checks": {
+              "register": null,
+              "structure": true,
+              "tools_any": null,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "ui": true,
+              "qr": true,
+              "host": true
+            }
+          },
+          "ui_module": [
+            "ui_trefferliste"
+          ],
+          "cards_count": 6,
+          "response_length": 448,
+          "latency_ms": 9453,
+          "anwendungsfall": "suchen"
+        }
+      ]
+    }
+  ]
+}

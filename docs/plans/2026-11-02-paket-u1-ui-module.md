@@ -1,6 +1,6 @@
 # Paket U1 — UI-Module als Werkzeuge (Vorschlag 2026-11-02)
 
-Stand: **Entscheide U-F1…F5 am 2026-11-02 (§6); U1-a … U1-f umgesetzt und reviewt (§9–§16; Review-Befunde U1-f behoben 2026-11-03).** DB-Tests mit Postgres nachgeholt: [`aenderungen/2026-11-03-paket-u1-db-tests.md`](../aenderungen/2026-11-03-paket-u1-db-tests.md). Auftrag (Nutzer 2026-11-02): „Wir setzen erstmal die UI-Widgets um.“ Ziel: modular erweiterbar, von der KI wie Werkzeuge nutzbar (Agent über Werkzeugbeschreibungen, Muster-Modus über feste Einbindung im Pattern), Ein- und Ausgaben beschrieben, in Angular wie das Widget, verträglich mit Anmeldung und den übrigen Abläufen, getrennt entwickelbar in einem eigenen Ordner mit fester Struktur, für Menschen gut erweiterbar, optisch aus einem Guss mit dem Widget. Neben den Sammlungs-Modulen auch die bestehenden Flächen: Inhaltsrahmen mit Druck und Download, Treffer- und Linkbox. Prüffrage: mehr als ein Modul je Antwort?
+Stand: **Entscheide U-F1…F5 am 2026-11-02 (§6); U1-a … U1-h umgesetzt und reviewt (§9–§18).** Nacharbeiten 2026-11-03: Abstände ([`aenderungen/2026-11-03-ui-abstaende.md`](../aenderungen/2026-11-03-ui-abstaende.md)), Werkzeugbeschreibungen und Master-Skill-Kurzfassung ([`aenderungen/2026-11-03-master-skill-ui-module.md`](../aenderungen/2026-11-03-master-skill-ui-module.md)), Gesamt-Review aller U1-Änderungen ([`aenderungen/2026-11-03-review-u1-gesamt.md`](../aenderungen/2026-11-03-review-u1-gesamt.md)). DB-Tests mit Postgres nachgeholt: [`aenderungen/2026-11-03-paket-u1-db-tests.md`](../aenderungen/2026-11-03-paket-u1-db-tests.md). Je Teilpaket eine Notiz unter `aenderungen/2026-11-0{2,3}-paket-u1{a…h}.md`. Auftrag (Nutzer 2026-11-02): „Wir setzen erstmal die UI-Widgets um.“ Ziel: modular erweiterbar, von der KI wie Werkzeuge nutzbar (Agent über Werkzeugbeschreibungen, Muster-Modus über feste Einbindung im Pattern), Ein- und Ausgaben beschrieben, in Angular wie das Widget, verträglich mit Anmeldung und den übrigen Abläufen, getrennt entwickelbar in einem eigenen Ordner mit fester Struktur, für Menschen gut erweiterbar, optisch aus einem Guss mit dem Widget. Neben den Sammlungs-Modulen auch die bestehenden Flächen: Inhaltsrahmen mit Druck und Download, Treffer- und Linkbox. Prüffrage: mehr als ein Modul je Antwort?
 
 Bezug: Konzept `2026-10-24-ablaeufe-und-ui-module.md` (§6.5 Manifest und Element-Vertrag, §16.12 Startpunkt). Dieser Plan ersetzt dort die Auslieferung „ohne Framework“ (§16.12): Module werden **Angular-Komponenten im selben Build** wie das Widget.
 
@@ -625,7 +625,7 @@ Je Befund erst am Code geprüft, dann ein roter Test (`tests/test_ui_themenbaum_
 - **Auswahl („später wählen“)**: kommt mit `ui_themenbaum_auswahl` (abfragend, §13) — `aria-selected` und `antwort.knoten_id` sind dann der Weg.
 - **`structuredContent` für Werkzeuge ohne JSON-Text**: Der Client verwirft es weiter; die Datenquelle braucht es heute nicht (E-2). Ein Seitenkanal im Client wäre ein eigener Schritt.
 - **Muster, die heute `browse_collection_tree` nennen**, zeigen weiter Karten; ob sie auf `ui_themenbaum` umgestellt werden, entscheidet der Nutzer.
-- **Master-Skill-Vorlagen** (`docs/skills/vorgehen*.md`) und die Werkzeug-Schicht des Muster-Prompts (`services/response_prompt_tools_text.py`) nennen für Themenbäume noch `browse_collection_tree`; ob dort `ui_themenbaum` beschrieben wird, entscheidet der Nutzer (die Werkzeugbeschreibung aus dem Manifest steht ohnehin im Angebot).
+- **Master-Skill-Vorlagen:** die Kurzfassung `docs/skills/vorgehen-knapp.md` (die live im Knoten steht) nennt seit 2026-11-03 `ui_themenbaum` ([`aenderungen/2026-11-03-master-skill-ui-module.md`](../aenderungen/2026-11-03-master-skill-ui-module.md)). Noch offen: `docs/skills/vorgehen.md`, `docs/skills/vorgehen-kompakt.md`, die Werkzeug-Schicht des Muster-Prompts (`services/response_prompt_tools_text.py`) und die Muster, die `browse_collection_tree` nennen — ob dort `ui_themenbaum` beschrieben wird, entscheidet der Nutzer (die Werkzeugbeschreibung aus dem Manifest steht ohnehin im Angebot).
 - **Review U1-e** umgesetzt (Abschnitt „Review-Befunde U1-e“); Befund 7 bewusst nicht.
 - **Keine MCP-Änderung nötig.** `includeContentCounts` bleibt aus (ein Abruf mehr je Knoten); Anzahlen zeigt der Baum nur, wo der Server sie ohnehin mitschickt (`contentsCount`).
 
@@ -710,6 +710,9 @@ Je Befund erst am Code geprüft, dann ein roter Test (Studio-Specs, `tests/test_
 - **Sprache der Bühne** (Review #5): im englischen Studio stehen die englischen Bedienwörter der Module in einem `lang="de"`-Bereich. Sauber wäre `lang` je Beispieltext im Modul — das bräuchte eine Änderung der Module bzw. des Vertrags.
 - **Gleiche Lücke wie Review #3, nicht in diesem Paket:** Abschnitte mit `felder` (nur ein Ausschnitt sichtbar, z. B. `01-base/engine` auf „Betrieb“ und im Agent-Bereich, `device-config` auf „Anzeige“) senden beim „Trotzdem speichern“ ebenfalls die verborgenen Teile im geladenen Stand; ebenso die Anrede-Tabelle (`anrede.component.ts`, ganzes Persona-Dokument). Der Mechanismus `vomServer` trägt dafür nur Pfade, die verborgen sind — bei `felder` wäre es die Umkehrung (Serverstand + sichtbare Pfade aus dem Entwurf).
 - **Fokus nach dem Speichern** (studioweit, WCAG 2.4.3): siehe `offene-befunde-und-todo.md` §5.
+- Gesamt-Review (Frontend, 2026-11-03): eine Fehlermeldung der Seite „UI-Module“ weicht jetzt beim
+  Umschalten, Verwerfen und erfolgreichen „Neu laden“; „Wann es fehlt“ verlinkt bei einem Modul
+  mit Datenquelle auf „Werkzeuge“.
 
 ## 17 U1-g UI-Module in der Evaluation (Tests zuerst)
 
@@ -895,4 +898,9 @@ Je Befund erst am Code geprüft, dann ein roter Test, dann die kleinste Änderun
 - **Dasselbe Thema an zwei nicht verwandten Stellen** (Review #4): Auf/Zu und Ladezustand gelten je Kennung — klappt man es an einer Stelle auf, ist es an der anderen auch offen. Kreise (Vorfahr im eigenen Zweig) sind abgefangen; ein Zustand je Pfad hieße, das Ersetzen gekürzter Listen anders zu lösen.
 - **Lange Titel brechen unter den Pfeil** (gesehen bei der Messung zu Review #5): `.ui-themenbaum__zeile` ist ein umbrechender Flex-Container, ein Titel länger als die Zeile rutscht in eine eigene Zeile unter Pfeil — schon seit U1-e, nicht Teil des Reviews.
 - **Weitere 4xx ohne neuen Versuch?** Nur 403 sperrt „Erneut laden“; 404 (Sitzung weg) und 422 (Kennung nicht in UUID-Form, seit Review #8) bieten ihn weiter an, obwohl er nicht hilft.
-- `ui-themenbaum.component.ts` steht bei 375 Zeilen (vor dem Review 340; schon über der Schwelle).
+- ~~`ui-themenbaum.component.ts` steht bei 375 Zeilen~~ Gesamt-Review (Frontend, 2026-11-03): Markup in
+  `ui-themenbaum.component.html`, Tasten in `themenbaum-tasten.ts` (reine Regel, eigene Spec) — die
+  Komponente hat 290 Zeilen. „Inhalte anzeigen“ ist während eines Zugs `aria-disabled` (bleibt
+  fokussierbar). Einzelheiten: [`aenderungen/2026-11-03-review-u1-gesamt.md`](../aenderungen/2026-11-03-review-u1-gesamt.md), „Frontend“.
+- **Zweig-Abbruch:** ein laufender Zweig endet mit dem Widget (Abbruch beim Entfernen); bei einem
+  Sitzungswechsel läuft er aus und wird verworfen (`sitzungsWache`) — wie die übrigen Abrufe.
