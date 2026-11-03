@@ -7,10 +7,11 @@
       "de": "Entscheidung",
       "en": "Choice"
     },
-    "beschreibung": "Stellt der Person eine Frage mit festen Antwortmoeglichkeiten zum Anklicken, einzeln oder mehrfach, auf Wunsch mit einem Freitextfeld. Der Aufruf beendet deinen Zug: schreibe dazu hoechstens einen kurzen Satz, die Frage und die Moeglichkeiten zeigt das Auswahlfeld. Die Antwort der Person kommt im naechsten Zug als Block vor ihrer Nachricht.",
+    "beschreibung": "Stellt der Person eine Frage mit festen Antwortmoeglichkeiten zum Anklicken, einzeln oder mehrfach, auf Wunsch mit einem Freitextfeld. Der Aufruf beendet deinen Zug: Ergebnisse dieses Zuges (Suche, Erklaerung) ordnest du davor wie sonst ein; die Frage und die Moeglichkeiten wiederholst du nicht im Text und gibst keine Schnellantworten dazu, das zeigt das Auswahlfeld. Hoechstens ein Auswahlfeld je Zug. Die Antwort der Person kommt im naechsten Zug als Block vor ihrer Nachricht; dann arbeitest du damit weiter, ohne erneut zu fragen.",
     "wann": [
       "du brauchst eine Entscheidung, und die Antwortmoeglichkeiten sind bekannt und ueberschaubar (2 bis 8)",
-      "eine Rueckfrage, deren Antwort sonst muehsam zu tippen waere (Klassenstufe, Variante, Format)"
+      "eine Rueckfrage, deren Antwort sonst muehsam zu tippen waere (Klassenstufe, Variante, Format)",
+      "nach einer Suche oder Erklaerung ist genau eine Angabe offen, die den naechsten Schritt bestimmt (Fach, Stufe, Vorwissen, Bausteine einer Stunde)"
     ],
     "nicht_wann": [
       "offene Fragen ohne feste Moeglichkeiten — frage dann in Prosa",
@@ -371,13 +372,13 @@
       "de": "Themenbaum",
       "en": "Topic tree"
     },
-    "beschreibung": "Zeigt die Unterthemen eines WLO-Fachportals oder einer Sammlung als aufklappbaren Baum mit zwei Ebenen; die Person kann von dort die Inhalte eines Themas oder tiefere Unterthemen oeffnen. Den Baum holt das System selbst: du nennst nur das Fach (subject) ODER die Sammlung (nodeId) und siehst die Themen nicht. Schreibe dazu hoechstens einen kurzen Begleitsatz und zaehle keine Themen auf.",
+    "beschreibung": "Zeigt die Unterthemen eines WLO-Fachportals oder einer Sammlung als aufklappbaren Baum mit zwei Ebenen; die Person kann von dort die Inhalte eines Themas oder tiefere Unterthemen oeffnen. Den Baum holt das System selbst: du nennst nur das Fach (subject) ODER die Sammlung (nodeId) und siehst die Themen nicht. Fuer ein Unterthema eines Fachs (z. B. Optik in Physik) die Sammlung zuerst mit search_wlo_collections finden (query = Unterthema, discipline = Fach) und ihre nodeId nennen. Schreibe dazu hoechstens einen kurzen Begleitsatz und zaehle keine Themen auf; tiefer klappt die Person selbst auf.",
     "wann": [
       "die Person will wissen, welche Themen oder Unterthemen es in einem Fach oder einer Sammlung gibt",
-      "gefuehrtes Stoebern, z. B. 'zeig mir die Themen in Mathe'"
+      "gefuehrtes Stoebern, z. B. 'zeig mir die Themen in Mathe' oder 'was gibt es unter Optik?'"
     ],
     "nicht_wann": [
-      "du brauchst die Unterthemen selbst, um weiterzuarbeiten (dafuer browse_collection_tree)",
+      "du wertest die Unterthemen selbst aus (pruefen, Luecken finden, Lernpfad bauen) — dafuer browse_collection_tree; zum Zeigen immer dieses Werkzeug",
       "die Materialien einer Sammlung (dafuer get_collection_contents)",
       "eine Suche nach Inhalten"
     ],
