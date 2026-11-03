@@ -8,6 +8,7 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { boxkante, luecke, textkante, TOLERANZ_PX } from './fixtures/abstaende';
 import { chatResponse } from './fixtures/backend-payloads';
 import { API, mount } from './fixtures/harness';
 
@@ -169,3 +170,46 @@ test('bei 320 px passt auch ein tief aufgeklappter Zweig (Ebene 8, lange Titel)'
   const seite = await page.evaluate(() => ({ innen: document.documentElement.scrollWidth, aussen: document.documentElement.clientWidth }));
   expect(seite.innen).toBeLessThanOrEqual(seite.aussen);
 });
+
+// ── Senkrechter Rhythmus (2026-11-03) ──────────────────────────────────────────────────────────
+// Sichtbarer Weißraum zwischen Textzeilen (fixtures/abstaende.ts): die Überschrift steht so weit
+// vom ersten Eintrag wie die Einträge voneinander; in der Aktionsleiste sind Knöpfe und der Link,
+// der wie sie aussieht, gleich hoch.
+for (const breite of [1280, 320]) {
+  test(`Rhythmus (${breite} px): Überschrift → erster Eintrag wie Eintrag → Eintrag, Leiste gleich hoch`, async ({ page }) => {
+    await page.setViewportSize({ width: breite, height: 800 });
+    await baumZeigen(page, {
+      'bbbb-2222': { knoten: [{ id: 'cccc-3333', titel: 'Gleichungen', anzahl: 12 }, { id: 'dddd-4444', titel: 'Terme' }] },
+    });
+    const box = page.locator('ui-themenbaum');
+    const titel = box.locator('.ui-themenbaum__titel');
+    const kopf = await textkante(box.locator('.ui-themenbaum__kopf'));
+    const [algebra, geometrie] = [await textkante(titel.nth(0)), await textkante(titel.nth(1))];
+    await box.getByRole('treeitem', { name: 'Algebra', exact: true }).click();
+    await expect(box.getByRole('treeitem', { name: 'Gleichungen' })).toBeVisible();
+    const [a2, gleichungen, terme, geometrie2] = [
+      await textkante(titel.nth(0)), await textkante(titel.nth(1)), await textkante(titel.nth(2)), await textkante(titel.nth(3)),
+    ];
+    const ziel = await textkante(box.locator('.ui-themenbaum__ziel'));
+    const knoepfe = await Promise.all((await box.locator('.ui-themenbaum__knopf').all()).map(boxkante));
+    const m = {
+      kopfZuEintrag: luecke(kopf, algebra),
+      eintragZuEintrag: luecke(algebra, geometrie),
+      elternZuKind: luecke(a2, gleichungen),
+      kindZuKind: luecke(gleichungen, terme),
+      kindZuEltern: luecke(terme, geometrie2),
+      zielZuKnopf: luecke(ziel, knoepfe[0]),
+      knopfHoehen: knoepfe.map((k) => Math.round(k.unten - k.oben)),
+    };
+    test.info().annotations.push({ type: 'abstaende', description: JSON.stringify(m) });
+    const zeig = JSON.stringify(m);
+
+    expect(Math.abs(m.kopfZuEintrag - m.eintragZuEintrag), zeig).toBeLessThanOrEqual(TOLERANZ_PX);
+    for (const g of [m.elternZuKind, m.kindZuKind, m.kindZuEltern]) {
+      expect(Math.abs(g - m.eintragZuEintrag), zeig).toBeLessThanOrEqual(TOLERANZ_PX);
+    }
+    // „In WLO öffnen“ ist ein Link im Kleid der Knöpfe — auch in der Höhe.
+    expect(Math.max(...m.knopfHoehen) - Math.min(...m.knopfHoehen), zeig).toBeLessThanOrEqual(1);
+    expect(Math.min(...m.knopfHoehen), zeig).toBeGreaterThanOrEqual(24);
+  });
+}
