@@ -161,6 +161,17 @@ describe('UiThemenbaum', () => {
     expect(items(el).filter((i) => i.getAttribute('tabindex') === '0').map(name)).toEqual(['Algebra']);
   });
 
+  it('→ → im selben Frame: der Fokus landet im eben aufgeklappten Kind (CI-Kippler)', async () => {
+    const { f, el } = await render(BAUM);
+    items(el)[0].focus();
+    const druecke = (key: string) => (document.activeElement as HTMLElement).dispatchEvent(
+      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    druecke('ArrowRight');                                // öffnet — die Kinder sind noch nicht gezeichnet
+    druecke('ArrowRight');                                // ins erste Kind
+    await f.whenStable();
+    expect(aktiv()).toBe('Gleichungen');
+  });
+
   it('ein Tastendruck im Kind wirkt einmal (nicht noch einmal im Eltern-Eintrag)', async () => {
     const { f, el } = await render(BAUM);
     items(el)[0].focus();

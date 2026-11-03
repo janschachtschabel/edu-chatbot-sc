@@ -318,7 +318,16 @@ export class UiThemenbaum {
 
   private fokus(pfad: string): void {
     this.aktiv.set(pfad);
-    this.el.nativeElement.querySelector<HTMLElement>(`#${this.kennung('k' + pfad)}`)?.focus();
+    const finde = () => this.el.nativeElement.querySelector<HTMLElement>(`#${this.kennung('k' + pfad)}`);
+    const eintrag = finde();
+    if (eintrag) {
+      eintrag.focus();
+      return;
+    }
+    // Eben aufgeklappt (→ → im selben Frame): das Kind ist noch nicht gezeichnet — danach fokussieren.
+    afterNextRender(() => {
+      if (this.aktiv() === pfad) finde()?.focus();
+    }, { injector: this.injector });
   }
 
   protected taste(ereignis: KeyboardEvent): void {
