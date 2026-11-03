@@ -136,7 +136,13 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
         # Angeboten ist, was das Modell im Skript ruft: so rufen die Tests nur
         # Angebotenes, wie im Betrieb. Wer die Sperre fuer nicht Angebotenes
         # prueft (B-M1), reicht ``tools`` ausdruecklich herein.
-        tools = sorted({tc.function.name for r in responses
+        # Für das Dokument bietet der Betrieb nur den heutigen Namen an (U1-b2); ein Aufruf
+        # unter ``zeige_dokument`` prüft so zugleich den Alias.
+        from boerdi.domain.inline_documents import INHALTSRAHMEN, ist_dokument_werkzeug
+
+        tools = sorted({INHALTSRAHMEN if ist_dokument_werkzeug(tc.function.name)
+                        else tc.function.name
+                        for r in responses
                         for tc in (r.choices[0].message.tool_calls or [])}
                        or {"search_wlo_content"})
     run = asyncio.run(agent_loop.run_agent_loop(
@@ -865,6 +871,40 @@ def test_ein_geliefertes_dokument_landet_im_lauf(monkeypatch):
     # Virtuell: es geht nie an den MCP.
     assert out.calls == []
     assert run.tools_called == []
+
+
+@pytest.mark.parametrize("name", ["ui_inhaltsrahmen", "zeige_dokument"])
+def test_neuer_und_alter_name_liefern_das_dokument(monkeypatch, name):
+    """U1-b2: angeboten wird nur ``ui_inhaltsrahmen`` (wie im Betrieb, ``agent_tools``);
+    ``zeige_dokument`` bleibt als Alias — aus gespeicherten Rollen-Vorgaben und Skills."""
+    from boerdi.domain.inline_documents import dokument_werkzeug
+
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call(name, _dok_args())]),
+        _resp_text("Hier ist der Plan."),
+    ], outcome=_OutcomeFake(), tools=[dokument_werkzeug()])
+    assert [d["title"] for d in run.dokumente] == ["Verlaufsplan Optik"]
+
+
+def test_ohne_angebot_gilt_auch_der_alte_name_nicht(monkeypatch):
+    """Der Alias öffnet nichts, was nicht angeboten ist (B-M1)."""
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("zeige_dokument", _dok_args())]),
+        _resp_text("Dann in Prosa."),
+    ], outcome=_OutcomeFake(), tools=["search_wlo_content"])
+    assert run.dokumente == []
+    antworten = [m.get("content") or "" for m in msgs if m.get("role") == "tool"]
+    assert any("nicht zur Verf" in a for a in antworten)
+
+
+def test_ein_fehlerhafter_aufruf_nennt_dem_modell_die_felder(monkeypatch):
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("ui_inhaltsrahmen", _dok_args(titel=""))]),
+        _resp_text("Dann in Prosa."),
+    ], outcome=_OutcomeFake())
+    assert run.dokumente == []
+    antwort = next(m["content"] for m in msgs if m.get("role") == "tool")
+    assert "Fehlt oder leer: titel" in antwort
 
 
 def test_die_bestaetigung_geht_an_das_modell_zurueck(monkeypatch):

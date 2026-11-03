@@ -59,7 +59,7 @@ def test_abschnitte_in_fester_reihenfolge() -> None:
     titel = [z for z in md.splitlines() if z.startswith("## ")]
     assert titel == ["## Messbedingungen", "## Kurzbericht", "## Gesamt",
                      "## Zielgruppe × Anwendungsfall", "## Ablauf × Skala", "## Abläufe",
-                     "## Zeiten"]
+                     "## Modul-Nutzung", "## Zeiten"]
     assert md.startswith("# Evaluationsbericht run-1")
 
 

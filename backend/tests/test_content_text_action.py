@@ -19,6 +19,7 @@ import json
 
 from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.services import content_text_action
+from tests._boxen import boxen
 
 
 def _req(locale: str = "de-DE", **params) -> ChatRequest:
@@ -69,11 +70,10 @@ async def test_volltext_landet_unveraendert_in_der_box(monkeypatch):
     )
 
     # Der Wortlaut ist der Kern des Features — kein Kürzen, kein Umschreiben.
-    assert len(resp.inline_documents) == 1
-    doc = resp.inline_documents[0]
+    assert len(boxen(resp)) == 1
+    doc = boxen(resp)[0]
     assert doc.content == "# Arbeitsblatt\n\nAufgabe 1: Kürze 6/8.\n\nAufgabe 2: …"
     assert doc.title == "Arbeitsblatt Bruchrechnung"
-    assert doc.meta["node_id"] == "abc-123"
     # Der begleitende Bubble-Text nennt die Quelle, wiederholt aber nicht den
     # Inhalt (sonst stünde alles doppelt da).
     assert doc.content not in resp.content
@@ -133,7 +133,9 @@ async def test_gekuerzter_volltext_wird_als_solcher_ausgewiesen(monkeypatch):
         None, _req(node_id="abc-123"), {},
     )
 
-    assert resp.inline_documents[0].meta["truncated"] is True
+    # Die Kürzung steht im Begleitsatz; ``meta`` reist seit U1-b2 nicht mehr mit (das Widget
+    # zeigte sie nie).
+    assert len(boxen(resp)) == 1
     assert "gekürzt" in resp.content.lower()
 
 
@@ -147,7 +149,7 @@ async def test_access_denied_wird_benannt_und_bietet_alternativen(monkeypatch):
         None, _req(node_id="abc-123", title="Arbeitsblatt Bruchrechnung"), {},
     )
 
-    assert resp.inline_documents == []
+    assert boxen(resp) == []
     assert "nicht frei zugänglich" in resp.content
     # Die beiden vom Nutzer benannten Auswege stehen als Quick-Replies bereit.
     qr = " | ".join(resp.quick_replies).lower()
@@ -175,7 +177,7 @@ async def test_ohne_node_id_wird_kein_mcp_aufruf_gemacht(monkeypatch):
     resp = await content_text_action._handle_show_content_text(None, _req(), {})
 
     assert mcp.calls == []
-    assert resp.inline_documents == []
+    assert boxen(resp) == []
     assert resp.content
 
 
@@ -190,7 +192,7 @@ async def test_mcp_fehler_bleibt_eine_ehrliche_antwort(monkeypatch):
         None, _req(node_id="abc-123"), {},
     )
 
-    assert resp.inline_documents == []
+    assert boxen(resp) == []
     assert resp.content
     assert resp.debug.pattern == "M17"
 
@@ -254,6 +256,6 @@ async def test_ein_speicherfehler_steht_als_warnung_im_log(monkeypatch, caplog):
         resp = await content_text_action._handle_show_content_text(
             None, _req(node_id="abc-123"), {},
         )
-    assert resp.inline_documents
+    assert boxen(resp)
     warnungen = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnungen) == 1 and "Aufgabe 1" not in warnungen[0].getMessage()

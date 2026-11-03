@@ -87,7 +87,7 @@ def test_check_golden_turn_v2_all_pass(monkeypatch) -> None:
     got = rg.check_golden_turn(expect, _BOT_OK, debug)
     assert got["checks"] == {
         "register": True, "structure": True, "tools_any": True,
-        "tools_none": None, "tools_max": None, "text": None, "qr": True, "host": True,
+        "tools_none": None, "tools_max": None, "text": None, "ui": None, "qr": True, "host": True,
     }
     assert got["expected"]["must_offer"] == "Treffer mit Anschlussangebot."
     # Annotationen ("(prefetch)") fallen weg — Vergleich wie metrics.py
@@ -100,8 +100,8 @@ def test_check_golden_turn_v2_has_no_classifier_checks() -> None:
     got = rg.check_golden_turn(
         {"persona": "P-LEH", "intent": "I03", "register": "sie"}, _BOT_OK, {})
     assert set(got["checks"]) == {
-        "register", "structure", "tools_any", "tools_none", "tools_max", "text", "qr",
-        "host"}
+        "register", "structure", "tools_any", "tools_none", "tools_max", "text", "ui",
+        "qr", "host"}
     assert "persona" not in got["expected"] and "intent" not in got["expected"]
 
 
@@ -160,7 +160,7 @@ def test_check_golden_turn_failures() -> None:
     )
     assert got["checks"] == {
         "register": False, "structure": False, "tools_any": False,
-        "tools_none": None, "tools_max": None, "text": None, "qr": False, "host": False,
+        "tools_none": None, "tools_max": None, "text": None, "ui": None, "qr": False, "host": False,
     }
 
 
@@ -245,8 +245,8 @@ def test_aggregate_golden_v2_rates_and_zielgruppe() -> None:
     }]
     m = rg.aggregate_golden(conversations)
     assert m["categories"] == [
-        "register", "structure", "tools_any", "tools_none", "tools_max", "text", "qr",
-        "host"]
+        "register", "structure", "tools_any", "tools_none", "tools_max", "text", "ui",
+        "qr", "host"]
     assert m["flows"] == 1 and m["turns"] == 2
     # hart: register 1/1, structure 1/2, tools_any 1/1, qr 2/2 => 5/6
     assert m["hard_total"] == 6 and m["hard_passed"] == 5
@@ -285,7 +285,8 @@ def test_run_flows_records_what_judge_and_metrics_read(monkeypatch) -> None:
     # ``headers`` seit A5 — die Attrappe folgt der ECHTEN Signatur, nicht dem
     # eigenen Aufruf (Lehre aus A4b: ein ``async``-Double für ein synchrones
     # ``load_engine`` war zwei Scheiben lang grün und in Produktion kaputt).
-    async def fake_post(url, message, session_id, headers=None, environment=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None,
+                        ui_antwort=None):
         return {"content": "Gerne zeige ich Ihnen die Antwort.",
                 "cards": [{"title": "K",
                            "url": "https://repository.staging.openeduhub.net/x"}],
@@ -315,7 +316,7 @@ def test_run_flows_records_what_judge_and_metrics_read(monkeypatch) -> None:
     assert t1["debug"]["runden"] == []  # ``trace: ["big"]`` trägt keine Agent-Zeilen
     assert t1["golden"]["checks"] == {
         "register": True, "structure": None, "tools_any": True,
-        "tools_none": None, "tools_max": None, "text": None, "qr": True, "host": True,
+        "tools_none": None, "tools_max": None, "text": None, "ui": None, "qr": True, "host": True,
     }
     # v1-Relikte weg: v2 hat keine Klassifikator-Erwartungen je Turn
     assert "expected_persona" not in t1 and "expected_intent" not in t1
@@ -326,7 +327,8 @@ def test_run_flows_records_what_judge_and_metrics_read(monkeypatch) -> None:
 
 
 def test_run_flows_error_turn_is_recorded(monkeypatch) -> None:
-    async def broken_post(url, message, session_id, headers=None, environment=None):
+    async def broken_post(url, message, session_id, headers=None, environment=None,
+                        ui_antwort=None):
         raise RuntimeError("down")
 
     monkeypatch.setattr(rg, "post_chat", broken_post)
@@ -372,7 +374,7 @@ def test_main_exits_2_on_v1_file(tmp_path, monkeypatch) -> None:
 # ── Engine-Wahl: --engine setzt die Kopfzeile, der Bericht trägt sie ─────
 
 def _fake_run_flows(seen: dict):
-    async def fake(chat_url, flows, *, headers=None):
+    async def fake(chat_url, flows, *, headers=None, ui_module=None):
         seen["headers"] = dict(headers or {})
         golden = rg.check_golden_turn(
             {"register": "sie"},
@@ -570,3 +572,29 @@ def test_flatten_debug_behaelt_maschine_runden_und_werkzeug_ergebnisse() -> None
     assert flach["runden"][0]["data"]["werkzeuge"] == [{"name": "search_wlo_all"}]
     assert flach["werkzeug_ergebnisse"][0]["latency_ms"] == 1900
     assert flach["token_usage"]["prompts"] == {"agent.kopf": "abc123def456"}
+
+
+# ── U1-b2: Dokument-Boxen kommen als Inhaltsrahmen-Blöcke ───────────────
+_RAHMEN = {"block_id": "b0000001", "modul": "ui_inhaltsrahmen", "version": 1, "art": "anzeigen",
+           "daten": {"titel": "Sofort Hilfe", "art": "dokument",
+                     "markdown": "Telefonseelsorge **0800 111 0 111**"},
+           "text": "Telefonseelsorge **0800 111 0 111**", "status": "nur_anzeige"}
+_BOT_RAHMEN = {"content": "Bitte hol dir Hilfe.", "cards": [], "quick_replies": [],
+               "inline_documents": [], "ui": {"ui_bloecke": [_RAHMEN]}}
+
+
+def test_dokument_boxen_liest_bloecke_und_das_alte_feld() -> None:
+    assert rg.dokument_boxen(_BOT_RAHMEN) == [
+        {"kind": "dokument", "title": "Sofort Hilfe",
+         "content": "Telefonseelsorge **0800 111 0 111**"}]
+    alt = {"inline_documents": [{"kind": "lernpfad", "title": "L", "content": "x"}]}
+    assert [b["title"] for b in rg.dokument_boxen(alt)] == ["L"]
+    andere = {"ui": {"ui_bloecke": [{**_RAHMEN, "modul": "ui_linkbox"}]}}
+    assert rg.dokument_boxen(andere) == []
+
+
+def test_idoc_und_text_any_sehen_den_inhaltsrahmen() -> None:
+    got = rg.check_golden_turn({"structure": "idoc", "text_any": ["0800 111 0 111"]},
+                               _BOT_RAHMEN, {})
+    assert got["checks"]["structure"] is True and got["checks"]["text"] is True
+    assert "Telefonseelsorge" in rg.augment_bot_text(_BOT_RAHMEN)

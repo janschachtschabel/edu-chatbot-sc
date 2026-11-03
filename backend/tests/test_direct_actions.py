@@ -16,6 +16,7 @@ from __future__ import annotations
 from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.obs.usage import add_usage, new_accumulator
 from boerdi.services import direct_actions
+from tests._boxen import boxen
 
 
 def test_der_simplify_vermerk_wird_eingehalten():
@@ -416,7 +417,7 @@ async def test_lp_happy_path_persists_canvas_state_and_marks_diversity(monkeypat
 
     # inline-document branch: bubble lead + boxed body
     assert resp.content == "INTRO"
-    assert len(resp.inline_documents) == 1
+    assert len(boxen(resp)) == 1
     assert isinstance(resp.display_rules, dict)
     assert "qr-A" in resp.quick_replies
     assert resp.debug.pattern == "ACTION: generate_learning_path"
@@ -484,7 +485,7 @@ async def test_lp_generation_error_degrades_to_chat_bubble(monkeypatch) -> None:
     assert resp.content.startswith("Fehler beim Erstellen des Lernpfads")
     assert "B-API down" not in resp.content     # Audit 2026-09-29: ins Log, nicht in die Blase
     assert "error" in resp.debug.tools_called
-    assert resp.inline_documents == []  # error branch returns before inline-doc build
+    assert boxen(resp) == []  # error branch returns before inline-doc build
     # even on failure the (error) turn is still persisted + canvas state advanced
     assert len(save.calls) == 1
     assert len(upd.calls) == 1

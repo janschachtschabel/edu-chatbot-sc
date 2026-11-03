@@ -145,7 +145,7 @@ class _Ctx:
 
 def _verdrahte(monkeypatch, reihenfolge: list[str]) -> tuple[list[dict], dict]:
     class Runner:
-        async def run_flows(self, url, flows, *, headers=None):
+        async def run_flows(self, url, flows, *, headers=None, ui_module=None):
             reihenfolge.append("flow")
             return [{"flow_id": flows[0]["id"], "turns": []}]
 
@@ -168,7 +168,7 @@ def _verdrahte(monkeypatch, reihenfolge: list[str]) -> tuple[list[dict], dict]:
 
     monkeypatch.setattr(golden_run, "_finalize_run", abschluss)
 
-    async def bedingungen(*, judge_enabled, engine="default", flows=None):
+    async def bedingungen(*, judge_enabled, engine="default", flows=None, ui_module=None):
         return {"chat_model": "gpt-6-luna", "judge_model": ""}
 
     monkeypatch.setattr(golden_run, "run_conditions", bedingungen)

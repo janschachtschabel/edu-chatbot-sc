@@ -16,6 +16,7 @@ from boerdi.api.schemas_ui import UiInfo
 VERTRAG = {
     "pattern", "intent", "state", "tools_called", "modulations",
     "query_metas", "web_links", "type_focus", "dokumente", "topic_page_view", "prepared_write",
+    "ui_bloecke",  # Paket U1
 }
 
 
@@ -45,7 +46,10 @@ def test_aus_einer_gespeicherten_nachricht_samt_wiederherstellung():
         "_zugakte": {"werkzeuge": [{"name": "w"}]},
     }
     ui = publikum.ui_aus_gespeichert(gespeichert)
-    assert ui.model_dump(exclude_defaults=True) == {
+    # U1-c2a: aus den Such-Angaben entsteht die Trefferliste — bei Typ-Fokus nur der Such-Absprung.
+    bloecke = [(b.modul, b.daten["typ_fokus"]) for b in ui.ui_bloecke]
+    assert bloecke == [("ui_trefferliste", "Video")]
+    assert ui.model_dump(exclude_defaults=True, exclude={"ui_bloecke"}) == {
         "pattern": "M06", "intent": "I03", "tools_called": ["search_wlo_content"],
         "query_metas": [{"search_term": "Optik"}], "web_links": [{"url": "u", "title": "t"}],
         "type_focus": "Video", "dokumente": [{"kind": "quiz"}],

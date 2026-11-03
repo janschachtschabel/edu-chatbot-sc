@@ -25,7 +25,7 @@ def test_title_m09_topic_fallback_when_no_bold():
     # vorgeben darf, ist der Inhalt dieser Box nicht mehr zwingend ein
     # Lernpfad — live gemessen stand „Lernpfad: Optik" über einem
     # Stundenentwurf. Die ART der Box zeigt ohnehin das Symbol
-    # (``inline-documents.component.ts``:37 aus ``doc.kind``); das Wort im
+    # (Modul ``ui_inhaltsrahmen``, ``inhaltsrahmen.ts``, aus der Art); das Wort im
     # Titel war Doppelung und im Skill-Fall schlicht falsch.
     assert ir._inline_doc_title_for_pattern("M09", "# Kapitel", "Bruch") == "Bruch"
 

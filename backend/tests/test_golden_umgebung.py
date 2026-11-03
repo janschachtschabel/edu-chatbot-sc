@@ -25,7 +25,8 @@ _BOT = {"content": "Hier ist die Antwort.", "quick_replies": ["a"]}
 def test_das_environment_eines_flows_reist_mit_jedem_zug(monkeypatch) -> None:
     gesehen: list = []
 
-    async def fake_post(url, message, session_id, headers=None, environment=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None,
+                        ui_antwort=None):
         gesehen.append(environment)
         return {**_BOT, "debug": {}}
 

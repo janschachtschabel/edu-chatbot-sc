@@ -5,7 +5,8 @@ Bis heute wird die Box aus dem Antworttext **geraten**: Muster ∈ {M09,M10,M11}
 müssen — live gemessen 2026-08-17 stimmte nur das Muster, und ein 8.000 Zeichen
 langer Verlaufsplan fiel weg.
 
-Hier wird sie **geliefert**: das Modell ruft ``zeige_dokument`` mit Titel, Art
+Hier wird sie **geliefert**: das Modell ruft ``ui_inhaltsrahmen`` (früher
+``zeige_dokument``) mit Titel, Art
 und Markdown. Damit ist die Box unabhängig von Länge, Überschrift, Muster und
 davon, im wievielten Zug sie kommt.
 
@@ -17,9 +18,9 @@ from __future__ import annotations
 
 from boerdi.domain.inline_documents import (
     DOKUMENT_ARTEN,
+    INHALTSRAHMEN,
     MAX_MARKDOWN_ZEICHEN,
     MAX_TITEL_ZEICHEN,
-    ZEIGE_DOKUMENT,
     dokument_aus_argumenten,
     dokument_werkzeug,
 )
@@ -37,7 +38,7 @@ def _args(**over) -> dict:
 
 def test_das_werkzeug_verlangt_titel_art_und_markdown() -> None:
     fn = dokument_werkzeug()["function"]
-    assert fn["name"] == ZEIGE_DOKUMENT
+    assert fn["name"] == INHALTSRAHMEN
     props = fn["parameters"]["properties"]
     assert set(fn["parameters"]["required"]) == {"titel", "art", "markdown"}
     assert set(props) == {"titel", "art", "markdown"}
@@ -58,11 +59,12 @@ def test_die_beschreibung_traegt_die_anweisung() -> None:
     """Die Anweisung gehört an das Werkzeug, nicht in den Fließtext eines
     Musters — nur so gilt sie unabhängig davon, wie ein Skill formuliert ist."""
     text = dokument_werkzeug()["function"]["description"]
-    assert ZEIGE_DOKUMENT not in text          # kein Selbstverweis
+    assert INHALTSRAHMEN not in text           # kein Selbstverweis
     assert "Arbeitsergebnis" in text
-    # Jede Art wird im Beschreibungstext erklärt, sonst rät das Modell.
-    for art, erklaerung in DOKUMENT_ARTEN.items():
-        assert erklaerung, f"{art} ohne Erklärung"
+    # Jede Art wird erklärt (seit U1-b in der Feldbeschreibung), sonst rät das Modell.
+    art_text = dokument_werkzeug()["function"]["parameters"]["properties"]["art"]["description"]
+    for art in DOKUMENT_ARTEN:
+        assert f"{art} (" in art_text, f"{art} ohne Erklärung"
 
 
 # ── Die Abnahme der Argumente ──────────────────────────────────────────────
@@ -118,8 +120,8 @@ def test_ein_zu_langer_titel_wird_glatt_geschnitten() -> None:
     """Der Titel steht in einer KOPFZEILE, nicht in einem Absatz.
 
     Der Kürzungs-Hinweis des Rumpfes trägt einen Leerzeilen-Umbruch und
-    Markdown-Sternchen. Die Box interpoliert den Titel (``{{ doc.title }}`` in
-    ``inline-documents.component.ts``) statt ihn zu rendern — beides stünde
+    Markdown-Sternchen. Die Box interpoliert den Titel (``{{ daten().titel }}`` in
+    ``ui-inhaltsrahmen.component.ts``) statt ihn zu rendern — beides stünde
     also wörtlich in der Überschrift.
     """
     doc = dokument_aus_argumenten(_args(titel="T" * (MAX_TITEL_ZEICHEN + 40)))

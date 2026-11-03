@@ -219,7 +219,7 @@ def test_der_modus_erreicht_die_virtuellen_werkzeuge_nicht() -> None:
     namen = _namen(build_agent_tools(
         tool_mode="read-only", include_dokument=True, include_submit=True))
     assert SUBMIT_RESULT in namen
-    assert "zeige_dokument" in namen
+    assert "ui_inhaltsrahmen" in namen
 
 
 # ── Plan 2026-09-30: das Antwort-Werkzeug ────────────────────────────────────

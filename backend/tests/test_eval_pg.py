@@ -443,7 +443,7 @@ def test_golden_lauf_haelt_am_pruefpunkt_an_wenn_die_zeile_gestoppt_ist(
         engine = _engine()
         factory = make_session_factory(engine)
 
-        async def run_flows(_url, flow_liste, *, headers=None):
+        async def run_flows(_url, flow_liste, *, headers=None, ui_module=None):
             from boerdi.db.models import EvalRun
             fid = str(flow_liste[0]["id"])
             gefeuert.append(fid)
@@ -461,7 +461,8 @@ def test_golden_lauf_haelt_am_pruefpunkt_an_wenn_die_zeile_gestoppt_ist(
         monkeypatch.setattr(golden_run, "_load_golden_runner",
                             lambda: type("R", (), {"run_flows": staticmethod(run_flows)}))
 
-        async def offline_conditions(*, judge_enabled, engine="default", flows=None):
+        async def offline_conditions(*, judge_enabled, engine="default", flows=None,
+                                     ui_module=None):
             return {}  # K0-2: sonst holte der Job den Master-Skill per MCP
 
         monkeypatch.setattr(golden_run, "run_conditions", offline_conditions)
@@ -693,7 +694,7 @@ def test_zwei_gleichzeitige_starts_ergeben_genau_einen_lauf_und_eine_409(
               "turns": [{"message": "a", "anwendungsfall": "suchen"}]}]
     monkeypatch.setattr(golden_run, "load_gold_flows", lambda: flows)
     monkeypatch.setattr(golden_run, "_load_golden_runner", lambda: type(
-        "R", (), {"validate_flows": staticmethod(lambda _flows: None)}))
+        "R", (), {"validate_flows": staticmethod(lambda _flows, module=None: None)}))
 
     async def erreichbar():
         return None

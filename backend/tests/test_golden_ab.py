@@ -58,7 +58,8 @@ def _antwort() -> dict:
 def test_kopfzeilen_erreichen_jeden_zug(monkeypatch) -> None:
     gesehen: list = []
 
-    async def fake_post(url, message, session_id, headers=None, environment=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None,
+                        ui_antwort=None):
         gesehen.append(headers)
         return _antwort()
 
@@ -73,7 +74,8 @@ def test_gegenrichtung_ohne_kopfzeilen_bleibt_der_lauf_wie_bisher(monkeypatch) -
     Kopfzeilen herein und darf sich nicht ändern."""
     gesehen: list = []
 
-    async def fake_post(url, message, session_id, headers=None, environment=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None,
+                        ui_antwort=None):
         gesehen.append(headers)
         return _antwort()
 
@@ -125,7 +127,7 @@ def test_der_report_nennt_die_kopfzeilen_namen_ohne_werte(
         "EVAL_CHAT_HEADERS",
         '{"X-Boerdi-Engine": "agent", "WLO-Access-Block": "geheim-jti-123"}')
 
-    async def fake_flows(url, flows, *, headers=None):
+    async def fake_flows(url, flows, *, headers=None, ui_module=None):
         return [{"kind": "golden", "flow_id": "F1", "title": "", "persona_id": "*",
                  "zielgruppe": "", "intent_id": "", "session_id": "s", "turns": []}]
 
@@ -141,7 +143,8 @@ def test_der_report_nennt_die_kopfzeilen_namen_ohne_werte(
 
 
 def test_jeder_zug_traegt_seine_latenz(monkeypatch) -> None:
-    async def fake_post(url, message, session_id, headers=None, environment=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None,
+                        ui_antwort=None):
         return _antwort()
 
     monkeypatch.setattr(rg, "post_chat", fake_post)
@@ -154,7 +157,8 @@ def test_jeder_zug_traegt_seine_latenz(monkeypatch) -> None:
 def test_auch_ein_fehl_zug_traegt_seine_latenz(monkeypatch) -> None:
     """Eine Zeitüberschreitung ist der teuerste Zug des Laufs — ausgerechnet den
     nicht zu messen wäre die falsche Auslassung."""
-    async def broken_post(url, message, session_id, headers=None, environment=None):
+    async def broken_post(url, message, session_id, headers=None, environment=None,
+                        ui_antwort=None):
         raise RuntimeError("down")
 
     monkeypatch.setattr(rg, "post_chat", broken_post)
@@ -213,7 +217,8 @@ def test_die_konsole_zeigt_die_latenz() -> None:
 def test_eine_fehlerblase_besteht_keine_pruefung(monkeypatch) -> None:
     satz = "Gerade sind sehr viele Anfragen gleichzeitig unterwegs"
 
-    async def fake_post(url, message, session_id, headers=None, environment=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None,
+                        ui_antwort=None):
         return {"content": f"{satz}, und ich komme nicht durch.", "cards": [],
                 "quick_replies": ["Nochmal versuchen"], "debug": {}}
 

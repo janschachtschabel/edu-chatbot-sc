@@ -69,11 +69,11 @@ def _basis(aktiv: list[dict]) -> list[dict]:
     """Die BASIS-Auswahl — ohne das unbedingt angehängte Ergebnis-Werkzeug.
 
     ``select_top_cards`` und ``respond_to_user`` nimmt die Fixture oben per ENV
-    heraus; ``zeige_dokument``
+    heraus; ``ui_inhaltsrahmen``
     (D3) hat keinen Schalter und wird hier gefiltert. Beide hängen unabhängig
     vom gewählten Zweig an und sagen über die Naht, um die es hier geht, nichts.
     """
-    return [t for t in aktiv if t["function"]["name"] != "zeige_dokument"]
+    return [t for t in aktiv if t["function"]["name"] != "ui_inhaltsrahmen"]
 
 
 class TestNahtform:

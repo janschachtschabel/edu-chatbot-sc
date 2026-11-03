@@ -266,13 +266,13 @@ def test_anrede_nicht_aus_anleitungen(text: str) -> None:
 
 
 def test_dokumente_gehen_ueber_das_werkzeug(text: str) -> None:
-    """Im Agent-Zug entsteht eine Box nur über ``zeige_dokument``. Der Rückfall
+    """Im Agent-Zug entsteht eine Box nur über ``ui_inhaltsrahmen``. Der Rückfall
     „Text ab der ersten Überschrift“ greift in ``turn_persist`` nur für die
     Muster M09–M11, und ein Agent-Zug heißt ``AGENT``. Die Vorfassung
     beschrieb den Rückfall: so geschriebenes Material blieb in der Blase."""
-    assert "`zeige_dokument`" in _abschnitt(text, "Oberfläche ansteuern")
+    assert "`ui_inhaltsrahmen`" in _abschnitt(text, "Oberfläche ansteuern")
     for kennung in ("M09", "M10", "M11", "M17"):
-        assert "`zeige_dokument`" in _unterabschnitt(text, kennung), kennung
+        assert "`ui_inhaltsrahmen`" in _unterabschnitt(text, kennung), kennung
     flach = _flach(text)
     for mechanik in ("Überschrift", "als Markdown direkt im Chat"):
         assert mechanik not in flach, mechanik
@@ -283,7 +283,7 @@ def test_die_aenderungs_vorschau_zeigt_der_chat_selbst(text: str) -> None:
     """Paket 2 (Runde-2-Plan, N-3): den Kasten mit der Vorschau einer Änderung
     zeigt der Chat selbst, seit 2026-10-01 auch im Agent-Zug — so sagt es die
     Muster-Datei M18 schon. Die Vorfassung ließ das Modell die Vorschau
-    „wörtlich als gerahmten Kasten“ vorlegen; über `zeige_dokument` stünden
+    „wörtlich als gerahmten Kasten“ vorlegen; über `ui_inhaltsrahmen` stünden
     dann zwei Kästen da."""
     m18 = _unterabschnitt(text, "M18")
     assert "zeigt der Chat von selbst" in m18
@@ -309,7 +309,7 @@ def test_vorgehen_md_nennt_nur_existierende_werkzeuge(text: str) -> None:
     ein Phantom-Werkzeug im wichtigsten Prompt-Dokument — das Modell ruft es,
     bekommt einen Fehler und rät weiter (gemessen 2026-08-16 bei den
     erfundenen get_skill-IDs)."""
-    from boerdi.domain.inline_documents import ZEIGE_DOKUMENT
+    from boerdi.domain.inline_documents import INHALTSRAHMEN
     from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
     from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 
@@ -317,9 +317,9 @@ def test_vorgehen_md_nennt_nur_existierende_werkzeuge(text: str) -> None:
     genannt = {t for t in re.findall(r"`([a-z][a-z0-9_]+)(?=[`(])", text) if "_" in t}
     katalog = {d["function"]["name"]
                for d in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS)}
-    # ``zeige_dokument``: im Agent-Zug der einzige Weg zur Dokument-Box
+    # ``ui_inhaltsrahmen``: im Agent-Zug der einzige Weg zur Dokument-Box
     # (Agent-Runde 2, 2026-09-28) — der Chat-Zug legt es immer dazu.
-    virtuell = {"wissen_suchen", "liefere_ergebnis", ZEIGE_DOKUMENT}
+    virtuell = {"wissen_suchen", "liefere_ergebnis", INHALTSRAHMEN}
     # ``search_skill`` nennt der Skill nur, um es zu VERNEINEN („existiert
     # nicht") — die Nennung ist gewollt, das Werkzeug bleibt draußen.
     unbekannt = genannt - katalog - virtuell - {"search_skill"}

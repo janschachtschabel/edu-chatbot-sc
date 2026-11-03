@@ -194,6 +194,10 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'voice: unbekannte Stimme.'": "dito (Paket 19, M-16)",
         "'speed: 0.25 bis 4.0.'": "dito (Paket 19, M-16)",
     },
+    "ui_themenbaum.py": {
+        "'sitzung_unbekannt'": "Code, kein Text: nur das Widget ruft den Endpunkt (U1-h), es "
+                               "wertet nur den Status aus und zeigt am Knoten „nicht geladen“",
+    },
     "studio_bff.py": {
         "'Wrong password'": "der Login bildet per STATUS-Code auf "
                             "`login.error.wrongPassword` ab",

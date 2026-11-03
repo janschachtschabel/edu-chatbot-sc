@@ -147,22 +147,33 @@ def test_der_graph_gibt_die_verbindung_zwischen_den_knoten_frei(db_url, monkeypa
     assert am_ende == 0
 
 
-def test_setup_gibt_frei_bevor_die_zustimmung_geprueft_wird(db_url, monkeypatch):
+@pytest.mark.parametrize("offene_frage", [False, True], ids=["ohne_frage", "mit_offener_frage"])
+def test_setup_gibt_frei_bevor_die_zustimmung_geprueft_wird(db_url, monkeypatch, offene_frage):
     # ``discard_stale_approval`` fragt bei offenem Vorgang ein LLM (``zustimmung_pruefen``).
+    # Seit U1-d1 schließt ``setup`` davor die offene Frage eines UI-Moduls und schreibt dafür —
+    # auch dieser Schreibweg darf die Verbindung nicht offen lassen.
     from boerdi.graph.nodes import setup as setup_mod
+    from boerdi.services.db_sessions import get_or_create_session, update_session
+    from boerdi.ui_module.antwort import OFFENE_FRAGE
 
-    gesehen: list[tuple[bool, int]] = []
+    sid = f"v-3-{offene_frage}"
+    gesehen: list[tuple[bool, int, bool, bool]] = []
 
     async def fn(session, pool):
-        async def _verwerfen(s, req, state, *, hintergrund=False):
-            gesehen.append((s.in_transaction(), pool.checkedout()))
+        if offene_frage:
+            await get_or_create_session(session, sid)
+            await update_session(session, sid, entities={OFFENE_FRAGE: {"block_id": "b-1"}})
+
+        async def _verwerfen(s, req, state, *, hintergrund=False, modul_antwort=False):
+            gesehen.append((s.in_transaction(), pool.checkedout(), modul_antwort,
+                            OFFENE_FRAGE in state["entities"]))
             return False
 
         monkeypatch.setattr(setup_mod, "discard_stale_approval", _verwerfen)
-        await setup_mod.setup(TurnContext(req=_req("v-3")), session)
+        await setup_mod.setup(TurnContext(req=_req(sid)), session)
 
     _mit_sitzung(db_url, fn)
-    assert gesehen == [(False, 0)]
+    assert gesehen == [(False, 0, False, False)]
 
 
 def test_der_rag_kontext_gibt_nach_den_abfragen_frei(db_url, monkeypatch):
@@ -202,3 +213,59 @@ def test_der_import_bettet_ohne_offene_transaktion_ein(db_url, monkeypatch):
 
     assert _mit_sitzung(db_url, fn) >= 1
     assert gesehen == [(False, 0), (False, 0)]
+
+
+def test_das_aufklappen_im_themenbaum_gibt_vor_anmeldung_und_mcp_frei(db_url, monkeypatch):
+    # Paket U1-h, Review Befund 1: ``sitzung_vorhanden`` liest über ``session.get`` — danach
+    # folgen die Prüfung der Anmeldung (bis 5 s MCP) und der Zweig (MCP bis 60 s). Die
+    # Verbindung darf dabei nicht „idle in transaction“ stehen (wie H-5 für den Zug).
+    import httpx
+
+    import boerdi.api.ui_themenbaum as zweig_api
+    from boerdi.api.deps import get_session
+    from boerdi.main import create_app
+    from boerdi.services.db_sessions import get_or_create_session
+    from boerdi.services.rate_limits import RateVerdict
+    from boerdi.settings import get_settings
+    from boerdi.ui_module import datenquelle, schalter
+    from tests.test_ui_themenbaum import _Rufer
+
+    sid = "bb-0123456789abcdef0123456789abcdef"
+    gesehen: list[tuple[str, bool, int]] = []
+    monkeypatch.setenv("STUDIO_API_KEY", "studio-schluessel-fuer-zweige")
+    monkeypatch.setenv("RATE_LIMIT_CHAT", "off")
+    get_settings.cache_clear()
+
+    async def frei(session_id, ip="", lang="de"):
+        return RateVerdict(allowed=True)
+
+    monkeypatch.setattr(zweig_api, "check_rate_limit", frei)
+    monkeypatch.setattr(schalter, "aktiv", lambda name: True)
+
+    async def fn(session, pool):
+        await get_or_create_session(session, sid)
+
+        async def bestaetigen():
+            gesehen.append(("anmeldung", session.in_transaction(), pool.checkedout()))
+
+        rufer = _Rufer()
+
+        async def rufen(werkzeug, args):
+            gesehen.append(("mcp", session.in_transaction(), pool.checkedout()))
+            return await rufer(werkzeug, args)
+
+        monkeypatch.setattr(zweig_api, "bestaetige_anmeldung", bestaetigen)
+        monkeypatch.setattr(datenquelle, "_rufen", rufen)
+        app = create_app()
+        app.dependency_overrides[get_session] = lambda: session
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                     base_url="http://test") as c:
+            r = await c.post("/api/ui/themenbaum/zweig", json={
+                "session_id": sid, "node_id": "bbbb2222-0000-4000-8000-000000000001"})
+        return r.status_code
+
+    try:
+        assert _mit_sitzung(db_url, fn) == 200
+    finally:
+        get_settings.cache_clear()
+    assert gesehen == [("anmeldung", False, 0), ("mcp", False, 0)]

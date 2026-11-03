@@ -39,6 +39,7 @@ from boerdi.services import write_approval as wa_mod
 from boerdi.services import zustimmung_pruefen as _zp
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.write_approval import discard_stale_approval, redeem_write_approval
+from tests._boxen import boxen
 
 # Die echte Prüfung — ``conftest`` ersetzt sie für alle Tests (kein Netz).
 _ECHTES_URTEIL = _zp._llm_urteil
@@ -695,8 +696,8 @@ class TestUnklareZustimmung:
         assert bot_text("de", "write.consentUnclear") in antwort.content
         assert antwort.quick_replies == [bot_text("de", "action.write.confirmChip")]
         # Review 19-5 (2): die Vorschau steht wieder darunter — der Chip meint genau sie.
-        assert [d.kind for d in antwort.inline_documents] == ["schreib_vorschau"]
-        assert _VORSCHAU in antwort.inline_documents[0].content
+        assert [d.kind for d in boxen(antwort)] == ["schreib_vorschau"]
+        assert _VORSCHAU in boxen(antwort)[0].content
         assert _zug.blase_gezeigt()
         assert "_pending_write" in zustand["entities"]
         # Erst jetzt, mit gezeigtem Chip, steht der Vorgang wieder in der Datenbank.
