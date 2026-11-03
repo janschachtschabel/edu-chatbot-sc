@@ -6,7 +6,7 @@
     "de": "Entscheidung",
     "en": "Choice"
   },
-  "beschreibung": "Stellt der Person eine Frage mit festen Antwortmoeglichkeiten zum Anklicken, einzeln oder mehrfach, auf Wunsch mit einem Freitextfeld. Der Aufruf beendet deinen Zug: Ergebnisse dieses Zuges (Suche, Erklaerung) ordnest du davor wie sonst ein; die Frage und die Moeglichkeiten wiederholst du nicht im Text und gibst keine Schnellantworten dazu, das zeigt das Auswahlfeld. Hoechstens ein Auswahlfeld je Zug. Die Antwort der Person kommt im naechsten Zug als Block vor ihrer Nachricht; dann arbeitest du damit weiter, ohne erneut zu fragen.",
+  "beschreibung": "Stellt der Person eine Frage mit festen Antwortmoeglichkeiten zum Anklicken, einzeln oder mehrfach, auf Wunsch mit einem Freitextfeld. Der Aufruf beendet deinen Zug. Den Begleittext (Ergebnisse dieses Zuges einordnen, falls es welche gibt) schreibst du in derselben Runde, ueber das Antwort-Werkzeug falls vorhanden, ohne Schnellantworten; nie nur einen Verweis auf das Feld. Frage und Moeglichkeiten wiederholst du nicht im Text. Hoechstens ein Auswahlfeld je Zug. Die Antwort der Person kommt im naechsten Zug als Block vor ihrer Nachricht; dann arbeitest du damit weiter, ohne erneut zu fragen.",
   "wann": [
     "du brauchst eine Entscheidung, und die Antwortmoeglichkeiten sind bekannt und ueberschaubar (2 bis 8)",
     "eine Rueckfrage, deren Antwort sonst muehsam zu tippen waere (Klassenstufe, Variante, Format)",

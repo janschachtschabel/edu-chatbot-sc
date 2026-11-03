@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAccessBlock, writeAccessBlock } from '../session/mcp-access';
 import { ChatApiClient } from './chat-api';
@@ -57,5 +57,21 @@ describe('ChatApiClient.themenbaumZweig', () => {
   it('eine Antwort ohne Daten-Objekt ist ein Fehler, keine leere Liste', async () => {
     const api = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: true, status: 200, json: { daten: 'x' } }) });
     await expect(api.themenbaumZweig('bb-1', 'bbbb-2222')).rejects.toThrow();
+  });
+
+  it('ein Abbruch des Aufrufers erreicht den laufenden Abruf (Review U1 gesamt)', async () => {
+    let gesehen: AbortSignal | undefined;
+    const haengt = ((_url: string, init: RequestInit) => new Promise<Response>((_ok, nein) => {
+      gesehen = init.signal ?? undefined;
+      init.signal?.addEventListener('abort', () => nein(new DOMException('aborted', 'AbortError')));
+    })) as unknown as typeof fetch;
+    const api = new ChatApiClient({ fetchImpl: haengt });
+    const steuerung = new AbortController();
+    const zweig = api.themenbaumZweig('bb-1', 'bbbb-2222', steuerung.signal);
+    await vi.waitFor(() => expect(gesehen).toBeDefined());
+    expect(gesehen?.aborted).toBe(false);
+    steuerung.abort();
+    await expect(zweig).rejects.toMatchObject({ name: 'AbortError' });
+    expect(gesehen?.aborted).toBe(true);
   });
 });

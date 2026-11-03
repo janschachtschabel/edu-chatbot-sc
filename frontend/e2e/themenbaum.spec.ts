@@ -187,6 +187,8 @@ for (const breite of [1280, 320]) {
     const [algebra, geometrie] = [await textkante(titel.nth(0)), await textkante(titel.nth(1))];
     await box.getByRole('treeitem', { name: 'Algebra', exact: true }).click();
     await expect(box.getByRole('treeitem', { name: 'Gleichungen' })).toBeVisible();
+    // Erst messen, wenn der Zweig fertig geladen ist — sonst steht „lädt …“ noch in der Zeile.
+    await expect(box.getByRole('treeitem', { name: 'Algebra', exact: true })).not.toHaveAttribute('aria-busy', 'true');
     const [a2, gleichungen, terme, geometrie2] = [
       await textkante(titel.nth(0)), await textkante(titel.nth(1)), await textkante(titel.nth(2)), await textkante(titel.nth(3)),
     ];

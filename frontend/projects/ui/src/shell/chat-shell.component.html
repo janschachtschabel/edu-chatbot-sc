@@ -97,7 +97,7 @@
 
           <!-- Legacy-Druck-Leisten: greifen nur für Nachrichten OHNE Inhaltsrahmen-Block — sonst
                druckt der Knopf IN der Box (kein Doppel-Knopf). -->
-          @if (!msg.isLoading && !print.hatDokumentBox(msg) && print.isLearningPath(msg)) {
+          @if (!msg.isLoading && !print.hatDokumentBox(msg, modulRegister) && print.isLearningPath(msg)) {
             <div class="lp-print-bar">
               <button
                 type="button"
@@ -110,7 +110,7 @@
               </button>
             </div>
           }
-          @if (!msg.isLoading && !print.hatDokumentBox(msg) && print.isPrintableCanvasMaterial(msg)) {
+          @if (!msg.isLoading && !print.hatDokumentBox(msg, modulRegister) && print.isPrintableCanvasMaterial(msg)) {
             <div class="lp-print-bar">
               <button
                 type="button"

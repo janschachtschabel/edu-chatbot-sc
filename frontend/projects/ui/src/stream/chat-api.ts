@@ -444,14 +444,16 @@ export class ChatApiClient {
   /** Unterthemen eines Knotens im Themenbaum (U1-h, `POST /api/ui/themenbaum/zweig`): kein Zug,
    *  nur Sitzung, Knoten und der Modus der Einbettung (er entscheidet im Backend, ob das Werkzeug
    *  angeboten ist); der Zugangsblock reist wie bei jedem Zug mit. Löst mit `daten` auf; ein
-   *  nicht-ok-Abruf wirft mit `status` (`httpFehler`), eine Antwort ohne Daten-Objekt ebenso. */
-  async themenbaumZweig(sessionId: string, nodeId: string): Promise<Record<string, unknown>> {
+   *  nicht-ok-Abruf wirft mit `status` (`httpFehler`), eine Antwort ohne Daten-Objekt ebenso.
+   *  `signal` bricht den Abruf ab (das Widget wird entfernt). */
+  async themenbaumZweig(sessionId: string, nodeId: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
     await this.anmeldung;
     const antwort = await postChat<{ daten?: unknown }>({
       url: `${this.baseUrl}/ui/themenbaum/zweig`,
       body: { session_id: sessionId, node_id: nodeId, ...(this.toolMode ? { tool_mode: this.toolMode } : {}) },
       fetchImpl: this.fetchImpl,
       fristMs: ZWEIG_FRIST_MS,
+      signal,
     });
     const daten = antwort?.daten;
     if (!daten || typeof daten !== 'object' || Array.isArray(daten)) throw new Error('Themenbaum: Antwort ohne Daten');

@@ -118,16 +118,52 @@ describe('UiEntscheidung', () => {
     expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: ['klasse_9_10'] }, 'Klasse 9–10');
   });
 
-  it('während eines Zugs ist der Knopf gesperrt — und ohne Freigabe sendet auch Enter nichts', async () => {
+  // Review U1 gesamt, Befund 6 (WCAG 2.4.3): während eines Zugs `aria-disabled` statt `disabled` —
+  // ein gesperrter Knopf fiele aus der Tab-Reihenfolge, und der Fokus ginge verloren.
+  it('während eines Zugs ist der Knopf gesperrt (aria-disabled, bleibt fokussierbar) — Klick und Enter senden nichts', async () => {
     const zug = signal(true);
     const { f, el, h, knopf, waehle } = await render(EINZEL, {}, host(zug));
     await waehle('klasse_5_6');
-    expect(knopf()?.disabled).toBe(true);
+    expect(knopf()?.disabled).toBe(false);
+    expect(knopf()?.getAttribute('aria-disabled')).toBe('true');
+    knopf()!.focus();
+    expect(document.activeElement).toBe(knopf());
+    knopf()!.click();
     el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     expect(h.antworten).not.toHaveBeenCalled();
     zug.set(false);
     await f.whenStable();
-    expect(knopf()?.disabled).toBe(false);
+    expect(knopf()?.hasAttribute('aria-disabled')).toBe(false);
+    expect(document.activeElement).toBe(knopf());
+  });
+
+  it('nach „Antworten“ geht der Fokus an die Statuszeile, nicht verloren (WCAG 2.4.3)', async () => {
+    const { f, el, knopf, waehle } = await render(EINZEL);
+    document.body.appendChild(el);
+    try {
+      await waehle('klasse_7_8');
+      knopf()!.focus();
+      knopf()!.click();
+      // Die Shell vermerkt die Antwort sofort — das Modul wird nur lesend, der Knopf verschwindet.
+      f.componentRef.setInput('kontext', {
+        blockId: 'b0000001', sprache: 'de', nurLesen: true, antwort: { gewaehlt: ['klasse_7_8'] },
+        schriftSkala: 0.85, anzeigeRegeln: null,
+      } satisfies ModulKontext);
+      await f.whenStable();
+      const status = el.querySelector<HTMLElement>('.ui-entscheidung__status')!;
+      expect(knopf()).toBeNull();
+      expect(status.getAttribute('tabindex')).toBe('-1');
+      expect(document.activeElement).toBe(status);
+    } finally {
+      el.remove();
+    }
+  });
+
+  it('ein schon beantworteter Block (Verlauf) zieht den Fokus nicht an sich', async () => {
+    const vorher = document.activeElement;
+    const { el } = await render(EINZEL, { nurLesen: true, antwort: { gewaehlt: ['klasse_5_6'] } });
+    expect(el.querySelector('.ui-entscheidung__status')).not.toBeNull();
+    expect(document.activeElement).toBe(vorher);
   });
 
   it('beantwortet: nur lesend mit der gegebenen Antwort, ohne Knopf', async () => {

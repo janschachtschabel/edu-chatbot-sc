@@ -77,4 +77,11 @@ describe('UiInhaltsrahmen', () => {
     const box = el.querySelector('.inline-document') as HTMLElement;
     expect(box.style.getPropertyValue('--inline-doc-scale')).toBe('0.7');
   });
+
+  it('Symbole sind für Vorleser verborgen (aria-hidden, Review U1 gesamt)', async () => {
+    const { el } = await render(manifest.beispiele[0].daten as UiInhaltsrahmenDaten);
+    const symbole = [...el.querySelectorAll('.bb-icon')];
+    expect(symbole.length).toBeGreaterThan(0);
+    expect(symbole.filter((s) => s.getAttribute('aria-hidden') !== 'true')).toEqual([]);
+  });
 });

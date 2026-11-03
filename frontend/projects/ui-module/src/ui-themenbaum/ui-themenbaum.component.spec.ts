@@ -326,10 +326,16 @@ describe('UiThemenbaum', () => {
     expect(h.aktion).not.toHaveBeenCalled();
   });
 
-  it('während eines Zugs sind die Knöpfe gesperrt', async () => {
+  // Review U1 gesamt, Befund 6: `aria-disabled` statt `disabled` — fiel der Knopf beim Zugbeginn aus
+  // der Tab-Reihenfolge, ging der Fokus verloren (WCAG 2.4.3).
+  it('während eines Zugs ist „Inhalte anzeigen“ gesperrt (aria-disabled, bleibt fokussierbar) — Klick tut nichts', async () => {
     beschaeftigt.set(true);
     const { el } = await render(BAUM);
-    expect(knopf(el, 'Inhalte anzeigen')!.disabled).toBe(true);
+    const k = knopf(el, 'Inhalte anzeigen')!;
+    expect(k.disabled).toBe(false);
+    expect(k.getAttribute('aria-disabled')).toBe('true');
+    k.click();
+    expect(h.aktion).not.toHaveBeenCalled();
   });
 
   it('englische Texte', async () => {

@@ -107,7 +107,7 @@ describe('buildControllerContexts', () => {
     const { collectionActions } = buildControllerContexts(host);
     setSid('sess-2');
     await expect(collectionActions.ladeZweig('bbbb-2222')).resolves.toEqual({ knoten: [] });
-    expect(calls['zweig']).toEqual([['sess-2', 'bbbb-2222']]);
+    expect(calls['zweig']).toEqual([['sess-2', 'bbbb-2222', undefined]]);
   });
 
   it('collectionActions.messages/updateMessages/messagesContainer/dispatchPageAction delegieren', () => {

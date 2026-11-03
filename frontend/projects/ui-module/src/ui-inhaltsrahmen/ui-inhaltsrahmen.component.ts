@@ -33,15 +33,15 @@ const TEXTE = {
   template: `
     <div class="inline-document" [style.--inline-doc-scale]="kontext().schriftSkala">
       <div class="inline-document__heading">
-        <span class="bb-icon" [innerHTML]="symbol() | safeSvg"></span>
+        <span class="bb-icon" aria-hidden="true" [innerHTML]="symbol() | safeSvg"></span>
         <span class="inline-document__title">{{ daten().titel || bezeichnung() }}</span>
         <button type="button" class="inline-document__btn" data-aktion="drucken"
                 [title]="texte().drucken" [attr.aria-label]="texte().drucken" (click)="drucken()">
-          <span class="bb-icon" [innerHTML]="druckSymbol | safeSvg"></span>
+          <span class="bb-icon" aria-hidden="true" [innerHTML]="druckSymbol | safeSvg"></span>
         </button>
         <button type="button" class="inline-document__btn" data-aktion="herunterladen"
                 [title]="texte().herunterladen" [attr.aria-label]="texte().herunterladen" (click)="herunterladen()">
-          <span class="bb-icon" [innerHTML]="ladeSymbol | safeSvg"></span>
+          <span class="bb-icon" aria-hidden="true" [innerHTML]="ladeSymbol | safeSvg"></span>
         </button>
       </div>
       <div class="inline-document__body" [innerHTML]="inhalt()"></div>

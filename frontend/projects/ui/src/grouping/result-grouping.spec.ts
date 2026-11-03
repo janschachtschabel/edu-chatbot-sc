@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { ModulRegister } from '@boerdi/ui-module';
+
 import { WloCard } from '../cards/card-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
@@ -306,16 +308,31 @@ describe('hatLinkbox / hasGroupedResults mit Linkbox (U1-c1)', () => {
   const linkbox = { block_id: 'b0000003', modul: 'ui_linkbox', version: 1, art: 'anzeigen' as const,
     daten: {}, text: '', status: 'nur_anzeige' as const };
   const nurLinks = { webLinks: [{ title: 'WLO', url: 'https://wirlernenonline.de/' }] };
+  const register = {
+    ui_linkbox: { manifest: { name: 'ui_linkbox', version: 1, art: 'anzeigen', titel: { de: 'L' } }, komponente: class {} },
+  } as ModulRegister;
+  const mitRegister: GroupingContext = { ...ctx, modulRegister: () => register };
 
   it('hatLinkbox erkennt den Block', () => {
-    expect(hatLinkbox(msg({ ui: { ui_bloecke: [linkbox] } }))).toBe(true);
-    expect(hatLinkbox(msg({ ui: { ui_bloecke: [{ ...linkbox, modul: 'ui_inhaltsrahmen' }] } }))).toBe(false);
-    expect(hatLinkbox(msg({}))).toBe(false);
+    expect(hatLinkbox(msg({ ui: { ui_bloecke: [linkbox] } }), register)).toBe(true);
+    expect(hatLinkbox(msg({ ui: { ui_bloecke: [{ ...linkbox, modul: 'ui_inhaltsrahmen' }] } }), register)).toBe(false);
+    expect(hatLinkbox(msg({}), register)).toBe(false);
   });
 
   it('nur Webseiten und eine Linkbox: kein leerer Trefferrahmen', () => {
-    expect(hasGroupedResults(msg({ ...nurLinks }), ctx)).toBe(true);
-    expect(hasGroupedResults(msg({ ...nurLinks, ui: { ui_bloecke: [linkbox] } }), ctx)).toBe(false);
+    expect(hasGroupedResults(msg({ ...nurLinks }), mitRegister)).toBe(true);
+    expect(hasGroupedResults(msg({ ...nurLinks, ui: { ui_bloecke: [linkbox] } }), mitRegister)).toBe(false);
+  });
+
+  // Review U1 gesamt, Befund 5: zeigt das Modul den Block nicht (fremde Hauptversion, kein Register,
+  // keine Daten), bleibt die bisherige Box — sonst stünde nur die Textfassung da.
+  it('eine Linkbox, die das Modul nicht zeigt, lässt die bisherige Box stehen', () => {
+    expect(hatLinkbox(msg({ ui: { ui_bloecke: [{ ...linkbox, version: 2 }] } }), register)).toBe(false);
+    expect(hatLinkbox(msg({ ui: { ui_bloecke: [{ ...linkbox, daten: undefined as never }] } }), register)).toBe(false);
+    expect(hatLinkbox(msg({ ui: { ui_bloecke: [linkbox] } }), {})).toBe(false);
+    expect(hasGroupedResults(msg({ ...nurLinks, ui: { ui_bloecke: [{ ...linkbox, version: 2 }] } }), mitRegister)).toBe(true);
+    // Ohne Register im Kontext zeigt kein Modul etwas: die bisherige Box bleibt.
+    expect(hasGroupedResults(msg({ ...nurLinks, ui: { ui_bloecke: [linkbox] } }), ctx)).toBe(true);
   });
 });
 

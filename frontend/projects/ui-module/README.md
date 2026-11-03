@@ -12,8 +12,8 @@ Handarbeit bleibt, aktuelle Module, Kompromisse. Grafik:
 ## Ein neues Modul
 
 ```bash
-npm run module:neu -- linkbox            # anzeigend
-npm run module:neu -- entscheidung --abfragen
+npm run module:neu -- merkliste          # anzeigend (Beispielname, das Modul gibt es noch nicht)
+npm run module:neu -- bewertung --abfragen  # abfragend (ebenso nur ein Beispiel)
 ```
 
 Das legt `src/ui-<name>/` an:
@@ -51,8 +51,9 @@ eigenes Dokument-Werkzeug, Linkbox und Trefferliste entstehen ohne Aufruf).
   Sitzungs-Kennung bei vertrauten Seiten, `hinweis` bei fremden).
 - **Fähigkeiten:** Jeder Block bekommt seinen eigenen Host (seit U1-d1). Er lässt nur zu, was
   `faehigkeiten` im Manifest nennt — `herunterladen`, `drucken`, `oeffnen` (`link`, `aktion`),
-  `antworten`; sonst passiert nichts außer einer Warnung in der Konsole. `markdown`, `treffer`
-  und `beschaeftigt` sind immer erlaubt.
+  `antworten`, `nachladen` (`zweig`, U1-h: Unterthemen ohne Zug nachholen); sonst passiert nichts
+  außer einer Warnung in der Konsole, und `zweig` lehnt mit `status: 403` ab. `markdown`,
+  `treffer` und `beschaeftigt` sind immer erlaubt.
 - **Abfragende Module** (`art: abfragen`, erstes: `ui_entscheidung`) antworten mit
   `host.antworten(daten, text)`: `daten` nach `antwort`, `text` die lesbare Fassung (Nutzerblase).
   Die Shell sendet das als nächsten Zug (`ui_antwort`), das Backend prüft es gegen die offene

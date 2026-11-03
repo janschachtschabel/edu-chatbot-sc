@@ -155,7 +155,7 @@ $text-muted: var(--mat-sys-on-surface-variant);
   text-decoration: none;
   cursor: pointer;
 
-  &:hover:not(:disabled) {
+  &:hover:not(:disabled, [aria-disabled='true']) {
     background: color-mix(in srgb, var(--mat-sys-primary) 8%, var(--mat-sys-surface));
   }
 
@@ -164,8 +164,10 @@ $text-muted: var(--mat-sys-on-surface-variant);
     outline-offset: 2px;
   }
 
-  // Gesperrt nicht nur blasser: der Mauszeiger sagt es mit; Text bleibt lesbar.
-  &:disabled {
+  // Gesperrt nicht nur blasser: der Mauszeiger sagt es mit; Text bleibt lesbar. `aria-disabled`
+  // während eines Zugs — der Knopf bleibt fokussierbar (Review U1 gesamt).
+  &:disabled,
+  &[aria-disabled='true'] {
     opacity: .5;
     cursor: not-allowed;
   }

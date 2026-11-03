@@ -13,7 +13,10 @@
  *
  * Kein Modul-Global-State: jede Instanz hält ihren eigenen Renderer/Cache.
  */
+import { signal } from '@angular/core';
 import { SafeHtml } from '@angular/platform-browser';
+
+import type { ModulRegister } from '@boerdi/ui-module';
 
 import { ChatMessage } from '../grouping/message-types';
 import { displayContent, GroupingContext, ResultGroupsContext } from '../grouping/result-grouping';
@@ -39,10 +42,16 @@ export interface ShellRenderContext {
    *  wie die übrigen Zugriffe: die Shell bekommt ihn als Input, der bei der
    *  Konstruktion des `ShellRender` noch nicht gesetzt sein muss. */
   t: TranslateFn;
+  /** Die UI-Module des Widgets — für die Linkbox-Weiche der Trefferboxen (Review U1 gesamt). */
+  modulRegister?: () => ModulRegister;
 }
 
 export class ShellRender {
   private readonly _markdown: MarkdownRenderer;
+  /** Zählt jedes `clearCache` (Review U1 gesamt). `markdown` liest ihn: so hängt jedes `computed`, das
+   *  Markdown rendert — etwa der Inhaltsrahmen —, am Cache. Ein Cache-Treffer liest sonst kein
+   *  Signal (Sprache, vertraute Seiten), und das Modul behielte nach dem Leeren den alten Stand. */
+  private readonly _stand = signal(0);
 
   constructor(private readonly ctx: ShellRenderContext) {
     this._markdown = new MarkdownRenderer({
@@ -59,14 +68,17 @@ export class ShellRender {
   /** Markdown → sanitisiertes SafeHtml (mit Render-Cache). ALT `renderMarkdown`.
    *  `cache = false` für den vorläufigen Text beim Token-Streaming. */
   markdown(text: string, sender: 'bot' | 'user' = 'bot', cache = true): SafeHtml {
+    this._stand();
     return this._markdown.render(text, sender, cache);
   }
 
   /** Render-Cache verwerfen — Aufrufer: die Shell, wenn die Trusted-Hosts-Liste
-   *  (async vom Host/Backend) ankommt oder sich ändert. Ohne Reset behielten
-   *  gecachte Bubbles ihr `target="_blank"` für jetzt vertraute Hosts. */
+   *  (async vom Host/Backend) ankommt oder sich ändert oder die Sprache wechselt.
+   *  Ohne Reset behielten gecachte Bubbles ihr `target="_blank"` für jetzt
+   *  vertraute Hosts. Der Stand zählt mit — Module rendern neu (siehe `_stand`). */
   clearCache(): void {
     this._markdown.clearCache();
+    this._stand.update((n) => n + 1);
   }
 
   /** Hostname auf der effektiven Trusted-Liste? ALT 254-256. */
@@ -89,6 +101,7 @@ export class ShellRender {
     withBsid: (url) => this.withBsid(url),
     externalLinkWarning: (url) => this.externalLinkWarning(url),
     t: (key, params) => this.ctx.t(key, params),
+    modulRegister: () => this.ctx.modulRegister?.() ?? {},
   };
 
   /** Kontext des ResultGroups-Renderers = GroupingContext + Host-Trust-Abfrage
@@ -98,6 +111,7 @@ export class ShellRender {
     externalLinkWarning: (url) => this.externalLinkWarning(url),
     isTrustedHost: (host) => this.isHostTrusted(host),
     t: (key, params) => this.ctx.t(key, params),
+    modulRegister: () => this.ctx.modulRegister?.() ?? {},
   };
 
   /** Anzuzeigender Bubble-Text: bei aktivem Inline-Grouping werden die Bullet-

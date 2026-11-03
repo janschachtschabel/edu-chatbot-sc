@@ -81,6 +81,45 @@ test('per Tastatur: Pfeiltaste wählt, Enter antwortet', async ({ page }) => {
   expect(w.turnRequests()[1].ui_antwort?.daten).toEqual({ gewaehlt: ['klasse_7_8'] });
 });
 
+// Review U1 gesamt, Befund 7: die Frage aus dem gespeicherten Verlauf (Muster `linkbox.spec.ts`).
+test('nach dem Neuladen: eine offene Frage lässt sich beantworten', async ({ page }) => {
+  const w = await mount(page, {
+    session: 'bb-11111111-2222-3333-4444-555555555555',
+    history: [
+      { role: 'user', content: 'Ein Arbeitsblatt zur Optik' },
+      { role: 'assistant', content: 'Kurz nachgefragt:', ui: { ui_bloecke: [frageBlock()] } },
+    ],
+  });
+  w.enqueue(chatResponse({ content: 'Gut, dann für Klasse 5–6.' }));
+  await w.open();
+  const gruppe = page.getByRole('group', { name: 'Für welche Klassenstufe?' });
+  await expect(gruppe).toBeVisible();
+  await gruppe.getByRole('radio', { name: 'Klasse 5–6' }).check();
+  await page.getByRole('button', { name: 'Antworten' }).click();
+  await w.waitForTurns(1);
+  expect(w.turnRequests()[0].ui_antwort).toEqual({ block_id: 'a1b2c3d4e5f60718', daten: { gewaehlt: ['klasse_5_6'] } });
+  await expect(page.locator('.ui-entscheidung__status')).toHaveText('Deine Antwort: Klasse 5–6');
+});
+
+test('nach dem Neuladen: eine beantwortete Frage zeigt die Antwort des Servers nur lesend', async ({ page }) => {
+  const w = await mount(page, {
+    session: 'bb-11111111-2222-3333-4444-555555555555',
+    history: [
+      { role: 'user', content: 'Ein Arbeitsblatt zur Optik' },
+      { role: 'assistant', content: 'Kurz nachgefragt:',
+        ui: { ui_bloecke: [{ ...frageBlock(), status: 'beantwortet', antwort: { gewaehlt: ['klasse_7_8'] } }] } },
+      { role: 'user', content: 'Klasse 7–8' },
+    ],
+  });
+  await w.open();
+  const gruppe = page.getByRole('group', { name: 'Für welche Klassenstufe?' });
+  await expect(gruppe.getByRole('radio', { name: /Klasse 7–8/ })).toBeChecked();
+  await expect(gruppe.getByRole('radio', { name: /Klasse 7–8/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Antworten' })).toHaveCount(0);
+  await expect(page.locator('.ui-entscheidung__status')).toHaveText('Deine Antwort: Klasse 7–8');
+  expect(w.turnRequests()).toHaveLength(0);
+});
+
 test('bei 320 px Breite passt die Frage ohne waagerechtes Scrollen', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await frageStellen(page);

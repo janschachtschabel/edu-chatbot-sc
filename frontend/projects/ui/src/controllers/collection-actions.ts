@@ -73,7 +73,7 @@ export interface CollectionActionsContext {
    *  andere hier — die Aktionen sind Modul-Funktionen ohne eigenen Zustand. */
   t: TranslateFn;
   /** U1-h: Unterthemen eines Knotens (`ChatApiClient.themenbaumZweig` mit LIVE-Sitzung). */
-  ladeZweig: (nodeId: string) => Promise<Record<string, unknown>>;
+  ladeZweig: (nodeId: string, signal?: AbortSignal) => Promise<Record<string, unknown>>;
 }
 
 /** Was eine Karten-Aktion ausmacht: gesendeter Text (bleibt deutsch — er ist die Anweisung ans
@@ -161,12 +161,13 @@ export function generateLearningPath(
  *  Kein Zug — keine Blase, kein Laden-Zustand der Shell (geht auch während eines Zugs). Bis U1-h
  *  öffnete die Direktaktion `show_collection_tree` einen neuen Baum als Antwort darunter.
  *  Wechselt die Sitzung während des Ladens, gehört das Ergebnis nicht mehr hierher
- *  (`sitzungsWache`): dann lehnt der Aufruf ab. Fehler gehen samt `status` an das Modul. */
+ *  (`sitzungsWache`): dann lehnt der Aufruf ab. Fehler gehen samt `status` an das Modul.
+ *  `signal` bricht den Abruf ab (die Shell, wenn das Widget entfernt wird). */
 export async function themenbaumZweig(
-  nodeId: string, ctx: CollectionActionsContext,
+  nodeId: string, ctx: CollectionActionsContext, signal?: AbortSignal,
 ): Promise<Record<string, unknown>> {
   const veraltet = sitzungsWache(() => ctx.sessionId());
-  const daten = await ctx.ladeZweig(nodeId);
+  const daten = await ctx.ladeZweig(nodeId, signal);
   if (veraltet()) throw new Error('boerdi: Sitzung gewechselt — Zweig verworfen');
   return daten;
 }

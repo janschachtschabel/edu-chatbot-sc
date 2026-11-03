@@ -1,0 +1,76 @@
+<section class="ui-themenbaum">
+  <div class="ui-themenbaum__kopf" [id]="kennung('kopf')">
+    <span class="bb-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
+    {{ texte().ueberschrift(daten().titel ?? '') }}
+  </div>
+  @if (daten().knoten.length) {
+    <ul class="ui-themenbaum__baum" role="tree" [attr.aria-labelledby]="kennung('kopf')">
+      <ng-container *ngTemplateOutlet="ebene; context: { $implicit: baum() }" />
+    </ul>
+    @if (daten().wurzel_mehr) {
+      <p class="ui-themenbaum__hinweis ui-themenbaum__hinweis--wurzel">
+        {{ texte().wurzelMehr }}
+        @if (wurzelLink(); as l) {
+          <a class="ui-themenbaum__hinweis-link" [href]="l.href" target="_blank" rel="noopener noreferrer"
+             [attr.title]="l.hinweis || null">{{ texte().alleAnsehen }}</a>
+        }
+      </p>
+    }
+    @if (daten().gekuerzt) { <p class="ui-themenbaum__hinweis">{{ texte().gekuerzt }}</p> }
+  } @else {
+    <p class="ui-themenbaum__leer">{{ texte().leer }}</p>
+  }
+  <p class="ui-themenbaum__ansage" role="status" aria-live="polite">{{ ansage() }}</p>
+  @if (ziel(); as z) {
+    <div class="ui-themenbaum__aktionen" role="group" [attr.aria-label]="texte().aktionen(z.titel)">
+      <span class="ui-themenbaum__ziel" aria-hidden="true">{{ z.titel }}</span>
+      <button type="button" class="ui-themenbaum__knopf" [attr.aria-disabled]="beschaeftigt() ? 'true' : null"
+              (click)="inhalte(z)">{{ texte().inhalte }}</button>
+      @if (z.erneut; as e) {
+        <button type="button" class="ui-themenbaum__knopf" (click)="erneut(e)">{{ texte().erneut }}</button>
+      }
+      @if (z.href) {
+        <a class="ui-themenbaum__knopf ui-themenbaum__link" [href]="z.href" target="_blank" rel="noopener noreferrer"
+           [attr.title]="z.hinweis || null">{{ texte().oeffnen }}</a>
+      }
+    </div>
+  }
+</section>
+
+<!-- Eine Ebene des Baums; ruft sich für offene Einträge selbst auf (U1-h: beliebig tief). -->
+<ng-template #ebene let-liste>
+  @for (e of liste; track e.pfad) {
+    <li role="treeitem" class="ui-themenbaum__eintrag" [id]="kennung('k' + e.pfad)"
+        [attr.aria-labelledby]="kennung('k' + e.pfad + '-name')" [attr.aria-describedby]="beschreibung(e)"
+        [attr.aria-level]="e.ebene" [attr.aria-setsize]="e.setsize" [attr.aria-posinset]="e.posinset"
+        [attr.aria-expanded]="e.aufklappbar ? istOffen(e) : null" [attr.aria-busy]="e.zustand === 'laedt' ? 'true' : null"
+        [attr.tabindex]="aktiv() === e.pfad ? 0 : -1" [attr.aria-selected]="aktiv() === e.pfad"
+        (click)="klick($event, e)" (keydown)="taste($event)" (focus)="aktiv.set(e.pfad)">
+      <span class="ui-themenbaum__zeile">
+        <span class="ui-themenbaum__pfeil" aria-hidden="true" [class.ui-themenbaum__pfeil--offen]="e.aufklappbar && istOffen(e)">
+          @if (e.aufklappbar) { <span class="bb-icon" [innerHTML]="pfeil | safeSvg"></span> }
+        </span>
+        <span class="ui-themenbaum__titel" [id]="kennung('k' + e.pfad + '-name')">{{ e.knoten.titel }}</span>
+        @if (e.knoten.anzahl !== undefined) {
+          <span class="ui-themenbaum__neben" [id]="kennung('k' + e.pfad + '-anzahl')">{{ texte().anzahl(e.knoten.anzahl) }}</span>
+        }
+        @if (e.mehr) {
+          <span class="ui-themenbaum__neben ui-themenbaum__mehr" [id]="kennung('k' + e.pfad + '-mehr')">{{ texte().mehr }}</span>
+        }
+        @if (e.zustand) {
+          <span class="ui-themenbaum__neben ui-themenbaum__zustand"
+                [class.ui-themenbaum__zustand--fehler]="e.zustand === 'fehler' || e.zustand === 'gedrosselt'"
+                [id]="kennung('k' + e.pfad + '-zustand')">
+            @if (e.zustand === 'laedt') { <span class="ui-themenbaum__kreisel" aria-hidden="true"></span> }
+            {{ zustandText(e) }}
+          </span>
+        }
+      </span>
+      @if (e.kinder.length) {
+        <ul role="group" class="ui-themenbaum__gruppe">
+          <ng-container *ngTemplateOutlet="ebene; context: { $implicit: e.kinder }" />
+        </ul>
+      }
+    </li>
+  }
+</ng-template>

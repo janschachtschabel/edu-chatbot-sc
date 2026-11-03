@@ -21,6 +21,7 @@ import {
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { ChatApiClient } from '../stream/chat-api';
+import { offeneFragenSchliessen } from '../ui-bloecke/fragen-status';
 import { TourContext } from '../controllers/tour.controller';
 import { ContextGreetingContext } from '../controllers/context-greeting.controller';
 import { CollectionActionsContext } from '../controllers/collection-actions';
@@ -121,7 +122,12 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
   };
 
   const collectionActions: CollectionActionsContext = {
-    sendMessage: post,
+    // Karten-Aktionen und „Weitere laden“ sind Züge der Person: offene Fragen schließen wie im
+    // Backend (`services/ui_antwort`) — vor dem POST, wie `_sendCtx.addUserMessage` (Review U1).
+    sendMessage: (message, env, action, actionParams) => {
+      host.updateMessages(offeneFragenSchliessen);
+      return post(message, env, action, actionParams);
+    },
     sessionId: () => host.sessionId(),
     isLoading: () => host.isLoading(),
     setLoading: (v) => host.setLoading(v),
@@ -134,7 +140,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     dispatchPageAction: (pa) => host.dispatchPageAction(pa),
     messagesContainer: () => host.messagesContainer(),
     t: (key, params) => host.t(key, params),
-    ladeZweig: (nodeId) => host.api().themenbaumZweig(host.sessionId(), nodeId),
+    ladeZweig: (nodeId, signal) => host.api().themenbaumZweig(host.sessionId(), nodeId, signal),
   };
 
   const speech: SpeechContext = {

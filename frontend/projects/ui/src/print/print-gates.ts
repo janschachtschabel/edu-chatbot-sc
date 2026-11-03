@@ -10,10 +10,12 @@
  * `print-utils.ts` nach C1-b4 über der ≤300-Schwelle lag (395 Z.; seit Paket 9
  * steht der Lernpfad-Druck in `print-lernpfad.ts`).
  */
+import type { ModulRegister } from '@boerdi/ui-module';
 import { INHALTSRAHMEN } from '@boerdi/ui-module/_vertrag/modul-namen';
 
 import { ChatMessage } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
+import { modulDarstellbar } from '../ui-bloecke/modul-darstellbar';
 import { printLearningPath } from './print-lernpfad';
 import { PRINTABLE_CANVAS_RE, printCanvasMaterial } from './print-utils';
 
@@ -29,11 +31,12 @@ export function isLearningPath(msg: ChatMessage): boolean {
 }
 
 /**
- * Trägt die Nachricht einen Inhaltsrahmen-Block (mit eigenem Druckknopf)? Dann bekommt sie
- * keine zusätzliche Druckleiste.
+ * Trägt die Nachricht einen Inhaltsrahmen-Block, den sein Modul zeigt (mit eigenem Druckknopf)?
+ * Dann bekommt sie keine zusätzliche Druckleiste. Bei einer fremden Hauptversion steht nur die
+ * Textfassung — dann bleibt die Leiste (Review U1 gesamt).
  */
-export function hatDokumentBox(msg: ChatMessage): boolean {
-  return !!msg.ui?.ui_bloecke?.some((b) => b.modul === INHALTSRAHMEN);
+export function hatDokumentBox(msg: ChatMessage, register: ModulRegister): boolean {
+  return modulDarstellbar(msg, INHALTSRAHMEN, register);
 }
 
 /**

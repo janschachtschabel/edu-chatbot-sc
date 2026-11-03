@@ -111,7 +111,10 @@ export class WidgetModulHost implements Omit<ModulHost, 'antworten'> {
     else console.warn('boerdi: unbekannte Modul-Aktion', name);
   }
 
+  /** Nur http(s) wird ein Link (Review U1 gesamt): `javascript:`, `data:` und relative Adressen
+   *  ergeben `href: ''` — die Daten kommen zwar geprüft vom Backend, ein Modul reicht sie aber durch. */
   link(url: string): { href: string; hinweis: string } {
+    if (!/^https?:\/\/[^/]/i.test((url ?? '').trim())) return { href: '', hinweis: '' };
     const regeln = this.seams.verweise();
     const href = regeln.withBsid(url);
     return { href, hinweis: regeln.externalLinkWarning(href) || '' };

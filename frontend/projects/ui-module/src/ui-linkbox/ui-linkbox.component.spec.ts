@@ -89,4 +89,11 @@ describe('UiLinkbox', () => {
     expect(el.querySelector('.result-group__heading')?.textContent?.trim()).toBe('Web page contents');
     expect(el.querySelector('a')?.getAttribute('title')).toBe('Web page — Externe Seite');
   });
+
+  it('Symbole sind für Vorleser verborgen (aria-hidden, Review U1 gesamt)', async () => {
+    const el = await render({ links: [{ titel: 'WLO', url: 'https://wirlernenonline.de/' }] });
+    const symbole = [...el.querySelectorAll('.bb-icon, .result-group__item-icon')];
+    expect(symbole.length).toBeGreaterThan(0);
+    expect(symbole.filter((s) => s.getAttribute('aria-hidden') !== 'true')).toEqual([]);
+  });
 });
