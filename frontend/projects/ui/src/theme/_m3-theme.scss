@@ -1,0 +1,56 @@
+// Das Material-3-Theme des Widgets als Mixin (Paket U1-f).
+//
+// Ausgegeben wird es an `:host` eines Elements, nie an `:root` — Begründung in
+// `widget.component.scss`. Herausgelöst, damit die Studio-Vorschau der UI-Module
+// (`studio/…/ui-modul-vorschau.component.scss`) dieselben `--mat-sys-*`-Token bekommt wie
+// das Widget, ohne die Werte ein zweites Mal aufzuschreiben. Die Ausgabe im Widget ist
+// unverändert (dieselben Zeilen, nur hierher verschoben).
+@use '@angular/material' as mat;
+@use 'theme/m3-palette' as palette;
+
+@mixin theme() {
+  @include mat.theme((
+    color: (
+      primary: palette.$primary-palette,
+      tertiary: palette.$tertiary-palette,
+    ),
+    // Kein Google-Font — die selbst gehostete System-Schrift bleibt
+    // (DSGVO: keine externen Font-CDNs).
+    typography: (plain-family: (system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif)),
+    density: 0,
+  ));
+
+  // ── Token-Brücke: die Kundenfarbe schlägt auf die Material-Token durch ──
+  //
+  // `mat.theme` backt die `--mat-sys-*`-Werte zur BAUZEIT aus #1c4587. Der
+  // Embedder kann aber `primary-color="…"` setzen (→ `--boerdi-primary`,
+  // validiert in `widget.component.ts`); ohne diese Brücke folgen nur unsere
+  // handgeschriebenen Teile, und die Material-Knöpfe blieben blau.
+  //
+  // Umgesetzt mit `color-mix` aus `--boerdi-primary` — dasselbe Muster, das
+  // `.card-btn`, `.btn-load-more` und `.tp-toggle` schon benutzen. Die
+  // Alternative wäre HCT-Mathematik zur Laufzeit (M3 denkt in ganzen
+  // Tonwertfamilien, nicht in einem Hex); das wäre eine eigene Abhängigkeit
+  // für einen Knopf.
+  //
+  // `light-dark()` bleibt ERHALTEN: `color-scheme` ist vererbt, eine Gastseite
+  // mit `color-scheme: dark` kippt die Token des Widgets mit (gemessen). Ein
+  // einwertiger Override hätte das stillschweigend abgeschaltet.
+  //
+  // Überschrieben wird nur, was Markenfarbe TRÄGT. Flächen, Umrisse und
+  // Elevation bleiben neutral — sie sollen nicht mit der Kundenfarbe kippen.
+  // `on-primary` bleibt bewusst der gebackene Wert: es gehört zur gefüllten
+  // Knopfvariante, die wir nirgends rendern, und ein pauschales Weiß wäre bei
+  // einer hellen Kundenfarbe ein Kontrastbruch.
+  $marke: var(--boerdi-primary, #1c4587);
+
+  --mat-sys-primary: light-dark(#{$marke}, color-mix(in srgb, #{$marke} 55%, white));
+  --mat-sys-secondary-container: light-dark(
+    color-mix(in srgb, #{$marke} 14%, white),
+    color-mix(in srgb, #{$marke} 55%, black)
+  );
+  --mat-sys-on-secondary-container: light-dark(
+    color-mix(in srgb, #{$marke} 72%, black),
+    color-mix(in srgb, #{$marke} 22%, white)
+  );
+}

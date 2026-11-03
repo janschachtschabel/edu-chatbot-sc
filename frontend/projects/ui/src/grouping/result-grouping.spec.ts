@@ -18,6 +18,7 @@ import {
   groupedTopicCards,
   groupedWebLinks,
   hasGroupedResults,
+  hatLinkbox,
   isTourMessage,
   itemTooltip,
   searchCtaTooltip,
@@ -298,6 +299,23 @@ describe('Tooltips', () => {
     const ohneTerm = msg({ queryMetas: [meta({ tool_name: 'search_wlo_content', search_url: 'https://s' })] });
     expect(searchCtaTooltip(mitTerm, ctxEn)).toBe('Show all results for “Mathe”');
     expect(searchCtaTooltip(ohneTerm, ctxEn)).toBe('Show all search results');
+  });
+});
+
+describe('hatLinkbox / hasGroupedResults mit Linkbox (U1-c1)', () => {
+  const linkbox = { block_id: 'b0000003', modul: 'ui_linkbox', version: 1, art: 'anzeigen' as const,
+    daten: {}, text: '', status: 'nur_anzeige' as const };
+  const nurLinks = { webLinks: [{ title: 'WLO', url: 'https://wirlernenonline.de/' }] };
+
+  it('hatLinkbox erkennt den Block', () => {
+    expect(hatLinkbox(msg({ ui: { ui_bloecke: [linkbox] } }))).toBe(true);
+    expect(hatLinkbox(msg({ ui: { ui_bloecke: [{ ...linkbox, modul: 'ui_inhaltsrahmen' }] } }))).toBe(false);
+    expect(hatLinkbox(msg({}))).toBe(false);
+  });
+
+  it('nur Webseiten und eine Linkbox: kein leerer Trefferrahmen', () => {
+    expect(hasGroupedResults(msg({ ...nurLinks }), ctx)).toBe(true);
+    expect(hasGroupedResults(msg({ ...nurLinks, ui: { ui_bloecke: [linkbox] } }), ctx)).toBe(false);
   });
 });
 

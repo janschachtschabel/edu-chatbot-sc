@@ -35,6 +35,7 @@ describe('ChatShellComponent — Lifecycle-Wiring (8-4S-e5)', () => {
     (c as unknown as { _api: unknown })._api = {
       setBaseUrl: vi.fn(), getSpeechEnabled: async () => true, loadHistory: async () => [],
       setUiLocale: vi.fn(),  // C1-f1: ngOnInit meldet dem Client die Widget-Sprache
+      setUiModule: vi.fn(),  // Review U1-d1: ngOnInit meldet die Module des Registers
     };
     fixture.detectChanges(); // triggert ngOnInit
 

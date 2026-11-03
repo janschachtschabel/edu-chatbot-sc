@@ -71,7 +71,6 @@ export const DE: Catalogue = {
   'chat.send': 'Senden',
   'chat.hostTask': 'Auftrag der Seite',
   /** An einer Ergebnis-Box aus dem Verlauf, die dort gekappt gespeichert ist. */
-  'chat.documentShortened': '*(gekürzt — der vollständige Text war zu lang für den Verlauf)*',
 
   'chat.input.label': 'Nachricht an BOERDi',
   'chat.input.placeholder': 'Nachricht eingeben…',
@@ -130,18 +129,6 @@ export const DE: Catalogue = {
   'swimlanes.cta.title': 'Zur vollständigen Themenseite: {title}',
   'swimlanes.cta.label': 'Zur Themenseite „{title}"',
   'swimlanes.cta.sub': 'Alle Inhalte auf der Themenseite ansehen',
-
-  // ── Inline-Dokument-Box (inline-documents.component) ───────────────
-  'inlineDoc.print': 'Als PDF drucken / speichern',
-
-  /** Rückfall-Titel der Box, wenn das Backend keinen `title` liefert. Der
-   *  Schlüsselrest ist der Backend-`kind` — so ist die Zuordnung ablesbar. */
-  'inlineDoc.kind.lernpfad': 'Lernpfad',
-  'inlineDoc.kind.ki_material': 'Material',
-  'inlineDoc.kind.edit': 'Bearbeitete Version',
-  'inlineDoc.kind.bericht': 'Bericht',
-  'inlineDoc.kind.remix': 'Remix',
-  'inlineDoc.kind.fallback': 'Inhalt',
 
   // ── Inhaltstypen (C1-b3) ───────────────────────────────────────────
   /** EIN Satz Schlüssel für zwei Verbraucher, weil beide denselben Begriff

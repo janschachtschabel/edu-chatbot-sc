@@ -16,7 +16,7 @@
  */
 import { WloCard } from '../cards/card-types';
 import {
-  ChatMessage, DebugInfo, InlineDocument, PaginationInfo, UiInfo,
+  ChatMessage, DebugInfo, PaginationInfo, UiInfo,
   QueryMetaEntry, TopicPageView, WebLink,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
@@ -51,7 +51,7 @@ export interface ShellHost {
     content: string, isLoading?: boolean, cards?: WloCard[],
     quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null, queryMetas?: QueryMetaEntry[],
-    webLinks?: WebLink[], inlineDocuments?: InlineDocument[],
+    webLinks?: WebLink[],
     displayRules?: Record<string, any>, topicPage?: TopicPageView | null,
   ) => string;
   removeMessage: (id: string) => void;
@@ -134,6 +134,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     dispatchPageAction: (pa) => host.dispatchPageAction(pa),
     messagesContainer: () => host.messagesContainer(),
     t: (key, params) => host.t(key, params),
+    ladeZweig: (nodeId) => host.api().themenbaumZweig(host.sessionId(), nodeId),
   };
 
   const speech: SpeechContext = {

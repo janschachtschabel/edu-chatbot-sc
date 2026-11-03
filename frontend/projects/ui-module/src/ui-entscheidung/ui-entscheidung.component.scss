@@ -1,0 +1,164 @@
+// Entscheidung (Paket U1-d1) — gleicher Rahmen wie der Inhaltsrahmen, nur Theme-Token.
+// Native Radio/Checkbox: `accent-color` färbt sie im Ton des Widgets, Tastatur und Zustand
+// bleiben die des Browsers. Ziele mindestens 24 px hoch (WCAG 2.5.8): die ganze Zeile ist Label.
+
+$border: var(--mat-sys-outline-variant);
+$text: var(--mat-sys-on-surface);
+$text-muted: var(--mat-sys-on-surface-variant);
+
+:host {
+  display: block;
+}
+
+.ui-entscheidung {
+  border: 1px solid $border;
+  border-radius: var(--mat-sys-corner-small);
+  padding: 8px 10px 10px;
+  background: var(--mat-sys-surface);
+  color: $text;
+  font-size: .82rem;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ui-entscheidung__gruppe {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ui-entscheidung__frage {
+  padding: 0;
+  font-weight: 600;
+  font-size: .86rem;
+  color: $text;
+  // Lange Fragen umbrechen statt die Box zu sprengen (320 px).
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ui-entscheidung__anleitung {
+  margin: 0;
+  color: $text-muted;
+  font-size: .78rem;
+}
+
+.ui-entscheidung__optionen {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ui-entscheidung__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-block-size: 32px;
+  padding: 4px 6px;
+  border-radius: var(--mat-sys-corner-extra-small);
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-primary) 6%, var(--mat-sys-surface));
+  }
+
+  input {
+    accent-color: var(--mat-sys-primary);
+    inline-size: 18px;
+    block-size: 18px;
+    margin: 1px 0 0;
+    flex-shrink: 0;
+    cursor: inherit;
+
+    &:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: 2px;
+    }
+  }
+}
+
+.ui-entscheidung__gruppe:disabled .ui-entscheidung__option {
+  cursor: default;
+
+  &:hover {
+    background: transparent;
+  }
+}
+
+.ui-entscheidung__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-entscheidung__hinweis {
+  color: $text-muted;
+  font-size: .76rem;
+}
+
+.ui-entscheidung__freitext-label {
+  font-weight: 600;
+  font-size: .78rem;
+  margin-top: 2px;
+}
+
+.ui-entscheidung__freitext {
+  font: inherit;
+  color: $text;
+  background: var(--mat-sys-surface);
+  border: 1px solid var(--mat-sys-outline);
+  border-radius: var(--mat-sys-corner-extra-small);
+  padding: 6px 8px;
+  resize: vertical;
+  min-block-size: 44px;
+  inline-size: 100%;
+  box-sizing: border-box;
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 1px;
+  }
+}
+
+// Gefüllter Knopf im Rollen-Paar (`on-primary` kippt im Dunkelmodus mit), wie „Senden“.
+.ui-entscheidung__senden {
+  align-self: flex-start;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  border: none;
+  border-radius: var(--mat-sys-corner-large);
+  padding: 6px 18px;
+  min-block-size: 32px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--mat-sys-primary) 88%, black);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  // Gesperrt nicht nur blasser: der Mauszeiger sagt es mit; Text bleibt lesbar.
+  &:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+  }
+}
+
+.ui-entscheidung__status {
+  margin: 0;
+  color: $text-muted;
+  font-size: .78rem;
+}

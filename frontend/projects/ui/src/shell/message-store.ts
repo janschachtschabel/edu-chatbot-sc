@@ -16,7 +16,7 @@ import { signal } from '@angular/core';
 
 import { WloCard } from '../cards/card-types';
 import {
-  ChatMessage, InlineDocument, PaginationInfo, QueryMetaEntry, TopicPageView, UiInfo, WebLink,
+  ChatMessage, PaginationInfo, QueryMetaEntry, TopicPageView, UiInfo, WebLink,
 } from '../grouping/message-types';
 
 /** Plant einen Rückruf für den nächsten Bildschirm-Rahmen. */
@@ -78,15 +78,14 @@ export class MessageStore {
   }
 
   /** Bot-Bubble anhängen; gibt die neue Message-ID zurück (Scroll-Ziel /
-   *  Loading-Handle). Body + Gates verbatim aus ALT chat.component.ts:1292-1317
-   *  — die 11-Positionen-Seam, exakt wie collection-actions sie ruft. */
+   *  Loading-Handle). Body + Gates aus ALT chat.component.ts:1292-1317, ohne die frühere
+   *  Dokument-Box (U1-b3) — die 10-Positionen-Seam, exakt wie collection-actions sie ruft. */
   addBotMessage(
     content: string, isLoading = false,
     cards?: WloCard[], quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null,
     queryMetas?: QueryMetaEntry[],
     webLinks?: WebLink[],
-    inlineDocuments?: InlineDocument[],
     displayRules?: Record<string, any>,
     topicPage?: TopicPageView | null,
   ): string {
@@ -98,7 +97,6 @@ export class MessageStore {
       visibleCardCount: pageSize,
       queryMetas: queryMetas || undefined,
       webLinks: webLinks || undefined,
-      inlineDocuments: inlineDocuments && inlineDocuments.length ? inlineDocuments : undefined,
       topicPage: (topicPage && topicPage.swimlanes && topicPage.swimlanes.length) ? topicPage : undefined,
       displayRules: displayRules || undefined,
       timestamp: new Date(),

@@ -37,8 +37,8 @@ interface Rec {
   phases: Array<[string, string]>; results: Array<{ resp: ChatResponse; msg: string }>;
   streamTexts: Array<[string, string, number]>; streamCleared: string[];
   loading: boolean[]; cleared: number; focus: number;
-  streamCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown }>;
-  postCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown }>;
+  streamCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown; uiAntwort?: unknown }>;
+  postCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown; uiAntwort?: unknown }>;
   /** Paket 7 (P2): Fragen, deren Antwort aus dem Verlauf geholt wurde. */
   historyCalls: string[];
   historyOpts: VerlaufNachfrage[];
@@ -99,12 +99,12 @@ function makeCtx(opts: Opts = {}): Rec {
     setScrollTarget: (id) => { rec.scroll.push(id); },
     focusInput: () => { rec.focus++; },
     pageContextEnv: () => opts.env,
-    stream: (msg, onEvent, env, action, actionParams) => {
-      rec.streamCalls.push({ msg, env, action, actionParams });
+    stream: (msg, onEvent, env, action, actionParams, uiAntwort) => {
+      rec.streamCalls.push({ msg, env, action, actionParams, uiAntwort });
       return (opts.stream ?? (() => Promise.resolve(makeResp())))(msg, onEvent, env, action, actionParams);
     },
-    post: (msg, env, action, actionParams) => {
-      rec.postCalls.push({ msg, env, action, actionParams });
+    post: (msg, env, action, actionParams, uiAntwort) => {
+      rec.postCalls.push({ msg, env, action, actionParams, uiAntwort });
       return (opts.post ?? (() => Promise.resolve(makeResp({ content: 'via POST' }))))(msg, env, action, actionParams);
     },
     formatPhaseLabel: opts.formatPhaseLabel ?? (() => null),
@@ -137,8 +137,14 @@ describe('runSendMessage — Lifecycle', () => {
     expect(r.streamCalls).toEqual([]);
   });
 
-  it('Happy-Path: clearInput → User-Bubble → Loading-Bubble → Ergebnis-Bubble (11-Arg) → onResult → isLoading/Fokus', async () => {
-    const resp = makeResp({ content: 'Da', cards: [{ id: 'k' }] as unknown as ChatResponse['cards'], quick_replies: ['q'] });
+  it('Happy-Path: clearInput → User-Bubble → Loading-Bubble → Ergebnis-Bubble (10-Arg) → onResult → isLoading/Fokus', async () => {
+    const links = [{ title: 'w', url: 'https://w' }] as ChatResponse['web_links'];
+    const regeln = { inline_documents: { font_size_percent: 90 } };
+    const seite = { variant_title: 'V', topic_page_url: 'https://t', swimlanes: [] } as unknown as ChatResponse['topic_page'];
+    const resp = makeResp({
+      content: 'Da', cards: [{ id: 'k' }] as unknown as ChatResponse['cards'], quick_replies: ['q'],
+      web_links: links, display_rules: regeln, topic_page: seite,
+    });
     const r = makeCtx({ input: '', stream: () => Promise.resolve(resp) });
     await runSendMessage('Hallo', 'act', { p: 1 }, r.ctx);
 
@@ -148,11 +154,13 @@ describe('runSendMessage — Lifecycle', () => {
     expect(r.bots[0]).toMatchObject({ content: '', isLoading: true });
     expect(r.bots[1].content).toBe('Da');
     expect(r.bots[1].isLoading).toBe(false);
-    // 11-Positionen-Seam: cards/quick_replies an rest[0]/rest[1].
+    // 10-Positionen-Seam: cards/quick_replies an rest[0]/rest[1].
     expect(r.bots[1].rest[0]).toEqual([{ id: 'k' }]);
     expect(r.bots[1].rest[1]).toEqual(['q']);
     // Paket 18C/D: `ui` statt `debug` an rest[2].
     expect(r.bots[1].rest[2]).toEqual({ pattern: 'M06' });
+    // U1-b3: ohne die Dokumente rücken Anzeige-Regeln und Themenseite eine Position vor.
+    expect(r.bots[1].rest.slice(5)).toEqual([links, regeln, seite]);
     // Loading-Bubble wird entfernt, Scroll wandert Loading→Ergebnis.
     expect(r.removed).toEqual([r.bots[0].id]);
     expect(r.scroll).toEqual([r.bots[0].id, r.bots[1].id]);
@@ -163,6 +171,20 @@ describe('runSendMessage — Lifecycle', () => {
     expect(r.results).toEqual([{ resp, msg: 'Hallo' }]);
     expect(r.loading).toEqual([true, false]);
     expect(r.focus).toBe(1);
+  });
+
+  it('U1-d1: eine Modul-Antwort reist mit Strom und POST-Rückfall; sie ist kein getippter Text', async () => {
+    const antwort = { block_id: 'b0000001', daten: { gewaehlt: ['a'] } };
+    const r = makeCtx({ stream: () => Promise.reject(new TypeError('Netz weg')) });
+    await runSendMessage('Klasse 5', undefined, undefined, r.ctx, antwort);
+    expect(r.users).toEqual(['Klasse 5']);
+    expect(r.streamCalls[0]).toMatchObject({ msg: 'Klasse 5', action: undefined, uiAntwort: antwort });
+    expect(r.postCalls[0]).toMatchObject({ msg: 'Klasse 5', uiAntwort: antwort });
+
+    // „beschäftigt“: die Antwort wandert nicht als Text ins Eingabefeld (sie ginge dann ohne Block).
+    const besetzt = makeCtx({ stream: () => Promise.reject(Object.assign(new Error('x'), { code: 'session_busy' })) });
+    await runSendMessage('Klasse 5', undefined, undefined, besetzt.ctx, antwort);
+    expect(besetzt.inputSet).toEqual([]);
   });
 
   it('Text-Fallback aufs Input-Feld inkl. trim (ALT `text || userInput.trim()`)', async () => {

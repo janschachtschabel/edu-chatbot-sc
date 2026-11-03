@@ -223,29 +223,28 @@ describe('antwortAusVerlaufHolen', () => {
     });
   });
 
-  it('bringt die Ergebnis-Boxen und die Themenseite mit (Review C-2)', async () => {
-    // Bei `zeige_dokument` steht im Text nur der Begleitsatz — die Box selbst
-    // liegt am Verlaufseintrag unter `ui.dokumente` (Paket 18C/D).
+  it('bringt die Ergebnis-Boxen (Inhaltsrahmen-Blöcke an `ui`) und die Themenseite mit (Review C-2)', async () => {
+    // Im Text steht nur der Begleitsatz — die Box liegt seit U1-b2 vollständig als Block am
+    // Verlaufseintrag; `ui.dokumente` (gekürzt, Folgezug-Kontext) zeigt das Widget nicht mehr.
     const themenseite = { variant_title: 'Optik', topic_page_url: 'https://wlo.de/t', swimlanes: [{ title: 'A' }] };
+    const rahmen = {
+      block_id: 'b0000001', modul: 'ui_inhaltsrahmen', version: 1, art: 'anzeigen' as const,
+      daten: { titel: 'Arbeitsblatt', art: 'ki_material', markdown: '# Linsen' },
+      text: '# Linsen', status: 'nur_anzeige' as const,
+    };
     const eintrag: HistoryMessage = {
       id: 2, role: 'assistant', content: 'Hier ist dein Arbeitsblatt.',
       ui: {
-        dokumente: [
-          { kind: 'ki_material', title: 'Arbeitsblatt', content: '# Linsen', gekuerzt: false },
-          { kind: 'lernpfad', title: 'Pfad', content: '# Lang', gekuerzt: true },
-          { kind: 'x', title: 'leer', content: '   ' },
-        ],
+        dokumente: [{ kind: 'ki_material', title: 'Arbeitsblatt', content: '# Linsen', gekuerzt: false }],
+        ui_bloecke: [rahmen],
         topic_page_view: themenseite,
       },
     };
     const resp = await antwortAusVerlaufHolen(
       () => Promise.resolve([u('Frage', 1), eintrag]), 'Frage', 'bb-1',
-      { warten: () => Promise.resolve(), gekuerztHinweis: '(gekürzt)' },
+      { warten: () => Promise.resolve() },
     );
-    expect(resp?.inline_documents).toEqual([
-      { kind: 'ki_material', title: 'Arbeitsblatt', content: '# Linsen' },
-      { kind: 'lernpfad', title: 'Pfad', content: '# Lang\n\n(gekürzt)' },
-    ]);
+    expect(resp?.ui?.ui_bloecke).toEqual([rahmen]);
     expect(resp?.topic_page).toEqual(themenseite);
   });
 

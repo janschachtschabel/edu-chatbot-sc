@@ -48,6 +48,7 @@ function fakeApi(opts: { streamRejects?: Error; resp?: ChatResponse } = {}) {
     // wartender Test schon — ohne diese Attrappen stürbe er an einem Fehler
     // aus `ngOnInit` statt an seiner eigenen Aussage.
     setUiLocale: vi.fn(),
+    setUiModule: vi.fn(),
     setGuideEnv: vi.fn(),
     setBaseUrl: vi.fn(),
     getSpeechEnabled: vi.fn(async () => false),

@@ -7,6 +7,7 @@ import type { TranslationParams } from '../i18n/dictionary';
 import { ChatMessage, WebLink } from './message-types';
 import {
   groupedWebLinks,
+  hatLinkbox,
   isTourMessage,
   itemTooltip as itemTooltipUtil,
   ResultGroupsContext,
@@ -74,7 +75,8 @@ export class WebLinksComponent {
     this.ctx().t(key, params);
 
   protected readonly links = computed(() =>
-    isTourMessage(this.message()) ? [] : groupedWebLinks(this.message(), this.ctx()));
+    isTourMessage(this.message()) || hatLinkbox(this.message())
+      ? [] : groupedWebLinks(this.message(), this.ctx()));
 
   /** ALT `ChatComponent.webLinkUrl` = `withBsid(link.url)`. Idempotent — die
    *  URL trägt aus `groupedWebLinks` bereits `?bsid` (trusted-host bricht bei

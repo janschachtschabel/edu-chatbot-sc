@@ -79,7 +79,7 @@ export function printDate(t: TranslateFn): string {
  *
  * ``blockquotes: true`` (Default, Canvas/Lernpfad-Pfad): ``> x``-Zeilen
  * werden nach dem HTML-Escape zurückrestauriert und als ``<blockquote>``
- * gerendert. ``blockquotes: false`` (InlineDocument-Pfad, IST-Verhalten
+ * gerendert. ``blockquotes: false`` (Inhaltsrahmen-Druck über ``WidgetModulHost.drucken``, IST-Verhalten
  * von ``_printMarkdown``): kein Restore, ``> x`` erscheint als
  * ``<p>&gt; x</p>``.
  */
@@ -127,7 +127,7 @@ export function printMdToHtml(
   return out.join('\n');
 }
 
-/** Gemeinsamer Markdown-Print-Helper für InlineDocument + Legacy-Canvas
+/** Markdown-Druck des Inhaltsrahmens (``WidgetModulHost.drucken``)
  *  (vorher ``ChatComponent._printMarkdown``). Auto-Print nach Load — seit
  *  Paket 8 aus dem Widget heraus statt per Inline-Skript (`print-fenster.ts`).
  *

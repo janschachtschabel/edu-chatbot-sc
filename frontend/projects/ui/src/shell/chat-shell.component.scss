@@ -1,7 +1,7 @@
 // Chat-Shell-Stile — Verbatim-Port der SHELL-EIGENEN Blöcke aus ALT
 // chat.component.scss. Alles, was inzwischen einer eigenen 8-2-Komponente
 // gehört, liegt dort (result-groups/swimlanes → `_result-group.scss`,
-// inline-documents, quick-replies, debug-panel, wlo-card-tile); hier bleibt das
+// ui-bloecke/UI-Module, quick-replies, debug-panel, wlo-card-tile); hier bleibt das
 // Transkript-Chrome — Wrapper, Messages-Bereich, Bubble, Typing-Indikator, die
 // Legacy-Druck-Leisten und die TTS-Aktionszeile. Das Eingabe-Chrome liegt im
 // Partial `_chat-footer.scss` (eigene Änderungs-Ursache).
@@ -265,7 +265,7 @@ $border:     var(--mat-sys-outline-variant);
 
 // .btn-print entfernt (2026-06-10): die Bubble-Print-Buttons in msg-actions
 // existieren nicht mehr — Drucken läuft über den Button in der
-// InlineDocument-Box bzw. die Legacy-Print-Bars (.btn-lp-print).
+// Inhaltsrahmen (UI-Modul) bzw. die Legacy-Print-Bars (.btn-lp-print).
 
 // ── Lernpfad inline print button (prominent, at the end of the LP text) ──
 .lp-print-bar {

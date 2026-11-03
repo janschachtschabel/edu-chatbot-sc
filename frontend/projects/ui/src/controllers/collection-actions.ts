@@ -19,10 +19,12 @@
  * stehen so auch im gespeicherten Verlauf; eine Übersetzung machte die Historie
  * sprachabhängig.
  */
+import { TREFFERLISTE } from '@boerdi/ui-module/_vertrag/modul-namen';
+
 import { WloCard } from '../cards/card-types';
 import {
   ChatMessage, ChatResponse, DebugInfo, PaginationInfo, UiInfo,
-  QueryMetaEntry, WebLink, InlineDocument, TopicPageView,
+  QueryMetaEntry, WebLink, TopicPageView,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { fehlerKurz } from '../obs/fehler-kurz';
@@ -53,7 +55,7 @@ export interface CollectionActionsContext {
     content: string, isLoading?: boolean, cards?: WloCard[],
     quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null, queryMetas?: QueryMetaEntry[],
-    webLinks?: WebLink[], inlineDocuments?: InlineDocument[],
+    webLinks?: WebLink[],
     displayRules?: Record<string, any>, topicPage?: TopicPageView | null,
   ) => string;
   removeMessage: (id: string) => void;
@@ -70,11 +72,25 @@ export interface CollectionActionsContext {
   /** Übersetzer für die Fehler-Bubbles (C1-b4). Über den Kontext wie alles
    *  andere hier — die Aktionen sind Modul-Funktionen ohne eigenen Zustand. */
   t: TranslateFn;
+  /** U1-h: Unterthemen eines Knotens (`ChatApiClient.themenbaumZweig` mit LIVE-Sitzung). */
+  ladeZweig: (nodeId: string) => Promise<Record<string, unknown>>;
 }
 
-/** Inhalte einer Sammlung als neuen Bot-Turn laden (Card-Button „Inhalte zeigen"). */
-export async function browseCollection(
-  nodeId: string, title: string, ctx: CollectionActionsContext,
+/** Was eine Karten-Aktion ausmacht: gesendeter Text (bleibt deutsch — er ist die Anweisung ans
+ *  Backend, kein Oberflächentext), Direktaktion samt Parametern, Fehlertext und Protokollzeile. */
+interface KartenAktionAuftrag {
+  readonly nachricht: string;
+  readonly aktion: string;
+  readonly parameter: Record<string, string>;
+  readonly fehlerSchluessel: string;
+  readonly protokoll: string;
+}
+
+/** Der gemeinsame Ablauf der Karten-Aktionen: Loading-Bubble → sendMessage → Render →
+ *  Scroll/Debug/PageAction, im Fehlerfall die übersetzte Fehler-Bubble. Seit U1-e eine Stelle
+ *  statt vier fast wortgleicher Kopien (Upgrade-Pfad des früheren `simplify:`-Vermerks). */
+async function runCardAction(
+  auftrag: KartenAktionAuftrag, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
   if (ctx.isLoading()) return;
   const veraltet = sitzungsWache(() => ctx.sessionId());
@@ -82,110 +98,77 @@ export async function browseCollection(
   const loadingId = ctx.addBotMessage('', true);
 
   try {
-    const resp = await ctx.sendMessage(
-      `Inhalte der Sammlung "${title}"`,
-      undefined,
-      'browse_collection',
-      { collection_id: nodeId, title },
-    );
+    const resp = await ctx.sendMessage(auftrag.nachricht, undefined, auftrag.aktion, auftrag.parameter);
     if (veraltet()) return;
     ctx.removeMessage(loadingId);
-    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
+    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug, resp.ui);
     ctx.dispatchPageAction(resp.page_action);
   } catch (err) {
     if (veraltet()) return;
-    console.warn('boerdi: Sammlung nicht geladen —', fehlerKurz(err));
+    console.warn(`boerdi: ${auftrag.protokoll} —`, fehlerKurz(err));
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(
       drosselHinweis(ctx.t, err) ?? fristHinweis(ctx.t, err)
-        ?? ctx.t('error.browseCollection', { title }));
+        ?? ctx.t(auftrag.fehlerSchluessel, { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);
+}
+
+/** Inhalte einer Sammlung als neuen Bot-Turn laden (Card-Button „Inhalte zeigen"). */
+export function browseCollection(
+  nodeId: string, title: string, ctx: CollectionActionsContext,
+): Promise<void> {
+  return runCardAction({
+    nachricht: `Inhalte der Sammlung "${title}"`, aktion: 'browse_collection',
+    parameter: { collection_id: nodeId, title }, fehlerSchluessel: 'error.browseCollection',
+    protokoll: 'Sammlung nicht geladen',
+  }, title, ctx);
 }
 
 /** Volltext EINES Materials als neuen Bot-Turn holen (Card-Button
  *  „Inhalt anzeigen", M17).
  *
  *  Hinter `show_content_text` läuft bewusst KEIN Antwort-LLM: die Aktion
- *  liefert den Text unverändert in `inline_documents` (Begründung im
+ *  liefert den Text unverändert als Inhaltsrahmen-Block (`ui.ui_bloecke`; Begründung im
  *  Backend-Modul `services/content_text_action.py`). Für diese Seite heißt
  *  das: nichts Besonderes zu tun — die Box steht an derselben Stelle der
- *  Render-Argumente wie bei M09/M10.
- *
- *  simplify: dritter fast wortgleicher Ablauf in dieser Datei
- *  (Loading-Bubble → sendMessage → Render → Scroll/Debug/PageAction). Die
- *  beiden anderen sind Verbatim-Ports aus ALT; sie jetzt hinter einen
- *  gemeinsamen Helfer zu ziehen wäre ein Refactor mitten in einer
- *  Funktionsänderung. Upgrade-Pfad: `runCardAction(message, action, params,
- *  ctx)` extrahieren, sobald eine vierte Aktion dazukommt. */
-export async function showContentText(
+ *  Render-Argumente wie bei M09/M10. */
+export function showContentText(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
-  if (ctx.isLoading()) return;
-  const veraltet = sitzungsWache(() => ctx.sessionId());
-  ctx.setLoading(true);
-  const loadingId = ctx.addBotMessage('', true);
-
-  try {
-    const resp = await ctx.sendMessage(
-      `Inhalt von "${title}"`,
-      undefined,
-      'show_content_text',
-      { node_id: nodeId, title },
-    );
-    if (veraltet()) return;
-    ctx.removeMessage(loadingId);
-    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
-    ctx.setScrollTarget(botMsgId);
-    ctx.setLatestDebug(resp.debug, resp.ui);
-    ctx.dispatchPageAction(resp.page_action);
-  } catch (err) {
-    if (veraltet()) return;
-    console.warn('boerdi: Inhaltstext nicht geladen —', fehlerKurz(err));
-    ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(
-      drosselHinweis(ctx.t, err) ?? fristHinweis(ctx.t, err)
-        ?? ctx.t('error.contentText', { title }));
-    ctx.setScrollTarget(errId);
-  }
-  ctx.setLoading(false);
+  return runCardAction({
+    nachricht: `Inhalt von "${title}"`, aktion: 'show_content_text',
+    parameter: { node_id: nodeId, title }, fehlerSchluessel: 'error.contentText',
+    protokoll: 'Inhaltstext nicht geladen',
+  }, title, ctx);
 }
 
 /** Lernpfad zu einer Sammlung generieren (Card-Button „Lernpfad"). */
-export async function generateLearningPath(
+export function generateLearningPath(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
-  if (ctx.isLoading()) return;
-  const veraltet = sitzungsWache(() => ctx.sessionId());
-  ctx.setLoading(true);
-  const loadingId = ctx.addBotMessage('', true);
+  return runCardAction({
+    nachricht: `Lernpfad für "${title}"`, aktion: 'generate_learning_path',
+    parameter: { collection_id: nodeId, title }, fehlerSchluessel: 'error.learningPath',
+    protokoll: 'Lernpfad nicht erzeugt',
+  }, title, ctx);
+}
 
-  try {
-    const resp = await ctx.sendMessage(
-      `Lernpfad für "${title}"`,
-      undefined,
-      'generate_learning_path',
-      { collection_id: nodeId, title },
-    );
-    if (veraltet()) return;
-    ctx.removeMessage(loadingId);
-    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
-    ctx.setScrollTarget(botMsgId);
-    ctx.setLatestDebug(resp.debug, resp.ui);
-    ctx.dispatchPageAction(resp.page_action);
-  } catch (err) {
-    if (veraltet()) return;
-    console.warn('boerdi: Lernpfad nicht erzeugt —', fehlerKurz(err));
-    ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(
-      drosselHinweis(ctx.t, err) ?? fristHinweis(ctx.t, err)
-        ?? ctx.t('error.learningPath', { title }));
-    ctx.setScrollTarget(errId);
-  }
-  ctx.setLoading(false);
+/** Unterthemen eines Knotens im Themenbaum (Paket U1-h): das Modul hängt sie in denselben Baum.
+ *  Kein Zug — keine Blase, kein Laden-Zustand der Shell (geht auch während eines Zugs). Bis U1-h
+ *  öffnete die Direktaktion `show_collection_tree` einen neuen Baum als Antwort darunter.
+ *  Wechselt die Sitzung während des Ladens, gehört das Ergebnis nicht mehr hierher
+ *  (`sitzungsWache`): dann lehnt der Aufruf ab. Fehler gehen samt `status` an das Modul. */
+export async function themenbaumZweig(
+  nodeId: string, ctx: CollectionActionsContext,
+): Promise<Record<string, unknown>> {
+  const veraltet = sitzungsWache(() => ctx.sessionId());
+  const daten = await ctx.ladeZweig(nodeId);
+  if (veraltet()) throw new Error('boerdi: Sitzung gewechselt — Zweig verworfen');
+  return daten;
 }
 
 /** „Mehr anzeigen": Karten-Fenster einer Message um 5 erweitern.
@@ -226,6 +209,16 @@ export function showMoreCards(msgId: string, ctx: CollectionActionsContext): voi
   }, 0);
 }
 
+/** Die Trefferliste eines `ui` mit den nachgeladenen Karten und der neuen Seitenangabe. */
+function mitNeuenKarten(ui: UiInfo, karten: WloCard[], seiten: PaginationInfo | null): UiInfo {
+  if (!ui.ui_bloecke?.some((b) => b.modul === TREFFERLISTE)) return ui;
+  return {
+    ...ui,
+    ui_bloecke: ui.ui_bloecke.map((b) =>
+      b.modul === TREFFERLISTE ? { ...b, daten: { ...b.daten, karten, seiten } } : b),
+  };
+}
+
 /** Pagination: weitere Inhalte einer Sammlung nachladen (Load more).
  *  Merged die neuen Cards in die BESTEHENDE Message (kein neuer Turn). */
 export async function loadMore(msgId: string, ctx: CollectionActionsContext): Promise<void> {
@@ -258,6 +251,8 @@ export async function loadMore(msgId: string, ctx: CollectionActionsContext): Pr
         visibleCardCount: merged.length,
         pagination: resp.pagination || undefined,
         content: resp.content,
+        // U1-c2b: die Trefferliste zeigt ihren Block — er bekommt dieselben Karten und Seiten.
+        ui: m.ui && mitNeuenKarten(m.ui, merged, resp.pagination ?? null),
       };
     }));
   } catch (err) {

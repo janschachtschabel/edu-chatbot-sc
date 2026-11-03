@@ -15,7 +15,7 @@
  * Rein: der Lader und das Warten kommen herein (Tests ohne Uhr und Netz).
  */
 import type {
-  ChatResponse, InlineDocument, PreparedWriteOut, TopicPageView, UiInfo,
+  ChatResponse, PreparedWriteOut, TopicPageView, UiInfo,
 } from '../grouping/message-types';
 import type { HistoryMessage } from '../stream/chat-api';
 
@@ -63,8 +63,6 @@ export interface NachfrageOptionen {
   abgebrochen?: () => boolean;
   /** Bricht die Nachfrage samt laufendem Abruf ab (Widget entfernt, Paket 9). */
   signal?: AbortSignal;
-  /** Vermerk an einer Box, die der Verlauf gekürzt hat (C-2). */
-  gekuerztHinweis?: string;
   warten?: (ms: number) => Promise<void>;
   /** Die Uhr in Millisekunden (Vorgabe `Date.now`). */
   jetzt?: () => number;
@@ -136,22 +134,6 @@ export async function antwortAusVerlauf(
   return null;
 }
 
-/** Die gezeigten Boxen eines Zugs, wie `turn_persist` sie an der Antwort ablegt
- *  (`ui.dokumente`, je Box gedeckelt). Bei `zeige_dokument` steht im Text nur
- *  der Begleitsatz — ohne sie fehlte das Ergebnis. */
-function dokumente(ui: UiInfo | undefined, hinweis?: string): InlineDocument[] | undefined {
-  const roh: any = ui?.dokumente;
-  if (!Array.isArray(roh)) return undefined;
-  const boxen = roh
-    .filter((d) => d && typeof d === 'object' && typeof d.content === 'string' && d.content.trim())
-    .map((d) => ({
-      kind: typeof d.kind === 'string' && d.kind ? d.kind : 'ki_material',
-      title: typeof d.title === 'string' ? d.title : '',
-      content: d.gekuerzt === true && hinweis ? `${d.content}\n\n${hinweis}` : d.content,
-    }));
-  return boxen.length ? boxen : undefined;
-}
-
 function themenseite(ui: UiInfo | undefined): TopicPageView | null {
   const v: any = ui?.topic_page_view;
   return v && typeof v === 'object' && Array.isArray(v.swimlanes) ? (v as TopicPageView) : null;
@@ -205,7 +187,6 @@ export async function antwortAusVerlaufHolen(
     pagination: null,
     web_links: eintrag.webLinks,
     query_metas: eintrag.queryMetas,
-    inline_documents: dokumente(eintrag.ui, opts.gekuerztHinweis),
     topic_page: themenseite(eintrag.ui),
     prepared_write: schreiben,
   };

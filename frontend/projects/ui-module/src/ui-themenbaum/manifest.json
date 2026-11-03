@@ -1,0 +1,244 @@
+{
+  "name": "ui_themenbaum",
+  "version": 1,
+  "art": "anzeigen",
+  "titel": {
+    "de": "Themenbaum",
+    "en": "Topic tree"
+  },
+  "beschreibung": "Zeigt die Unterthemen eines WLO-Fachportals oder einer Sammlung als aufklappbaren Baum mit zwei Ebenen; die Person kann von dort die Inhalte eines Themas oder tiefere Unterthemen oeffnen. Den Baum holt das System selbst: du nennst nur das Fach (subject) ODER die Sammlung (nodeId) und siehst die Themen nicht. Schreibe dazu hoechstens einen kurzen Begleitsatz und zaehle keine Themen auf.",
+  "wann": [
+    "die Person will wissen, welche Themen oder Unterthemen es in einem Fach oder einer Sammlung gibt",
+    "gefuehrtes Stoebern, z. B. 'zeig mir die Themen in Mathe'"
+  ],
+  "nicht_wann": [
+    "du brauchst die Unterthemen selbst, um weiterzuarbeiten (dafuer browse_collection_tree)",
+    "die Materialien einer Sammlung (dafuer get_collection_contents)",
+    "eine Suche nach Inhalten"
+  ],
+  "agent": true,
+  "eingabe": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "knoten"
+    ],
+    "properties": {
+      "titel": {
+        "type": "string",
+        "maxLength": 160,
+        "description": "Ueberschrift: Fach oder Sammlung, deren Unterthemen der Baum zeigt; leer, wenn unbekannt."
+      },
+      "wurzel_id": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9-]{1,80}$",
+        "description": "Kennung der Sammlung, deren Unterthemen der Baum zeigt."
+      },
+      "wurzel_url": {
+        "type": "string",
+        "pattern": "^https?://",
+        "maxLength": 2000,
+        "description": "Die Sammlung der Wurzel in WLO (nur http und https); setzt das System."
+      },
+      "gekuerzt": {
+        "type": "boolean",
+        "description": "Mindestens ein Zweig hat mehr Unterthemen, als der Baum zeigt."
+      },
+      "wurzel_mehr": {
+        "type": "boolean",
+        "description": "Die erste Ebene hat mehr Unterthemen, als der Baum zeigt."
+      },
+      "knoten": {
+        "type": "array",
+        "maxItems": 30,
+        "description": "Die Unterthemen der ersten Ebene, alphabetisch; leer, wenn es keine gibt.",
+        "items": {
+          "$ref": "#/$defs/knoten"
+        }
+      }
+    },
+    "$defs": {
+      "knoten": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "titel"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,80}$",
+            "description": "Kennung der Sammlung."
+          },
+          "titel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Name des Themas."
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https?://",
+            "maxLength": 2000,
+            "description": "Themenseite oder Sammlung auf WLO (nur http und https)."
+          },
+          "anzahl": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zahl der Inhalte, wenn der Server sie mitschickt."
+          },
+          "mehr": {
+            "type": "boolean",
+            "description": "Es gibt mehr Unterthemen, als hier stehen."
+          },
+          "kinder": {
+            "type": "array",
+            "maxItems": 10,
+            "description": "Unterthemen der zweiten Ebene.",
+            "items": {
+              "$ref": "#/$defs/blatt"
+            }
+          }
+        }
+      },
+      "blatt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "titel"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,80}$",
+            "description": "Kennung der Sammlung."
+          },
+          "titel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Name des Themas."
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https?://",
+            "maxLength": 2000,
+            "description": "Themenseite oder Sammlung auf WLO (nur http und https)."
+          },
+          "anzahl": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zahl der Inhalte, wenn der Server sie mitschickt."
+          },
+          "mehr": {
+            "type": "boolean",
+            "description": "Es gibt mehr Unterthemen, als hier stehen."
+          }
+        }
+      }
+    }
+  },
+  "datenquelle": {
+    "werkzeug": "browse_collection_tree",
+    "argumente": [
+      "subject",
+      "nodeId"
+    ],
+    "vorgaben": {
+      "depth": 2,
+      "maxResults": 31
+    }
+  },
+  "faehigkeiten": [
+    "oeffnen",
+    "nachladen"
+  ],
+  "textfassung": {
+    "vorlage": "link_liste",
+    "feld": "knoten"
+  },
+  "darstellung": {
+    "breit": false,
+    "platz": "oben"
+  },
+  "beispiele": [
+    {
+      "titel": "Fachportal mit zwei Ebenen",
+      "daten": {
+        "titel": "Mathematik",
+        "wurzel_id": "aaaa-1111",
+        "gekuerzt": true,
+        "knoten": [
+          {
+            "id": "bbbb-2222",
+            "titel": "Algebra",
+            "url": "https://wirlernenonline.de/sammlung/algebra",
+            "mehr": true,
+            "kinder": [
+              {
+                "id": "cccc-3333",
+                "titel": "Gleichungen",
+                "url": "https://wirlernenonline.de/sammlung/gleichungen",
+                "anzahl": 12
+              },
+              {
+                "id": "dddd-4444",
+                "titel": "Terme"
+              }
+            ]
+          },
+          {
+            "id": "eeee-5555",
+            "titel": "Geometrie",
+            "url": "https://wirlernenonline.de/geometrie/",
+            "anzahl": 7
+          }
+        ]
+      }
+    },
+    {
+      "titel": "Ohne Ueberschrift, nur eine Ebene",
+      "daten": {
+        "knoten": [
+          {
+            "id": "ffff-6666",
+            "titel": "Bruchrechnung"
+          },
+          {
+            "id": "gggg-7777",
+            "titel": "Prozentrechnung"
+          }
+        ]
+      }
+    },
+    {
+      "titel": "Keine Unterthemen",
+      "daten": {
+        "titel": "Optik",
+        "wurzel_id": "hhhh-8888",
+        "knoten": []
+      }
+    },
+    {
+      "titel": "Mehr Themen, als der Baum zeigt",
+      "daten": {
+        "titel": "Physik",
+        "wurzel_id": "iiii-9999",
+        "wurzel_url": "https://redaktion.example.org/edu-sharing/components/collections?id=iiii-9999",
+        "wurzel_mehr": true,
+        "knoten": [
+          {
+            "id": "jjjj-0001",
+            "titel": "Mechanik"
+          },
+          {
+            "id": "kkkk-0002",
+            "titel": "Optik"
+          }
+        ]
+      }
+    }
+  ]
+}

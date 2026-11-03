@@ -7,10 +7,11 @@
  * war bis 8-2g **absichtlich schmal** (nur die Grouping-Felder). Mit der
  * Chat-Shell (8-4S-a) ist es jetzt auf das **volle ALT-Modell**
  * konsolidiert: `id`/`sender`/`timestamp` required, plus `quickReplies`/
- * `loadingPhase`/`inlineDocuments`/`topicPage`. Seit Paket 18C/D trägt eine
+ * `loadingPhase`/`topicPage`. Seit Paket 18C/D trägt eine
  * Nachricht `ui` statt `debug` (siehe Feld-Kommentar).
  */
 import { WloCard } from '../cards/card-types';
+import type { UiBlock } from '@boerdi/ui-module';
 
 /** Eine MCP-Such-Metadaten-Zeile (aus `query_metas`). Grouping liest
  *  `tool_name`/`search_url`/`search_term`/`repository_url` für die
@@ -48,17 +49,6 @@ export interface TopicPageView {
   variant_title: string;
   topic_page_url: string;
   swimlanes: SwimlaneBox[];
-}
-
-/** Lernpfad (M09) / KI-Material (M10) / Edit (M11) als gerahmte Box im Chat
- *  (Welle E). `content` = Markdown-Body (via MarkdownRenderer gerendert).
- *  Verbatim aus ALT api.service.ts. */
-export interface InlineDocument {
-  /** "lernpfad" | "ki_material" | "edit" | "bericht" | "remix" */
-  kind: string;
-  title: string;
-  content: string;
-  meta?: Record<string, unknown>;
 }
 
 /** Ein Tool-Aufruf-Ergebnis (Triple-Schema v2). Verbatim aus ALT api.service.ts. */
@@ -132,11 +122,14 @@ export interface UiInfo {
   web_links?: unknown[];
   /** Typ-Fokus der Antwort (Material-Typ-Anfrage) — live und im Verlauf. */
   type_focus?: string;
+  /** Veraltet (U1-b2): das Widget liest es nicht — Boxen stehen als Blöcke in `ui_bloecke`. */
   dokumente?: unknown[];
   topic_page_view?: unknown;
   /** Nur für die Nachfrage nach einem Strom-Abbruch — nie beim Wiederherstellen
    *  ausführen, sonst liefe die Änderung ein zweites Mal. */
   prepared_write?: unknown;
+  /** Paket U1: die UI-Module der Antwort — live und im Verlauf (`@boerdi/ui-module`). */
+  ui_bloecke?: UiBlock[];
 }
 
 /** Debug-/Telemetrie-Block einer Bot-Antwort — **volles ALT-`DebugInfo`**
@@ -237,7 +230,6 @@ export interface ChatResponse {
   pagination: PaginationInfo | null;
   query_metas?: QueryMetaEntry[];
   web_links?: WebLink[];
-  inline_documents?: InlineDocument[];
   topic_page?: TopicPageView | null;
   display_rules?: Record<string, any>;
   tour?: { active: boolean; step: string; group: string } | null;
@@ -289,8 +281,6 @@ export interface ChatMessage {
   visibleCardCount?: number;
   queryMetas?: QueryMetaEntry[];
   webLinks?: WebLink[];
-  /** Lernpfade / KI-Materialien / Edits als gerahmte Box im Chat (Welle E). */
-  inlineDocuments?: InlineDocument[];
   /** M16 — Themenseiten-Inhalte (Schwimmlinien-Boxen) statt normaler Boxen. */
   topicPage?: TopicPageView | null;
   /** Echo der aktiven Display-Regeln (`01-base/display-rules.yaml`), per

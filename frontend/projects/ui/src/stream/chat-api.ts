@@ -18,6 +18,13 @@ import { fehlerKurz } from '../obs/fehler-kurz';
 import { verlaufAbrufen } from './history-transport';
 import { ChatStreamEvent, postChat, streamChat } from './stream-client';
 
+/** Antwort auf einen abfragenden UI-Block (Paket U1-d1, `ChatRequest.ui_antwort`). `message`
+ *  trägt dazu die lesbare Fassung; das Backend prüft die Antwort gegen die offene Frage. */
+export interface UiAntwortAnfrage {
+  readonly block_id: string;
+  readonly daten: Record<string, unknown>;
+}
+
 /** Request-`environment` (Kontext des Turns). Verbatim aus ALT api.service.ts. */
 export interface Environment {
   page: string;
@@ -50,7 +57,14 @@ export interface Environment {
   /** JSON-Schema, in dem der Gastgeber sein Ergebnis erwartet (2026-08-14).
    *  Wirkt nur mit der Agent-Maschine; siehe {@link ChatApiClient.setResultSchema}. */
   result_schema?: Record<string, any>;
+  /** Review U1-d1 (Plan §3.4): die UI-Module, die dieses Widget zeigen kann — siehe
+   *  {@link ChatApiClient.setUiModule}. */
+  ui_module?: string[];
 }
+
+/** Name eines UI-Moduls (`UI_MODUL_NAME` im Backend) und die Obergrenze der Meldung. */
+const UI_MODUL_NAME = /^ui_[a-z0-9_]{2,40}$/;
+const UI_MODULE_MAX = 50;
 
 /** UA-freie Geräteklasse aus der Viewport-Breite. Verbatim ALT api.service.ts:650. */
 export function detectDevice(): string {
@@ -131,6 +145,9 @@ export interface HistoryMessage {
   [key: string]: any;
 }
 
+/** Frist für einen Zweig des Themenbaums: über `MCP_CALL_TIMEOUT_S` (60 s) des Backends. */
+const ZWEIG_FRIST_MS = 75_000;
+
 /**
  * Zustandsbehafteter Chat-Client: hält `baseUrl` (+ Runtime-Override) und den
  * Lotsen-Env-State, formt `environment`/`body` und ruft die 8-3-Transporte.
@@ -150,6 +167,7 @@ export class ChatApiClient {
   private toolMode = '';
   private forcedQuickReplies: string[] = [];
   private forcedQuickRepliesMax: number | null = null;
+  private uiModule: string[] = [];
   private readonly fetchImpl?: typeof fetch;
 
   constructor(opts: ChatApiClientOptions = {}) {
@@ -254,6 +272,16 @@ export class ChatApiClient {
   }
 
   /**
+   * Review U1-d1 (Plan §3.4): welche UI-Module dieses Widget zeigen kann — die Namen seines
+   * Registers. Das Backend bietet ein Modul-Werkzeug nur an, wenn es hier steht; ohne Meldung
+   * (älteres Widget) keins. Nur gültige Namen, höchstens 50: ein ungültiger lehnte im Backend den
+   * ganzen Zug ab (422).
+   */
+  setUiModule(namen: readonly string[]): void {
+    this.uiModule = [...new Set(namen)].filter((n) => UI_MODUL_NAME.test(n)).sort().slice(0, UI_MODULE_MAX);
+  }
+
+  /**
    * O-B — Schnellantworten fuer den NAECHSTEN Zug hart setzen. Anders als
    * `start-replies` (nur Begruessung) gilt das je Zug, und es schlaegt alles
    * andere: Generator, Canvas-Vorgaben, Policy.
@@ -338,6 +366,7 @@ export class ChatApiClient {
       ...(this.inlineResultGrouping === null
         ? {} : { inline_result_grouping: this.inlineResultGrouping }),
       ...(this.toolMode ? { tool_mode: this.toolMode } : {}),
+      ...(this.uiModule.length ? { ui_module: [...this.uiModule] } : {}),
       ...(this.forcedQuickReplies.length
         ? { forced_quick_replies: [...this.forcedQuickReplies] } : {}),
       ...(this.forcedQuickReplies.length && this.forcedQuickRepliesMax != null
@@ -357,14 +386,15 @@ export class ChatApiClient {
     };
   }
 
-  /** Request-Body (session_id/message/environment + optionale Aktion). */
+  /** Request-Body (session_id/message/environment + optionale Aktion bzw. Modul-Antwort). */
   private buildBody(
     sessionId: string, message: string, env?: Partial<Environment>,
-    action?: string, actionParams?: Record<string, any>,
+    action?: string, actionParams?: Record<string, any>, uiAntwort?: UiAntwortAnfrage,
   ): Record<string, any> {
     const body: Record<string, any> = { session_id: sessionId, message, environment: this.buildEnvironment(env) };
     if (action) body['action'] = action;
     if (actionParams) body['action_params'] = actionParams;
+    if (uiAntwort) body['ui_antwort'] = uiAntwort;
     return body;
   }
 
@@ -382,11 +412,12 @@ export class ChatApiClient {
   async stream(
     sessionId: string, message: string, onEvent: (evt: ChatStreamEvent) => void,
     env?: Partial<Environment>, action?: string, actionParams?: Record<string, any>,
+    uiAntwort?: UiAntwortAnfrage,
   ): Promise<ChatResponse> {
     await this.anmeldung;
     return streamChat<ChatResponse>({
       url: `${this.baseUrl}/chat/stream`,
-      body: this.buildBody(sessionId, message, env, action, actionParams),
+      body: this.buildBody(sessionId, message, env, action, actionParams, uiAntwort),
       onEvent,
       fetchImpl: this.fetchImpl,
       extraHeaders: this.turnHeaders(),
@@ -398,15 +429,33 @@ export class ChatApiClient {
   async post(
     sessionId: string, message: string, env?: Partial<Environment>,
     action?: string, actionParams?: Record<string, any>, fristMs?: number,
+    uiAntwort?: UiAntwortAnfrage,
   ): Promise<ChatResponse> {
     await this.anmeldung;
     return postChat<ChatResponse>({
       url: `${this.baseUrl}/chat`,
-      body: this.buildBody(sessionId, message, env, action, actionParams),
+      body: this.buildBody(sessionId, message, env, action, actionParams, uiAntwort),
       fetchImpl: this.fetchImpl,
       extraHeaders: this.turnHeaders(),
       ...(fristMs === undefined ? {} : { fristMs }),
     });
+  }
+
+  /** Unterthemen eines Knotens im Themenbaum (U1-h, `POST /api/ui/themenbaum/zweig`): kein Zug,
+   *  nur Sitzung, Knoten und der Modus der Einbettung (er entscheidet im Backend, ob das Werkzeug
+   *  angeboten ist); der Zugangsblock reist wie bei jedem Zug mit. Löst mit `daten` auf; ein
+   *  nicht-ok-Abruf wirft mit `status` (`httpFehler`), eine Antwort ohne Daten-Objekt ebenso. */
+  async themenbaumZweig(sessionId: string, nodeId: string): Promise<Record<string, unknown>> {
+    await this.anmeldung;
+    const antwort = await postChat<{ daten?: unknown }>({
+      url: `${this.baseUrl}/ui/themenbaum/zweig`,
+      body: { session_id: sessionId, node_id: nodeId, ...(this.toolMode ? { tool_mode: this.toolMode } : {}) },
+      fetchImpl: this.fetchImpl,
+      fristMs: ZWEIG_FRIST_MS,
+    });
+    const daten = antwort?.daten;
+    if (!daten || typeof daten !== 'object' || Array.isArray(daten)) throw new Error('Themenbaum: Antwort ohne Daten');
+    return daten as Record<string, unknown>;
   }
 
   // ── Sprach-Transport (STT/TTS) ──────────────────────────────────

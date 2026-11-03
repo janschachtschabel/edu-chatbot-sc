@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { WloCard } from '../cards/card-types';
-import { InlineDocument, PaginationInfo, TopicPageView } from '../grouping/message-types';
+import { PaginationInfo, TopicPageView } from '../grouping/message-types';
 import { MessageStore } from './message-store';
 
 /**
@@ -14,7 +14,7 @@ import { MessageStore } from './message-store';
  * den Orchestrator/Controller-Wiring/Lifecycle (8-4S-c…e) über die Shell-Seams
  * konsumieren. Die REDUCER-BODIES + alle ALT-Gates bleiben verbatim; gepinnt:
  * Default-State, addUserMessage/addBotMessage-Feldmapping inkl. pageSize-
- * Default, `pagination||undefined`, inlineDocuments-Length-Gate,
+ * Default, `pagination||undefined`,
  * topicPage-swimlanes-Gate, id-Rückgabe/-Eindeutigkeit, removeMessage,
  * updateLoadingPhase (nur die ladende Bubble mit passender id).
  *
@@ -63,19 +63,18 @@ describe('MessageStore — State-Core', () => {
     expect(s.messages().map(m => m.id)).toEqual([a, b]);
   });
 
-  it('addBotMessage: volles Arg-Mapping (11 Positionen wie collection-actions es ruft)', () => {
+  it('addBotMessage: volles Arg-Mapping (10 Positionen wie collection-actions es ruft)', () => {
     const s = new MessageStore();
     const cards = [{ id: 'k' }] as unknown as WloCard[];
     const pagination: PaginationInfo = {
       total_count: 20, skip_count: 0, page_size: 10, has_more: true, collection_id: 'c', collection_title: 'T',
     };
-    const inlineDocs: InlineDocument[] = [{ kind: 'lernpfad', title: 'L', content: 'c' }];
     const topic: TopicPageView = {
       variant_title: 'V', topic_page_url: 'https://t', swimlanes: [{ heading: 'H', cards: [] }],
     };
     const id = s.addBotMessage(
       'X', false, cards, ['q'], { pattern: 'M06' }, pagination,
-      undefined, [{ title: 'w', url: 'u' }], inlineDocs, { fontSize: 90 }, topic,
+      undefined, [{ title: 'w', url: 'u' }], { fontSize: 90 }, topic,
     );
     const m = s.messages()[0];
     expect(m.id).toBe(id);
@@ -86,17 +85,15 @@ describe('MessageStore — State-Core', () => {
     expect(m.visibleCardCount).toBe(10); // = pagination.page_size
     expect(m.queryMetas).toBeUndefined();
     expect(m.webLinks).toEqual([{ title: 'w', url: 'u' }]);
-    expect(m.inlineDocuments).toBe(inlineDocs);
     expect(m.displayRules).toEqual({ fontSize: 90 });
     expect(m.topicPage).toBe(topic);
   });
 
-  it('addBotMessage-Gates: leere inlineDocuments/topicPage-ohne-swimlanes/pagination-null → undefined', () => {
+  it('addBotMessage-Gates: topicPage-ohne-swimlanes/pagination-null → undefined', () => {
     const s = new MessageStore();
     const topicNoLanes: TopicPageView = { variant_title: 'V', topic_page_url: 'https://t', swimlanes: [] };
-    s.addBotMessage('X', false, undefined, undefined, undefined, null, undefined, undefined, [], undefined, topicNoLanes);
+    s.addBotMessage('X', false, undefined, undefined, undefined, null, undefined, undefined, undefined, topicNoLanes);
     const m = s.messages()[0];
-    expect(m.inlineDocuments).toBeUndefined();
     expect(m.topicPage).toBeUndefined();
     expect(m.pagination).toBeUndefined();
     expect(m.visibleCardCount).toBe(5); // Default-pageSize bei pagination null

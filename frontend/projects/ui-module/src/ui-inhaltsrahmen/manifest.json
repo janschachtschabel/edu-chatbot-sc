@@ -1,0 +1,101 @@
+{
+  "name": "ui_inhaltsrahmen",
+  "version": 1,
+  "art": "anzeigen",
+  "titel": {
+    "de": "Inhaltsrahmen",
+    "en": "Content frame"
+  },
+  "beschreibung": "Zeigt ein fertiges Arbeitsergebnis als eigene Box mit Drucken und Download: Verlaufsplan, Unterrichtsreihe, Arbeitsblatt, Lernpfad, Zeugnis, Brief oder Fachtext. markdown traegt das VOLLSTAENDIGE Ergebnis — nicht zusammenfassen, nicht bloss ankuendigen. Die Prosa-Antwort daneben ist nur der Begleitsatz (ein bis zwei Saetze).",
+  "wann": [
+    "sobald ein Ergebnis fertig ist, im selben Zug; Rueckfragen vorher sind in Ordnung",
+    "fuer erstellte Materialien, Stunden- und Lernpfad-Planungen und Texte, die man drucken oder speichern will"
+  ],
+  "nicht_wann": [
+    "fuer Suchtreffer aus WLO — die erscheinen als Karten",
+    "fuer kurze Antworten, die in einen Satz passen"
+  ],
+  "agent": true,
+  "eingabe": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "titel",
+      "art",
+      "markdown"
+    ],
+    "properties": {
+      "titel": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160,
+        "description": "Die Ueberschrift der Box, z. B. 'Unterrichtsverlaufsplan: Einfuehrung in die Optik'."
+      },
+      "art": {
+        "type": "string",
+        "enum": [
+          "lernpfad",
+          "ki_material",
+          "edit",
+          "bericht",
+          "remix",
+          "stundenplanung",
+          "unterrichtsreihe",
+          "zeugnis",
+          "dokument",
+          "kompendialtext",
+          "volltext",
+          "schreib_vorschau"
+        ],
+        "description": "Die Form des Ergebnisses: lernpfad (aufeinander aufbauende Materialien), ki_material (erzeugtes Arbeitsblatt, Quiz, Aufgabenset), edit (ueberarbeitete Fassung eines vorher gezeigten Inhalts), bericht (Auswertung oder Pruefzusammenfassung), remix (Zusammenstellung aus vorhandenen Inhalten), stundenplanung (Verlaufsplan fuer EINE Stunde), unterrichtsreihe (Planung ueber mehrere Stunden), zeugnis (Zeugnis oder Beurteilung), dokument (Brief oder sonstiges Schriftstueck), kompendialtext (Fachtext zu einem Gegenstand).",
+        "x-nur-system": [
+          "volltext",
+          "schreib_vorschau"
+        ]
+      },
+      "markdown": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Das vollstaendige Ergebnis als Markdown (Ueberschriften, Listen, Tabellen, Links)."
+      }
+    }
+  },
+  "datenquelle": null,
+  "faehigkeiten": [
+    "drucken",
+    "herunterladen"
+  ],
+  "textfassung": {
+    "vorlage": "markdown",
+    "feld": "markdown"
+  },
+  "darstellung": {
+    "breit": false
+  },
+  "beispiele": [
+    {
+      "titel": "Stundenplanung mit Tabelle",
+      "daten": {
+        "titel": "Unterrichtsverlaufsplan: Einführung in die Optik",
+        "art": "stundenplanung",
+        "markdown": "## Ziel\nDie Lernenden beschreiben, wie Licht sich ausbreitet.\n\n| Phase | Dauer | Inhalt |\n|---|---|---|\n| Einstieg | 10 min | Schattenversuch |\n| Erarbeitung | 25 min | Stationen |\n| Sicherung | 10 min | Merksatz |"
+      }
+    },
+    {
+      "titel": "Lernpfad mit Links",
+      "daten": {
+        "titel": "Lernpfad Bruchrechnung",
+        "art": "lernpfad",
+        "markdown": "1. [Brüche erkennen](https://wirlernenonline.de/)\n2. Brüche kürzen\n3. Brüche addieren"
+      }
+    },
+    {
+      "titel": "Vorgeschlagene Änderung",
+      "daten": {
+        "titel": "Änderung an „Optik – Arbeitsblatt“",
+        "art": "schreib_vorschau",
+        "markdown": "- **Titel:** Optik – Arbeitsblatt 2\n- **Fach:** Physik"
+      }
+    }
+  ]
+}

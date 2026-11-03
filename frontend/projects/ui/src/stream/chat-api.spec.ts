@@ -278,6 +278,24 @@ describe('ChatApiClient', () => {
     expect(calls[0].url).toBe('https://runtime.host/api/chat');
   });
 
+  it('U1-d1: die Antwort auf einen Modul-Block reist als ui_antwort — nicht als action', async () => {
+    const antwort = { block_id: 'b0000001', daten: { gewaehlt: ['a'] } };
+    const { fetchImpl, calls } = capturingFetch(sseResponse([
+      'event: result\ndata: {"content":"ok","session_id":"s"}\n\n',
+    ]));
+    const client = new ChatApiClient({ fetchImpl });
+    await client.stream('sess', 'Klasse 5', () => undefined, undefined, undefined, undefined, antwort);
+    expect(calls[0].body).toMatchObject({ message: 'Klasse 5', ui_antwort: antwort });
+    expect(calls[0].body.action).toBeUndefined();
+
+    const post = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
+    const client2 = new ChatApiClient({ fetchImpl: post.fetchImpl });
+    await client2.post('sess', 'Klasse 5', undefined, undefined, undefined, 1000, antwort);
+    expect(post.calls[0].body.ui_antwort).toEqual(antwort);
+    await client2.post('sess', 'getippt');
+    expect(post.calls[1].body.ui_antwort).toBeUndefined();
+  });
+
   it('stream: URL /api/chat/stream, onEvent für phase, löst mit ChatResponse', async () => {
     const resp = sseResponse([
       'event: phase\ndata: {"step":"route"}\n\n',

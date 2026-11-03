@@ -40,7 +40,7 @@ import { WebLinksComponent } from './web-links.component';
  *
  * NICHT enthalten (eigene Slices): die Themenseiten-Schwimmlinien-Boxen
  * (`msg.topicPage`, chat.component.html:97-131 — swimlanes, 8-2-Rest) und die
- * `.inline-document`-Box (inline-doc-Slice). A11y-Feinschliff (Heading-
+ * `.inline-document`-Box (heute UI-Modul `ui_inhaltsrahmen`). A11y-Feinschliff (Heading-
  * Semantik, `aria-hidden` auf dekorative Icons, Fokus-Ring-Audit) ist der
  * geplante koordinierte Sweep 8-6 — hier DOM verbatim wie ALT.
  */

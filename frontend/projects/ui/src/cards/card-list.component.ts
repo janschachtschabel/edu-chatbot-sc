@@ -31,7 +31,7 @@ export interface CardAction {
  * `.card-actions` INNERHALB von `.wlo-card-wrapper` (dafür projiziert die
  * Liste in den Tile-Slot, ALT-Rundungsregel `:not(:has(.card-actions))`).
  *
- * Schnitt wie bei den Geschwistern (result-groups/swimlanes/inline-documents):
+ * Schnitt wie bei den Geschwistern (result-groups/swimlanes/ui-bloecke):
  * präsentational + Outputs. Die HOST-FLAG-Gates (`cards-enabled`,
  * `inline-result-grouping`, `hideCards`) bleiben beim Elternteil (Chat-Shell);
  * hier leben nur die Daten-Gates. Ausgeführt werden die Aktionen von

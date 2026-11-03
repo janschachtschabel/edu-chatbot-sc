@@ -8,7 +8,9 @@
     // nächsten Major vertagen.
     "paths": {
       "@boerdi/ui": ["./projects/ui/src/public-api.ts"],
-      "@boerdi/ui/*": ["./projects/ui/src/*"]
+      "@boerdi/ui/*": ["./projects/ui/src/*"],
+      "@boerdi/ui-module": ["./projects/ui-module/src/public-api.ts"],
+      "@boerdi/ui-module/*": ["./projects/ui-module/src/*"]
     },
     "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,

@@ -42,7 +42,7 @@ const NACHLADENDE_TAGS = [
 const NACHLADENDE_ATTRIBUTE = ['style', 'background', 'poster', 'srcset'];
 
 /** Formulare (Paket 19, Audit 2026-10-31 M-12): über Prompt-Injection in
- *  Werkzeug- oder Inhaltstexten (M17 → `inline_documents`) stünde sonst ein
+ *  Werkzeug- oder Inhaltstexten (M17 → Inhaltsrahmen) stünde sonst ein
  *  funktionierendes Phishing-Formular im Chatfenster, und Absenden navigierte die
  *  Gastseite weg. Weder Seeds noch Backend erzeugen Formularelemente (geprüft:
  *  Formulare gibt es nur auf den Demo-Seiten des Backends, die nicht durch diesen

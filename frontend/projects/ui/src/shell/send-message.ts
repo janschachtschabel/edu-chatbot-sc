@@ -23,6 +23,7 @@ import { ChatResponse, UiInfo } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { sitzungsWache } from '../session/session-id';
 import { fehlerKurz } from '../obs/fehler-kurz';
+import type { UiAntwortAnfrage } from '../stream/chat-api';
 import { drosselHinweis, fristHinweis } from '../stream/http-fehler';
 import { ChatStreamEvent } from '../stream/stream-client';
 
@@ -49,12 +50,12 @@ export interface SendMessageContext {
   isLoading: () => boolean;
   setLoading: (v: boolean) => void;
   addUserMessage: (content: string) => void;
-  /** Der 11-Positionen-Seam des State-Core (8-4S-b). */
+  /** Der 10-Positionen-Seam des State-Core (8-4S-b). */
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: ChatResponse['cards'],
     quickReplies?: string[], ui?: UiInfo,
     pagination?: ChatResponse['pagination'], queryMetas?: ChatResponse['query_metas'],
-    webLinks?: ChatResponse['web_links'], inlineDocuments?: ChatResponse['inline_documents'],
+    webLinks?: ChatResponse['web_links'],
     displayRules?: Record<string, any>, topicPage?: ChatResponse['topic_page'],
   ) => string;
   removeMessage: (id: string) => void;
@@ -73,10 +74,13 @@ export interface SendMessageContext {
    *  bei B10-Stale, sonst Netz-/Parser-Fehler (→ POST-Fallback). */
   stream: (
     msg: string, onEvent: (evt: ChatStreamEvent) => void, env: unknown,
-    action?: string, actionParams?: Record<string, any>,
+    action?: string, actionParams?: Record<string, any>, uiAntwort?: UiAntwortAnfrage,
   ) => Promise<ChatResponse>;
   /** `postChat` (8-3) Fallback mit LIVE-`sessionId` gebunden. */
-  post: (msg: string, env: unknown, action?: string, actionParams?: Record<string, any>) => Promise<ChatResponse>;
+  post: (
+    msg: string, env: unknown, action?: string, actionParams?: Record<string, any>,
+    uiAntwort?: UiAntwortAnfrage,
+  ) => Promise<ChatResponse>;
   /** Tracer-`phase` → Lade-Label (pure); `null` = kein Label. */
   formatPhaseLabel: (evt: ChatStreamEvent) => string | null;
   /** Erfolgs-Seiteneffekte (Tour/latestDebug/query-meta/page-action/Guides/
@@ -96,12 +100,16 @@ interface Zug {
   readonly env: unknown;
   readonly action?: string;
   readonly actionParams?: Record<string, any>;
+  /** Antwort auf einen abfragenden UI-Block (U1-d1) — reist auf beiden Wegen mit. */
+  readonly uiAntwort?: UiAntwortAnfrage;
   readonly loadingId: string;
   /** Die Frage, wenn sie aus dem Eingabefeld kam — sonst `''` (Chip, Aktion,
    *  Auftrag der Gastseite). Nur sie kehrt bei einem Hinweis ins Feld zurück. */
   readonly getippt: string;
   /** `true`, sobald der Zug nicht mehr zählt (`sitzungsWache`). */
   readonly veraltet: () => boolean;
+  /** Hat der Server den Zug angenommen (`connected` oder eine Antwort)? Wird im Lauf gesetzt. */
+  readonly angenommen: { wert: boolean };
 }
 
 /** Paket 7 (P1): läuft noch ein Zug derselben Sitzung? Im Strom als Kennung im
@@ -115,16 +123,21 @@ function istBeschaeftigt(err: unknown): boolean {
  * Einen Chat-Turn abwickeln. `text` leer → Rückgriff aufs Eingabefeld
  * (`text || currentInput().trim()`, ALT-verbatim); Guard gegen leere Message
  * und laufenden Turn. Lifecycle + Fehler-/Stale-/Fallback-Verhalten wie ALT
- * `sendMessage`; Erfolgs-Seiteneffekte über `ctx.onResult`.
+ * `sendMessage`; Erfolgs-Seiteneffekte über `ctx.onResult`. `uiAntwort` (U1-d1): die Antwort auf
+ * einen abfragenden UI-Block; `text` ist dann ihre lesbare Fassung, die Nutzerblase.
+ *
+ * Gibt zurück, ob der Server den Zug angenommen hat (`connected` im Strom oder eine Antwort) —
+ * ohne das kam er nie an, und eine lokal beantwortete Frage ist wieder offen (Review U1-d1).
  */
 export async function runSendMessage(
   text: string | undefined,
   action: string | undefined,
   actionParams: Record<string, any> | undefined,
   ctx: SendMessageContext,
-): Promise<void> {
+  uiAntwort?: UiAntwortAnfrage,
+): Promise<boolean> {
   const msg = text || ctx.currentInput().trim();
-  if (!msg || ctx.isLoading()) return;
+  if (!msg || ctx.isLoading()) return false;
 
   ctx.clearInput();
   ctx.addUserMessage(msg);
@@ -140,19 +153,21 @@ export async function runSendMessage(
   // Loading-Bubble + Scroll dorthin.
   const loadingId = ctx.addBotMessage('', true);
   ctx.setScrollTarget(loadingId);
+  const angenommen = { wert: false };
 
   try {
     const zug: Zug = {
-      ctx, msg, env: ctx.pageContextEnv(), action, actionParams, loadingId, veraltet,
-      getippt: !text && !action ? msg : '',
+      ctx, msg, env: ctx.pageContextEnv(), action, actionParams, uiAntwort, loadingId, veraltet,
+      getippt: !text && !action ? msg : '', angenommen,
     };
     const resp = await antwortHolen(zug);
-    if (!resp || veraltet()) return;
+    if (resp) angenommen.wert = true;
+    if (!resp || veraltet()) return angenommen.wert;
     // Loading entfernen, echte Antwort anhängen.
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(
       resp.content, false, resp.cards, resp.quick_replies, resp.ui,
-      resp.pagination, resp.query_metas, resp.web_links, resp.inline_documents,
+      resp.pagination, resp.query_metas, resp.web_links,
       resp.display_rules, resp.topic_page,
     );
     ctx.setScrollTarget(botMsgId);
@@ -167,7 +182,7 @@ export async function runSendMessage(
       console.error('boerdi: Nachlauf des Zugs gescheitert —', fehlerKurz(err));
     }
   } catch (err) {
-    if (veraltet()) return;
+    if (veraltet()) return angenommen.wert;
     ctx.removeMessage(loadingId);
     // Paket 18C/D: meldet der Strom eine Fehlernummer, nennt die Blase sie — dieselbe
     // steht in der gespeicherten Blase und führt im Studio zum Zug.
@@ -180,6 +195,7 @@ export async function runSendMessage(
 
   ctx.setLoading(false);
   ctx.focusInput();
+  return angenommen.wert;
 }
 
 /** Die Antwort des Zugs: aus dem Strom, sonst aus dem Verlauf oder vom
@@ -201,6 +217,7 @@ async function antwortHolen(zug: Zug): Promise<ChatResponse | null> {
   let nachId: number | null = null;
   const onEvent = (evt: ChatStreamEvent) => {
     if (evt.event === 'connected') {
+      zug.angenommen.wert = true;
       angenommen = evt.data?.history === true;
       nachId = typeof evt.data?.after_id === 'number' ? evt.data.after_id : null;
     }
@@ -218,7 +235,7 @@ async function antwortHolen(zug: Zug): Promise<ChatResponse | null> {
   };
 
   try {
-    return await ctx.stream(zug.msg, onEvent, zug.env, zug.action, zug.actionParams);
+    return await ctx.stream(zug.msg, onEvent, zug.env, zug.action, zug.actionParams, zug.uiAntwort);
   } catch (streamErr) {
     if (veraltet()) return null;
     return nachStromFehler(zug, streamErr, angenommen, nachId);
@@ -290,7 +307,7 @@ async function perPost(zug: Zug, streamErr: unknown): Promise<ChatResponse | nul
   // stünde sonst bis dahin als Antwort da.
   ctx.clearStreamText(loadingId);
   try {
-    return await ctx.post(zug.msg, zug.env, zug.action, zug.actionParams);
+    return await ctx.post(zug.msg, zug.env, zug.action, zug.actionParams, zug.uiAntwort);
   } catch (postErr) {
     if (veraltet()) return null;
     // Paket 19 (M-15): der POST hat jetzt eine Frist — dieselbe ehrliche Blase

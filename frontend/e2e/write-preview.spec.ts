@@ -22,17 +22,23 @@ const VORSCHAU = [
   'Soll ich das so ausführen? Wenn etwas nicht stimmt, sag mir, was anders sein soll.',
 ].join('\n');
 
+/** Seit U1-b2 reist die Vorschau als Inhaltsrahmen-Block (Art `schreib_vorschau`). */
+function vorschauUi() {
+  return {
+    ui_bloecke: [{
+      block_id: 'b0000001', modul: 'ui_inhaltsrahmen', version: 1, art: 'anzeigen',
+      daten: { titel: 'Änderung zur Abnahme', art: 'schreib_vorschau', markdown: VORSCHAU },
+      text: VORSCHAU, status: 'nur_anzeige',
+    }],
+  };
+}
+
 test('die Vorschau erreicht den Nutzer wörtlich, nicht nacherzählt', async ({ page }) => {
   const w = await mount(page);
   w.enqueue(chatResponse({
     // Was das Modell sagt: EIN einordnender Satz — mehr soll es seit S4 nicht.
     content: 'Ich würde folgendes anlegen:',
-    inline_documents: [{
-      kind: 'schreib_vorschau',
-      title: 'Änderung zur Abnahme',
-      content: VORSCHAU,
-      meta: {},
-    }],
+    ui: vorschauUi(),
     quick_replies: ['Ja, so ausführen'],
   }));
   await w.open();
@@ -68,8 +74,7 @@ test('der Zustimmungs-Chip sendet genau seinen Text als nächste Nachricht', asy
   const w = await mount(page);
   w.enqueue(chatResponse({
     content: 'Ich würde folgendes anlegen:',
-    inline_documents: [{ kind: 'schreib_vorschau', title: 'Änderung zur Abnahme',
-      content: VORSCHAU, meta: {} }],
+    ui: vorschauUi(),
     quick_replies: ['Ja, so ausführen'],
   }));
   w.enqueue(chatResponse({ content: 'Die Sammlung ist angelegt.' }));
