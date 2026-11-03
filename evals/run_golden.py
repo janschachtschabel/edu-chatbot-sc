@@ -52,7 +52,7 @@ import re
 import sys
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -66,10 +66,25 @@ HERE = Path(__file__).resolve().parent
 #: Eine Quelle: die Seed-Datei ist die Import-Quelle (GV2). Die frühere
 #: Kopie ``evals/gold-flows.yaml`` musste von Hand synchron gehalten werden.
 DEFAULT_FLOWS = HERE.parent / "backend" / "seeds" / "eval" / "gold-flows.yaml"
+#: Paket U1-g: der ausgelieferte Katalog der UI-Module (erzeugt von ``npm run module:register``).
+#: Als Datei gelesen, nicht über ``boerdi.ui_module`` — dieses Modul bleibt framework-frei.
+DEFAULT_KATALOG = HERE.parent / "backend" / "src" / "boerdi" / "ui_module" / "manifeste.json"
 
 GOLDEN_CATS = ["register", "structure", "tools_any", "tools_none", "tools_max", "text",
-               "qr", "host"]
-GOLDEN_HARD = ["register", "structure", "tools_any", "tools_none", "tools_max", "text", "qr"]
+               "ui", "qr", "host"]
+GOLDEN_HARD = ["register", "structure", "tools_any", "tools_none", "tools_max", "text", "ui",
+               "qr"]
+
+#: Form eines Modulnamens wie im Manifest-Schema (``ui_module/namen._NAME_FORM``).
+_UI_NAME = re.compile(r"^ui_[a-z0-9_]{2,40}$")
+#: Module, deren Inhalt ``augment_bot_text`` schon zeigt (Dokument-Box, Karten) — ihre
+#: Textfassung käme doppelt (U1-g, G-5).
+_SCHON_GEZEIGT = frozenset({"ui_inhaltsrahmen", "ui_trefferliste"})
+_ENTSCHEIDUNG = "ui_entscheidung"
+_TEXTFASSUNG_MAX = 1500
+#: ``maxLength`` des Freitexts im Antwort-Schema von ``ui_entscheidung`` — das Widget kürzt
+#: darauf (``FREITEXT_MAX`` im Modul), der Runner auch; ein Test hält beide am Manifest.
+FREITEXT_MAX = 1000
 
 ENGINE_HEADER = "X-Boerdi-Engine"
 ENGINES = ("pattern", "agent")
@@ -177,12 +192,26 @@ def effective_engine(headers: dict[str, str]) -> str:
     return "default"
 
 
-def load_flows(path: str | Path) -> list[dict[str, Any]]:
+def katalog_module(pfad: str | Path = DEFAULT_KATALOG) -> list[str]:
+    """Die Namen aller Katalog-Module, sortiert — was das Widget als ``environment.ui_module``
+    meldet (die Schlüssel seines Registers, U1-g G-1). Fehlt die Datei oder ist sie unlesbar,
+    wirft es (``OSError``/``ValueError``): still ohne Module zu messen, hieße eine Anlage messen,
+    die keine Person sieht."""
+    roh = json.loads(Path(pfad).read_text(encoding="utf-8"))
+    if not isinstance(roh, list):
+        raise ValueError(f"{pfad}: erwartet eine Liste von Manifesten")
+    return sorted({str(m.get("name")) for m in roh if isinstance(m, dict) and m.get("name")})
+
+
+def load_flows(path: str | Path,
+               module: Collection[str] | None = None) -> list[dict[str, Any]]:
     """Parse a v2 gold-flows file; reject anything else loudly.
 
     v1 expectations (persona/intent) describe the classifier machine, which
     the agent does not run — a v1 set under v2 checks would silently assert
     nothing and report green. No silent dual operation: the format is pinned.
+    ``module`` (U1-g): the catalogue the ``ui_any``/``ui_none`` names are checked against;
+    by default the shipped one, if it is there.
     """
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     version = data.get("version") if isinstance(data, dict) else None
@@ -195,7 +224,9 @@ def load_flows(path: str | Path) -> list[dict[str, Any]]:
     flows = data.get("flows")
     if not isinstance(flows, list) or not flows:
         raise ValueError(f"{path}: keine Flows gefunden")
-    validate_flows(flows)
+    if module is None and DEFAULT_KATALOG.exists():
+        module = katalog_module()
+    validate_flows(flows, module=module)
     return flows
 
 
@@ -229,13 +260,45 @@ ANWENDUNGSFAELLE: tuple[str, ...] = (
 )
 
 
-def validate_flows(flows: list[dict[str, Any]]) -> None:
+def _ui_namen(expect: dict[str, Any], feld: str, module: Collection[str] | None) -> None:
+    """``ui_any``/``ui_none`` (U1-g): eine Liste von Modulnamen — mit Katalog nur dessen Namen.
+    Ein vertippter Name fiele sonst still durch: ``ui_none`` bestünde immer."""
+    if feld not in expect:
+        return
+    wert = expect[feld]
+    if not isinstance(wert, list) or not wert or not all(
+            isinstance(n, str) and _UI_NAME.match(n) for n in wert):
+        raise ValueError(f"{feld} must be a non-empty list of module names (ui_…), got {wert!r}")
+    if module is not None and (fremd := [n for n in wert if n not in module]):
+        raise ValueError(f"{feld}: {', '.join(fremd)} ist kein Katalog-Modul "
+                         f"(bekannt: {', '.join(sorted(module))})")
+
+
+def _ui_antwort_spec(turn: dict[str, Any]) -> dict[str, Any] | None:
+    """``ui_antwort`` eines Zugs (U1-g, G-4): ``{waehle: [Wendung …], freitext?: str}``; ein
+    leeres Dict zählt als „keine“ (wie ein Studio-Feld ohne Eintrag)."""
+    spec = turn.get("ui_antwort")
+    if spec is None or spec == {}:
+        return None
+    waehle = spec.get("waehle") if isinstance(spec, dict) else None
+    if (not isinstance(spec, dict) or set(spec) - {"waehle", "freitext"}
+            or not isinstance(waehle, list) or not waehle
+            or not all(isinstance(w, str) and w.strip() for w in waehle)
+            or not isinstance(spec.get("freitext", ""), str)):
+        raise ValueError(f"ui_antwort must be {{waehle: [Wendung …], freitext?: Text}}, "
+                         f"got {spec!r}")
+    return spec
+
+
+def validate_flows(flows: list[dict[str, Any]],
+                   module: Collection[str] | None = None) -> None:
     """Check every turn's expectations before the first paid turn.
 
-    Raises ValueError naming flow and turn. Today that is ``tools_max``, the
-    one expectation that raises instead of reading as "not asserted" — found
-    mid-run it cost every turn before it (review 2026-09-26). Both entry points
-    call this: ``load_flows`` (CLI) and the backend's golden-run start.
+    Raises ValueError naming flow and turn: ``tools_max``, the ``ui_any``/``ui_none`` names
+    (against ``module``, the catalogue, if given) and the ``ui_antwort`` form — each would
+    otherwise read as "not asserted" or fail mid-run, after every turn before it was paid
+    (review 2026-09-26). Both entry points call this: ``load_flows`` (CLI) and the backend's
+    golden-run start.
     """
     for fi, flow in enumerate(flows, start=1):
         flow_id = str(flow.get("id") or f"flow-{fi}")
@@ -251,7 +314,12 @@ def validate_flows(flows: list[dict[str, Any]]) -> None:
                     f"{flow_id} turn {ti}: anwendungsfall={fall!r} — erlaubt: "
                     + ", ".join(ANWENDUNGSFAELLE))
             try:
-                _tools_max(turn.get("expect") or {})
+                expect = turn.get("expect") or {}
+                _tools_max(expect)
+                _ui_namen(expect, "ui_any", module)
+                _ui_namen(expect, "ui_none", module)
+                if _ui_antwort_spec(turn) is not None and ti == 1:
+                    raise ValueError("ui_antwort im ersten Zug — es gibt noch keine Frage")
             except ValueError as e:
                 raise ValueError(f"{flow_id} turn {ti}: {e}") from e
 
@@ -274,14 +342,121 @@ def _normalized(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip().casefold()
 
 
+def dokument_boxen(bot_resp: dict[str, Any]) -> list[dict[str, str]]:
+    """Every document box the person saw, as ``{kind, title, content}``.
+
+    Since U1-b2 boxes arrive as ``ui_inhaltsrahmen`` blocks in ``ui.ui_bloecke``; the old
+    ``inline_documents`` field is still read so a run against an older backend counts too.
+    """
+    boxen: list[dict[str, str]] = []
+    for doc in bot_resp.get("inline_documents") or []:
+        if isinstance(doc, dict):
+            boxen.append({"kind": str(doc.get("kind") or ""), "title": str(doc.get("title") or ""),
+                          "content": str(doc.get("content") or "")})
+    for block in (bot_resp.get("ui") or {}).get("ui_bloecke") or []:
+        if isinstance(block, dict) and block.get("modul") == "ui_inhaltsrahmen":
+            daten = block.get("daten") or {}
+            boxen.append({"kind": str(daten.get("art") or ""),
+                          "title": str(daten.get("titel") or ""),
+                          "content": str(daten.get("markdown") or "")})
+    return boxen
+
+
+def ui_bloecke(bot_resp: dict[str, Any]) -> list[dict[str, Any]]:
+    """The UI blocks of an answer (``ui.ui_bloecke``), dicts only."""
+    return [b for b in (bot_resp.get("ui") or {}).get("ui_bloecke") or [] if isinstance(b, dict)]
+
+
+def gezeigte_module(bot_resp: dict[str, Any]) -> list[str]:
+    """The modules the person saw in this answer, once each, in display order (U1-g, G-3/G-6)."""
+    return list(dict.fromkeys(str(b.get("modul") or "") for b in ui_bloecke(bot_resp)
+                              if b.get("modul")))
+
+
+def offene_frage(bot_resp: dict[str, Any]) -> dict[str, Any] | None:
+    """The open ``ui_entscheidung`` block of an answer — the question the next turn may answer
+    in its choice box (U1-g, G-4). A stored block without status counts as open, like
+    ``UiBlock``'s default for an asking module."""
+    for block in reversed(ui_bloecke(bot_resp)):
+        if (block.get("modul") == _ENTSCHEIDUNG and block.get("art") == "abfragen"
+                and block.get("status") in (None, "offen")):
+            return block
+    return None
+
+
+def baue_ui_antwort(
+    spec: dict[str, Any], frage: dict[str, Any] | None, getippt: str,
+) -> tuple[dict[str, Any] | None, str, dict[str, Any]]:
+    """``(ui_antwort, message, observed)`` for a turn that answers in the choice box (G-4).
+
+    Options are chosen by label, not by id — the model picks the ids during the run. Each
+    phrase of ``waehle`` hits an option in three tiers (:func:`_trefferstufe`): the exact label
+    (case-blind) or id, then the phrase as whole words of the label, then — last resort — as
+    part of a word. Only a phrase's best tier counts: "Physik" takes "Physik", not
+    "Astrophysik" (review U1-g #1). Single choice: the best tier any phrase reaches; among
+    phrases on it the first (the author's preference), its first option in block order.
+    Multiple choice: per phrase its best-tier options, in block order. ``freitext`` only if the
+    block offers it, cut to ``FREITEXT_MAX`` like the widget (``observed.freitext_gekuerzt``
+    holds the original length).
+    ``message`` is the readable form the widget sends (labels joined by ", ", the addition on
+    its own line). No open question or no matching option → ``getippt`` goes as typed text, as
+    a person would answer; the server frames the closed question for the model.
+    ``observed.status`` ``gesendet`` says the answer went out — whether the server took it, the
+    response does not show (a mismatching one is dropped with a log line only, review U1-g #3).
+    """
+    if frage is None:
+        return None, getippt, {"status": "keine_frage", "gewaehlt": []}
+    daten = frage.get("daten") or {}
+    optionen = [o for o in daten.get("optionen") or [] if isinstance(o, dict)]
+
+    # Je Wendung ihre beste Stufe und die Möglichkeiten darauf (Block-Reihenfolge).
+    beste: list[tuple[int, list[int]]] = []
+    for wendung in spec.get("waehle") or []:
+        stufen = [_trefferstufe(o, wendung) for o in optionen]
+        if treffer := [s for s in stufen if s is not None]:
+            stufe = min(treffer)
+            beste.append((stufe, [i for i, s in enumerate(stufen) if s == stufe]))
+    if not beste:
+        return None, getippt, {"status": "keine_passende_option", "gewaehlt": []}
+    if daten.get("mehrfach") is True:
+        gewaehlt = [optionen[i] for i in sorted({i for _, liste in beste for i in liste})]
+    else:  # Einzelwahl: beste Stufe, dann die Reihenfolge des Autors (``min`` ist stabil)
+        gewaehlt = [optionen[min(beste, key=lambda b: b[0])[1][0]]]
+    antwort_daten: dict[str, Any] = {"gewaehlt": [str(o["id"]) for o in gewaehlt]}
+    labels = [str(o.get("label") or "") for o in gewaehlt]
+    beobachtet: dict[str, Any] = {"status": "gesendet", "gewaehlt": labels}
+    zusatz = str(spec.get("freitext") or "").strip() if daten.get("freitext") is True else ""
+    if len(zusatz) > FREITEXT_MAX:
+        beobachtet["freitext_gekuerzt"] = len(zusatz)
+        zusatz = zusatz[:FREITEXT_MAX]
+    if zusatz:
+        antwort_daten["freitext"] = zusatz
+    text = "\n".join(t for t in (", ".join(labels), zusatz) if t)
+    return ({"block_id": str(frage.get("block_id") or ""), "daten": antwort_daten}, text,
+            beobachtet)
+
+
+def _trefferstufe(option: dict[str, Any], wendung: str) -> int | None:
+    """0 = exact label or id, 1 = whole words of the label, 2 = part of a word, ``None`` = no
+    hit. Case- and whitespace-blind like the text checks (:func:`_normalized`)."""
+    w = _normalized(wendung)
+    if not w:
+        return None
+    label = _normalized(str(option.get("label") or ""))
+    if label == w or w == str(option.get("id")):
+        return 0
+    if re.search(rf"(?<!\w){re.escape(w)}(?!\w)", label):
+        return 1
+    return 2 if w in label else None
+
+
 def visible_text(bot_resp: dict[str, Any]) -> str:
     """What the person reads: the bubble plus every inline document box. The
     help numbers of a crisis answer often sit in the box, not in the bubble
     (SF smoke 2026-09-26)."""
     parts = [bot_resp.get("content") or ""]
-    for doc in bot_resp.get("inline_documents") or []:
-        if isinstance(doc, dict):
-            parts += [str(doc.get("title") or ""), str(doc.get("content") or "")]
+    for doc in dokument_boxen(bot_resp):
+        parts += [doc["title"], doc["content"]]
     return "\n".join(parts)
 
 
@@ -306,7 +481,7 @@ def check_golden_turn(
 
     Every check is a RESULT the user would see, engine-fair by construction:
     HOW a document box or a tool call came to be (pattern switch, agent loop,
-    ``zeige_dokument``) is invisible here. persona/intent expectations are
+    ``ui_inhaltsrahmen``) is invisible here. persona/intent expectations are
     ignored on purpose — the classifier is measured by the generative track.
     """
     exp_register = str(expect.get("register") or "any").strip().lower()
@@ -317,6 +492,9 @@ def check_golden_turn(
     # internal steps there too (``select_top_cards``, ``canvas_service…``);
     # a cap meant for the agent loop is written with that in mind.
     exp_tools_max = _tools_max(expect)
+    # U1-g (G-3): the shown block is the ground truth, not ``tools_called``.
+    exp_ui_any = _phrase_list(expect.get("ui_any"))
+    exp_ui_none = _phrase_list(expect.get("ui_none"))
     exp_text_any = _phrase_list(expect.get("text_any"))
     exp_text_none = _phrase_list(expect.get("text_none"))
     # ``qr: false`` = no quick replies expected (SAFE set, SF-4). Without the
@@ -327,8 +505,9 @@ def check_golden_turn(
     obs_tools = bare_tool_names(debug.get("tools_called"))
     content = bot_resp.get("content") or ""
     cards = bot_resp.get("cards") or []
-    idocs = bot_resp.get("inline_documents") or []
+    idocs = dokument_boxen(bot_resp)
     qr = bot_resp.get("quick_replies") or []
+    obs_ui = gezeigte_module(bot_resp)
     reg_label, sie_n, du_n = detect_register(content)
 
     # v2-Ehrlichkeit: misst die Heuristik nichts (neutral), ist der Check
@@ -363,6 +542,11 @@ def check_golden_turn(
         None if not (exp_text_any or exp_text_none)
         else (bool(text_found) or not exp_text_any) and not text_forbidden
     )
+    ui_ok: bool | None = (
+        None if not (exp_ui_any or exp_ui_none)
+        else (not exp_ui_any or any(m in obs_ui for m in exp_ui_any))
+        and not any(m in obs_ui for m in exp_ui_none)
+    )
     qr_ok = len(qr) >= 1 if exp_qr else not qr
     host = repo_host()
     urls = [(c.get("wlo_url") or c.get("url") or "") for c in cards if isinstance(c, dict)]
@@ -378,6 +562,8 @@ def check_golden_turn(
             "tools_max": exp_tools_max,
             "text_any": exp_text_any,
             "text_none": exp_text_none,
+            "ui_any": exp_ui_any,
+            "ui_none": exp_ui_none,
             "qr": exp_qr,
             "must_offer": expect.get("must_offer") or "",
         },
@@ -388,12 +574,13 @@ def check_golden_turn(
             "cards": len(cards), "idocs": len(idocs), "qr": len(qr),
             "content_len": len(content),
             "text_found": text_found, "text_forbidden": text_forbidden,
+            "ui_module": obs_ui,
         },
         "checks": {
             "register": register_ok, "structure": structure_ok,
             "tools_any": tools_ok, "tools_none": tools_none_ok,
             "tools_max": tools_max_ok, "text": text_ok,
-            "qr": qr_ok, "host": host_ok,
+            "ui": ui_ok, "qr": qr_ok, "host": host_ok,
         },
     }
 
@@ -443,7 +630,7 @@ def augment_bot_text(bot_resp: dict[str, Any]) -> str:
     """Append inline-document / card / query-meta content to the bot text so
     the report reader sees what the user actually got (1:1 ALT)."""
     bot_text = bot_resp.get("content", "") or ""
-    idocs = bot_resp.get("inline_documents") or []
+    idocs = dokument_boxen(bot_resp)
     if idocs:
         md_parts: list[str] = []
         for doc in idocs:
@@ -480,6 +667,13 @@ def augment_bot_text(bot_resp: dict[str, Any]) -> str:
                 + f"\n\n---\n[Material-Cards — vom Nutzer sichtbar, {len(card_lines)} Treffer]\n"
                 + "\n".join(card_lines)
             )
+    # U1-g (G-5): what the other modules showed — the question with its options, the topic
+    # tree. Without it the judge read "no overview" under a tree on screen.
+    for block in ui_bloecke(bot_resp):
+        text = str(block.get("text") or "").strip()
+        if text and block.get("modul") not in _SCHON_GEZEIGT:
+            bot_text = ((bot_text or "").rstrip() + f"\n\n---\n[UI-Modul {block.get('modul')}"
+                        " — vom Nutzer sichtbar]\n\n" + text[:_TEXTFASSUNG_MAX])
     qmetas = bot_resp.get("query_metas") or []
     if qmetas:
         qm_lines: list[str] = []
@@ -595,16 +789,20 @@ async def post_chat(
     chat_url: str, message: str, session_id: str,
     headers: dict[str, str] | None = None,
     environment: dict[str, Any] | None = None,
+    ui_antwort: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Fire one user message at /api/chat, return raw response JSON (1:1 ALT;
     Deckel seit Befund 3 über ``chat_timeout()`` statt fixer 60 s).
 
     ``environment`` (AG-5) is the embedding context of a flow, sent as-is; the
     server validates it. Without one the body stays as before — an empty
-    ``environment`` would override the server's defaults."""
+    ``environment`` would override the server's defaults. ``ui_antwort`` (U1-g) answers the
+    previous turn's choice box; ``message`` is then its readable form."""
     body: dict[str, Any] = {"session_id": session_id, "message": message}
     if environment:
         body["environment"] = environment
+    if ui_antwort:
+        body["ui_antwort"] = ui_antwort
     async with httpx.AsyncClient(timeout=chat_timeout()) as c:
         r = await c.post(chat_url, json=body, headers=headers or None)
         r.raise_for_status()
@@ -657,8 +855,15 @@ async def run_flows(
     chat_url: str, flows: list[dict[str, Any]], *,
     headers: dict[str, str] | None = None,
     fallback_texts: Sequence[str] = FALLBACK_TEXTS,
+    ui_module: Sequence[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Each flow in its own fresh session; turns sequential (context preserved).
+
+    ``ui_module`` (U1-g, G-1/G-2): the modules this run reports as ``environment.ui_module``,
+    as the widget does — the CLI passes the catalogue, the Studio run its own. ``None`` reports
+    none (the body stays as before U1-g). A ``ui_module`` in the flow's ``environment`` wins:
+    the flow then describes a particular embedding. A turn with ``ui_antwort`` answers the
+    previous turn's open choice box (:func:`baue_ui_antwort`).
 
     ``headers`` (A5) go with every turn — keyword-only and defaulted, because the
     backend eval service calls this positionally with two arguments. Each turn
@@ -672,17 +877,27 @@ async def run_flows(
         turns_spec = flow.get("turns") or []
         # AG-5: the embedding context travels with EVERY turn, as a host page
         # sends it with every request.
-        environment = flow.get("environment") or None
+        vorgabe = {"ui_module": list(ui_module)} if ui_module is not None else {}
+        environment = {**vorgabe, **(flow.get("environment") or {})} or None
         session_id = f"eval-{uuid.uuid4().hex[:12]}"
         turn_records: list[dict[str, Any]] = []
+        vorige: dict[str, Any] = {}
         for ti, tspec in enumerate(turns_spec, start=1):
             msg = str(tspec.get("message") or "").strip()
             expect = tspec.get("expect") or {}
+            antwort_spec = _ui_antwort_spec(tspec)
+            ui_antwort, beobachtet = None, None
+            if antwort_spec is not None:
+                ui_antwort, msg, beobachtet = baue_ui_antwort(
+                    antwort_spec, offene_frage(vorige), msg)
+                if beobachtet.get("freitext_gekuerzt"):
+                    print(f"  ⚠ {flow_id} turn {ti}: freitext auf {FREITEXT_MAX} Zeichen "
+                          f"gekürzt (wie im Widget)", file=sys.stderr)
             print(f"  {flow_id} turn {ti}/{len(turns_spec)} …", flush=True)
             t_turn = time.perf_counter()
             try:
                 bot_resp = await post_chat(chat_url, msg, session_id, headers=headers,
-                                           environment=environment)
+                                           environment=environment, ui_antwort=ui_antwort)
             except Exception as e:  # record + continue, like ALT
                 print(f"  {flow_id} turn {ti} FAILED: {e}", file=sys.stderr)
                 # Auch der Fehl-Zug trägt seine Zeit: eine Zeitüberschreitung ist
@@ -692,15 +907,22 @@ async def run_flows(
                                      "debug": {}, "error": str(e),
                                      "latency_ms": _ms_since(t_turn),
                                      "anwendungsfall": str(tspec.get("anwendungsfall") or "")})
+                vorige = {}
                 continue
             latency_ms = _ms_since(t_turn)
+            vorige = bot_resp
             debug = bot_resp.get("debug", {}) or {}
             ersatz = fallback_sentence(bot_resp, fallback_texts)
+            golden = check_golden_turn(expect, bot_resp, debug)
+            if beobachtet is not None:
+                golden["observed"]["ui_antwort"] = beobachtet
             turn_records.append({
                 "user": msg,
                 "bot": augment_bot_text(bot_resp),
                 "debug": flatten_debug(debug),
-                "golden": _ohne_antwort(check_golden_turn(expect, bot_resp, debug), ersatz),
+                "golden": _ohne_antwort(golden, ersatz),
+                # U1-g (G-6): what the person saw — the run's "Modul-Nutzung" reads it.
+                "ui_module": gezeigte_module(bot_resp),
                 "cards_count": len(bot_resp.get("cards") or []),
                 "response_length": len(bot_resp.get("content") or ""),
                 "latency_ms": latency_ms,
@@ -786,6 +1008,8 @@ def main(argv: list[str] | None = None) -> int:
                    help=f"setzt {ENGINE_HEADER} je Zug "
                         "(überschreibt EVAL_CHAT_HEADERS)")
     p.add_argument("--label", default="", help="report filename label")
+    p.add_argument("--ohne-ui-module", action="store_true",
+                   help="keine UI-Module melden (Vorgabe: alle des Katalogs, wie das Widget)")
     p.add_argument("--out", default=str(HERE / "reports"))
     args = p.parse_args(argv)
 
@@ -802,10 +1026,12 @@ def main(argv: list[str] | None = None) -> int:
     engine = effective_engine(headers)
 
     try:
-        flows = load_flows(args.flows)
+        katalog = katalog_module()
+        flows = load_flows(args.flows, module=katalog)
     except (ValueError, OSError) as e:
         print(str(e), file=sys.stderr)
         return 2
+    ui_module = [] if args.ohne_ui_module else katalog
     flows = flows_fuer_lauf(flows, args.only)
     if args.only and not flows:
         print(f"no flows match --only {args.only}", file=sys.stderr)
@@ -819,9 +1045,11 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
     kopf = f" mit Kopfzeilen {', '.join(sorted(headers))}" if headers else ""
     print(f"Golden-Runner: {len(flows)} Flow(s) gegen {args.url}"
-          f" · Engine: {engine}{kopf}")
+          f" · Engine: {engine}{kopf}"
+          f" · UI-Module: {', '.join(ui_module) or 'keine'}")
     t0 = time.perf_counter()
-    conversations = asyncio.run(run_flows(args.url, flows, headers=headers))
+    conversations = asyncio.run(run_flows(args.url, flows, headers=headers,
+                                          ui_module=ui_module))
     metrics = aggregate_golden(conversations)
 
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
@@ -838,6 +1066,8 @@ def main(argv: list[str] | None = None) -> int:
         # Kopfzeile kann ein Geheimnis tragen (``WLO-Access-Block`` führt die
         # Zugangs-Kennung).
         "chat_headers": sorted(headers),
+        # U1-g: welche Module der Lauf meldete (ein Flow kann eigene setzen).
+        "ui_module": ui_module,
         "started_utc": stamp,
         "duration_s": round(time.perf_counter() - t0, 1),
         "golden_metrics": metrics,
