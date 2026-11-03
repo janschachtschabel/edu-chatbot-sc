@@ -33,11 +33,13 @@ Exit code 0 == all asserted hard checks passed (every category but host);
 host is reported but soft, like ALT. Exit code 2 == the run never started
 (no matching flow, unreadable headers, v1 dataset).
 
-ONE file on purpose (documented exception to the ~300-line rule, §0 rule 7):
+No package on purpose (documented exception to the ~300-line rule, §0 rule 7):
 both ``eval_service._load_golden_runner`` and the tests load it by PATH via
 ``importlib.util.spec_from_file_location``, which is what keeps it runnable
 against any backend without installing this project. Splitting it into a package
-would break that and reintroduce the dependency it exists to avoid. The soft
+would break that and reintroduce the dependency it exists to avoid. Plain sibling
+files loaded the same way are fine: ``ui_module_golden.py`` (the UI-module helpers,
+review U1 gesamt, finding 8) sits next to this file — the image copies both. The soft
 half that DOES need config and an LLM lives in ``services/eval/golden.py``.
 """
 
@@ -45,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib.util
 import json
 import math
 import os
@@ -77,14 +80,21 @@ GOLDEN_HARD = ["register", "structure", "tools_any", "tools_none", "tools_max", 
 
 #: Form eines Modulnamens wie im Manifest-Schema (``ui_module/namen._NAME_FORM``).
 _UI_NAME = re.compile(r"^ui_[a-z0-9_]{2,40}$")
-#: Module, deren Inhalt ``augment_bot_text`` schon zeigt (Dokument-Box, Karten) — ihre
-#: Textfassung käme doppelt (U1-g, G-5).
-_SCHON_GEZEIGT = frozenset({"ui_inhaltsrahmen", "ui_trefferliste"})
-_ENTSCHEIDUNG = "ui_entscheidung"
-_TEXTFASSUNG_MAX = 1500
-#: ``maxLength`` des Freitexts im Antwort-Schema von ``ui_entscheidung`` — das Widget kürzt
-#: darauf (``FREITEXT_MAX`` im Modul), der Runner auch; ein Test hält beide am Manifest.
-FREITEXT_MAX = 1000
+
+#: Paket U1-g, seit Review U1 gesamt (Befund 8) in einer Nachbardatei: was der Lauf an den
+#: UI-Blöcken abliest. Über den Pfad geladen wie dieser Runner selbst (``compare_golden.py``).
+_ui_spec = importlib.util.spec_from_file_location("boerdi_eval_ui_module_golden",
+                                                  HERE / "ui_module_golden.py")
+assert _ui_spec is not None and _ui_spec.loader is not None
+ui_golden = importlib.util.module_from_spec(_ui_spec)
+_ui_spec.loader.exec_module(ui_golden)
+FREITEXT_MAX = ui_golden.FREITEXT_MAX
+_normalized = ui_golden.normalisiert
+dokument_boxen = ui_golden.dokument_boxen
+ui_bloecke = ui_golden.ui_bloecke
+gezeigte_module = ui_golden.gezeigte_module
+offene_frage = ui_golden.offene_frage
+baue_ui_antwort = ui_golden.baue_ui_antwort
 
 ENGINE_HEADER = "X-Boerdi-Engine"
 ENGINES = ("pattern", "agent")
@@ -337,119 +347,6 @@ def _skills(debug: dict[str, Any]) -> list[str]:
     return names
 
 
-def _normalized(text: str) -> str:
-    """Case- and whitespace-blind: models put no-break spaces into phone numbers."""
-    return re.sub(r"\s+", " ", text or "").strip().casefold()
-
-
-def dokument_boxen(bot_resp: dict[str, Any]) -> list[dict[str, str]]:
-    """Every document box the person saw, as ``{kind, title, content}``.
-
-    Since U1-b2 boxes arrive as ``ui_inhaltsrahmen`` blocks in ``ui.ui_bloecke``; the old
-    ``inline_documents`` field is still read so a run against an older backend counts too.
-    """
-    boxen: list[dict[str, str]] = []
-    for doc in bot_resp.get("inline_documents") or []:
-        if isinstance(doc, dict):
-            boxen.append({"kind": str(doc.get("kind") or ""), "title": str(doc.get("title") or ""),
-                          "content": str(doc.get("content") or "")})
-    for block in (bot_resp.get("ui") or {}).get("ui_bloecke") or []:
-        if isinstance(block, dict) and block.get("modul") == "ui_inhaltsrahmen":
-            daten = block.get("daten") or {}
-            boxen.append({"kind": str(daten.get("art") or ""),
-                          "title": str(daten.get("titel") or ""),
-                          "content": str(daten.get("markdown") or "")})
-    return boxen
-
-
-def ui_bloecke(bot_resp: dict[str, Any]) -> list[dict[str, Any]]:
-    """The UI blocks of an answer (``ui.ui_bloecke``), dicts only."""
-    return [b for b in (bot_resp.get("ui") or {}).get("ui_bloecke") or [] if isinstance(b, dict)]
-
-
-def gezeigte_module(bot_resp: dict[str, Any]) -> list[str]:
-    """The modules the person saw in this answer, once each, in display order (U1-g, G-3/G-6)."""
-    return list(dict.fromkeys(str(b.get("modul") or "") for b in ui_bloecke(bot_resp)
-                              if b.get("modul")))
-
-
-def offene_frage(bot_resp: dict[str, Any]) -> dict[str, Any] | None:
-    """The open ``ui_entscheidung`` block of an answer — the question the next turn may answer
-    in its choice box (U1-g, G-4). A stored block without status counts as open, like
-    ``UiBlock``'s default for an asking module."""
-    for block in reversed(ui_bloecke(bot_resp)):
-        if (block.get("modul") == _ENTSCHEIDUNG and block.get("art") == "abfragen"
-                and block.get("status") in (None, "offen")):
-            return block
-    return None
-
-
-def baue_ui_antwort(
-    spec: dict[str, Any], frage: dict[str, Any] | None, getippt: str,
-) -> tuple[dict[str, Any] | None, str, dict[str, Any]]:
-    """``(ui_antwort, message, observed)`` for a turn that answers in the choice box (G-4).
-
-    Options are chosen by label, not by id — the model picks the ids during the run. Each
-    phrase of ``waehle`` hits an option in three tiers (:func:`_trefferstufe`): the exact label
-    (case-blind) or id, then the phrase as whole words of the label, then — last resort — as
-    part of a word. Only a phrase's best tier counts: "Physik" takes "Physik", not
-    "Astrophysik" (review U1-g #1). Single choice: the best tier any phrase reaches; among
-    phrases on it the first (the author's preference), its first option in block order.
-    Multiple choice: per phrase its best-tier options, in block order. ``freitext`` only if the
-    block offers it, cut to ``FREITEXT_MAX`` like the widget (``observed.freitext_gekuerzt``
-    holds the original length).
-    ``message`` is the readable form the widget sends (labels joined by ", ", the addition on
-    its own line). No open question or no matching option → ``getippt`` goes as typed text, as
-    a person would answer; the server frames the closed question for the model.
-    ``observed.status`` ``gesendet`` says the answer went out — whether the server took it, the
-    response does not show (a mismatching one is dropped with a log line only, review U1-g #3).
-    """
-    if frage is None:
-        return None, getippt, {"status": "keine_frage", "gewaehlt": []}
-    daten = frage.get("daten") or {}
-    optionen = [o for o in daten.get("optionen") or [] if isinstance(o, dict)]
-
-    # Je Wendung ihre beste Stufe und die Möglichkeiten darauf (Block-Reihenfolge).
-    beste: list[tuple[int, list[int]]] = []
-    for wendung in spec.get("waehle") or []:
-        stufen = [_trefferstufe(o, wendung) for o in optionen]
-        if treffer := [s for s in stufen if s is not None]:
-            stufe = min(treffer)
-            beste.append((stufe, [i for i, s in enumerate(stufen) if s == stufe]))
-    if not beste:
-        return None, getippt, {"status": "keine_passende_option", "gewaehlt": []}
-    if daten.get("mehrfach") is True:
-        gewaehlt = [optionen[i] for i in sorted({i for _, liste in beste for i in liste})]
-    else:  # Einzelwahl: beste Stufe, dann die Reihenfolge des Autors (``min`` ist stabil)
-        gewaehlt = [optionen[min(beste, key=lambda b: b[0])[1][0]]]
-    antwort_daten: dict[str, Any] = {"gewaehlt": [str(o["id"]) for o in gewaehlt]}
-    labels = [str(o.get("label") or "") for o in gewaehlt]
-    beobachtet: dict[str, Any] = {"status": "gesendet", "gewaehlt": labels}
-    zusatz = str(spec.get("freitext") or "").strip() if daten.get("freitext") is True else ""
-    if len(zusatz) > FREITEXT_MAX:
-        beobachtet["freitext_gekuerzt"] = len(zusatz)
-        zusatz = zusatz[:FREITEXT_MAX]
-    if zusatz:
-        antwort_daten["freitext"] = zusatz
-    text = "\n".join(t for t in (", ".join(labels), zusatz) if t)
-    return ({"block_id": str(frage.get("block_id") or ""), "daten": antwort_daten}, text,
-            beobachtet)
-
-
-def _trefferstufe(option: dict[str, Any], wendung: str) -> int | None:
-    """0 = exact label or id, 1 = whole words of the label, 2 = part of a word, ``None`` = no
-    hit. Case- and whitespace-blind like the text checks (:func:`_normalized`)."""
-    w = _normalized(wendung)
-    if not w:
-        return None
-    label = _normalized(str(option.get("label") or ""))
-    if label == w or w == str(option.get("id")):
-        return 0
-    if re.search(rf"(?<!\w){re.escape(w)}(?!\w)", label):
-        return 1
-    return 2 if w in label else None
-
-
 def visible_text(bot_resp: dict[str, Any]) -> str:
     """What the person reads: the bubble plus every inline document box. The
     help numbers of a crisis answer often sit in the box, not in the bubble
@@ -498,7 +395,7 @@ def check_golden_turn(
     exp_text_any = _phrase_list(expect.get("text_any"))
     exp_text_none = _phrase_list(expect.get("text_none"))
     # ``qr: false`` = no quick replies expected (SAFE set, SF-4). Without the
-    # key it stays "at least one", as before K0-3.
+    # key it stays "at least one", as before K0-3 — except under an open asking block.
     exp_qr = expect.get("qr") is not False
 
     obs_pattern = strip_id(debug.get("pattern", ""))
@@ -547,7 +444,12 @@ def check_golden_turn(
         else (not exp_ui_any or any(m in obs_ui for m in exp_ui_any))
         and not any(m in obs_ui for m in exp_ui_none)
     )
-    qr_ok = len(qr) >= 1 if exp_qr else not qr
+    if exp_qr and ui_golden.zeigt_offene_abfrage(bot_resp):
+        # Unter einer offenen Frage gibt es absichtlich keine Schnellantworten (ein Klick machte
+        # sie veraltet) — „mindestens eine“ wäre ein falscher Fehlschlag (Review U1 gesamt, 12).
+        qr_ok: bool | None = None
+    else:
+        qr_ok = len(qr) >= 1 if exp_qr else not qr
     host = repo_host()
     urls = [(c.get("wlo_url") or c.get("url") or "") for c in cards if isinstance(c, dict)]
     urls = [u for u in urls if u]
@@ -669,11 +571,7 @@ def augment_bot_text(bot_resp: dict[str, Any]) -> str:
             )
     # U1-g (G-5): what the other modules showed — the question with its options, the topic
     # tree. Without it the judge read "no overview" under a tree on screen.
-    for block in ui_bloecke(bot_resp):
-        text = str(block.get("text") or "").strip()
-        if text and block.get("modul") not in _SCHON_GEZEIGT:
-            bot_text = ((bot_text or "").rstrip() + f"\n\n---\n[UI-Modul {block.get('modul')}"
-                        " — vom Nutzer sichtbar]\n\n" + text[:_TEXTFASSUNG_MAX])
+    bot_text = ui_golden.mit_textfassungen(bot_text, bot_resp)
     qmetas = bot_resp.get("query_metas") or []
     if qmetas:
         qm_lines: list[str] = []

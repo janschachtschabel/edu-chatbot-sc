@@ -14,7 +14,7 @@ dem nächsten Zug, ohne Neustart.
 from __future__ import annotations
 
 from boerdi.ui_module import katalog
-from boerdi.ui_module.namen import ABGELEITETE, FEST, INHALTSRAHMEN
+from boerdi.ui_module.namen import FEST, OHNE_WIRKUNG_IN_TOOLS
 
 
 def _gelesen() -> dict[str, frozenset[str]]:
@@ -42,5 +42,5 @@ def schaltbar(name: str) -> dict[str, bool]:
     if name in FEST:
         return {"aktiv": False, "agent": False}
     manifest = katalog.katalog().get(name) or {}
-    eigenes_werkzeug = bool(manifest.get("agent")) and name not in (INHALTSRAHMEN, *ABGELEITETE)
+    eigenes_werkzeug = bool(manifest.get("agent")) and name not in OHNE_WIRKUNG_IN_TOOLS
     return {"aktiv": True, "agent": eigenes_werkzeug}

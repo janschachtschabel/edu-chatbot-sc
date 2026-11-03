@@ -105,8 +105,10 @@ COPY backend/seeds ./seeds
 # zur Laufzeit per Pfad geladen. Prod-Befund 2026-08-22: ohne diese Kopie
 # starb jeder Gold-Lauf mit Errno 2, weil die Quellbaum-Arithmetik in der
 # installierten venv ins Leere zeigte — EVAL_RUNNER_PATH (ENV oben) zeigt
-# hierher. Nur die eine Datei, nicht reports/ oder __pycache__.
+# hierher. Nur die Runner-Dateien, nicht reports/ oder __pycache__: seit Review U1
+# gesamt (Befund 8) lädt run_golden.py seine Nachbardatei ui_module_golden.py per Pfad.
 COPY evals/run_golden.py ./evals/run_golden.py
+COPY evals/ui_module_golden.py ./evals/ui_module_golden.py
 
 COPY --from=frontend /build/dist/widget/browser ./widget_dist
 COPY --from=frontend /build/dist/studio/browser ./studio_dist

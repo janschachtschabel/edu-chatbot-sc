@@ -153,7 +153,7 @@ def _merge_canvas(bot_text: str, bot_resp: dict[str, Any]) -> str:
 
 def _dokument_boxen(bot_resp: dict[str, Any]) -> list[dict[str, str]]:
     """Every document box the person saw, as ``{kind, title, content}`` — twin of
-    ``evals/run_golden.dokument_boxen`` (why a twin: see ``_augment_bot_text``).
+    ``evals/ui_module_golden.dokument_boxen`` (why a twin: see ``_augment_bot_text``).
 
     Since U1-b2 boxes arrive as ``ui_inhaltsrahmen`` blocks in ``ui.ui_bloecke``; the old
     ``inline_documents`` field is still read so a run against an older backend counts too.
@@ -186,15 +186,15 @@ def _ui_bloecke(bot_resp: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _gezeigte_module(bot_resp: dict[str, Any]) -> list[str]:
     """The modules the person saw, once each, in display order — twin of
-    ``evals/run_golden.gezeigte_module`` (U1-g, G-6)."""
+    ``evals/ui_module_golden.gezeigte_module`` (U1-g, G-6)."""
     return list(dict.fromkeys(str(b.get("modul") or "") for b in _ui_bloecke(bot_resp)
                               if b.get("modul")))
 
 
 def _mit_textfassungen(bot_text: str, bot_resp: dict[str, Any]) -> str:
     """Append the text version of every block the reader would otherwise miss — the question
-    of a choice box with its options, a topic tree (U1-g, G-5). Twin of the block in
-    ``evals/run_golden.augment_bot_text``. The simulated person reads it too and answers by
+    of a choice box with its options, a topic tree (U1-g, G-5). Twin of
+    ``evals/ui_module_golden.mit_textfassungen``. The simulated person reads it too and answers by
     typing; the server frames the open question for the model (``ui_module/antwort``)."""
     for block in _ui_bloecke(bot_resp):
         text = str(block.get("text") or "").strip()

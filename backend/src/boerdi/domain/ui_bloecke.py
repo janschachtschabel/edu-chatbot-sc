@@ -22,7 +22,17 @@ logger = logging.getLogger(__name__)
 
 #: Schlüssel im gespeicherten Debug-Block der Nachricht (wie ``_dokumente``).
 DEBUG_KEY: Final = "_ui_bloecke"
+#: Was die Person live als Text sah, wenn der gespeicherte Text davon abweicht: auf dem geratenen
+#: Weg (M09/M10/M11) bleibt das Roh-Markdown gespeichert — der Folgezug liest es —, gezeigt wurde
+#: nur der Vorspann; der Inhalt steht im Inhaltsrahmen-Block (Review U1 gesamt, Befund 1).
+ANZEIGE_TEXT_KEY: Final = "_anzeige_text"
 HOECHSTENS_BLOECKE: Final = 5
+#: Anzeigende Blöcke (samt Dokumenten), die eine Schleife je Antwort annimmt — ein Platz bleibt
+#: der Frage (Review U1 gesamt, Befund 3).
+HOECHSTENS_ANZEIGENDE: Final = HOECHSTENS_BLOECKE - 1
+#: Werkzeug-Ergebnis für einen anzeigenden Modul-Aufruf ohne Platz.
+GENUG_BLOECKE: Final = ("Nicht ausgeführt: Diese Antwort zeigt schon genug Blöcke. Verweise in "
+                        "deiner Antwort nicht auf diese Anzeige.")
 #: Zeichen der Daten eines Blocks als JSON (~256 KB, wie die gemerkten Schreib-Argumente).
 DATEN_DECKEL_ZEICHEN: Final = 256_000
 
@@ -42,24 +52,45 @@ def _nicht_speicherbar(block: UiBlock) -> str | None:
     return "Daten über dem Deckel" if groesse > DATEN_DECKEL_ZEICHEN else None
 
 
+def _offen_abfragend(block: UiBlock) -> bool:
+    return block.art == "abfragen" and block.status == "offen"
+
+
+def platz_fuer_anzeige(belegt: int) -> bool:
+    """Darf eine Schleife noch einen anzeigenden Block (Dokument, Baum …) annehmen, wenn schon
+    ``belegt`` anzeigende in dieser Antwort stehen? Ein Platz bleibt immer der Frage."""
+    return belegt < HOECHSTENS_ANZEIGENDE
+
+
 def regeln_anwenden(bloecke: list[UiBlock]) -> list[UiBlock]:
-    """Die Blöcke einer Antwort nach den Regeln; die Reihenfolge bleibt, Überzähliges fällt weg."""
-    behalten: list[UiBlock] = []
-    offen_abfragend = False
+    """Die Blöcke einer Antwort nach den Regeln; die Reihenfolge bleibt, Überzähliges fällt weg.
+
+    Die erste offene Frage bleibt immer (Review U1 gesamt, Befund 3): der Zug hat sie sich schon
+    gemerkt (``_offene_frage``), die nächste Eingabe der Person gilt als ihre Antwort. Ist kein
+    Platz mehr, fallen anzeigende Blöcke weg. Wiederholt angewandt ändert sich nichts.
+    """
+    speicherbar: list[UiBlock] = []
     for block in bloecke:
         if grund := _nicht_speicherbar(block):
             logger.warning("UI-Block %s verworfen: %s", block.modul, grund)
             continue
-        if len(behalten) >= HOECHSTENS_BLOECKE:
+        speicherbar.append(block)
+    frage = next((b for b in speicherbar if _offen_abfragend(b)), None)
+    behalten: list[UiBlock] = []
+    platz_fuer_frage = frage is not None
+    for block in speicherbar:
+        if block is frage:
+            behalten.append(block)
+            platz_fuer_frage = False
+            continue
+        if _offen_abfragend(block):
+            logger.warning("UI-Block %s verworfen: schon ein offener abfragender Block",
+                           block.modul)
+            continue
+        if len(behalten) + platz_fuer_frage >= HOECHSTENS_BLOECKE:
             logger.warning("UI-Block %s verworfen: mehr als %d Blöcke", block.modul,
                            HOECHSTENS_BLOECKE)
             continue
-        if block.art == "abfragen" and block.status == "offen":
-            if offen_abfragend:
-                logger.warning("UI-Block %s verworfen: schon ein offener abfragender Block",
-                               block.modul)
-                continue
-            offen_abfragend = True
         behalten.append(block)
     return behalten
 

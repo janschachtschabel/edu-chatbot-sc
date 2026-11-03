@@ -65,6 +65,7 @@ from boerdi.domain.skill_precedence import (
     merke_laufende_anleitung,
     mit_ladehinweisen,
 )
+from boerdi.domain.ui_bloecke import regeln_anwenden
 from boerdi.graph.nodes.respond_strom import strom_fuer_agent_zug
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
@@ -448,8 +449,9 @@ async def respond_agent(
     # Klick darauf machte die Frage veraltet.
     # Am Block, nicht am Ende-Grund: auch ein Lauf, der nach der Frage an einem Deckel endet,
     # zeigt sie — dann muss die Sitzung sie kennen, sonst fiele die Antwort weg.
-    ctx.ui_bloecke = list(lauf.ui_bloecke)
-    if offen := next((b for b in lauf.ui_bloecke if b.art == "abfragen"), None):
+    # Gemerkt wird nur eine Frage, die die Regeln je Antwort übersteht (Review U1 gesamt, Befund 3).
+    ctx.ui_bloecke = regeln_anwenden(list(lauf.ui_bloecke))
+    if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):
         merke_frage(ctx.session_state.setdefault("entities", {}), offen)
         ctx.qr_mode = "none"
     # Ergebnis und Ende-Grund weiterreichen. Der Grund geht MIT, auch wenn kein
