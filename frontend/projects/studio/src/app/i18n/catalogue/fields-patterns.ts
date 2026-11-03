@@ -123,7 +123,8 @@ export const FIELDS_PATTERNS: CataloguePart = {
       'Werkzeuge, die das Modell in diesem Muster aufrufen darf; leer heißt keine '
       + 'WLO-Werkzeuge. Schreibende nur mit Zugang zum MCP-Server; zu Suchwerkzeugen kommen '
       + 'lookup_wlo_vocabulary und get_node_details dazu. UI-Module wie ui_entscheidung wirken '
-      + 'nur, wenn das Widget sie meldet und mcp in den Quellen steht; fehlt eine Pflichtangabe, '
+      + 'nur, wenn das Widget sie meldet, sie auf der Seite „UI-Module“ aktiv sind und mcp in '
+      + 'den Quellen steht; fehlt eine Pflichtangabe, '
       + 'fallen sie wie alle Werkzeuge weg.',
     'feld.PatternFrontmatter.precondition_slots.label': 'Pflichtangaben',
     'feld.PatternFrontmatter.precondition_slots.hint':
@@ -252,7 +253,8 @@ export const FIELDS_PATTERNS: CataloguePart = {
       'Tools the model may call in this pattern; empty means no WLO tools. Writing tools only '
       + 'with access to the MCP server; search tools automatically bring lookup_wlo_vocabulary '
       + 'and get_node_details. UI modules such as ui_entscheidung only work when the widget '
-      + 'reports them and mcp is among the sources; if a required detail is missing, they are '
+      + 'reports them, they are active on the “UI modules” page and mcp is among the sources; '
+      + 'if a required detail is missing, they are '
       + 'dropped like all tools.',
     'feld.PatternFrontmatter.precondition_slots.label': 'Required details',
     'feld.PatternFrontmatter.precondition_slots.hint':

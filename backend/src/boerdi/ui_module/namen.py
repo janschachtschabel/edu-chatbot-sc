@@ -42,7 +42,7 @@ def pruefe_werkzeug_namen(namen: list[str] | None) -> list[str] | None:
         raise ValueError(
             f"tools: {', '.join(wirkungslos)} wirkt hier nicht — der Inhaltsrahmen ist immer "
             f"angeboten, abgeleitete Module wählt ui_module (erlaubt als Modul-Werkzeug sind nur "
-            f"Module mit agent: true, z. B. ui_entscheidung)")
+            f"Module mit agent: true, z. B. {ENTSCHEIDUNG})")
     return namen
 
 

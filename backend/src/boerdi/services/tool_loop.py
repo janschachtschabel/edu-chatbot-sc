@@ -455,7 +455,8 @@ async def _run_tool_loop(
             # demselben Grund — eine Frage NACH ``respond_to_user`` ginge sonst verloren.
             _vorrunde = await nimm_module_an(
                 choice.message.tool_calls, _direkt_angeboten, session_state, messages,
-                tools_called=tools_called, outcomes=outcomes)
+                tools_called=tools_called, outcomes=outcomes,
+                dokumente=len(session_state.get(GELIEFERTE_DOKUMENTE_KEY) or []))
             _dokument_calls |= _vorrunde.erledigt
             _frage = offene_frage(session_state)
 

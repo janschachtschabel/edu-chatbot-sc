@@ -113,8 +113,6 @@ export const UI_MODULE: CataloguePart = {
     'uiModule.vorschau.aktion': 'In der Vorschau läuft keine Aktion ({aktion}).',
     'uiModule.vorschau.antworten': 'In der Vorschau wird nichts gesendet. Antwort: {text}',
     'uiModule.vorschau.zweig': 'In der Vorschau wird nichts geladen ({knoten}) — es stehen Beispiel-Unterthemen da.',
-
-    'agentTools.lock.studioOff': 'Auf der Seite „UI-Module“ abgeschaltet.',
   },
   en: {
     'view.ui-module.label': 'UI modules',
@@ -223,7 +221,5 @@ export const UI_MODULE: CataloguePart = {
     'uiModule.vorschau.aktion': 'No action runs in the preview ({aktion}).',
     'uiModule.vorschau.antworten': 'Nothing is sent in the preview. Answer: {text}',
     'uiModule.vorschau.zweig': 'Nothing is loaded in the preview ({knoten}) — example subtopics are shown.',
-
-    'agentTools.lock.studioOff': 'Switched off on the “UI modules” page.',
   },
 };

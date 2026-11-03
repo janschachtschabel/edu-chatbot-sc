@@ -41,6 +41,7 @@ from boerdi.domain.answer_notes import append_answer_notes
 from boerdi.domain.antwort_werkzeug import inline_anzahl
 from boerdi.domain.quick_reply_policy import _qr_default_count, _spec_qr_response_block
 from boerdi.domain.skill_precedence import mit_ladehinweis
+from boerdi.domain.ui_bloecke import regeln_anwenden
 from boerdi.graph.nodes.respond_agent import respond_agent
 from boerdi.graph.nodes.respond_strom import strom_fuer_muster_zug
 from boerdi.graph.state import TurnContext
@@ -509,7 +510,8 @@ async def respond(
 
         # Paket U1-d2: Blöcke der Modul-Werkzeuge (``turn_persist`` speichert und liefert sie);
         # eine Frage merkt sich die Sitzung, darunter keine Schnellantworten — wie im Agent-Zug.
-        ctx.ui_bloecke = list(session_state.pop(MODUL_BLOECKE_KEY, None) or [])
+        # Gemerkt wird nur eine Frage, die die Regeln je Antwort übersteht (Review U1 gesamt).
+        ctx.ui_bloecke = regeln_anwenden(list(session_state.pop(MODUL_BLOECKE_KEY, None) or []))
         if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):
             merke_frage(session_state.setdefault("entities", {}), offen)
             ctx.qr_mode = "none"

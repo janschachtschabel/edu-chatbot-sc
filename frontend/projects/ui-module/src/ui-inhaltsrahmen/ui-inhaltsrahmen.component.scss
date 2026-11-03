@@ -82,7 +82,13 @@ $text-muted: var(--mat-sys-on-surface-variant);
     font-size: calc(.82rem * var(--inline-doc-scale, 0.85) / 0.85);
     color: $text;
     line-height: 1.4;
+  }
 
+  // Der Markdown kommt per `[innerHTML]` und trägt kein `_ngcontent`-Attribut — ohne `::ng-deep`
+  // griff keine dieser Regeln (wie in `ui/src/markdown/_markdown-content.scss`). Gemessen vorher:
+  // Browser-Vorgaben (h1 26 px, Absatz-/Listenrand 1em), und der Listenrand schob den Inhalt 13 px
+  // unter die Kopfzeile statt 4 px (e2e/inhaltsrahmen.spec.ts „Rhythmus“).
+  &__body ::ng-deep {
     h1, h2, h3, h4, h5, h6 {
       font-size: 1em;
       font-weight: 600;

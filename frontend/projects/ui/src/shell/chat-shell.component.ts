@@ -4,7 +4,7 @@ import {
 } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 
-import { UI_MODUL_REGISTER } from '@boerdi/ui-module';
+import { type ModulRegister, UI_MODUL_REGISTER } from '@boerdi/ui-module';
 import { TREFFERLISTE } from '@boerdi/ui-module/_vertrag/modul-namen';
 
 import { CardListComponent } from '../cards/card-list.component';
@@ -22,6 +22,7 @@ import type { TranslateFn } from '../i18n/i18n';
 import { DEFAULT_LOCALE, Locale } from '../i18n/locale';
 import { UiBloeckeComponent } from '../ui-bloecke/ui-bloecke.component';
 import { alsBeantwortet, offeneFragenSchliessen, wiederOffen } from '../ui-bloecke/fragen-status';
+import { modulDarstellbar } from '../ui-bloecke/modul-darstellbar';
 import type { ShellAntworten, ShellTreffer } from '../ui-bloecke/widget-modul-host';
 import { QuickRepliesComponent } from '../chips/quick-replies.component';
 import { BOERDI_LOGO_DATA_URL } from '../branding/boerdi-logo';
@@ -263,6 +264,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     trustedDomains: () => this._effectiveTrustedDomains(),
     inlineResultGrouping: () => this.inlineResultGroupingBool,
     t: (key, params) => this.t(key, params),
+    modulRegister: () => this._modulRegister,
   });
   /** Druck-Gates + -Trigger (Lernpfad-/Canvas-Leisten). */
   readonly print = SHELL_PRINT;
@@ -318,7 +320,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     volltext: (nodeId, title) => void this.showContentText(nodeId, title),
     sammlung: (nodeId, title) => void this.browseCollection(nodeId, title),
     lernpfad: (nodeId, title) => void this.generateLearningPath(nodeId, title),
-    zweig: (nodeId) => themenbaumZweig(nodeId, this._contexts.collectionActions),
+    zweig: (nodeId) => this._mitAbbruch((signal) => themenbaumZweig(nodeId, this._contexts.collectionActions, signal)),
     mehrLaden: (nachrichtId) => void this.loadMoreCards(nachrichtId),
   };
 
@@ -340,9 +342,15 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     });
   };
 
-  /** Trägt die Nachricht eine Trefferliste? Dann zeigt das Modul die Boxen — die bisherigen schweigen. */
+  /** Trägt die Nachricht eine Trefferliste, die ihr Modul zeigt? Dann zeigt es die Boxen — die
+   *  bisherigen schweigen; bei einer fremden Hauptversion (nur Textfassung) bleiben sie. */
   protected hatTrefferliste(msg: ChatMessage): boolean {
-    return !!msg.ui?.ui_bloecke?.some((b) => b.modul === TREFFERLISTE);
+    return modulDarstellbar(msg, TREFFERLISTE, this._modulRegister);
+  }
+
+  /** Für die Druck-Tore im Template (`print.hatDokumentBox(msg, modulRegister)`). */
+  protected get modulRegister(): ModulRegister {
+    return this._modulRegister;
   }
 
   /** U2b — Kacheln mit Vorschaubild (`true`) oder Textlinks in Boxen (`false`).
@@ -390,7 +398,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     setLoading: (v) => this.isLoading.set(v),
     messages: () => this.messages(),
     updateMessages: (u) => this._store.update(u),
-    addUserMessage: (content) => this._store.addUserMessage(content),
+    // Nur der Tour-Start legt hierüber eine Blase an — ein Zug der Person wie im Eingabefeld:
+    // offene Fragen schließen (Review U1). Tour-Tick und Kontext-Ping legen keine an.
+    addUserMessage: (content) => {
+      this._store.update(offeneFragenSchliessen);
+      this._store.addUserMessage(content);
+    },
     addBotMessage: (...args) => this._store.addBotMessage(...args),
     removeMessage: (id) => this._store.removeMessage(id),
     setScrollTarget: (id) => { this._scroll.setScrollTarget(id); },
@@ -512,8 +525,20 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   };
   /** Das Widget ist entfernt — eine laufende Nachfrage im Verlauf hört auf. */
   private _zerstoert = false;
-  /** Laufende Nachfragen im Verlauf — beim Entfernen abgebrochen (Paket 9). */
+  /** Laufende Nachfragen im Verlauf und Zweige des Themenbaums — beim Entfernen abgebrochen
+   *  (Paket 9; Zweige seit Review U1 gesamt). */
   private readonly _nachfragen = new Set<AbortController>();
+
+  /** Einen Abruf mit eigenem Abbruch starten, der mit dem Widget endet. */
+  private async _mitAbbruch<T>(abruf: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const steuerung = new AbortController();
+    this._nachfragen.add(steuerung);
+    try {
+      return await abruf(steuerung.signal);
+    } finally {
+      this._nachfragen.delete(steuerung);
+    }
+  }
 
   /** Input-Routing-Seam (8-4S-d2b). */
   private readonly _routingCtx: InputRoutingContext = {

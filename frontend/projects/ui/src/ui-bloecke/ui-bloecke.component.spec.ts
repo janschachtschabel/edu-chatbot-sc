@@ -9,7 +9,7 @@ import { MODUL_HOST, UI_MODUL_REGISTER, type ModulKontext, type ModulRegister, t
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import { UiBloeckeComponent } from './ui-bloecke.component';
-import type { ShellAntworten, ShellTreffer } from './widget-modul-host';
+import { type HostSeams, type ShellAntworten, type ShellTreffer, WidgetModulHost } from './widget-modul-host';
 
 /** Was `zweig` dem Testmodul zurückgab (U1-h). */
 const ZWEIG_ERHALTEN: Record<string, unknown>[] = [];
@@ -25,7 +25,8 @@ const ZWEIG_ERHALTEN: Record<string, unknown>[] = [];
              <button type="button" class="test-drucken" (click)="drucken()">drucken</button>
              <span class="test-link" [attr.data-href]="verweis().href" [attr.data-hinweis]="verweis().hinweis"></span>
              <span class="test-treffer" [attr.data-kacheln]="umgebung().kacheln"
-                   [attr.data-regeln]="kontext().anzeigeRegeln ? 'ja' : 'nein'"></span>
+                   [attr.data-regeln]="kontext().anzeigeRegeln ? 'ja' : 'nein'"
+                   [attr.data-karten-href]="kartenHref()" [attr.data-karten-hinweis]="kartenHinweis()"></span>
              <button type="button" class="test-volltext" (click)="volltext()">volltext</button>
              <button type="button" class="test-baum" (click)="baum()">baum</button>
              <button type="button" class="test-mehr" (click)="mehrLaden()">mehr</button>
@@ -38,6 +39,9 @@ class TestModul {
   laden(): void { this.host.herunterladen('probe.md', 'text/markdown', '# Probe'); }
   verweis() { return this.host.link('https://wirlernenonline.de/x'); }
   umgebung() { return this.host.treffer(); }
+  /** Was die Trefferboxen über den Kontext der Shell aus einer Karten-Adresse machen. */
+  kartenHref() { return (this.umgebung().kontext as typeof VERWEISE).withBsid('https://fremd.example/k'); }
+  kartenHinweis() { return (this.umgebung().kontext as typeof VERWEISE).externalLinkWarning('https://fremd.example/k'); }
   volltext(): void { this.host.aktion('volltext', { nodeId: 'n1', title: 'T' }); }
   baum(): void { void this.host.zweig('n2').then((d) => ZWEIG_ERHALTEN.push(d)); }
   mehrLaden(): void { this.host.aktion('mehrLaden', { blockId: 'gleich-anderswo' }); }
@@ -82,7 +86,12 @@ function block(mehr: Partial<UiBlock> = {}): UiBlock {
 }
 
 const TREFFER = {
-  kontext: { kennung: 'shell' }, kacheln: () => true, beschaeftigt: () => false,
+  kontext: {
+    kennung: 'shell',
+    withBsid: (url: string | null | undefined) => `${url}?bsid=s1`,
+    externalLinkWarning: (url: string | null | undefined) => (url?.includes('fremd') ? 'Externe Seite' : ''),
+  },
+  kacheln: () => true, beschaeftigt: () => false,
   volltext: vi.fn(), sammlung: vi.fn(), lernpfad: vi.fn(), mehrLaden: vi.fn(),
   zweig: vi.fn(async (nodeId: string) => ({ knoten: [{ id: `${nodeId}-1`, titel: 'Gleichungen' }] })),
 } satisfies ShellTreffer;
@@ -300,6 +309,18 @@ describe('UiBloeckeComponent', () => {
     }
   });
 
+  it('ohne Fähigkeit oeffnen baut auch der Treffer-Kontext keine Adressen (Review U1 gesamt, Befund 4)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const mit = (await render([block()])).querySelector('.test-treffer')!;
+    expect(mit.getAttribute('data-karten-href')).toBe('https://fremd.example/k?bsid=s1');
+    expect(mit.getAttribute('data-karten-hinweis')).toBe('Externe Seite');
+    const ohne = (await renderNeu([block({ modul: 'ui_ohne' })])).querySelector('.test-treffer')!;
+    expect(ohne.getAttribute('data-karten-href')).toBe('');
+    expect(ohne.getAttribute('data-karten-hinweis')).toBe('');
+    // Darstellung bleibt: Kacheln und „beschäftigt“ kommen weiter von der Shell.
+    expect(ohne.getAttribute('data-kacheln')).toBe('true');
+  });
+
   it('U1-d1: eine Antwort geht mit Nachricht und Kennung DIESES Blocks an die Shell', async () => {
     const el = await render([
       block({ block_id: 'b0000011', modul: 'ui_frage', version: 1, art: 'abfragen', status: 'offen' }),
@@ -326,5 +347,21 @@ describe('UiBloeckeComponent', () => {
   it('ohne Blöcke rendert nichts', async () => {
     const el = await render([]);
     expect(el.querySelectorAll('.ui-block').length).toBe(0);
+  });
+});
+
+describe('WidgetModulHost.link — nur http(s) (Review U1 gesamt, Befund 3)', () => {
+  const host = new WidgetModulHost({ verweise: () => VERWEISE } as unknown as HostSeams);
+
+  it('andere Schemata und relative Adressen ergeben keinen Link', () => {
+    for (const url of ['javascript:alert(1)', ' JavaScript:alert(1)', 'data:text/html,<b>x</b>', 'mailto:a@b.de',
+      'ftp://wirlernenonline.de/x', '/relativ', '//fremd.example/x', 'vbscript:x', '']) {
+      expect(host.link(url), url).toEqual({ href: '', hinweis: '' });
+    }
+  });
+
+  it('http und https gehen durch die Link-Regeln der Shell', () => {
+    expect(host.link('https://wirlernenonline.de/x')).toEqual({ href: 'https://wirlernenonline.de/x?bsid=s1', hinweis: '' });
+    expect(host.link('HTTP://fremd.example/y')).toEqual({ href: 'HTTP://fremd.example/y?bsid=s1', hinweis: 'Externe Seite' });
   });
 });

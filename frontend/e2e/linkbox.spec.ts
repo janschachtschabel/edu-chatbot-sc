@@ -6,6 +6,7 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { luecke, textkante } from './fixtures/abstaende';
 import { chatResponse } from './fixtures/backend-payloads';
 import { mount } from './fixtures/harness';
 
@@ -67,3 +68,51 @@ test('nach dem Neuladen: die Linkbox aus dem Verlauf, keine zweite Box', async (
   await expect(page.locator('.result-group--web')).toHaveCount(1);
   await expect(page.locator('ui-linkbox a.result-group__item')).toHaveCount(2);
 });
+
+// ── Senkrechter Rhythmus (2026-11-03) ──────────────────────────────────────────────────────────
+// Sichtbarer Weißraum zwischen Textzeilen (fixtures/abstaende.ts): Überschrift → erster Link wie
+// Link → Link — in der Linkbox und in der Trefferbox darüber (beide stehen zusammen, gleicher Stil).
+const KARTEN = [
+  { node_id: 'c1', title: 'Sammlung Optik', node_type: 'collection', url: 'https://wirlernenonline.de/c1' },
+  { node_id: 'c2', title: 'Sammlung Licht', node_type: 'collection', url: 'https://wirlernenonline.de/c2' },
+];
+const TREFFER = {
+  block_id: 'b0000006', modul: 'ui_trefferliste', version: 1, art: 'anzeigen', status: 'nur_anzeige',
+  daten: { karten: KARTEN, such_metas: [], seiten: null, typ_fokus: '' }, text: '',
+};
+
+/** Überschrift → erster Eintrag und Eintrag → Eintrag in einer `.result-group`. */
+async function gruppenRhythmus(gruppe: import('@playwright/test').Locator) {
+  const kopf = await textkante(gruppe.locator('.result-group__heading'));
+  const titel = gruppe.locator('.result-group__item-title');
+  const [t1, t2] = [await textkante(titel.nth(0)), await textkante(titel.nth(1))];
+  return { kopfZuEintrag: luecke(kopf, t1), eintragZuEintrag: luecke(t1, t2) };
+}
+
+for (const breite of [1280, 320]) {
+  test(`Rhythmus (${breite} px): Überschrift → erster Link wie Link → Link, wie in der Trefferbox`, async ({ page }) => {
+    await page.setViewportSize({ width: breite, height: 800 });
+    const w = await mount(page);
+    w.enqueue(chatResponse({
+      content: 'Hier ist, was ich gefunden habe.', cards: KARTEN, web_links: LINKS,
+      ui: { pattern: 'M05 (Suche)', ui_bloecke: [TREFFER, LINKBOX] },
+    }));
+    await w.open();
+    await page.locator('.chat-input').fill('Optik');
+    await page.locator('.btn-send').click();
+    await w.waitForTurns(1);
+
+    const linkbox = await gruppenRhythmus(page.locator('ui-linkbox .result-group'));
+    const treffer = await gruppenRhythmus(page.locator('ui-trefferliste .result-group').first());
+    const m = { linkbox, treffer };
+    test.info().annotations.push({ type: 'abstaende', description: JSON.stringify(m) });
+    const zeig = JSON.stringify(m);
+
+    // Überschrift → erster Link wie Link → Link (±3 px, wie bei den anderen Modulen). Vorher
+    // 9,7 gegen 6,1 px; seit dem Entscheid des Nutzers (2026-11-03) steht die Überschrift im
+    // geteilten Partial `ui/src/grouping/_result-group.scss` 2 px statt 4 px über dem ersten Eintrag.
+    expect(Math.abs(linkbox.kopfZuEintrag - linkbox.eintragZuEintrag), zeig).toBeLessThanOrEqual(3);
+    expect(Math.abs(linkbox.kopfZuEintrag - treffer.kopfZuEintrag), zeig).toBeLessThanOrEqual(1);
+    expect(Math.abs(linkbox.eintragZuEintrag - treffer.eintragZuEintrag), zeig).toBeLessThanOrEqual(1);
+  });
+}

@@ -9,6 +9,7 @@ import { MODUL_HOST, UI_MODUL_REGISTER, type ModulKontext, type UiBlock } from '
 import type { GroupingContext } from '../grouping/result-grouping';
 import type { TranslateFn } from '../i18n/i18n';
 import { BlockModulHost } from './block-modul-host';
+import { blockDarstellbar } from './modul-darstellbar';
 import { schriftProzent } from './schrift-skala';
 import { type ShellAntworten, type ShellTreffer, WidgetModulHost } from './widget-modul-host';
 
@@ -17,7 +18,7 @@ interface Darstellung {
   /** `null` = Textfassung (Modul fehlt oder Version passt nicht). */
   readonly komponente: Type<unknown> | null;
   readonly eingaben: { daten: Record<string, unknown>; kontext: ModulKontext };
-  /** Eigener Modul-Host des Blocks (U1-d1); `null` bei der Textfassung. */
+  /** Eigener Modul-Host des Blocks (U1-d1); `undefined` bei der Textfassung. */
   readonly injector: Injector | undefined;
 }
 
@@ -100,12 +101,12 @@ export class UiBloeckeComponent {
     this.bloecke()
       .filter((block) => (this.register[block.modul]?.manifest.darstellung?.platz ?? 'oben') === this.platz())
       .map((block) => {
-      const eintrag = this.register[block.modul];
-      // Ohne Daten (alter Verlauf) bekäme das Modul nichts zu zeigen — dann die Textfassung.
-      const passt = !!eintrag && eintrag.manifest.version === block.version && !!block.daten;
+      // Ohne Daten (alter Verlauf) bekäme das Modul nichts zu zeigen — dann die Textfassung. Dieselbe
+      // Regel lesen die Tore der Shell (`modul-darstellbar.ts`).
+      const passt = blockDarstellbar(block, this.register);
       return {
         block,
-        komponente: passt ? eintrag.komponente : null,
+        komponente: passt ? this.register[block.modul].komponente : null,
         injector: passt ? this.blockInjector(block) : undefined,
         eingaben: {
           daten: block.daten ?? {},

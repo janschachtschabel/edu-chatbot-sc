@@ -134,6 +134,8 @@ describe('lockLink (ST-8b)', () => {
     expect(lockLink({ code: 'policy', rules: ['x'] }, 'agent')).toBe('agent-rolle');
     expect(lockLink({ code: 'knowledge_areas' }, 'agent')).toBe('wissen');
     expect(lockLink({ code: 'studio_off' }, 'pattern')).toBe('ui-module');
+    // Review U1 gesamt, Befund 19: ein UI-Modul mit Datenquelle hängt am Schalter seines Werkzeugs.
+    expect(lockLink({ code: 'data_source', tool: 'browse_collection_tree' }, 'agent')).toBe('werkzeuge');
     expect(lockLink({ code: 'safety_fixed', signals: ['pii'] }, 'agent')).toBeNull();
     expect(lockLink({ code: 'tool_mode', modes: ['curate'] }, 'pattern')).toBeNull();
   });

@@ -238,6 +238,7 @@ describe('postChat — Frist (M-15)', () => {
   function haengendesFetch(gesehen: { signal?: AbortSignal }): typeof fetch {
     return ((_url: unknown, init: RequestInit) => new Promise<Response>((_ok, nein) => {
       gesehen.signal = init.signal ?? undefined;
+      if (init.signal?.aborted) nein(new DOMException('aborted', 'AbortError'));
       init.signal?.addEventListener('abort', () => nein(new DOMException('aborted', 'AbortError')));
     })) as unknown as typeof fetch;
   }
@@ -261,6 +262,23 @@ describe('postChat — Frist (M-15)', () => {
     expect(fertig).toBe(false);
     await vi.advanceTimersByTimeAsync(1_500);
     expect(await p).toBeInstanceOf(StreamStaleError);
+  });
+
+  it('ein Abbruch von außen (signal) bricht den Abruf ab — kein StreamStaleError (Review U1 gesamt)', async () => {
+    const gesehen: { signal?: AbortSignal } = {};
+    const aussen = new AbortController();
+    const p = postChat({ url: 'x', body: {}, fetchImpl: haengendesFetch(gesehen), signal: aussen.signal });
+    aussen.abort();
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' });
+    expect(gesehen.signal?.aborted).toBe(true);
+  });
+
+  it('ein schon abgebrochenes signal startet keinen hängenden Abruf', async () => {
+    const gesehen: { signal?: AbortSignal } = {};
+    const aussen = new AbortController();
+    aussen.abort();
+    await expect(postChat({ url: 'x', body: {}, fetchImpl: haengendesFetch(gesehen), signal: aussen.signal }))
+      .rejects.toMatchObject({ name: 'AbortError' });
   });
 
   it('ein Netzfehler vor der Frist bleibt ein Netzfehler', async () => {

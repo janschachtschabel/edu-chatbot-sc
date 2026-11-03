@@ -75,7 +75,7 @@ export class WebLinksComponent {
     this.ctx().t(key, params);
 
   protected readonly links = computed(() =>
-    isTourMessage(this.message()) || hatLinkbox(this.message())
+    isTourMessage(this.message()) || hatLinkbox(this.message(), this.ctx().modulRegister?.() ?? {})
       ? [] : groupedWebLinks(this.message(), this.ctx()));
 
   /** ALT `ChatComponent.webLinkUrl` = `withBsid(link.url)`. Idempotent — die

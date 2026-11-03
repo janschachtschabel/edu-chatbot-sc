@@ -76,6 +76,7 @@ from boerdi.domain.turn_frame import (
     clear_frame,
     note_clarification,
 )
+from boerdi.domain.ui_bloecke import ANZEIGE_TEXT_KEY as UI_ANZEIGE_TEXT_KEY
 from boerdi.domain.ui_bloecke import DEBUG_KEY as UI_BLOECKE_KEY
 from boerdi.domain.ui_bloecke import fuer_den_debug_block as ui_bloecke_fuer_debug
 from boerdi.domain.ui_bloecke import regeln_anwenden as ui_bloecke_regeln
@@ -576,6 +577,7 @@ async def persist_and_build_response(
     # Markdown in eine gerahmte Box (``inline_documents``); ``content`` bekommt
     # nur einen kurzen Begleittext.
     inline_documents: list[dict[str, Any]] = []
+    _box_geraten = False
     try:
         _winner_id = _effective_pattern_id or winner_id or pattern_output.get("id", "")
     except Exception:
@@ -633,6 +635,7 @@ async def persist_and_build_response(
             if _docs:
                 inline_documents = _docs
                 _final_text = _intro or ""
+                _box_geraten = True
                 # Markdown steckt jetzt in der Box → daraus extrahierte Inline-
                 # Links nicht zusätzlich als zweite Liste rendern.
                 _web_links = []
@@ -718,6 +721,10 @@ async def persist_and_build_response(
     _debug_final = dict(_debug_for_save)
     if inline_documents and _ui_bloecke:
         _debug_final[UI_BLOECKE_KEY] = ui_bloecke_fuer_debug(_ui_bloecke)
+    if _box_geraten:
+        # Gespeichert ist das Roh-Markdown (für den M11-Folgezug), gezeigt nur der Vorspann —
+        # ohne diesen Merker stünde der Inhalt nach dem Neuladen doppelt (Text und Box).
+        _debug_final[UI_ANZEIGE_TEXT_KEY] = _final_text
     if _topic_page_view is not None:
         _debug_final["_topic_page_view"] = _topic_page_view.model_dump()
     # Paket C (Review 2026-09-29): die gezeigten Boxen reisen mit der Nachricht —

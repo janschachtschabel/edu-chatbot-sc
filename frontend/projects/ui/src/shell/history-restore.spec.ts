@@ -90,6 +90,21 @@ describe('restoreHistory (8-4S-e3)', () => {
     expect(rec.users).toEqual([]);
     expect(rec.bots[0]).toEqual(['A', false, undefined, undefined, undefined, undefined, undefined, undefined]);
   });
+
+  it('Bot-Antwort nur aus UI-Blöcken (ohne Text) bleibt stehen — eine leere ohne Blöcke nicht', async () => {
+    const ui = { ui_bloecke: [{
+      block_id: 'b0000001', modul: 'ui_entscheidung', version: 1, art: 'abfragen' as const, status: 'offen' as const,
+      daten: { frage: 'Welche Klasse?', optionen: [] }, text: 'Welche Klasse?',
+    }] };
+    const { ctx, rec } = makeCtx([
+      { role: 'assistant', content: '', ui },
+      { role: 'assistant', content: '', ui: { ui_bloecke: [] } },
+    ]);
+    await restoreHistory(ctx);
+    expect(rec.bots.length).toBe(1);
+    expect(rec.bots[0][0]).toBe('');
+    expect(rec.bots[0][4]).toBe(ui);
+  });
   /**
    * Befund 2026-08-17 (Browser-Plugin der Kollegen, ohne Sidebar-API):
    * Beim ersten Laden mit Seitenkontext ist die Kontext-Begruessung der Opener —

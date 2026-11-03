@@ -141,6 +141,9 @@ $text-muted: var(--mat-sys-on-surface-variant);
 .ui-themenbaum__knopf {
   display: inline-flex;
   align-items: center;
+  // `border-box` wie bei `<button>` (Browser-Vorgabe): sonst wäre der Link „In WLO öffnen“ 42 px
+  // hoch, die Knöpfe daneben 32 px (gemessen, e2e/themenbaum.spec.ts „Rhythmus“).
+  box-sizing: border-box;
   min-block-size: 32px;
   padding: 4px 12px;
   border: 1px solid var(--mat-sys-outline);
@@ -152,7 +155,7 @@ $text-muted: var(--mat-sys-on-surface-variant);
   text-decoration: none;
   cursor: pointer;
 
-  &:hover:not(:disabled) {
+  &:hover:not(:disabled, [aria-disabled='true']) {
     background: color-mix(in srgb, var(--mat-sys-primary) 8%, var(--mat-sys-surface));
   }
 
@@ -161,8 +164,10 @@ $text-muted: var(--mat-sys-on-surface-variant);
     outline-offset: 2px;
   }
 
-  // Gesperrt nicht nur blasser: der Mauszeiger sagt es mit; Text bleibt lesbar.
-  &:disabled {
+  // Gesperrt nicht nur blasser: der Mauszeiger sagt es mit; Text bleibt lesbar. `aria-disabled`
+  // während eines Zugs — der Knopf bleibt fokussierbar (Review U1 gesamt).
+  &:disabled,
+  &[aria-disabled='true'] {
     opacity: .5;
     cursor: not-allowed;
   }

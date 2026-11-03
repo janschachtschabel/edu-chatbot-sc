@@ -101,7 +101,9 @@ export class UiTrefferliste {
     this.sichtbar.set(vorher + 5);
     afterNextRender(() => {
       const ziel = this.element.nativeElement.querySelectorAll('.wlo-card-wrapper')[vorher] as HTMLElement | undefined;
-      ziel?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      // Weniger Bewegung gewünscht → springen statt gleiten (Review U1 gesamt).
+      const ruhig = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      ziel?.scrollIntoView?.({ behavior: ruhig ? 'auto' : 'smooth', block: 'center' });
     }, { injector: this.injector });
   }
 

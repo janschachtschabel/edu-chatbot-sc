@@ -60,6 +60,8 @@ def test_dockerfile_liefert_den_gold_runner_mit() -> None:
     """
     text = (_DEPLOY.parent / "Dockerfile").read_text("utf-8")
     assert "COPY evals/run_golden.py" in text, "evals/run_golden.py fehlt im Image"
+    # Review U1 gesamt (Befund 8): der Runner lädt seine Nachbardatei über den Pfad.
+    assert "COPY evals/ui_module_golden.py" in text, "evals/ui_module_golden.py fehlt im Image"
     assert "EVAL_RUNNER_PATH=/app/evals/run_golden.py" in text, (
         "EVAL_RUNNER_PATH zeigt im Image nicht auf die mitkopierte Datei"
     )
@@ -78,7 +80,7 @@ def test_dockerfile_liefert_den_gold_runner_mit() -> None:
     }
     verboten = sorted(zeilen & {
         "evals", "evals/", "evals/*", "evals/**", "**/evals",
-        "evals/run_golden.py",
+        "evals/run_golden.py", "evals/ui_module_golden.py",
     })
     assert verboten == [], (
         f".dockerignore hält den Gold-Runner aus dem Build-Kontext: {verboten} "

@@ -5,8 +5,9 @@
  * `parseInt` fängt Zeichenketten, NaN oder Fehlendes → Vorgabe.
  */
 export function schriftProzent(displayRules: Record<string, unknown> | null | undefined): number {
-  const raw = (displayRules as any)?.['inline_documents']?.['font_size_percent'];
-  const n = typeof raw === 'number' ? raw : parseInt(raw, 10);
+  const dokumente = displayRules?.['inline_documents'] as { readonly font_size_percent?: unknown } | null | undefined;
+  const raw = dokumente?.font_size_percent;
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
   if (!Number.isFinite(n)) return 85;
   return Math.max(70, Math.min(100, n));
 }

@@ -31,14 +31,14 @@ const TEXTE = {
     <div class="result-groups">
       <div class="result-group result-group--web">
         <div class="result-group__heading">
-          <span class="bb-icon" [innerHTML]="symbol | safeSvg"></span>
+          <span class="bb-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
           {{ texte().ueberschrift }}
         </div>
         <div class="result-group__items">
           @for (link of eintraege(); track $index) {
             <a class="result-group__item" [href]="link.href" target="_blank" rel="noopener noreferrer"
                [attr.title]="link.tooltip">
-              <span class="result-group__item-icon" [innerHTML]="symbol | safeSvg"></span>
+              <span class="result-group__item-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
               <span class="result-group__item-title">{{ link.titel || texte().ohne }}</span>
             </a>
           }

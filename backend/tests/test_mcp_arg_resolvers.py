@@ -599,3 +599,26 @@ def test_browse_resolver_unlesbare_portalliste_hinterlaesst_spur(ar_state, monke
 
     assert out == args
     assert any("JSONDecodeError" in r.getMessage() for r in caplog.records), caplog.text
+
+
+# ── Review U1 gesamt, Befund 2: Unterthemen und genanntes Fach bleiben stehen ──
+_UNTERTHEMA = "cccccccc-3333-4333-8333-333333333333"
+
+
+def test_browse_resolver_laesst_eine_unterthemen_uuid_stehen(ar_state, monkeypatch):
+    """Eine Kennung, die kein Fachportal ist (Unterthema, Sammlung), ist kein Fehlgriff — sie
+    durch das Portal des Fachs zu ersetzen, zeigte den falschen Baum (Themenbaum im Muster)."""
+    _wire_call(monkeypatch, _PORTALS_JSON)
+    ar.set_request_hints({"fach": "Mathematik"})
+    args = {"nodeId": _UNTERTHEMA, "depth": 2}
+    assert asyncio.run(ar._resolve_browse_node_id(dict(args))) == args
+
+
+def test_browse_resolver_fuegt_bei_genanntem_fach_keine_kennung_hinzu(ar_state, monkeypatch):
+    """Nennt der Aufruf ``subject``, löst der Server selbst auf — eine ergänzte ``nodeId`` aus
+    dem Fach-Hinweis ginge vor (``browse.ts``) und zeigte das Fach der Klassifikation."""
+    calls = _wire_call(monkeypatch, _PORTALS_JSON)
+    ar.set_request_hints({"fach": "Mathematik"})
+    args = {"subject": "Geographie", "depth": 2}
+    assert asyncio.run(ar._resolve_browse_node_id(dict(args))) == args
+    assert calls == []

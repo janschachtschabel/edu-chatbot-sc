@@ -1,7 +1,7 @@
 """Modul-Nutzung eines Eval-Laufs (Paket U1-g, G-6) — rein, ohne E/A.
 
 Welche UI-Module in wie vielen Zügen erschienen, je Muster und je Anwendungsfall. Quelle ist das
-Zug-Feld ``ui_module`` (die gezeigten Blöcke, ``evals/run_golden.gezeigte_module`` bzw.
+Zug-Feld ``ui_module`` (die gezeigten Blöcke, ``evals/ui_module_golden.gezeigte_module`` bzw.
 ``runner._gezeigte_module``) — nicht ``tools_called``: abgeleitete Module entstehen ohne Aufruf.
 
 Beim Lesen gerechnet wie das Profil (``run_profile``). Züge vor U1-g tragen das Feld nicht; sie

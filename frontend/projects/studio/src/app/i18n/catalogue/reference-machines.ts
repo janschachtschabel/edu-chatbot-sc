@@ -78,8 +78,10 @@ export const REFERENCE_MACHINES: CataloguePart = {
     'rm.row.tools': 'Werkzeuge',
     'rm.row.tools.pattern': 'Je Muster gebunden; Suchen starten nach dem Intent schon vorab.',
     'rm.row.tools.agent':
-      'Der ganze Katalog ohne gesperrte Werkzeuge, dazu `wissen_suchen`, `ui_inhaltsrahmen` '
-      + 'und auf Wunsch der Gastanwendung `liefere_ergebnis`.',
+      'Der ganze Katalog ohne gesperrte Werkzeuge, dazu `respond_to_user` (mit den '
+      + 'Agent-Schnellantworten), `wissen_suchen`, `ui_inhaltsrahmen`, die UI-Module '
+      + '`ui_entscheidung` und `ui_themenbaum` (nur wenn das Widget sie meldet und sie auf der '
+      + 'Seite „UI-Module“ aktiv sind) und auf Wunsch der Gastanwendung `liefere_ergebnis`.',
     'rm.row.flow': 'Ablauf',
     'rm.row.flow.pattern': 'Eine Antwort; Werkzeuge laufen dazwischen.',
     'rm.row.flow.agent':
@@ -160,8 +162,10 @@ export const REFERENCE_MACHINES: CataloguePart = {
     'rm.row.tools': 'Tools',
     'rm.row.tools.pattern': 'Bound per pattern; searches start ahead of time by intent.',
     'rm.row.tools.agent':
-      'The whole catalogue minus blocked tools, plus `wissen_suchen`, `ui_inhaltsrahmen` '
-      + 'and, if the host application asks for it, `liefere_ergebnis`.',
+      'The whole catalogue minus blocked tools, plus `respond_to_user` (with the agent quick '
+      + 'replies), `wissen_suchen`, `ui_inhaltsrahmen`, the UI modules `ui_entscheidung` and '
+      + '`ui_themenbaum` (only if the widget reports them and they are active on the “UI modules” '
+      + 'page) and, if the host application asks for it, `liefere_ergebnis`.',
     'rm.row.flow': 'Flow',
     'rm.row.flow.pattern': 'One answer; tools run in between.',
     'rm.row.flow.agent':

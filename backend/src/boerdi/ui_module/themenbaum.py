@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from typing import Any, Final
 
-from boerdi.ui_module.abgeleitet import http_url
+from boerdi.ui_module.abgeleitet import http_url, md_link
 
 HOECHSTENS_OBEN: Final = 30
 HOECHSTENS_KINDER: Final = 10
@@ -117,8 +117,7 @@ def daten_aus(payload: Any, titel: str = "") -> dict[str, Any] | None:
 
 
 def _zeile(knoten: dict[str, Any], einzug: str) -> str:
-    titel = knoten["titel"].replace("[", "(").replace("]", ")")
-    return f"{einzug}- [{titel}]({knoten['url']})" if knoten.get("url") else f"{einzug}- {titel}"
+    return f"{einzug}- {md_link(knoten['titel'], knoten.get('url') or '')}"
 
 
 def textfassung(daten: dict[str, Any]) -> str:

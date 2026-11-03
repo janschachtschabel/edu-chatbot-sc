@@ -60,6 +60,7 @@ from boerdi.domain.result_delivery import (
     ergebnis_aus_argumenten,
 )
 from boerdi.domain.tool_result_redaction import redigiere_strukturell
+from boerdi.domain.ui_bloecke import GENUG_BLOECKE, platz_fuer_anzeige
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.domain.werkzeug_angebot import (
     NICHT_ANGEBOTEN,
@@ -92,6 +93,7 @@ from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
 from boerdi.ui_module.datenquelle import aufruf as datenquellen_aufruf
 from boerdi.ui_module.werkzeuge import (
     hat_datenquelle,
+    ist_abfragendes_modul,
     ist_modul_werkzeug,
     modul_aufruf_annehmen,
 )
@@ -219,6 +221,11 @@ def _assistant_turn(message: Any, calls: list[Any]) -> dict[str, Any]:
 
 def _tool_turn(call_id: str, content: str) -> dict[str, Any]:
     return {"role": "tool", "tool_call_id": call_id, "content": content}
+
+
+def _anzeigende(run: AgentRun) -> int:
+    """Anzeigende Blöcke des Laufs bisher — die Dokumente zählen mit (Inhaltsrahmen)."""
+    return len(run.dokumente) + sum(1 for b in run.ui_bloecke if b.art != "abfragen")
 
 
 def _ersetze_werkzeug_text(messages: list[dict[str, Any]], call_id: str, content: str) -> None:
@@ -599,6 +606,15 @@ async def run_agent_loop(
             # Quittung — die Knoten laufen nicht durchs Modell. Nicht über ``call_with_outcome``:
             # das Ergebnis würde sonst zu Karten geerntet und stünde doppelt da.
             # Protokoll, Ergebnis und Werkzeugzeit wie jeder Werkzeugaufruf (Review U1-e, Befund 6).
+            # Ein anzeigender Aufruf ohne Platz wird nicht ausgeführt — die Frage behält ihren
+            # (Review U1 gesamt, Befund 3); eine Antwort derselben Runde gilt wie bei einem
+            # fehlenden Block nicht.
+            if (ist_modul_werkzeug(name) and not ist_abfragendes_modul(name)
+                    and not platz_fuer_anzeige(_anzeigende(run))):
+                logger.info("Modul-Werkzeug %s: kein Platz mehr in dieser Antwort", name)
+                messages.append(_tool_turn(tc.id, GENUG_BLOECKE))
+                ohne_block = True
+                continue
             if hat_datenquelle(name):
                 run.tools_called.append(name)
                 try:

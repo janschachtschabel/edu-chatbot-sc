@@ -123,6 +123,25 @@ describe('UiTrefferliste (Kacheln)', () => {
     expect(h.aktion).not.toHaveBeenCalled();
   });
 
+  // Review U1 gesamt, Befund 13: das Scrollen zur ersten neuen Kachel achtet auf weniger Bewegung.
+  for (const [weniger, art] of [[false, 'smooth'], [true, 'auto']] as const) {
+    it(`„mehr anzeigen“ scrollt ${art}, wenn prefers-reduced-motion ${weniger ? 'reduce' : 'nicht'} gilt`, async () => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: weniger && q === '(prefers-reduced-motion: reduce)', media: q }));
+      const scroll = vi.fn();
+      const vorher = HTMLElement.prototype.scrollIntoView;
+      HTMLElement.prototype.scrollIntoView = scroll;
+      try {
+        const { el } = await render({ karten: karten(12), such_metas: [], seiten: null, typ_fokus: '' }, host({ kacheln: true }));
+        ([...el.querySelectorAll('.pagination-bar button')][0] as HTMLButtonElement).click();
+        await TestBed.inject(ApplicationRef).whenStable();
+        expect(scroll).toHaveBeenCalledWith({ behavior: art, block: 'center' });
+      } finally {
+        HTMLElement.prototype.scrollIntoView = vorher;
+        vi.unstubAllGlobals();
+      }
+    });
+  }
+
   it('anfangs eine Seite der Sammlung sichtbar (page_size wie bisher)', async () => {
     const seiten = { total_count: 20, skip_count: 0, page_size: 10, has_more: true, collection_id: 'c1', collection_title: 'M' };
     const { el } = await render({ karten: karten(12), such_metas: [], seiten, typ_fokus: '' }, host({ kacheln: true }));

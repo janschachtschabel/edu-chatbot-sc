@@ -136,7 +136,6 @@ export { ResultGroupsComponent } from './grouping/result-groups.component';
 export type { ResultGroupsContext } from './grouping/result-grouping';
 export { SwimlanesComponent } from './grouping/swimlanes.component';
 
-
 export {
   parseSseBlock,
   postChat,

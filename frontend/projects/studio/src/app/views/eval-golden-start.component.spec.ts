@@ -235,7 +235,8 @@ describe("EvalGoldenStartComponent", () => {
     expect(box("ui-module").checked).toBe(true);
     expect(text()).toContain("UI-Module melden wie das Widget");
     // Review U1-g #7: gemeldet heißt nicht angeboten — die Studio-Schalter gelten weiter.
-    expect(text()).toContain("Im Studio abgeschaltete Module bietet der Server trotzdem nicht an.");
+    expect(text()).toContain("Im Studio abgeschaltete Module bietet der Server trotzdem nicht an — "
+      + 'ein Ablauf mit eigenem ui_module behält seine Liste.');
     box("ui-module").click();
     await h.fixture.whenStable();
     await arm();

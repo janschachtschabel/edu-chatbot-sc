@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test } from '@playwright/test';
 
+import { luecke, textkante, TOLERANZ_PX } from './fixtures/abstaende';
 import { chatResponse } from './fixtures/backend-payloads';
 import { mount } from './fixtures/harness';
 
@@ -81,4 +82,32 @@ test('Drucken und Herunterladen gehen per Tastatur', async ({ page }) => {
   await expect(laden).toBeFocused();
   const [download] = await Promise.all([page.waitForEvent('download'), page.keyboard.press('Enter')]);
   expect(download.suggestedFilename()).toBe('lernpfad-bruchrechnung.md');
+});
+
+// ── Senkrechter Rhythmus (2026-11-03) ──────────────────────────────────────────────────────────
+// Gleicher Rahmen wie die Linkbox (Überschrift mit Symbol, 4 px darunter): der Inhalt beginnt so
+// weit unter dem Titel wie dort der erste Link unter der Überschrift — die Knöpfe in der Kopfzeile
+// dürfen ihn nicht wegdrücken. Sichtbarer Weißraum zwischen Textzeilen (fixtures/abstaende.ts).
+test('Rhythmus: Titel → Inhalt wie Überschrift → erster Link in der Linkbox', async ({ page }) => {
+  const w = await mount(page);
+  w.enqueue(chatResponse({
+    content: 'Hier ist der Lernpfad.',
+    web_links: [{ title: 'WirLernenOnline', url: 'https://wirlernenonline.de/' }],
+    ui: { ui_bloecke: [rahmenBlock(), {
+      block_id: 'b0000004', modul: 'ui_linkbox', version: 1, art: 'anzeigen', status: 'nur_anzeige',
+      daten: { links: [{ titel: 'WirLernenOnline', url: 'https://wirlernenonline.de/' }] }, text: '',
+    }] },
+  }));
+  await w.open();
+  await frage(page, w, 1);
+
+  const box = page.locator('ui-inhaltsrahmen .inline-document');
+  const titel = await textkante(box.locator('.inline-document__title'));
+  const erste = await textkante(box.locator('.inline-document__body li').first());
+  const link = page.locator('ui-linkbox .result-group');
+  const linkKopf = await textkante(link.locator('.result-group__heading'));
+  const linkErster = await textkante(link.locator('.result-group__item-title').first());
+  const m = { titelZuInhalt: luecke(titel, erste), linkboxKopfZuEintrag: luecke(linkKopf, linkErster) };
+  test.info().annotations.push({ type: 'abstaende', description: JSON.stringify(m) });
+  expect(Math.abs(m.titelZuInhalt - m.linkboxKopfZuEintrag), JSON.stringify(m)).toBeLessThanOrEqual(TOLERANZ_PX);
 });

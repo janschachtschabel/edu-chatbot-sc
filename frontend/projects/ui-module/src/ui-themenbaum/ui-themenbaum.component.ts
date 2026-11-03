@@ -9,6 +9,7 @@ import { SafeSvgPipe } from '@boerdi/ui/icons/safe-svg.pipe';
 
 import { MODUL_HOST } from '../_vertrag/modul-host';
 import type { ModulKontext } from '../_vertrag/ui-block';
+import { tastenAktion } from './themenbaum-tasten';
 import { TEXTE } from './themenbaum-texte';
 import {
   type Eintrag, ebenen, flach, type ThemenbaumBlatt, type ThemenbaumKnoten, type ZweigZustand, zweigKnoten,
@@ -58,9 +59,8 @@ interface Ziel {
  *
  * Bedienung nach dem WAI-ARIA-Muster „Tree View“: `tree`/`treeitem`/`group`, Ebene, Position,
  * `aria-expanded`, wandernder `tabindex`, die Auswahl folgt dem Fokus (`aria-selected` = der
- * Knoten, für den die Aktionsleiste gilt); ↑ ↓ wechseln, → öffnet bzw. geht ins erste Kind,
- * ← schließt bzw. geht zum Elternknoten, Pos1/Ende, Enter/Leertaste klappen; Enter auf einem
- * Blatt zeigt dessen Inhalte (Standardaktion, Review U1-e). Anzahl, „weitere“ und der Ladezustand
+ * Knoten, für den die Aktionsleiste gilt); die Tasten stehen in `themenbaum-tasten.ts`, das
+ * Markup in `ui-themenbaum.component.html` (Review U1 gesamt). Anzahl, „weitere“ und der Ladezustand
  * hängen über `aria-describedby` am Eintrag, der Name bleibt der Titel. Im Baumeintrag stehen
  * keine Bedienelemente (APG): die Aktionen des aktiven Knotens stehen in einer Leiste darunter
  * und gehen über den Host. Start zugeklappt (Plan §15 E-5).
@@ -70,83 +70,7 @@ interface Ziel {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SafeSvgPipe, NgTemplateOutlet],
   styleUrl: './ui-themenbaum.component.scss',
-  template: `
-    <section class="ui-themenbaum">
-      <div class="ui-themenbaum__kopf" [id]="kennung('kopf')">
-        <span class="bb-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
-        {{ texte().ueberschrift(daten().titel ?? '') }}
-      </div>
-      @if (daten().knoten.length) {
-        <ul class="ui-themenbaum__baum" role="tree" [attr.aria-labelledby]="kennung('kopf')">
-          <ng-container *ngTemplateOutlet="ebene; context: { $implicit: baum() }" />
-        </ul>
-        @if (daten().wurzel_mehr) {
-          <p class="ui-themenbaum__hinweis ui-themenbaum__hinweis--wurzel">
-            {{ texte().wurzelMehr }}
-            @if (wurzelLink(); as l) {
-              <a class="ui-themenbaum__hinweis-link" [href]="l.href" target="_blank" rel="noopener noreferrer"
-                 [attr.title]="l.hinweis || null">{{ texte().alleAnsehen }}</a>
-            }
-          </p>
-        }
-        @if (daten().gekuerzt) { <p class="ui-themenbaum__hinweis">{{ texte().gekuerzt }}</p> }
-      } @else {
-        <p class="ui-themenbaum__leer">{{ texte().leer }}</p>
-      }
-      <p class="ui-themenbaum__ansage" role="status" aria-live="polite">{{ ansage() }}</p>
-      @if (ziel(); as z) {
-        <div class="ui-themenbaum__aktionen" role="group" [attr.aria-label]="texte().aktionen(z.titel)">
-          <span class="ui-themenbaum__ziel" aria-hidden="true">{{ z.titel }}</span>
-          <button type="button" class="ui-themenbaum__knopf" [disabled]="beschaeftigt()" (click)="inhalte(z)">{{ texte().inhalte }}</button>
-          @if (z.erneut; as e) {
-            <button type="button" class="ui-themenbaum__knopf" (click)="erneut(e)">{{ texte().erneut }}</button>
-          }
-          @if (z.href) {
-            <a class="ui-themenbaum__knopf ui-themenbaum__link" [href]="z.href" target="_blank" rel="noopener noreferrer"
-               [attr.title]="z.hinweis || null">{{ texte().oeffnen }}</a>
-          }
-        </div>
-      }
-    </section>
-
-    <!-- Eine Ebene des Baums; ruft sich für offene Einträge selbst auf (U1-h: beliebig tief). -->
-    <ng-template #ebene let-liste>
-      @for (e of liste; track e.pfad) {
-        <li role="treeitem" class="ui-themenbaum__eintrag" [id]="kennung('k' + e.pfad)"
-            [attr.aria-labelledby]="kennung('k' + e.pfad + '-name')" [attr.aria-describedby]="beschreibung(e)"
-            [attr.aria-level]="e.ebene" [attr.aria-setsize]="e.setsize" [attr.aria-posinset]="e.posinset"
-            [attr.aria-expanded]="e.aufklappbar ? istOffen(e) : null" [attr.aria-busy]="e.zustand === 'laedt' ? 'true' : null"
-            [attr.tabindex]="aktiv() === e.pfad ? 0 : -1" [attr.aria-selected]="aktiv() === e.pfad"
-            (click)="klick($event, e)" (keydown)="taste($event)" (focus)="aktiv.set(e.pfad)">
-          <span class="ui-themenbaum__zeile">
-            <span class="ui-themenbaum__pfeil" aria-hidden="true" [class.ui-themenbaum__pfeil--offen]="e.aufklappbar && istOffen(e)">
-              @if (e.aufklappbar) { <span class="bb-icon" [innerHTML]="pfeil | safeSvg"></span> }
-            </span>
-            <span class="ui-themenbaum__titel" [id]="kennung('k' + e.pfad + '-name')">{{ e.knoten.titel }}</span>
-            @if (e.knoten.anzahl !== undefined) {
-              <span class="ui-themenbaum__neben" [id]="kennung('k' + e.pfad + '-anzahl')">{{ texte().anzahl(e.knoten.anzahl) }}</span>
-            }
-            @if (e.mehr) {
-              <span class="ui-themenbaum__neben ui-themenbaum__mehr" [id]="kennung('k' + e.pfad + '-mehr')">{{ texte().mehr }}</span>
-            }
-            @if (e.zustand) {
-              <span class="ui-themenbaum__neben ui-themenbaum__zustand"
-                    [class.ui-themenbaum__zustand--fehler]="e.zustand === 'fehler' || e.zustand === 'gedrosselt'"
-                    [id]="kennung('k' + e.pfad + '-zustand')">
-                @if (e.zustand === 'laedt') { <span class="ui-themenbaum__kreisel" aria-hidden="true"></span> }
-                {{ zustandText(e) }}
-              </span>
-            }
-          </span>
-          @if (e.kinder.length) {
-            <ul role="group" class="ui-themenbaum__gruppe">
-              <ng-container *ngTemplateOutlet="ebene; context: { $implicit: e.kinder }" />
-            </ul>
-          }
-        </li>
-      }
-    </ng-template>
-  `,
+  templateUrl: './ui-themenbaum.component.html',
 })
 export class UiThemenbaum {
   readonly daten = input.required<UiThemenbaumDaten>();
@@ -331,36 +255,15 @@ export class UiThemenbaum {
   }
 
   protected taste(ereignis: KeyboardEvent): void {
-    const liste = this.sichtbar();
-    const i = Math.max(0, liste.findIndex((s) => s.pfad === this.aktiv()));
-    const jetzt = liste[i];
-    if (!jetzt) return;
-    const offen = jetzt.aufklappbar && this.istOffen(jetzt);
-    switch (ereignis.key) {
-      case 'ArrowDown': if (liste[i + 1]) this.fokus(liste[i + 1].pfad); break;
-      case 'ArrowUp': if (i > 0) this.fokus(liste[i - 1].pfad); break;
-      case 'Home': this.fokus(liste[0].pfad); break;
-      case 'End': this.fokus(liste[liste.length - 1].pfad); break;
-      case 'ArrowRight':
-        if (jetzt.aufklappbar) {
-          if (!offen) this.aufklappen(jetzt);
-          else if (jetzt.kinder.length) this.fokus(jetzt.kinder[0].pfad);
-        }
-        break;
-      case 'ArrowLeft':
-        if (offen) this.setzeOffen(jetzt.knoten.id, false);
-        else if (jetzt.eltern !== null) this.fokus(jetzt.eltern);
-        break;
-      case 'Enter':
-        // APG: Enter löst die Standardaktion aus — aufklappbar: auf/zu (lädt ggf.), sonst die Inhalte.
-        if (jetzt.aufklappbar) this.umschalten(jetzt);
-        else this.inhalteDesAktiven();
-        break;
-      case ' ':
-        if (jetzt.aufklappbar) this.umschalten(jetzt);
-        break;
-      default:
-        return;                                // Tab und alles andere: Verhalten des Browsers
+    const aktion = tastenAktion(ereignis.key, this.sichtbar(), this.aktiv(), (e) => this.istOffen(e));
+    if (!aktion) return;                       // Tab und alles andere: Verhalten des Browsers
+    switch (aktion.art) {
+      case 'fokus': this.fokus(aktion.pfad); break;
+      case 'aufklappen': this.aufklappen(aktion.eintrag); break;
+      case 'zuklappen': this.setzeOffen(aktion.eintrag.knoten.id, false); break;
+      case 'umschalten': this.umschalten(aktion.eintrag); break;
+      case 'inhalte': this.inhalteDesAktiven(); break;
+      case 'nichts': break;
     }
     ereignis.preventDefault();
     ereignis.stopPropagation();                // ein Kind-Eintrag liegt im Eltern-Eintrag
@@ -368,10 +271,13 @@ export class UiThemenbaum {
 
   private inhalteDesAktiven(): void {
     const z = this.ziel();
-    if (z && !this.beschaeftigt()) this.inhalte(z);
+    if (z) this.inhalte(z);
   }
 
+  /** Während eines Zugs `aria-disabled` statt `disabled` (Review U1 gesamt): der Knopf bleibt in der
+   *  Tab-Reihenfolge, der Fokus geht beim Zugbeginn nicht verloren — gesperrt ist er hier. */
   protected inhalte(z: Ziel): void {
+    if (this.beschaeftigt()) return;
     this.host.aktion('sammlung', { nodeId: z.id, title: z.titel });
   }
 

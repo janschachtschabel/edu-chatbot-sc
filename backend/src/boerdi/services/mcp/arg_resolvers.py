@@ -132,9 +132,18 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
        doesn't match it, override with the correct UUID.
 
     Both paths are no-ops when the LLM picked correctly.
+
+    Review U1 gesamt (Befund 2): nur die Wahl eines *anderen Fachportals* ist ein Fehlgriff. Eine
+    Kennung, die kein Portal ist (Unterthema, Sammlung), bleibt stehen — der Themenbaum zeigte
+    sonst das Portal statt des geöffneten Zweigs. Und nennt der Aufruf ``subject`` ohne
+    ``nodeId``, löst der Server das Fach selbst auf: eine ergänzte ``nodeId`` aus dem Hinweis
+    ginge dort vor (``browse.ts``) und zeigte das Fach der Klassifikation statt des genannten.
     """
     nid = (arguments.get("nodeId") or "").strip()
     fach_hint = (get_request_hint("fach", "") or "").strip()
+
+    if not nid and (arguments.get("subject") or "").strip():
+        return arguments
 
     # Fast-path: not a UUID — must be a name (or junk). Resolve.
     if not nid or not _UUID_RE.match(nid):
@@ -182,7 +191,9 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
         (r for r in results if isinstance(r, dict) and r.get("nodeId") == nid),
         None,
     )
-    chosen_title = (chosen.get("title") if chosen else "") or ""
+    if chosen is None:
+        return arguments  # kein Fachportal (Unterthema, Sammlung) — kein Fehlgriff
+    chosen_title = chosen.get("title") or ""
     fach_lower = fach_hint.lower()
     if chosen_title and fach_lower in chosen_title.lower():
         return arguments  # LLM picked correctly

@@ -93,7 +93,8 @@ export const EVAL_START: CataloguePart = {
     'evalStart.uiModule.hint':
       'An: jeder Zug meldet alle Module des Katalogs — der Agent kann dann Auswahlfelder und '
       + 'Themenbäume zeigen. Aus nur zum Vergleich: der Lauf misst die Anlage ohne diese Module. '
-      + 'Im Studio abgeschaltete Module bietet der Server trotzdem nicht an.',
+      + 'Im Studio abgeschaltete Module bietet der Server trotzdem nicht an — ein Ablauf mit '
+      + 'eigenem ui_module behält seine Liste.',
     'evalStart.gold.judge.legend': 'Weiche Bewertung',
     'evalStart.gold.judge.label': 'LLM-Judge mitlaufen lassen',
     'evalStart.gold.judge.hint':
@@ -222,7 +223,8 @@ export const EVAL_START: CataloguePart = {
     'evalStart.uiModule.hint':
       'On: every turn reports all modules of the catalogue — the agent can then show choice '
       + 'boxes and topic trees. Off only for comparison: the run measures the system without '
-      + 'these modules. Modules switched off in the Studio are still not offered by the server.',
+      + 'these modules. Modules switched off in the Studio are still not offered by the server — '
+      + 'a flow with its own ui_module keeps its list.',
     'evalStart.gold.judge.legend': 'Soft scoring',
     'evalStart.gold.judge.label': 'Run the LLM judge along',
     'evalStart.gold.judge.hint':

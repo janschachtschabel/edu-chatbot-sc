@@ -75,9 +75,22 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 - **Paket U1 — offene Entscheide** (Plan [`2026-11-02-paket-u1-ui-module.md`](plans/2026-11-02-paket-u1-ui-module.md)):
   - `ui_upload` (§13, „Konzept `ui_upload`“): wer darf hochladen (nur Angemeldete?) und mit welchen Grenzen; Aufbewahrung samt Datenschutz-Hinweis; Ziel (nur Kontext im Chat, edu-sharing, Kestra); Virenprüfung; Formate über MarkItDown hinaus (OCR). Die übrigen vorgeschlagenen Module (`ui_freigabe`, `ui_fortschritt`, `ui_befund`, `ui_themenbaum_auswahl`) sind nicht freigegeben.
-  - Muster, die `browse_collection_tree` nennen, und die Master-Skill-Vorlagen (`docs/skills/vorgehen*.md`) samt `services/response_prompt_tools_text.py`: auf `ui_themenbaum` umstellen oder so lassen (§15 „Offen (U1-e)“).
+  - Themenbaum statt `browse_collection_tree`: die Master-Skill-Kurzfassung (`docs/skills/vorgehen-knapp.md`, live) ist seit 2026-11-03 auf `ui_themenbaum` umgestellt. Offen: `docs/skills/vorgehen.md`, `docs/skills/vorgehen-kompakt.md`, `services/response_prompt_tools_text.py` und die Muster, die `browse_collection_tree` nennen — umstellen oder so lassen (§15 „Offen (U1-e)“).
   - Textfassung im Verlauf für abgeschaltete Module (§16, F-2 und „Offen (U1-f)“): heute bleiben gespeicherte Blöcke, wie sie gezeigt wurden; rückwirkend verschwinden bräuchte eine Widget-Regel „leere Daten → Textfassung“.
   - Themenbaum: Nachgeladenes (U1-h, §18 H-8) gilt nur bis zum Neuladen der Seite; der Verlauf zeigt den ursprünglichen Baum. In die gespeicherte Nachricht schreiben hieße einen Schreibweg ohne Zug (und `eingabe` kennt nur eine Ebene Kinder) — ja oder nein?
+  - **Golden-Lauf 2026-11-03 (Agent, gpt-6-luna, Testcontainer `ui-abstaende-5659fed`)** — Reports `evals/reports/golden-20261103-112633-u1-ui-agent.json`, `…-113227-u1-seed-agent.json`, `…-113234-u1-ui7-muster.json`. Seed-Suite 90/91 hart (98,9 %); UI-Abläufe 28/32 (87,5 %); GV-UI-7 Muster 4/4. Befunde zum Entscheiden:
+    - **`ui_entscheidung` wählt der Agent nie** (GV-UI-3/4/5): bei offenen Anfragen sucht er zuerst und fragt im Text nach („Zuerst handeln“ des Master-Skills). Entweder die Master-Skill-Vorlagen (`docs/skills/vorgehen*.md`) nennen das Auswahlfeld für echte Wahlfragen (z. B. Bausteine einer Stunde, Klassenstufe vor einer Übung), oder die Abläufe erwarten `ui_trefferliste` statt `ui_entscheidung`.
+    - **Unterthema per Text** (GV-UI-1 Zug 2 „Optik eine Ebene tiefer“): der Agent ruft zweimal das rohe `browse_collection_tree` und listet die Themen als Text (Trefferliste statt Baum), weil `ui_themenbaum` eine `nodeId` braucht, die er aus der Quittung nicht kennt. Hebel: Werkzeugbeschreibung/Master-Skill „Knoten erst mit `browse_collection_tree` finden, dann `ui_themenbaum(nodeId)`“ — oder ein Argument `thema` (Titel unter dem Fachportal) im Modul.
+    - **Anrede**: zwei Fehlschläge `register` (GV-UI-1 Zug 1, GV-LEH-1 Zug 2) — Antwort duzt eine Lehrkraft; vorbestehend, nicht U1.
+    - **Stand 2026-11-03:** Werkzeugbeschreibungen (`ui_entscheidung`, `ui_themenbaum`) und Master-Skill-Kurzfassung (`docs/skills/vorgehen-knapp.md`) angepasst — [`aenderungen/2026-11-03-master-skill-ui-module.md`](aenderungen/2026-11-03-master-skill-ui-module.md). In den Knoten übertragen und gemessen: zweiter Lauf unten.
+    - **Ausreißer Latenz**: GV-UI-4 Zug 2 52 s (5 Runden, `get_node_collections` allein 24 s).
+    - **Zweiter Lauf 2026-11-03 (Agent, nach Übertragung der Kurzfassung in den Knoten)** — Reports `evals/reports/golden-20261103-122516-ms-ui-agent.json`, `…-123158-ms-seed-agent.json`. UI-Abläufe 27/31 hart (87,1 %), Seed-Suite 89/91 (97,8 %). Befunde:
+      - **Auswahlfeld kommt** (GV-UI-4 Zug 1: `ui_entscheidung` samt Trefferliste). GV-UI-3 Zug 1 (sucht, fragt nicht) und GV-UI-5 Zug 1 (erklärt, kein Block) weiter ohne — `ui` fällt dort durch.
+      - **Begleittext schwach:** neben dem Auswahlfeld stand nur „Bitte wähle unten aus.“ — geduzt gegenüber einer Lehrkraft, ohne Einordnung der Treffer. Seit dem Gesamt-Review regelt die Kurzfassung den Begleittext (über `respond_to_user` in derselben Runde), ebenso die Werkzeugbeschreibung.
+      - **`qr` war ein falscher Fehlschlag** (GV-UI-4 Zug 1): unter einer offenen Frage gibt es absichtlich keine Schnellantworten. Seit dem Gesamt-Review gilt `qr` dort als nicht gestellt (`evals/run_golden.py`).
+      - **Themenbaum zum Unterthema** (GV-UI-1 Zug 2): `ui` besteht, aber der Agent rief `ui_themenbaum` wieder mit `subject` (Physik, Antwort aus dem Werkzeug-Cache, 17 Knoten) und bat, „Optik“ selbst aufzuklappen; den Optik-Zweig zeigte er nicht. Der Weg „Sammlung mit `search_wlo_collections` finden, dann `nodeId`“ griff nicht — weiter beobachten. (Der Muster-Weg hätte eine Unterthemen-Kennung bis zum Gesamt-Review sogar durch das Fachportal ersetzt, Befund 2.)
+      - **Anrede:** GV-ELT-1 Zug 2 und 3 duzen (Erwartung Sie) — echter Fehlschlag. GV-UI-5 Zug 2 (`register`) ist ein Messfehler der Heuristik: „Sie zählt …“, „Sie nennt …“ meinen die Zahl, nicht die Person.
+      - **Nächster Schritt:** die im Gesamt-Review geänderte Kurzfassung erneut in den Knoten übertragen (`scripts/check_master_skill.py`), dann UI-Abläufe und Seed-Suite (Agent) erneut — [`aenderungen/2026-11-03-review-u1-gesamt.md`](aenderungen/2026-11-03-review-u1-gesamt.md).
   - Beispiel-Abläufe der UI-Module (`evals/ui-module-flows.yaml`, U1-g, §17 G-7) auch im Studio fahren: dazu müssten sie in den Bereich `eval/gold-flows` (Seed), und die Maschinen-Matrix verlöre die Vergleichbarkeit mit früheren Läufen — oder ein eigener Flow-Satz im Studio. Heute nur Kommandozeile.
 
 ## 3 Messungen und Prüfungen (startet der Nutzer)
@@ -237,6 +250,21 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Der Studio-Probelauf meldet keine Module (U1-d1) — die Schalter wirken dort nicht sichtbar. (Die Evaluation meldet sie seit U1-g.)
   - `structuredContent` für Werkzeuge ohne JSON-Text verwirft der MCP-Client weiter (U1-e, E-2); ein Seitenkanal wäre ein eigener Schritt.
   - `views/group-section.component.ts` steht jetzt bei 318 Zeilen (Review U1-f +1).
+- **Paket U1, Gesamt-Review Frontend (2026-11-03), bewusst nicht geändert**
+  ([`aenderungen/2026-11-03-review-u1-gesamt.md`](aenderungen/2026-11-03-review-u1-gesamt.md), „Frontend“):
+  - `shell/send-message.ts`: `runSendMessage` ruft `ctx.clearInput()` auch, wenn der Text von
+    außen kommt (Schnellantwort, Modul-Antwort, Auftrag der Gastseite) — ein angefangener Entwurf
+    im Eingabefeld geht dabei verloren. Leeren nur, wenn das Eingabefeld der Absender war.
+  - Gefüllter Knopf „Antworten“ (`ui-entscheidung__senden`, `primary`/`on-primary`): gesperrt nur
+    über `opacity: .5`; Kontrast im gesperrten Zustand und im dunklen Thema nicht gemessen
+    (gesperrte Bedienelemente sind von WCAG 1.4.3 ausgenommen, der Hinweis bleibt als Prüfpunkt).
+  - `shell/chat-shell.component.ts` (rund 1110 Zeilen, dokumentierte Ausnahme): `modulTreffer`/
+    `modulAntworten` nicht in eine `modul-naht.ts` gezogen — die Naht bräuchte eine eigene
+    Schnittstelle so groß wie der verschobene Code.
+  - `controllers/collection-actions.ts` `showMoreCards` (flaches Kachelraster der Shell) scrollt
+    weiter `smooth` ohne Rücksicht auf `prefers-reduced-motion`; im Modul `ui_trefferliste` behoben.
+  - Build-Warnung NG8102 in `ui-bloecke.component.ts` (`d.block.text ?? ''`, `text` ist laut Typ
+    Pflicht, alter Verlauf kann es weglassen) — bestand vorher, die Absicherung bleibt.
 - **Paket U1-g, Reste aus dem Review** (Plan §17 „Offen (U1-g)“):
   - Ein Gold-Zug kann einen Knoten im Themenbaum nur getippt öffnen (die Quittung nennt dem Agenten keine Knoten); später ein Zug-Schlüssel `aktion` für Direktaktionen.
   - Ob der Server eine Auswahlfeld-Antwort annahm, zeigt die Chat-Antwort nicht (`gesendet`); dafür bräuchte es ein neues Debug-Feld.

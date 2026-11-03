@@ -27,7 +27,8 @@ die Antwort der Person geht in den nächsten Zug). Module greifen nie selbst nac
 Links, Antworten und Nachladen laufen über einen **Host** je Block, der nur die Fähigkeiten aus
 dem Manifest zulässt. Große Daten (Baum, Trefferliste) laufen nicht durch das Modell: Die KI
 nennt nur Kennungen, das Backend holt die Daten über eine **Datenquelle**. Alle Module liegen im
-einen Widget-Bündel; die Grenze ist **200 kB gzip** (Warnung ab 190 kB, heute 179,91 kB).
+einen Widget-Bündel; die Grenze ist **200 kB gzip** (Warnung ab 190 kB; Stand 2026-11-03 nach dem
+Gesamt-Review: 180,52 kB).
 
 ---
 
@@ -99,14 +100,21 @@ export class UiBeispiel {
 |---|---|---|
 | `herunterladen(datei, mime, inhalt)` | `herunterladen` | Datei im Browser speichern |
 | `drucken(titel, markdown)` | `drucken` | Druckansicht des Widgets (auch „Als PDF speichern“) |
-| `link(url)` | `oeffnen` | `{href, hinweis}` mit Sitzungs-Kennung bzw. Warnung; ohne Fähigkeit leer |
+| `link(url)` | `oeffnen` | `{href, hinweis}` mit Sitzungs-Kennung bzw. Warnung; nur `http(s)`, sonst wie ohne Fähigkeit leer |
 | `aktion(name, …)` | `oeffnen` | `volltext`, `sammlung`, `lernpfad`, `mehrLaden` der Shell |
 | `antworten(daten, text)` | `antworten` | nächster Zug mit `ui_antwort` |
 | `zweig(nodeId)` | `nachladen` | Daten ohne Zug nachladen (heute nur Themenbaum); ohne Fähigkeit Ablehnung mit `status: 403` |
-| `markdown(text)`, `treffer()`, `beschaeftigt()` | immer | Darstellung |
+| `markdown(text)`, `treffer()`, `beschaeftigt()` | immer | Darstellung; ohne `oeffnen` baut der Kontext von `treffer()` keine Adressen (`withBsid`/`externalLinkWarning` leer) |
 
 Fehlt eine Fähigkeit, passiert nichts außer einer Warnung in der Konsole
 (`frontend/projects/ui/src/ui-bloecke/block-modul-host.ts`).
+
+`markdown()` hängt am Render-Cache der Shell: wechselt die Sprache oder kommen neue vertraute
+Seiten dazu, rechnet ein `computed` darüber neu (`shell-render.ts`, Review U1 gesamt). Ob ein
+Block sein Modul zeigt (Register, gleiche Hauptversion, Daten da), entscheidet eine Stelle
+(`ui-bloecke/modul-darstellbar.ts`) — für den Platzhalter und für die Tore, die bisherige Boxen
+(Trefferboxen, Webseiten-Box, Druckleiste) schweigen lassen; bei einer fremden Hauptversion
+bleiben sie stehen.
 
 ### 2.4 Regeln je Antwort
 
@@ -164,7 +172,8 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 3. Die geprüfte Antwort steht gerahmt vor der Nachricht an die KI; ohne Antwort die
    übergangene Frage selbst. Gespeichert als `_ui_antwort` an der Nutzernachricht.
 4. Im Verlauf wird der Block `beantwortet` (mit Antwort) oder `veraltet`. Jeder andere Zug der
-   Person macht offene Fragen im Widget sofort `veraltet`.
+   Person macht offene Fragen im Widget sofort `veraltet` — auch Karten-Aktionen, „Weitere laden“
+   und der Tour-Start; nicht Kontext-Ping, Tour-Tick und das Nachladen im Themenbaum (kein Zug).
 
 **Datenquelle** (`ui_module/datenquelle.py`)
 
@@ -235,7 +244,7 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 | Vom System gesetztes Modul | Code an der Stelle, die den Block baut (wie `turn_persist` oder `themenbaum_aktion`) |
 | Textfassung `link_liste` oder `zusammenfassung` | eigene Textfassung bauen; der allgemeine Weg kennt nur `markdown` (Text-Feld) und `nummerierte_liste` |
 | Muster soll das Modul nutzen | `tools:` (Werkzeug) oder `ui_module:` (abgeleitet) im Muster-Seed bzw. im Studio; heute nennt kein Seed ein Modul |
-| KI soll das Modul gezielt wählen | optional Master-Skill (`docs/skills/vorgehen*.md`) oder Rollen-Vorgabe; die Werkzeugbeschreibung reicht oft |
+| KI soll das Modul gezielt wählen | Werkzeugbeschreibung schärfen **und** eine Regel in den Master-Skill (`docs/skills/vorgehen-knapp.md`, live im Knoten) oder die Rollen-Vorgabe, dann Golden-Lauf. Die Beschreibung allein reichte für `ui_entscheidung` nicht (Golden-Lauf 2026-11-03: der Agent wählte das Auswahlfeld erst mit der Master-Skill-Regel) |
 | Tests, die die Modul-Menge festschreiben | z. B. `test_config_choices.py`, `test_agent_prompt_preview.py`, Golden-/Eval-Tests mit Modullisten |
 | Gold-Abläufe | `ui_any`/`ui_none` in `evals/ui-module-flows.yaml` von Hand |
 
@@ -296,7 +305,7 @@ Evaluation (`ui_any`/`ui_none`, Modul-Nutzung); CI-Wächter.
 | Antwortweg abfragender Module setzt die Form von `ui_entscheidung` voraus (`frage`, `optionen`, `gewaehlt`) | einziges abfragendes Modul | beim zweiten abfragenden Modul verallgemeinern |
 | Allgemeine Textfassung nur für `markdown` und `nummerierte_liste` | Themenbaum und abgeleitete bauen ihre eigene | bei Bedarf weitere Vorlagen umsetzen |
 | `darstellung.breit` wird nirgends ausgewertet | Vertrag vorbereitet, Größer-Knopf nicht angebunden | anbinden, sobald ein Modul es braucht |
-| Alle Module statisch im Haupt-Bündel | Regel „eine Einbettungs-Datei“; Bündel 179,91 von 200 kB gzip | Nachladen großer oder seltener Module (U-F2) — Mechanismus fehlt noch |
+| Alle Module statisch im Haupt-Bündel | Regel „eine Einbettungs-Datei“; Bündel 180,52 von 200 kB gzip (Stand 2026-11-03) | Nachladen großer oder seltener Module (U-F2) — Mechanismus fehlt noch |
 | Studio-Vorschau-Spec importiert Manifeste von Hand | JSON-Import im Test; `module:neu` legt ihn nicht an | Gerüst-Skript erweitern |
 | `tool_mode` am Zweig-Endpunkt kommt vom Aufrufer | Modus der Einbettung, keine Berechtigung; heute sperrt kein Modus `browse_*` | Sperren gegen Missbrauch sind Drosselung, Sitzungsprüfung, Studio-Schalter |
 | Evaluation kann nicht klicken (Aktionen, Aufklappen) | Gold-Züge kennen nur Text und `ui_antwort` | Zug-Schlüssel `aktion` (U1-g, offen) |

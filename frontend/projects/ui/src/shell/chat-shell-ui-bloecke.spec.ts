@@ -6,6 +6,7 @@ import type { UiBlock } from '@boerdi/ui-module';
 
 import { ChatMessage, UiInfo } from '../grouping/message-types';
 import { DE } from '../i18n/de';
+import { EN } from '../i18n/en';
 import { createTranslator } from '../i18n/dictionary';
 import { ChatShellComponent } from './chat-shell.component';
 
@@ -133,6 +134,65 @@ describe('ChatShellComponent — Linkbox (U1-c1)', () => {
   });
 });
 
+describe('ChatShellComponent — Module rendern nach Sprachwechsel und neuen vertrauten Seiten neu (Review U1 gesamt, Befund 2)', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    });
+  });
+
+  const PARTNER = 'https://partner.example/x';
+  const BLOECKE: UiBlock[] = [
+    { block_id: 'b0000051', modul: 'ui_inhaltsrahmen', version: 1, art: 'anzeigen', status: 'nur_anzeige',
+      daten: { titel: 'Plan', art: 'lernpfad', markdown: `[Partner](${PARTNER})` }, text: '' },
+    { block_id: 'b0000052', modul: 'ui_linkbox', version: 1, art: 'anzeigen', status: 'nur_anzeige',
+      daten: { links: [{ titel: 'Partner', url: PARTNER }] }, text: '' },
+    { block_id: 'b0000053', modul: 'ui_themenbaum', version: 1, art: 'anzeigen', status: 'nur_anzeige',
+      daten: { titel: 'Mathe', wurzel_id: 'aaaa-1111', wurzel_url: PARTNER, wurzel_mehr: true,
+               knoten: [{ id: 'bbbb-2222', titel: 'Algebra' }] }, text: '' },
+  ];
+  // Je Modul die Titel aller Vorkommen: dieselben Daten in zwei Antworten — das zweite Modul trifft
+  // beim ersten Zeichnen den Markdown-Cache und liest dabei kein Signal (der eigentliche Fehlerfall).
+  const alle = (el: HTMLElement, sel: string) => [...el.querySelectorAll(sel)].map((a) => a.getAttribute('title'));
+  const titel = (el: HTMLElement) => {
+    const rahmen = alle(el, 'ui-inhaltsrahmen .inline-document__body a');
+    const linkbox = alle(el, 'ui-linkbox a');
+    const baum = alle(el, 'ui-themenbaum .ui-themenbaum__hinweis-link');
+    expect([rahmen.length, linkbox.length, baum.length]).toEqual([2, 2, 2]);
+    expect(rahmen[1]).toBe(rahmen[0]);
+    expect(linkbox[1]).toBe(linkbox[0]);
+    expect(baum[1]).toBe(baum[0]);
+    return { rahmen: rahmen[0], linkbox: linkbox[0], baum: baum[0] };
+  };
+  const zweiAntworten = (c: ChatShellComponent) => {
+    store(c).addBotMessage('Antwort', false, [], undefined, { ui_bloecke: BLOECKE });
+    store(c).addBotMessage('Noch einmal', false, [], undefined, { ui_bloecke: BLOECKE });
+  };
+
+  it('neue vertraute Seiten: Inhaltsrahmen, Linkbox und Themenbaum ohne Fremd-Warnung', () => {
+    const { c, f, el } = make();
+    zweiAntworten(c);
+    f.detectChanges();
+    expect(titel(el)).toEqual({
+      rahmen: DE['link.external'], linkbox: expect.stringContaining('—'), baum: expect.any(String) });
+    f.componentRef.setInput('trustedHosts', ['partner.example']);
+    f.detectChanges();
+    expect(titel(el)).toEqual({ rahmen: null, linkbox: 'Partner (Webseite)', baum: null });
+  });
+
+  it('Sprachwechsel: der Inhaltsrahmen rendert seinen Markdown in der neuen Sprache', () => {
+    const { c, f, el } = make();
+    zweiAntworten(c);
+    f.detectChanges();
+    expect(titel(el).rahmen).toBe(DE['link.external']);
+    f.componentRef.setInput('translate', createTranslator(EN, DE));
+    f.componentRef.setInput('locale', 'en');
+    f.detectChanges();
+    expect(titel(el).rahmen).toBe(EN['link.external']);
+  });
+});
+
 describe('ChatShellComponent — Trefferliste (U1-c2a)', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -201,6 +261,51 @@ describe('ChatShellComponent — Trefferliste (U1-c2a)', () => {
     f.detectChanges();
     expect(el.querySelector('ui-trefferliste')).toBeNull();
     expect(el.querySelectorAll('boerdi-result-groups').length).toBe(1);
+  });
+});
+
+describe('ChatShellComponent — Tore prüfen, ob das Modul den Block zeigt (Review U1 gesamt, Befund 5)', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    });
+  });
+
+  // Eine Hauptversion, die dieses Widget nicht kennt: das Modul zeigt nur die Textfassung — also
+  // müssen die bisherigen Boxen bleiben.
+  const fremd = (modul: string, daten: Record<string, unknown>, text: string): UiBlock => ({
+    block_id: `b00000${modul.length}9`, modul, version: 99, art: 'anzeigen', status: 'nur_anzeige', daten, text,
+  });
+  const KARTE = { node_id: 'c1', title: 'Sammlung Optik', node_type: 'collection', url: 'https://wirlernenonline.de/c1' };
+  const LINKS = [{ title: 'WLO', url: 'https://wirlernenonline.de/' }];
+
+  it('Trefferliste fremder Version: die bisherigen Trefferboxen bleiben', () => {
+    const { c, f, el } = make();
+    store(c).addBotMessage('Antwort', false, [KARTE as never], undefined,
+      { ui_bloecke: [fremd('ui_trefferliste', { karten: [KARTE] }, 'Textfassung Treffer')] });
+    f.detectChanges();
+    expect(el.querySelector('ui-trefferliste')).toBeNull();
+    expect(el.querySelectorAll('boerdi-result-groups').length).toBe(1);
+  });
+
+  it('Linkbox fremder Version: die bisherige Webseiten-Box bleibt', () => {
+    const { c, f, el } = make();
+    store(c).addBotMessage('Antwort', false, [], undefined,
+      { ui_bloecke: [fremd('ui_linkbox', { links: [{ titel: 'WLO', url: LINKS[0].url }] }, 'Textfassung Links')] },
+      null, undefined, LINKS);
+    f.detectChanges();
+    expect(el.querySelector('ui-linkbox')).toBeNull();
+    expect(el.querySelectorAll('.result-group--web').length).toBe(1);
+  });
+
+  it('Inhaltsrahmen fremder Version: die Druckleiste des Lernpfads bleibt', () => {
+    const { c, f, el } = make();
+    store(c).addBotMessage('> **Lernpfad: Brüche**\n### Schritt 1', false, [], undefined,
+      { ui_bloecke: [fremd('ui_inhaltsrahmen', { titel: 'L', art: 'lernpfad', markdown: 'x' }, 'Textfassung')] });
+    f.detectChanges();
+    expect(el.querySelector('ui-inhaltsrahmen')).toBeNull();
+    expect(el.querySelector('.lp-print-bar')).not.toBeNull();
   });
 });
 
@@ -365,6 +470,132 @@ describe('ChatShellComponent — Entscheidung (U1-d1)', () => {
     await f.whenStable();
 
     expect(status(c)).toEqual([['b0000027', 'beantwortet']]);
+  });
+
+  // Review U1 gesamt, Befund 7: die Frage aus dem gespeicherten Verlauf (Neuladen der Seite).
+  describe('aus dem Verlauf wiederhergestellt', () => {
+    async function ausVerlauf(c: ChatShellComponent, f: ComponentFixture<ChatShellComponent>, verlauf: unknown[]) {
+      (c as unknown as { _api: { loadHistory: unknown } })._api.loadHistory = vi.fn(async () => verlauf);
+      await (c as unknown as { _lifecycle: { _restoreHistory: () => Promise<boolean> } })._lifecycle._restoreHistory();
+      f.detectChanges();
+      await f.whenStable();
+    }
+
+    it('offen: lässt sich nach dem Neuladen beantworten (ui_antwort geht mit)', async () => {
+      const { c, f, el } = make();
+      const { stream, fertig } = haengenderStrom(c);
+      await ausVerlauf(c, f, [
+        { role: 'user', content: 'Ich suche Material' },
+        { role: 'assistant', content: 'Kurz nachgefragt:', ui: { ui_bloecke: [frage('b0000041')] } },
+      ]);
+      const block = el.querySelector('ui-entscheidung')!;
+      expect(block).not.toBeNull();
+      (block.querySelector('input[value="a"]') as HTMLInputElement).click();
+      f.detectChanges();
+      (block.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+      f.detectChanges();
+      expect((stream.mock.calls[0] as unknown[])[6]).toEqual({ block_id: 'b0000041', daten: { gewaehlt: ['a'] } });
+      expect(status(c)).toEqual([['b0000041', 'beantwortet']]);
+      fertig(ANTWORT);
+      await vi.waitFor(() => expect(c.isLoading()).toBe(false));
+    });
+
+    it('beantwortet: zeigt die Antwort des Servers nur lesend', async () => {
+      const { c, f, el } = make();
+      const beantwortet = { ...frage('b0000042'), status: 'beantwortet' as const, antwort: { gewaehlt: ['b'] } };
+      await ausVerlauf(c, f, [
+        { role: 'assistant', content: 'Kurz nachgefragt:', ui: { ui_bloecke: [beantwortet] } },
+        { role: 'user', content: 'Klasse 6' },
+      ]);
+      expect(el.querySelector('ui-entscheidung button[type="submit"]')).toBeNull();
+      expect(el.querySelector('ui-entscheidung fieldset')?.hasAttribute('disabled')).toBe(true);
+      expect((el.querySelector('ui-entscheidung input[value="b"]') as HTMLInputElement).checked).toBe(true);
+      expect(el.querySelector('.ui-entscheidung__status')?.textContent?.trim()).toBe('Deine Antwort: Klasse 6');
+    });
+  });
+
+  // Review U1 gesamt, Befund 1: das Backend schließt die offene Frage mit JEDEM Zug im Vordergrund
+  // (`services/ui_antwort`) — nur Kontext-Ping und Tour-Tick sind Hintergrund (`domain/hintergrund_zug`).
+  describe('Vordergrund-Züge ohne Eingabefeld schließen offene Fragen', () => {
+    const SEITEN = {
+      total_count: 12, skip_count: 0, page_size: 5, has_more: true, collection_id: 'c1', collection_title: 'Mathe',
+    };
+    const LEER = { session_id: 's', content: '', cards: [], quick_replies: [], ui: {} } as never;
+
+    function mitFrage(blockId: string) {
+      const { c, f } = make();
+      api(c).post = vi.fn(() => Promise.resolve(LEER));
+      store(c).addBotMessage('F', false, [], undefined, { ui_bloecke: [frage(blockId)] });
+      return { c, f };
+    }
+
+    const kartenAktionen: [string, (c: ChatShellComponent) => Promise<void>][] = [
+      ['browseCollection', (c) => c.browseCollection('c1', 'Mathe')],
+      ['showContentText', (c) => c.showContentText('n1', 'Text')],
+      ['generateLearningPath', (c) => c.generateLearningPath('c1', 'Mathe')],
+    ];
+    for (const [name, ausloesen] of kartenAktionen) {
+      it(`${name} → veraltet`, async () => {
+        const { c } = mitFrage('b0000031');
+        const zug = ausloesen(c);
+        expect(status(c)).toEqual([['b0000031', 'veraltet']]);
+        await zug;
+      });
+    }
+
+    it('„Inhalte anzeigen“ im Themenbaum (Karten-Aktion sammlung) → veraltet', async () => {
+      const { c } = mitFrage('b0000032');
+      (c as unknown as { modulTreffer: { sammlung: (id: string, t: string) => void } }).modulTreffer.sammlung('c1', 'Mathe');
+      expect(status(c)).toEqual([['b0000032', 'veraltet']]);
+      await vi.waitFor(() => expect(c.isLoading()).toBe(false));
+    });
+
+    it('„Weitere laden“ → veraltet', async () => {
+      const { c } = mitFrage('b0000033');
+      const id = store(c).addBotMessage('Treffer', false, [], undefined, {}, SEITEN);
+      const zug = c.loadMoreCards(id);
+      expect(status(c)).toEqual([['b0000033', 'veraltet']]);
+      await zug;
+    });
+
+    it('Web-Tour starten → veraltet', async () => {
+      const { c } = mitFrage('b0000034');
+      const zug = c.startTour();
+      expect(status(c)).toEqual([['b0000034', 'veraltet']]);
+      await zug;
+    });
+
+    it('Tour-Tick und Kontext-Ping (Hintergrund) → bleibt offen', async () => {
+      const { c } = mitFrage('b0000035');
+      const intern = c as unknown as {
+        _tour: { sendTourTick: () => Promise<void> };
+        _contextGreeting: { sendContextPing: () => Promise<boolean> };
+      };
+      await intern._tour.sendTourTick();
+      await intern._contextGreeting.sendContextPing();
+      expect(api(c).post).toHaveBeenCalledTimes(2);
+      expect(status(c)).toEqual([['b0000035', 'offen']]);
+    });
+
+    it('ein laufender Zweig endet mit dem Widget (Abbruch beim Entfernen, Review U1 gesamt)', async () => {
+      const { c } = make();
+      let signal: AbortSignal | undefined;
+      (c as unknown as { _api: { themenbaumZweig: unknown } })._api.themenbaumZweig =
+        vi.fn((_s: string, _n: string, sig?: AbortSignal) => { signal = sig; return new Promise(() => undefined); });
+      void (c as unknown as { modulTreffer: { zweig: (id: string) => Promise<unknown> } }).modulTreffer.zweig('aaaa-1111');
+      expect(signal?.aborted).toBe(false);
+      c.ngOnDestroy();
+      expect(signal?.aborted).toBe(true);
+    });
+
+    it('Unterthemen nachladen (zweig) ist kein Zug → bleibt offen', async () => {
+      const { c } = mitFrage('b0000036');
+      const zweig = vi.fn(() => Promise.resolve({ knoten: [] }));
+      (c as unknown as { _api: { themenbaumZweig: unknown } })._api.themenbaumZweig = zweig;
+      await (c as unknown as { modulTreffer: { zweig: (id: string) => Promise<unknown> } }).modulTreffer.zweig('aaaa-1111');
+      expect(zweig).toHaveBeenCalled();
+      expect(status(c)).toEqual([['b0000036', 'offen']]);
+    });
   });
 
   it('mit Antwort des Servers bleibt der Block beantwortet', async () => {

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
+import type { ModulRegister } from '@boerdi/ui-module';
+
 import { ChatMessage } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
@@ -86,12 +88,22 @@ describe('hatDokumentBox (U1-b)', () => {
     block_id: 'b0000001', modul, version: 1, art: 'anzeigen' as const, daten: {}, text: '', status: 'nur_anzeige' as const,
   });
 
+  const register = {
+    ui_inhaltsrahmen: {
+      manifest: { name: 'ui_inhaltsrahmen', version: 1, art: 'anzeigen', titel: { de: 'I' } }, komponente: class {} },
+  } as ModulRegister;
+
   it('erkennt den Inhaltsrahmen-Block', () => {
-    expect(hatDokumentBox(bot({ ui: { ui_bloecke: [block('ui_inhaltsrahmen')] } }))).toBe(true);
+    expect(hatDokumentBox(bot({ ui: { ui_bloecke: [block('ui_inhaltsrahmen')] } }), register)).toBe(true);
   });
 
   it('andere Module und leere Nachrichten zählen nicht', () => {
-    expect(hatDokumentBox(bot({ ui: { ui_bloecke: [block('ui_linkbox')] } }))).toBe(false);
-    expect(hatDokumentBox(bot({}))).toBe(false);
+    expect(hatDokumentBox(bot({ ui: { ui_bloecke: [block('ui_linkbox')] } }), register)).toBe(false);
+    expect(hatDokumentBox(bot({}), register)).toBe(false);
+  });
+
+  it('ein Inhaltsrahmen, den das Modul nicht zeigt (fremde Hauptversion), lässt die Druckleiste stehen', () => {
+    expect(hatDokumentBox(bot({ ui: { ui_bloecke: [{ ...block('ui_inhaltsrahmen'), version: 2 }] } }), register)).toBe(false);
+    expect(hatDokumentBox(bot({ ui: { ui_bloecke: [block('ui_inhaltsrahmen')] } }), {})).toBe(false);
   });
 });

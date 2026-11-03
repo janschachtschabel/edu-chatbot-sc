@@ -110,9 +110,17 @@ def verlauf_fuer(nachrichten: list[dict[str, Any]], intern: bool) -> list[dict[s
     # erst aus den späteren Nutzernachrichten (deren Debug-Block bekommt nur die Anlage).
     antwort.status_ableiten(nachrichten, uis)
     return [
-        {**{k: v for k, v in n.items() if intern or k not in _DIAGNOSE}, "ui": ui}
+        {**{k: v for k, v in n.items() if intern or k not in _DIAGNOSE}, **_anzeige(n), "ui": ui}
         for n, ui in zip(nachrichten, uis, strict=True)
     ]
+
+
+def _anzeige(nachricht: dict[str, Any]) -> dict[str, str]:
+    """Der Text, den die Person live sah, falls er vom gespeicherten abweicht (geratene Box:
+    gespeichert das Roh-Markdown für den Folgezug, gezeigt der Vorspann) — sonst nichts."""
+    debug = nachricht.get("debug")
+    text = debug.get(ui_bloecke.ANZEIGE_TEXT_KEY) if isinstance(debug, dict) else None
+    return {"content": text} if isinstance(text, str) else {}
 
 
 def _ui_fuer_den_verlauf(debug: Any, cards: Any = None,

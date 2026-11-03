@@ -24,7 +24,7 @@ from boerdi.ui_module import katalog, schalter
 from boerdi.ui_module.namen import ABGELEITETE, LINKBOX, TREFFERLISTE
 
 __all__ = ["ABGELEITETE", "LINKBOX", "TREFFERLISTE", "abgeleitete_bloecke", "erlaubte_module",
-           "http_url",
+           "http_url", "md_link",
            "ergaenzt", "linkbox_block", "trefferliste_block", "webseiten_max"]
 
 _HOECHSTENS_LINKS: Final = 30
@@ -52,6 +52,18 @@ def http_url(url: str) -> str | None:
     return f"{schema.lower()}://{rest}"
 
 
+#: In der Adresse eines Markdown-Links: Leerzeichen und runde Klammern beendeten den Link.
+_URL_MASKE: Final = str.maketrans({" ": "%20", "(": "%28", ")": "%29"})
+
+
+def md_link(titel: str, url: str) -> str:
+    """Ein Markdown-Link für eine Textfassung (Review U1 gesamt, Befund 7): eckige Klammern im
+    Titel maskiert, die Adresse nur http/https — sonst bleibt der Titel als Text ohne Link."""
+    text = (titel or "").replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+    sauber = http_url(url or "")
+    return f"[{text}]({sauber.translate(_URL_MASKE)})" if sauber else text
+
+
 def linkbox_block(web_links: Iterable[Any], hoechstens: int = _HOECHSTENS_LINKS) -> UiBlock | None:
     """Die Linkbox aus den Web-Links einer Antwort; ``None`` ohne brauchbaren Link.
 
@@ -73,7 +85,7 @@ def linkbox_block(web_links: Iterable[Any], hoechstens: int = _HOECHSTENS_LINKS)
     if not links:
         return None
     daten = {"links": links}
-    text = "\n".join(f"- [{link['titel'] or link['url']}]({link['url']})" for link in links)
+    text = "\n".join(f"- {md_link(link['titel'] or link['url'], link['url'])}" for link in links)
     return UiBlock(block_id=_block_id(LINKBOX, daten), modul=LINKBOX,
                    version=katalog.katalog()[LINKBOX]["version"], art="anzeigen",
                    daten=daten, text=text)
@@ -100,10 +112,11 @@ def trefferliste_block(karten: Iterable[Any], such_metas: Iterable[Any], seiten:
     daten = {"karten": karten_liste, "such_metas": metas,
              "seiten": _als_dict(seiten) if seiten is not None else None,
              "typ_fokus": typ_fokus or ""}
-    zeilen = [f"- [{k.get('title') or k['node_id']}]({k.get('url') or k.get('wlo_url') or ''})"
-              for k in karten_liste]
+    zeilen = [f"- {md_link(_feld(k, 'title') or k['node_id'],
+                           _feld(k, 'url') or _feld(k, 'wlo_url'))}" for k in karten_liste]
     text = "\n".join(zeilen) or "\n".join(
-        f"- [{m.get('search_term') or 'WLO-Suche'}]({m.get('search_url', '')})" for m in metas)
+        f"- {md_link(_feld(m, 'search_term') or 'WLO-Suche', _feld(m, 'search_url'))}"
+        for m in metas)
     return UiBlock(block_id=_block_id(TREFFERLISTE, daten), modul=TREFFERLISTE,
                    version=katalog.katalog()[TREFFERLISTE]["version"], art="anzeigen",
                    daten=daten, text=text)
@@ -184,15 +197,17 @@ def ergaenzt(gelieferte: list[UiBlock], *, pattern: str, web_links: Iterable[Any
     Nichts abgeleitet wird für Führungs-Nachrichten (``TOUR:…``) — sie zeigten auch bisher keine
     Boxen — und ohne Links, Karten und Such-Angaben. Erst danach werden Muster, Anzeige-Regeln und
     die Studio-Schalter (U1-f) gelesen: der Verlauf fragt je Nachricht.
-    Ein schon vorhandener Block derselben Kennung wird nicht verdoppelt.
+    Ein schon vorhandener Block derselben Kennung wird nicht verdoppelt. Die Regeln gelten auch,
+    wenn nichts abgeleitet wird (Review U1 gesamt, Befund 6): nicht jeder Weg zu ``ui`` wendet
+    sie vorher an (Direktaktionen), und sie zweimal anzuwenden ändert nichts.
     """
     links, karten, metas = list(web_links or ()), list(cards or ()), list(query_metas or ())
     if (pattern or "").startswith("TOUR:") or not (links or karten or metas):
-        return gelieferte
+        return regeln_anwenden(gelieferte)
     vorhanden = {b.block_id for b in gelieferte}
     neu = [b for b in abgeleitete_bloecke(
                web_links=links, erlaubt=_nur_aktive(erlaubte_module(pattern, muster)),
                hoechstens_links=webseiten_max() if links and not type_focus else 1,
                cards=karten, query_metas=metas, pagination=pagination, type_focus=type_focus)
            if b.block_id not in vorhanden]
-    return regeln_anwenden([*gelieferte, *neu]) if neu else gelieferte
+    return regeln_anwenden([*gelieferte, *neu])

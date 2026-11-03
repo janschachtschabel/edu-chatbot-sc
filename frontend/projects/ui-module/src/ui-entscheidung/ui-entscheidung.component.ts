@@ -1,4 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  afterNextRender, ChangeDetectionStrategy, Component, computed, type ElementRef, inject, Injector, input, signal,
+  viewChild,
+} from '@angular/core';
 
 import { MODUL_HOST } from '../_vertrag/modul-host';
 import type { ModulKontext } from '../_vertrag/ui-block';
@@ -34,7 +37,9 @@ const TEXTE = {
  * Eine Frage mit festen Möglichkeiten (Paket U1-d1) — das erste abfragende Modul. Die KI ruft es
  * als Werkzeug; der Zug endet, die Person wählt. „Antworten“ geht über den Host
  * (`antworten(daten, text)`): `daten` nach dem Antwort-Schema, `text` die lesbare Fassung für die
- * Nutzerblase. Gesperrt ohne Wahl und während eines Zugs (`host.beschaeftigt()`).
+ * Nutzerblase. Gesperrt ohne Wahl und während eines Zugs (`host.beschaeftigt()`) — dann mit
+ * `aria-disabled`, damit der Knopf in der Tab-Reihenfolge bleibt; nach dem Antworten verschwindet
+ * er, und der Fokus geht an die Statuszeile (WCAG 2.4.3, Review U1 gesamt).
  *
  * Native Formularelemente statt eigener Widgets: `fieldset`/`legend` gibt der Gruppe ihren Namen,
  * Radio bzw. Checkbox bringen Tastatur (Pfeile, Leertaste) und Zustand für Screenreader mit,
@@ -74,9 +79,10 @@ const TEXTE = {
         }
       </fieldset>
       @if (kontext().nurLesen) {
-        <p class="ui-entscheidung__status">{{ status() }}</p>
+        <p #statusZeile class="ui-entscheidung__status" tabindex="-1">{{ status() }}</p>
       } @else {
-        <button type="submit" class="ui-entscheidung__senden" [disabled]="gesperrt()">{{ texte().antworten }}</button>
+        <button type="submit" class="ui-entscheidung__senden" [disabled]="!auswahl().length"
+                [attr.aria-disabled]="beschaeftigt() ? 'true' : null">{{ texte().antworten }}</button>
       }
     </form>
   `,
@@ -86,13 +92,15 @@ export class UiEntscheidung {
   readonly kontext = input.required<ModulKontext>();
 
   private readonly host = inject(MODUL_HOST);
+  private readonly injector = inject(Injector);
+  private readonly statusZeile = viewChild<ElementRef<HTMLElement>>('statusZeile');
 
   protected readonly freitextMax = FREITEXT_MAX;
   protected readonly texte = computed(() => TEXTE[this.kontext().sprache]);
   protected readonly mehrfach = computed(() => this.daten().mehrfach === true);
   protected readonly gruppe = computed(() => `ue-${this.kontext().blockId}`);
 
-  private readonly auswahl = signal<readonly string[]>([]);
+  protected readonly auswahl = signal<readonly string[]>([]);
   protected readonly freitext = signal('');
 
   /** Die gegebene Antwort, solange nur gelesen wird — sonst die eigene Wahl. */
@@ -104,7 +112,8 @@ export class UiEntscheidung {
   protected readonly gewaehlt = computed<readonly string[]>(() =>
     this.kontext().nurLesen ? (this.gegeben()?.gewaehlt ?? []) : this.auswahl());
 
-  protected readonly gesperrt = computed(() => !this.auswahl().length || this.host.beschaeftigt());
+  protected readonly beschaeftigt = computed(() => this.host.beschaeftigt());
+  protected readonly gesperrt = computed(() => !this.auswahl().length || this.beschaeftigt());
 
   protected readonly status = computed(() => {
     const a = this.gegeben();
@@ -144,5 +153,8 @@ export class UiEntscheidung {
     const zusatz = this.daten().freitext ? this.freitext().trim().slice(0, FREITEXT_MAX) : '';
     const daten: Record<string, unknown> = zusatz ? { gewaehlt, freitext: zusatz } : { gewaehlt };
     this.host.antworten(daten, [this.labels(gewaehlt).join(', '), zusatz].filter(Boolean).join('\n'));
+    // Die Shell vermerkt die Antwort sofort: der Knopf verschwindet, die Statuszeile erscheint.
+    // Nahm sie die Antwort nicht an, gibt es keine Statuszeile — der Fokus bleibt am Knopf.
+    afterNextRender(() => this.statusZeile()?.nativeElement.focus(), { injector: this.injector });
   }
 }

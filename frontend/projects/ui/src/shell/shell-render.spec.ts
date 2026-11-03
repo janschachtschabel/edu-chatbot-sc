@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { computed } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 
 import { ChatMessage } from '../grouping/message-types';
@@ -115,5 +116,20 @@ describe('ShellRender — Kontext-Objekte + displayContent', () => {
     expect(out).toContain('Intro');
     expect(out).toContain('Schluss');
     expect(out).not.toContain('](https://wirlernenonline.de/a)');
+  });
+});
+
+// Review U1 gesamt, Befund 2: ein `computed`, das Markdown rendert (Inhaltsrahmen), hängt am Cache —
+// auch wenn sein erstes Rendern ein Cache-Treffer war und dabei kein anderes Signal las.
+describe('ShellRender — clearCache macht Markdown-Ableitungen ungültig', () => {
+  it('ein computed über markdown() rechnet nach clearCache neu', () => {
+    const { render, state } = make();
+    const text = '[Partner](https://partner.example/x)';
+    render.markdown(text, 'bot');                          // Cache füllen
+    const gerendert = computed(() => String(render.markdown(text, 'bot')));
+    expect(gerendert()).toContain('target="_blank"');      // Cache-Treffer
+    state.trusted = ['partner.example'];
+    render.clearCache();
+    expect(gerendert()).not.toContain('target="_blank"');
   });
 });

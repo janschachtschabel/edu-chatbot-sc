@@ -293,6 +293,9 @@ export interface PostChatOptions {
   extraHeaders?: Record<string, string>;
   /** Frist bis zur vollständigen Antwort, Default {@link STALE_MS} (Paket 19, M-15). */
   fristMs?: number;
+  /** Abbruch durch den Aufrufer (Review U1 gesamt: ein Zweig des Themenbaums endet mit dem
+   *  Widget). Wirft den `AbortError` des Abrufs, keinen {@link StreamStaleError}. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -314,6 +317,9 @@ export async function postChat<T = unknown>(opts: PostChatOptions): Promise<T> {
     abgelaufen = true;
     abort.abort();
   }, opts.fristMs ?? STALE_MS);
+  const vonAussen = () => abort.abort();
+  if (opts.signal?.aborted) abort.abort();
+  else opts.signal?.addEventListener('abort', vonAussen, { once: true });
   try {
     const resp = await fetchImpl(opts.url, {
       method: 'POST',
@@ -333,5 +339,6 @@ export async function postChat<T = unknown>(opts: PostChatOptions): Promise<T> {
     throw abgelaufen ? new StreamStaleError() : e;
   } finally {
     clearTimeout(uhr);
+    opts.signal?.removeEventListener('abort', vonAussen);
   }
 }

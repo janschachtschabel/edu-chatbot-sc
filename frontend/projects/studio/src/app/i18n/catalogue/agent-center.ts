@@ -73,6 +73,8 @@ export const AGENT_CENTER: CataloguePart = {
     'agentTools.lock.dataSource':
       'Nur wenn sein Werkzeug {tool} angeboten wird — fehlt es (Schalter, Sperre, tool-mode), '
       + 'fehlt das Modul mit.',
+    // U1-f: Schalter der Seite „UI-Module“.
+    'agentTools.lock.studioOff': 'Auf der Seite „UI-Module“ abgeschaltet.',
 
     'curated.agent.skills.label': 'Skill-Verzeichnis',
     'curated.agent.skills.hint':
@@ -184,6 +186,7 @@ export const AGENT_CENTER: CataloguePart = {
     'agentTools.lock.dataSource':
       'Only when its tool {tool} is offered — if that is missing (switch, block, tool-mode), the '
       + 'module is missing too.',
+    'agentTools.lock.studioOff': 'Switched off on the “UI modules” page.',
 
     'curated.agent.skills.label': 'Skill directory',
     'curated.agent.skills.hint':

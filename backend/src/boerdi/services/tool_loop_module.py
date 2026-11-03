@@ -28,11 +28,17 @@ from dataclasses import dataclass, field
 from typing import Any, Final
 
 from boerdi.api.schemas_ui import UiBlock
+from boerdi.domain.ui_bloecke import GENUG_BLOECKE, platz_fuer_anzeige
 from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
 from boerdi.obs.zeiten import schritt
 from boerdi.ui_module.antwort import ZWEITE_FRAGE, frage_quittung
 from boerdi.ui_module.datenquelle import aufruf as datenquellen_aufruf
-from boerdi.ui_module.werkzeuge import hat_datenquelle, ist_modul_werkzeug, modul_aufruf_annehmen
+from boerdi.ui_module.werkzeuge import (
+    hat_datenquelle,
+    ist_abfragendes_modul,
+    ist_modul_werkzeug,
+    modul_aufruf_annehmen,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -55,12 +61,23 @@ def offene_frage(session_state: dict) -> UiBlock | None:
                  if b.art == "abfragen"), None)
 
 
+def _anzeigende(session_state: dict) -> int:
+    return sum(1 for b in session_state.get(MODUL_BLOECKE_KEY) or [] if b.art != "abfragen")
+
+
 async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
                     session_state: dict, vorrunde: Vorrunde,
-                    tools_called: list[str], outcomes: list) -> str:
+                    tools_called: list[str], outcomes: list, dokumente: int) -> str:
     if name not in angeboten:
         _logger.warning("tool-call %s: nicht angeboten, verworfen", name)
         return NICHT_ANGEBOTEN
+    # Ein Platz bleibt der Frage (Review U1 gesamt, Befund 3); eine Antwort derselben Runde gilt
+    # wie bei einem fehlenden Block nicht — sie verwiese womöglich auf die Anzeige.
+    if (not ist_abfragendes_modul(name)
+            and not platz_fuer_anzeige(dokumente + _anzeigende(session_state))):
+        _logger.info("Modul-Werkzeug %s: kein Platz mehr in dieser Antwort", name)
+        vorrunde.ohne_block = True
+        return GENUG_BLOECKE
     try:
         args = json.loads(roh_args or "{}")
     except (json.JSONDecodeError, TypeError):
@@ -87,9 +104,10 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
 
 async def nimm_module_an(tool_calls: Iterable[Any], angeboten: Collection[str],
                          session_state: dict, messages: list[dict], *,
-                         tools_called: list[str], outcomes: list) -> Vorrunde:
+                         tools_called: list[str], outcomes: list, dokumente: int = 0) -> Vorrunde:
     """Alle Modul-Aufrufe der Runde annehmen und quittieren; Rückgabe: ihre Aufruf-Kennungen und
-    ob eine Datenquelle ohne Block blieb."""
+    ob eine Datenquelle ohne Block blieb. ``dokumente``: die schon gelieferten Dokumente des Zugs
+    (sie belegen Anzeige-Plätze)."""
     vorrunde = Vorrunde()
     for tc in tool_calls:
         if not ist_modul_werkzeug(tc.function.name):
@@ -97,5 +115,5 @@ async def nimm_module_an(tool_calls: Iterable[Any], angeboten: Collection[str],
         vorrunde.erledigt.add(tc.id)
         messages.append({"role": "tool", "tool_call_id": tc.id, "content": await _ergebnis(
             tc.function.name, tc.function.arguments, angeboten, session_state, vorrunde,
-            tools_called, outcomes)})
+            tools_called, outcomes, dokumente)})
     return vorrunde

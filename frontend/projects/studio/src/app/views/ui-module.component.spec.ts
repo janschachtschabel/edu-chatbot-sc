@@ -227,6 +227,47 @@ describe('UiModuleComponent (Paket U1-f)', () => {
     expect(fixture.componentInstance.dirty()).toBe(false);
   });
 
+  // Review U1 gesamt, Befund 14: eine Fehlermeldung blieb nach „Neu laden“, „Verwerfen“ und neuen
+  // Umschaltungen stehen, obwohl der Grund vorbei war.
+  it('Lesefehler bei „Trotzdem speichern“, danach „Neu laden“ räumt die Meldung', async () => {
+    await laden();
+    await klick(schalter('agent')!);
+    knopf(t('editor.save')).click();
+    http.expectOne(BEREICH).flush(KONFLIKT, { status: 409, statusText: 'Conflict' });
+    await settle();
+    knopf(t('conflict.force')).click();
+    await settle();
+    http.expectOne(BEREICH).flush({ detail: 'kaputt' }, { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(el.querySelector('.cs-state--error')).not.toBeNull();
+
+    knopf(t('conflict.reload')).click();
+    await settle();
+    http.expectOne(BEREICH).flush({ area: '01-base/display-rules', type: 'yaml', version: 12, data: DOKUMENT });
+    await settle();
+    expect(el.querySelector('.cs-state--error')).toBeNull();
+  });
+
+  it('eine Fehlermeldung weicht beim Umschalten und beim Verwerfen', async () => {
+    await laden();
+    await klick(schalter('agent')!);
+    knopf(t('editor.save')).click();
+    http.expectOne(BEREICH).flush({ detail: 'kaputt' }, { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(el.querySelector('.cs-state--error')).not.toBeNull();
+    await klick(schalter('agent')!);
+    expect(el.querySelector('.cs-state--error')).toBeNull();
+
+    await klick(schalter('agent')!);
+    knopf(t('editor.save')).click();
+    http.expectOne(BEREICH).flush({ detail: 'kaputt' }, { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(el.querySelector('.cs-state--error')).not.toBeNull();
+    knopf(t('editor.discard')).click();
+    await settle();
+    expect(el.querySelector('.cs-state--error')).toBeNull();
+  });
+
   it('„Trotzdem speichern“ überträgt nur die eigenen Umschaltungen — fremde bleiben (Review U1-f, #2)', async () => {
     await laden({ display_rules: { ui_module: { aus: ['ui_linkbox'], agent_aus: [] } } });
     await klick(schalter('agent')!);

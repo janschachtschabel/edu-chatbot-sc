@@ -7,6 +7,7 @@ import type {
 import type { WidgetModulHost } from './widget-modul-host';
 
 const OHNE_LINK = { href: '', hinweis: '' } as const;
+const OHNE_ADRESSEN = { withBsid: () => '', externalLinkWarning: () => '' } as const;
 
 /**
  * Der Host EINES Blocks (Paket U1-d1, aus U1-b1 verschoben). Der Platzhalter gibt ihn jedem Block
@@ -15,7 +16,8 @@ const OHNE_LINK = { href: '', hinweis: '' } as const;
  * `herunterladen`, `drucken`, `oeffnen` (Links und Karten-Aktionen), `antworten` und `nachladen`
  * (U1-h). Fehlt eine, passiert nichts außer einer Warnung; `zweig` lehnt dann mit `status: 403` ab
  * (wie das Backend für „nicht angeboten“ — das Modul bietet keinen neuen Versuch an). Darstellung
- * (`markdown`, `treffer`, `beschaeftigt`) ist immer erlaubt.
+ * (`markdown`, `treffer`, `beschaeftigt`) ist immer erlaubt; ohne `oeffnen` baut der Kontext von
+ * `treffer` aber keine Adressen.
  */
 export class BlockModulHost implements ModulHost {
   private readonly erlaubt: ReadonlySet<ModulFaehigkeit>;
@@ -50,8 +52,12 @@ export class BlockModulHost implements ModulHost {
     return this.darf('oeffnen') ? this.basis.link(url) : OHNE_LINK;
   }
 
+  /** Darstellung ist immer erlaubt; die Adressen der Trefferboxen baut der Kontext der Shell aber
+   *  nur mit `oeffnen` (Review U1 gesamt) — sonst liefern `withBsid` und `externalLinkWarning` leer. */
   treffer(): TrefferUmgebung {
-    return this.basis.treffer();
+    const umgebung = this.basis.treffer();
+    if (this.erlaubt.has('oeffnen')) return umgebung;
+    return { ...umgebung, kontext: { ...(umgebung.kontext as object), ...OHNE_ADRESSEN } };
   }
 
   beschaeftigt(): boolean {

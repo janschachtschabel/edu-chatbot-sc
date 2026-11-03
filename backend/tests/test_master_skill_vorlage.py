@@ -309,17 +309,22 @@ def test_vorgehen_md_nennt_nur_existierende_werkzeuge(text: str) -> None:
     ein Phantom-Werkzeug im wichtigsten Prompt-Dokument — das Modell ruft es,
     bekommt einen Fehler und rät weiter (gemessen 2026-08-16 bei den
     erfundenen get_skill-IDs)."""
+    from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER
     from boerdi.domain.inline_documents import INHALTSRAHMEN
     from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
     from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
+    from boerdi.ui_module.werkzeuge import modul_werkzeug_titel
 
     # Auch die Aufrufform zählt: `get_skill_registry(nodeId)` nennt ein Werkzeug.
     genannt = {t for t in re.findall(r"`([a-z][a-z0-9_]+)(?=[`(])", text) if "_" in t}
     katalog = {d["function"]["name"]
                for d in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS)}
     # ``ui_inhaltsrahmen``: im Agent-Zug der einzige Weg zur Dokument-Box
-    # (Agent-Runde 2, 2026-09-28) — der Chat-Zug legt es immer dazu.
-    virtuell = {"wissen_suchen", "liefere_ergebnis", INHALTSRAHMEN}
+    # (Agent-Runde 2, 2026-09-28) — der Chat-Zug legt es immer dazu. Dazu das
+    # Antwort-Werkzeug samt seinem Feld ``quick_replies`` und die Modul-Werkzeuge
+    # aus den Manifesten (``ui_entscheidung``, ``ui_themenbaum``; Paket U1).
+    virtuell = {"wissen_suchen", "liefere_ergebnis", INHALTSRAHMEN, RESPOND_TO_USER,
+                "quick_replies", *modul_werkzeug_titel()}
     # ``search_skill`` nennt der Skill nur, um es zu VERNEINEN („existiert
     # nicht") — die Nennung ist gewollt, das Werkzeug bleibt draußen.
     unbekannt = genannt - katalog - virtuell - {"search_skill"}
@@ -356,3 +361,76 @@ def test_vorgehen_md_traegt_die_ansage_regel(text: str) -> None:
         "## Zuerst handeln, dann reden", 1)[1].split("\n## ", 1)[0]
     assert "Aktivierungszeilen tippst du nie selbst" in handeln
     assert "gilt diese Bitte hier nicht" in handeln
+
+
+# ── UI-Module (Golden-Lauf 2026-11-03): nur die Kurzfassung, die live steht ──
+# Der Agent wählte das Auswahlfeld nie (GV-UI-3/4/5: „Zuerst handeln“ ohne
+# Regel für eine Rückfrage nach den Ergebnissen) und tippte ein Unterthema als
+# Liste ab, statt den Themenbaum mit der Sammlung zu zeigen (GV-UI-1).
+
+@pytest.fixture(scope="module", params=list(_FASSUNGEN))
+def knapp(request: pytest.FixtureRequest) -> str:
+    return _FASSUNGEN[request.param](_KURZFASSUNG.read_text(encoding="utf-8"))
+
+
+def test_knapp_auswahlfeld_nach_den_ergebnissen(knapp: str) -> None:
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "`ui_entscheidung`" in oberflaeche
+    assert "Ergebnisse dieses Zuges stehen davor" in oberflaeche
+    assert "keine Schnellantworten dazu" in oberflaeche
+    assert "nie als Bestätigung eines Schreibvorgangs" in oberflaeche
+    assert "Rückfrage im Auswahlfeld ist kein Vertagen" in _abschnitt(
+        knapp, "Zuerst handeln, dann reden")
+    assert "als Auswahlfeld" in _unterabschnitt(knapp, "M03")
+    assert "als Auswahlfeld" in _unterabschnitt(knapp, "M06")
+
+
+def test_knapp_themenbaum_mit_der_sammlung_eines_unterthemas(knapp: str) -> None:
+    tiefer = _unterabschnitt(knapp, "M08")
+    assert "`ui_themenbaum`" in tiefer
+    assert "erst mit `search_wlo_collections` finden" in tiefer
+    assert "`browse_collection_tree` nur, wenn du die Unterthemen selbst auswertest" in tiefer
+    assert "keine Themenliste" in _abschnitt(knapp, "Oberfläche ansteuern")
+
+
+def test_knapp_schnellantworten_liefert_das_antwort_werkzeug(knapp: str) -> None:
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "`respond_to_user`" in oberflaeche
+    assert "`quick_replies`" in oberflaeche
+
+
+def test_knapp_lehrkraefte_werden_gesiezt(knapp: str) -> None:
+    assert "(Klasse, Unterricht, Lehrplan): Sie;" in _abschnitt(
+        knapp, "Anrede und Zielgruppen")
+
+
+# ── Review U1 gesamt (2026-11-03): Auswahlfeld ohne Widerspruch zu M03 ──
+
+
+def test_knapp_klaerungsfragen_aus_m03_kommen_ohne_suche(knapp: str) -> None:
+    """Befund 13: „Ergebnisse dieses Zuges stehen davor“ widersprach M03 (Platzhalter: eine
+    Frage VOR jeder Suche; Erstellauftrag ohne Typ) und „Nicht für offene Fragen“ der Themenfrage
+    mit Freitext."""
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "stehen davor, wenn das Vorgehen Werkzeuge braucht" in oberflaeche
+    assert "die Klärungsfragen aus M03 (nur Platzhalter, fehlender Typ) kommen ohne Suche" in (
+        oberflaeche)
+    assert ("Die Themenfrage aus M03 mit drei konkreten Vorschlägen und Freitext zählt nicht als "
+            "offene Frage") in oberflaeche
+    assert "erst die Ergebnisse dieses Zuges (falls das Vorgehen welche braucht)" in _abschnitt(
+        knapp, "Zuerst handeln, dann reden")
+    assert "vor jeder Suche" in _unterabschnitt(knapp, "M03")
+
+
+def test_knapp_begleittext_zum_auswahlfeld_ueber_das_antwort_werkzeug(knapp: str) -> None:
+    """Befund 14 (Golden-Lauf 2026-11-03): neben dem Auswahlfeld stand nur „Bitte wähle unten
+    aus.“ — geduzt gegenüber einer Lehrkraft, ohne Einordnung der Ergebnisse."""
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert ("Den Begleittext (Ergebnisse, Einordnung, in der Anrede der Person) wie sonst über "
+            "`respond_to_user` (`text`, ohne `quick_replies`) in derselben Runde") in oberflaeche
+
+
+def test_knapp_lernende_auswahlfeld_oder_schnellantworten(knapp: str) -> None:
+    """Befund 15: nach einer Erklärung war offen, wann Auswahlfeld und wann Schnellantworten."""
+    assert ("Ändert eine offene Angabe den nächsten Schritt (Klasse, Vorwissen) → Auswahlfeld, "
+            "sonst Schnellantworten mit Übungsangebot") in _unterabschnitt(knapp, "M04")

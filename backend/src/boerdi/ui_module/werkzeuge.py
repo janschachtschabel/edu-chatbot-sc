@@ -25,7 +25,7 @@ from boerdi.api.schemas_ui import UiBlock
 from boerdi.domain.ui_bloecke import neuer_block
 from boerdi.ui_module import datenquelle, katalog, schalter
 from boerdi.ui_module.katalog import Manifest
-from boerdi.ui_module.namen import ABGELEITETE, INHALTSRAHMEN
+from boerdi.ui_module.namen import OHNE_WIRKUNG_IN_TOOLS
 
 _NUR_SYSTEM = "x-nur-system"
 
@@ -33,25 +33,29 @@ _NUR_SYSTEM = "x-nur-system"
 _FELDLISTEN = frozenset({"properties", "patternProperties", "$defs"})
 
 
-def _fuer_die_ki(schema: Any, feldliste: bool = False) -> Any:
-    """Neue Kopie ohne Systemwerte und ohne ``x-``-Schlüssel, rekursiv."""
+def _fuer_die_ki(schema: Any, feldliste: bool = False, *, pruefen: bool = False) -> Any:
+    """Neue Kopie ohne Systemwerte und ohne ``x-``-Schlüssel, rekursiv.
+
+    ``pruefen``: die Fassung, gegen die ein Aufruf der KI geprüft wird (Review U1 gesamt,
+    Befund 4) — dort bleibt eine Aufzählung auch leer stehen, sonst ginge jeder Wert durch."""
     if isinstance(schema, list):
-        return [_fuer_die_ki(s) for s in schema]
+        return [_fuer_die_ki(s, pruefen=pruefen) for s in schema]
     if not isinstance(schema, dict):
         return schema
     if feldliste:
-        return {feld: _fuer_die_ki(wert) for feld, wert in schema.items()}
+        return {feld: _fuer_die_ki(wert, pruefen=pruefen) for feld, wert in schema.items()}
     nur_system = set(schema.get(_NUR_SYSTEM) or ())
     aus: dict[str, Any] = {}
     for schluessel, wert in schema.items():
         if schluessel.startswith("x-"):
             continue
         if schluessel == "enum" and nur_system:
-            # Eine leere Aufzählung ließe kein Argument zu — dann lieber keine.
-            if rest := [w for w in wert if w not in nur_system]:
+            # Für die KI: eine leere Aufzählung ließe kein Argument zu — dann lieber keine.
+            if (rest := [w for w in wert if w not in nur_system]) or pruefen:
                 aus[schluessel] = rest
             continue
-        aus[schluessel] = _fuer_die_ki(wert, feldliste=schluessel in _FELDLISTEN)
+        aus[schluessel] = _fuer_die_ki(wert, feldliste=schluessel in _FELDLISTEN,
+                                       pruefen=pruefen)
     return aus
 
 
@@ -80,8 +84,8 @@ def werkzeug_aus_manifest(manifest: Manifest) -> dict[str, Any]:
 
 
 #: Module mit eigenem Weg: der Inhaltsrahmen über das Dokument-Werkzeug, die abgeleiteten ohne
-#: Aufruf aus der fertigen Antwort.
-_EIGENER_WEG = frozenset({INHALTSRAHMEN, *ABGELEITETE})
+#: Aufruf aus der fertigen Antwort — dieselben, die in ``tools:`` eines Musters nichts bewirken.
+_EIGENER_WEG = frozenset(OHNE_WIRKUNG_IN_TOOLS)
 
 _AUFRUF_FEHLER = ("Fehler: Der Aufruf von {name} passt nicht zur Beschreibung des Werkzeugs. "
                   "Berichtige die Argumente und rufe es noch einmal, oder antworte in Prosa. "
@@ -180,14 +184,16 @@ def textfassung(manifest: Manifest, daten: dict[str, Any]) -> str:
 def modul_aufruf_annehmen(name: str, args: object) -> tuple[UiBlock | None, str | None]:
     """Ein Werkzeugaufruf → ``(Block, None)`` oder ``(None, Fehlertext für die KI)``.
 
-    Geprüft gegen ``eingabe`` des Manifests und auf eindeutige Kennungen. Ein abfragender Block
-    ist ``offen``; die Regeln je Antwort (höchstens ein offener) wendet die Schleife an.
+    Geprüft gegen ``eingabe`` des Manifests, so wie die KI sie sieht (ohne Werte, die nur das
+    System setzt — ``x-nur-system``), und auf eindeutige Kennungen. Ein abfragender Block ist
+    ``offen``; die Regeln je Antwort (höchstens ein offener) wendet die Schleife an.
     """
     manifest = _agent_module().get(name)
     if manifest is None:
         return None, f"Fehler: {name} ist kein UI-Modul, das du aufrufen kannst."
     daten = args if isinstance(args, dict) else {}
-    if fehler := katalog.daten_fehler(manifest, daten) or _doppelte_kennungen(daten):
+    fuer_die_ki = {**manifest, "eingabe": _fuer_die_ki(manifest["eingabe"], pruefen=True)}
+    if fehler := katalog.daten_fehler(fuer_die_ki, daten) or _doppelte_kennungen(daten):
         return None, _AUFRUF_FEHLER.format(name=name, fehler="; ".join(fehler))
     return neuer_block(name, manifest["version"], manifest["art"], daten,
                        textfassung(manifest, daten)), None

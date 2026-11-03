@@ -1136,3 +1136,44 @@ def test_die_boxen_werden_fuer_den_verlauf_gespeichert(monkeypatch):
     assert [b["block_id"] for b in gespeichert] == [b.block_id for b in resp.ui.ui_bloecke]
     assert gespeichert[0]["daten"]["titel"] == "Verlaufsplan Optik"
 
+
+
+# ── Review U1 gesamt, Befund 1: geratene Box nicht doppelt im Verlauf ──────
+_ROH = "# Arbeitsblatt Optik\n" + "Aufgabe " * 40
+
+
+def _geratener_zug(monkeypatch, **over):
+    """M10 mit langem Roh-Markdown: der geratene Weg baut die Box, ``content`` wird zum Vorspann."""
+    sp = _patch2(monkeypatch, inline=([{"kind": "arbeitsblatt", "title": "Arbeitsblatt Optik",
+                                        "content": _ROH}], "Hier ist dein Arbeitsblatt."))
+    sp.save._ret = 17
+    nachtrag = _ASpy(ret=True)
+    monkeypatch.setattr(tp_mod, "finalize_message", nachtrag)
+    resp, _ = _run2(monkeypatch, sp=sp, winner_id="M10", _effective_pattern_id="M10",
+                    _final_text=_ROH, **over)
+    return resp, sp, nachtrag
+
+
+def test_geratene_box_speichert_den_anzeigetext_neben_dem_rohtext(monkeypatch):
+    """Gespeichert bleibt das Roh-Markdown (der M11-Folgezug liest es), der Nachtrag merkt sich
+    den Vorspann, den die Person live sah — sonst stünde der Inhalt nach dem Neuladen doppelt."""
+    from boerdi.domain import ui_bloecke
+
+    resp, sp, nachtrag = _geratener_zug(monkeypatch)
+    assert resp.content == "Hier ist dein Arbeitsblatt."
+    assert sp.save.calls[0][0][3] == _ROH
+    ((_args, kw),) = nachtrag.calls
+    assert kw["debug"][ui_bloecke.ANZEIGE_TEXT_KEY] == "Hier ist dein Arbeitsblatt."
+
+
+def test_gelieferte_box_braucht_keinen_anzeigetext(monkeypatch):
+    """Auf dem Lieferweg ist der gespeicherte Text schon der gezeigte."""
+    from boerdi.domain import ui_bloecke
+
+    sp = _patch2(monkeypatch)
+    sp.save._ret = 17
+    nachtrag = _ASpy(ret=True)
+    monkeypatch.setattr(tp_mod, "finalize_message", nachtrag)
+    _run2(monkeypatch, sp=sp, gelieferte_dokumente=[dict(_GELIEFERT)])
+    ((_args, kw),) = nachtrag.calls
+    assert ui_bloecke.ANZEIGE_TEXT_KEY not in kw["debug"]

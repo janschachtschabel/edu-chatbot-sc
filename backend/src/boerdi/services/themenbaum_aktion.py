@@ -37,6 +37,7 @@ from boerdi.services.db_sessions import save_message
 from boerdi.services.direct_actions import _wiederholen_chip
 from boerdi.ui_module import datenquelle, katalog, schalter
 from boerdi.ui_module.namen import THEMENBAUM
+from boerdi.ui_module.themenbaum import KNOTEN_UUID
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +45,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 AKTION: Final = "show_collection_tree"
-_KENNUNG: Final = re.compile(r"^[A-Za-z0-9-]{1,80}$")
+#: Nur Knoten-Kennungen (UUID) wie beim Aufklappen (Review U1 gesamt, Befund 5): die weite Form
+#: ließe Namen und Sonderkennungen des Repositoriums (``-userhome-``) zum MCP-Server durch.
+_KENNUNG: Final = re.compile(KNOTEN_UUID)
 _TITEL_ZEICHEN: Final = 160
 
 Angebot = Literal["aus", "gesperrt", "ja"]
@@ -94,7 +97,8 @@ async def handle_show_collection_tree(session: AsyncSession, req: ChatRequest,
         logger.info("show_collection_tree: Themenbaum im Studio abgeschaltet")
     anzeige_titel = titel or bot_text(lang, "action.collectionFallbackTitle")
     debug = DebugInfo(persona=session_state.get("persona_id", ""), intent="I03", state="S3",
-                      pattern=f"ACTION: {AKTION}", tools_called=[werkzeug] if angeboten else [],
+                      # Das Modul wie in den Schleifen (Review U1 gesamt, Befund 11).
+                      pattern=f"ACTION: {AKTION}", tools_called=[THEMENBAUM] if angeboten else [],
                       entities=session_state.get("entities", {}))
     if block is None:
         logger.info("show_collection_tree: kein Baum für die Sammlung")

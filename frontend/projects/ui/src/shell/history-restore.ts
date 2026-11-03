@@ -90,7 +90,8 @@ export async function restoreHistory(ctx: HistoryRestoreContext): Promise<boolea
   }
   for (const m of history) {
     const content = (m.content || '').trim();
-    if (!content) continue;
+    // Eine Antwort nur aus UI-Blöcken (etwa eine Frage ohne Begleittext) hat keinen Text, ist aber da.
+    if (!content && !m.ui?.ui_bloecke?.length) continue;
     if (m.role === 'user') {
       ctx.addUserMessage(content);
     } else if (m.role === 'assistant') {
