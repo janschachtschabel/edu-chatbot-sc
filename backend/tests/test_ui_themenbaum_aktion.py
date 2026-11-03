@@ -29,6 +29,10 @@ from tests.test_preflight_node import (
 )
 from tests.test_ui_themenbaum import ALLE_KNOTEN, THEMENBAUM, WERKZEUG, _payload, _Rufer
 
+#: Knoten in WLO sind edu-sharing-Kennungen (UUID) — nur die nimmt die Aktion
+#: (Review U1 gesamt, Befund 5).
+KNOTEN = "bbbb2222-0000-4000-8000-000000000001"
+
 
 class _SaveSpy:
     def __init__(self) -> None:
@@ -60,19 +64,19 @@ def test_die_aktion_liefert_einen_neuen_baum_ab_dem_knoten(monkeypatch, save):
     rufer = _Rufer()
     monkeypatch.setattr(datenquelle, "_rufen", rufer)
 
-    resp = _laufen(_req(collection_id="bbbb-2222", title="Algebra"))
+    resp = _laufen(_req(collection_id=KNOTEN, title="Algebra"))
 
-    assert rufer.calls == [(WERKZEUG, {"nodeId": "bbbb-2222", "depth": 2, "maxResults": 31})]
+    assert rufer.calls == [(WERKZEUG, {"nodeId": KNOTEN, "depth": 2, "maxResults": 31})]
     [block] = resp.ui.ui_bloecke
     assert block.modul == THEMENBAUM and block.daten["titel"] == "Algebra"
     assert resp.content == "Hier sind die Unterthemen:"   # Titel im Block (Review U1-e, 11)
     assert resp.debug.pattern == "ACTION: show_collection_tree"
-    assert resp.debug.tools_called == [WERKZEUG]
+    assert resp.debug.tools_called == [THEMENBAUM]   # Review U1 gesamt, Befund 11
 
 
 def test_der_block_steht_im_verlauf_der_text_ohne_knoten(monkeypatch, save):
     monkeypatch.setattr(datenquelle, "_rufen", _Rufer())
-    resp = _laufen(_req(collection_id="bbbb-2222", title="Algebra"))
+    resp = _laufen(_req(collection_id=KNOTEN, title="Algebra"))
 
     [gespeichert] = save.calls
     [block] = resp.ui.ui_bloecke
@@ -85,7 +89,7 @@ def test_der_block_steht_im_verlauf_der_text_ohne_knoten(monkeypatch, save):
         assert teil not in gespeichert["content"]
 
 
-@pytest.mark.parametrize("kennung", ["", None, "bad id", "x" * 200, 42])
+@pytest.mark.parametrize("kennung", ["", None, "bad id", "x" * 200, 42, "-userhome-"])
 def test_eine_unbrauchbare_kennung_ruft_nichts(monkeypatch, save, kennung):
     rufer = _Rufer()
     monkeypatch.setattr(datenquelle, "_rufen", rufer)
@@ -96,7 +100,7 @@ def test_eine_unbrauchbare_kennung_ruft_nichts(monkeypatch, save, kennung):
 
 def test_ein_fehler_des_werkzeugs_ergibt_einen_hinweis_mit_wiederholen(monkeypatch, save):
     monkeypatch.setattr(datenquelle, "_rufen", _Rufer("MCP error: weg", "transport"))
-    resp = _laufen(_req(collection_id="bbbb-2222", title="Algebra"))
+    resp = _laufen(_req(collection_id=KNOTEN, title="Algebra"))
     assert resp.ui.ui_bloecke == []
     assert "Algebra" in resp.content
     assert any(q.startswith("__action__|") and "show_collection_tree" in q
@@ -105,7 +109,7 @@ def test_ein_fehler_des_werkzeugs_ergibt_einen_hinweis_mit_wiederholen(monkeypat
 
 def test_englisch_und_ohne_titel(monkeypatch, save):
     monkeypatch.setattr(datenquelle, "_rufen", _Rufer(json.dumps(_payload(results=[]))))
-    resp = _laufen(_req(locale="en", collection_id="bbbb-2222"))
+    resp = _laufen(_req(locale="en", collection_id=KNOTEN))
     [block] = resp.ui.ui_bloecke
     assert "titel" not in block.daten or block.daten["titel"]
     assert resp.content == "Here are the subtopics:"
@@ -121,7 +125,7 @@ def test_der_verteiler_kennt_die_aktion_und_prueft_sie_wie_die_anderen(monkeypat
     _patch_db(monkeypatch)
     safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
 
-    out = asyncio.run(preflight(_ctx("show_collection_tree", collection_id="bbbb-2222",
+    out = asyncio.run(preflight(_ctx("show_collection_tree", collection_id=KNOTEN,
                                      title="Algebra"), _SESSION))
 
     assert out.early_response.content == "BAUM-OK"
@@ -135,6 +139,6 @@ def test_bei_hohem_risiko_wird_die_aktion_geblockt(monkeypatch):
     _patch_db(monkeypatch)
     _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
 
-    out = asyncio.run(preflight(_ctx("show_collection_tree", collection_id="bbbb-2222"), _SESSION))
+    out = asyncio.run(preflight(_ctx("show_collection_tree", collection_id=KNOTEN), _SESSION))
     assert baum.calls == []
     assert out.early_response.debug.pattern == "SAFETY: blocked_direct_action"

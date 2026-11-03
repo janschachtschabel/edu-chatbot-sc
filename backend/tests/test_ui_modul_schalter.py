@@ -218,6 +218,7 @@ def test_ist_der_themenbaum_aus_baut_die_aktion_keinen_baum(bind, monkeypatch) -
     from boerdi.services import themenbaum_aktion
     from boerdi.ui_module import datenquelle
     from tests.test_ui_themenbaum import _Rufer
+    from tests.test_ui_themenbaum_aktion import KNOTEN
 
     gespeichert: list[str] = []
 
@@ -230,7 +231,7 @@ def test_ist_der_themenbaum_aus_baut_die_aktion_keinen_baum(bind, monkeypatch) -
     bind({"aus": [THEMENBAUM]})
     req = ChatRequest(session_id="bb-1", message="Unterthemen von Algebra",
                       action="show_collection_tree",
-                      action_params={"collection_id": "bbbb-2222", "title": "Algebra"})
+                      action_params={"collection_id": KNOTEN, "title": "Algebra"})
 
     resp = asyncio.run(themenbaum_aktion.handle_show_collection_tree(
         None, req, {}, blocked_tools=[]))

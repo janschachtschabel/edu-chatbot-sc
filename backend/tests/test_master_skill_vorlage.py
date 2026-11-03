@@ -402,3 +402,35 @@ def test_knapp_schnellantworten_liefert_das_antwort_werkzeug(knapp: str) -> None
 def test_knapp_lehrkraefte_werden_gesiezt(knapp: str) -> None:
     assert "(Klasse, Unterricht, Lehrplan): Sie;" in _abschnitt(
         knapp, "Anrede und Zielgruppen")
+
+
+# ── Review U1 gesamt (2026-11-03): Auswahlfeld ohne Widerspruch zu M03 ──
+
+
+def test_knapp_klaerungsfragen_aus_m03_kommen_ohne_suche(knapp: str) -> None:
+    """Befund 13: „Ergebnisse dieses Zuges stehen davor“ widersprach M03 (Platzhalter: eine
+    Frage VOR jeder Suche; Erstellauftrag ohne Typ) und „Nicht für offene Fragen“ der Themenfrage
+    mit Freitext."""
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "stehen davor, wenn das Vorgehen Werkzeuge braucht" in oberflaeche
+    assert "die Klärungsfragen aus M03 (nur Platzhalter, fehlender Typ) kommen ohne Suche" in (
+        oberflaeche)
+    assert ("Die Themenfrage aus M03 mit drei konkreten Vorschlägen und Freitext zählt nicht als "
+            "offene Frage") in oberflaeche
+    assert "erst die Ergebnisse dieses Zuges (falls das Vorgehen welche braucht)" in _abschnitt(
+        knapp, "Zuerst handeln, dann reden")
+    assert "vor jeder Suche" in _unterabschnitt(knapp, "M03")
+
+
+def test_knapp_begleittext_zum_auswahlfeld_ueber_das_antwort_werkzeug(knapp: str) -> None:
+    """Befund 14 (Golden-Lauf 2026-11-03): neben dem Auswahlfeld stand nur „Bitte wähle unten
+    aus.“ — geduzt gegenüber einer Lehrkraft, ohne Einordnung der Ergebnisse."""
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert ("Den Begleittext (Ergebnisse, Einordnung, in der Anrede der Person) wie sonst über "
+            "`respond_to_user` (`text`, ohne `quick_replies`) in derselben Runde") in oberflaeche
+
+
+def test_knapp_lernende_auswahlfeld_oder_schnellantworten(knapp: str) -> None:
+    """Befund 15: nach einer Erklärung war offen, wann Auswahlfeld und wann Schnellantworten."""
+    assert ("Ändert eine offene Angabe den nächsten Schritt (Klasse, Vorwissen) → Auswahlfeld, "
+            "sonst Schnellantworten mit Übungsangebot") in _unterabschnitt(knapp, "M04")

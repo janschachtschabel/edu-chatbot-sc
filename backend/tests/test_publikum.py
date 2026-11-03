@@ -127,3 +127,21 @@ def test_von_den_modulationen_nur_was_das_widget_liest():
         "tone": "freundlich", "length": "kurz", "formality": "du", "card_text_mode": "minimal",
         "rag_areas": ["wlo"], "sources": ["wlo"], "_tone_modifier_override": True,
     }
+
+
+def test_der_verlauf_zeigt_bei_geratener_box_den_anzeigetext():
+    """Review U1 gesamt, Befund 1: gespeichert ist das Roh-Markdown (für den Folgezug), gezeigt
+    wird wie live nur der Vorspann — der Inhalt steht im Inhaltsrahmen-Block."""
+    nachricht = {"id": 3, "role": "assistant", "content": "# Blatt\nviel Inhalt",
+                 "debug": {"pattern": "M10", "_anzeige_text": "Hier ist dein Blatt."}}
+    (aus,) = publikum.verlauf_fuer([nachricht], intern=False)
+    assert aus["content"] == "Hier ist dein Blatt."
+    (intern,) = publikum.verlauf_fuer([dict(nachricht)], intern=True)
+    assert intern["content"] == "Hier ist dein Blatt."
+    assert intern["debug"]["_anzeige_text"] == "Hier ist dein Blatt."
+
+
+def test_ohne_anzeigetext_bleibt_der_gespeicherte_text():
+    aus = publikum.verlauf_fuer([{"id": 4, "role": "assistant", "content": "a",
+                                  "debug": {"_anzeige_text": 7}}], intern=False)
+    assert aus[0]["content"] == "a"

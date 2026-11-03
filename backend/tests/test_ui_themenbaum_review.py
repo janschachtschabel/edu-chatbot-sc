@@ -29,7 +29,7 @@ from tests.test_preflight_node import (
 )
 from tests.test_tool_loop import _run_loop
 from tests.test_ui_themenbaum import THEMENBAUM, WERKZEUG, _knoten, _payload, _Rufer
-from tests.test_ui_themenbaum_aktion import _laufen, _req, save  # noqa: F401 — Fixture
+from tests.test_ui_themenbaum_aktion import KNOTEN, _laufen, _req, save  # noqa: F401 — Fixture
 
 RESPOND = "respond_to_user"
 
@@ -166,7 +166,7 @@ def test_die_direktaktion_ruft_kein_gesperrtes_werkzeug(monkeypatch, save, sperr
     rufer = _Rufer()
     monkeypatch.setattr(datenquelle, "_rufen", rufer)
     gesperrt: list[str] = []
-    req = _req(collection_id="bbbb-2222", title="Algebra")
+    req = _req(collection_id=KNOTEN, title="Algebra")
     if sperre == "sicherheit":
         gesperrt = [WERKZEUG]
     elif sperre == "verborgen":
@@ -189,7 +189,7 @@ def test_der_verteiler_reicht_die_sperren_der_sicherheit_weiter(monkeypatch):
     monkeypatch.setattr(pf_mod, "handle_show_collection_tree", baum)
     _patch_db(monkeypatch)
     _patch_safety(monkeypatch, SafetyDecision(risk_level="low", blocked_tools=[WERKZEUG]))
-    asyncio.run(preflight(_ctx("show_collection_tree", collection_id="bbbb-2222"), _SESSION))
+    asyncio.run(preflight(_ctx("show_collection_tree", collection_id=KNOTEN), _SESSION))
     assert baum.calls[0]["kwargs"]["blocked_tools"] == [WERKZEUG]
 
 
@@ -305,7 +305,7 @@ def test_die_direktaktion_nimmt_das_werkzeug_aus_dem_manifest():
 
 def test_der_begleitsatz_wiederholt_die_ueberschrift_des_blocks_nicht(monkeypatch, save):  # noqa: F811
     monkeypatch.setattr(datenquelle, "_rufen", _Rufer())
-    resp = _laufen(_req(collection_id="bbbb-2222", title="Algebra"))
+    resp = _laufen(_req(collection_id=KNOTEN, title="Algebra"))
     [block] = resp.ui.ui_bloecke
     assert block.daten["titel"] == "Algebra"          # der Block beschreibt sich selbst
     assert "Algebra" not in resp.content

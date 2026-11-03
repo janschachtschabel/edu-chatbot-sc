@@ -423,9 +423,24 @@ def test_der_bericht_nennt_module_und_modul_nutzung() -> None:
 
 
 def test_textfassungs_regeln_von_runner_und_gold_runner_sind_gleich() -> None:
-    """``runner`` und ``evals/run_golden.py`` tragen dieselbe Regel als Zwilling (der Gold-Runner
-    bleibt ohne ``boerdi.*``) — wie ``ANWENDUNGSFAELLE``/``FALLBACK_TEXTS`` hier festgehalten."""
-    from tests.test_golden_ui_module import rg
+    """``runner`` und ``evals/ui_module_golden.py`` (seit Review U1 gesamt, Befund 8; vorher in
+    ``run_golden.py``) tragen dieselben Regeln als Zwilling — der Gold-Runner bleibt ohne
+    ``boerdi.*``, der generative Runner ohne Datei außerhalb des Pakets. Verglichen werden die
+    Konstanten UND das Verhalten an denselben Antworten."""
+    from boerdi.ui_module.namen import ENTSCHEIDUNG
+    from tests.test_golden_ui_module import _FRAGE, _antwort, _block, rg
 
-    assert rn._SCHON_GEZEIGT == rg._SCHON_GEZEIGT
-    assert rn._TEXTFASSUNG_MAX == rg._TEXTFASSUNG_MAX
+    ug = rg.ui_golden
+    assert rn._SCHON_GEZEIGT == ug.SCHON_GEZEIGT
+    assert rn._TEXTFASSUNG_MAX == ug.TEXTFASSUNG_MAX
+    assert ug.ENTSCHEIDUNG == ENTSCHEIDUNG
+    rahmen = _block("ui_inhaltsrahmen", daten={"titel": "T", "art": "edit", "markdown": "M"},
+                    text="M")
+    baum = _block("ui_themenbaum", text="- [Algebra](https://x.de/a)\n" * 900)
+    antworten = [_antwort(), _antwort(_FRAGE, rahmen, baum),
+                 {"content": "x", "inline_documents": [{"kind": "k", "title": "t",
+                                                        "content": "c"}]}]
+    for antwort in antworten:
+        assert rn._dokument_boxen(antwort) == ug.dokument_boxen(antwort)
+        assert rn._gezeigte_module(antwort) == ug.gezeigte_module(antwort)
+        assert rn._mit_textfassungen("Text", antwort) == ug.mit_textfassungen("Text", antwort)
