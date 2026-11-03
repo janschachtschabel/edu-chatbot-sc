@@ -53,9 +53,39 @@ def _messbedingungen(summary: dict[str, Any]) -> list[str]:
         ("Konfiguration", _esc(konfig.get("hash") or konfig.get("fehler")) or "—"),
         ("Master-Skill", _esc(skill.get("version")) or "—"),
         ("Golden-Abläufe", f"{_esc(gold.get('hash')) or '—'} ({len(gold.get('ids') or [])})"),
+        ("UI-Module", _ui_module(mb.get("ui_module"))),
         ("Judge-Fassung", _esc(summary.get("judge_fassung")) or "—"),
     ]
     return ["## Messbedingungen", "", *(f"- **{k}:** {v}" for k, v in zeilen), ""]
+
+
+def _ui_module(wert: Any) -> str:
+    """Gemeldete Module (U1-g): ``None`` = Lauf von vor U1-g, ``[]`` = bewusst keine."""
+    if wert is None:
+        return "—"
+    return ", ".join(_esc(m) for m in wert) if wert else "keine"
+
+
+def _modul_nutzung(nutzung: dict[str, Any] | None) -> list[str]:
+    """Je Muster und je Anwendungsfall: Züge und je Modul die Züge, in denen es erschien.
+    Ohne beantworteten Zug gibt es nichts zu zählen — das ist kein Lauf von vor U1-g
+    (Review U1-g #10)."""
+    if nutzung and not nutzung.get("zuege"):
+        return ["## Modul-Nutzung", "", "Noch keine beantworteten Züge.", ""]
+    if not nutzung or not nutzung.get("erfasst"):
+        return ["## Modul-Nutzung", "", "Nicht erfasst (Lauf von vor U1-g).", ""]
+    module = list(nutzung.get("module") or [])
+    zeilen = ["## Modul-Nutzung", ""]
+    for titel, kopf, schluessel in (("Je Muster", "Muster", "je_muster"),
+                                    ("Je Anwendungsfall", "Anwendungsfall", "je_anwendungsfall")):
+        gruppen = nutzung.get(schluessel) or {}
+        if gruppen:
+            zeilen += [f"### {titel}", "", *_tabelle(
+                [kopf, "Züge", *(_esc(m) for m in module)],
+                [[_esc(k), _zahl(g.get("zuege")),
+                  *(_zahl((g.get("module") or {}).get(m, 0)) for m in module)]
+                 for k, g in gruppen.items()])]
+    return zeilen
 
 
 def _kurzbericht(summary: dict[str, Any]) -> list[str]:
@@ -147,7 +177,8 @@ def render(detail: dict[str, Any]) -> str:
               *_messbedingungen(summary), *_kurzbericht(summary)]
     auswertung = detail.get("auswertung")
     if not isinstance(auswertung, dict):
-        return "\n".join([*zeilen, "Keine Auswertung (Lauf ohne Judge v2).", ""])
+        return "\n".join([*zeilen, "Keine Auswertung (Lauf ohne Judge v2).", "",
+                          *_modul_nutzung(detail.get("modul_nutzung"))])
     zeilen += _gesamt(auswertung.get("gesamt") or {})
     zeilen += _zellen_matrix("Zielgruppe × Anwendungsfall", "Zielgruppe",
                              auswertung.get("matrix_zielgruppe_anwendungsfall") or {})
@@ -156,5 +187,6 @@ def render(detail: dict[str, Any]) -> str:
         zeilen += _zellen_matrix("Persona × Intent (nur Muster)", "Persona",
                                  auswertung["matrix_persona_intent"])
     zeilen += _ablaeufe(auswertung.get("je_ablauf") or [])
+    zeilen += _modul_nutzung(detail.get("modul_nutzung"))
     zeilen += _zeiten(auswertung.get("zeiten") or {})
     return "\n".join(zeilen)

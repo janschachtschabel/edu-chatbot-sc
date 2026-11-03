@@ -34,6 +34,7 @@ from boerdi.services.eval.run_store import (
 )
 from boerdi.services.eval.verbrauch import EvalVerbrauch
 from boerdi.services.eval.verbrauch import buche as buche_verbrauch
+from boerdi.ui_module.katalog import widget_module
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,8 @@ async def start_generative_run(
             # ST-7a: ohne Kopfzeile misst der Lauf die Server-Vorgabe — welche,
             # hält er hier fest.
             "engine_effective": (engine := choose_engine(None)),
+            # U1-g (G-1): die Module, die die Züge melden — wie das Widget, oder keine.
+            "ui_module": (ui_module := widget_module() if req.ui_module else []),
         },
         totals={"total_turns": 0, "avg_score": None},
         summary={
@@ -125,6 +128,7 @@ async def start_generative_run(
         mode=req.mode, personas=personas, intents=intents,
         scenarios_per_combo=req.scenarios_per_combo,
         turns_per_conv=req.turns_per_conv, target_turns=target_turns, engine=engine,
+        ui_module=ui_module,
     )))
     _register_run_task(run_id, task)
     return {
@@ -213,6 +217,7 @@ async def _execute_generative_run(
     turns_per_conv: int,
     target_turns: int,
     engine: str | None = None,
+    ui_module: list[str] | None = None,
 ) -> None:
     """Background job: run the generative eval and persist its result.
 
@@ -233,7 +238,7 @@ async def _execute_generative_run(
             mode=mode, personas=personas, intents=intents,
             scenarios_per_combo=scenarios_per_combo,
             turns_per_conv=turns_per_conv, target_turns=target_turns,
-            progress=progress, verbrauch=verbrauch,
+            progress=progress, verbrauch=verbrauch, ui_module=ui_module,
         )
         async with session_factory() as s:
             await _finalize_run(

@@ -57,6 +57,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo, PaginationInfo
+from boerdi.api.schemas_ui import UiInfo
 from boerdi.domain.cards.build import PAGE_SIZE, _build_cards
 from boerdi.domain.cards.lp_diversity import (
     _add_used_lp_ids,
@@ -65,6 +66,7 @@ from boerdi.domain.cards.lp_diversity import (
     _get_used_lp_ids,
 )
 from boerdi.domain.completion_messages import _lp_completion_message
+from boerdi.domain.inline_documents import als_inhaltsrahmen
 from boerdi.domain.inline_rendering import _build_inline_document
 from boerdi.domain.quick_reply_policy import _qr_default_count, _qr_policy
 from boerdi.domain.url_helpers import _extract_web_links_from_text
@@ -632,6 +634,6 @@ async def _handle_generate_learning_path(
         cards=cards,
         quick_replies=quick_replies,
         debug=debug,
-        inline_documents=_inline_docs_dac,
+        ui=UiInfo(ui_bloecke=[als_inhaltsrahmen(d) for d in _inline_docs_dac]),
         display_rules=_display_rules_dac,
     )

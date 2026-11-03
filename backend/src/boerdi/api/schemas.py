@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from boerdi.api.schemas_cards import (
     PaginationInfo,
@@ -79,7 +79,7 @@ from boerdi.api.schemas_mcp_curation import (
     TopicPageSetArgs,
 )
 from boerdi.api.schemas_result import pruefe_ergebnis_schema
-from boerdi.api.schemas_ui import UiInfo
+from boerdi.api.schemas_ui import UI_MODUL_NAME, UiAntwort, UiInfo
 from boerdi.domain.seitenkontext_eingang import deckle_seitenkontext
 
 __all__ = [
@@ -282,6 +282,11 @@ class Environment(BaseModel):
     # None / "" → kein Kontext-Signal (normaler Turn). Der Dispatcher greift NUR
     # bei "context_open"; getippte Rückfragen laufen weiter den Normalfluss.
     page_event: str | None = None
+    # Review U1-d1, Befund 8 (Plan §3.4): die UI-Module, die dieses Widget zeigen kann (Namen aus
+    # seinem Register). Die Agent-Schleife bietet ein Modul-Werkzeug nur an, wenn es hier steht;
+    # ``None`` (Widget von vor U1, Gastanwendung, Studio-Probelauf) heißt: keins.
+    ui_module: list[Annotated[str, StringConstraints(pattern=UI_MODUL_NAME)]] | None = Field(
+        default=None, max_length=50)
 
     @field_validator("page_context")
     @classmethod
@@ -306,6 +311,9 @@ class ChatRequest(BaseModel):
     # der Zaehler?" about an on-screen worksheet).
     # {title, material_type, markdown, mode: 'material'|'cards'|'empty', cards_count?}
     canvas_state: dict[str, Any] | None = None
+    # Paket U1-d1: Antwort auf einen abfragenden UI-Block (``ui_entscheidung``). ``message`` trägt
+    # dazu die lesbare Fassung. Geprüft in ``graph/nodes/setup``; ungültig → verworfen.
+    ui_antwort: UiAntwort | None = None
 
 
 class PreparedWriteOut(BaseModel):
@@ -358,7 +366,12 @@ class ChatResponse(BaseModel):
     web_links: list[WebLink] = Field(default_factory=list)
     # Welle E (2026-05-23) — Lernpfade / KI-Materialien / Edits werden als
     # gerahmte Box direkt im Chat-Verlauf gerendert (``InlineDocument``).
-    inline_documents: list[InlineDocument] = Field(default_factory=list)
+    # Seit Paket U1-b2 immer leer: jede Box reist als ``ui_inhaltsrahmen``-Block in
+    # ``ui.ui_bloecke``. Das Feld bleibt im Vertrag, bis über seinen Wegfall entschieden ist.
+    inline_documents: list[InlineDocument] = Field(
+        default_factory=list, json_schema_extra={"deprecated": True},
+        description="Veraltet seit U1-b2, immer leer — Boxen stehen als ui_inhaltsrahmen in "
+                    "ui.ui_bloecke.")
     # M16 — Themenseiten-Inhalte (Schwimmlinien-Boxen). Wenn gesetzt, rendert
     # das Frontend NUR diese Boxen (+ Absprung-Button) statt der normalen
     # Sammlungs-/Inhalts-/Themenseiten-Boxen.

@@ -25,7 +25,7 @@ from boerdi.domain.config_models import PricingArea
 from boerdi.domain.pricing import TokenCounts, cost_for
 from boerdi.i18n.bot_text import bot_text
 from boerdi.services.config_loader import load_pricing
-from boerdi.services.eval import auswertung_v2, engine_metrics
+from boerdi.services.eval import auswertung_v2, engine_metrics, modul_nutzung
 from boerdi.services.eval.queries import get_run
 
 #: The app's fallback sentences — how an error bubble with HTTP 200 is recognised.
@@ -89,10 +89,13 @@ def run_profile(detail: dict[str, Any]) -> dict[str, Any]:
 
 
 async def get_run_with_profile(session: AsyncSession, run_id: str) -> dict[str, Any]:
-    """``GET /eval/runs/{id}``: the stored run plus its profile — and, for golden runs, the
-    evaluation of the judge v2 (Paket 13, D1), priced with the same table."""
+    """``GET /eval/runs/{id}``: the stored run plus its profile and its module use (U1-g) —
+    and, for golden runs, the evaluation of the judge v2 (Paket 13, D1), priced with the same
+    table."""
     detail = await get_run(session, run_id)
     detail["profile"] = run_profile(detail)
+    detail["modul_nutzung"] = modul_nutzung.modul_nutzung(
+        [c for c in detail.get("conversations") or [] if isinstance(c, dict)])
     if detail.get("mode") == "golden":
         detail["auswertung"] = auswertung_v2.auswerten(
             detail, price_from_table(load_pricing()))

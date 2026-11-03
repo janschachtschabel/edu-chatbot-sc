@@ -106,6 +106,17 @@ BOT_TEXT: Final[Catalogue] = {
         ),
         "action.browse.canvasTitle": "Inhalte: {title}",
         "action.browse.canvasTitleFallback": "Sammlungs-Inhalte",
+        # Paket U1-e: „Unterthemen öffnen“ im Themenbaum (Direktaktion show_collection_tree).
+        # Ohne Titel (Review U1-e, Befund 11): die Überschrift trägt der Block darunter.
+        "action.tree.header": "Hier sind die Unterthemen:",
+        "action.tree.loadFailed": (
+            'Die Unterthemen von "{title}" ließen sich nicht laden. Versuch es bitte noch einmal.'
+        ),
+        # Paket U1-f: der Themenbaum ist im Studio abgeschaltet (Seite „UI-Module“).
+        "action.tree.inactive": (
+            'Die Ansicht „Themenbaum“ ist abgeschaltet — die Unterthemen von "{title}" kann ich '
+            "hier nicht öffnen."
+        ),
         "action.curate.searchPill": "Fehlende Inhalte zu {title} suchen",
         "action.curate.searchPillPlain": "Fehlende Inhalte suchen",
         "action.curate.noCompendium": (
@@ -389,6 +400,9 @@ BOT_TEXT: Final[Catalogue] = {
         # geliefert — ihm fehlt nur der Begleitsatz. Die beiden Sätze darüber
         # würden von der Box widerlegt, die direkt darunter steht.
         "agent.delivered": "Hier ist das Ergebnis.",
+        # U1-d1: Die KI stellt eine Frage mit Auswahlfeld (``ui_entscheidung``) und schreibt
+        # selbst keinen Satz dazu — die Frage steht im Feld darunter.
+        "agent.frage": "Bitte wähle unten aus.",
         # ── Kontext-Bestätigung: was ich in dieser Sammlung sehe ───────────
         # Nutzer-Vorgabe 2026-08-14: die Begrüßung soll ZEIGEN, dass der
         # Kontext angekommen ist, statt es zu behaupten. Drei Fassungen, weil
@@ -460,6 +474,13 @@ BOT_TEXT: Final[Catalogue] = {
         "action.browse.loadFailed": 'Failed to load the content of "{title}". Please try again.',
         "action.browse.canvasTitle": "Content of {title}",
         "action.browse.canvasTitleFallback": "Collection content",
+        "action.tree.header": "Here are the subtopics:",
+        "action.tree.loadFailed": (
+            'Could not load the subtopics of "{title}". Please try again.'
+        ),
+        "action.tree.inactive": (
+            'The topic tree view is switched off — I cannot open the subtopics of "{title}" here.'
+        ),
         "action.curate.searchPill": "Search for content missing from {title}",
         "action.curate.searchPillPlain": "Search for missing content",
         "action.curate.noCompendium": (
@@ -645,6 +666,7 @@ BOT_TEXT: Final[Catalogue] = {
             "works on the second attempt."
         ),
         "agent.delivered": "Here is the result.",
+        "agent.frage": "Please choose below.",
         "context.stock.both": (
             "I can see {materials} materials and {skills} approved guides for it."
         ),

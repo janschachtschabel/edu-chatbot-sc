@@ -2,7 +2,7 @@
 
 Bis hier kannte ein Zug nur Summen: Runden, Ende-Grund, echte Werkzeuge. Welche
 Runde was gerufen hat, wie lange sie lief und was sie gekostet hat, ging
-verloren — und die virtuellen Werkzeuge (``zeige_dokument``,
+verloren — und die virtuellen Werkzeuge (``ui_inhaltsrahmen``,
 ``liefere_ergebnis`` …) tauchten nirgends auf, weil ``AgentRun.tools_called``
 bewusst nur die echten führt.
 

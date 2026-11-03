@@ -42,7 +42,8 @@ Backend: zwei Zahlen für dieselbe Sache wären die nächste Gelegenheit zum
 Auseinanderlaufen. Gepinnt von ``test_die_auswahl_ist_dem_modell_nicht_mehr_bei_
 fuenf_verboten`` und ``test_die_beschreibung_nennt_kein_ziel_von_fuenf``.
 
-Dritte dokumentierte Abweichung (D3, 2026-08-17): ``zeige_dokument`` steht neben
+Dritte dokumentierte Abweichung (D3, 2026-08-17): das Dokument-Werkzeug (seit U1-b2
+``ui_inhaltsrahmen``, vorher ``zeige_dokument``) steht neben
 ``select_top_cards`` im Angebot. Die Agent-Schleife bekam das Werkzeug mit D2;
 solange der Musterweg — die **Vorgabe-Maschine** — es nicht hat, rät er die
 Ergebnis-Box weiter aus dem Antworttext, und der gemeldete Befund („die
@@ -69,12 +70,14 @@ from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
 from boerdi.domain.skill_bruecke import ZUSATZ_KEY as SKILL_ZUSATZ_KEY
 from boerdi.domain.write_confirm import CURATION_TOOLS
-from boerdi.services.agent_tools import verborgene_werkzeuge
+from boerdi.services.agent_tools import angebotene_mcp_werkzeuge, verborgene_werkzeuge
 from boerdi.services.mcp import fremdwerkzeuge
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 from boerdi.services.quick_replies_llm import _max_chars
 from boerdi.services.schreibrecht import schreiben_erlaubt
+from boerdi.ui_module.namen import UI_WERKZEUGE_KEY
+from boerdi.ui_module.werkzeuge import modul_werkzeuge
 
 _logger = logging.getLogger(__name__)
 
@@ -171,6 +174,7 @@ def _select_active_tools(
     pattern_label: str = "",
     tool_mode: str | None = None,
     gesperrt: Collection[str] = (),
+    ui_module: Collection[str] | None = None,
 ) -> tuple[list[dict], Any, bool, bool]:
     """Stellt die aktive Tool-Liste fuer ``generate_response`` zusammen
     (Phasen P10-P11: pattern.tools / tools=[] / mcp-Source / Fallback,
@@ -196,6 +200,9 @@ def _select_active_tools(
     Inhaltssuche beim Medientyp bringt kein gesperrtes Werkzeug zurück (Review
     Paket 9). Was ein Muster selbst nennt, bleibt im Angebot (ALT, T-19); den
     Aufruf weist die Schleife ab.
+
+    ``ui_module`` sind die Module, die das Widget meldet (``environment.ui_module``, Paket
+    U1-d2): ein Modul-Werkzeug, das das Muster nennt, kommt nur dann ins Angebot.
 
     Returns ``(active_tools, _pattern_sources_decl,
     _rag_allowed_for_pattern, _inline_qr_enabled)`` — die Tool-Liste plus
@@ -517,7 +524,7 @@ def _select_active_tools(
             "Backend nutzt deterministische Karten-Auswahl (MCP-Ranking)."
         )
 
-    # ── Ergebnis-Dokument: zeige_dokument (immer verfügbar, D3) ───────
+    # ── Ergebnis-Dokument: ui_inhaltsrahmen (immer verfügbar, D3) ───────
     # Neben ``select_top_cards`` und aus demselben Grund unbedingt: ein
     # Arbeitsergebnis kann in JEDEM Muster entstehen — auch in einem mit
     # ``tools: []``, denn gerade die (M04, M11) erzeugen ihren Inhalt aus dem
@@ -534,6 +541,23 @@ def _select_active_tools(
     # das Modell die Rückfrage selbst in die Box (live 2026-09-30).
     if pattern_output.get("output_mode") != "clarify":
         active_tools.append(dokument_werkzeug())
+
+    # ── UI-Module als Werkzeuge (Paket U1-d2, U-F4) ─────────────────────
+    # Nur, was das Muster in ``tools:`` nennt (``phase3_modulate`` legt es unter
+    # ``ui_werkzeuge`` ab) UND das Widget meldet (``environment.ui_module``) — dieselbe Regel
+    # wie im Agent-Modus. Auch im Rückfrage-Muster: eine Auswahl ist dort die Rückfrage selbst.
+    # Vor dem Degradations-Wipe: fehlt ein Pflicht-Slot, verlangt der Prompt reinen Text.
+    # Module mit Datenquelle (U1-e) nur, wenn ihr Werkzeug in diesem Zug verfügbar ist —
+    # Studio-Schalter, Sperren der Sicherheit, Modus der Einbettung; das Muster muss das
+    # Werkzeug selbst nicht nennen (es ruft nur das Backend).
+    if ui_module:
+        active_tools.extend(modul_werkzeuge(
+            set(pattern_output.get(UI_WERKZEUGE_KEY) or ()) & set(ui_module),
+            verfuegbar=angebotene_mcp_werkzeuge(allow_curation=False,
+                                                blocked_tools=list(gesperrt),
+                                                tool_mode=tool_mode),
+            # U1-f: nur aktive Module; „für den Agenten“ gilt hier nicht (U-F4, Muster-Wahl).
+            fuer="muster"))
 
     # Degradation (Pflicht-Slot fehlt): Tool-Liste wirklich leeren statt nur
     # per Prompt-Regel zu bitten — gegen einen Pattern-Body mit

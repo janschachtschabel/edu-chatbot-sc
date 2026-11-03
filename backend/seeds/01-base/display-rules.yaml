@@ -54,3 +54,14 @@ display_rules:
     exclude_patterns:
       - M04
       - M15
+
+  # ── UI-Module an/aus (Paket U1-f) ──
+  # Gepflegt im Studio auf der Seite „UI-Module“; ohne Eintrag sind alle Module an.
+  # Bewusst nur als Kommentar: ein Daten-Eintrag änderte die Werks-Prüfsumme und meldete
+  # angepassten Anlagen eine Schein-„neue Werksfassung“.
+  #   aus:       Module, die in neuen Antworten nicht erscheinen (kein Werkzeug, kein
+  #              abgeleiteter Block); ui_inhaltsrahmen ist fest und hier nicht erlaubt.
+  #   agent_aus: Module, die nur der Agent-Modus nicht als Werkzeug bekommt.
+  # ui_module:
+  #   aus: []
+  #   agent_aus: []

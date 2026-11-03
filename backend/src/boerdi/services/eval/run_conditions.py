@@ -29,6 +29,7 @@ from boerdi.services.eval.scenario_gen import judge_model
 from boerdi.services.llm_models import get_chat_model, get_provider
 from boerdi.services.llm_weg import weg_beschreibung
 from boerdi.settings import get_settings
+from boerdi.ui_module import schalter
 
 logger = logging.getLogger(__name__)
 
@@ -53,16 +54,45 @@ async def _konfiguration() -> dict[str, Any]:
         return {"fehler": f"{type(fehler).__name__}: {fehler}"[:200]}
 
 
+def _wirksame_module(ui_module: Sequence[str] | None) -> dict[str, Any] | None:
+    """Was von den gemeldeten Modulen wirkte (Review U1-g #7): gemeldet ∩ aktiv nach den
+    Studio-Schaltern (``module``), davon die nur für den Agenten abgeschalteten (``agent_aus``).
+    Ein abgeschaltetes Modul bietet der Server trotz Meldung nicht an."""
+    if ui_module is None:
+        return None
+    try:
+        module = [n for n in ui_module if schalter.aktiv(n)]
+        return {"module": module, "agent_aus": [n for n in module if not schalter.fuer_agent(n)]}
+    except Exception as fehler:  # Konfiguration nicht lesbar
+        logger.warning("Messbedingungen: UI-Modul-Schalter nicht lesbar: %s", fehler)
+        return {"fehler": f"{type(fehler).__name__}: {fehler}"[:200]}
+
+
+def _gold_flows(flows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Prüfsumme und Kennungen der Abläufe; ``eigene_ui_module`` nur, wenn ein Flow im
+    ``environment`` eigene Module setzt — die gewinnen über die Laufvorgabe (G-2)."""
+    werte: dict[str, Any] = {"hash": fingerprint.gold_flows_hash(flows),
+                             "ids": [str(f.get("id") or "") for f in flows]}
+    eigene = [str(f.get("id") or "") for f in flows
+              if "ui_module" in (f.get("environment") or {})]
+    if eigene:
+        werte["eigene_ui_module"] = eigene
+    return werte
+
+
 async def run_conditions(
     *, judge_enabled: bool, engine: str = "default",
     flows: Sequence[dict[str, Any]] | None = None,
+    ui_module: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Womit dieser Lauf misst — Modelle, Weg, Maschine, Master-Skill-Stand, Deckel.
 
     ``engine`` ist die Wahl des Laufs (``default`` heißt: die Vorgabe des Servers),
     ``flows`` die ausgewählten Golden-Abläufe. Paket 13 (A2/A3): ``maschine``,
     ``weg``/``judge_weg`` (``llm_weg``), ``app``, ``konfiguration`` und ``gold_flows``
-    machen zwei Läufe vergleichbar, die mit verschiedenem Stand liefen.
+    machen zwei Läufe vergleichbar, die mit verschiedenem Stand liefen. ``ui_module`` (U1-g):
+    die Module, die die Züge melden — ``None`` bei einem Lauf, der keine Liste kennt;
+    ``ui_module_wirksam`` davon, was die Studio-Schalter durchlassen.
     """
     try:
         skill = await master_skill.anzeige()
@@ -81,10 +111,9 @@ async def run_conditions(
         "judge_weg": weg_beschreibung(judge_model()) if judge_enabled else None,
         "app": {"version": get_settings().boerdi_version, "commit": get_settings().git_sha},
         "konfiguration": await _konfiguration(),
-        "gold_flows": None if flows is None else {
-            "hash": fingerprint.gold_flows_hash(flows),
-            "ids": [str(f.get("id") or "") for f in flows],
-        },
+        "gold_flows": None if flows is None else _gold_flows(flows),
+        "ui_module": None if ui_module is None else list(ui_module),
+        "ui_module_wirksam": _wirksame_module(ui_module),
     }
 
 

@@ -142,7 +142,7 @@ ROLLE_VORGABE = (
     "nur, wenn es verlangt ist oder im Bestand nichts passt — dann sag, dass es "
     "selbst erstellt ist. Wird ein fertiges Ergebnis verlangt (ein erstelltes "
     "Material, eine Stunden- oder Lernpfad-Planung, der Volltext eines "
-    "Materials), liefere es mit zeige_dokument als Box; fehlt ein fertiger "
+    "Materials), liefere es mit ui_inhaltsrahmen als Box; fehlt ein fertiger "
     "Lernpfad oder Stundenablauf, stelle ihn aus den Treffern zusammen."
 )
 

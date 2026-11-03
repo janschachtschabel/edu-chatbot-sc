@@ -39,13 +39,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from boerdi.api.schemas import ToolOutcome
+from boerdi.api.schemas_ui import UiBlock
 from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER, antwort_aus_argumenten
 from boerdi.domain.config_models.engine import AgentLimits
 from boerdi.domain.ergebnis_schema import argument_fehler, ergebnis_ungueltig
 from boerdi.domain.inline_documents import (
+    DOKUMENT_DECKEL,
+    INHALTSRAHMEN,
     MAX_DOKUMENTE_JE_ZUG,
-    ZEIGE_DOKUMENT,
-    dokument_aus_argumenten,
+    dokument_annehmen,
+    ist_dokument_werkzeug,
+    quittung,
 )
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.domain.result_delivery import (
@@ -65,7 +69,7 @@ from boerdi.domain.werkzeug_angebot import (
 from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD, is_confirmable
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import add_usage, extract_usage, new_accumulator
-from boerdi.obs.zeiten import seit_ms
+from boerdi.obs.zeiten import schritt, seit_ms
 from boerdi.services import llm, outcome_service
 from boerdi.services.agent_frist import (
     ABGEBROCHEN_FRIST,
@@ -83,6 +87,14 @@ from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergeh
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
+from boerdi.ui_module.antwort import NACH_DER_FRAGE, ZWEITE_FRAGE, frage_quittung
+from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
+from boerdi.ui_module.datenquelle import aufruf as datenquellen_aufruf
+from boerdi.ui_module.werkzeuge import (
+    hat_datenquelle,
+    ist_modul_werkzeug,
+    modul_aufruf_annehmen,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,20 +107,13 @@ _ARGUMENT_FEHLER = (
     "den Aufruf mit vollstaendigem, gueltigem JSON."
 )
 
-_DOKUMENT_FEHLER = (
-    "Fehler: Das Dokument war unbrauchbar — ``titel`` und ``markdown`` muessen "
-    "nichtleere Zeichenketten sein. Wiederhole den Aufruf mit dem "
-    "vollstaendigen Ergebnis, oder antworte in Prosa."
-)
-
-_DOKUMENT_DECKEL = (
-    "Hinweis: Fuer diesen Zug sind bereits genug Boxen geliefert. Schreibe "
-    "jetzt deinen Begleitsatz."
-)
-
 # Ehrlich statt „OK": ein Werkzeug NACH der Antwort ist nicht gelaufen. Die
 # Kette endet hier zwar, aber jeder Aufruf braucht seine Werkzeug-Nachricht.
 _NACH_DER_ANTWORT = "Nicht ausgeführt: Die Antwort wurde bereits mit respond_to_user gegeben."
+#: Nach einer Frage und für eine zweite (U-E4): seit U1-d2 in ``ui_module/antwort``, weil der
+#: Muster-Weg dieselben Sätze braucht.
+_NACH_DER_FRAGE = NACH_DER_FRAGE
+_ZWEITE_FRAGE = ZWEITE_FRAGE
 
 
 @dataclass(slots=True)
@@ -153,6 +158,9 @@ class AgentRun:
     #: Die Schnellantworten aus ``respond_to_user`` (Plan 2026-09-30) — leer,
     #: wenn der Lauf in Prosa endete; dann schreibt sie der eigene Aufruf.
     vorschlaege: list[str] = field(default_factory=list)
+    #: Paket U1-d1: Blöcke der allgemeinen Modul-Werkzeuge, in Aufrufreihenfolge. Ein
+    #: abfragender beendet den Lauf mit ``stop_reason`` „frage“ (die Person ist am Zug).
+    ui_bloecke: list[UiBlock] = field(default_factory=list)
 
 
 def _spent(acc: dict[str, Any]) -> int:
@@ -211,6 +219,14 @@ def _assistant_turn(message: Any, calls: list[Any]) -> dict[str, Any]:
 
 def _tool_turn(call_id: str, content: str) -> dict[str, Any]:
     return {"role": "tool", "tool_call_id": call_id, "content": content}
+
+
+def _ersetze_werkzeug_text(messages: list[dict[str, Any]], call_id: str, content: str) -> None:
+    """Die Werkzeug-Nachricht eines Aufrufs dieser Runde nachträglich umschreiben."""
+    for m in reversed(messages):
+        if m.get("role") == "tool" and m.get("tool_call_id") == call_id:
+            m["content"] = content
+            return
 
 
 def _ended(run: AgentRun, reason: str) -> AgentRun:
@@ -416,6 +432,10 @@ async def run_agent_loop(
             return schluss("deadline")
 
         antwort: dict[str, Any] | None = None
+        antwort_id = ""
+        frage: UiBlock | None = None
+        # Ein Modul mit Datenquelle dieser Runde hat keinen Block geliefert (Review U1-e).
+        ohne_block = False
         for i, tc in enumerate(calls):
             name = tc.function.name
             args, fehler = _arguments(tc.function.arguments)
@@ -432,6 +452,11 @@ async def run_agent_loop(
             # ungeprüft beendete ``submit_result`` sonst den Lauf mit einem
             # Ergebnis, das niemand verlangt hatte (Paket 4, A2). Der Stillstand
             # zählt auch hier: ein zweites gleiches Abgewiesenes beendet den Lauf.
+            # Ein früherer Name des Dokument-Werkzeugs zählt als der heutige (U1-b2): angeboten
+            # ist nur ``ui_inhaltsrahmen``, gespeicherte Rollen-Vorgaben und Skills nennen aber
+            # noch ``zeige_dokument``. Ohne Angebot öffnet der Alias nichts.
+            if ist_dokument_werkzeug(name):
+                name = INHALTSRAHMEN
             if name not in angeboten:
                 key = _call_key(name, args)
                 if key == last_call:
@@ -448,11 +473,19 @@ async def run_agent_loop(
             # Dokument oder Ergebnis DERSELBEN Runde noch ankommt. Echte
             # Werkzeuge danach laufen nicht mehr: wer antwortet, ist fertig.
             if name == RESPOND_TO_USER:
-                antwort = args
+                antwort, antwort_id = args, tc.id
                 messages.append(_tool_turn(tc.id, "OK"))
                 continue
-            if antwort is not None and name not in (ZEIGE_DOKUMENT, LIEFERE_ERGEBNIS):
+            if antwort is not None and not (
+                    ist_dokument_werkzeug(name) or name == LIEFERE_ERGEBNIS
+                    or ist_modul_werkzeug(name)):
                 messages.append(_tool_turn(tc.id, _NACH_DER_ANTWORT))
+                continue
+            # Nach einer Frage (U1-d1) wie nach der Antwort: kein echtes Werkzeug mehr.
+            if frage is not None and not (
+                    ist_dokument_werkzeug(name) or name == LIEFERE_ERGEBNIS
+                    or ist_modul_werkzeug(name)):
+                messages.append(_tool_turn(tc.id, _NACH_DER_FRAGE))
                 continue
 
             # Das Abschluss-Werkzeug ist virtuell: es geht nie an den MCP.
@@ -536,16 +569,16 @@ async def run_agent_loop(
             # Begleitsatz schreiben oder ein zweites Dokument liefern. Steht
             # nach der Stillstands-Pruefung, damit zweimal dasselbe Dokument
             # als Stillstand zaehlt.
-            if name == ZEIGE_DOKUMENT:
-                dokument = dokument_aus_argumenten(args)
+            if ist_dokument_werkzeug(name):
+                dokument, fehler = dokument_annehmen(args)
                 if dokument is None:
                     logger.info("Dokument-Werkzeug: unbrauchbare Argumente")
-                    messages.append(_tool_turn(tc.id, _DOKUMENT_FEHLER))
+                    messages.append(_tool_turn(tc.id, fehler))
                     continue
                 if len(run.dokumente) >= MAX_DOKUMENTE_JE_ZUG:
                     logger.info("Dokument-Werkzeug: Deckel von %d erreicht",
                                 MAX_DOKUMENTE_JE_ZUG)
-                    messages.append(_tool_turn(tc.id, _DOKUMENT_DECKEL))
+                    messages.append(_tool_turn(tc.id, DOKUMENT_DECKEL))
                     continue
                 run.dokumente.append(dokument)
                 # Ohne den Titel: er ist Modell-Ausgabe aus Nutzer-Inhalt und
@@ -556,14 +589,49 @@ async def run_agent_loop(
                             dokument["kind"], len(dokument["content"]))
                 progress.record("agent_document", f"Ergebnis: {dokument['title']}",
                                 {"kind": dokument["kind"]})
-                # Die Bestaetigung ist keine Hoeflichkeit: ohne sie wuesste das
-                # Modell nicht, ob der Inhalt angekommen ist, und schriebe ihn
-                # sicherheitshalber noch einmal in die Prosa-Antwort.
-                messages.append(_tool_turn(
-                    tc.id,
-                    f"Uebernommen: '{dokument['title']}' wird als Box "
-                    f"angezeigt. Schreibe jetzt nur noch einen kurzen "
-                    f"Begleitsatz — NICHT den Inhalt noch einmal."))
+                messages.append(_tool_turn(tc.id, quittung(dokument)))
+                continue
+
+            # UI-Module als Werkzeuge (U1-d1): virtuell, vor dem MCP. Ein Fehler geht ans Modell
+            # zurück; ein abfragender Block beendet den Lauf am Ende der Runde (wie die Antwort),
+            # ein anzeigender nicht.
+            # Mit Datenquelle (U1-e): das Backend holt die Daten selbst, die KI bekommt nur die
+            # Quittung — die Knoten laufen nicht durchs Modell. Nicht über ``call_with_outcome``:
+            # das Ergebnis würde sonst zu Karten geerntet und stünde doppelt da.
+            # Protokoll, Ergebnis und Werkzeugzeit wie jeder Werkzeugaufruf (Review U1-e, Befund 6).
+            if hat_datenquelle(name):
+                run.tools_called.append(name)
+                try:
+                    with schritt("respond.werkzeuge"):
+                        ergebnis = await innerhalb(ende, datenquellen_aufruf(name, args))
+                except FristAbgelaufen:
+                    run.outcomes.append(ToolOutcome(tool=name, status="timeout",
+                                                    error="Frist abgelaufen"))
+                    return frist_mitten_in_der_runde(i)
+                run.outcomes.append(ergebnis.outcome)
+                if ergebnis.block is not None:
+                    run.ui_bloecke.append(ergebnis.block)
+                    progress.record("agent_modul", f"Modul: {name}", {"modul": name})
+                else:
+                    ohne_block = True
+                messages.append(_tool_turn(tc.id, ergebnis.text))
+                continue
+            if ist_modul_werkzeug(name):
+                block, fehler = modul_aufruf_annehmen(name, args)
+                if block is None:
+                    logger.info("Modul-Werkzeug %s: unbrauchbare Argumente", name)
+                    messages.append(_tool_turn(tc.id, fehler or ""))
+                    continue
+                if block.art == "abfragen" and frage is not None:
+                    messages.append(_tool_turn(tc.id, _ZWEITE_FRAGE))
+                    continue
+                run.ui_bloecke.append(block)
+                progress.record("agent_modul", f"Modul: {name}", {"modul": name})
+                if block.art == "abfragen":
+                    frage = block
+                    messages.append(_tool_turn(tc.id, frage_quittung(block)))
+                else:
+                    messages.append(_tool_turn(tc.id, "OK"))
                 continue
 
             # Die Wissensdatenbank (P): virtuell wie die drei davor — sie liegt
@@ -637,6 +705,20 @@ async def run_agent_loop(
                 + skill_registry_note(beobachtet, tool_name=name, args=args),
             ))
 
+        if antwort is not None and ohne_block:
+            # Review U1-e, Befund 1: Modul-Werkzeuge laufen auch nach der Antwort (oben); fehlt
+            # einem mit Datenquelle der Block, verwiese die Antwort derselben Runde womöglich auf
+            # ihn. Sie gilt nicht — die nächste Runde sieht die Fehlermeldung. War es die letzte,
+            # endet der Lauf am Deckel, und ``respond_agent`` holt den Abschluss nach.
+            _ersetze_werkzeug_text(messages, antwort_id, ANTWORT_VERWORFEN)
+            antwort = None
+        if frage is not None:
+            # Die Person ist am Zug (U1-d1). Text: die Antwort derselben Runde, sonst die Prosa
+            # neben den Aufrufen. Keine Schnellantworten: ein Klick machte die Frage veraltet.
+            run.text = (antwort_aus_argumenten(antwort)[0] if antwort is not None
+                        else strip_reasoning_markers(choice.message.content or "").strip())
+            ueber_budget_gemeldet()
+            return schluss("frage")
         if antwort is not None:
             run.text, run.vorschlaege = antwort_aus_argumenten(antwort)
             ueber_budget_gemeldet()

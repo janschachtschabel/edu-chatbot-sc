@@ -18,8 +18,10 @@ from itertools import accumulate
 #: Buchstaben, gleich mit welchen Trennern (Unterstrich, Bindestrich, keiner),
 #: unsichtbaren Zeichen, Vollbreite oder kyrillischen Doppelgaengern. Je Name:
 #: die Buchstaben ohne Trenner → die Schreibweise in der entschaerften Marke.
+#: ``ANTWORT`` und ``FRAGE`` rahmen die Antwort auf ein Auswahlfeld und die übergangene Frage
+#: (``ui_module/antwort``, Review U1-d1).
 _MARKEN = {"FREMDINHALT": "FREMDINHALT", "ZULETZTGEZEIGT": "ZULETZT GEZEIGT",
-           "SEITENKONTEXT": "SEITENKONTEXT"}
+           "SEITENKONTEXT": "SEITENKONTEXT", "ANTWORT": "ANTWORT", "FRAGE": "FRAGE"}
 
 #: Kyrillische und griechische Doppelgaenger der Buchstaben in diesen Marken —
 #: keine allgemeine Verwechslungstabelle, nur was eine Marke nachbilden kann.

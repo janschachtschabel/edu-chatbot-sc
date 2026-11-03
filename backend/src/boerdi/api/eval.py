@@ -101,6 +101,8 @@ class StartRequest(BaseModel):
     scenarios_per_combo: int = Field(2, ge=1, le=10)
     turns_per_conv: int = Field(3, ge=1, le=10)
     config_slug: str = ""
+    # Paket U1-g (G-1): die Züge melden die Katalog-Module wie das Widget; false = keine.
+    ui_module: bool = Field(True, description="report all catalogue UI modules, like the widget")
 
 
 @router.get("/runs")
@@ -149,6 +151,8 @@ class GoldenRunRequest(BaseModel):
     engine: Literal["default", "pattern", "agent"] = Field(
         "default", description="engine for every turn of this run",
     )
+    # Paket U1-g (G-1): wie beim generativen Lauf; ein ``ui_module`` im Flow gewinnt.
+    ui_module: bool = Field(True, description="report all catalogue UI modules, like the widget")
 
 
 @router.get("/gold-flows")

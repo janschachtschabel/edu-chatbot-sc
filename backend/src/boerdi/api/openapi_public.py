@@ -19,7 +19,8 @@ from boerdi import __version__
 from boerdi.settings import get_settings
 
 #: Die Operationen der öffentlichen Spec: Chat (auch als Strom), Agent für Gastanwendungen,
-#: Sprache, Verlauf einer Sitzung, Lotsen-Modus. Widget-Dateien sind keine API.
+#: Sprache, Verlauf einer Sitzung, Lotsen-Modus, Zweige des Themenbaums. Widget-Dateien sind
+#: keine API.
 OEFFENTLICH: tuple[tuple[str, str], ...] = (
     ("/api/chat", "post"),
     ("/api/chat/stream", "post"),
@@ -30,6 +31,8 @@ OEFFENTLICH: tuple[tuple[str, str], ...] = (
     ("/api/speech/synthesize", "post"),
     ("/api/sessions/{session_id}/messages", "get"),
     ("/api/config/guide-mode", "get"),
+    # Paket U1-h: Unterthemen im Themenbaum nachladen (Widget, ohne Zug).
+    ("/api/ui/themenbaum/zweig", "post"),
 )
 
 TITEL = "BOERDi – Chatbot von WirLernenOnline"

@@ -106,7 +106,7 @@ def _inline_doc_title_for_pattern(
         # festgelegt". Ein neutraler Titel ist in beiden Fällen wahr.
         #
         # Die ART der Box geht dabei nicht verloren: das Widget zeichnet sein
-        # Symbol aus ``kind`` (``inline-documents.component.ts``:37) und hat für
+        # Symbol aus der Art (Modul ``ui_inhaltsrahmen``, ``inhaltsrahmen.ts``) und hat für
         # den titellosen Fall ein eigenes Label. Das Wort im Titel war
         # Doppelung — und im Skill-Fall schlicht falsch.
         #

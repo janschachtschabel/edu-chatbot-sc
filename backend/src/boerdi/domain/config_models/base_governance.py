@@ -149,7 +149,8 @@ class SafetyConfigArea(AreaModel):
     # Begriff bei jeder Nachricht geprüft wird.
     extra_crisis_terms: list[_Begriff] = Field(default=[], max_length=200)
     extra_pii_terms: list[_Begriff] = Field(default=[], max_length=200)
-    crisis_blocked_tools: list[Annotated[str, Catalog("tools")]] = []
+    # Nur MCP-Werkzeuge: ein Modul-Werkzeug ist hier nicht sperrbar (Review U1-d2).
+    crisis_blocked_tools: list[Annotated[str, Catalog("mcp_tools")]] = []
     crisis_pattern: Annotated[str, Catalog("patterns")] = ""
     threat_pattern: Annotated[str, Catalog("patterns")] = ""
     # AG-4 Teil B: der Text des Agent-Endpunkts bei einer Krise. Leer heißt

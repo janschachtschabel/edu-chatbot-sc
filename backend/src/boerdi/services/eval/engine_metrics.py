@@ -251,14 +251,16 @@ def decision_rules(s: dict[str, dict[str, Any]]) -> dict[str, Any]:
 def conditions_of(summary: dict[str, Any]) -> dict[str, Any]:
     """Was einen Lauf mit einem anderen vergleichbar macht (``summary.messbedingungen``).
     Der Schalter gehört dazu: die Prüfsumme ist dieselbe, ob der Master-Skill an
-    oder aus ist."""
+    oder aus ist. Die gemeldeten UI-Module auch (U1-g): mit ihnen bietet der Agent andere
+    Werkzeuge an — und die davon wirksamen (Studio-Schalter, Review U1-g #7)."""
     b = summary.get("messbedingungen") or {}
     skill = b.get("master_skill") or {}
     return {"provider": b.get("provider"), "chat_model": b.get("chat_model"),
             "judge_model": b.get("judge_model"),
             "master_skill": {"enabled": skill.get("enabled"),
                              "sha256": (skill.get("sha256") or "")[:12] or None},
-            "agent_limits": b.get("agent_limits")}
+            "agent_limits": b.get("agent_limits"), "ui_module": b.get("ui_module"),
+            "ui_module_wirksam": b.get("ui_module_wirksam")}
 
 
 def check_conditions(runs: list[dict[str, Any]],

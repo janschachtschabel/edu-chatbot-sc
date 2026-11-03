@@ -67,6 +67,7 @@ from boerdi.services.direct_actions import (
 from boerdi.services.rate_limits import check_rate_limit
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.service import regex_rueckfall, sperrt_ohne_moderation
+from boerdi.services.themenbaum_aktion import handle_show_collection_tree
 from boerdi.services.turn_quality import log_turn_quality
 from boerdi.services.write_approval import redeem_write_approval
 
@@ -77,6 +78,8 @@ _DIRECT_ACTIONS = {
     "generate_learning_path",
     "curate_collection",
     "show_content_text",
+    # Paket U1-e: „Unterthemen öffnen“ im Themenbaum — ohne KI, durch dieselbe Prüfung.
+    "show_collection_tree",
 }
 
 
@@ -207,6 +210,10 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             session, req, ctx.session_state, usage_acc=ctx.usage)
     elif req.action == "show_content_text":
         ctx.early_response = await _handle_show_content_text(session, req, ctx.session_state)
+    elif req.action == "show_collection_tree":
+        # Review U1-e, Befund 3: die Sperren dieser Prüfung gelten auch für die Datenquelle.
+        ctx.early_response = await handle_show_collection_tree(
+            session, req, ctx.session_state, blocked_tools=decision.blocked_tools)
     await _log_early_quality(ctx, session)
     return ctx
 

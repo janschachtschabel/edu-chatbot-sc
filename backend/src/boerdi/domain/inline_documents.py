@@ -11,7 +11,8 @@ Damit hing die Box auch an der **Schrittzahl**: eine Rückfrage zwischendrin
 verschob das Ergebnis in einen Zug, in dem die Vermutung nicht mehr griff. Ein
 Zwischenschritt darf ein Arbeitsergebnis nicht kosten.
 
-Hier ruft das Modell stattdessen ``zeige_dokument`` — dieselbe Mechanik wie
+Hier ruft das Modell stattdessen ``ui_inhaltsrahmen`` (bis U1-b ``zeige_dokument``, der
+alte Name wird weiter angenommen) — dieselbe Mechanik wie
 ``submit_result``: ein virtuelles Werkzeug, das die
 Schleife am Namen abfängt, bevor irgendein MCP-Aufruf passiert. Titel, Art und
 Markdown kommen als Argumente; Länge, Überschrift, Muster und Zug sind
@@ -22,18 +23,36 @@ Musters. Ein Muster- oder Skill-Text darf sie verstärken; nötig ist er nicht �
 genau das macht die Box unabhängig davon, wie die Redaktion einen Skill
 formuliert.
 
-**Rein**: keine I/O, keine App-Abhängigkeiten — dieselbe Heimat wie
-``content_types``/``search_intent``. Der Dispatch liegt in den Schleifen.
+**Seit Paket U1-b** ist das Werkzeug das UI-Modul ``ui_inhaltsrahmen``: Beschreibung und
+Parameter stehen in dessen Manifest (``ui_module/katalog``), die aufbereiteten Argumente werden
+dagegen geprüft, und jedes Dokument reist als Inhaltsrahmen-Block (:func:`als_inhaltsrahmen`).
+Einzige Ein-/Ausgabe ist das einmalige Lesen des Katalogs. Der Dispatch liegt in den Schleifen.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Final
 
-#: Der Name, an dem die Schleifen das Dokument erkennen. Konstante statt
-#: Literal, weil ihn mehrere Module vergleichen (hier gebaut, in ``agent_loop``
-#: und ``tool_loop`` erkannt) — dieselbe Begründung wie bei ``SUBMIT_RESULT``.
-ZEIGE_DOKUMENT: Final = "zeige_dokument"
+from boerdi.api.schemas_ui import UiBlock
+from boerdi.domain.ui_bloecke import neuer_block
+from boerdi.ui_module import katalog
+from boerdi.ui_module.namen import INHALTSRAHMEN
+from boerdi.ui_module.werkzeuge import werkzeug_aus_manifest
+
+#: ``INHALTSRAHMEN`` — der Name, unter dem die KI das Werkzeug sieht, zugleich der Modulname.
+#: Er steht seit U1-d1 in ``ui_module/namen`` (die allgemeinen Modul-Werkzeuge nehmen ihn aus)
+#: und wird von hier weiter angeboten: ``agent_loop`` und ``tool_loop`` lesen ihn hier.
+
+#: Frühere Namen, die weiter angenommen, aber nicht mehr angeboten werden: gespeicherte
+#: Rollen-Vorgaben und live abgelegte Master-Skills nennen bis zu ihrer Umstellung noch
+#: ``zeige_dokument`` (Nutzer-Entscheid 2026-11-02).
+DOKUMENT_ALIASE: Final = frozenset({"zeige_dokument"})
+
+
+def ist_dokument_werkzeug(name: object) -> bool:
+    """Meint dieser Werkzeugaufruf das Dokument — unter neuem oder altem Namen?"""
+    return name == INHALTSRAHMEN or name in DOKUMENT_ALIASE
 
 #: Die Formen, die eine Box annehmen kann — Kennung → Erklärung für das Modell.
 #:
@@ -42,11 +61,9 @@ ZEIGE_DOKUMENT: Final = "zeige_dokument"
 #: Nutzer-Entscheid vom 2026-08-17: die Formen, die die freigegebenen Skills
 #: tatsächlich erzeugen.
 #:
-#: **Kein Frontend-Zwang.** Gemessen in ``ui/src/inline-doc/inline-doc.ts``:
-#: die Box zeigt ``doc.title || fallbackLabel(doc.kind)``, und ``fallbackLabel``
-#: hat einen ``default``-Zweig („Inhalt"), das Icon ebenso. Eine unbekannte Art
-#: rendert also sauber mit dem gelieferten Titel. Eigene Etiketten und Icons je
-#: neuer Art wären Kür — und die kosten einen Widget-Neubau.
+#: **Seit U1-b** kennt das Widget-Modul ``ui_inhaltsrahmen`` alle Arten samt Symbol und
+#: Bezeichnung (``ui-module/src/ui-inhaltsrahmen/inhaltsrahmen.ts``); eine unbekannte fällt
+#: dort auf „Inhalt“ und im Backend auf :data:`_RUECKFALL_ART`.
 DOKUMENT_ARTEN: Final[dict[str, str]] = {
     "lernpfad": "eine Abfolge aufeinander aufbauender Materialien",
     "ki_material": "ein erzeugtes Material (Arbeitsblatt, Quiz, Aufgabenset)",
@@ -80,65 +97,37 @@ MAX_TITEL_ZEICHEN: Final = 160
 _KUERZUNGS_HINWEIS: Final = "\n\n*(gekuerzt — der Inhalt war zu lang)*…"
 
 #: Der Titel wird glatt geschnitten. Er steht in einer KOPFZEILE, und die Box
-#: interpoliert ihn (``{{ doc.title }}``, ``inline-documents.component.ts``)
+#: interpoliert ihn (``{{ daten().titel }}``, ``ui-inhaltsrahmen.component.ts``)
 #: statt ihn zu rendern — der erklärende Hinweis des Rumpfes stünde dort samt
 #: Leerzeile und Sternchen wörtlich in der Überschrift.
 _TITEL_HINWEIS: Final = "…"
 
-_BESCHREIBUNG: Final = (
-    "Uebergib ein fertiges Arbeitsergebnis, damit es als eigene Box angezeigt "
-    "wird — Verlaufsplan, Unterrichtsreihe, Arbeitsblatt, Lernpfad, Zeugnis, "
-    "Brief oder Fachtext.\n\n"
-    "WANN: sobald das Ergebnis fertig ist, im selben Zug. Rueckfragen vorher "
-    "sind in Ordnung und kosten nichts — entscheidend ist, dass das Ergebnis "
-    "hier landet und nicht nur beschrieben wird.\n\n"
-    "WIE: ``markdown`` traegt das VOLLSTAENDIGE Ergebnis. Fasse es nicht "
-    "zusammen und kuendige es nicht bloss an. Deine Prosa-Antwort daneben ist "
-    "nur der Begleitsatz (ein bis zwei Saetze); der Inhalt gehoert in dieses "
-    "Werkzeug.\n\n"
-    "VERFUEGBARE ARTEN:\n"
+DOKUMENT_FEHLER: Final = (
+    "Fehler: Das Dokument war unbrauchbar — ``titel`` und ``markdown`` muessen "
+    "nichtleere Zeichenketten sein. Wiederhole den Aufruf mit dem "
+    "vollstaendigen Ergebnis, oder antworte in Prosa."
+)
+
+DOKUMENT_DECKEL: Final = (
+    "Hinweis: Fuer diesen Zug sind bereits genug Boxen geliefert. Schreibe "
+    "jetzt deinen Begleitsatz."
 )
 
 
-def dokument_werkzeug() -> dict[str, Any]:
-    """Die Werkzeugdefinition — Titel, Art, Markdown, alle drei Pflicht.
+def quittung(dokument: Mapping[str, Any]) -> str:
+    """Die Bestätigung an das Modell. Keine Höflichkeit: ohne sie wüsste es nicht, ob der
+    Inhalt angekommen ist, und schriebe ihn sicherheitshalber noch einmal in die Prosa."""
+    return (f"Uebernommen: '{dokument['title']}' wird als Box angezeigt. Schreibe jetzt nur "
+            "noch einen kurzen Begleitsatz — NICHT den Inhalt noch einmal.")
 
-    Alle drei sind Pflicht, weil jedes fehlende Feld die Box unbrauchbar macht:
-    ohne Titel keine Kopfzeile, ohne Art kein Icon, ohne Markdown kein Inhalt.
-    """
-    arten = "\n".join(f"- `{art}` — {was}" for art, was in DOKUMENT_ARTEN.items())
-    return {
-        "type": "function",
-        "function": {
-            "name": ZEIGE_DOKUMENT,
-            "description": _BESCHREIBUNG + arten,
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "titel": {
-                        "type": "string",
-                        "description": (
-                            "Die Ueberschrift der Box, z. B. "
-                            "'Unterrichtsverlaufsplan: Einfuehrung in die Optik'."
-                        ),
-                    },
-                    "art": {
-                        "type": "string",
-                        "enum": list(DOKUMENT_ARTEN),
-                        "description": "Die Form des Ergebnisses, siehe Liste oben.",
-                    },
-                    "markdown": {
-                        "type": "string",
-                        "description": (
-                            "Das vollstaendige Ergebnis als Markdown — Tabellen, "
-                            "Listen und Ueberschriften sind erlaubt."
-                        ),
-                    },
-                },
-                "required": ["titel", "art", "markdown"],
-            },
-        },
-    }
+
+def _manifest() -> katalog.Manifest:
+    return katalog.katalog()[INHALTSRAHMEN]
+
+
+def dokument_werkzeug() -> dict[str, Any]:
+    """Die Werkzeugdefinition — aus dem Manifest des Inhaltsrahmens (Paket U1-b)."""
+    return werkzeug_aus_manifest(_manifest())
 
 
 def _text(wert: object, deckel: int, hinweis: str = _KUERZUNGS_HINWEIS) -> str:
@@ -146,14 +135,16 @@ def _text(wert: object, deckel: int, hinweis: str = _KUERZUNGS_HINWEIS) -> str:
 
     ``hinweis`` steht am Schnitt. Für den Rumpf ist der erklärende Satz richtig
     — dort ist Platz, und ohne ihn sähe der Abbruch nach einem Fehler aus. Für
-    den Titel wäre er falsch, siehe :data:`_TITEL_HINWEIS`.
+    den Titel wäre er falsch, siehe :data:`_TITEL_HINWEIS`. Der Hinweis zählt
+    zum Deckel: das Ergebnis besteht die Prüfung gegen das Manifest des
+    Inhaltsrahmens (``maxLength``), statt dort abgelehnt zu werden.
     """
     if not isinstance(wert, str):
         return ""
     sauber = wert.strip()
     if len(sauber) <= deckel:
         return sauber
-    return sauber[:deckel].rstrip() + hinweis
+    return sauber[:max(0, deckel - len(hinweis))].rstrip() + hinweis
 
 
 def dokument_aus_argumenten(args: object) -> dict[str, Any] | None:
@@ -185,3 +176,46 @@ def dokument_aus_argumenten(args: object) -> dict[str, Any] | None:
     # beiden Wege den Zug getragen hat.
     return {"kind": art, "title": titel, "content": markdown,
             "meta": {"source": "tool"}}
+
+
+def _als_daten(dokument: Mapping[str, Any]) -> dict[str, Any]:
+    return {"titel": dokument["title"], "art": dokument["kind"], "markdown": dokument["content"]}
+
+
+def _fehlende_felder(args: object) -> list[str]:
+    felder = ("titel", "markdown")
+    if not isinstance(args, dict):
+        return list(felder)
+    return [f for f in felder
+            if not (isinstance(args.get(f), str) and args[f].strip())] or list(felder)
+
+
+def dokument_annehmen(args: object) -> tuple[dict[str, Any] | None, str | None]:
+    """Werkzeug-Argumente → ``(dokument, None)`` oder ``(None, Fehlertext für das Modell)``.
+
+    Erst aufbereiten (kürzen statt ablehnen, unbekannte Art → ``dokument``), dann gegen
+    ``eingabe`` des Manifests prüfen. Ein Fehler ist ein Werkzeugergebnis, kein Zug-Ende: das
+    Modell kann den Aufruf berichtigen oder in Prosa antworten.
+    """
+    dokument = dokument_aus_argumenten(args)
+    if dokument is None:
+        return None, f"{DOKUMENT_FEHLER} Fehlt oder leer: {', '.join(_fehlende_felder(args))}."
+    # Die Aufbereitung erfüllt das Manifest bereits; diese Prüfung fängt Drift zwischen beiden.
+    if fehler := katalog.daten_fehler(_manifest(), _als_daten(dokument)):
+        return None, f"{DOKUMENT_FEHLER} Abweichungen: {'; '.join(fehler)}"
+    return dokument, None
+
+
+def als_inhaltsrahmen(dokument: Mapping[str, Any] | Any) -> UiBlock:
+    """Eine Dokument-Box (Werkzeug, geratene Box, Volltext, Schreib-Vorschau) als
+    Inhaltsrahmen-Block. Nimmt das Dict der Schleifen wie ein ``InlineDocument``."""
+    if not isinstance(dokument, Mapping):
+        dokument = dokument.model_dump()
+    # Auch System-Boxen passen so zum Manifest: der Volltext-Titel kommt ungedeckelt vom MCP,
+    # und eine unbekannte Art fiele sonst durch die Aufzählung.
+    arten = _manifest()["eingabe"]["properties"]["art"]["enum"]
+    art = dokument.get("kind")
+    daten = {"titel": _text(dokument.get("title"), MAX_TITEL_ZEICHEN, _TITEL_HINWEIS),
+             "art": art if art in arten else _RUECKFALL_ART,
+             "markdown": str(dokument.get("content") or "")}
+    return neuer_block(INHALTSRAHMEN, _manifest()["version"], "anzeigen", daten, daten["markdown"])

@@ -22,6 +22,7 @@ Ergebnis gegen genau diese Parameter (``domain/ergebnis_schema``, Paket 4 A3).
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import Any
 
 from boerdi.domain.host_capabilities import erlaubt
@@ -34,6 +35,7 @@ from boerdi.services.mcp import fremdwerkzeuge
 from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
+from boerdi.ui_module.werkzeuge import modul_werkzeuge
 
 #: Der Name, an dem die Schleife das Ende erkennt. Konstante statt Literal, weil
 #: ihn zwei Module vergleichen (hier gebaut, in ``agent_loop`` erkannt).
@@ -139,6 +141,7 @@ def build_agent_tools(
     include_submit: bool = True,
     include_ergebnis: bool = False,
     include_dokument: bool = False,
+    ui_module: Collection[str] | None = None,
     tool_mode: str | None = None,
     wissen_tool: dict[str, Any] | None = None,
     antwort_tool: dict[str, Any] | None = None,
@@ -190,7 +193,7 @@ def build_agent_tools(
     ueber RAG wissen muss. Virtuell wie die anderen: nicht sperrbar, denn ein
     Bestand in der eigenen Datenbank ist keine Gefahr, die eine Sperre abwendet.
 
-    ``include_dokument`` (D2) legt ``zeige_dokument`` dazu — das Werkzeug, mit
+    ``include_dokument`` (D2) legt ``ui_inhaltsrahmen`` dazu — das Werkzeug, mit
     dem das Modell ein fertiges Arbeitsergebnis als eigene Box LIEFERT, statt
     dass ``turn_persist`` es aus dem Antworttext rät. Der Chat-Zug setzt es,
     ``/api/agent`` nicht: dort liest niemand eine Box, und die Beschreibung
@@ -198,6 +201,13 @@ def build_agent_tools(
     sperrbar — dieselbe Begründung wie bei den beiden anderen virtuellen: eine
     Sperre darauf verhinderte keine Gefahr, sie nähme dem Lauf nur die
     Möglichkeit, sein Ergebnis auszuliefern.
+
+    ``ui_module`` (U1-d1) legt die allgemeinen UI-Modul-Werkzeuge dazu — jedes Katalog-Modul mit
+    ``agent: true`` außer dem Inhaltsrahmen (oben) und den abgeleiteten
+    (``ui_module/werkzeuge.modul_werkzeuge``), aber nur die genannten: die Module, die das Widget
+    meldet (``Environment.ui_module``, Review U1-d1) und die das Studio dem Agenten lässt (U1-f,
+    Seite „UI-Module“). Virtuell und nicht sperrbar wie das Dokument;
+    der Chat-Zug reicht die Meldung durch, ``/api/agent`` nicht (dort zeigt niemand einen Block).
 
     ``list(TOOL_DEFINITIONS)`` und nicht die Modul-Globale selbst: unten wird
     angehaengt, und eine Referenz schriebe in den Katalog. Genau so wuchs er im
@@ -217,6 +227,11 @@ def build_agent_tools(
         tools.append(wissen_tool)
     if include_dokument:
         tools.append(dokument_werkzeug())
+    if ui_module:
+        # Module mit Datenquelle (U1-e) nur, wenn ihr Werkzeug in diesem Lauf angeboten ist:
+        # eine Sperre auf ``browse_collection_tree`` gilt auch für den Themenbaum.
+        tools.extend(modul_werkzeuge(ui_module, verfuegbar={t["function"]["name"] for t in tools},
+                                     fuer="agent"))
     if include_submit:
         tools.append(submit_result_tool(result_schema))
     if include_ergebnis:

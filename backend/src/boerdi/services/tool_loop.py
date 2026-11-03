@@ -48,9 +48,12 @@ from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER, antwort_aus_argument
 from boerdi.domain.content_types import als_liste
 from boerdi.domain.host_capabilities import erlaubt
 from boerdi.domain.inline_documents import (
+    DOKUMENT_DECKEL,
+    INHALTSRAHMEN,
     MAX_DOKUMENTE_JE_ZUG,
-    ZEIGE_DOKUMENT,
-    dokument_aus_argumenten,
+    dokument_annehmen,
+    ist_dokument_werkzeug,
+    quittung,
 )
 from boerdi.domain.inline_grouping import (
     MIN_SELECTABLE_CARDS,
@@ -92,7 +95,11 @@ from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.services.response_tool_selection import _nameable_tools
+from boerdi.services.tool_loop_module import nimm_module_an, offene_frage
 from boerdi.services.zustimmung_pruefen import zugestimmt
+from boerdi.ui_module.antwort import NACH_DER_FRAGE
+from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
+from boerdi.ui_module.werkzeuge import ist_abfragendes_modul, ist_modul_werkzeug
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,22 +119,11 @@ CARD_YIELDING_TOOLS = _CARD_YIELDING_TOOLS
 GELIEFERTE_DOKUMENTE_KEY = "_gelieferte_dokumente"
 
 #: Lokale Werkzeuge, die nur laufen, wenn dieser Zug sie anbietet (Paket 4, A2).
-_DARSTELLUNGS_WERKZEUGE = frozenset({"select_top_cards", RESPOND_TO_USER, ZEIGE_DOKUMENT})
-
-_DOKUMENT_FEHLER = (
-    "Fehler: Das Dokument war unbrauchbar — ``titel`` und ``markdown`` muessen "
-    "nichtleere Zeichenketten sein. Wiederhole den Aufruf mit dem "
-    "vollstaendigen Ergebnis, oder antworte in Prosa."
-)
-
-_DOKUMENT_DECKEL = (
-    "Hinweis: Fuer diesen Zug sind bereits genug Boxen geliefert. Schreibe "
-    "jetzt deinen Begleitsatz."
-)
-
+_DARSTELLUNGS_WERKZEUGE = frozenset({"select_top_cards", RESPOND_TO_USER, INHALTSRAHMEN})
 
 def _nimm_dokument_an(roh_args: str, session_state: dict) -> str:
-    """Einen ``zeige_dokument``-Aufruf annehmen; Rückgabe ist die Quittung.
+    """Einen Aufruf des Inhaltsrahmens (auch unter ``zeige_dokument``) annehmen; Rückgabe ist
+    die Quittung oder der Fehlertext.
 
     Die Quittung ist keine Höflichkeit: ohne sie wüsste das Modell nicht, ob der
     Inhalt angekommen ist, und schriebe ihn sicherheitshalber noch einmal in die
@@ -139,24 +135,21 @@ def _nimm_dokument_an(roh_args: str, session_state: dict) -> str:
     try:
         args = json.loads(roh_args or "{}")
     except (json.JSONDecodeError, TypeError):
-        return _DOKUMENT_FEHLER
-    dokument = dokument_aus_argumenten(args)
+        args = None
+    dokument, fehler = dokument_annehmen(args)
     if dokument is None:
-        _logger.info("zeige_dokument: unbrauchbare Argumente")
-        return _DOKUMENT_FEHLER
+        _logger.info("Inhaltsrahmen: unbrauchbare Argumente")
+        return fehler or ""
     geliefert = session_state.setdefault(GELIEFERTE_DOKUMENTE_KEY, [])
     if len(geliefert) >= MAX_DOKUMENTE_JE_ZUG:
-        _logger.info("zeige_dokument: Deckel von %d erreicht", MAX_DOKUMENTE_JE_ZUG)
-        return _DOKUMENT_DECKEL
+        _logger.info("Inhaltsrahmen: Deckel von %d erreicht", MAX_DOKUMENTE_JE_ZUG)
+        return DOKUMENT_DECKEL
     geliefert.append(dokument)
     # Ohne den Titel: er ist Modell-Ausgabe aus Nutzer-Inhalt und kann bei
     # ``art: zeugnis`` einen Namen tragen. Art und Länge tragen die Diagnose.
-    _logger.info("zeige_dokument: Box übernommen (%s, %d Zeichen)",
+    _logger.info("Inhaltsrahmen: Box übernommen (%s, %d Zeichen)",
                  dokument["kind"], len(dokument["content"]))
-    return (
-        f"Uebernommen: '{dokument['title']}' wird als Box angezeigt. Schreibe "
-        "jetzt nur noch einen kurzen Begleitsatz — NICHT den Inhalt noch einmal."
-    )
+    return quittung(dokument)
 
 
 async def _run_tool_loop(
@@ -286,14 +279,20 @@ async def _run_tool_loop(
                 t for t in tools_called
                 if not (isinstance(t, str) and "(prefetch)" in t)
             ]
-            if pattern_forces_tool and first_iteration and not real_tools_called:
+            # Review U1-d2 (Befund 1): Ein Modul-Werkzeug allein ist kein Grund für „required“ —
+            # sonst zwänge die erste Runde eines Rückfrage-Musters ohne Antwort-Werkzeug die KI
+            # in die Auswahl-Frage. Erzwungen wird nur, wenn ein anderes Werkzeug angeboten ist.
+            erzwingbar = any(not ist_modul_werkzeug(t.get("function", {}).get("name"))
+                             for t in active_tools)
+            if erzwingbar and pattern_forces_tool and first_iteration and not real_tools_called:
                 tool_choice = "required"
                 _logger.info(
                     "force_tool_use=true → tool_choice=required (active_tools=%d)",
                     len(active_tools),
                 )
             elif (
-                first_iteration
+                erzwingbar
+                and first_iteration
                 and not tools_called
                 and not knowledge_prefetched
                 and not mcp_prefetched
@@ -366,11 +365,13 @@ async def _run_tool_loop(
             # Hilft bei der Cache-Hit-Rate-Diagnose: "response"-Calls haben oft
             # keinen Cache-Hit, weil Tool-Output-Messages den Prompt variieren.
             # Eine Runde mit ``respond_to_user`` IST die Antwort (Vorgabe seit
-            # 2026-09-30), auch wenn sie als Werkzeugaufruf kommt.
+            # 2026-09-30), auch wenn sie als Werkzeugaufruf kommt — ebenso eine mit
+            # einer Auswahl-Frage (Review U1-d2, Befund 9): sie beendet den Zug.
             _phase = (
                 "tool_loop"
                 if (choice.finish_reason == "tool_calls" and choice.message.tool_calls
-                    and not any(tc.function.name == "respond_to_user"
+                    and not any(tc.function.name == RESPOND_TO_USER
+                                or ist_abfragendes_modul(tc.function.name)
                                 for tc in choice.message.tool_calls))
                 else "response"
             )
@@ -390,11 +391,12 @@ async def _run_tool_loop(
             # Entscheidung. Lokale/virtuelle Tools (Auswahl, Inline-Antwort,
             # RAG) sind kein MCP-Netz-Call und zählen nicht mit. Rein
             # beobachtend, kein Verhaltenseffekt.
-            _LOCAL_TOOLS = {"select_top_cards", "respond_to_user", "query_knowledge",
-                            ZEIGE_DOKUMENT}
+            _LOCAL_TOOLS = {"select_top_cards", "respond_to_user", "query_knowledge"}
             _mcp_calls_this_round = sum(
                 1 for _tc in choice.message.tool_calls
                 if _tc.function.name not in _LOCAL_TOOLS
+                and not ist_dokument_werkzeug(_tc.function.name)
+                and not ist_modul_werkzeug(_tc.function.name)
             )
             if _mcp_calls_this_round >= 2:
                 _logger.info(  # log-ok: Werkzeugnamen
@@ -433,11 +435,13 @@ async def _run_tool_loop(
             # nie an den MCP, zählt daher nicht als Werkzeugaufruf.
             _dokument_calls: set[str] = set()
             for tc in choice.message.tool_calls:
-                if tc.function.name != ZEIGE_DOKUMENT:
+                if not ist_dokument_werkzeug(tc.function.name):
                     continue
                 _dokument_calls.add(tc.id)
-                if ZEIGE_DOKUMENT not in _direkt_angeboten:
-                    _logger.warning("tool-call %s: nicht angeboten, verworfen", ZEIGE_DOKUMENT)
+                # Angeboten wird nur der neue Name; ein Aufruf unter dem alten zählt mit.
+                if INHALTSRAHMEN not in _direkt_angeboten:
+                    _logger.warning("tool-call %s: nicht angeboten, verworfen",
+                                    tc.function.name)
                     messages.append({
                         "role": "tool", "tool_call_id": tc.id, "content": NICHT_ANGEBOTEN,
                     })
@@ -447,6 +451,13 @@ async def _run_tool_loop(
                     "tool_call_id": tc.id,
                     "content": _nimm_dokument_an(tc.function.arguments, session_state),
                 })
+            # UI-Module als Werkzeuge (Paket U1-d2, U-F4): ebenfalls in der Vorrunde, aus
+            # demselben Grund — eine Frage NACH ``respond_to_user`` ginge sonst verloren.
+            _vorrunde = await nimm_module_an(
+                choice.message.tool_calls, _direkt_angeboten, session_state, messages,
+                tools_called=tools_called, outcomes=outcomes)
+            _dokument_calls |= _vorrunde.erledigt
+            _frage = offene_frage(session_state)
 
             for tc in choice.message.tool_calls:
                 if tc.id in _dokument_calls:
@@ -479,6 +490,13 @@ async def _run_tool_loop(
                     _logger.warning("tool-call %s: nicht angeboten, verworfen", tool_name)
                     messages.append({
                         "role": "tool", "tool_call_id": tc.id, "content": NICHT_ANGEBOTEN,
+                    })
+                    continue
+                # Nach einer Frage (U1-d2) wie in der Agent-Schleife: kein echtes Werkzeug
+                # mehr in dieser Runde — die Person ist am Zug.
+                if _frage is not None and tool_name not in _DARSTELLUNGS_WERKZEUGE:
+                    messages.append({
+                        "role": "tool", "tool_call_id": tc.id, "content": NACH_DER_FRAGE,
                     })
                     continue
                 tools_called.append(tool_name)
@@ -584,6 +602,15 @@ async def _run_tool_loop(
                 # of a finish_reason == "stop" with the extracted text. Count and
                 # length are capped at assembly (``filtere_vorschlaege``), where
                 # the pattern's count is known.
+                if tool_name == RESPOND_TO_USER and _vorrunde.ohne_block:
+                    # Review U1-e, Befund 1 (wie in der Agent-Schleife): einem Modul mit
+                    # Datenquelle fehlt der Block — die Antwort dieser Runde verwiese womöglich
+                    # auf ihn. Nicht übernommen; die nächste Runde sieht die Fehlermeldung, am
+                    # Iterationsdeckel greift ``_max_iterations_fallback``.
+                    messages.append({
+                        "role": "tool", "tool_call_id": tc.id, "content": ANTWORT_VERWORFEN,
+                    })
+                    continue
                 if tool_name == RESPOND_TO_USER:
                     _inline_response_text, _inline_quick_replies = antwort_aus_argumenten(
                         tool_args)
@@ -987,6 +1014,15 @@ async def _run_tool_loop(
                     ),
                 })
 
+            # Eine Frage an die Person beendet den Zug (U1-d2) — vor der A1-Reflexion: eine
+            # Rückfrage ist kein Abkürzen der Pflicht-Suche. Text: die Antwort derselben Runde,
+            # sonst die Prosa neben den Aufrufen (leer → ``respond`` setzt den festen Satz).
+            # Keine Schnellantworten: ein Klick darauf machte die Frage veraltet.
+            if _frage is not None:
+                return (
+                    _inline_response_text if _inline_response_text is not None
+                    else strip_reasoning_markers(choice.message.content or "").strip()
+                ), all_cards, tools_called, outcomes
             # If respond_to_user was called among the tool calls, treat THIS
             # iteration as the finish point. Otherwise continue the outer
             # for-loop into the next LLM round-trip.

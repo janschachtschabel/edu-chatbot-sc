@@ -40,6 +40,9 @@ _MIB = 1024 * 1024
 #: (bis 200 000 Zeichen) passen weit hinein.
 _OEFFENTLICHE_ZUEGE = ("/api/chat", "/api/agent")
 _OEFFENTLICH_BYTES = 2 * _MIB
+#: Unterthemen im Themenbaum (U1-h): öffentlich, drei kurze Felder.
+_ZWEIG = "/api/ui/themenbaum/zweig"
+_ZWEIG_BYTES = 16 * 1024
 #: Alles andere (Studio-JSON, Konfig-Bereiche, Text-Ingest).
 _ALLGEMEIN_BYTES = 16 * _MIB
 _KONFIG_UPLOADS = ("/api/config/restore", "/api/config/factory/upload")
@@ -58,6 +61,8 @@ def body_limit_for(path: str) -> int | None:
     if path == "/api/rag/ingest/file":
         max_mb = get_settings().max_ingest_mb
         return (max_mb + 1) * _MIB if max_mb > 0 else None
+    if path == _ZWEIG:
+        return _ZWEIG_BYTES
     if any(_unter(path, p) for p in _OEFFENTLICHE_ZUEGE):
         return _OEFFENTLICH_BYTES
     return _ALLGEMEIN_BYTES

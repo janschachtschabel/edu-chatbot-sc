@@ -21,7 +21,9 @@ each is its own graph node or a later slice:
 
 What it does beyond ALT: it drops a pending write approval this turn cannot
 confirm (``services/write_approval.discard_stale_approval``) — here, because the
-tour and the context greeting end the turn before the preflight.
+tour and the context greeting end the turn before the preflight. For the same
+reason it closes an open UI-module question and checks a ``ui_antwort``
+(``services/ui_antwort``, Paket U1-d1).
 
 DI (Regel 3): ``session`` and ``peer_ip`` are injected — the graph-build (P4-6)
 binds the request ``AsyncSession`` and the real peer IP, mirroring ALT
@@ -50,6 +52,7 @@ from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
 from boerdi.services.db_sessions import get_messages, get_or_create_session
+from boerdi.services.ui_antwort import offene_frage_schliessen
 from boerdi.services.write_approval import discard_stale_approval
 
 logger = logging.getLogger(__name__)
@@ -103,9 +106,18 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
     # vor dem Vorlauf, und ein erst dort verworfener Vorgang überdauerte sie
     # (Review Paket 2, 2026-10-01). Ein Hintergrund-Zug verwirft nur im Speicher
     # (Befund 2026-10-08, ``discard_stale_approval``).
-    await discard_stale_approval(
-        session, req, ctx.session_state,
-        hintergrund=_hintergrund_zug(req, ctx.session_state))
+    hintergrund = _hintergrund_zug(req, ctx.session_state)
+    # Paket U1-d1: die offene Frage eines UI-Moduls schließen und eine mitgeschickte Antwort
+    # prüfen — VOR der Abnahme. Jede Modul-Antwort zählt dort als NEIN, auch eine verworfene
+    # (Review U1-d1, Befund 2); für das Modell zählt der Text einer verworfenen wie getippt
+    # (``services/ui_antwort``).
+    modul_antwort = req.ui_antwort is not None
+    schluss = await offene_frage_schliessen(
+        session, req, ctx.session_state, hintergrund=hintergrund)
+    ctx.ui_antwort = schluss.antwort
+    ctx.geschlossene_frage = schluss.frage
+    await discard_stale_approval(session, req, ctx.session_state, hintergrund=hintergrund,
+                                 modul_antwort=modul_antwort)
 
     ctx.env = req.environment.model_dump()
 

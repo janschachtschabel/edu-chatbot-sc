@@ -83,6 +83,7 @@ from boerdi.services.config_loader.tone import (
     load_tone_modifiers_config,
     update_persona_modifier_in_frontmatter,
 )
+from boerdi.services.config_loader.ui_module import load_ui_modul_schalter
 from boerdi.services.config_loader.widget import (
     load_context_actions,
     load_device_config,
@@ -118,7 +119,8 @@ __all__ = [
     "load_quality_log_config", "load_rag_config", "load_safety_config",
     "load_turn_limits",
     "load_signal_modulations", "load_states", "load_tie_breaker_config",
-    "load_tone_modifiers_config", "load_website_tour_config", "load_welcome_config",
+    "load_tone_modifiers_config", "load_ui_modul_schalter", "load_website_tour_config",
+    "load_welcome_config",
     "load_widget_modes_config", "read_config_file", "rewrite_repo_host",
     "rewrite_repo_host_v2", "save_mcp_servers",
     "update_persona_modifier_in_frontmatter", "write_config_file",
