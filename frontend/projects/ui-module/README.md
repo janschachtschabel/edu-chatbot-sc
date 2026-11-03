@@ -4,6 +4,11 @@ Kleine Oberflächen, die der Chatbot in einer Antwort zeigt und die die KI wie W
 (Paket U1, Plan `docs/plans/2026-11-02-paket-u1-ui-module.md`). Sie werden im selben Bündel wie
 das Widget gebaut und sehen aus wie das Widget.
 
+**Ausführlich:** [`docs/ui-module.md`](../../../docs/ui-module.md) — Prinzip, Manifest-Felder,
+die drei Wege zum Block, was nach `module:register` automatisch eingebunden ist und was
+Handarbeit bleibt, aktuelle Module, Kompromisse. Grafik:
+[`docs/architektur-grafiken/png/ui-module-einbindung.png`](../../../docs/architektur-grafiken/png/ui-module-einbindung.png).
+
 ## Ein neues Modul
 
 ```bash
@@ -54,7 +59,7 @@ eigenes Dokument-Werkzeug, Linkbox und Trefferliste entstehen ohne Aufruf).
   Frage. Danach ist der Block `beantwortet` (nur lesend mit `kontext().antwort`); jeder andere
   Zug der Person macht offene Fragen `veraltet`.
 - **Platz:** `darstellung.platz` — `oben` (Vorgabe) vor den Trefferboxen, `unten` danach.
-- **Abgeleitete Module** (Linkbox, später Trefferliste) entstehen ohne Werkzeugaufruf aus der
+- **Abgeleitete Module** (Linkbox, Trefferliste) entstehen ohne Werkzeugaufruf aus der
   Antwort (`backend/src/boerdi/ui_module/abgeleitet.py`, Namen in `namen.py`); ein Muster wählt
   sie mit `ui_module:`.
 - **Importe:** aus `_vertrag/` und aus Einzeldateien von `@boerdi/ui` (Icons, Druck-Helfer,
