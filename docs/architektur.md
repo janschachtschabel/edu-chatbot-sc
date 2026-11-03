@@ -578,8 +578,8 @@ Auswertungen ansehen, Sicherungen ziehen, Agent und Widget testen.
 die Seitenleiste zeigt den eigenen Block der Maschine (Agent: Übersicht, Rolle & Schutz,
 Prompt & Probelauf · Muster: Übersicht, Identität & Schutz, Domänenwissen, Patterns,
 Dimensionen, Materialformate) und darunter, was beide teilen: *Gemeinsam* (Begrüßung,
-Kontext-Aktionen, Tour & Lotse, Zielgruppen, Wissen, Werkzeuge, Skills, Anzeige,
-Datenschutz), *Auswertung* (Nutzung, Sessions, Analyse, Evaluation, Lasttest,
+Kontext-Aktionen, Tour & Lotse, Zielgruppen, Wissen, Werkzeuge, Skills, UI-Module,
+Anzeige, Datenschutz), *Auswertung* (Nutzung, Sessions, Analyse, Evaluation, Lasttest,
 Safety-Logs, Kosten) und *System* (Betrieb, Alle Bereiche, Sicherung, Vorschau). Ein
 Bereich hat je Arbeitsbereich genau eine Heimat (`views/area-homes.ts`), jedes Feld
 eine Plakette, in welcher Maschine es wirkt (`GET /api/config/effects`, `fields`).
