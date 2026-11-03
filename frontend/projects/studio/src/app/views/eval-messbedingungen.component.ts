@@ -63,6 +63,8 @@ export class EvalMessbedingungenComponent {
       { label: 'evalV2.mb.gold', wert: gold?.hash
         ? this.t('evalV2.mb.goldWert', { hash: gold.hash, anzahl: gold.ids?.length ?? 0 })
         : ohne },
+      { label: 'evalV2.mb.uiModule', wert: mb.ui_module == null ? ohne
+        : mb.ui_module.join(', ') || this.t('evalV2.mb.uiModuleKeine') },
     ];
   });
 

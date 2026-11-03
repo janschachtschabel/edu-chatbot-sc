@@ -78,7 +78,7 @@ export const REFERENCE_MACHINES: CataloguePart = {
     'rm.row.tools': 'Werkzeuge',
     'rm.row.tools.pattern': 'Je Muster gebunden; Suchen starten nach dem Intent schon vorab.',
     'rm.row.tools.agent':
-      'Der ganze Katalog ohne gesperrte Werkzeuge, dazu `wissen_suchen`, `zeige_dokument` '
+      'Der ganze Katalog ohne gesperrte Werkzeuge, dazu `wissen_suchen`, `ui_inhaltsrahmen` '
       + 'und auf Wunsch der Gastanwendung `liefere_ergebnis`.',
     'rm.row.flow': 'Ablauf',
     'rm.row.flow.pattern': 'Eine Antwort; Werkzeuge laufen dazwischen.',
@@ -160,7 +160,7 @@ export const REFERENCE_MACHINES: CataloguePart = {
     'rm.row.tools': 'Tools',
     'rm.row.tools.pattern': 'Bound per pattern; searches start ahead of time by intent.',
     'rm.row.tools.agent':
-      'The whole catalogue minus blocked tools, plus `wissen_suchen`, `zeige_dokument` '
+      'The whole catalogue minus blocked tools, plus `wissen_suchen`, `ui_inhaltsrahmen` '
       + 'and, if the host application asks for it, `liefere_ergebnis`.',
     'rm.row.flow': 'Flow',
     'rm.row.flow.pattern': 'One answer; tools run in between.',

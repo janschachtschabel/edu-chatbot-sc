@@ -74,6 +74,12 @@ export function lockText(lock: AgentToolLock, w: LockWords): string {
       return w.t('agentTools.lock.knowledgeAreas');
     case 'host_schema':
       return w.t('agentTools.lock.hostSchema');
+    case 'widget_module':
+      return w.t('agentTools.lock.widgetModule');
+    case 'data_source':
+      return w.t('agentTools.lock.dataSource', { tool: lock.tool ?? '' });
+    case 'studio_off':
+      return w.t('agentTools.lock.studioOff');
     default:
       return lock.code;
   }
@@ -87,6 +93,9 @@ export function lockLink(lock: AgentToolLock, ansicht: Engine): string | null {
       return heimatSeite('01-base/policy', ansicht);
     case 'knowledge_areas':
       return 'wissen';
+    // U1-f: die Schalter der UI-Module.
+    case 'studio_off':
+      return 'ui-module';
     default:
       return null;
   }

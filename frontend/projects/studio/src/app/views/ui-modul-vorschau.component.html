@@ -1,0 +1,55 @@
+<section class="umv" [attr.aria-labelledby]="gruppe + '-titel'">
+  <h5 class="umv-titel" [id]="gruppe + '-titel'">{{ t('uiModule.vorschau') }}</h5>
+  <p class="umv-hint">{{ t('uiModule.vorschau.hint') }}</p>
+
+  @if (beispiele().length === 0) {
+    <p class="umv-leer">{{ t('uiModule.vorschau.keineBeispiele') }}</p>
+  } @else {
+    <div class="umv-steuerung">
+      <fieldset class="umv-beispiele">
+        <legend>{{ t('uiModule.vorschau.beispiel') }}</legend>
+        @for (b of beispiele(); track $index) {
+          <label class="umv-wahl">
+            <input type="radio" [name]="gruppe" [value]="$index" [checked]="$index === index()"
+              (change)="waehle($index)" />
+            <span lang="de">{{ b.titel }}</span>
+          </label>
+        }
+      </fieldset>
+      @if (mitAntwort()) {
+        <label class="umv-beantwortet umv-wahl">
+          <input type="checkbox" [checked]="beantwortet()"
+            (change)="beantwortet.set($any($event.target).checked)" />
+          {{ t('uiModule.vorschau.beantwortet') }}
+        </label>
+      }
+      @if (istTrefferliste()) {
+        <label class="umv-kacheln umv-wahl">
+          <input type="checkbox" [checked]="kacheln()"
+            (change)="kacheln.set($any($event.target).checked)" />
+          {{ t('uiModule.vorschau.kacheln') }}
+        </label>
+      }
+    </div>
+
+    @if (komponente(); as modul) {
+      @if (eingaben(); as e) {
+        <!-- Klicks auf Links fängt die Komponente in der Capture-Phase ab (Kopf der Klasse, Review U1-f #1).
+             `lang="de"`: die Beispieldaten sind deutsch (Kopf der Klasse, Review U1-f #5). -->
+        <div class="umv-buehne" lang="de">
+          <ng-container *ngComponentOutlet="modul; inputs: e; injector: modulInjector()" />
+        </div>
+      }
+    } @else {
+      <div class="umv-unbekannt" role="note">
+        <p>{{ t('uiModule.vorschau.unbekannt', { version: eintrag().manifest.version }) }}</p>
+      </div>
+    }
+    <p class="umv-meldung" role="status">{{ meldung() }}</p>
+
+    <details class="umv-daten" [open]="!komponente()">
+      <summary>{{ t('uiModule.vorschau.daten') }}</summary>
+      <pre lang="de">{{ datenJson() }}</pre>
+    </details>
+  }
+</section>

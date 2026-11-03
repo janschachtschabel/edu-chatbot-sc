@@ -20,6 +20,8 @@ export interface AgentToolLock {
   readonly signals?: readonly string[];
   /** `policy`: die Kennungen der Regeln. */
   readonly rules?: readonly string[];
+  /** `data_source` (U1-e): das MCP-Werkzeug, aus dem das UI-Modul seine Daten holt. */
+  readonly tool?: string;
 }
 
 export interface AgentTool {
@@ -99,8 +101,13 @@ export interface PromptChainItem {
 export interface PromptPreview {
   readonly locale: string;
   readonly chain: readonly PromptChainItem[];
-  /** Die Werkzeug-Beschreibungen gehen jede Runde mit — Zahl und Umfang. */
-  readonly tools: { readonly count: number; readonly chars: number };
+  /** Die Werkzeug-Beschreibungen gehen jede Runde mit — Zahl und Umfang. `ui_module` (U1-d2):
+   *  die Modul-Werkzeuge, nicht mitgezählt — sie kommen nur dazu, wenn das Widget sie meldet. */
+  readonly tools: {
+    readonly count: number;
+    readonly chars: number;
+    readonly ui_module?: { readonly names: readonly string[]; readonly chars: number };
+  };
 }
 
 @Injectable({ providedIn: 'root' })

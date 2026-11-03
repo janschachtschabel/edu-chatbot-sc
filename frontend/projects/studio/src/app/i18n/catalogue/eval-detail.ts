@@ -87,6 +87,16 @@ export const EVAL_DETAIL: CataloguePart = {
     /** AG-5: nur bei Zügen, die eine Anleitung geholt haben. `{skills}` ist
      *  die Liste der Titel, durch Komma getrennt. */
     'evalDetail.skills': 'Geladene Skills: {skills}',
+    /** U1-g: Soll und Ist der UI-Module eines Zugs; Modulnamen technisch wie im Katalog. */
+    'evalDetail.uiModule':
+      'UI-Module — Soll: eines von {any} · keines von {none} · gezeigt: {shown}',
+    /** U1-g: ein Zug mit `ui_antwort`. „gesendet“ heißt nicht „angenommen“ — die Antwort des
+     *  Servers zeigt nicht, ob er die Wahl übernahm. */
+    'evalDetail.uiAntwort': 'Antwort im Auswahlfeld: {status} · gewählt: {chosen}',
+    'evalDetail.uiAntwort.status.gesendet': 'gesendet',
+    'evalDetail.uiAntwort.status.keine_frage': 'keine offene Frage, getippt gesendet',
+    'evalDetail.uiAntwort.status.keine_passende_option':
+      'keine passende Möglichkeit, getippt gesendet',
     'evalDetail.flowTotal': '{flow} Gesamt',
     'evalDetail.flowRate': '{rate} · {ok}/{total} Checks',
     /** Kein „0 %": nichts geprüft heisst nicht alles gescheitert. */
@@ -105,6 +115,7 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.cat.tools_none': 'Werkzeug-Verbot',
     'evalDetail.cat.tools_max': 'Werkzeug-Deckel',
     'evalDetail.cat.text': 'Text-Prüfung',
+    'evalDetail.cat.ui': 'UI-Module',
     'evalDetail.cat.qr': 'Quick-Replies',
     'evalDetail.cat.host': 'Link-Host',
 
@@ -186,6 +197,12 @@ export const EVAL_DETAIL: CataloguePart = {
       '*Expected offer:* {mustOffer} · Sie {sie} · du {du} · cards {cards} '
       + '· inline documents {idocs} · quick replies {qr}',
     'evalDetail.skills': 'Loaded skills: {skills}',
+    'evalDetail.uiModule':
+      'UI modules — expected: one of {any} · none of {none} · shown: {shown}',
+    'evalDetail.uiAntwort': 'Answer in the choice box: {status} · chosen: {chosen}',
+    'evalDetail.uiAntwort.status.gesendet': 'sent',
+    'evalDetail.uiAntwort.status.keine_frage': 'no open question, sent as typed text',
+    'evalDetail.uiAntwort.status.keine_passende_option': 'no matching option, sent as typed text',
     'evalDetail.flowTotal': '{flow} total',
     'evalDetail.flowRate': '{rate} · {ok}/{total} checks',
     'evalDetail.flowNothing': 'nothing checked',
@@ -201,6 +218,7 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.cat.tools_none': 'Forbidden tool',
     'evalDetail.cat.tools_max': 'Tool cap',
     'evalDetail.cat.text': 'Text check',
+    'evalDetail.cat.ui': 'UI modules',
     'evalDetail.cat.qr': 'Quick replies',
     'evalDetail.cat.host': 'Link host',
 

@@ -54,6 +54,9 @@
         }
       </ol>
       <p class="agp-tools">{{ toolsLine() }}</p>
+      @if (moduleLine(); as zeile) {
+        <p class="agp-tools agp-tools-module">{{ zeile }}</p>
+      }
     } @else {
       <p class="cs-state" aria-busy="true">{{ t('agentPrompt.loading') }}</p>
     }

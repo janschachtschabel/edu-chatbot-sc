@@ -15,7 +15,13 @@ const ANTWORT = {
   session_id: 'x',
   content: 'Hier sind zwei Materialien zur Optik.',
   cards: [{ node_id: 'n-1' }, { node_id: 'n-2' }],
-  inline_documents: [{ title: 'Arbeitsblatt Linsen' }],
+  // Seit U1-b2 reisen Dokument-Boxen als Inhaltsrahmen-Blöcke; andere Module zählen nicht.
+  ui: {
+    ui_bloecke: [
+      { modul: 'ui_inhaltsrahmen', daten: { titel: 'Arbeitsblatt Linsen', art: 'ki_material', markdown: '# L' } },
+      { modul: 'ui_linkbox', daten: { titel: 'Keine Box' } },
+    ],
+  },
   result_stop_reason: 'text',
   debug: {
     engine: 'agent',

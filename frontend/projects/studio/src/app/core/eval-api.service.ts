@@ -62,6 +62,23 @@ export interface EvalRunDetail extends Omit<EvalRunSummary,
   /** Paket 13 (D1): die Auswertung mit dem Judge v2 — nur bei Golden-Läufen, beim Lesen
    *  gerechnet. Ein Lauf ohne Judge-v2-Urteile hat leere Matrizen. */
   readonly auswertung?: AuswertungV2;
+  /** Paket U1-g: welche UI-Module in wie vielen Zügen erschienen — beim Lesen gerechnet. */
+  readonly modul_nutzung?: ModulNutzung;
+}
+
+/** Je Zeile (Muster oder Anwendungsfall): Züge und je Modul die Züge, in denen es erschien. */
+export interface ModulNutzungZeile {
+  readonly zuege: number;
+  readonly module: Readonly<Record<string, number>>;
+}
+
+/** `services/eval/modul_nutzung.py`: `erfasst` 0 = Lauf von vor U1-g (nicht „ohne Module“). */
+export interface ModulNutzung {
+  readonly zuege: number;
+  readonly erfasst: number;
+  readonly module: readonly string[];
+  readonly je_muster: Readonly<Record<string, ModulNutzungZeile>>;
+  readonly je_anwendungsfall: Readonly<Record<string, ModulNutzungZeile>>;
 }
 
 /**
@@ -153,6 +170,8 @@ export interface StartRunRequest {
   readonly scenarios_per_combo: number;
   readonly turns_per_conv: number;
   readonly config_slug: string;
+  /** Paket U1-g: die Züge melden die Katalog-Module wie das Widget (Vorgabe an). */
+  readonly ui_module: boolean;
 }
 
 /**
@@ -180,6 +199,8 @@ export interface GoldenRunRequest {
   readonly judge: boolean;
   readonly config_slug: string;
   readonly engine: GoldenEngine;
+  /** Paket U1-g: wie beim generativen Lauf; ein `ui_module` im Flow gewinnt. */
+  readonly ui_module: boolean;
 }
 
 /** Restrict a bulk delete; both empty means "every run". */
@@ -196,7 +217,7 @@ export class EvalApi {
     return this.api.get<EvalConfig>('/eval/config');
   }
 
-  estimate(request: Omit<StartRunRequest, 'config_slug'>): Promise<EvalEstimate> {
+  estimate(request: Omit<StartRunRequest, 'config_slug' | 'ui_module'>): Promise<EvalEstimate> {
     return this.api.post<EvalEstimate>('/eval/estimate', request);
   }
 

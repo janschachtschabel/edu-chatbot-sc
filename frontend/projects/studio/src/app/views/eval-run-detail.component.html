@@ -99,6 +99,11 @@
       }
     }
 
+    <!-- Paket U1-g: welche UI-Module erschienen — Gold- und generative Läufe. -->
+    @if (detail.modul_nutzung; as nutzung) {
+      <studio-eval-modul-nutzung [nutzung]="nutzung" />
+    }
+
     @if (classification(); as cm) {
       <studio-eval-pattern-panels [metrics]="cm" />
     } @else if (agentRun()) {

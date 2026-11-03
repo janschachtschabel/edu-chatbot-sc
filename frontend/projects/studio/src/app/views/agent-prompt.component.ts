@@ -52,6 +52,15 @@ export class AgentPromptComponent {
       ? this.lang.plural('agentPrompt.tools', tools.count, { chars: this.fmt.whole(tools.chars) })
       : '';
   });
+  /** U1-d2: die Modul-Werkzeuge daneben — leer, wenn es keine gibt. */
+  readonly moduleLine = computed(() => {
+    const module = this.preview.value()?.tools.ui_module;
+    return module?.names.length
+      ? this.lang.plural('agentPrompt.toolsModule', module.names.length, {
+        names: this.lang.list(module.names), chars: this.fmt.whole(module.chars),
+      })
+      : '';
+  });
 
   private loaded = false;
 

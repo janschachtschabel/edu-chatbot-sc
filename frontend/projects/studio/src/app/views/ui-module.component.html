@@ -1,0 +1,177 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body">
+    @if (ladeFehler(); as grund) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ grund }}</p>
+        <button type="button" class="cs-btn" (click)="laden()">{{ t('async.retry') }}</button>
+      </div>
+    } @else if (laedt() && !katalog()) {
+      <p class="cs-state" aria-busy="true">{{ t('uiModule.laedt') }}</p>
+    } @else if (katalog()) {
+      @if (module().length === 0) {
+        <p class="cs-state">{{ t('uiModule.leer') }}</p>
+      } @else {
+        <p class="um-geltung" role="note">{{ t('uiModule.geltung') }}</p>
+        <div class="um">
+          <ul class="um-liste" [attr.aria-label]="t('uiModule.liste')">
+            @for (m of module(); track m.name) {
+              <li>
+                <button type="button" class="um-eintrag" [attr.data-modul]="m.name"
+                  [attr.aria-current]="m.name === eintrag()?.name ? 'true' : null" (click)="waehle(m.name)">
+                  <span class="um-eintrag-titel">{{ titel(m) + ' ' }}</span>
+                  <code class="um-eintrag-name">{{ m.name + ' ' }}</code>
+                  <span class="um-eintrag-zustand">
+                    {{ zustandText(m) }}@if (geaendert(m)) {<span>{{ ' · ' + t('uiModule.zustand.geaendert') }}</span>}
+                  </span>
+                </button>
+              </li>
+            }
+          </ul>
+
+          @if (eintrag(); as e) {
+            @let z = zustandVon(e);
+            <section class="um-detail" [attr.aria-labelledby]="'um-titel-' + e.name">
+              <h4 class="um-titel" [id]="'um-titel-' + e.name">
+                {{ titel(e) }} <code class="um-name">{{ e.name }}</code>
+              </h4>
+              <!-- Manifest-Texte sind nur deutsch (WCAG 3.1.2, Review U1-f #5); Titel sind zweisprachig. -->
+              <p class="um-beschreibung" lang="de">{{ e.manifest.beschreibung }}</p>
+
+              <fieldset class="um-schalter">
+                <legend>{{ t('uiModule.schalter.legend') }}</legend>
+                @if (e.schaltbar.aktiv) {
+                  <label class="um-switch">
+                    <input type="checkbox" role="switch" data-schalter="aktiv" [checked]="z.aktiv"
+                      [disabled]="busy()" [attr.aria-describedby]="'um-aktiv-hint-' + e.name"
+                      (change)="setze(e, 'aktiv', $any($event.target).checked)" />
+                    {{ t('uiModule.schalter.aktiv') }}
+                  </label>
+                  <p class="um-switch-hint" [id]="'um-aktiv-hint-' + e.name">
+                    {{ t(e.abgeleitet ? 'uiModule.schalter.aktiv.hintAbgeleitet' : 'uiModule.schalter.aktiv.hint') }}
+                  </p>
+                } @else {
+                  <p class="um-fest">{{ t('uiModule.schalter.aktiv.fest') }}</p>
+                }
+                @if (e.schaltbar.agent) {
+                  <label class="um-switch">
+                    <input type="checkbox" role="switch" data-schalter="agent" [checked]="!!z.agent"
+                      [disabled]="busy() || !z.aktiv" [attr.aria-describedby]="'um-agent-hint-' + e.name"
+                      (change)="setze(e, 'agent', $any($event.target).checked)" />
+                    {{ t('uiModule.schalter.agent') }}
+                  </label>
+                  <p class="um-switch-hint" [id]="'um-agent-hint-' + e.name">
+                    {{ t(z.aktiv ? 'uiModule.schalter.agent.hint' : 'uiModule.schalter.agent.erstAktiv') }}
+                  </p>
+                } @else if (e.schaltbar.aktiv) {
+                  <p class="um-fest">{{ t('uiModule.schalter.agent.keins') }}</p>
+                } @else {
+                  <p class="um-fest">{{ t('uiModule.schalter.agent.festText') }}</p>
+                }
+              </fieldset>
+
+              <div class="cs-actions">
+                <button type="button" class="cs-btn cs-btn--primary" [disabled]="busy() || !dirty()"
+                  (click)="speichern()">{{ busy() ? t('editor.saving') : t('editor.save') }}</button>
+                <button type="button" class="cs-btn" [disabled]="busy() || !dirty()"
+                  (click)="verwerfen()">{{ t('editor.discard') }}</button>
+                <!-- Die Zeile steht leer bereit, bevor der Satz kommt: eine schon gefüllt eingefügte
+                     Region lesen Vorlesehilfen oft nicht vor. -->
+                <p class="um-dirty" role="status">{{ dirty() ? t('uiModule.schalter.erstSpeichern') : '' }}</p>
+              </div>
+              @if (konflikt(); as k) {
+                <studio-save-conflict [conflict]="k" [busy]="busy()" (reload)="neuLaden()" (force)="erzwingen()" />
+              }
+              @if (fehler(); as grund) {
+                <p class="cs-state cs-state--error" role="alert">{{ grund }}</p>
+              }
+              <p class="cs-status" aria-live="polite">{{ status() }}</p>
+
+              <h5 class="um-h">{{ t('uiModule.angaben') }}</h5>
+              <dl class="um-angaben">
+                <dt>{{ t('uiModule.angabe.name') }}</dt><dd><code>{{ e.name }}</code></dd>
+                <dt>{{ t('uiModule.angabe.version') }}</dt><dd>{{ e.manifest.version }}</dd>
+                <dt>{{ t('uiModule.angabe.art') }}</dt><dd>{{ t('uiModule.art.' + e.manifest.art) }}</dd>
+                <dt>{{ t('uiModule.angabe.agent') }}</dt><dd>{{ agentAngabe(e) }}</dd>
+                <dt>{{ t('uiModule.angabe.datenquelle') }}</dt><dd>{{ datenquelle(e) }}</dd>
+                <dt>{{ t('uiModule.angabe.faehigkeiten') }}</dt><dd>{{ faehigkeiten(e) }}</dd>
+                <dt>{{ t('uiModule.angabe.textfassung') }}</dt><dd><code>{{ textfassung(e) }}</code></dd>
+                <dt>{{ t('uiModule.angabe.platz') }}</dt><dd>{{ platz(e) }}</dd>
+              </dl>
+
+              @if (e.manifest.wann?.length) {
+                <h5 class="um-h">{{ t('uiModule.wann') }}</h5>
+                <ul class="um-punkte" lang="de">
+                  @for (w of e.manifest.wann; track $index) { <li>{{ w }}</li> }
+                </ul>
+              }
+              @if (e.manifest.nicht_wann?.length) {
+                <h5 class="um-h">{{ t('uiModule.nichtWann') }}</h5>
+                <ul class="um-punkte" lang="de">
+                  @for (w of e.manifest.nicht_wann; track $index) { <li>{{ w }}</li> }
+                </ul>
+              }
+
+              @for (teil of [{ id: 'eingabe', key: 'uiModule.eingabe', felder: eingabe() }, { id: 'antwort', key: 'uiModule.antwort', felder: antwort() }]; track teil.id) {
+                @if (teil.felder.length) {
+                  <h5 class="um-h" [id]="'um-' + teil.id + '-' + e.name">{{ t(teil.key) }}</h5>
+                  @if (teil.key === 'uiModule.eingabe' && e.manifest.datenquelle) {
+                    <p class="um-switch-hint">{{ t('uiModule.eingabe.datenquelle') }}</p>
+                  }
+                  <!-- Rollt auf schmalen Schirmen: per Tastatur erreichbar und benannt (Review U1-f #8). -->
+                  <div class="um-tabelle" tabindex="0" role="region" [attr.aria-labelledby]="'um-' + teil.id + '-' + e.name">
+                    <table class="um-felder">
+                      <thead>
+                        <tr>
+                          <th scope="col">{{ t('uiModule.feld.name') }}</th>
+                          <th scope="col">{{ t('uiModule.feld.typ') }}</th>
+                          <th scope="col">{{ t('uiModule.feld.pflicht') }}</th>
+                          <th scope="col">{{ t('uiModule.feld.beschreibung') }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (f of teil.felder; track f.name) {
+                          <tr>
+                            <th scope="row"><code>{{ f.name }}</code></th>
+                            <td><code>{{ f.typ }}</code></td>
+                            <td>{{ t(f.pflicht ? 'uiModule.feld.pflicht.ja' : 'uiModule.feld.pflicht.nein') }}</td>
+                            <td>
+                              <span lang="de">{{ f.beschreibung }}</span>
+                              @if (f.werte.length) {
+                                <span class="um-werte">{{ t('uiModule.feld.werte', { werte: f.werte.join(', ') }) }}</span>
+                              }
+                              @if (f.nurSystem.length) {
+                                <span class="um-werte">{{ t('uiModule.feld.nurSystem', { werte: f.nurSystem.join(', ') }) }}</span>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              }
+
+              <!-- Eigener Chunk: die Vorschau zieht die Modul-Komponenten samt Trefferboxen und
+                   Material-Knöpfen nach — die übrigen kuratierten Seiten laden das nicht mit. -->
+              @defer (on immediate) {
+                <studio-ui-modul-vorschau [eintrag]="e" />
+              } @loading {
+                <p class="cs-state" aria-busy="true">{{ t('uiModule.vorschau.laedt') }}</p>
+              } @error {
+                <div class="cs-state cs-state--error" role="alert">
+                  <p>{{ t('uiModule.vorschau.ladeFehler') }}</p>
+                  <button type="button" class="cs-btn" (click)="seiteNeuLaden()">{{ t('uiModule.vorschau.neuLaden') }}</button>
+                </div>
+              }
+            </section>
+          }
+        </div>
+      }
+    }
+  </div>
+</details>

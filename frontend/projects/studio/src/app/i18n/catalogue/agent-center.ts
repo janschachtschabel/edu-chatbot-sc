@@ -65,6 +65,14 @@ export const AGENT_CENTER: CataloguePart = {
     'agentTools.lock.policy.other': 'Fällt weg, wenn eine der Policy-Regeln {rules} greift.',
     'agentTools.lock.knowledgeAreas': 'Nur mit mindestens einem Wissensbereich für den Agenten.',
     'agentTools.lock.hostSchema': 'Nur wenn die Einbettung ein Ergebnis-Schema erklärt.',
+    // U1-d2: UI-Module als Werkzeuge (`environment.ui_module`).
+    'agentTools.lock.widgetModule':
+      'Nur wenn das Widget das Modul meldet — ältere Widgets, Gastanwendungen mit eigenem Client '
+      + 'und der Studio-Probelauf bekommen es nicht.',
+    // Review U1-e, Befund 8: UI-Module mit Datenquelle.
+    'agentTools.lock.dataSource':
+      'Nur wenn sein Werkzeug {tool} angeboten wird — fehlt es (Schalter, Sperre, tool-mode), '
+      + 'fehlt das Modul mit.',
 
     'curated.agent.skills.label': 'Skill-Verzeichnis',
     'curated.agent.skills.hint':
@@ -170,6 +178,12 @@ export const AGENT_CENTER: CataloguePart = {
     'agentTools.lock.policy.other': 'Dropped when one of the policy rules {rules} applies.',
     'agentTools.lock.knowledgeAreas': 'Only with at least one knowledge area for the agent.',
     'agentTools.lock.hostSchema': 'Only when the embedding declares a result schema.',
+    'agentTools.lock.widgetModule':
+      'Only when the widget reports the module — older widgets, host apps with their own client '
+      + 'and the Studio test run do not get it.',
+    'agentTools.lock.dataSource':
+      'Only when its tool {tool} is offered — if that is missing (switch, block, tool-mode), the '
+      + 'module is missing too.',
 
     'curated.agent.skills.label': 'Skill directory',
     'curated.agent.skills.hint':

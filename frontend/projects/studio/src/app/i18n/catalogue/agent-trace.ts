@@ -38,6 +38,7 @@ export const AGENT_TRACE: CataloguePart = {
     'trace.stop.empty': 'weder Werkzeug noch Text',
     'trace.stop.error': 'Fehler beim Modellaufruf',
     'trace.stop.safety': 'Schutzantwort ohne Schleife',
+    'trace.stop.frage': 'Rückfrage mit Auswahlfeld gestellt',
     'trace.stop.unknown': 'Grund nicht gespeichert',
   },
   en: {
@@ -69,6 +70,7 @@ export const AGENT_TRACE: CataloguePart = {
     'trace.stop.empty': 'neither tool nor text',
     'trace.stop.error': 'Model call failed',
     'trace.stop.safety': 'Safety answer without the loop',
+    'trace.stop.frage': 'Asked back with a choice field',
     'trace.stop.unknown': 'reason not recorded',
   },
 };

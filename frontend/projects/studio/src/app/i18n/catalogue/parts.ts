@@ -79,6 +79,7 @@ import { RETENTION } from './retention';
 import { SAFETY } from './safety';
 import { SESSIONS } from './sessions';
 import { SHARED } from './shared';
+import { UI_MODULE } from './ui-module';
 import { VALIDATION } from './validation';
 import { VIEWS } from './views';
 
@@ -117,4 +118,6 @@ export const STUDIO_PARTS: readonly CataloguePart[] = [
   CURATED_AGENT,
   CURATED_GEMEINSAM,
   MATERIAL_FORMATE,
+  // Paket U1-f: Seite „UI-Module“
+  UI_MODULE,
 ];

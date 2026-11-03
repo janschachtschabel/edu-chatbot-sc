@@ -152,6 +152,21 @@ describe('AgentPromptComponent (ST-8d)', () => {
         + 'gezählt für eine Person ohne Anmeldung (angemeldet kommen die schreibenden dazu).');
   });
 
+  it('nennt die Modul-Werkzeuge getrennt, mit der Bedingung des Widgets (U1-d2)', async () => {
+    const { el } = await loaded({
+      ...vorschau(),
+      tools: { count: 27, chars: 41234, ui_module: { names: ['ui_entscheidung'], chars: 1530 } },
+    });
+    expect(text(el.querySelector('.agp-tools-module')))
+      .toBe('Dazu kommt das UI-Modul-Werkzeug ui_entscheidung mit 1.530 Zeichen — nur, wenn das '
+        + 'Widget das Modul meldet (ältere Widgets und der Studio-Probelauf nicht).');
+  });
+
+  it('zeigt ohne Modul-Werkzeuge keine Zeile dazu', async () => {
+    const { el } = await loaded();
+    expect(el.querySelector('.agp-tools-module')).toBeNull();
+  });
+
   it('lädt in der gewählten Widget-Sprache neu', async () => {
     const h = await loaded();
     const englisch = h.el.querySelector<HTMLInputElement>('input[type="radio"][value="en"]')!;

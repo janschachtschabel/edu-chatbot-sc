@@ -100,7 +100,9 @@ export class AreaSectionComponent {
 
   /** `force`: „Trotzdem speichern" after a conflict (Paket 4, D5). */
   save(force = false): void {
-    void this.editor.save(this.area(), { force }).then((saved) => {
+    // Review U1-f, #3: was dieser Abschnitt nicht zeigt, pflegt eine andere Seite.
+    const vomServer = this.section().ohneFelder;
+    void this.editor.save(this.area(), { force, vomServer }).then((saved) => {
       if (saved) this.changed.emit();
     });
   }

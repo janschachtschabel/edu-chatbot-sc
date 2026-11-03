@@ -23,7 +23,7 @@ describe('patternFieldTabs', () => {
       'frontmatter.id', 'frontmatter.label', 'frontmatter.short_purpose', 'frontmatter.priority',
       'frontmatter.default_tone', 'frontmatter.default_length', 'frontmatter.response_type',
       'frontmatter.core_rule', 'frontmatter.when_to_use', 'frontmatter.when_not_to_use',
-      'frontmatter.trigger_phrases', 'frontmatter.discriminators', 'frontmatter.output_mode',
+      'frontmatter.trigger_phrases', 'frontmatter.ui_module', 'frontmatter.discriminators', 'frontmatter.output_mode',
       'frontmatter.sources', 'frontmatter.rag_areas', 'frontmatter.tools',
       'frontmatter.precondition_slots', 'frontmatter.card_text_link_required',
       'frontmatter.quick_replies_mode', 'frontmatter.forbidden_phrases',

@@ -96,6 +96,7 @@ const CAT_KEYS: Readonly<Record<string, string>> = {
   tools_none: 'evalDetail.cat.tools_none',
   tools_max: 'evalDetail.cat.tools_max',
   text: 'evalDetail.cat.text',
+  ui: 'evalDetail.cat.ui',
   qr: 'evalDetail.cat.qr',
   host: 'evalDetail.cat.host',
 };

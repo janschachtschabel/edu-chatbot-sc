@@ -80,6 +80,7 @@ describe("EvalApi", () => {
       scenarios_per_combo: 1,
       turns_per_conv: 3,
       config_slug: "wlo/v1",
+      ui_module: true,
     });
     const req = http.expectOne(
       (r) => r.url === `${BASE}/runs` && r.method === "POST",
@@ -94,6 +95,7 @@ describe("EvalApi", () => {
       judge: false,
       config_slug: "",
       engine: "agent",
+      ui_module: false,
     });
     const req = http.expectOne((r) => r.url === `${BASE}/runs/golden`);
     expect(req.request.method).toBe("POST");
@@ -102,6 +104,7 @@ describe("EvalApi", () => {
       judge: false,
       config_slug: "",
       engine: "agent",
+      ui_module: false,
     });
     req.flush({ run_id: "g1" });
   });

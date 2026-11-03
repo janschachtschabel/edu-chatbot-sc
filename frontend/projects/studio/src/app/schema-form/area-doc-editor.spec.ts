@@ -412,6 +412,75 @@ describe("AreaDocEditor", () => {
     expect(editor.version()).toBe(6);
   });
 
+  // Review U1-f, Befund 3: Ein Abschnitt mit `ohneFelder` zeigt diese Pfade nicht — dort pflegt
+  // sie eine andere Seite. „Trotzdem speichern“ setzte sie bisher still auf den Stand beim Laden
+  // zurück. Jetzt liest der Editor den Serverstand und übernimmt die verborgenen Pfade daraus.
+  async function verborgenImKonflikt(): Promise<AreaDocEditor> {
+    const editor = makeEditor();
+    const load = editor.load(AREA);
+    await tick();
+    http.expectOne(schemaUrl(AREA)).flush(AREA_SCHEMAS[AREA]);
+    http.expectOne(dataUrl(AREA)).flush({
+      area: AREA, type: "yaml", version: 3,
+      data: { welcome: { greeting: "Moin", anderswo: "alt" }, quick: { weg: true } },
+    });
+    await load;
+    editor.setDoc({ welcome: { greeting: "Mein Entwurf", anderswo: "alt" }, quick: { weg: true } });
+    const saved = editor.save(AREA);
+    await tick();
+    http.expectOne(dataUrl(AREA)).flush({ detail: KONFLIKT }, { status: 409, statusText: "Conflict" });
+    await saved;
+    return editor;
+  }
+
+  it("übernimmt beim Trotzdem-Speichern verborgene Pfade aus dem Serverstand", async () => {
+    const editor = await verborgenImKonflikt();
+    const saved = editor.save(AREA, { force: true, vomServer: ["welcome.anderswo", "quick.weg"] });
+    await tick();
+    // Erst der Serverstand …
+    const lesen = http.expectOne((r) => r.method === "GET" && r.url === dataUrl(AREA));
+    lesen.flush({
+      area: AREA, type: "yaml", version: 5,
+      data: { welcome: { greeting: "Vom anderen", anderswo: "neu" } },
+    });
+    await tick();
+    // … dann der Entwurf mit den verborgenen Pfaden von dort: „neu“ bleibt, der dort
+    // gelöschte Pfad fehlt auch hier; das Sichtbare ist der Entwurf.
+    const req = http.expectOne((r) => r.method === "PUT" && r.url === dataUrl(AREA));
+    expect(req.request.body).toEqual({
+      data: { welcome: { greeting: "Mein Entwurf", anderswo: "neu" }, quick: {} },
+      expected_version: 5,
+    });
+    req.flush({ area: AREA, data: req.request.body.data, type: "yaml", version: 6 });
+    expect(await saved).toBe(true);
+    expect(editor.doc()).toEqual({ welcome: { greeting: "Mein Entwurf", anderswo: "neu" }, quick: {} });
+    expect(editor.dirty()).toBe(false);
+    expect(editor.conflict()).toBeNull();
+  });
+
+  it("speichert ohne Konflikt auch mit verborgenen Pfaden ohne Rückfrage beim Server", async () => {
+    // Ohne Konflikt ist der geladene Stand der des Servers — die Bedingung auf die Version
+    // schützt die verborgenen Pfade dort schon.
+    const editor = await geladen(3);
+    void editor.save(AREA, { vomServer: ["welcome.anderswo"] });
+    await tick();
+    const req = http.expectOne(dataUrl(AREA));
+    expect(req.request.method).toBe("PUT");
+    expect(req.request.body.expected_version).toBe(3);
+  });
+
+  it("scheitert das Lesen des Serverstands, bleibt der Entwurf und nichts wird geschrieben", async () => {
+    const editor = await verborgenImKonflikt();
+    const saved = editor.save(AREA, { force: true, vomServer: ["welcome.anderswo"] });
+    await tick();
+    http.expectOne(dataUrl(AREA)).flush("kaputt", { status: 500, statusText: "Server Error" });
+    expect(await saved).toBe(false);
+    http.expectNone(dataUrl(AREA));
+    expect(editor.saveError()).not.toBe("");
+    expect(editor.saving()).toBe(false);
+    expect(editor.doc()).toEqual({ welcome: { greeting: "Mein Entwurf", anderswo: "alt" }, quick: { weg: true } });
+  });
+
   it("Neu laden verwirft den Entwurf und räumt den Konflikt", async () => {
     const editor = await imKonflikt();
     const load = editor.load(AREA);

@@ -12,6 +12,7 @@
  * Person im Widget wartet. Runden und Token kommen aus dem Debug-Block der
  * Antwort und stehen in derselben Komponente wie unter Sessions.
  */
+import { INHALTSRAHMEN } from '@boerdi/ui-module/_vertrag/modul-namen';
 import {
   ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, inject, input,
   signal, viewChild,
@@ -95,7 +96,10 @@ export class AgentProbeComponent {
         // `null` ohne Freigabe (Phase 4) — die Probe läuft über den Proxy und hat sie.
         debug: antwort.debug ?? undefined,
         cards: antwort.cards?.length ?? 0,
-        documents: (antwort.inline_documents ?? []).map((d) => d.title ?? '').filter(Boolean),
+        documents: (antwort.ui?.ui_bloecke ?? [])
+          .filter((b) => b.modul === INHALTSRAHMEN)
+          .map((b) => (typeof b.daten?.titel === 'string' ? b.daten.titel : ''))
+          .filter(Boolean),
       }]);
       // Erst nach Erfolg leeren: ein gescheiterter Zug behält, was geschrieben war.
       this.message.set('');

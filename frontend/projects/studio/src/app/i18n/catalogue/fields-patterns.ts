@@ -113,11 +113,18 @@ export const FIELDS_PATTERNS: CataloguePart = {
       'Wissensbereiche, die das Muster durchsuchen darf, Namen wie unter Wissen. Wirkt nur '
       + 'mit rag unter Quellen, always-Bereiche werden vorab geholt. Nie gesetzt heißt alle '
       + 'Bereiche, eine geleerte Liste heißt keine.',
+    'feld.PatternFrontmatter.ui_module.label': 'Ergebnis-Module',
+    'feld.PatternFrontmatter.ui_module.hint':
+      'Welche Module unter der Antwort erscheinen, die aus ihren Treffern entstehen (z. B. '
+      + 'ui_linkbox für die Webseiten-Links). Nie gesetzt heißt alle, eine geleerte Liste heißt '
+      + 'keines.',
     'feld.PatternFrontmatter.tools.label': 'Werkzeuge',
     'feld.PatternFrontmatter.tools.hint':
       'Werkzeuge, die das Modell in diesem Muster aufrufen darf; leer heißt keine '
       + 'WLO-Werkzeuge. Schreibende nur mit Zugang zum MCP-Server; zu Suchwerkzeugen kommen '
-      + 'lookup_wlo_vocabulary und get_node_details dazu.',
+      + 'lookup_wlo_vocabulary und get_node_details dazu. UI-Module wie ui_entscheidung wirken '
+      + 'nur, wenn das Widget sie meldet und mcp in den Quellen steht; fehlt eine Pflichtangabe, '
+      + 'fallen sie wie alle Werkzeuge weg.',
     'feld.PatternFrontmatter.precondition_slots.label': 'Pflichtangaben',
     'feld.PatternFrontmatter.precondition_slots.hint':
       'Angaben, die vorliegen müssen, bevor das Muster arbeitet, etwa thema. Fehlt eine, sperrt '
@@ -236,11 +243,17 @@ export const FIELDS_PATTERNS: CataloguePart = {
       'Knowledge areas the pattern may search, named as under Knowledge. Only effective with '
       + 'rag under sources, always areas are fetched in advance. Never set means all areas, '
       + 'an emptied list means none.',
+    'feld.PatternFrontmatter.ui_module.label': 'Result modules',
+    'feld.PatternFrontmatter.ui_module.hint':
+      'Which modules built from the answer’s results appear below it (e.g. ui_linkbox for the '
+      + 'web page links). Never set means all, an emptied list means none.',
     'feld.PatternFrontmatter.tools.label': 'Tools',
     'feld.PatternFrontmatter.tools.hint':
       'Tools the model may call in this pattern; empty means no WLO tools. Writing tools only '
       + 'with access to the MCP server; search tools automatically bring lookup_wlo_vocabulary '
-      + 'and get_node_details.',
+      + 'and get_node_details. UI modules such as ui_entscheidung only work when the widget '
+      + 'reports them and mcp is among the sources; if a required detail is missing, they are '
+      + 'dropped like all tools.',
     'feld.PatternFrontmatter.precondition_slots.label': 'Required details',
     'feld.PatternFrontmatter.precondition_slots.hint':
       'Details that must be known before the pattern works, such as thema. If one is missing, '

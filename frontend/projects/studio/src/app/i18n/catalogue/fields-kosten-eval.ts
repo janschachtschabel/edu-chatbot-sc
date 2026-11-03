@@ -95,7 +95,8 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
     'feld.GoldTurn.expect.label': 'Erwartungen',
     'feld.GoldTurn.expect.hint':
       'Fest geprüft: register (sie/du), structure (idoc/cards), tools_any, tools_none, '
-      + 'tools_max, text_any, text_none, qr (fehlt = mind. ein Antwortvorschlag, false = '
+      + 'tools_max, text_any, text_none, ui_any, ui_none (gezeigte UI-Module), qr (fehlt = '
+      + 'mind. ein Antwortvorschlag, false = '
       + 'keiner). must_offer bewertet nur der LLM-Judge.',
   },
   en: {
@@ -178,7 +179,8 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
     'feld.GoldTurn.expect.label': 'Expectations',
     'feld.GoldTurn.expect.hint':
       'Checked by rule: register (sie/du), structure (idoc/cards), tools_any, tools_none, '
-      + 'tools_max, text_any, text_none, qr (missing = at least one reply suggestion, false = '
+      + 'tools_max, text_any, text_none, ui_any, ui_none (UI modules shown), qr (missing = '
+      + 'at least one reply suggestion, false = '
       + 'none). must_offer is scored by the LLM judge only.',
   },
 };

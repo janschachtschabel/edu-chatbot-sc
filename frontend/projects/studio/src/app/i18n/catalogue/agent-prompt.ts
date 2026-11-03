@@ -71,6 +71,13 @@ export const AGENT_PROMPT: CataloguePart = {
     'agentPrompt.tools.other':
       'Dazu gehen {count} Werkzeug-Beschreibungen mit {chars} Zeichen mit — in jeder Runde; '
       + 'gezählt für eine Person ohne Anmeldung (angemeldet kommen die schreibenden dazu).',
+    // U1-d2: nicht mitgezählt — nur, wenn das Widget die Module meldet (`environment.ui_module`).
+    'agentPrompt.toolsModule.one':
+      'Dazu kommt das UI-Modul-Werkzeug {names} mit {chars} Zeichen — nur, wenn das Widget das '
+      + 'Modul meldet (ältere Widgets und der Studio-Probelauf nicht).',
+    'agentPrompt.toolsModule.other':
+      'Dazu kommen die UI-Modul-Werkzeuge {names} mit {chars} Zeichen — nur die, deren Modul das '
+      + 'Widget meldet (ältere Widgets und der Studio-Probelauf keines).',
   },
   en: {
     'curated.agent.prompt.label': 'What the model reads first',
@@ -131,5 +138,11 @@ export const AGENT_PROMPT: CataloguePart = {
     'agentPrompt.tools.other':
       'Plus {count} tool descriptions with {chars} characters — in every round; counted for '
       + 'a person who is not signed in (signed-in people also get the writing tools).',
+    'agentPrompt.toolsModule.one':
+      'Plus the UI module tool {names} with {chars} characters — only when the widget reports '
+      + 'the module (older widgets and the Studio test run do not).',
+    'agentPrompt.toolsModule.other':
+      'Plus the UI module tools {names} with {chars} characters — only those whose module the '
+      + 'widget reports (older widgets and the Studio test run get none).',
   },
 };

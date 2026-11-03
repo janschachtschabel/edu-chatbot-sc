@@ -750,4 +750,53 @@ describe("EvalRunDetailComponent", () => {
     expect(text()).toContain("Ich brauche noch das Thema.");
     expect(text()).not.toContain("Geladene Skills");
   });
+  /** Review U1-g #9: der geöffnete Zug zeigt die UI-Erwartung, die gezeigten Module und was mit
+   *  der Antwort im Auswahlfeld geschah — sonst stand der Check „ui“ ohne Grund in der Tabelle. */
+  function mitUi(locale = "de") {
+    const metrics = goldMetrics();
+    const perTurn = (metrics["per_turn"] as Record<string, unknown>[]).map((turn, i) =>
+      i === 0
+        ? {
+            ...turn,
+            expected: { ...(turn["expected"] as object), ui_any: ["ui_trefferliste"],
+                        ui_none: ["ui_entscheidung"] },
+            observed: { ...(turn["observed"] as object), ui_module: ["ui_trefferliste"],
+                        ui_antwort: { status: "gesendet", gewaehlt: ["Physik"] } },
+          }
+        : turn,
+    );
+    return mount(
+      detail({ summary: { golden_metrics: { ...metrics, per_turn: perTurn }, target_turns: 3 } }),
+      "eval-abc", locale,
+    );
+  }
+
+  it("zeigt UI-Soll, gezeigte Module und die Antwort im Auswahlfeld (U1-g)", async () => {
+    await mitUi();
+    const opener = rows()[0].querySelector("button")!;
+    opener.click();
+    await h.fixture.whenStable();
+    expect(text()).toContain(
+      "UI-Module — Soll: eines von ui_trefferliste · keines von ui_entscheidung "
+      + "· gezeigt: ui_trefferliste");
+    expect(text()).toContain("Antwort im Auswahlfeld: gesendet · gewählt: Physik");
+
+    opener.click();
+    await h.fixture.whenStable();
+    rows()[1].querySelector("button")!.click();
+    await h.fixture.whenStable();
+    // Ein Zug ohne UI-Erwartung und ohne Auswahlfeld-Antwort bekommt keine leeren Zeilen.
+    expect(text()).not.toContain("UI-Module —");
+    expect(text()).not.toContain("Antwort im Auswahlfeld");
+  });
+
+  it("nennt UI-Soll und Antwort auch auf Englisch (U1-g)", async () => {
+    await mitUi("en");
+    rows()[0].querySelector("button")!.click();
+    await h.fixture.whenStable();
+    expect(text()).toContain(
+      "UI modules — expected: one of ui_trefferliste · none of ui_entscheidung "
+      + "· shown: ui_trefferliste");
+    expect(text()).toContain("Answer in the choice box: sent · chosen: Physik");
+  });
 });

@@ -115,6 +115,8 @@ export interface Messbedingungen {
   readonly master_skill?: {
     readonly enabled?: boolean | null; readonly version?: string; readonly sha256?: string;
   };
+  /** Paket U1-g: gemeldete UI-Module; fehlt = Lauf von vor U1-g, `[]` = bewusst keine. */
+  readonly ui_module?: readonly string[] | null;
 }
 
 export interface V2Punkt {

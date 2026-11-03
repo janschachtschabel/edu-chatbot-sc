@@ -27,7 +27,7 @@ function werkzeug(name: string, kind: string): AgentTool {
 describe('groupTools (ST-8b)', () => {
   it('ordnet lesend, kuratierend, virtuell und behält die Reihenfolge je Gruppe', () => {
     const gruppen = groupTools([
-      werkzeug('zeige_dokument', 'virtual'),
+      werkzeug('ui_inhaltsrahmen', 'virtual'),
       werkzeug('wlo_create_content', 'curation'),
       werkzeug('search_wlo_content', 'read'),
       werkzeug('get_skill', 'read'),
@@ -35,7 +35,7 @@ describe('groupTools (ST-8b)', () => {
     expect(gruppen.map((g) => [g.kind, g.tools.map((t) => t.name)])).toEqual([
       ['read', ['search_wlo_content', 'get_skill']],
       ['curation', ['wlo_create_content']],
-      ['virtual', ['zeige_dokument']],
+      ['virtual', ['ui_inhaltsrahmen']],
     ]);
   });
 
@@ -83,6 +83,23 @@ describe('lockText (ST-8b)', () => {
       .toBe('Nur mit mindestens einem Wissensbereich für den Agenten.');
     expect(lockText({ code: 'host_schema' }, de))
       .toBe('Nur wenn die Einbettung ein Ergebnis-Schema erklärt.');
+    // U1-d2: UI-Module als Werkzeuge nur, wenn das Widget sie meldet.
+    expect(lockText({ code: 'widget_module' }, de))
+      .toBe('Nur wenn das Widget das Modul meldet — ältere Widgets, Gastanwendungen mit eigenem '
+        + 'Client und der Studio-Probelauf bekommen es nicht.');
+    expect(lockText({ code: 'widget_module' }, wörter('en'))).not.toContain('agentTools.');
+    // Review U1-e, Befund 8: ein Modul mit Datenquelle fehlt mit seinem Werkzeug.
+    expect(lockText({ code: 'data_source', tool: 'browse_collection_tree' }, de))
+      .toBe('Nur wenn sein Werkzeug browse_collection_tree angeboten wird — fehlt es (Schalter, '
+        + 'Sperre, tool-mode), fehlt das Modul mit.');
+    expect(lockText({ code: 'data_source', tool: 'browse_collection_tree' }, wörter('en')))
+      .toContain('browse_collection_tree');
+    // U1-f: auf der Seite „UI-Module“ abgeschaltet — neutral, denn der Code steht auch bei einem
+    // ganz abgeschalteten Modul, nicht nur bei „für den Agenten“ aus (Review U1-f, #7).
+    expect(lockText({ code: 'studio_off' }, de))
+      .toBe('Auf der Seite „UI-Module“ abgeschaltet.');
+    expect(lockText({ code: 'studio_off' }, wörter('en')))
+      .toBe('Switched off on the “UI modules” page.');
   });
 
   it('nennt Policy-Regeln mit ihrer Kennung, in Einzahl und Mehrzahl', () => {
@@ -116,6 +133,7 @@ describe('lockLink (ST-8b)', () => {
     // „Identität & Schutz“ gehört zum anderen Arbeitsbereich.
     expect(lockLink({ code: 'policy', rules: ['x'] }, 'agent')).toBe('agent-rolle');
     expect(lockLink({ code: 'knowledge_areas' }, 'agent')).toBe('wissen');
+    expect(lockLink({ code: 'studio_off' }, 'pattern')).toBe('ui-module');
     expect(lockLink({ code: 'safety_fixed', signals: ['pii'] }, 'agent')).toBeNull();
     expect(lockLink({ code: 'tool_mode', modes: ['curate'] }, 'pattern')).toBeNull();
   });
@@ -152,7 +170,7 @@ describe('schalterFuer (Paket 15)', () => {
   });
 
   it('hat keinen Schalter für eingebaute und nicht schaltbare Werkzeuge', () => {
-    expect(schalterFuer(werkzeug('zeige_dokument', 'virtual'), SERVERS)).toBeNull();
+    expect(schalterFuer(werkzeug('ui_inhaltsrahmen', 'virtual'), SERVERS)).toBeNull();
     expect(schalterFuer(werkzeug('wlo_create_content', 'curation'), SERVERS)).toBeNull();
     expect(schalterFuer(werkzeug('fremd__schreibe', 'external'), SERVERS)).toBeNull();
   });
