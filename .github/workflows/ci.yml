@@ -176,12 +176,18 @@ jobs:
         run: node --test scripts/check-audit.test.mjs
       - name: npm-Audit-Gate (ab high)
         run: npm run check:audit
+      # Paket U1: Register der UI-Module — Skripte getestet, erzeugte Dateien aktuell
+      # (register.generated.ts im Frontend, manifeste.json + Schema-Kopie im Backend).
+      - name: UI-Module (Register-Skripte)
+        run: node --test scripts/module-register.test.mjs
+      - name: UI-Module (Register aktuell)
+        run: npm run module:register -- --pruefen
       # Bundle bauen, BEVOR Budget und E2E laufen: beide messen bzw. fahren das
       # ausgelieferte Single-File-Artefakt, nicht die Quellen.
       - name: Build widget bundle
         run: npm run build:widget
       # Direkt das Skript: `npm run budget` würde (bewusst) erst neu bauen.
-      - name: Widget bundle budget (§5.5 — ≤600 kB raw / ≤175 kB gzip)
+      - name: Widget bundle budget (§5.5 — ≤690 kB raw / ≤200 kB gzip, warning >190 kB)
         run: node scripts/check-widget-budget.mjs
       # Der Studio-Build ist eigenständig: er hat kein Single-File-Budget (die
       # SPA lädt Routen lazy), aber ein Compile-Fehler in einer noch nicht
