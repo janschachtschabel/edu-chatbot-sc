@@ -44,7 +44,9 @@ $text-muted: var(--mat-sys-on-surface-variant);
     font-size: .82rem;
     font-weight: 600;
     color: $text;
-    margin-bottom: 4px;
+    // 2 px: Überschrift → erster Eintrag im Takt der Einträge untereinander (2026-11-03,
+    // Messung in e2e/linkbox.spec.ts); trifft Linkbox, Trefferboxen und Schwimmlinien gleich.
+    margin-bottom: 2px;
 
     .bb-icon {
       display: inline-flex;

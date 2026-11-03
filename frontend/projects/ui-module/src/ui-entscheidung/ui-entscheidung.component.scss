@@ -36,6 +36,10 @@ $text-muted: var(--mat-sys-on-surface-variant);
 
 .ui-entscheidung__frage {
   padding: 0;
+  // Die Legende ist kein Flex-Kind des Fieldsets — der `gap` der Gruppe greift unter ihr nicht.
+  // Ohne diesen Rand klebte die Frage an der ersten Möglichkeit (gemessen 5 px gegen 25 px
+  // zwischen den Möglichkeiten, e2e/entscheidung.spec.ts „Rhythmus“).
+  margin-block-end: 6px;
   font-weight: 600;
   font-size: .86rem;
   color: $text;
@@ -54,14 +58,21 @@ $text-muted: var(--mat-sys-on-surface-variant);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  // Der Zeilenabstand der Möglichkeiten auch vor der ersten: dann steht die Frage (bzw. die
+  // Anleitung) so weit von ihr wie die Möglichkeiten voneinander.
+  margin-block-start: 2px;
 }
 
 .ui-entscheidung__option {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  min-block-size: 32px;
-  padding: 4px 6px;
+  // Die Höhe kommt aus Polster + Textzeile, nicht aus einer Mindesthöhe: sonst stünden einzeilige
+  // Möglichkeiten weiter auseinander als solche mit Hinweis. `border-box`, damit die Untergrenze
+  // (24 px, WCAG 2.5.8) die ganze Zeile meint und nie greift — gemessen 31 px (mit Hinweis 47 px).
+  box-sizing: border-box;
+  min-block-size: 24px;
+  padding: 6px;
   border-radius: var(--mat-sys-corner-extra-small);
   cursor: pointer;
 

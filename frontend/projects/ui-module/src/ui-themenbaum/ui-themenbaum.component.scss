@@ -141,6 +141,9 @@ $text-muted: var(--mat-sys-on-surface-variant);
 .ui-themenbaum__knopf {
   display: inline-flex;
   align-items: center;
+  // `border-box` wie bei `<button>` (Browser-Vorgabe): sonst wäre der Link „In WLO öffnen“ 42 px
+  // hoch, die Knöpfe daneben 32 px (gemessen, e2e/themenbaum.spec.ts „Rhythmus“).
+  box-sizing: border-box;
   min-block-size: 32px;
   padding: 4px 12px;
   border: 1px solid var(--mat-sys-outline);
