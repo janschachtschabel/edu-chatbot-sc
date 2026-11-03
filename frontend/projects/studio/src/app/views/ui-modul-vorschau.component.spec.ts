@@ -74,6 +74,26 @@ describe('UiModulVorschauComponent', () => {
     }
   }
 
+  // Review U1 gesamt, Befund 18 (Datenschutz): die Bühne lädt nichts von fremden Servern — kein
+  // Vorschaubild, kein eingebetteter Rahmen. Je Beispiel in Boxen und, für die Trefferliste, in Kacheln.
+  for (const manifest of MANIFESTE) {
+    for (const [index, beispiel] of manifest.beispiele.entries()) {
+      for (const kacheln of manifest.name === 'ui_trefferliste' ? [false, true] : [false]) {
+        it(`${manifest.name} „${beispiel.titel}“${kacheln ? ' (Kacheln)' : ''}: kein fremdes Bild, kein iframe`, async () => {
+          const { f, el } = await render(manifest);
+          await waehle(f, el, index);
+          if (kacheln) {
+            el.querySelector<HTMLInputElement>('.umv-kacheln input[type="checkbox"]')!.click();
+            await f.whenStable();
+            expect(el.querySelector('.umv-buehne boerdi-card-list')).not.toBeNull();
+          }
+          expect(el.querySelectorAll('.umv-buehne img[src^="http"], .umv-buehne iframe').length).toBe(0);
+          expect(el.querySelectorAll('.umv-buehne [srcset*="http"], .umv-buehne source[src^="http"]').length).toBe(0);
+        });
+      }
+    }
+  }
+
   it('je Beispiel eine Auswahl mit Namen; die erste ist gewählt', async () => {
     const { el } = await render(entscheidung as unknown as UiModulManifest);
     const radios = [...el.querySelectorAll<HTMLInputElement>('input[type="radio"][name^="umv-beispiel"]')];

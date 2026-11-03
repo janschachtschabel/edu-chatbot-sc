@@ -140,6 +140,7 @@ export class UiModuleComponent {
     if (!entwurf) return;
     this.entwurf.set(mitSchalter(entwurf, e.name, art, an));
     this.status.set('');
+    this.fehler.set('');                     // Review U1 gesamt: der Grund der Meldung ist vorbei
   }
 
   verwerfen(): void {
@@ -151,6 +152,7 @@ export class UiModuleComponent {
     }
     this.entwurf.set(this.doc()?.data ?? null);
     this.status.set('');
+    this.fehler.set('');
   }
 
   async speichern(): Promise<void> {
@@ -182,6 +184,7 @@ export class UiModuleComponent {
     try {
       this.uebernehmen(await this.config.data(bereich));
       this.konflikt.set(null);
+      this.fehler.set('');
     } catch (err) {
       this.fehler.set(describeApiError(err, this.t));
     }

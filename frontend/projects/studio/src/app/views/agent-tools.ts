@@ -96,6 +96,9 @@ export function lockLink(lock: AgentToolLock, ansicht: Engine): string | null {
     // U1-f: die Schalter der UI-Module.
     case 'studio_off':
       return 'ui-module';
+    // Review U1 gesamt: ein Modul mit Datenquelle fehlt mit seinem Werkzeug — dessen Schalter.
+    case 'data_source':
+      return 'werkzeuge';
     default:
       return null;
   }
