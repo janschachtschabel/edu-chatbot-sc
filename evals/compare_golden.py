@@ -216,6 +216,23 @@ def is_blocking(diff: dict[str, Any]) -> bool:
     )
 
 
+def _ui_module_zeilen(ref: list[str] | None, new: list[str] | None) -> list[str]:
+    """Die gemeldeten UI-Module beider Läufe (U1-g, Review #8) — mit und ohne Module misst
+    zwei Anlagen. Ungleich ist kein Blocker (der Vergleich mit/ohne ist gewollt), aber eine
+    Warnung. Berichte von vor U1-g tragen das Feld nicht: ``?``; beide ohne → keine Zeile."""
+    if ref is None and new is None:
+        return []
+
+    def liste(module: list[str] | None) -> str:
+        return "?" if module is None else ", ".join(module) or "keine"
+
+    zeilen = [f"  UI-Module: {liste(ref)} → {liste(new)}"]
+    if ref != new:
+        zeilen.append("  ⚠ ungleiche UI-Module — die Läufe maßen verschiedene Anlagen "
+                      "(ein Flow mit eigenem environment.ui_module ausgenommen)")
+    return zeilen
+
+
 def render_console(diff: dict[str, Any]) -> str:
     s = diff["summary"]
     engines = ""
@@ -232,6 +249,7 @@ def render_console(diff: dict[str, Any]) -> str:
         f"  Struktur ≠           {s['structure_changes']}",
         f"  Fehl-Turns ALT/NEU   {s['errors_ref']}/{s['errors_new']}",
     ]
+    lines[2:2] = _ui_module_zeilen(diff.get("ui_module_ref"), diff.get("ui_module_new"))
     if not s["turns_compared"]:
         lines.append(
             "  ⚠ 0 verglichene Turns — sind das wirklich zwei Golden-Reports?"
@@ -287,6 +305,9 @@ def main(argv: list[str] | None = None) -> int:
     # lesbar. Ältere Reports ohne engine-Feld erscheinen als "".
     diff["engine_ref"] = str(ref.get("engine") or "")
     diff["engine_new"] = str(new.get("engine") or "")
+    # U1-g: welche UI-Module die Läufe meldeten; ``None`` = Bericht von vor U1-g.
+    diff["ui_module_ref"] = ref.get("ui_module")
+    diff["ui_module_new"] = new.get("ui_module")
     diff["blocking"] = is_blocking(diff)
 
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")

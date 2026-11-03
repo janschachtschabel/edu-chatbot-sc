@@ -32,6 +32,7 @@ from boerdi.services.turn_persist import (
     persist_and_build_response,
 )
 from boerdi.services.zugakte import aktuelle_zugakte, binde_zugakte
+from tests._boxen import boxen
 
 _SESSION = object()
 
@@ -647,8 +648,8 @@ def test_persist_schreib_vorschau_wird_eine_box(monkeypatch):
         _final_text="Ich würde folgendes ändern:",
         _qr_mode="none",
     )
-    assert len(resp.inline_documents) == 1
-    doc = resp.inline_documents[0]
+    assert len(boxen(resp)) == 1
+    doc = boxen(resp)[0]
     assert doc.kind == "schreib_vorschau"
     assert "Titel: (leer) → „Bruchrechnung Klasse 6“" in doc.content
     assert doc.title
@@ -666,7 +667,7 @@ def test_persist_vorschau_nennt_die_frist(monkeypatch):
         session_state={"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU},
         _final_text="x", _qr_mode="none",
     )
-    assert "Die Freigabe gilt 10 Minuten ab dieser Vorschau." in resp.inline_documents[0].content
+    assert "Die Freigabe gilt 10 Minuten ab dieser Vorschau." in boxen(resp)[0].content
 
 
 def test_persist_vorschau_fragt_und_bietet_beides_an(monkeypatch):
@@ -680,7 +681,7 @@ def test_persist_vorschau_fragt_und_bietet_beides_an(monkeypatch):
         _final_text="x", _qr_mode="none",
     )
     assert resp.quick_replies[0] == "Ja, so ausführen"
-    inhalt = resp.inline_documents[0].content
+    inhalt = boxen(resp)[0].content
     assert inhalt.rstrip().endswith(
         "Soll ich das so ausführen? Wenn etwas nicht stimmt, sag mir, was anders sein soll."
     )
@@ -712,12 +713,12 @@ def test_persist_vorschau_chip_beugt_sich_dem_deckel(monkeypatch):
         _final_text="x", _qr_mode="none",
     )
     assert resp.quick_replies == []
-    assert resp.inline_documents, "Die Box bleibt — sie ist die Abnahme, nicht die Pille"
+    assert boxen(resp), "Die Box bleibt — sie ist die Abnahme, nicht die Pille"
 
 
 def test_persist_ohne_vorschau_keine_box(monkeypatch):
     resp, _ = _run2(monkeypatch, _final_text="nur Text", _qr_mode="none")
-    assert resp.inline_documents == []
+    assert boxen(resp) == []
 
 
 def test_persist_verbraucht_die_vorschau(monkeypatch):
@@ -740,8 +741,8 @@ def test_persist_inline_document_routing_m09(monkeypatch):
         page_action={"action": "canvas_open"},
         _qr_mode="none",
     )
-    assert len(resp.inline_documents) == 1
-    assert resp.inline_documents[0].content == "BODY"   # dict → InlineDocument coercion
+    assert len(boxen(resp)) == 1
+    assert boxen(resp)[0].content == "BODY"   # dict → InlineDocument coercion
     assert resp.content == "INTRO-LEAD"
     assert resp.web_links == []                          # cleared on routing
     assert resp.page_action is None                      # canvas action dropped
@@ -961,9 +962,9 @@ def test_ein_geliefertes_dokument_wird_zur_box(monkeypatch):
                       winner_id="M04", _effective_pattern_id="M04",
                       _final_text="kurz",
                       gelieferte_dokumente=[dict(_GELIEFERT)])
-    assert len(resp.inline_documents) == 1
-    assert resp.inline_documents[0].title == "Verlaufsplan Optik"
-    assert resp.inline_documents[0].content == "Kurz, ohne Raute."
+    assert len(boxen(resp)) == 1
+    assert boxen(resp)[0].title == "Verlaufsplan Optik"
+    assert boxen(resp)[0].content == "Kurz, ohne Raute."
 
 
 def test_ohne_lieferung_bleibt_der_geratene_weg(monkeypatch):
@@ -971,7 +972,7 @@ def test_ohne_lieferung_bleibt_der_geratene_weg(monkeypatch):
     am heutigen Verhalten nichts."""
     resp, _sp = _run2(monkeypatch, winner_id="M04", _effective_pattern_id="M04",
                       _final_text="kurz")
-    assert resp.inline_documents == []
+    assert boxen(resp) == []
 
 
 def test_die_lieferung_schlaegt_die_vermutung(monkeypatch):
@@ -982,8 +983,8 @@ def test_die_lieferung_schlaegt_die_vermutung(monkeypatch):
                       winner_id="M09", _effective_pattern_id="M09",
                       _final_text=langer_text,
                       gelieferte_dokumente=[dict(_GELIEFERT)])
-    assert len(resp.inline_documents) == 1
-    assert resp.inline_documents[0].title == "Verlaufsplan Optik"
+    assert len(boxen(resp)) == 1
+    assert boxen(resp)[0].title == "Verlaufsplan Optik"
     # Und der Fließtext bleibt UNANGETASTET. Ihn zu kürzen hieße zu raten,
     # welcher Teil die Box wiederholt — genau das, was dieser Umbau abschafft.
     # Die Anweisung sitzt am Werkzeug („deine Prosa daneben ist nur der
@@ -1003,11 +1004,30 @@ def test_der_globale_schalter_gilt_auch_fuer_gelieferte_boxen(monkeypatch):
                     _effective_pattern_id="M04",
                     _final_text="Der Begleitsatz.",
                     gelieferte_dokumente=[dict(_GELIEFERT)])
-    assert resp.inline_documents == []
+    assert boxen(resp) == []
     # Der Inhalt darf dabei NICHT verschwinden: das Modell hat ihn nicht in die
     # Prosa geschrieben, weil das Werkzeug ihm genau das untersagt.
     assert resp.content.startswith("Der Begleitsatz.")
     assert "Kurz, ohne Raute." in resp.content
+
+
+def test_ohne_boxen_steht_der_inhalt_auch_im_gespeicherten_text(monkeypatch):
+    """Review U1-b (§11): gespeichert wurde der Text, BEVOR die gelieferten Dokumente
+    angehängt wurden, und der F-6-Nachtrag schreibt nur Karten und Debug — nach dem
+    Neuladen und im Verlauf des Folgezugs fehlte der Inhalt, den die Person live las.
+
+    ``_dokumente`` bleibt leer: der Inhalt steht im Text der Nachricht, und eine Box
+    gab es nicht — dort stünde er doppelt im Folgezug und als Box im Verlauf."""
+    sp = _patch2(monkeypatch, dr={"inline_documents": {"enabled": False}})
+    sp.save._ret = 17
+    nachtrag = _ASpy(ret=True)
+    monkeypatch.setattr(tp_mod, "finalize_message", nachtrag)
+    resp, _ = _run2(monkeypatch, sp=sp, _final_text="Der Begleitsatz.",
+                    gelieferte_dokumente=[dict(_GELIEFERT)])
+    ((args, _kw),) = sp.save.calls
+    assert args[3] == resp.content
+    assert "Kurz, ohne Raute." in args[3]
+    assert all("_dokumente" not in kw["debug"] for _a, kw in nachtrag.calls)
 
 
 # -- AG-5: die in diesem Zug geholte Anleitung steht in der Spur --------------
@@ -1056,3 +1076,63 @@ def test_unter_der_blase_bleibt_die_zustimmung_zur_abnahme(monkeypatch):
         llm_parallel._zug.set(None)
     assert resp.quick_replies == [bot_text("de", "action.write.confirmChip"),
                                   bot_text("de", "error.retryChip")]
+
+
+def test_persist_speichert_die_ui_bloecke_und_gibt_sie_live_mit(monkeypatch):
+    """Paket U1-a: die UI-Blöcke des Zugs stehen im gespeicherten Debug-Block (Verlauf) und
+    live an ``ui``; die Regeln je Antwort greifen hier (höchstens ein offener abfragender)."""
+    from boerdi.domain import ui_bloecke
+
+    a = ui_bloecke.neuer_block("ui_test", 1, "anzeigen", {"x": 1}, "Text")
+    f1 = ui_bloecke.neuer_block("ui_frage", 1, "abfragen", {}, "Frage 1")
+    f2 = ui_bloecke.neuer_block("ui_frage", 1, "abfragen", {}, "Frage 2")
+    sp = _patch2(monkeypatch)
+    resp, _ = _run2(monkeypatch, sp=sp, ui_bloecke=[a, f1, f2])
+    assert [b.block_id for b in resp.ui.ui_bloecke] == [a.block_id, f1.block_id]
+    _, kwargs = sp.save.calls[0]
+    gespeichert = kwargs["debug"][ui_bloecke.DEBUG_KEY]
+    assert [b["block_id"] for b in gespeichert] == [a.block_id, f1.block_id]
+
+
+def test_persist_ohne_ui_bloecke_legt_keinen_schluessel_an(monkeypatch):
+    from boerdi.domain import ui_bloecke
+
+    sp = _patch2(monkeypatch)
+    resp, _ = _run2(monkeypatch, sp=sp)
+    assert resp.ui.ui_bloecke == []
+    assert ui_bloecke.DEBUG_KEY not in sp.save.calls[0][1]["debug"]
+
+
+# ── U1-b2: jede Dokument-Box reist als Inhaltsrahmen-Block ─────────────────
+def test_boxen_kommen_als_inhaltsrahmen_und_nicht_mehr_als_inline_documents(monkeypatch):
+    resp, _sp = _run2(monkeypatch, gelieferte_dokumente=[dict(_GELIEFERT)])
+    assert resp.inline_documents == []
+    (block,) = resp.ui.ui_bloecke
+    assert (block.modul, block.art, block.status) == ("ui_inhaltsrahmen", "anzeigen", "nur_anzeige")
+    assert block.text == block.daten["markdown"]
+
+
+def test_boxen_stehen_vor_den_uebrigen_bloecken(monkeypatch):
+    """Dokumente zuerst: bei der Obergrenze von fünf fällt so kein Arbeitsergebnis weg."""
+    from boerdi.domain import ui_bloecke
+
+    andere = [ui_bloecke.neuer_block("ui_test", 1, "anzeigen", {"i": i}, "t") for i in range(4)]
+    resp, _sp = _run2(monkeypatch, ui_bloecke=andere,
+                      gelieferte_dokumente=[dict(_GELIEFERT), {**_GELIEFERT, "title": "Zwei"}])
+    assert [b.modul for b in resp.ui.ui_bloecke] == ["ui_inhaltsrahmen"] * 2 + ["ui_test"] * 3
+
+
+def test_die_boxen_werden_fuer_den_verlauf_gespeichert(monkeypatch):
+    """Live und im Verlauf dieselben Blöcke (gleiche ``block_id``)."""
+    from boerdi.domain import ui_bloecke
+
+    sp = _patch2(monkeypatch)
+    sp.save._ret = 17
+    nachtrag = _ASpy(ret=True)
+    monkeypatch.setattr(tp_mod, "finalize_message", nachtrag)
+    resp, _ = _run2(monkeypatch, sp=sp, gelieferte_dokumente=[dict(_GELIEFERT)])
+    ((_args, kw),) = nachtrag.calls
+    gespeichert = kw["debug"][ui_bloecke.DEBUG_KEY]
+    assert [b["block_id"] for b in gespeichert] == [b.block_id for b in resp.ui.ui_bloecke]
+    assert gespeichert[0]["daten"]["titel"] == "Verlaufsplan Optik"
+

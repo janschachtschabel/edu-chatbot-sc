@@ -72,7 +72,7 @@ def test_eine_leere_rolle_faellt_auf_die_vorgabe_zurueck(monkeypatch) -> None:
 def test_die_vorgabe_verlangt_box_und_erst_suchen() -> None:
     """Die zwei Antwortform-Fehler aus K0 als Regeln der Vorgabe — im Studio
     bearbeitbar, weil sie zur Rolle gehören und nicht zum Code."""
-    assert "zeige_dokument" in ROLLE_VORGABE
+    assert "ui_inhaltsrahmen" in ROLLE_VORGABE
     assert "suche zuerst" in ROLLE_VORGABE
 
 

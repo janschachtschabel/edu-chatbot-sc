@@ -16,6 +16,8 @@
  * Funktionen bilden eine kohärente Feature-Einheit (ein Änderungsgrund: die
  * Grouping-Anzeige).
  */
+import { LINKBOX } from '@boerdi/ui-module/_vertrag/modul-namen';
+
 import { WloCard } from '../cards/card-types';
 import {
   getCardPrimaryUrl, isThemenseite, isSammlung, isInhalt, getContentTypeLabel,
@@ -396,6 +398,13 @@ export function searchCtaTooltip(msg: ChatMessage, ctx: GroupingContext): string
   return itemTooltip(base, groupedSearchUrl(msg, ctx), ctx);
 }
 
+/** Trägt die Nachricht eine Linkbox (UI-Modul, Paket U1-c1)? Dann zeigt sie die Webseiten —
+ *  die bisherige Box schweigt. `groupedWebLinks` bleibt unberührt: `displayContent` streicht mit
+ *  ihr weiter die Link-Aufzählungen aus dem Text, die in die Box gewandert sind. */
+export function hatLinkbox(msg: ChatMessage): boolean {
+  return !!msg?.ui?.ui_bloecke?.some((b) => b.modul === LINKBOX);
+}
+
 /** Tour-Antworten (``ui.pattern`` = „TOUR:…") sind bewusst rein
  *  textbasiert: kuratierte Inline-Links (Angebote/Sublinks/Kontakt) +
  *  ``__guide__``-Nav-Buttons. Sie tragen KEINE RAG-``web_links``. Die
@@ -419,7 +428,7 @@ export function isTourMessage(msg: ChatMessage): boolean {
 export function hasGroupedResults(msg: ChatMessage, ctx: GroupingContext): boolean {
   if (isTourMessage(msg)) return false;
   const hasCards = !!(msg.cards && msg.cards.length);
-  const hasWebLinks = groupedWebLinks(msg, ctx).length > 0;
+  const hasWebLinks = !hatLinkbox(msg) && groupedWebLinks(msg, ctx).length > 0;
   const hasSearchCta = !!groupedSearchUrl(msg, ctx);
   if (!hasCards && !hasWebLinks && !hasSearchCta) return false;
   return (

@@ -4,7 +4,7 @@
  * published, so no ng-packagr build step).
  *
  * P8: 8-1 seeded the theme layer; 8-2 adds `session/` (session-id + trusted
- * host, V5-unified), then markdown, chips, cards, inline-doc, swimlanes and the
+ * host, V5-unified), then markdown, chips, cards, swimlanes, ui-bloecke and the
  * page-context detector.
  */
 export { applyPrimaryColor, isValidCssColor } from './theme/primary-color';
@@ -120,7 +120,6 @@ export type {
   ChatResponse,
   ContextSnapshot,
   DebugInfo,
-  InlineDocument,
   PaginationInfo,
   PolicyDecision,
   QueryMetaEntry,
@@ -137,12 +136,6 @@ export { ResultGroupsComponent } from './grouping/result-groups.component';
 export type { ResultGroupsContext } from './grouping/result-grouping';
 export { SwimlanesComponent } from './grouping/swimlanes.component';
 
-export {
-  inlineDocFallbackLabel,
-  inlineDocFontSize,
-  inlineDocIcon,
-} from './inline-doc/inline-doc';
-export { InlineDocumentsComponent } from './inline-doc/inline-documents.component';
 
 export {
   parseSseBlock,

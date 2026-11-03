@@ -39,6 +39,8 @@ from boerdi.services.rag.vorab import rag_einbettung_vorab
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.regex_gate import regex_gate
 from boerdi.services.safety.service import regex_rueckfall
+from boerdi.ui_module.antwort import sicherheits_text
+from boerdi.ui_module.antwort import vorsatz as frage_vorsatz
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +96,10 @@ async def assess(
     progress.start("safety_classify", "Safety + Classify + Memory (parallel)")
     ss = ctx.session_state
     signals = ss.get("signal_history", [])
-    quick_gate = regex_gate(ctx.req.message, signals)
+    # Review U1-d1, Befund 1: die Ergänzung einer geprüften Modul-Antwort steht gerahmt im
+    # Prompt — sie geht durch dieselbe Prüfung wie die Nachricht. Sonst ist es die Nachricht.
+    pruef_text = sicherheits_text(ctx.req.message, ctx.ui_antwort)
+    quick_gate = regex_gate(pruef_text, signals)
 
     if quick_gate.risk_level == "high":
         # Harte Krise aus Regex → keine LLM-Zyklen für Classify verschwenden.
@@ -111,7 +116,7 @@ async def assess(
         # Regex + Moderation ohne eigenen LLM-Aufruf — steht sonst nirgends im
         # Debug-Block (Plan 2026-09-30, T8).
         with schritt("assess.safety", ctx.usage):
-            return await assess_safety(ctx.req.message, signals, usage_acc=ctx.usage)
+            return await assess_safety(pruef_text, signals, usage_acc=ctx.usage)
 
     async def _classify():
         # A4b: Der Agent-Modus hat keinen Klassifikator — das ist sein Zweck
@@ -124,8 +129,14 @@ async def assess(
         # Zeile für Zeile derselbe.
         if laeuft_ueber_die_schleife(engine):
             return _fallback_classification(ss, "I01")
+        # Review U1-d2 (Befund 2): Nach einer Auswahl-Frage ist die Nachricht oft nur „Klasse 5“
+        # und der Verlauf „Bitte wähle unten aus.“ — der Klassifikator bekommt deshalb denselben
+        # gerahmten Block wie die KI (Antwort oder übergangene Frage) vor die Nachricht. Am Ende
+        # des Prompts, damit Systemteil, Seite und Verlauf das Cache-Präfix bleiben.
+        block = frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage)
         return await classify_input(
-            ctx.req.message, ctx.history, ss, ctx.env,
+            f"{block}\n\n{ctx.req.message}" if block else ctx.req.message,
+            ctx.history, ss, ctx.env,
             ctx.req.canvas_state, usage_acc=ctx.usage,
         )
 
@@ -154,7 +165,7 @@ async def assess(
     # keine ``Exception`` ist — es lief sonst als Entscheidung weiter (Paket 18A).
     if isinstance(safety, BaseException):
         logger.error("safety task failed: %s: %s", type(safety).__name__, safety)
-        safety = regex_rueckfall(ctx.req.message, signals)
+        safety = regex_rueckfall(pruef_text, signals)
     if isinstance(classification, LlmAusgelastet):
         # Paket 18F: Last, kein Fehler — die Frist meldet ``llm_platz_frist`` gedrosselt.
         logger.info("classify: kein LLM-Platz frei — Ersatz-Einordnung")

@@ -159,6 +159,8 @@ GET    /api/config/fassungen
 POST   /api/config/fassungen/werksabgleich
 POST   /api/config/fassungen/umschalten
 GET    /api/config/fassungen/vergleich
+GET    /api/config/ui-module
+POST   /api/ui/themenbaum/zweig
 GET    /api/usage/period
 GET    /api/usage/session/{session_id}
 GET    /health
@@ -182,6 +184,8 @@ PUBLIC_ROUTES = {
     "GET /api/speech/status", "POST /api/speech/transcribe",
     "POST /api/speech/synthesize", "GET /api/sessions/{session_id}/messages",
     "GET /api/config/guide-mode", "GET /widget/", "GET /widget/boerdi-widget.js",
+    # Paket U1-h: Unterthemen im Themenbaum aufklappen (Widget, ohne Zug).
+    "POST /api/ui/themenbaum/zweig",
     "GET /widget/classic", "GET /widget/frameless", "GET /widget/inline",
     "GET /widget/{asset_name}",
     # studio-bff (P9-1): the login pair must be reachable unauthenticated, like

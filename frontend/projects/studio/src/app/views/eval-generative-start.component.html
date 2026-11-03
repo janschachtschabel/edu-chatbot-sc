@@ -115,6 +115,21 @@
       </p>
     </fieldset>
 
+    <fieldset class="egs-set">
+      <legend class="egs-legend">{{ t('evalStart.uiModule.legend') }}</legend>
+      <label class="egs-pick" for="egs-ui-module">
+        <input
+          type="checkbox"
+          id="egs-ui-module"
+          [checked]="uiModule()"
+          (change)="setUiModule($any($event.target).checked)"
+          aria-describedby="egs-ui-module-hint"
+        />
+        <span>{{ t('evalStart.uiModule.label') }}</span>
+      </label>
+      <p class="egs-hint" id="egs-ui-module-hint">{{ t('evalStart.uiModule.hint') }}</p>
+    </fieldset>
+
     @if (busy()) {
       <p class="egs-busy">{{ t('evalStart.busy') }}</p>
     }

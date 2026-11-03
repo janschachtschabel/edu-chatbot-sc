@@ -42,6 +42,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo, InlineDocument
+from boerdi.api.schemas_ui import UiInfo
+from boerdi.domain.inline_documents import als_inhaltsrahmen
 from boerdi.i18n import Locale, bot_text, resolve_locale
 from boerdi.obs.log_inhalt import kennung
 from boerdi.services.db_sessions import save_message
@@ -181,7 +183,7 @@ async def _handle_show_content_text(
             session_id=req.session_id,
             content=lead + _quelle_satz(parsed, lang),
             quick_replies=_qr(_QR_MIT_TEXT, lang),
-            inline_documents=[doc],
+            ui=UiInfo(ui_bloecke=[als_inhaltsrahmen(doc)]),
             debug=debug,
         )
         # **Der Volltext, nicht die Begleitzeile.** Der Antwort-Prompt eines

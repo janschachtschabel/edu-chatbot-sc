@@ -7,7 +7,7 @@
  * Plan 2026-09-26 §9.3). Die Wirkung steht nicht im Modell, sondern bei den
  * Lesern: `config_loader/widget.py` (`load_display_rules_config`) gibt ein
  * kuratiertes Dict zurück, das `turn_persist.py`, `tool_loop.py`,
- * `quick_reply_policy.py` und das Widget (`ui/src/grouping`, `ui/src/inline-doc`)
+ * `quick_reply_policy.py` und das Widget (`ui/src/grouping`, `ui/src/ui-bloecke/schrift-skala.ts`)
  * lesen. Was dabei nicht ankommt, sagen die Hilfetexte, statt eine Wirkung zu
  * versprechen: `layout`, `inline_fallback_enabled` und die beiden
  * `inline_card_links`-Felder (auch `01-base/widget-modes` wirkt nicht, siehe
@@ -144,6 +144,21 @@ export const FIELDS_ANZEIGE_REGELN: CataloguePart = {
     'feld.PromptAnzeigeKonsistenz.exclude_patterns.hint':
       'Muster ohne diesen Hinweis, als Kennung wie M04 oder M15; Groß- und Kleinschreibung '
       + 'zählen nicht. Wirkt in der Muster-Engine.',
+
+    // ── UI-Module an/aus (Paket U1-f) — gepflegt auf der Seite „UI-Module“ ──
+    'feld.DisplayRulesBlock.ui_module.label': 'UI-Module an/aus',
+    'feld.DisplayRulesBlock.ui_module.hint':
+      'Welche UI-Module in neuen Antworten erscheinen und welche der Agent als Werkzeug bekommt. '
+      + 'Bequemer auf der Seite „UI-Module“ mit Vorschau; ohne Eintrag sind alle an.',
+    'feld.UiModulSchalter.aus.label': 'Abgeschaltete Module',
+    'feld.UiModulSchalter.aus.hint':
+      'Modulnamen wie ui_linkbox: das Modul erscheint in neuen Antworten nicht — kein Werkzeug, '
+      + 'kein Block aus der Antwort. Frühere Antworten bleiben, wie sie waren. ui_inhaltsrahmen '
+      + 'ist fest.',
+    'feld.UiModulSchalter.agent_aus.label': 'Nicht für den Agenten',
+    'feld.UiModulSchalter.agent_aus.hint':
+      'Modulnamen wie ui_entscheidung: der Agent-Modus bietet das Modul nicht als Werkzeug an; '
+      + 'ein Muster, das es unter „tools“ nennt, weiter.',
   },
   en: {
     'feld.DisplayRulesArea.display_rules.label': 'Display rules',
@@ -268,5 +283,18 @@ export const FIELDS_ANZEIGE_REGELN: CataloguePart = {
     'feld.PromptAnzeigeKonsistenz.exclude_patterns.hint':
       'Patterns without this reminder, given as IDs such as M04 or M15; case does not matter. '
       + 'Applies in the pattern engine.',
+
+    'feld.DisplayRulesBlock.ui_module.label': 'UI modules on/off',
+    'feld.DisplayRulesBlock.ui_module.hint':
+      'Which UI modules appear in new answers and which ones the agent gets as a tool. Easier on '
+      + 'the “UI modules” page with a preview; without an entry all are on.',
+    'feld.UiModulSchalter.aus.label': 'Switched-off modules',
+    'feld.UiModulSchalter.aus.hint':
+      'Module names such as ui_linkbox: the module does not appear in new answers — no tool, no '
+      + 'block derived from the answer. Earlier answers stay as they were. ui_inhaltsrahmen is fixed.',
+    'feld.UiModulSchalter.agent_aus.label': 'Not for the agent',
+    'feld.UiModulSchalter.agent_aus.hint':
+      'Module names such as ui_entscheidung: agent mode does not offer the module as a tool; a '
+      + 'pattern that lists it under “tools” still does.',
   },
 };

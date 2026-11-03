@@ -1,23 +1,13 @@
-// Inline-Document-Box — Verbatim-Port aus ALT chat.component.scss
-// (.inline-document Z.450-564, Welle E). 1:1 die gleichen Rahmen-/Padding-/
-// Radius-Werte wie .result-group (User-Wunsch: „der rahmen soll wie bei der
-// linkgruppierung aussehen"). Lokale $-Variablen identisch zu den anderen
-// ui-Komponenten (ALT chat.component.scss:14-19); CTA-/Hover-Akzent am
-// kundenüberschreibbaren --boerdi-primary (ALT-Token, Fallback #1c4587).
-//
-// B2 (2026-07-31): die drei $-Variablen zeigen jetzt auf die Material-System-
-// token. Damit erledigt sich zugleich das alte follow-up „dieselben drei
-// Farbwerte liegen in drei Komponenten" — geteilt wird nun das Theme, nicht
-// eine weitere handgepflegte Farbliste.
+// Inhaltsrahmen (Paket U1-b) — Aussehen der früheren Dokument-Box
+// (bis U1-b3 `ui/src/inline-doc/`, dort der ALT-Port), gleiche Klassen.
+// Nur Theme-Token; die Schriftskala kommt als `--inline-doc-scale` aus dem Kontext.
 
 $border: var(--mat-sys-outline-variant);
 $text: var(--mat-sys-on-surface);
 $text-muted: var(--mat-sys-on-surface-variant);
 
 :host {
-  // Host layout-transparent: die .inline-document-Boxen zählen direkt als
-  // Kinder der Bot-Bubble (wie ALTs Struktur).
-  display: contents;
+  display: block;
 }
 
 .inline-document {
@@ -25,10 +15,10 @@ $text-muted: var(--mat-sys-on-surface-variant);
   border-radius: var(--mat-sys-corner-small);
   padding: 6px 10px 8px;
   background: var(--mat-sys-surface);
-  margin: 8px 0;
+  // Abstand zwischen Blöcken setzt der Platzhalter (8 px Lücke) — wie früher die Box.
+  margin: 0;
 
-  // Skalierungs-Variable kommt vom Template (CSS-Custom-Property); bei 100 %
-  // rendert die Box wie eine normale .result-group.
+  // Vorgabe der Schriftskala; den Wert aus dem Kontext setzt das Template am Element.
   --inline-doc-scale: 0.85;
 
   &__heading {
@@ -54,22 +44,30 @@ $text-muted: var(--mat-sys-on-surface-variant);
     white-space: nowrap;
   }
 
-  // Print-Button rechts im Heading (Welle E, 2026-05-24).
-  &__print-btn {
+  // Drucken und Herunterladen rechts in der Kopfzeile; Zielfläche mindestens 24 px (WCAG 2.5.8).
+  &__btn {
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--mat-sys-corner-extra-small);
     padding: 2px 6px;
+    min-inline-size: 24px;
+    min-block-size: 24px;
     cursor: pointer;
     color: $text-muted;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     flex-shrink: 0;
 
     &:hover {
       background: color-mix(in srgb, var(--mat-sys-primary) 8%, var(--mat-sys-surface));
       color: var(--mat-sys-primary);
       border-color: color-mix(in srgb, var(--mat-sys-primary) 25%, var(--mat-sys-surface));
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: 1px;
     }
 
     .bb-icon {

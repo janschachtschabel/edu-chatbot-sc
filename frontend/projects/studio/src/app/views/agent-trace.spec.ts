@@ -120,7 +120,7 @@ describe('stopReasonLabel (ST-8a)', () => {
   // Die Ende-Gründe von `agent_loop` und der Schutz-Stopp des Auftrags-Endpunkts.
   const GRUENDE = [
     'text', 'submit', 'deadline', 'token_budget', 'max_iterations',
-    'no_progress', 'empty', 'error', 'safety',
+    'no_progress', 'empty', 'error', 'safety', 'frage',
   ];
 
   it('übersetzt jeden bekannten Grund in beiden Sprachen', () => {

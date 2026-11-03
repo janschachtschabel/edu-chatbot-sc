@@ -89,14 +89,22 @@ from boerdi.services.db_sessions import get_memory, save_message
 from boerdi.services.llm_parallel import binde_zug as binde_llm_zug
 from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
 from boerdi.services.zugakte import binde_zugakte
+from boerdi.ui_module.antwort import DEBUG_KEY as UI_ANTWORT_KEY
 
 logger = logging.getLogger(__name__)
 
 
 async def _persist_user_message(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     """Persist the user turn (ALT ``chat_turn_setup.py:128``) between tour and
-    preflight. Bare await like ALT — a DB failure propagates to the endpoint."""
-    await save_message(session, ctx.req.session_id, "user", ctx.req.message)
+    preflight. Bare await like ALT — a DB failure propagates to the endpoint.
+
+    Paket U1-d1: eine in ``setup`` geprüfte Modul-Antwort steht im Debug-Block der Nachricht
+    (``_ui_antwort``) — daraus leitet der Verlauf den Status des Blocks ab."""
+    if ctx.ui_antwort:
+        await save_message(session, ctx.req.session_id, "user", ctx.req.message,
+                           debug={UI_ANTWORT_KEY: ctx.ui_antwort})
+    else:
+        await save_message(session, ctx.req.session_id, "user", ctx.req.message)
     return ctx
 
 

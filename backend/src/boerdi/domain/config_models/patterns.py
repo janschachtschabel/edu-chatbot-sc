@@ -50,10 +50,15 @@ class PatternFrontmatter(AreaModel):
     sources: Annotated[list[Annotated[str, Choices("llm", "mcp", "rag")]] | None, Vorgabe()] = None
     # Die Auszeichnung sitzt am EINTRAG: gewählt wird eine Zeile, nicht die
     # Liste. `rag_areas` deckt sich mit den Schlüsseln von
-    # `05-knowledge/rag-config`, `tools` mit der Server-Registry. Ohne Angabe
-    # gelten alle Bereiche (bei `rag` in `sources`), eine leere Liste heißt keine.
+    # `05-knowledge/rag-config`, `tools` mit den Werkzeugen der eingeschalteten
+    # Server und den UI-Modulen mit `agent: true` (U1-d2, U-F4: `ui_entscheidung`).
+    # Ohne Angabe gelten alle Bereiche (bei `rag` in `sources`), eine leere Liste
+    # heißt keine.
     rag_areas: Annotated[list[Annotated[str, Catalog("rag_areas")]] | None, Vorgabe()] = None
     tools: list[Annotated[str, Catalog("tools")]] | None = None
+    # Paket U1-c: welche aus der Antwort abgeleiteten UI-Module das Muster zeigt (Linkbox, später
+    # Trefferliste). Ohne Angabe alle — das heutige Verhalten —, eine leere Liste heißt keines.
+    ui_module: Annotated[list[Annotated[str, Catalog("ui_module")]] | None, Vorgabe()] = None
     precondition_slots: list[Annotated[str, Catalog("entities")]] | None = None
     card_text_link_required: bool | None = None
     # `quick_reply_policy` fällt bei jedem anderen Wert auf "exact" zurück, und
@@ -63,6 +68,20 @@ class PatternFrontmatter(AreaModel):
     ] | None = None
     forbidden_phrases: list[str] | None = None
     anti_patterns: list[str] | None = None
+
+    @field_validator("ui_module")
+    @classmethod
+    def _nur_abgeleitete(cls, namen: list[str] | None) -> list[str] | None:
+        from boerdi.ui_module.namen import pruefe_abgeleitete
+
+        return pruefe_abgeleitete(namen)
+
+    @field_validator("tools")
+    @classmethod
+    def _keine_wirkungslosen_module(cls, namen: list[str] | None) -> list[str] | None:
+        from boerdi.ui_module.namen import pruefe_werkzeug_namen
+
+        return pruefe_werkzeug_namen(namen)
 
     @field_validator("id")
     @classmethod

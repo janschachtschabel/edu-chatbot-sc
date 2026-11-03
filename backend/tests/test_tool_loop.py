@@ -1140,7 +1140,7 @@ def test_loop_katalog_werkzeug_ausserhalb_der_musterliste_laeuft(monkeypatch):
 
 
 @pytest.mark.parametrize("aufruf", [
-    ("tc1", "zeige_dokument", json.dumps({
+    ("tc1", "ui_inhaltsrahmen", json.dumps({
         "titel": "T", "art": "stundenplanung", "markdown": "# T\n\nText"})),
     ("tc1", "select_top_cards", json.dumps({"card_ids": ["a"], "reasoning": "x"})),
     ("tc1", "respond_to_user", json.dumps({"text": "Antwort", "quick_replies": []})),
@@ -1600,7 +1600,19 @@ def _dok_call(cid="c1", **over):
     args = {"titel": "Verlaufsplan Optik", "art": "stundenplanung",
             "markdown": "# Verlaufsplan\n\nEinstieg, Erarbeitung, Sicherung."}
     args.update(over)
-    return (cid, "zeige_dokument", json.dumps(args))
+    return (cid, "ui_inhaltsrahmen", json.dumps(args))
+
+
+def test_der_alte_name_zeige_dokument_wird_weiter_angenommen(monkeypatch):
+    """U1-b2: angeboten ist nur ``ui_inhaltsrahmen``; ein Aufruf unter dem alten Namen (aus
+    einer gespeicherten Rollen-Vorgabe oder einem alten Master-Skill) liefert trotzdem die Box."""
+    cid, _, args = _dok_call()
+    _fake, _result, st = _run_loop(monkeypatch, [
+        _resp_tools([(cid, "zeige_dokument", args)]),
+        _resp_text("Hier ist der Plan."),
+    ], active_tools=[{"type": "function", "function": {"name": "ui_inhaltsrahmen"}}])
+    docs = st["session_state"]["_gelieferte_dokumente"]
+    assert [d["title"] for d in docs] == ["Verlaufsplan Optik"]
 
 
 def test_ein_geliefertes_dokument_landet_im_session_state(monkeypatch):

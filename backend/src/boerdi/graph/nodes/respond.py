@@ -60,6 +60,9 @@ from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergeh
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
+from boerdi.services.tool_loop_module import MODUL_BLOECKE_KEY
+from boerdi.ui_module.antwort import merke_frage
+from boerdi.ui_module.antwort import vorsatz as frage_vorsatz
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -450,6 +453,9 @@ async def respond(
                 on_token=_antwort_strom,
                 # T1 (Paket 7): neben der Klassifikation gerechnet (``assess``).
                 rag_einbettung=ctx.rag_einbettung,
+                # Paket U1-d2: die Antwort auf die Auswahl-Frage des vorigen Zugs (oder die
+                # Frage selbst) gerahmt vor der Nachricht — wie im Agent-Zug.
+                vorsatz=frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage),
             )
             if _antwort_strom is not None:
                 _antwort_strom.schliessen()  # den zurückgehaltenen Rest senden
@@ -482,6 +488,8 @@ async def respond(
             # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase.
             response_text = antwort_fehlertext(resolve_locale(req.environment.locale),
                                                "error.answerFailed", fehler=_gen_err)
+            # Eine Frage zur Fehlerblase zeigte ein Auswahlfeld zu einem gescheiterten Zug.
+            session_state.pop(MODUL_BLOECKE_KEY, None)
             wlo_cards_raw = []
             tools_called = ["error"]
             response_outcomes = []
@@ -498,6 +506,15 @@ async def respond(
                         "could not salvage spec cards in error path: %s",
                         _spec_parse_err,
                     )
+
+        # Paket U1-d2: Blöcke der Modul-Werkzeuge (``turn_persist`` speichert und liefert sie);
+        # eine Frage merkt sich die Sitzung, darunter keine Schnellantworten — wie im Agent-Zug.
+        ctx.ui_bloecke = list(session_state.pop(MODUL_BLOECKE_KEY, None) or [])
+        if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):
+            merke_frage(session_state.setdefault("entities", {}), offen)
+            ctx.qr_mode = "none"
+            if not (response_text or "").strip():
+                response_text = bot_text(resolve_locale(req.environment.locale), "agent.frage")
 
         # Aussetzer des Anbieters, der auch die Wiederholungen im Tool-Loop
         # überlebt hat (``llm.LEERLAUF_VERSUCHE``): kein Fehler, nur eine

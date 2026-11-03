@@ -148,6 +148,7 @@ const STOP_KEYS: ReadonlyMap<string, string> = new Map([
   ['empty', 'trace.stop.empty'],
   ['error', 'trace.stop.error'],
   ['safety', 'trace.stop.safety'],
+  ['frage', 'trace.stop.frage'],
 ]);
 
 /** Erlaubnisliste wie `engineLabel`: ein unbekannter Grund kommt roh durch. */

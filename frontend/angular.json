@@ -22,6 +22,22 @@
         }
       }
     },
+    "ui-module": {
+      "projectType": "library",
+      "root": "projects/ui-module",
+      "sourceRoot": "projects/ui-module/src",
+      "prefix": "ui",
+      "architect": {
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/ui-module/tsconfig.spec.json",
+            "buildTarget": "widget:build:development",
+            "runnerConfig": "vitest-base.config.ts"
+          }
+        }
+      }
+    },
     "widget": {
       "projectType": "application",
       "root": "projects/widget",
@@ -106,8 +122,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "550kb",
-                  "maximumError": "600kb"
+                  "maximumWarning": "650kb",
+                  "maximumError": "690kb"
                 }
               ]
             },

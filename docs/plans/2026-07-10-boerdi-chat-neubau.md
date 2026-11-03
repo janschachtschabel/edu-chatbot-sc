@@ -433,7 +433,7 @@ oder `OPENAI_API_KEY`-Seitenkanal. Details: Memory `bapi-provider-capabilities`.
   ?node|node_id|nodeId= · ?collection|collection_id|collectionId= · /themenseite/<slug> ·
   /fachportal/<subject>[/<slug>] · /components/search[?q][&filters(publisher)] · generisch ?q=.
   DOM-Marker: meta boerdi:node-id/collection-id/topic-slug, body data-edu-*; page_text≤3000B.
-- **Bundle-Budget:** Single-File, zoneless; CI-Gate ≤ 600 KB raw / ≤ 175 KB gzip.
+- **Bundle-Budget:** Single-File, zoneless; CI-Gate ≤ 690 KB raw / ≤ 200 KB gzip, Warnung ab 190 KB gzip (seit 2026-11-02, Paket U1, Entscheid U-F2; vorher 600 / 175).
   **Angehoben 2026-07-31** von 420/140 auf Nutzer-Weisung („das Größenlimit darf
   dafür steigen") für Angular Material 3 — gemessene Kosten **+75,8 KB roh /
   +33 KB gzip** (416,57 → 492,41 KB roh). Die ursprüngliche Begründung („ALT:

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { ChatMessage, InlineDocument } from '../grouping/message-types';
+import { ChatMessage } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import {
-  isLearningPath, isPrintableCanvasMaterial, printableCanvasLabel, printInlineDocument,
+  hatDokumentBox, isLearningPath, isPrintableCanvasMaterial, printableCanvasLabel,
 } from './print-gates';
 
 /** Deutscher Übersetzer — pinnt den bisherigen Wortlaut über den Katalog. */
@@ -43,12 +43,6 @@ describe('isLearningPath (ALT 859-863)', () => {
 });
 
 describe('isPrintableCanvasMaterial (ALT 883-893)', () => {
-  it('true sobald eine InlineDocument-Box da ist (Welle E, unabhängig vom Inhalt)', () => {
-    const docs: InlineDocument[] = [{ kind: 'ki_material', title: 'T', content: 'c' }];
-    expect(isPrintableCanvasMaterial(bot('kurzer Intro-Text', { inlineDocuments: docs }))).toBe(true);
-    expect(isPrintableCanvasMaterial(bot('', { inlineDocuments: docs }))).toBe(true);
-  });
-
   it('Fallback ohne Box: Sentinel im Inhalt → true', () => {
     expect(isPrintableCanvasMaterial(bot(SENTINEL + '\n\n# Arbeitsblatt'))).toBe(true);
   });
@@ -85,58 +79,19 @@ describe('printableCanvasLabel (ALT 910-916)', () => {
   });
 });
 
-describe('printInlineDocument (ALT 901-904)', () => {
-  // Gemockt wird nur die Browser-Grenze (`window.open`), nicht das Print-Modul:
-  // ein `vi.spyOn` auf den ESM-Export greift nicht, weil esbuild den Import
-  // direkt bindet. So läuft der echte Pfad bis in das geschriebene HTML.
-  function captureOpen(): { written: string[] } {
-    const written: string[] = [];
-    // `addEventListener`: das Dokument druckt sich nach dem Laden (Paket 8) —
-    // die Attrappe lädt nie, also druckt sie auch nicht. Uhr und Druck sind die
-    // des Fensters (Paket 9), also braucht auch die Attrappe beide.
-    const fakeWin = {
-      document: { write: (html: string) => { written.push(html); }, close: () => {} },
-      addEventListener: () => {},
-      setTimeout: () => 0,
-      print: () => {},
-    };
-    vi.stubGlobal('open', () => fakeWin);
-    return { written };
-  }
-
-  afterEach(() => vi.unstubAllGlobals());
-
-  it('druckt doc.content unter doc.title', () => {
-    const { written } = captureOpen();
-    printInlineDocument({ title: 'Mein Lernpfad', content: '# Inhalt', kind: 'lernpfad' }, t);
-    expect(written.length).toBe(1);
-    expect(written[0]).toContain('<title>Mein Lernpfad</title>');
-    expect(written[0]).toContain('Inhalt');
+describe('hatDokumentBox (U1-b)', () => {
+  const bot = (mehr: Partial<ChatMessage>): ChatMessage =>
+    ({ sender: 'bot', content: '> **Lernpfad: Brüche', ...mehr }) as ChatMessage;
+  const block = (modul: string) => ({
+    block_id: 'b0000001', modul, version: 1, art: 'anzeigen' as const, daten: {}, text: '', status: 'nur_anzeige' as const,
   });
 
-  it('ohne Titel → Fallback-Label der kind (inlineDocFallbackLabel)', () => {
-    const { written } = captureOpen();
-    printInlineDocument({ title: '', content: '# Inhalt', kind: 'lernpfad' }, t);
-    expect(written[0]).toContain('<title>Lernpfad</title>');
+  it('erkennt den Inhaltsrahmen-Block', () => {
+    expect(hatDokumentBox(bot({ ui: { ui_bloecke: [block('ui_inhaltsrahmen')] } }))).toBe(true);
   });
 
-  it('das Druckdokument zeichnet seine Sprache aus (C1-b4)', () => {
-    const { written } = captureOpen();
-    const en = createTranslator({ 'format.htmlLang': 'en' }, DE);
-    printInlineDocument({ title: 'Path', content: '# Content', kind: 'lernpfad' }, en);
-    expect(written[0]).toContain('<html lang="en">');
-  });
-
-  it('ohne Titel: das Fallback-Label kommt aus dem Übersetzer (C1-b3)', () => {
-    const { written } = captureOpen();
-    const en = createTranslator({ 'inlineDoc.kind.lernpfad': 'Learning path' }, DE);
-    printInlineDocument({ title: '', content: '# Inhalt', kind: 'lernpfad' }, en);
-    expect(written[0]).toContain('<title>Learning path</title>');
-  });
-
-  it('ohne Inhalt: No-Op (kein Druckfenster für eine leere Box)', () => {
-    const { written } = captureOpen();
-    printInlineDocument({ title: 'T', content: '', kind: 'lernpfad' }, t);
-    expect(written).toEqual([]);
+  it('andere Module und leere Nachrichten zählen nicht', () => {
+    expect(hatDokumentBox(bot({ ui: { ui_bloecke: [block('ui_linkbox')] } }))).toBe(false);
+    expect(hatDokumentBox(bot({}))).toBe(false);
   });
 });

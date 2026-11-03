@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+/**
+ * Erzeugt aus den Modul-Ordnern das Register der UI-Module (Paket U1-a).
+ *
+ * Quelle: projects/ui-module/src/ui-<name>/manifest.json + ui-<name>.component.ts.
+ * Ausgaben (alle erzeugt, nie von Hand ändern):
+ *   - projects/ui-module/src/register.generated.ts — statische Importe der Komponenten und je
+ *     Modul nur die Laufzeit-Felder des Manifests (Name, Version, Art, Titel, Fähigkeiten,
+ *     Darstellung). Statisch, weil das Widget eine einzige Datei ist (Bündel-Regel);
+ *     Nachladen kommt erst, wenn ein Modul es braucht.
+ *   - backend/src/boerdi/ui_module/manifeste.json — alle Manifeste vollständig; das Backend
+ *     baut daraus die Werkzeugbeschreibungen und prüft gegen das Schema.
+ *   - backend/src/boerdi/ui_module/manifest.schema.json — Kopie des Vertrags-Schemas.
+ *
+ * Hier wird nur der Aufbau geprüft (Pflichtfelder, Name = Ordner, Komponente vorhanden); die
+ * volle Schema-Prüfung samt Beispielen macht das Backend (tests/test_ui_modul_katalog.py).
+ *
+ * Aufruf: node scripts/module-register.mjs [--pruefen]
+ *   --pruefen schreibt nichts und endet mit 1, wenn eine Ausgabe veraltet ist (CI).
+ */
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const PFLICHT = ['name', 'version', 'art', 'titel', 'beschreibung', 'eingabe', 'textfassung', 'beispiele'];
+const LAUFZEIT = ['name', 'version', 'art', 'titel', 'faehigkeiten', 'darstellung'];
+
+/** `ui-link-box` → `UiLinkBox` */
+export function pascal(ordner) {
+  return ordner.split('-').map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join('');
+}
+
+function leseModule(quelle) {
+  const ordner = readdirSync(quelle, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && e.name.startsWith('ui-'))
+    .map((e) => e.name);
+  const module = [];
+  for (const name of ordner) {
+    const pfad = join(quelle, name, 'manifest.json');
+    if (!existsSync(pfad)) throw new Error(`${name}: manifest.json fehlt`);
+    // Manche Editoren unter Windows schreiben ein BOM; JSON.parse lehnt es ab.
+    const manifest = JSON.parse(readFileSync(pfad, 'utf8').replace(/^\uFEFF/, ''));
+    const fehlend = PFLICHT.filter((k) => !(k in manifest));
+    if (fehlend.length) throw new Error(`${name}/manifest.json: Pflichtfelder fehlen: ${fehlend.join(', ')}`);
+    if (manifest.name !== name.replace(/-/g, '_')) {
+      throw new Error(`${name}/manifest.json: name „${manifest.name}“ passt nicht zum Ordner ${name}`);
+    }
+    if (!existsSync(join(quelle, name, `${name}.component.ts`))) {
+      throw new Error(`${name}: ${name}.component.ts fehlt`);
+    }
+    module.push({ ordner: name, manifest });
+  }
+  // Codepunkte statt localeCompare: gleiche Reihenfolge auf jeder Maschine und wie Pythons sorted().
+  return module.sort((a, b) => (a.manifest.name < b.manifest.name ? -1 : a.manifest.name > b.manifest.name ? 1 : 0));
+}
+
+function registerText(module) {
+  const importe = module.map(({ ordner }) => `import { ${pascal(ordner)} } from './${ordner}/${ordner}.component';`);
+  const eintraege = module.map(({ ordner, manifest }) => {
+    const laufzeit = Object.fromEntries(LAUFZEIT.filter((k) => k in manifest).map((k) => [k, manifest[k]]));
+    return `  ${manifest.name}: { manifest: ${JSON.stringify(laufzeit)}, komponente: ${pascal(ordner)} },`;
+  });
+  return [
+    '// ERZEUGT von `npm run module:register` — nicht von Hand ändern.',
+    '// Quelle: die Modul-Ordner unter projects/ui-module/src/ui-*/ (manifest.json + Komponente).',
+    "import type { ModulRegister } from './_vertrag/register';",
+    ...importe,
+    '',
+    module.length ? `export const MODUL_REGISTER: ModulRegister = {\n${eintraege.join('\n')}\n};` : 'export const MODUL_REGISTER: ModulRegister = {};',
+    '',
+  ].join('\n');
+}
+
+/** Erzeugt (oder prüft mit `pruefen`) die drei Ausgaben; gibt die veralteten Dateinamen zurück. */
+export function erzeuge({ quelle, backend, pruefen = false }) {
+  const module = leseModule(quelle);
+  const ausgaben = [
+    [join(quelle, 'register.generated.ts'), registerText(module)],
+    [join(backend, 'manifeste.json'), JSON.stringify(module.map((m) => m.manifest), null, 2) + '\n'],
+    [join(backend, 'manifest.schema.json'), readFileSync(join(quelle, '_vertrag', 'manifest.schema.json'), 'utf8')],
+  ];
+  const veraltet = [];
+  for (const [pfad, text] of ausgaben) {
+    const alt = existsSync(pfad) ? readFileSync(pfad, 'utf8').replace(/\r\n/g, '\n') : null;
+    if (alt === text.replace(/\r\n/g, '\n')) continue;
+    veraltet.push(pfad.split(/[\\/]/).pop());
+    if (!pruefen) writeFileSync(pfad, text);
+  }
+  return { veraltet, anzahl: module.length };
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const pruefen = process.argv.includes('--pruefen');
+  const { veraltet, anzahl } = erzeuge({
+    quelle: join(frontend, 'projects', 'ui-module', 'src'),
+    backend: join(frontend, '..', 'backend', 'src', 'boerdi', 'ui_module'),
+    pruefen,
+  });
+  console.log(`UI-Module: ${anzahl}`);
+  if (pruefen && veraltet.length) {
+    console.error(`Veraltet: ${veraltet.join(', ')} — npm run module:register ausführen.`);
+    process.exit(1);
+  }
+  console.log(veraltet.length ? `geschrieben: ${veraltet.join(', ')}` : 'alles aktuell');
+}

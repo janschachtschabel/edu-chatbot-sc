@@ -32,6 +32,7 @@ import { AsyncStateComponent } from './async-state.component';
 import { engineLabel } from './engine-label';
 import { EvalAuswertungV2Component } from './eval-auswertung-v2.component';
 import { EvalGoldTurnsComponent } from './eval-gold-turns.component';
+import { EvalModulNutzungComponent } from './eval-modul-nutzung.component';
 import { EvalPatternPanelsComponent } from './eval-pattern-panels.component';
 import { EvalRunProfileComponent } from './eval-run-profile.component';
 import { evalStatusLabel } from './eval-status';
@@ -60,7 +61,8 @@ function countAt(summary: Readonly<Record<string, unknown>>, key: string): numbe
   selector: 'studio-eval-run-detail',
   imports: [
     AsyncStateComponent, EvalAuswertungV2Component, EvalGoldTurnsComponent,
-    EvalPatternPanelsComponent, EvalRunProfileComponent, RichTextComponent,
+    EvalModulNutzungComponent, EvalPatternPanelsComponent, EvalRunProfileComponent,
+    RichTextComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-run-detail.component.html',

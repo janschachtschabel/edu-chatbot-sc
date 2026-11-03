@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ChatMessage, DebugInfo, InlineDocument, TopicPageView } from '../grouping/message-types';
+import { ChatMessage, DebugInfo, TopicPageView, UiInfo } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import { ChatShellComponent } from './chat-shell.component';
@@ -166,25 +166,25 @@ describe('ChatShellComponent — Message-Row-Template (8-4S-f3)', () => {
     expect(spy).toHaveBeenCalledWith('Mehr dazu');
   });
 
-  it('Sub-Renderer werden nur mit Daten komponiert (Grouping/Swimlanes/Inline-Doc)', () => {
+  it('Sub-Renderer werden nur mit Daten komponiert (Grouping/Swimlanes/UI-Blöcke)', () => {
     const { c, f, el } = make();
     store(c).addBotMessage('Nur Text');
     f.detectChanges();
     expect(el.querySelector('boerdi-swimlanes')).toBeNull();
-    expect(el.querySelector('boerdi-inline-documents')).toBeNull();
+    expect(el.querySelector('boerdi-ui-bloecke')).toBeNull();
 
-    const docs: InlineDocument[] = [{ kind: 'lernpfad', title: 'Mein Pfad', content: '# Schritt' }];
+    const ui: UiInfo = { ui_bloecke: [{ block_id: 'b0000001', modul: 'ui_inhaltsrahmen', version: 1, art: 'anzeigen', daten: { titel: 'Mein Pfad', art: 'lernpfad', markdown: '# Schritt' }, text: '# Schritt', status: 'nur_anzeige' }] };
     const topic: TopicPageView = {
       variant_title: 'Mathe', topic_page_url: 'https://wirlernenonline.de/t',
       swimlanes: [{ heading: 'Videos', cards: [] }],
     };
     store(c).addBotMessage(
-      'Mit Boxen', false, undefined, undefined, undefined, null,
-      undefined, undefined, docs, undefined, topic,
+      'Mit Boxen', false, undefined, undefined, ui, null,
+      undefined, undefined, undefined, topic,
     );
     f.detectChanges();
     expect(el.querySelector('boerdi-swimlanes')).not.toBeNull();
-    expect(el.querySelector('boerdi-inline-documents')).not.toBeNull();
+    expect(el.querySelector('boerdi-ui-bloecke')).not.toBeNull();
     // Result-Groups hängen am Host-Flag statt an den Daten (das Daten-Gate liegt
     // in der Komponente) — aber nur in Bot-Zeilen.
     expect(el.querySelector('boerdi-result-groups')).not.toBeNull();
@@ -197,7 +197,7 @@ describe('ChatShellComponent — Message-Row-Template (8-4S-f3)', () => {
     expect(el.querySelector('boerdi-result-groups')).toBeNull();
     expect(el.querySelector('boerdi-quick-replies')).toBeNull();
     expect(el.querySelector('boerdi-swimlanes')).toBeNull();
-    expect(el.querySelector('boerdi-inline-documents')).toBeNull();
+    expect(el.querySelector('boerdi-ui-bloecke')).toBeNull();
   });
 
   it('Druck-Leiste: Lernpfad ohne Box bekommt sie, MIT Box nicht (kein Doppel-Button)', () => {
@@ -206,13 +206,12 @@ describe('ChatShellComponent — Message-Row-Template (8-4S-f3)', () => {
     f.detectChanges();
     expect(el.querySelector('.lp-print-bar')).not.toBeNull();
 
-    const docs: InlineDocument[] = [{ kind: 'lernpfad', title: 'P', content: '# S' }];
+    const ui: UiInfo = { ui_bloecke: [{ block_id: 'b0000001', modul: 'ui_inhaltsrahmen', version: 1, art: 'anzeigen', daten: { titel: 'Mein Pfad', art: 'lernpfad', markdown: '# Schritt' }, text: '# Schritt', status: 'nur_anzeige' }] };
     store(c).set([]);
-    store(c).addBotMessage('> **Lernpfad: x**', false, undefined, undefined, undefined, null,
-      undefined, undefined, docs);
+    store(c).addBotMessage('> **Lernpfad: x**', false, undefined, undefined, ui);
     f.detectChanges();
     expect(el.querySelector('.lp-print-bar')).toBeNull();
-    expect(el.querySelector('boerdi-inline-documents')).not.toBeNull();
+    expect(el.querySelector('ui-inhaltsrahmen')).not.toBeNull();
   });
 
   // 8-2i: `inline-result-grouping` ist wieder ein echtes Host-Attribut (in ALT

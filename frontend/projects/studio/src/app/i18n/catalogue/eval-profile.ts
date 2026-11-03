@@ -45,6 +45,21 @@ export const EVAL_PROFILE: CataloguePart = {
       + 'Ersatzantworten: {fallback}',
     'evalProfile.robustnessNoJudge':
       'Chat-Fehler: {errors} · leere Antworten: {empty} · Ersatzantworten: {fallback}',
+    // Paket U1-g: Modul-Nutzung (`eval-modul-nutzung.component`).
+    'evalModul.title': 'Modul-Nutzung',
+    'evalModul.hint':
+      'In wie vielen Zügen welches UI-Modul erschien — je Muster (Agent-Züge: AGENT) und je '
+      + 'Anwendungsfall. Gezählt werden gezeigte Blöcke, nicht Werkzeugaufrufe.',
+    'evalModul.nichtErfasst':
+      'Nicht erfasst: der Lauf ist älter als die Zählung der UI-Module.',
+    'evalModul.nochKeine': 'Noch keine beantworteten Züge.',
+    'evalModul.erfasst': '{erfasst} von {zuege} beantworteten Zügen erfasst.',
+    'evalModul.keine': 'In keinem Zug erschien ein UI-Modul.',
+    'evalModul.jeMuster': 'Je Muster',
+    'evalModul.jeFall': 'Je Anwendungsfall',
+    'evalModul.col.muster': 'Muster',
+    'evalModul.col.fall': 'Anwendungsfall',
+    'evalModul.col.zuege': 'Züge',
   },
   en: {
     'evalProfile.title': 'Run profile',
@@ -78,5 +93,19 @@ export const EVAL_PROFILE: CataloguePart = {
       + 'Fallback answers: {fallback}',
     'evalProfile.robustnessNoJudge':
       'Chat errors: {errors} · Empty answers: {empty} · Fallback answers: {fallback}',
+    'evalModul.title': 'Module use',
+    'evalModul.hint':
+      'In how many turns each UI module appeared — per pattern (agent turns: AGENT) and per '
+      + 'use case. Shown blocks count, not tool calls.',
+    'evalModul.nichtErfasst':
+      'Not recorded: the run is older than the counting of UI modules.',
+    'evalModul.nochKeine': 'No answered turns yet.',
+    'evalModul.erfasst': '{erfasst} of {zuege} answered turns recorded.',
+    'evalModul.keine': 'No UI module appeared in any turn.',
+    'evalModul.jeMuster': 'Per pattern',
+    'evalModul.jeFall': 'Per use case',
+    'evalModul.col.muster': 'Pattern',
+    'evalModul.col.fall': 'Use case',
+    'evalModul.col.zuege': 'Turns',
   },
 };

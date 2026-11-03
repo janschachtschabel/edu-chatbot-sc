@@ -297,6 +297,7 @@ abgeschnittener Lauf sähe von außen sonst aus wie einer, der fertig wurde.
 | `empty` | Das Modell lieferte dreimal weder Werkzeug noch Text |
 | `error` | Fehler in der Schleife |
 | `safety` | Das Sicherheits-Gate hat den Auftrag gestoppt, die Schleife lief nicht (AG-4 Teil B) |
+| `frage` | Nur im Chat-Zug (U1-d1): ein abfragendes UI-Modul (`ui_entscheidung`) hat die Runde beendet, die Person antwortet im Auswahlfeld — kein `result` zu erwarten. `/api/agent` bietet keine Modul-Werkzeuge, dort kommt der Wert nicht vor |
 
 Die vier Deckel stehen in `01-base/engine`; `submit` und `text` sind die beiden
 Ziellinien.
@@ -469,7 +470,7 @@ wie ein Lasttest, nicht wie eine Suche.
 - **`debug.trace`** führt im Agent-Modus je Runde eine Zeile
   `agent_round` und zum Schluss `agent_stop` mit Ende-Grund und Rundenzahl. Eine
   Runde nennt ihre Werkzeuge in Aufrufreihenfolge, auch die virtuellen
-  (`zeige_dokument`, `liefere_ergebnis`, `wissen_suchen` …), dazu Dauer und Token.
+  (`ui_inhaltsrahmen`, `liefere_ergebnis`, `wissen_suchen` …), dazu Dauer und Token.
   Von den Argumenten stehen nur die **Namen** darin, nie die Werte: ein Wert kann
   Nutzerinhalt tragen. Die Werte stehen in der Zugakte (`debug._zugakte`, Paket
   18C/D). Den Debug-Block bekommt seit Paket 18C/D nur die Anlage selbst; das
@@ -528,7 +529,7 @@ Schnellantwort-Pillen, Struktur"). Hinein gehört deshalb, was flexibel bleiben
 muss: das Vorgehen je Anliegen, Anrede-Regel und Arbeitsweise je Zielgruppe,
 Suchstrategie, Didaktik und die Bedienung der Chat-Flächen. Beschreibt er
 Mechanik, muss sie für den **Agent-Zug** stimmen — eine Dokument-Box entsteht dort
-nur über `zeige_dokument`, der Überschriften-Rückfall gilt allein im Muster-Weg.
+nur über `ui_inhaltsrahmen`, der Überschriften-Rückfall gilt allein im Muster-Weg.
 Woanders hin gehört:
 
 | Was | Wo | Warum |

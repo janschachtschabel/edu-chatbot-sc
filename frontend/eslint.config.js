@@ -58,6 +58,18 @@ module.exports = tseslint.config(
     rules: {},
   },
   {
+    // Paket U1: UI-Module hängen nur am Vertrag und an Einzeldateien von `@boerdi/ui` — nie an
+    // der Chat-Shell und nicht am Sammel-Export (der zöge die Shell mit und schlösse einen Kreis,
+    // weil die Shell das Register der Module lädt).
+    files: ['projects/ui-module/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: [{ name: '@boerdi/ui', message: 'Einzeldatei importieren, z. B. @boerdi/ui/icons/…' }],
+        patterns: [{ group: ['**/shell/**', '@boerdi/ui/shell/**'], message: 'UI-Module dürfen die Chat-Shell nicht importieren.' }],
+      }],
+    },
+  },
+  {
     // MUSS nach dem TS-Block stehen: in der Flat-Config gewinnt das spätere
     // Objekt. Diese Datei ist selbst CommonJS (so lädt ESLint Flat-Configs,
     // solange das Paket kein `"type": "module"` hat) — `require` ist hier

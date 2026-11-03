@@ -193,13 +193,19 @@ def _aggregate_classification_metrics(
     # pro Turn, ob mindestens EINES der vom Pattern verlangten Tools auch
     # aufgerufen wurde — das ist ein hartes Indiz für korrekte Pattern-
     # Ausführung. Patterns ohne tools-Liste werden nicht gezählt.
+    # Review U1-d2 (Befund 3): UI-Module in ``tools:`` sind keine MCP-Werkzeuge und stehen nie
+    # in ``tools_called`` — gezählt wird wie in ``phase3_modulate`` nur der MCP-Teil; ein Muster,
+    # das nur Module nennt, zählt nicht.
     from boerdi.services.config_loader import load_pattern_definitions as _lp
+    from boerdi.ui_module.katalog import katalog as _ui_katalog
+    _module = _ui_katalog()
     _pattern_tools_map: dict[str, list[str]] = {}
     for p in _lp() or []:
         pid = p.get("id")
         tools = p.get("tools") or []
         if pid and isinstance(tools, list):
-            _pattern_tools_map[pid] = [t for t in tools if isinstance(t, str)]
+            _pattern_tools_map[pid] = [t for t in tools
+                                       if isinstance(t, str) and t not in _module]
 
     tool_compliance_total = 0
     tool_compliance_ok = 0

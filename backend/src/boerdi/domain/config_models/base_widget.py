@@ -13,7 +13,7 @@ Stelle gepflegt wird.
 
 from typing import Annotated, Any
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from boerdi.domain.config_models._shared import AreaModel, Choices, Marker, Primary, Textarea
 
@@ -118,6 +118,24 @@ class PromptAnzeigeKonsistenz(AreaModel):
     exclude_patterns: list[str] = []
 
 
+class UiModulSchalter(AreaModel):
+    """Paket U1-f: Studio-Schalter der UI-Module als Ausschalt-Listen (wie ``werkzeuge_aus``);
+    fehlt ein Name, ist das Modul an. ``aus``: erscheint in neuen Antworten nicht (kein Werkzeug,
+    kein abgeleiteter Block); ``agent_aus``: nur der Agent-Modus bietet es nicht an. Gelesen von
+    ``config_loader/ui_module.load_ui_modul_schalter`` — NICHT von ``load_display_rules_config``,
+    dessen Ergebnis in jeder Antwort mitreist. Gepflegt auf der Studio-Seite „UI-Module“."""
+
+    aus: list[str] = []
+    agent_aus: list[str] = []
+
+    @field_validator("aus", "agent_aus")
+    @classmethod
+    def _namen(cls, namen: list[str]) -> list[str]:
+        from boerdi.ui_module.namen import pruefe_schalter_namen
+
+        return pruefe_schalter_namen(namen)
+
+
 class DisplayRulesBlock(AreaModel):
     inline_documents: InlineDocumentsRules = InlineDocumentsRules()
     single_content_box: SingleContentBoxRules = SingleContentBoxRules()
@@ -125,6 +143,7 @@ class DisplayRulesBlock(AreaModel):
     inline_card_links: InlineCardLinksRules = InlineCardLinksRules()
     quick_replies: QuickRepliesRules = QuickRepliesRules()
     prompt_anzeige_konsistenz: PromptAnzeigeKonsistenz = PromptAnzeigeKonsistenz()
+    ui_module: UiModulSchalter = UiModulSchalter()
 
 
 class DisplayRulesArea(AreaModel):
@@ -138,10 +157,12 @@ class ContextPill(AreaModel):
     # Sprache des Nutzers stehen, nicht nur lesbar sein.
     label_en: str = ""
     kind: str = ""
-    #: Auswahl statt Freitext: ``graph/nodes/preflight`` verzweigt auf genau
-    #: diese vier Namen und laesst alles andere still durchfallen — der Knopf
+    #: Auswahl statt Freitext: ``graph/nodes/preflight`` verzweigt auf diese
+    #: vier Namen und laesst alles andere still durchfallen — der Knopf
     #: taete dann nichts, und niemand sagte es. Die Liste ist mit dem Dispatch
-    #: gepaart; ein Waechter prueft sie gegen den ausgelieferten Seed.
+    #: gepaart; ein Waechter prueft sie gegen den ausgelieferten Seed. Die
+    #: fuenfte Aktion des Dispatch, ``show_collection_tree`` (U1-e), fehlt hier
+    #: mit Absicht: sie kommt nur aus dem Themenbaum, der die Kennung kennt.
     action: Annotated[str, Choices(
         "browse_collection", "curate_collection",
         "generate_learning_path", "show_content_text",

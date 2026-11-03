@@ -16,7 +16,6 @@ import { WloCard } from '../cards/card-types';
 import {
   ChatResponse,
   DebugInfo,
-  InlineDocument,
   PaginationInfo,
   QueryMetaEntry,
   TopicPageView,
@@ -42,7 +41,7 @@ export interface ContextGreetingContext {
     content: string, isLoading?: boolean, cards?: WloCard[],
     quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null, queryMetas?: QueryMetaEntry[],
-    webLinks?: WebLink[], inlineDocuments?: InlineDocument[],
+    webLinks?: WebLink[],
     displayRules?: Record<string, any>, topicPage?: TopicPageView | null,
   ) => string;
   removeMessage: (id: string) => void;
@@ -99,7 +98,7 @@ export class ContextGreetingController {
         const id = this.ctx.addBotMessage(
           resp.content, false, resp.cards, resp.quick_replies, resp.ui,
           resp.pagination, resp.query_metas, resp.web_links,
-          resp.inline_documents, resp.display_rules, resp.topic_page,
+          resp.display_rules, resp.topic_page,
         );
         this.ctx.setScrollTarget(id);
         this.ctx.setLatestDebug(resp.debug, resp.ui);

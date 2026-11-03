@@ -54,6 +54,7 @@ async def _assemble_messages(
     *,
     seiten_daten: str = "",
     rag_einbettung: tuple[str, list[float]] | None = None,
+    vorsatz: str = "",
 ) -> tuple[
     list[dict], list[dict], list[str], list, bool, list[str], bool,
     int, float, int,
@@ -72,6 +73,8 @@ async def _assemble_messages(
     user-Nachricht vor dem Verlauf (E-E, ``seiten_daten``), der vorab gerechnete
     Vektor fuer den always-Abruf (T1, ``rag_einbettung``) und der UI-Box-Status
     an der letzten Werkzeug-Nachricht statt als eigene System-Nachricht (D).
+    Paket U1-d2: ``vorsatz`` steht gerahmt vor der Nachricht der Person (die Antwort auf die
+    Auswahl-Frage des vorigen Zugs, wie im Agent-Zug); die Wissenssuche nimmt nur die Nachricht.
     Sonst wie ALT, modulo Import-Pfade.
 
     Returns ``(messages, all_cards, tools_called, outcomes,
@@ -81,6 +84,7 @@ async def _assemble_messages(
     Retrieval-Settings.
     """
     messages = [{"role": "system", "content": system}]
+    nutzer_inhalt = f"{vorsatz}\n\n{message}" if vorsatz else message
 
     # Inject the current canvas state as an additional system context.
     # This lets the LLM reference or modify what the user currently sees
@@ -186,7 +190,7 @@ async def _assemble_messages(
                         used.append(_a)
                 # Inject as a completed tool call — tell the LLM ALL always-areas were searched
                 areas_label = ", ".join(always_areas)
-                messages.append({"role": "user", "content": message})
+                messages.append({"role": "user", "content": nutzer_inhalt})
                 messages.append({
                     "role": "assistant",
                     "content": None,
@@ -215,7 +219,7 @@ async def _assemble_messages(
                 })
 
     if not knowledge_prefetched:
-        messages.append({"role": "user", "content": message})
+        messages.append({"role": "user", "content": nutzer_inhalt})
 
     # ── Speculative MCP prefetch injection ─────────────────────────
     # If the turn setup spawned a speculative MCP search in parallel with

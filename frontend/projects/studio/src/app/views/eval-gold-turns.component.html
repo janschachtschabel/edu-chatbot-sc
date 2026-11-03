@@ -50,6 +50,12 @@
                 @if (skills(turn); as liste) {
                   <p class="erd-hint">{{ t('evalDetail.skills', { skills: liste }) }}</p>
                 }
+                @if (uiModule(turn); as zeile) {
+                  <p class="erd-hint">{{ zeile }}</p>
+                }
+                @if (uiAntwort(turn); as zeile) {
+                  <p class="erd-hint">{{ zeile }}</p>
+                }
                 <p class="erd-bot">{{ botText(turnKey(turn.flow, turn.turn)) }}</p>
               </td>
             </tr>

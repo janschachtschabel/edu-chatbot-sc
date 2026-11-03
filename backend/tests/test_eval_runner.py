@@ -42,7 +42,7 @@ def _patch_env(monkeypatch, llm, responses):
     monkeypatch.setattr(rn, "load_persona_definitions", lambda: [_PERSONA])
     calls: list[tuple] = []
 
-    async def fake_post(chat_url, message, session_id=None):
+    async def fake_post(chat_url, message, session_id=None, ui_module=None):
         calls.append((message, session_id))
         return responses[min(len(calls) - 1, len(responses) - 1)]
 
@@ -124,7 +124,7 @@ def test_simulate_conversation_chat_error_records_turn_and_breaks(monkeypatch):
     monkeypatch.setattr(rn, "chat_completion", llm)
     monkeypatch.setattr(rn, "load_persona_definitions", lambda: [_PERSONA])
 
-    async def broken_post(chat_url, message, session_id=None):
+    async def broken_post(chat_url, message, session_id=None, ui_module=None):
         raise RuntimeError("kaputt")
 
     monkeypatch.setattr(rn, "_post_chat", broken_post)
@@ -228,7 +228,7 @@ def _patch_stage(monkeypatch, *, scenarios, chat_resp, judge=None):
             await progress_cb(1, 1, personas[0]["id"], intents[0]["id"])
         return scenarios
 
-    async def fake_post(chat_url, message, session_id=None):
+    async def fake_post(chat_url, message, session_id=None, ui_module=None):
         return chat_resp
 
     async def fake_judge(persona, intent, user, bot, debug, **kw):
@@ -274,7 +274,7 @@ def test_execute_run_degrades_a_failing_scenario_turn(monkeypatch, recorder):
         return [{"persona_id": "P-LEH", "intent_id": "I01",
                  "opening": "Frage", "index": 0}]
 
-    async def broken_post(chat_url, message, session_id=None):
+    async def broken_post(chat_url, message, session_id=None, ui_module=None):
         raise RuntimeError("chat weg")
 
     monkeypatch.setattr(rn, "generate_scenarios", fake_generate)
@@ -327,7 +327,7 @@ def test_execute_run_i06_scenario_gets_a_priming_turn(monkeypatch, recorder):
         return [{"persona_id": "P-LEH", "intent_id": "I06",
                  "opening": "Mach es einfacher", "index": 0}]
 
-    async def fake_post(chat_url, message, session_id=None):
+    async def fake_post(chat_url, message, session_id=None, ui_module=None):
         posted.append((message, session_id))
         return {"content": "ok", "debug": {"pattern": "M11 (Edit)"}}
 
@@ -439,3 +439,13 @@ def test_execute_run_reicht_die_merkposten_je_rolle_durch(monkeypatch, recorder)
     assert _seen_acc["szenario"] is lauf.szenario
     assert _seen_acc["judge"] is lauf.judge
     assert llm.calls and all(c.get("usage_acc") is lauf.simulator for c in llm.calls)
+
+
+def test_augment_bot_text_liest_den_inhaltsrahmen():
+    """U1-b2: das Material steht im Inhaltsrahmen-Block, nicht mehr in ``inline_documents``."""
+    rahmen = {"block_id": "b0000001", "modul": "ui_inhaltsrahmen", "version": 1,
+              "art": "anzeigen", "status": "nur_anzeige", "text": "## Plan",
+              "daten": {"titel": "Verlaufsplan", "art": "stundenplanung", "markdown": "## Plan"}}
+    out = rn._augment_bot_text({"content": "Hier.", "ui": {"ui_bloecke": [rahmen]}})
+    assert "[Inline-Document — vom Nutzer sichtbar: Verlaufsplan]" in out
+    assert "## Plan" in out

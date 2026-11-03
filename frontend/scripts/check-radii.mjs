@@ -25,7 +25,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
-const DEFAULT_ROOTS = ['projects/ui/src', 'projects/widget/src'];
+const DEFAULT_ROOTS = ['projects/ui/src', 'projects/ui-module/src', 'projects/widget/src'];
 const EXTENSIONS = new Set(['.scss', '.css', '.ts']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.angular']);
 

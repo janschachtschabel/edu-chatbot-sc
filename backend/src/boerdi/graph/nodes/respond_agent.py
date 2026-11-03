@@ -94,6 +94,8 @@ from boerdi.services.config_loader import load_engine
 from boerdi.services.quick_replies_llm import _max_chars
 from boerdi.services.schreibrecht import schreiben_erlaubt
 from boerdi.services.write_approval import merke_abnahme
+from boerdi.ui_module.antwort import merke_frage
+from boerdi.ui_module.antwort import vorsatz as frage_vorsatz
 
 logger = logging.getLogger(__name__)
 
@@ -271,8 +273,11 @@ async def respond_agent(
     # Nachricht, nicht als System-Block: den hebt LiteLLM auf dem Responses-Weg in
     # ``instructions`` (Review 2026-09-29), und er enthält Fremdtext.
     gezeigt = zuletzt_gezeigt(ctx.history)
-    messages.append({"role": "user",
-                     "content": f"{gezeigt}\n\n{ctx.req.message}" if gezeigt else ctx.req.message})
+    # Paket U1-d1: die geprüfte Antwort auf die Frage des vorigen Zugs, gerahmt davor — der
+    # Werkzeugaufruf mit Frage und Möglichkeiten steht nicht im Verlauf, nur Text. Ohne geprüfte
+    # Antwort die Frage selbst (Review U1-d1, Befund 3): getippt, älteres Widget, POST-Rückfall.
+    vorsatz = [b for b in (frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage), gezeigt) if b]
+    messages.append({"role": "user", "content": "\n\n".join([*vorsatz, ctx.req.message])})
 
     # Erklärt der Gastgeber ein Schema, bekommt der Lauf seinen Ergebnis-Kanal
     # (2026-08-14, seit J1 ``liefere_ergebnis`` statt ``submit_result``). Nur
@@ -323,6 +328,8 @@ async def respond_agent(
             # den Lauf, und im Chat kostete genau das die Prosa-Antwort.
             include_submit=False, include_ergebnis=bool(_schema),
             result_schema=_schema, include_dokument=True,
+            # Nur die Module, die das Widget meldet (Review U1-d1, Befund 8).
+            ui_module=ctx.req.environment.ui_module,
             # O-A: die Erlaubnis der Einbettung. Dasselbe Wort, das ueber
             # ``host_capabilities.prompt_block`` im Prompt steht — sonst
             # verspraeche das Modell, was ihm die Liste gleich nimmt.
@@ -372,7 +379,8 @@ async def respond_agent(
     # verschluckt. Nur dann — ein Lauf ohne jede Lieferung hat auch nichts zu
     # erzählen, und der ehrliche Ersatzsatz ist billiger und richtiger als ein
     # weiterer Zug.
-    if not lauf.text.strip() and (lauf.result is not None or lauf.dokumente):
+    if not lauf.text.strip() and lauf.stop_reason != "frage" and (
+            lauf.result is not None or lauf.dokumente):
         lauf.text = await abschluss_nachholen(lauf, messages, ctx.usage)
 
     # Triple-Schema T-25/27 wie im Bestandsweg: die Qualitätslogs lesen beides
@@ -435,6 +443,15 @@ async def respond_agent(
     # Zusammenstellung nimmt sie vor dem eigenen Aufruf (und filtert sie gleich).
     if lauf.vorschlaege:
         ctx.session_state["_inline_quick_replies"] = lauf.vorschlaege
+    # Paket U1-d1: Blöcke der Modul-Werkzeuge (``turn_persist`` speichert und liefert sie). Eine
+    # Frage merkt sich die Sitzung für den nächsten Zug; darunter keine Schnellantworten — ein
+    # Klick darauf machte die Frage veraltet.
+    # Am Block, nicht am Ende-Grund: auch ein Lauf, der nach der Frage an einem Deckel endet,
+    # zeigt sie — dann muss die Sitzung sie kennen, sonst fiele die Antwort weg.
+    ctx.ui_bloecke = list(lauf.ui_bloecke)
+    if offen := next((b for b in lauf.ui_bloecke if b.art == "abfragen"), None):
+        merke_frage(ctx.session_state.setdefault("entities", {}), offen)
+        ctx.qr_mode = "none"
     # Ergebnis und Ende-Grund weiterreichen. Der Grund geht MIT, auch wenn kein
     # Ergebnis kam: sonst sähe ein an der Frist abgeschnittener Lauf für die
     # Gastseite aus wie einer, der nichts zu sagen hatte.

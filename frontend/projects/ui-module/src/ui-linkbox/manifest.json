@@ -1,0 +1,93 @@
+{
+  "name": "ui_linkbox",
+  "version": 1,
+  "art": "anzeigen",
+  "titel": {
+    "de": "Webseiten-Inhalte",
+    "en": "Web page contents"
+  },
+  "beschreibung": "Zeigt die Webseiten, auf die sich die Antwort stuetzt, als Liste von Links — ohne WLO-Inhalte (die stehen in der Trefferliste). Entsteht automatisch aus den Links der Antwort.",
+  "wann": [
+    "automatisch, wenn die Antwort Webseiten nennt"
+  ],
+  "nicht_wann": [
+    "fuer WLO-Inhalte und Sammlungen — dafuer die Trefferliste"
+  ],
+  "agent": false,
+  "eingabe": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "links"
+    ],
+    "properties": {
+      "links": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 30,
+        "description": "Die Links in der Reihenfolge der Antwort.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "titel",
+            "url"
+          ],
+          "properties": {
+            "titel": {
+              "type": "string",
+              "maxLength": 300,
+              "description": "Beschriftung des Links; leer, wenn die Antwort keine nennt."
+            },
+            "url": {
+              "type": "string",
+              "pattern": "^https?://",
+              "maxLength": 2000,
+              "description": "Adresse der Webseite (nur http und https)."
+            }
+          }
+        }
+      }
+    }
+  },
+  "datenquelle": null,
+  "faehigkeiten": [
+    "oeffnen"
+  ],
+  "textfassung": {
+    "vorlage": "link_liste",
+    "feld": "links"
+  },
+  "darstellung": {
+    "breit": false,
+    "platz": "unten"
+  },
+  "beispiele": [
+    {
+      "titel": "Zwei Webseiten",
+      "daten": {
+        "links": [
+          {
+            "titel": "WirLernenOnline",
+            "url": "https://wirlernenonline.de/"
+          },
+          {
+            "titel": "Bildungsserver",
+            "url": "https://www.bildungsserver.de/"
+          }
+        ]
+      }
+    },
+    {
+      "titel": "Link ohne Beschriftung",
+      "daten": {
+        "links": [
+          {
+            "titel": "",
+            "url": "https://example.org/seite"
+          }
+        ]
+      }
+    }
+  ]
+}

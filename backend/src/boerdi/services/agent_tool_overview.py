@@ -23,6 +23,14 @@ dessen Spur (``safety.blocked_tools`` im Debug-Block).
 
 Nicht dabei: ``submit_result``. Es gehört dem Auftrags-Endpunkt ``/api/agent``;
 ein Chat-Zug bekommt es nie.
+
+**UI-Module als Werkzeuge** (U1-d2): eingebaut wie das Dokument, aber nur, wenn das Widget das
+Modul meldet (``environment.ui_module``). „Angeboten" meint hier das heutige Widget, das alle
+seine Module meldet; die Sperre ``widget_module`` sagt, wer sie nicht bekommt (ältere Widgets,
+Gastanwendungen mit eigenem Client, der Studio-Probelauf). Ein Modul mit Datenquelle (U1-e) trägt
+dazu ``data_source`` mit dem Werkzeug: fehlt dieses im Angebot, fehlt das Modul mit. Ist ein Modul
+auf der Studio-Seite „UI-Module“ abgeschaltet (U1-f) — ganz oder nur für den Agenten —, trägt es
+``studio_off``; ein Code für beide Fälle, der Studio-Text sagt deshalb nur „abgeschaltet“.
 """
 
 from __future__ import annotations
@@ -40,6 +48,9 @@ from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 from boerdi.services.safety.regex_gate import SPERRE_PERSOENLICH
 from boerdi.services.schreibrecht import schreiben_erlaubt
+from boerdi.ui_module import datenquelle, schalter
+from boerdi.ui_module import katalog as modul_katalog
+from boerdi.ui_module.werkzeuge import modul_werkzeug_titel, werkzeug_aus_manifest
 
 
 def _policy_sperren(cfg: dict[str, Any]) -> dict[str, list[str]]:
@@ -85,15 +96,30 @@ def _virtuell(werkzeug: dict[str, Any] | None, name: str, angeboten: set[str],
     }
 
 
+def _modul_zeile(manifest: dict[str, Any], angeboten: set[str]) -> dict[str, Any]:
+    """Ein UI-Modul: nur, wenn das Widget es meldet — mit Datenquelle zusätzlich nur, wenn deren
+    Werkzeug angeboten ist (Review U1-e, Befund 8: sonst hieße der Grund fälschlich „Widget“)."""
+    zeile = _virtuell(werkzeug_aus_manifest(manifest), manifest["name"], angeboten,
+                      "widget_module")
+    if quelle := datenquelle.werkzeug(manifest):
+        zeile["locks"].append({"code": "data_source", "tool": quelle})
+    # U1-f: nur wenn es im Studio gerade abgeschaltet ist (wie ``hidden`` bei Server-Werkzeugen).
+    if not schalter.fuer_agent(manifest["name"]):
+        zeile["locks"].append({"code": "studio_off"})
+    return zeile
+
+
 def werkzeugliste() -> dict[str, Any]:
     """Alle Werkzeuge eines Chat-Zugs im Agent-Modus, je mit Art und Sperren."""
     wissen = wissen_werkzeug(load_rag_config())
     # Wie im Chat-Zug (Paket 7, S4): schreibend nur mit Schreibrecht. Eine
     # Studio-Anfrage trägt keine persönliche Anmeldung — die Liste zeigt also,
     # was ein Zug ohne Anmeldung bekommt; mit Anmeldung kämen sie dazu.
+    module = list(modul_werkzeug_titel())
+    manifeste = modul_katalog.katalog()
     angeboten = {t["function"]["name"] for t in build_agent_tools(
         include_submit=False, include_dokument=True, wissen_tool=wissen,
-        allow_curation=schreiben_erlaubt())}
+        allow_curation=schreiben_erlaubt(), ui_module=module)}
     policy = _policy_sperren(load_policy_config())
     fremd = fremdwerkzeuge.fuer_die_uebersicht()
     fremd_an = {d["function"]["name"] for d in fremdwerkzeuge.definitionen()}
@@ -130,5 +156,7 @@ def werkzeugliste() -> dict[str, Any]:
         _virtuell(dokument, dokument["function"]["name"], angeboten, None),
         # Nur wenn der Gastgeber ein ``result_schema`` erklärt (J1).
         _virtuell(ergebnis, ergebnis["function"]["name"], angeboten, "host_schema"),
+        # U1-d2: nur, wenn das Widget das Modul meldet (Modulkopf).
+        *(_modul_zeile(manifeste[name], angeboten) for name in module),
     ]
     return {"tools": zeilen}

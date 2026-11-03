@@ -5,7 +5,7 @@
 
   Die Blöcke, die in ALT inline im Monolithen lagen, sind hier eigene 8-2-
   Komponenten: Themenseiten-Schwimmlinien (ALT 97-131), Inline-Result-Grouping-
-  Boxen (133-237), InlineDocument-Box (37-52), Quick-Replies (400-416) und das
+  Boxen (133-237), UI-Module (Paket U1, u. a. Inhaltsrahmen), Quick-Replies (400-416) und das
   Debug-Panel (422-607). Die HOST-FLAG-Gates bleiben hier beim Elternteil, die
   Daten-Gates leben in den Komponenten.
 
@@ -77,22 +77,27 @@
             <p class="ai-notice">{{ t('chat.aiGenerated') }}</p>
           }
 
-          <!-- Inline-Document-Box: Lernpfade (M09), KI-Materialien (M10),
-               Edits (M11) im Chat-Verlauf, mit Druck-Button im Box-Header. -->
-          @if (!msg.isLoading && msg.inlineDocuments?.length) {
-            <boerdi-inline-documents
-              [documents]="msg.inlineDocuments!"
-              [displayRules]="msg.displayRules ?? null"
+          <!-- Paket U1: die UI-Module der Antwort (mehrere möglich), live und nach dem Neuladen
+               aus `ui.ui_bloecke`; ohne passendes Modul steht die Textfassung. Zwei Plätze
+               (`darstellung.platz`): oben hier, unten nach den Trefferboxen (Linkbox …). -->
+          @if (!msg.isLoading && msg.ui?.ui_bloecke?.length) {
+            <boerdi-ui-bloecke
+              [bloecke]="msg.ui!.ui_bloecke!"
+              platz="oben"
+              [sprache]="locale()"
               [renderMarkdown]="renderBotMarkdown"
               [translate]="t"
-              (print)="print.printInlineDocument($event, t)"
+              [displayRules]="msg.displayRules ?? null"
+              [verweise]="render.groupingCtx"
+              [treffer]="modulTreffer"
+              [nachrichtId]="msg.id"
+              [antworten]="modulAntworten"
             />
           }
 
-          <!-- Legacy-Druck-Leisten: greifen nur für Bestands-Messages OHNE
-               inlineDocuments (z.B. aus dem Session-Restore) — bei vorhandener
-               Box druckt der Button IN der Box (kein Doppel-Button). -->
-          @if (!msg.isLoading && !msg.inlineDocuments?.length && print.isLearningPath(msg)) {
+          <!-- Legacy-Druck-Leisten: greifen nur für Nachrichten OHNE Inhaltsrahmen-Block — sonst
+               druckt der Knopf IN der Box (kein Doppel-Knopf). -->
+          @if (!msg.isLoading && !print.hatDokumentBox(msg) && print.isLearningPath(msg)) {
             <div class="lp-print-bar">
               <button
                 type="button"
@@ -105,7 +110,7 @@
               </button>
             </div>
           }
-          @if (!msg.isLoading && !msg.inlineDocuments?.length && print.isPrintableCanvasMaterial(msg)) {
+          @if (!msg.isLoading && !print.hatDokumentBox(msg) && print.isPrintableCanvasMaterial(msg)) {
             <div class="lp-print-bar">
               <button
                 type="button"
@@ -136,7 +141,7 @@
                Der leere Rahmen bleibt durch das interne hasGroupedResults-Gate
                aus (ALTs Daten-Gate); `sender === 'bot'` hält die Komponente aus
                den User-Bubbles heraus, wo sie ohnehin nie etwas rendern könnte. -->
-          @if (msg.sender === 'bot' && !cardsVisible && !hideCards) {
+          @if (msg.sender === 'bot' && !cardsVisible && !hideCards && !hatTrefferliste(msg)) {
             <boerdi-result-groups
               [message]="msg"
               [ctx]="render.resultGroupsCtx"
@@ -154,7 +159,7 @@
                `cardsEnabledBool` (Welle-E-Konstante) steht nicht mehr in der
                Bedingung: `show-cards` IST sein Nachfolger, nur mit drei
                Stellungen statt zwei. -->
-          @if (cardsVisible && !hideCards) {
+          @if (cardsVisible && !hideCards && !hatTrefferliste(msg)) {
             <!-- `resultGroupsCtx` statt `groupingCtx` seit U6b: das Raster
                  zeigt jetzt ebenfalls den Such-Absprung, und dessen
                  `_self`/`_blank`-Entscheidung braucht die Host-Trust-Abfrage. -->
@@ -173,9 +178,31 @@
             <boerdi-web-links [message]="msg" [ctx]="render.resultGroupsCtx" [standalone]="true" />
           }
 
+          @if (!msg.isLoading && msg.ui?.ui_bloecke?.length) {
+            <boerdi-ui-bloecke
+              [bloecke]="msg.ui!.ui_bloecke!"
+              platz="unten"
+              [sprache]="locale()"
+              [renderMarkdown]="renderBotMarkdown"
+              [translate]="t"
+              [displayRules]="msg.displayRules ?? null"
+              [verweise]="render.groupingCtx"
+              [treffer]="modulTreffer"
+              [nachrichtId]="msg.id"
+              [antworten]="modulAntworten"
+            />
+          }
+
+          <!-- Trägt die Nachricht eine Trefferliste, schweigen die bisherigen Boxen samt ihrer
+               Webseiten-Box. Fehlt dann die Linkbox (Muster, Obergrenze, alter Verlauf), stehen
+               die Web-Links hier — nach den Treffern; mit Linkbox schweigt die Komponente selbst. -->
+          @if (msg.sender === 'bot' && !hideCards && hatTrefferliste(msg)) {
+            <boerdi-web-links [message]="msg" [ctx]="render.resultGroupsCtx" [standalone]="true" />
+          }
+
           <!-- Bubble-Aktionen: Vorlesen. Die beiden Print-Buttons, die hier in
                ALT bis 2026-06-10 saßen, sind entfernt — bei Nachrichten MIT
-               InlineDocument-Box druckten sie nur den Intro-Text. -->
+               Dokument-Box druckten sie nur den Intro-Text. -->
           @if (msg.sender === 'bot' && !msg.isLoading && msg.content) {
             <div class="msg-actions">
               @if (languageButtonsVisible) {

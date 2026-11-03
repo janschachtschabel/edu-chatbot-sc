@@ -1,0 +1,61 @@
+// Gleicher Rahmen wie das Profil (`.rp`) — Beiwerk zur Scorecard, ohne eigene Farbfläche.
+.emn {
+  display: grid;
+  gap: var(--st-3);
+  margin-block-end: var(--st-3);
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.emn-title {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.emn-hint,
+.emn-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+// Viele Module machen die Tabelle breit: sie rollt in ihrem Rahmen, die Seite nicht (320 px).
+.emn-rahmen {
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.emn-tabelle {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.emn-tabelle caption {
+  margin-block-end: var(--st-2);
+  text-align: start;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.emn-tabelle th,
+.emn-tabelle td {
+  padding: var(--st-1) var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.emn-tabelle thead th {
+  font-weight: 600;
+}
+
+.emn-tabelle tbody th {
+  font-weight: 400;
+}
+
+.emn-tabelle .emn-zahl {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}

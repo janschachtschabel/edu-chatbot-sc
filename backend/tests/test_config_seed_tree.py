@@ -130,17 +130,49 @@ def test_jeder_im_pattern_genannte_tool_name_existiert():
     # als Tippfehler abgewiesen. ``_nameable_tools`` prüft beide Kataloge; ein
     # Wächter, der nur einen kennt, urteilt über eine andere Wirklichkeit als
     # der Code, den er absichert.
+    #
+    # Review U1-d2 (Befund 4): Modul-Werkzeuge (``agent: true``, U-F4) sind ebenso
+    # Namen, die wirken; Module ohne Wirkung in ``tools:`` (Inhaltsrahmen,
+    # abgeleitete) sind ein eigener Einwand — sie verschwänden sonst ebenso still.
+    unbekannt, wirkungslos = _tool_einwaende(_pattern_frontmatter())
+    assert not unbekannt, f"Pattern nennen Tools, die es nicht gibt: {unbekannt}"
+    assert not wirkungslos, (
+        f"Pattern nennen UI-Module, die in tools: nichts bewirken: {wirkungslos}")
+
+
+def _tool_einwaende(
+    frontmatter: dict[str, dict[str, Any]],
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """``(unbekannt, wirkungslos)`` je Muster — die Kataloge, die ``_nameable_tools`` und
+    ``_select_active_tools`` wirklich lesen."""
     from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
+    from boerdi.ui_module.namen import OHNE_WIRKUNG_IN_TOOLS
+    from boerdi.ui_module.werkzeuge import ist_modul_werkzeug
+
     bekannt = {
         t["function"]["name"]
         for t in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS)
     }
-    unbekannt = {
-        pid: [t for t in (fm.get("tools") or []) if t not in bekannt]
-        for pid, fm in _pattern_frontmatter().items()
-        if [t for t in (fm.get("tools") or []) if t not in bekannt]
-    }
-    assert not unbekannt, f"Pattern nennen Tools, die es nicht gibt: {unbekannt}"
+    unbekannt: dict[str, list[str]] = {}
+    wirkungslos: dict[str, list[str]] = {}
+    for pid, fm in frontmatter.items():
+        namen = fm.get("tools") or []
+        if fremd := [t for t in namen if t not in bekannt and not ist_modul_werkzeug(t)
+                     and t not in OHNE_WIRKUNG_IN_TOOLS]:
+            unbekannt[pid] = fremd
+        if ohne := [t for t in namen if t in OHNE_WIRKUNG_IN_TOOLS]:
+            wirkungslos[pid] = ohne
+    return unbekannt, wirkungslos
+
+
+def test_der_waechter_kennt_modul_werkzeuge_und_wirkungslose_module():
+    unbekannt, wirkungslos = _tool_einwaende({
+        "M-UI": {"tools": ["search_wlo_content", "ui_entscheidung"]},
+        "M-LINK": {"tools": ["ui_linkbox", "ui_inhaltsrahmen"]},
+        "M-TIPP": {"tools": ["search_wlo_contnet"]},
+    })
+    assert unbekannt == {"M-TIPP": ["search_wlo_contnet"]}
+    assert wirkungslos == {"M-LINK": ["ui_linkbox", "ui_inhaltsrahmen"]}
 
 
 # Werkzeuge, die BEWUSST in keinem Pattern stehen. Jeder Eintrag braucht einen

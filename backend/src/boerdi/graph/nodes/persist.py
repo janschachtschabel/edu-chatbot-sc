@@ -160,6 +160,7 @@ async def persist(
         _qr_max=ctx.qr_max,
         _effective_pattern_id=ctx.effective_pattern_id,
         gelieferte_dokumente=ctx.gelieferte_dokumente or _aus_dem_musterweg,
+        ui_bloecke=ctx.ui_bloecke,
     )
     # Das maschinenlesbare Ergebnis der Agent-Schleife (2026-08-14). NACH dem
     # Bau angehängt statt durch die Signatur gereicht: die trägt schon zwanzig

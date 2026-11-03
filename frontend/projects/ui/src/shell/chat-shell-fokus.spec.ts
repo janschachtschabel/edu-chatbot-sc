@@ -22,7 +22,7 @@ function gerendert(): ComponentFixture<ChatShellComponent> {
   f.componentRef.setInput('translate', createTranslator(DE, DE));
   // Der Lebenszyklus ruft die API beim ersten Rendern — Attrappen statt Netz.
   (f.componentInstance as any)._api = {
-    setUiLocale: vi.fn(), setGuideEnv: vi.fn(), setBaseUrl: vi.fn(), setResultSchema: vi.fn(),
+    setUiLocale: vi.fn(), setUiModule: vi.fn(), setGuideEnv: vi.fn(), setBaseUrl: vi.fn(), setResultSchema: vi.fn(),
     getSpeechEnabled: vi.fn(async () => false), loadHistory: vi.fn(async () => []),
     stream: vi.fn(), post: vi.fn(),
   };

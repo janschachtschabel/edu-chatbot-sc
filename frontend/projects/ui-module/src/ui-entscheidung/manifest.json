@@ -1,0 +1,170 @@
+{
+  "name": "ui_entscheidung",
+  "version": 1,
+  "art": "abfragen",
+  "titel": {
+    "de": "Entscheidung",
+    "en": "Choice"
+  },
+  "beschreibung": "Stellt der Person eine Frage mit festen Antwortmoeglichkeiten zum Anklicken, einzeln oder mehrfach, auf Wunsch mit einem Freitextfeld. Der Aufruf beendet deinen Zug: schreibe dazu hoechstens einen kurzen Satz, die Frage und die Moeglichkeiten zeigt das Auswahlfeld. Die Antwort der Person kommt im naechsten Zug als Block vor ihrer Nachricht.",
+  "wann": [
+    "du brauchst eine Entscheidung, und die Antwortmoeglichkeiten sind bekannt und ueberschaubar (2 bis 8)",
+    "eine Rueckfrage, deren Antwort sonst muehsam zu tippen waere (Klassenstufe, Variante, Format)"
+  ],
+  "nicht_wann": [
+    "offene Fragen ohne feste Moeglichkeiten — frage dann in Prosa",
+    "mehr als 8 Moeglichkeiten oder Baumstrukturen",
+    "um einen Schreibvorgang bestaetigen zu lassen — dafuer gibt es die Vorschau mit Bestaetigung"
+  ],
+  "agent": true,
+  "eingabe": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "frage",
+      "optionen"
+    ],
+    "properties": {
+      "frage": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300,
+        "description": "Die Frage an die Person, ein Satz, z. B. 'Fuer welche Klassenstufe soll das Arbeitsblatt sein?'."
+      },
+      "optionen": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 8,
+        "description": "Die Antwortmoeglichkeiten in der gewuenschten Reihenfolge; jede id nur einmal.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "label"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,40}$",
+              "description": "Kurze Kennung der Moeglichkeit (Kleinbuchstaben, Ziffern, _ und -), z. B. 'klasse_5_6'. Kommt in der Antwort zurueck."
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Die sichtbare Beschriftung der Moeglichkeit."
+            },
+            "hinweis": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Optional: eine kurze Erklaerung unter der Beschriftung."
+            }
+          }
+        }
+      },
+      "mehrfach": {
+        "type": "boolean",
+        "description": "true: die Person darf mehrere Moeglichkeiten waehlen; sonst genau eine (Vorgabe)."
+      },
+      "freitext": {
+        "type": "boolean",
+        "description": "true: zusaetzlich ein Feld fuer eine eigene Ergaenzung (hoechstens 1000 Zeichen); Vorgabe aus."
+      }
+    }
+  },
+  "antwort": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "gewaehlt"
+    ],
+    "properties": {
+      "gewaehlt": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 8,
+        "uniqueItems": true,
+        "description": "Die Kennungen (id) der gewaehlten Moeglichkeiten.",
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]{1,40}$"
+        }
+      },
+      "freitext": {
+        "type": "string",
+        "maxLength": 1000,
+        "description": "Die eigene Ergaenzung der Person, nur wenn das Modul ein Freitextfeld zeigte."
+      }
+    }
+  },
+  "datenquelle": null,
+  "faehigkeiten": [
+    "antworten"
+  ],
+  "textfassung": {
+    "vorlage": "nummerierte_liste",
+    "feld": "optionen"
+  },
+  "darstellung": {
+    "breit": false
+  },
+  "beispiele": [
+    {
+      "titel": "Einzelwahl",
+      "daten": {
+        "frage": "Für welche Klassenstufe soll das Arbeitsblatt sein?",
+        "optionen": [
+          {
+            "id": "klasse_5_6",
+            "label": "Klasse 5–6"
+          },
+          {
+            "id": "klasse_7_8",
+            "label": "Klasse 7–8"
+          },
+          {
+            "id": "klasse_9_10",
+            "label": "Klasse 9–10"
+          }
+        ]
+      },
+      "antwort": {
+        "gewaehlt": [
+          "klasse_7_8"
+        ]
+      }
+    },
+    {
+      "titel": "Mehrfachwahl mit Hinweisen und Freitext",
+      "daten": {
+        "frage": "Welche Formate passen für deine Stunde?",
+        "optionen": [
+          {
+            "id": "video",
+            "label": "Video",
+            "hinweis": "kurze Erklärfilme bis 10 Minuten"
+          },
+          {
+            "id": "arbeitsblatt",
+            "label": "Arbeitsblatt",
+            "hinweis": "zum Ausdrucken"
+          },
+          {
+            "id": "interaktiv",
+            "label": "Interaktive Übung"
+          }
+        ],
+        "mehrfach": true,
+        "freitext": true
+      },
+      "antwort": {
+        "gewaehlt": [
+          "video",
+          "interaktiv"
+        ],
+        "freitext": "Am liebsten ohne Anmeldung."
+      }
+    }
+  ]
+}

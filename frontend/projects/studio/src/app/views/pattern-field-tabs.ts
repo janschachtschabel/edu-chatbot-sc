@@ -46,7 +46,7 @@ const TAB_TABLE: readonly { id: string; label: string; keys: readonly string[] }
       'card_text_link_required',
     ],
   },
-  { id: 'pf-tools', label: 'Tools & Wissen', keys: ['sources', 'rag_areas', 'tools'] },
+  { id: 'pf-tools', label: 'Tools & Wissen', keys: ['sources', 'rag_areas', 'tools', 'ui_module'] },
   { id: 'pf-slots', label: 'Slots & Degradation', keys: ['precondition_slots'] },
   {
     id: 'pf-anweisungen', label: 'Anweisungen',

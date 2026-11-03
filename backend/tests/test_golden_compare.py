@@ -318,3 +318,38 @@ def test_echter_vergleich_bleibt_exit_0(tmp_path) -> None:
                     "--out", str(tmp_path / "out")])
 
     assert code == 0
+
+
+# ── Review U1-g #8: gemeldete UI-Module im Kopf ─────────────────────────
+
+def _main_mit_modulen(tmp_path, ref_module, neu_module) -> tuple[dict, str]:
+    ref, neu = _report(_turn()), _report(_turn())
+    for bericht, module in ((ref, ref_module), (neu, neu_module)):
+        if module is not None:
+            bericht["ui_module"] = module
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    ref_p, new_p = tmp_path / "ref.json", tmp_path / "neu.json"
+    ref_p.write_text(json.dumps(ref), encoding="utf-8")
+    new_p.write_text(json.dumps(neu), encoding="utf-8")
+    out = tmp_path / "out"
+    assert cg.main(["--ref", str(ref_p), "--new", str(new_p), "--out", str(out)]) == 0
+    (written,) = list(out.glob("ab-*.json"))
+    payload = json.loads(written.read_text(encoding="utf-8"))
+    return payload, cg.render_console(payload)
+
+
+def test_der_kopf_nennt_die_gemeldeten_ui_module_und_warnt_bei_ungleichen(tmp_path) -> None:
+    """Mit und ohne Module misst zwei Anlagen — der Vergleich sagt es, statt es zu verschweigen
+    (kein Blocker: der Vergleich mit/ohne ist gewollt)."""
+    payload, console = _main_mit_modulen(tmp_path, [], ["ui_entscheidung", "ui_themenbaum"])
+    assert payload["ui_module_ref"] == [] and payload["ui_module_new"] == [
+        "ui_entscheidung", "ui_themenbaum"]
+    assert "UI-Module: keine → ui_entscheidung, ui_themenbaum" in console
+    assert "⚠ ungleiche UI-Module" in console
+
+
+def test_gleiche_ui_module_ohne_warnung_alte_berichte_als_unbekannt(tmp_path) -> None:
+    _, gleich = _main_mit_modulen(tmp_path, ["ui_a1"], ["ui_a1"])
+    assert "UI-Module: ui_a1 → ui_a1" in gleich and "ungleiche UI-Module" not in gleich
+    payload, alt = _main_mit_modulen(tmp_path / "alt", None, None)
+    assert payload["ui_module_ref"] is None and "UI-Module" not in alt

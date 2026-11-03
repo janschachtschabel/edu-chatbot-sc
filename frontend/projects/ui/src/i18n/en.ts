@@ -54,7 +54,6 @@ export const EN: Catalogue = {
   'chat.record.stop': 'Stop recording',
   'chat.send': 'Send',
   'chat.hostTask': 'Task from the page',
-  'chat.documentShortened': '*(shortened — the full text was too long for the history)*',
 
   'chat.input.label': 'Message to BOERDi',
   'chat.input.placeholder': 'Type a message…',
@@ -102,16 +101,6 @@ export const EN: Catalogue = {
   'swimlanes.cta.title': 'Go to the full topic page: {title}',
   'swimlanes.cta.label': 'Go to the topic page “{title}”',
   'swimlanes.cta.sub': 'View all contents on the topic page',
-
-  // ── Inline document box (inline-documents.component) ───────────────
-  'inlineDoc.print': 'Print / save as PDF',
-
-  'inlineDoc.kind.lernpfad': 'Learning path',
-  'inlineDoc.kind.ki_material': 'Material',
-  'inlineDoc.kind.edit': 'Edited version',
-  'inlineDoc.kind.bericht': 'Report',
-  'inlineDoc.kind.remix': 'Remix',
-  'inlineDoc.kind.fallback': 'Content',
 
   // ── Content types (C1-b3) ──────────────────────────────────────────
   'contentType.topicPage': 'Topic page',

@@ -70,7 +70,9 @@ from boerdi.api.schemas import (
     InlineDocument,
     PreparedWriteOut,
 )
+from boerdi.api.schemas_ui import UiInfo
 from boerdi.domain.host_capabilities import erlaubt
+from boerdi.domain.inline_documents import als_inhaltsrahmen
 from boerdi.domain.prepared_write import (
     VERLAUF_SCHLUESSEL,
     PreparedWrite,
@@ -121,6 +123,7 @@ async def discard_stale_approval(
     session_state: dict,
     *,
     hintergrund: bool = False,
+    modul_antwort: bool = False,
 ) -> bool:
     """Den offenen Vorgang verwerfen, wenn dieser Zug ihn nicht bestätigen kann.
 
@@ -174,7 +177,11 @@ async def discard_stale_approval(
     fremd = not _gehoert_dem_aufrufer(pending)
     # Paket 10, A-6: Liste, Veto, dann das Modell — einmal je Zug; Vorlauf und
     # Werkzeug-Schleife lesen das Urteil (``zustimmung_pruefen.zugestimmt``).
-    urteil = zustimmung_pruefen.NEIN if req.action else await zustimmung_pruefen.urteil(
+    # Eine Modul-Antwort (U1-d1) zählt wie eine Direkt-Aktion als NEIN — sonst würde eine gewählte
+    # Option „Ja“ zur Zustimmung. Auch eine verworfene (Review U1-d1, Befund 2: zweites Fenster,
+    # alte Frage): ``setup`` setzt sie vorher auf ``None`` und meldet sie als ``modul_antwort``.
+    nein = bool(req.action) or modul_antwort or req.ui_antwort is not None
+    urteil = zustimmung_pruefen.NEIN if nein else await zustimmung_pruefen.urteil(
         req.message, str(pending.get("tool") or "") if isinstance(pending, dict) else "")
     zustimmung = urteil == zustimmung_pruefen.JA
     session_state[zustimmung_pruefen.MERKER] = zustimmung
@@ -443,7 +450,7 @@ async def _zustimmung_unklar(
         # Golden zählen die Blase über ihren Anfang, ``eval/run_profile.fallback_kind``).
         content=f"{ausgelastet_text(lang)}\n\n{bot_text(lang, 'write.consentUnclear')}",
         quick_replies=[bot_text(lang, "action.write.confirmChip")],
-        inline_documents=[box],
+        ui=UiInfo(ui_bloecke=[als_inhaltsrahmen(box)]),
         debug=debug,
     )
     await _persist(session, req, session_state, antwort.content, debug)

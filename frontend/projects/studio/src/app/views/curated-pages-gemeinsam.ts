@@ -41,6 +41,18 @@ export const GEMEINSAME_SEITEN: readonly CuratedView[] = [
     ],
   },
   {
+    // Paket U1-f: Katalog der UI-Module, Vorschau, Schalter (`display_rules.ui_module`).
+    slug: 'ui-module',
+    introKey: 'curated.uiModule.intro',
+    sections: [
+      {
+        panel: 'ui-module',
+        labelKey: 'curated.uiModule.panel.label',
+        hintKey: 'curated.uiModule.panel.hint',
+      },
+    ],
+  },
+  {
     slug: 'skills',
     introKey: 'curated.skills.intro',
     sections: [

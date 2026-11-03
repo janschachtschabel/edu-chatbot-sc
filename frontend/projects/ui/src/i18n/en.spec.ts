@@ -43,7 +43,6 @@ describe('EN-Katalog', () => {
     const gleichErlaubt = new Set([
       'chat.speakStop',            // Stop
       'chat.print.canvasFallback', // Material
-      'inlineDoc.kind.ki_material', 'inlineDoc.kind.remix',
       'contentType.video', 'contentType.audio', 'contentType.quiz', 'contentType.material',
       'print.docTitle', 'print.meta', // nur Produktname + Platzhalter
     ]);

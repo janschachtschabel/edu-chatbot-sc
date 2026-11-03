@@ -100,6 +100,22 @@
         </label>
       </fieldset>
 
+      <fieldset class="egd-set">
+        <legend class="egd-legend">{{ t('evalStart.uiModule.legend') }}</legend>
+        <label class="egd-pick" for="egd-ui-module">
+          <input
+            type="checkbox"
+            id="egd-ui-module"
+            [checked]="uiModule()"
+            (change)="setUiModule($any($event.target).checked)"
+          />
+          <span>
+            {{ t('evalStart.uiModule.label') }}
+            <span class="egd-flow-meta">{{ t('evalStart.uiModule.hint') }}</span>
+          </span>
+        </label>
+      </fieldset>
+
       <p class="egd-cost"><studio-rich [parts]="costParts()" /></p>
     }
 

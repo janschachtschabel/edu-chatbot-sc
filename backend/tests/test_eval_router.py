@@ -651,7 +651,7 @@ def _wire_golden(monkeypatch, *, judge=None):
             # Flows (Lehre A4b: Attrappen folgen dem echten Verhalten).
             self.calls: list[list[dict]] = []
 
-        async def run_flows(self, url, f, *, headers=None):
+        async def run_flows(self, url, f, *, headers=None, ui_module=None):
             self.url, self.headers = url, headers
             self.calls.append(list(f))
             ids = {str(x.get("id")) for x in f}
@@ -698,7 +698,8 @@ def _wire_golden(monkeypatch, *, judge=None):
     return fake_runner, convs, metrics, captured
 
 
-async def _offline_conditions(*, judge_enabled, engine="default", flows=None):
+async def _offline_conditions(*, judge_enabled, engine="default", flows=None,
+                              ui_module=None):
     """K0-2: die echten Messbedingungen holen den Master-Skill per MCP — offline
     eine feste Antwort (was sie enthalten, prüft test_golden_messdaten.py)."""
     return {"chat_model": "fake", "judge_model": ""}
@@ -866,7 +867,7 @@ def test_execute_golden_run_persists_failure_on_runner_error(monkeypatch):
         raise RuntimeError("chat backend down")
 
     class FakeRunner:
-        async def run_flows(self, url, f, *, headers=None):
+        async def run_flows(self, url, f, *, headers=None, ui_module=None):
             boom()
 
         def aggregate_golden(self, c):  # pragma: no cover - not reached

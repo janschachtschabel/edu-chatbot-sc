@@ -26,7 +26,7 @@ import functools
 import logging
 import os
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -98,16 +98,20 @@ def _interne_koepfe(chat_url: str) -> dict[str, str]:
 
 
 async def _post_chat(
-    chat_url: str, message: str, session_id: str | None = None
+    chat_url: str, message: str, session_id: str | None = None,
+    ui_module: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Fire one user message at ``/api/chat`` and return the raw response JSON.
 
     The chat API requires a session; a fresh ``eval-<uuid>`` one is generated for
-    single-turn scenarios that do not carry their own.
+    single-turn scenarios that do not carry their own. ``ui_module`` (U1-g, G-1) goes as
+    ``environment.ui_module``, as the widget reports it; ``None`` sends no environment.
     """
     if not session_id:
         session_id = f"{EVAL_PREFIX}{uuid.uuid4().hex[:12]}"
     payload: dict[str, Any] = {"session_id": session_id, "message": message}
+    if ui_module is not None:
+        payload["environment"] = {"ui_module": list(ui_module)}
     async with httpx.AsyncClient(timeout=_chat_timeout_s()) as c:
         r = await c.post(chat_url, json=payload, headers=_interne_koepfe(chat_url))
         r.raise_for_status()
@@ -147,10 +151,63 @@ def _merge_canvas(bot_text: str, bot_resp: dict[str, Any]) -> str:
     return bot_text
 
 
-def _augment_bot_text(bot_resp: dict[str, Any]) -> str:
+def _dokument_boxen(bot_resp: dict[str, Any]) -> list[dict[str, str]]:
+    """Every document box the person saw, as ``{kind, title, content}`` — twin of
+    ``evals/run_golden.dokument_boxen`` (why a twin: see ``_augment_bot_text``).
+
+    Since U1-b2 boxes arrive as ``ui_inhaltsrahmen`` blocks in ``ui.ui_bloecke``; the old
+    ``inline_documents`` field is still read so a run against an older backend counts too.
+    """
+    boxen: list[dict[str, str]] = []
+    for doc in bot_resp.get("inline_documents") or []:
+        if isinstance(doc, dict):
+            boxen.append({"kind": str(doc.get("kind") or ""), "title": str(doc.get("title") or ""),
+                          "content": str(doc.get("content") or "")})
+    for block in (bot_resp.get("ui") or {}).get("ui_bloecke") or []:
+        if isinstance(block, dict) and block.get("modul") == "ui_inhaltsrahmen":
+            daten = block.get("daten") or {}
+            boxen.append({"kind": str(daten.get("art") or ""),
+                          "title": str(daten.get("titel") or ""),
+                          "content": str(daten.get("markdown") or "")})
+    return boxen
+
+
+#: Module, deren Inhalt schon als Dokument-Box bzw. Karte dasteht (U1-g, G-5).
+_SCHON_GEZEIGT = frozenset({"ui_inhaltsrahmen", "ui_trefferliste"})
+_TEXTFASSUNG_MAX = 1500
+#: So viel der übrigen Antwort liest die simulierte Person (ALT: ``bot_text[:1500]``); die
+#: Textfassungen der Blöcke kommen danach mit eigenem Deckel (Review U1-g #4).
+_PERSON_MAX = 1500
+
+
+def _ui_bloecke(bot_resp: dict[str, Any]) -> list[dict[str, Any]]:
+    return [b for b in (bot_resp.get("ui") or {}).get("ui_bloecke") or [] if isinstance(b, dict)]
+
+
+def _gezeigte_module(bot_resp: dict[str, Any]) -> list[str]:
+    """The modules the person saw, once each, in display order — twin of
+    ``evals/run_golden.gezeigte_module`` (U1-g, G-6)."""
+    return list(dict.fromkeys(str(b.get("modul") or "") for b in _ui_bloecke(bot_resp)
+                              if b.get("modul")))
+
+
+def _mit_textfassungen(bot_text: str, bot_resp: dict[str, Any]) -> str:
+    """Append the text version of every block the reader would otherwise miss — the question
+    of a choice box with its options, a topic tree (U1-g, G-5). Twin of the block in
+    ``evals/run_golden.augment_bot_text``. The simulated person reads it too and answers by
+    typing; the server frames the open question for the model (``ui_module/antwort``)."""
+    for block in _ui_bloecke(bot_resp):
+        text = str(block.get("text") or "").strip()
+        if text and block.get("modul") not in _SCHON_GEZEIGT:
+            bot_text = (bot_text.rstrip() + f"\n\n---\n[UI-Modul {block.get('modul')}"
+                        " — vom Nutzer sichtbar]\n\n" + text[:_TEXTFASSUNG_MAX])
+    return bot_text
+
+
+def _augment_bot_text(bot_resp: dict[str, Any], *, textfassungen: bool = True) -> str:
     """Render everything the user saw into one text for the judge.
 
-    Generated material arrives in ``inline_documents[].content`` and search hits
+    Generated material arrives in ``ui_inhaltsrahmen`` blocks and search hits
     in ``cards``/``query_metas`` — none of it in the chat bubble. Without this a
     judge reads "no concrete material" while eight cards were on screen.
 
@@ -158,14 +215,15 @@ def _augment_bot_text(bot_resp: dict[str, Any]) -> str:
     ``augment_bot_text``. It cannot be shared, because that file is deliberately
     framework-free (it is a standalone CLI, not an installed package, and must
     not import ``boerdi.*``). ALT has the identical twin for the same reason.
+
+    ``textfassungen=False`` leaves out the blocks' text versions — :func:`_fuer_die_person`
+    appends them after its cap.
     """
     bot_text = bot_resp.get("content", "") or ""
 
     md_parts: list[str] = []
-    for doc in bot_resp.get("inline_documents") or []:
-        if not isinstance(doc, dict):
-            continue
-        content = (doc.get("content") or "").strip()
+    for doc in _dokument_boxen(bot_resp):
+        content = doc["content"].strip()
         if content:
             title = (doc.get("title") or doc.get("kind") or "").strip()
             md_parts.append(
@@ -199,6 +257,8 @@ def _augment_bot_text(bot_resp: dict[str, Any]) -> str:
             + "\n".join(card_lines)
         )
 
+    if textfassungen:
+        bot_text = _mit_textfassungen(bot_text, bot_resp)
     qm_lines: list[str] = []
     for qm in (bot_resp.get("query_metas") or [])[:5]:
         if not isinstance(qm, dict):
@@ -215,6 +275,14 @@ def _augment_bot_text(bot_resp: dict[str, Any]) -> str:
         )
 
     return _merge_canvas(bot_text, bot_resp)
+
+
+def _fuer_die_person(bot_resp: dict[str, Any]) -> str:
+    """What the simulated person reads: the same as the judge, the rest capped at
+    ``_PERSON_MAX`` and the blocks' text versions after it — a long bubble no longer cuts off
+    the open question (review U1-g #4)."""
+    return _mit_textfassungen(
+        _augment_bot_text(bot_resp, textfassungen=False)[:_PERSON_MAX], bot_resp)
 
 
 def _flat_debug(debug: dict[str, Any]) -> dict[str, Any]:
@@ -262,10 +330,13 @@ async def simulate_conversation(
     opening: str | None = None,
     *,
     usage_acc: dict[str, Any] | None = None,
+    ui_module: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Multi-turn dialogue: an LLM-simulated user against the live ``/api/chat``.
 
     ``usage_acc`` (Paket 15) collects the simulator's tokens for the costs page.
+    ``ui_module`` (U1-g) is reported with every turn; the simulator reads the blocks' text
+    versions and answers a choice box by typing — no extra LLM call.
 
     Returns ``{session_id, persona_id, intent_id, turns, ended_early}``. The
     simulator may end the dialogue early by answering ``[ENDE]``.
@@ -309,7 +380,8 @@ async def simulate_conversation(
             ended_early = True
             break
         try:
-            bot_resp = await _post_chat(chat_url, user_msg, session_id=session_id)
+            bot_resp = await _post_chat(chat_url, user_msg, session_id=session_id,
+                                        ui_module=ui_module)
         except Exception as e:
             logger.warning("Chat call failed in turn %d: %s", turn_idx, e)
             turns.append({
@@ -317,7 +389,9 @@ async def simulate_conversation(
                 "debug": {}, "error": str(e),
             })
             break
-        bot_text = _merge_canvas(bot_resp.get("content", "") or "", bot_resp)
+        # Review U1-g #4: derselbe Text wie in der Szenario-Stufe — samt Karten und
+        # Dokumenten; die G-5-Ausnahme (Trefferliste, Inhaltsrahmen) setzt ihn voraus.
+        bot_text = _augment_bot_text(bot_resp)
         debug = bot_resp.get("debug", {}) or {}
 
         # State strings arrive as "state-X (Label)"; the ID drives the
@@ -336,6 +410,7 @@ async def simulate_conversation(
             },
             "cards_count": len(bot_resp.get("cards", []) or []),
             "response_length": len(bot_text),
+            "ui_module": _gezeigte_module(bot_resp),
         })
         if state_id:
             prev_state = state_id
@@ -346,7 +421,7 @@ async def simulate_conversation(
         sim_messages.append({"role": "assistant", "content": user_msg})
         sim_messages.append({
             "role": "user",
-            "content": f"Der Chatbot hat geantwortet:\n\n{bot_text[:1500]}\n\n"
+            "content": f"Der Chatbot hat geantwortet:\n\n{_fuer_die_person(bot_resp)}\n\n"
                        f"Deine naechste Nachricht:",
         })
         try:
@@ -406,7 +481,7 @@ async def _prime_i06_session(chat_url: str, run_id: str, persona_id: str) -> tup
 async def _run_scenario_stage(
     *, chat_url: str, run_id: str, conversations: list[dict],
     personas: list[dict], intents: list[dict], scenarios_per_combo: int,
-    progress: Progress, verbrauch: EvalVerbrauch,
+    progress: Progress, verbrauch: EvalVerbrauch, ui_module: Sequence[str] | None = None,
 ) -> None:
     """Stage 1 — one generated opening per combo, fired once and judged."""
     await progress(conversations, "Generiere Szenarien (0/0) …")
@@ -441,7 +516,7 @@ async def _run_scenario_stage(
                     chat_url, run_id, sc.get("persona_id", ""),
                 )
             bot_resp = await _post_chat(
-                chat_url, sc["opening"], session_id=use_session_id,
+                chat_url, sc["opening"], session_id=use_session_id, ui_module=ui_module,
             )
             debug = dict(bot_resp.get("debug", {}) or {})
             if priming_meta:
@@ -472,6 +547,8 @@ async def _run_scenario_stage(
         turn: dict[str, Any] = {
             "user": sc["opening"], "bot": bot_text, "debug": dbg_flat,
         }
+        if not chat_error:
+            turn["ui_module"] = _gezeigte_module(bot_resp)
         if judge is not None:
             turn["judge"] = judge
         if judge_failed:
@@ -495,7 +572,7 @@ async def _run_scenario_stage(
 async def _run_conversation_stage(
     *, chat_url: str, run_id: str, conversations: list[dict],
     personas: list[dict], intents: list[dict], turns_per_conv: int,
-    progress: Progress, verbrauch: EvalVerbrauch,
+    progress: Progress, verbrauch: EvalVerbrauch, ui_module: Sequence[str] | None = None,
 ) -> None:
     """Stage 2 — a simulated multi-turn dialogue per combo, every turn judged."""
     total_combos = len(personas) * len(intents)
@@ -510,7 +587,7 @@ async def _run_conversation_stage(
             try:
                 conv = await simulate_conversation(
                     chat_url, persona, intent, max_turns=turns_per_conv,
-                    usage_acc=verbrauch.simulator,
+                    usage_acc=verbrauch.simulator, ui_module=ui_module,
                 )
             except Exception as e:
                 logger.warning("[eval %s] conv failed %s/%s: %s",
@@ -579,8 +656,11 @@ async def execute_run(
     target_turns: int,
     progress: Progress,
     verbrauch: EvalVerbrauch | None = None,
+    ui_module: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Run both selected stages and return the final summary.
+
+    ``ui_module`` (U1-g, G-1): the modules every turn reports, as the widget does.
 
     ``verbrauch`` (Paket 15) collects simulator, judge and scenario tokens; the caller books
     it — also after a failure, so it owns the object.
@@ -604,12 +684,14 @@ async def execute_run(
             chat_url=chat_url, run_id=run_id, conversations=conversations,
             personas=personas, intents=intents,
             scenarios_per_combo=scenarios_per_combo, progress=progress, verbrauch=verbrauch,
+            ui_module=ui_module,
         )
     if mode in ("conversations", "both"):
         await _run_conversation_stage(
             chat_url=chat_url, run_id=run_id, conversations=conversations,
             personas=personas, intents=intents,
             turns_per_conv=turns_per_conv, progress=progress, verbrauch=verbrauch,
+            ui_module=ui_module,
         )
 
     summary = build_summary(conversations, target_turns, "Fertig")

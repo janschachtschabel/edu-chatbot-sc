@@ -117,7 +117,9 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
     # trägt keine Kennung, die E3-Warnung stand ohne sie als „Muster ?" da.
     # Und die Erlaubnis der Einbettung (Paket 4, P4-1), für Auswahl UND Schleife;
     # dazu die Sperren der Sicherheit für den Nachschub der Suche (Review Paket 9).
-    assert select.kwargs == {"pattern_label": "M05", "tool_mode": "read-only", "gesperrt": []}
+    # Paket U1-d2: die Module, die das Widget meldet — ohne Meldung keine Modul-Werkzeuge.
+    assert select.kwargs == {"pattern_label": "M05", "tool_mode": "read-only", "gesperrt": [],
+                             "ui_module": None}
     # P12/P14: assemble — session FIRST, blocked_tools normalized to [],
     # system + inline_grouping + sources_decl + rag_allowed from prior phases.
     assert assemble.args == (
@@ -157,7 +159,25 @@ def test_die_seitendaten_rechnet_generate_einmal_fuer_prompt_und_kette(monkeypat
     daten = build.kwargs["seiten_daten"]
     assert daten.startswith("[SEITENKONTEXT") and "Text der Gastseite." in daten
     # T1: die Einbettung aus ``assess`` geht unverändert an die Kette.
-    assert assemble.kwargs == {"seiten_daten": daten, "rag_einbettung": ("msg", [0.4])}
+    # U1-d2: ohne Frage im vorigen Zug kein Vorsatz.
+    assert assemble.kwargs == {"seiten_daten": daten, "rag_einbettung": ("msg", [0.4]),
+                               "vorsatz": ""}
+
+def test_module_des_widgets_und_vorsatz_reisen_mit(monkeypatch):
+    """Paket U1-d2: die gemeldeten Module an die Auswahl, der Vorsatz an die Kette."""
+    build = _Spy(("SYS", False, False, False))
+    select = _Spy(([], None, False, False))
+    assemble = _Spy(([], [], [], [], False, [], False, 1, 0.1, 1))
+    loop = _Spy(("final", [], [], []))
+    fallback = _Spy(("unused", [], [], []))
+    _patch_phases(monkeypatch, build=build, select=select, assemble=assemble,
+                  loop=loop, fallback=fallback)
+    asyncio.run(generate.generate_response(
+        _SESSION, "msg", [], {}, {"tools": []}, "M03", {}, {"ui_module": ["ui_entscheidung"]},
+        vorsatz="[BLOCK]"))
+    assert select.kwargs["ui_module"] == ["ui_entscheidung"]
+    assert assemble.kwargs["vorsatz"] == "[BLOCK]"
+
 
 def test_returns_fallback_when_loop_returns_none(monkeypatch):
     MSGS, CARDS, TOOLS, OUTS = (object() for _ in range(4))

@@ -7,12 +7,12 @@
  *      Anything else in the output directory (a lazy chunk from a dynamic
  *      `import()`, an extracted stylesheet, a copied asset) breaks that embed
  *      silently, because nothing on the host page loads it.
- *   2. Size — ≤ 600 kB raw and ≤ 175 kB gzip, kB decimal (1000 bytes).
+ *   2. Size — ≤ 690 kB raw and ≤ 200 kB gzip, kB decimal (1000 bytes); warning above 190 kB gzip.
  *
  * On raw size this gate is a *duplicate* of the build-time budget, not a
  * stricter one: `@angular/build` defines `BYTES_IN_KILOBYTE = 1000`
- * (utils/bundle-calculator.js), so `maximumError: "600kb"` in angular.json is
- * the same 600 000 bytes as RAW_MAX here and the build already fails first.
+ * (utils/bundle-calculator.js), so `maximumError: "690kb"` in angular.json is
+ * the same 690 000 bytes as RAW_MAX here and the build already fails first.
  * What this gate adds is the **gzip** limit and the **single-file** check —
  * neither of which Angular's budgets can express.
  *
@@ -25,8 +25,11 @@
  * updated. If the limit moves again, all three move together:
  * `angular.json` (build-widget budgets) · this file · spec §5.5 "Bundle-Budget".
  *
+ * **Raised 2026-11-02 to 690 kB / 200 kB (warning from 190 kB gzip)** for the UI modules
+ * (Paket U1, user decision U-F2): small, frequent modules ship in the bundle; anything larger
+ * or rarely used is lazy-loaded instead of raising the limit again.
  * GZIP_MAX is derived, not guessed: today's bundle compresses to 29,1 % of raw,
- * so 600 kB raw lands at ~175 kB gzip. Both ceilings are therefore reached at
+ * so 690 kB raw lands at ~200 kB gzip. Both ceilings are therefore reached at
  * the same amount of growth — neither is the silently stricter one.
  *
  * Usage: node scripts/check-widget-budget.mjs [bundle.js]
@@ -38,8 +41,10 @@ import { gzipSync } from 'node:zlib';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-const RAW_MAX = 600_000;
-const GZIP_MAX = 175_000;
+const RAW_MAX = 690_000;
+const GZIP_MAX = 200_000;
+/** Above this the gate stays green but warns: lazy-load instead of growing further. */
+const GZIP_WARN = 190_000;
 const DEFAULT_BUNDLE = 'dist/widget/browser/main.js';
 
 const bundle = resolve(process.argv[2] ?? DEFAULT_BUNDLE);
@@ -97,5 +102,8 @@ if (breaches.length) {
   console.error('\n§5.5-Budget verletzt:');
   for (const b of breaches) console.error(`  - ${b}`);
   process.exit(1);
+}
+if (gzip > GZIP_WARN) {
+  console.warn(`\nWarnung: gzip ${kb(gzip)} > ${kb(GZIP_WARN)} — große oder seltene UI-Module nachladen.`);
 }
 console.log('\n§5.5-Budget eingehalten.');

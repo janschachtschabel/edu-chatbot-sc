@@ -53,6 +53,8 @@ export interface ChatRequest {
   environment: Record<string, any>;
   action?: string;
   action_params?: Record<string, any>;
+  /** Antwort auf einen abfragenden UI-Block (Paket U1-d1). */
+  ui_antwort?: { block_id: string; daten: Record<string, unknown> };
 }
 
 export interface MountOptions {

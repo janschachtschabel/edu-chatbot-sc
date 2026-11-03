@@ -4,11 +4,14 @@ import {
 } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 
+import { UI_MODUL_REGISTER } from '@boerdi/ui-module';
+import { TREFFERLISTE } from '@boerdi/ui-module/_vertrag/modul-namen';
+
 import { CardListComponent } from '../cards/card-list.component';
 import { resolveCardsVisible, SHOW_CARDS_MODES } from '../cards/cards-visible';
 import { DebugPanelComponent } from '../debug/debug-panel.component';
 import { _attrEnum, _attrIsTrue, PanelSizeStep } from '../element/attr';
-import { ChatResponse, DebugInfo, PreparedWriteOut, QueryMetaEntry, UiInfo } from '../grouping/message-types';
+import { ChatMessage, ChatResponse, DebugInfo, PreparedWriteOut, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { ResultGroupsComponent } from '../grouping/result-groups.component';
 import { WebLinksComponent } from '../grouping/web-links.component';
 import { SwimlanesComponent } from '../grouping/swimlanes.component';
@@ -17,15 +20,17 @@ import { SafeSvgPipe } from '../icons/safe-svg.pipe';
 import type { TranslationParams } from '../i18n/dictionary';
 import type { TranslateFn } from '../i18n/i18n';
 import { DEFAULT_LOCALE, Locale } from '../i18n/locale';
-import { InlineDocumentsComponent } from '../inline-doc/inline-documents.component';
+import { UiBloeckeComponent } from '../ui-bloecke/ui-bloecke.component';
+import { alsBeantwortet, offeneFragenSchliessen, wiederOffen } from '../ui-bloecke/fragen-status';
+import type { ShellAntworten, ShellTreffer } from '../ui-bloecke/widget-modul-host';
 import { QuickRepliesComponent } from '../chips/quick-replies.component';
 import { BOERDI_LOGO_DATA_URL } from '../branding/boerdi-logo';
 import { SHELL_PRINT } from '../print/print-gates';
-import { ChatApiClient } from '../stream/chat-api';
+import { ChatApiClient, type UiAntwortAnfrage } from '../stream/chat-api';
 import { ZUG_POST_FRIST_MS } from '../stream/stream-client';
 import { formatPhaseLabel } from '../stream/phase-label';
 import {
-  browseCollection, generateLearningPath, loadMore, showContentText, showMoreCards,
+  browseCollection, generateLearningPath, loadMore, showContentText, showMoreCards, themenbaumZweig,
 } from '../controllers/collection-actions';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
 import { TourController } from '../controllers/tour.controller';
@@ -88,8 +93,9 @@ import { ShellRender } from './shell-render';
   templateUrl: './chat-shell.component.html',
   styleUrl: './chat-shell.component.scss',
   imports: [
-    SafeSvgPipe, CardListComponent, DebugPanelComponent, InlineDocumentsComponent,
-    QuickRepliesComponent, ResultGroupsComponent, SwimlanesComponent, WebLinksComponent,
+    SafeSvgPipe, CardListComponent, DebugPanelComponent,
+    QuickRepliesComponent, ResultGroupsComponent, SwimlanesComponent, UiBloeckeComponent,
+    WebLinksComponent,
   ],
 })
 export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, OnDestroy {
@@ -236,6 +242,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  `comp.api`-Swap) — deshalb liest der Host ihn deferred. baseUrl setzt
    *  `ngOnInit` (8-4S-e) aus `[apiUrl]`. */
   private _api = new ChatApiClient();
+  /** Die UI-Module dieses Bündels — ihre Namen meldet der Client dem Backend (Review U1-d1). */
+  private readonly _modulRegister = inject(UI_MODUL_REGISTER);
 
   /** Scroll-/Auto-Follow-Controller (8-4S-e2). Container-Seam = der Messages-
    *  ViewChild aus dem Row-Template. */
@@ -256,9 +264,9 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     inlineResultGrouping: () => this.inlineResultGroupingBool,
     t: (key, params) => this.t(key, params),
   });
-  /** Druck-Gates + -Trigger (Lernpfad-/Canvas-Leisten, InlineDocument-Box). */
+  /** Druck-Gates + -Trigger (Lernpfad-/Canvas-Leisten). */
   readonly print = SHELL_PRINT;
-  /** Stabile Referenz für `[renderMarkdown]` der InlineDocument-Box — als Feld,
+  /** Stabile Referenz für `[renderMarkdown]` von `<boerdi-ui-bloecke>` — als Feld,
    *  damit OnPush nicht bei jedem CD-Tick einen neuen Input-Wert sieht. */
   readonly renderBotMarkdown = (content: string) => this.render.markdown(content, 'bot');
   /** Inline-SVG-Icons (kein Icon-Font → kein externer Request, DSGVO). */
@@ -299,6 +307,42 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Beschriftung des Größen-Knopfs — benennt das ZIEL, nicht den Ist-Zustand. */
   get sizeToggleLabel(): string {
     return this.t(this.sizeStep() === 'large' ? 'widget.size.smaller' : 'widget.size.larger');
+  }
+
+  /** Paket U1-c2: was die Trefferliste (UI-Modul) von der Shell braucht — stabil als Feld, damit
+   *  OnPush nicht bei jedem Durchlauf einen neuen Eingabewert sieht. */
+  protected readonly modulTreffer: ShellTreffer = {
+    kontext: this.render.resultGroupsCtx,
+    kacheln: () => this.cardsVisible,
+    beschaeftigt: () => this.isLoading(),
+    volltext: (nodeId, title) => void this.showContentText(nodeId, title),
+    sammlung: (nodeId, title) => void this.browseCollection(nodeId, title),
+    lernpfad: (nodeId, title) => void this.generateLearningPath(nodeId, title),
+    zweig: (nodeId) => themenbaumZweig(nodeId, this._contexts.collectionActions),
+    mehrLaden: (nachrichtId) => void this.loadMoreCards(nachrichtId),
+  };
+
+  /** Paket U1-d1: die Antwort eines abfragenden Moduls als nächster Zug — `text` wird die
+   *  Nutzerblase, `ui_antwort` geht mit. Der Block ist danach beantwortet; jede andere offene
+   *  Frage wird mit dem Zug veraltet (`addUserMessage`). Während eines Zugs nimmt die Shell keine
+   *  Antwort an (das Modul sperrt seinen Knopf dann ohnehin). Kam der Zug nie beim Server an
+   *  (kein `connected`, keine Antwort), ist die Frage wieder offen (Review U1-d1, Befund 7). */
+  protected readonly modulAntworten: ShellAntworten = ({ nachrichtId, blockId, daten, text }) => {
+    const blase = text.trim();
+    if (this.isLoading() || !blase) {
+      console.warn('boerdi: Modul-Antwort verworfen —', this.isLoading() ? 'ein Zug läuft' : 'ohne Text');
+      return;
+    }
+    this._store.update((msgs) => alsBeantwortet(msgs, nachrichtId, blockId, daten));
+    // `runSendMessage` direkt statt `sendMessage`: nur es sagt, ob der Server den Zug angenommen hat.
+    void runSendMessage(blase, undefined, undefined, this._sendCtx, { block_id: blockId, daten }).then((angenommen) => {
+      if (!angenommen) this._store.update((msgs) => wiederOffen(msgs, nachrichtId, blockId));
+    });
+  };
+
+  /** Trägt die Nachricht eine Trefferliste? Dann zeigt das Modul die Boxen — die bisherigen schweigen. */
+  protected hatTrefferliste(msg: ChatMessage): boolean {
+    return !!msg.ui?.ui_bloecke?.some((b) => b.modul === TREFFERLISTE);
   }
 
   /** U2b — Kacheln mit Vorschaubild (`true`) oder Textlinks in Boxen (`false`).
@@ -423,7 +467,11 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     sessionId: () => this.sessionId,
     isLoading: () => this.isLoading(),
     setLoading: (v) => this.isLoading.set(v),
-    addUserMessage: (content) => this._store.addUserMessage(content, this._hostTurn),
+    // Jeder Zug der Person schließt offene Fragen (U1-d1) — wie im Backend (`services/ui_antwort`).
+    addUserMessage: (content) => {
+      this._store.update(offeneFragenSchliessen);
+      this._store.addUserMessage(content, this._hostTurn);
+    },
     addBotMessage: (...args) => this._store.addBotMessage(...args),
     removeMessage: (id) => this._store.removeMessage(id),
     updateLoadingPhase: (id, label) => this._store.updateLoadingPhase(id, label),
@@ -434,12 +482,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     focusInput: () => { if (fokusZurueckholen(this._element.nativeElement)) this.focusInput(); },
     pageContextEnv: () => Object.keys(this.parsedPageContext).length
       ? { page_context: this.parsedPageContext } : undefined,
-    stream: (msg, onEvent, env, action, actionParams) =>
-      this._api.stream(this.sessionId, msg, onEvent, env as any, action, actionParams),
+    stream: (msg, onEvent, env, action, actionParams, uiAntwort) =>
+      this._api.stream(this.sessionId, msg, onEvent, env as any, action, actionParams, uiAntwort),
     // Review zu M-15: der POST-Rückfall eines Zugs hat keine Fortschrittsrahmen
     // und kann ein ganzer Agent-Lauf sein — eigene, längere Frist.
-    post: (msg, env, action, actionParams) =>
-      this._api.post(this.sessionId, msg, env as any, action, actionParams, ZUG_POST_FRIST_MS),
+    post: (msg, env, action, actionParams, uiAntwort) =>
+      this._api.post(this.sessionId, msg, env as any, action, actionParams, ZUG_POST_FRIST_MS, uiAntwort),
     formatPhaseLabel: (evt) => formatPhaseLabel(evt, (k, p) => this.t(k, p)),
     onResult: (resp, msg) => this._onResult(resp, msg),
     t: (key, params) => this.t(key, params),
@@ -456,7 +504,6 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
             nachId: nachfrage.nachId,
             abgebrochen: () => this._zerstoert || nachfrage.abgebrochen(),
             signal: steuerung.signal,
-            gekuerztHinweis: this.t('chat.documentShortened'),
           });
       } finally {
         this._nachfragen.delete(steuerung);
@@ -491,9 +538,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   // ── Turn-Ausführung (8-4S-d2a) ──────────────────────────────────
   /** Einen Chat-Turn senden. `text` leer → Eingabefeld; optionale Direct-
    *  Action (Card-Buttons/Action-Pills). Delegiert an den Orchestrator (8-4S-c),
-   *  der Stream/Fallback/Fehler abwickelt und `_onResult` als Erfolgs-Hook ruft. */
-  sendMessage(text?: string, action?: string, actionParams?: Record<string, any>): Promise<void> {
-    return runSendMessage(text, action, actionParams, this._sendCtx);
+   *  der Stream/Fallback/Fehler abwickelt und `_onResult` als Erfolgs-Hook ruft.
+   *  `uiAntwort` (U1-d1): Antwort auf einen abfragenden UI-Block (`modulAntworten`). */
+  sendMessage(
+    text?: string, action?: string, actionParams?: Record<string, any>, uiAntwort?: UiAntwortAnfrage,
+  ): Promise<void> {
+    return runSendMessage(text, action, actionParams, this._sendCtx, uiAntwort).then(() => undefined);
   }
 
   /** Gilt die Blase des laufenden Zuges als Auftrag des Gastgebers?
@@ -951,6 +1001,9 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
 
   /** Boot: Base-URL/Speech/pageContext/Session-Kaskade + Resume vs. Begrüßung. */
   ngOnInit(): void {
+    // Review U1-d1 (Plan §3.4): vor dem ersten Zug — das Backend bietet nur Modul-Werkzeuge an, die
+    // dieses Widget zeigen kann.
+    this._api.setUiModule(Object.keys(this._modulRegister));
     this._lifecycle.init();
     // C1-f1: Die Sprache, die das Widget ANZEIGT, ist auch die, in der das
     // Backend antworten soll. Ohne das schickte `environment.locale` den

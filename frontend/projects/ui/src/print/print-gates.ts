@@ -1,7 +1,7 @@
 /**
  * Print-Gates (8-4S-f1) — die Prädikate, die im Message-Row-Template
  * entscheiden, welche Druck-Leiste eine Bot-Bubble bekommt, plus der Druck-
- * Trigger der InlineDocument-Box. Bodies verbatim aus ALT chat.component.ts
+ * Trigger. Bodies verbatim aus ALT chat.component.ts
  * (859-863, 883-893, 901-904, 910-916).
  *
  * Wohnen hier statt in der Shell, weil sie rein über `ChatMessage` arbeiten und
@@ -10,11 +10,12 @@
  * `print-utils.ts` nach C1-b4 über der ≤300-Schwelle lag (395 Z.; seit Paket 9
  * steht der Lernpfad-Druck in `print-lernpfad.ts`).
  */
-import { inlineDocFallbackLabel } from '../inline-doc/inline-doc';
+import { INHALTSRAHMEN } from '@boerdi/ui-module/_vertrag/modul-namen';
+
 import { ChatMessage } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { printLearningPath } from './print-lernpfad';
-import { PRINTABLE_CANVAS_RE, printCanvasMaterial, printMarkdownDocument } from './print-utils';
+import { PRINTABLE_CANVAS_RE, printCanvasMaterial } from './print-utils';
 
 /**
  * Erkennt, ob eine Bot-Nachricht ein Lernpfad ist. Beide Marker erzeugt
@@ -28,6 +29,14 @@ export function isLearningPath(msg: ChatMessage): boolean {
 }
 
 /**
+ * Trägt die Nachricht einen Inhaltsrahmen-Block (mit eigenem Druckknopf)? Dann bekommt sie
+ * keine zusätzliche Druckleiste.
+ */
+export function hatDokumentBox(msg: ChatMessage): boolean {
+  return !!msg.ui?.ui_bloecke?.some((b) => b.modul === INHALTSRAHMEN);
+}
+
+/**
  * Erkennt Canvas-Material (Arbeitsblatt, Quiz, Bericht, …), das inline gelandet
  * ist, weil der Host `canvas-enabled="false"` setzt. Lernpfade haben ihren
  * eigenen Detektor + Button und sind hier ausgeschlossen, damit dieselbe
@@ -35,11 +44,6 @@ export function isLearningPath(msg: ChatMessage): boolean {
  */
 export function isPrintableCanvasMaterial(msg: ChatMessage): boolean {
   if (msg.sender !== 'bot') return false;
-  // Welle E (2026-05-24): jede InlineDocument-Box (ki_material / lernpfad /
-  // edit / bericht / remix) ist druckbar. Der Sentinel-im-`msg.content`-Pfad
-  // bleibt als Fallback für ältere Messages (z.B. aus dem Session-Restore).
-  const docs = msg.inlineDocuments || [];
-  if (docs.length > 0) return true;
   if (!msg.content) return false;
   if (isLearningPath(msg)) return false;
   return PRINTABLE_CANVAS_RE.test(msg.content);
@@ -61,29 +65,16 @@ export function printableCanvasLabel(msg: ChatMessage, t: TranslateFn): string {
 }
 
 /**
- * Welle E (2026-05-24): Druck-Trigger direkt aus der InlineDocument-Box. Nutzt
- * `doc.title` als Print-Header und `doc.content` als Markdown-Body — kein
- * Sentinel-Parse nötig.
- */
-export function printInlineDocument(
-  doc: { title: string; content: string; kind: string },
-  t: TranslateFn,
-): void {
-  if (!doc || !doc.content) return;
-  printMarkdownDocument(doc.title || inlineDocFallbackLabel(doc.kind, t), doc.content, t);
-}
-
-/**
  * Druck-Fassade fürs Message-Row-Template (8-4S-f3): Gates + Trigger unter einem
  * Namen, damit die Shell nicht sechs identische Delegate-Methoden trägt, nur um
  * freie Funktionen im Template erreichbar zu machen (Angular-Templates können
  * keine Modul-Funktionen aufrufen). Reine Funktionsreferenzen — kein Zustand.
  */
 export const SHELL_PRINT = {
+  hatDokumentBox,
   isLearningPath,
   isPrintableCanvasMaterial,
   printableCanvasLabel,
-  printInlineDocument,
   printCanvasMaterial,
   printLearningPath,
 } as const;

@@ -1,0 +1,740 @@
+[
+  {
+    "name": "ui_entscheidung",
+    "version": 1,
+    "art": "abfragen",
+    "titel": {
+      "de": "Entscheidung",
+      "en": "Choice"
+    },
+    "beschreibung": "Stellt der Person eine Frage mit festen Antwortmoeglichkeiten zum Anklicken, einzeln oder mehrfach, auf Wunsch mit einem Freitextfeld. Der Aufruf beendet deinen Zug: schreibe dazu hoechstens einen kurzen Satz, die Frage und die Moeglichkeiten zeigt das Auswahlfeld. Die Antwort der Person kommt im naechsten Zug als Block vor ihrer Nachricht.",
+    "wann": [
+      "du brauchst eine Entscheidung, und die Antwortmoeglichkeiten sind bekannt und ueberschaubar (2 bis 8)",
+      "eine Rueckfrage, deren Antwort sonst muehsam zu tippen waere (Klassenstufe, Variante, Format)"
+    ],
+    "nicht_wann": [
+      "offene Fragen ohne feste Moeglichkeiten — frage dann in Prosa",
+      "mehr als 8 Moeglichkeiten oder Baumstrukturen",
+      "um einen Schreibvorgang bestaetigen zu lassen — dafuer gibt es die Vorschau mit Bestaetigung"
+    ],
+    "agent": true,
+    "eingabe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frage",
+        "optionen"
+      ],
+      "properties": {
+        "frage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Die Frage an die Person, ein Satz, z. B. 'Fuer welche Klassenstufe soll das Arbeitsblatt sein?'."
+        },
+        "optionen": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "description": "Die Antwortmoeglichkeiten in der gewuenschten Reihenfolge; jede id nur einmal.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9_-]{1,40}$",
+                "description": "Kurze Kennung der Moeglichkeit (Kleinbuchstaben, Ziffern, _ und -), z. B. 'klasse_5_6'. Kommt in der Antwort zurueck."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "Die sichtbare Beschriftung der Moeglichkeit."
+              },
+              "hinweis": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "Optional: eine kurze Erklaerung unter der Beschriftung."
+              }
+            }
+          }
+        },
+        "mehrfach": {
+          "type": "boolean",
+          "description": "true: die Person darf mehrere Moeglichkeiten waehlen; sonst genau eine (Vorgabe)."
+        },
+        "freitext": {
+          "type": "boolean",
+          "description": "true: zusaetzlich ein Feld fuer eine eigene Ergaenzung (hoechstens 1000 Zeichen); Vorgabe aus."
+        }
+      }
+    },
+    "antwort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gewaehlt"
+      ],
+      "properties": {
+        "gewaehlt": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "description": "Die Kennungen (id) der gewaehlten Moeglichkeiten.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]{1,40}$"
+          }
+        },
+        "freitext": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Die eigene Ergaenzung der Person, nur wenn das Modul ein Freitextfeld zeigte."
+        }
+      }
+    },
+    "datenquelle": null,
+    "faehigkeiten": [
+      "antworten"
+    ],
+    "textfassung": {
+      "vorlage": "nummerierte_liste",
+      "feld": "optionen"
+    },
+    "darstellung": {
+      "breit": false
+    },
+    "beispiele": [
+      {
+        "titel": "Einzelwahl",
+        "daten": {
+          "frage": "Für welche Klassenstufe soll das Arbeitsblatt sein?",
+          "optionen": [
+            {
+              "id": "klasse_5_6",
+              "label": "Klasse 5–6"
+            },
+            {
+              "id": "klasse_7_8",
+              "label": "Klasse 7–8"
+            },
+            {
+              "id": "klasse_9_10",
+              "label": "Klasse 9–10"
+            }
+          ]
+        },
+        "antwort": {
+          "gewaehlt": [
+            "klasse_7_8"
+          ]
+        }
+      },
+      {
+        "titel": "Mehrfachwahl mit Hinweisen und Freitext",
+        "daten": {
+          "frage": "Welche Formate passen für deine Stunde?",
+          "optionen": [
+            {
+              "id": "video",
+              "label": "Video",
+              "hinweis": "kurze Erklärfilme bis 10 Minuten"
+            },
+            {
+              "id": "arbeitsblatt",
+              "label": "Arbeitsblatt",
+              "hinweis": "zum Ausdrucken"
+            },
+            {
+              "id": "interaktiv",
+              "label": "Interaktive Übung"
+            }
+          ],
+          "mehrfach": true,
+          "freitext": true
+        },
+        "antwort": {
+          "gewaehlt": [
+            "video",
+            "interaktiv"
+          ],
+          "freitext": "Am liebsten ohne Anmeldung."
+        }
+      }
+    ]
+  },
+  {
+    "name": "ui_inhaltsrahmen",
+    "version": 1,
+    "art": "anzeigen",
+    "titel": {
+      "de": "Inhaltsrahmen",
+      "en": "Content frame"
+    },
+    "beschreibung": "Zeigt ein fertiges Arbeitsergebnis als eigene Box mit Drucken und Download: Verlaufsplan, Unterrichtsreihe, Arbeitsblatt, Lernpfad, Zeugnis, Brief oder Fachtext. markdown traegt das VOLLSTAENDIGE Ergebnis — nicht zusammenfassen, nicht bloss ankuendigen. Die Prosa-Antwort daneben ist nur der Begleitsatz (ein bis zwei Saetze).",
+    "wann": [
+      "sobald ein Ergebnis fertig ist, im selben Zug; Rueckfragen vorher sind in Ordnung",
+      "fuer erstellte Materialien, Stunden- und Lernpfad-Planungen und Texte, die man drucken oder speichern will"
+    ],
+    "nicht_wann": [
+      "fuer Suchtreffer aus WLO — die erscheinen als Karten",
+      "fuer kurze Antworten, die in einen Satz passen"
+    ],
+    "agent": true,
+    "eingabe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "titel",
+        "art",
+        "markdown"
+      ],
+      "properties": {
+        "titel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Die Ueberschrift der Box, z. B. 'Unterrichtsverlaufsplan: Einfuehrung in die Optik'."
+        },
+        "art": {
+          "type": "string",
+          "enum": [
+            "lernpfad",
+            "ki_material",
+            "edit",
+            "bericht",
+            "remix",
+            "stundenplanung",
+            "unterrichtsreihe",
+            "zeugnis",
+            "dokument",
+            "kompendialtext",
+            "volltext",
+            "schreib_vorschau"
+          ],
+          "description": "Die Form des Ergebnisses: lernpfad (aufeinander aufbauende Materialien), ki_material (erzeugtes Arbeitsblatt, Quiz, Aufgabenset), edit (ueberarbeitete Fassung eines vorher gezeigten Inhalts), bericht (Auswertung oder Pruefzusammenfassung), remix (Zusammenstellung aus vorhandenen Inhalten), stundenplanung (Verlaufsplan fuer EINE Stunde), unterrichtsreihe (Planung ueber mehrere Stunden), zeugnis (Zeugnis oder Beurteilung), dokument (Brief oder sonstiges Schriftstueck), kompendialtext (Fachtext zu einem Gegenstand).",
+          "x-nur-system": [
+            "volltext",
+            "schreib_vorschau"
+          ]
+        },
+        "markdown": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Das vollstaendige Ergebnis als Markdown (Ueberschriften, Listen, Tabellen, Links)."
+        }
+      }
+    },
+    "datenquelle": null,
+    "faehigkeiten": [
+      "drucken",
+      "herunterladen"
+    ],
+    "textfassung": {
+      "vorlage": "markdown",
+      "feld": "markdown"
+    },
+    "darstellung": {
+      "breit": false
+    },
+    "beispiele": [
+      {
+        "titel": "Stundenplanung mit Tabelle",
+        "daten": {
+          "titel": "Unterrichtsverlaufsplan: Einführung in die Optik",
+          "art": "stundenplanung",
+          "markdown": "## Ziel\nDie Lernenden beschreiben, wie Licht sich ausbreitet.\n\n| Phase | Dauer | Inhalt |\n|---|---|---|\n| Einstieg | 10 min | Schattenversuch |\n| Erarbeitung | 25 min | Stationen |\n| Sicherung | 10 min | Merksatz |"
+        }
+      },
+      {
+        "titel": "Lernpfad mit Links",
+        "daten": {
+          "titel": "Lernpfad Bruchrechnung",
+          "art": "lernpfad",
+          "markdown": "1. [Brüche erkennen](https://wirlernenonline.de/)\n2. Brüche kürzen\n3. Brüche addieren"
+        }
+      },
+      {
+        "titel": "Vorgeschlagene Änderung",
+        "daten": {
+          "titel": "Änderung an „Optik – Arbeitsblatt“",
+          "art": "schreib_vorschau",
+          "markdown": "- **Titel:** Optik – Arbeitsblatt 2\n- **Fach:** Physik"
+        }
+      }
+    ]
+  },
+  {
+    "name": "ui_linkbox",
+    "version": 1,
+    "art": "anzeigen",
+    "titel": {
+      "de": "Webseiten-Inhalte",
+      "en": "Web page contents"
+    },
+    "beschreibung": "Zeigt die Webseiten, auf die sich die Antwort stuetzt, als Liste von Links — ohne WLO-Inhalte (die stehen in der Trefferliste). Entsteht automatisch aus den Links der Antwort.",
+    "wann": [
+      "automatisch, wenn die Antwort Webseiten nennt"
+    ],
+    "nicht_wann": [
+      "fuer WLO-Inhalte und Sammlungen — dafuer die Trefferliste"
+    ],
+    "agent": false,
+    "eingabe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "links"
+      ],
+      "properties": {
+        "links": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "description": "Die Links in der Reihenfolge der Antwort.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "titel",
+              "url"
+            ],
+            "properties": {
+              "titel": {
+                "type": "string",
+                "maxLength": 300,
+                "description": "Beschriftung des Links; leer, wenn die Antwort keine nennt."
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^https?://",
+                "maxLength": 2000,
+                "description": "Adresse der Webseite (nur http und https)."
+              }
+            }
+          }
+        }
+      }
+    },
+    "datenquelle": null,
+    "faehigkeiten": [
+      "oeffnen"
+    ],
+    "textfassung": {
+      "vorlage": "link_liste",
+      "feld": "links"
+    },
+    "darstellung": {
+      "breit": false,
+      "platz": "unten"
+    },
+    "beispiele": [
+      {
+        "titel": "Zwei Webseiten",
+        "daten": {
+          "links": [
+            {
+              "titel": "WirLernenOnline",
+              "url": "https://wirlernenonline.de/"
+            },
+            {
+              "titel": "Bildungsserver",
+              "url": "https://www.bildungsserver.de/"
+            }
+          ]
+        }
+      },
+      {
+        "titel": "Link ohne Beschriftung",
+        "daten": {
+          "links": [
+            {
+              "titel": "",
+              "url": "https://example.org/seite"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "ui_themenbaum",
+    "version": 1,
+    "art": "anzeigen",
+    "titel": {
+      "de": "Themenbaum",
+      "en": "Topic tree"
+    },
+    "beschreibung": "Zeigt die Unterthemen eines WLO-Fachportals oder einer Sammlung als aufklappbaren Baum mit zwei Ebenen; die Person kann von dort die Inhalte eines Themas oder tiefere Unterthemen oeffnen. Den Baum holt das System selbst: du nennst nur das Fach (subject) ODER die Sammlung (nodeId) und siehst die Themen nicht. Schreibe dazu hoechstens einen kurzen Begleitsatz und zaehle keine Themen auf.",
+    "wann": [
+      "die Person will wissen, welche Themen oder Unterthemen es in einem Fach oder einer Sammlung gibt",
+      "gefuehrtes Stoebern, z. B. 'zeig mir die Themen in Mathe'"
+    ],
+    "nicht_wann": [
+      "du brauchst die Unterthemen selbst, um weiterzuarbeiten (dafuer browse_collection_tree)",
+      "die Materialien einer Sammlung (dafuer get_collection_contents)",
+      "eine Suche nach Inhalten"
+    ],
+    "agent": true,
+    "eingabe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "knoten"
+      ],
+      "properties": {
+        "titel": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Ueberschrift: Fach oder Sammlung, deren Unterthemen der Baum zeigt; leer, wenn unbekannt."
+        },
+        "wurzel_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,80}$",
+          "description": "Kennung der Sammlung, deren Unterthemen der Baum zeigt."
+        },
+        "wurzel_url": {
+          "type": "string",
+          "pattern": "^https?://",
+          "maxLength": 2000,
+          "description": "Die Sammlung der Wurzel in WLO (nur http und https); setzt das System."
+        },
+        "gekuerzt": {
+          "type": "boolean",
+          "description": "Mindestens ein Zweig hat mehr Unterthemen, als der Baum zeigt."
+        },
+        "wurzel_mehr": {
+          "type": "boolean",
+          "description": "Die erste Ebene hat mehr Unterthemen, als der Baum zeigt."
+        },
+        "knoten": {
+          "type": "array",
+          "maxItems": 30,
+          "description": "Die Unterthemen der ersten Ebene, alphabetisch; leer, wenn es keine gibt.",
+          "items": {
+            "$ref": "#/$defs/knoten"
+          }
+        }
+      },
+      "$defs": {
+        "knoten": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "titel"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,80}$",
+              "description": "Kennung der Sammlung."
+            },
+            "titel": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Name des Themas."
+            },
+            "url": {
+              "type": "string",
+              "pattern": "^https?://",
+              "maxLength": 2000,
+              "description": "Themenseite oder Sammlung auf WLO (nur http und https)."
+            },
+            "anzahl": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Zahl der Inhalte, wenn der Server sie mitschickt."
+            },
+            "mehr": {
+              "type": "boolean",
+              "description": "Es gibt mehr Unterthemen, als hier stehen."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 10,
+              "description": "Unterthemen der zweiten Ebene.",
+              "items": {
+                "$ref": "#/$defs/blatt"
+              }
+            }
+          }
+        },
+        "blatt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "titel"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,80}$",
+              "description": "Kennung der Sammlung."
+            },
+            "titel": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Name des Themas."
+            },
+            "url": {
+              "type": "string",
+              "pattern": "^https?://",
+              "maxLength": 2000,
+              "description": "Themenseite oder Sammlung auf WLO (nur http und https)."
+            },
+            "anzahl": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Zahl der Inhalte, wenn der Server sie mitschickt."
+            },
+            "mehr": {
+              "type": "boolean",
+              "description": "Es gibt mehr Unterthemen, als hier stehen."
+            }
+          }
+        }
+      }
+    },
+    "datenquelle": {
+      "werkzeug": "browse_collection_tree",
+      "argumente": [
+        "subject",
+        "nodeId"
+      ],
+      "vorgaben": {
+        "depth": 2,
+        "maxResults": 31
+      }
+    },
+    "faehigkeiten": [
+      "oeffnen",
+      "nachladen"
+    ],
+    "textfassung": {
+      "vorlage": "link_liste",
+      "feld": "knoten"
+    },
+    "darstellung": {
+      "breit": false,
+      "platz": "oben"
+    },
+    "beispiele": [
+      {
+        "titel": "Fachportal mit zwei Ebenen",
+        "daten": {
+          "titel": "Mathematik",
+          "wurzel_id": "aaaa-1111",
+          "gekuerzt": true,
+          "knoten": [
+            {
+              "id": "bbbb-2222",
+              "titel": "Algebra",
+              "url": "https://wirlernenonline.de/sammlung/algebra",
+              "mehr": true,
+              "kinder": [
+                {
+                  "id": "cccc-3333",
+                  "titel": "Gleichungen",
+                  "url": "https://wirlernenonline.de/sammlung/gleichungen",
+                  "anzahl": 12
+                },
+                {
+                  "id": "dddd-4444",
+                  "titel": "Terme"
+                }
+              ]
+            },
+            {
+              "id": "eeee-5555",
+              "titel": "Geometrie",
+              "url": "https://wirlernenonline.de/geometrie/",
+              "anzahl": 7
+            }
+          ]
+        }
+      },
+      {
+        "titel": "Ohne Ueberschrift, nur eine Ebene",
+        "daten": {
+          "knoten": [
+            {
+              "id": "ffff-6666",
+              "titel": "Bruchrechnung"
+            },
+            {
+              "id": "gggg-7777",
+              "titel": "Prozentrechnung"
+            }
+          ]
+        }
+      },
+      {
+        "titel": "Keine Unterthemen",
+        "daten": {
+          "titel": "Optik",
+          "wurzel_id": "hhhh-8888",
+          "knoten": []
+        }
+      },
+      {
+        "titel": "Mehr Themen, als der Baum zeigt",
+        "daten": {
+          "titel": "Physik",
+          "wurzel_id": "iiii-9999",
+          "wurzel_url": "https://redaktion.example.org/edu-sharing/components/collections?id=iiii-9999",
+          "wurzel_mehr": true,
+          "knoten": [
+            {
+              "id": "jjjj-0001",
+              "titel": "Mechanik"
+            },
+            {
+              "id": "kkkk-0002",
+              "titel": "Optik"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "ui_trefferliste",
+    "version": 1,
+    "art": "anzeigen",
+    "titel": {
+      "de": "Trefferliste",
+      "en": "Results"
+    },
+    "beschreibung": "Zeigt die WLO-Treffer einer Antwort — Themenseiten, Sammlungen, Materialien — samt Absprung in die WLO-Suche. Entsteht automatisch aus den Suchergebnissen der Antwort, auch im Agent-Modus.",
+    "wann": [
+      "automatisch, wenn die Antwort WLO-Treffer oder eine Suche enthaelt"
+    ],
+    "nicht_wann": [
+      "fuer Webseiten ausserhalb von WLO — dafuer die Linkbox"
+    ],
+    "agent": false,
+    "eingabe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "karten",
+        "such_metas",
+        "seiten",
+        "typ_fokus"
+      ],
+      "properties": {
+        "karten": {
+          "type": "array",
+          "maxItems": 100,
+          "description": "Die Treffer als WLO-Karten (Felder wie WloCard im Backend: node_id, title, node_type, url, preview_url, …).",
+          "items": {
+            "type": "object",
+            "required": [
+              "node_id"
+            ],
+            "properties": {
+              "node_id": {
+                "type": "string",
+                "description": "Kennung des Knotens in WLO."
+              },
+              "title": {
+                "type": "string",
+                "description": "Titel des Treffers."
+              },
+              "node_type": {
+                "type": "string",
+                "description": "content, collection oder topic_page."
+              }
+            }
+          }
+        },
+        "such_metas": {
+          "type": "array",
+          "maxItems": 20,
+          "description": "Angaben der Suchen (Suchbegriff, Such-Adresse) fuer den Absprung in die WLO-Suche.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "seiten": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Seitenangabe beim Blaettern in einer Sammlung (has_more, skip_count, page_size, collection_id), sonst null."
+        },
+        "typ_fokus": {
+          "type": "string",
+          "description": "Gesetzt, wenn nur nach einer Inhaltsart gefragt war (z. B. Video): dann zeigt die Liste nur den Such-Absprung."
+        }
+      }
+    },
+    "datenquelle": null,
+    "faehigkeiten": [
+      "oeffnen"
+    ],
+    "textfassung": {
+      "vorlage": "link_liste",
+      "feld": "karten"
+    },
+    "darstellung": {
+      "breit": false,
+      "platz": "unten"
+    },
+    "beispiele": [
+      {
+        "titel": "Sammlung und Material",
+        "daten": {
+          "karten": [
+            {
+              "node_id": "c1",
+              "title": "Sammlung Optik",
+              "node_type": "collection",
+              "url": "https://wirlernenonline.de/c1"
+            },
+            {
+              "node_id": "m1",
+              "title": "Video: Licht und Schatten",
+              "node_type": "content",
+              "url": "https://wirlernenonline.de/m1"
+            }
+          ],
+          "such_metas": [
+            {
+              "tool_name": "search_wlo_content",
+              "search_term": "Optik",
+              "search_url": "https://wirlernenonline.de/suche?q=Optik"
+            }
+          ],
+          "seiten": null,
+          "typ_fokus": ""
+        }
+      },
+      {
+        "titel": "Nur Such-Absprung (Typ-Fokus)",
+        "daten": {
+          "karten": [],
+          "such_metas": [
+            {
+              "tool_name": "search_wlo_content",
+              "search_term": "Optik Video",
+              "search_url": "https://wirlernenonline.de/suche?q=Optik"
+            }
+          ],
+          "seiten": null,
+          "typ_fokus": "Video"
+        }
+      }
+    ]
+  }
+]

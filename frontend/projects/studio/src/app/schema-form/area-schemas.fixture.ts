@@ -651,6 +651,13 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               "enabled": true,
               "exclude_patterns": []
             }
+          },
+          "ui_module": {
+            "$ref": "#/$defs/UiModulSchalter",
+            "default": {
+              "aus": [],
+              "agent_aus": []
+            }
           }
         },
         "title": "DisplayRulesBlock",
@@ -835,6 +842,30 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         },
         "title": "SingleContentBoxRules",
         "type": "object"
+      },
+      "UiModulSchalter": {
+        "additionalProperties": true,
+        "description": "Paket U1-f: Studio-Schalter der UI-Module als Ausschalt-Listen (wie ``werkzeuge_aus``);\nfehlt ein Name, ist das Modul an. ``aus``: erscheint in neuen Antworten nicht (kein Werkzeug,\nkein abgeleiteter Block); ``agent_aus``: nur der Agent-Modus bietet es nicht an. Gelesen von\n``config_loader/ui_module.load_ui_modul_schalter`` — NICHT von ``load_display_rules_config``,\ndessen Ergebnis in jeder Antwort mitreist. Gepflegt auf der Studio-Seite „UI-Module“.",
+        "properties": {
+          "aus": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Aus",
+            "type": "array"
+          },
+          "agent_aus": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Agent Aus",
+            "type": "array"
+          }
+        },
+        "title": "UiModulSchalter",
+        "type": "object"
       }
     },
     "additionalProperties": true,
@@ -872,6 +903,10 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "prompt_anzeige_konsistenz": {
             "enabled": true,
             "exclude_patterns": []
+          },
+          "ui_module": {
+            "agent_aus": [],
+            "aus": []
           }
         }
       }
@@ -931,7 +966,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "description": "Rolle und Grenzen des Agenten (AG-3): was der Betreiber im Studio setzt.\n\nDie Arbeitsweise im Einzelnen setzt die Redaktion im Repositorium (der\nMaster-Skill); der Kopf aus diesen Feldern steht davor und geht ihm vor\n(``services/agent_kopf``). ``schutzregeln`` sind Kennungen aus\n``01-base/guardrails``: nur diese gelten für den Agenten. Die übrigen sind\nArbeitsregeln der Muster-Maschine (etwa „max. 5 Treffer\"), die die Schleife\neher bremsen.",
         "properties": {
           "rolle": {
-            "default": "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit einem Menschen im Chat — kurz, freundlich und ohne Floskeln.\n\nArbeitsweise: Hole dir die Tatsachen mit den Werkzeugen, statt sie aus dem Gedächtnis zu behaupten. Steht in einer Sammlung ein Skill zu deiner Aufgabe, halte dich daran. Nenne, worauf du dich stützt, und sage ausdrücklich, was du NICHT prüfen konntest.\n\nAntwortform: Fragt jemand nach Material, suche zuerst mit dem, was du weißt (Thema, Fach, Klassenstufe, Anlass) — die Treffer erscheinen als Karten; eine Rückfrage höchstens danach. Ein eigenes Material erstellst du nur, wenn es verlangt ist oder im Bestand nichts passt — dann sag, dass es selbst erstellt ist. Wird ein fertiges Ergebnis verlangt (ein erstelltes Material, eine Stunden- oder Lernpfad-Planung, der Volltext eines Materials), liefere es mit zeige_dokument als Box; fehlt ein fertiger Lernpfad oder Stundenablauf, stelle ihn aus den Treffern zusammen.",
+            "default": "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit einem Menschen im Chat — kurz, freundlich und ohne Floskeln.\n\nArbeitsweise: Hole dir die Tatsachen mit den Werkzeugen, statt sie aus dem Gedächtnis zu behaupten. Steht in einer Sammlung ein Skill zu deiner Aufgabe, halte dich daran. Nenne, worauf du dich stützt, und sage ausdrücklich, was du NICHT prüfen konntest.\n\nAntwortform: Fragt jemand nach Material, suche zuerst mit dem, was du weißt (Thema, Fach, Klassenstufe, Anlass) — die Treffer erscheinen als Karten; eine Rückfrage höchstens danach. Ein eigenes Material erstellst du nur, wenn es verlangt ist oder im Bestand nichts passt — dann sag, dass es selbst erstellt ist. Wird ein fertiges Ergebnis verlangt (ein erstelltes Material, eine Stunden- oder Lernpfad-Planung, der Volltext eines Materials), liefere es mit ui_inhaltsrahmen als Box; fehlt ein fertiger Lernpfad oder Stundenablauf, stelle ihn aus den Treffern zusammen.",
             "title": "Rolle",
             "type": "string",
             "x-widget": "textarea"
@@ -1061,7 +1096,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "agent_rolle": {
         "$ref": "#/$defs/AgentRolle",
         "default": {
-          "rolle": "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit einem Menschen im Chat — kurz, freundlich und ohne Floskeln.\n\nArbeitsweise: Hole dir die Tatsachen mit den Werkzeugen, statt sie aus dem Gedächtnis zu behaupten. Steht in einer Sammlung ein Skill zu deiner Aufgabe, halte dich daran. Nenne, worauf du dich stützt, und sage ausdrücklich, was du NICHT prüfen konntest.\n\nAntwortform: Fragt jemand nach Material, suche zuerst mit dem, was du weißt (Thema, Fach, Klassenstufe, Anlass) — die Treffer erscheinen als Karten; eine Rückfrage höchstens danach. Ein eigenes Material erstellst du nur, wenn es verlangt ist oder im Bestand nichts passt — dann sag, dass es selbst erstellt ist. Wird ein fertiges Ergebnis verlangt (ein erstelltes Material, eine Stunden- oder Lernpfad-Planung, der Volltext eines Materials), liefere es mit zeige_dokument als Box; fehlt ein fertiger Lernpfad oder Stundenablauf, stelle ihn aus den Treffern zusammen.",
+          "rolle": "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit einem Menschen im Chat — kurz, freundlich und ohne Floskeln.\n\nArbeitsweise: Hole dir die Tatsachen mit den Werkzeugen, statt sie aus dem Gedächtnis zu behaupten. Steht in einer Sammlung ein Skill zu deiner Aufgabe, halte dich daran. Nenne, worauf du dich stützt, und sage ausdrücklich, was du NICHT prüfen konntest.\n\nAntwortform: Fragt jemand nach Material, suche zuerst mit dem, was du weißt (Thema, Fach, Klassenstufe, Anlass) — die Treffer erscheinen als Karten; eine Rückfrage höchstens danach. Ein eigenes Material erstellst du nur, wenn es verlangt ist oder im Bestand nichts passt — dann sag, dass es selbst erstellt ist. Wird ein fertiges Ergebnis verlangt (ein erstelltes Material, eine Stunden- oder Lernpfad-Planung, der Volltext eines Materials), liefere es mit ui_inhaltsrahmen als Box; fehlt ein fertiger Lernpfad oder Stundenablauf, stelle ihn aus den Treffern zusammen.",
           "schutzregeln": [
             "R-05",
             "R-08",
@@ -2030,6 +2065,23 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": null,
             "title": "Tools"
           },
+          "ui_module": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "x-catalog": "ui_module"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ui Module",
+            "x-vorgabe": true
+          },
           "precondition_slots": {
             "anyOf": [
               {
@@ -2131,6 +2183,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "sources": null,
           "rag_areas": null,
           "tools": null,
+          "ui_module": null,
           "precondition_slots": null,
           "card_text_link_required": null,
           "quick_replies_mode": null,
@@ -3018,7 +3071,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": [],
         "items": {
           "type": "string",
-          "x-catalog": "tools"
+          "x-catalog": "mcp_tools"
         },
         "title": "Crisis Blocked Tools",
         "type": "array"

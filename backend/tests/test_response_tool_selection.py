@@ -64,14 +64,14 @@ def _alle_namen(pattern_output, **kw):
 
 
 def _names(pattern_output, **kw):
-    """Die Namen der AUSWAHL — ohne ``zeige_dokument``.
+    """Die Namen der AUSWAHL — ohne ``ui_inhaltsrahmen``.
 
     Das Ergebnis-Werkzeug wird seit D3 unbedingt angehängt und ist damit an
     keiner der Auswahl-Entscheidungen beteiligt, die diese Datei
     charakterisiert. Es hier mitzuführen verlängerte jede Erwartungsliste, ohne
     etwas zu belegen. Seine eigenen Fälle stehen unten und lesen ``_alle_namen``.
     """
-    return [n for n in _alle_namen(pattern_output, **kw) if n != "zeige_dokument"]
+    return [n for n in _alle_namen(pattern_output, **kw) if n != "ui_inhaltsrahmen"]
 
 
 def test_ein_stillgelegtes_werkzeug_kommt_auch_aus_einem_muster_nicht_durch(monkeypatch):
@@ -464,29 +464,29 @@ def test_return_tuple_shape_and_flags(monkeypatch):
 def test_das_ergebnis_werkzeug_steht_jedem_muster_zur_verfuegung():
     # Auch dem Muster OHNE Werkzeuge (``tools: []`` — M04, M11, M13, M14):
     # gerade die erzeugen Inhalt aus dem Modell und haben etwas zu liefern.
-    assert "zeige_dokument" in _alle_namen({"tools": []})
-    assert "zeige_dokument" in _alle_namen({"tools": ["search_wlo_content"]})
+    assert "ui_inhaltsrahmen" in _alle_namen({"tools": []})
+    assert "ui_inhaltsrahmen" in _alle_namen({"tools": ["search_wlo_content"]})
 
 
 def test_bei_degradation_gibt_es_nichts_zu_liefern():
     """Ein Zug mit fehlendem Pflicht-Slot stellt die Rückfrage — ein Ergebnis,
     das geliefert werden könnte, gibt es dann nicht."""
-    assert "zeige_dokument" not in _alle_namen(
+    assert "ui_inhaltsrahmen" not in _alle_namen(
         {"tools": ["search_wlo_content"]}, degradation=True)
 
 
 def test_im_rueckfrage_muster_gibt_es_nichts_zu_liefern():
     """Das Rückfrage-Muster (``output_mode: clarify``, M03) fragt nach, was
-    fehlt — ein Arbeitsergebnis entsteht dort nicht. Stand ``zeige_dokument``
+    fehlt — ein Arbeitsergebnis entsteht dort nicht. Stand ``ui_inhaltsrahmen``
     trotzdem im Angebot, legte das Modell die Rückfrage selbst in die Box
     (live 2026-09-30: „Thema für die Inhaltssuche“ statt einer Rückfrage)."""
-    assert "zeige_dokument" not in _alle_namen({"tools": [], "output_mode": "clarify"})
+    assert "ui_inhaltsrahmen" not in _alle_namen({"tools": [], "output_mode": "clarify"})
     # Gegenprobe: wo ein Ergebnis entsteht, bleibt das Werkzeug.
-    assert "zeige_dokument" in _alle_namen({"tools": [], "output_mode": "rerender"})
+    assert "ui_inhaltsrahmen" in _alle_namen({"tools": [], "output_mode": "rerender"})
 
 
 def test_der_medientyp_strip_nimmt_das_ergebnis_werkzeug_nicht_mit():
     """Der Strip zielt auf SUCH-Werkzeuge. Das Ergebnis-Dokument ist keines —
     fiele es mit heraus, verlöre ausgerechnet der Typ-Fokus-Zug seine Box."""
-    assert "zeige_dokument" in _alle_namen(
+    assert "ui_inhaltsrahmen" in _alle_namen(
         {"tools": ["search_wlo_collections"]}, entities={"medientyp": "Video"})

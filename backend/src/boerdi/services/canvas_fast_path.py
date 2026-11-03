@@ -503,7 +503,7 @@ async def run_canvas_create_fast_path(
                 _canvas_routed = True
                 # PageAction nicht mehr setzen — Material lebt jetzt in
                 # response_text und wird vom InlineDocument-Routing am
-                # Hauptpfad-Ende in die ``inline_documents``-Box verpackt.
+                # Hauptpfad-Ende in die Dokument-Box (Inhaltsrahmen-Block) verpackt.
                 _canvas_payload_out = None
                 new_state = "S3"
                 session_state["entities"]["_canvas_material_type"] = _mt_key

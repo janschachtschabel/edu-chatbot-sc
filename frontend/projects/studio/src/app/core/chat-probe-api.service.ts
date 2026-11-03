@@ -21,7 +21,10 @@ export interface ChatProbeResponse {
   /** `null` ohne Freigabe (Paket 18C/D, Phase 4). */
   readonly debug?: TraceDebug | null;
   readonly cards?: readonly unknown[];
-  readonly inline_documents?: readonly { readonly title?: string }[];
+  /** Seit U1-b2 reisen Dokument-Boxen als `ui_inhaltsrahmen`-Blöcke. */
+  readonly ui?: {
+    readonly ui_bloecke?: readonly { readonly modul?: string; readonly daten?: { readonly titel?: unknown } }[];
+  } | null;
 }
 
 /**

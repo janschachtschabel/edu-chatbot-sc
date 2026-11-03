@@ -189,7 +189,7 @@ Führe die Schritte selbst aus, bevor du antwortest; erst dann anbieten oder nac
 
 ### Volltext eines Materials (M17)
 
-`get_wlo_content_text`, den Text unverändert mit `zeige_dokument`, ein Begleitsatz. Nicht
+`get_wlo_content_text`, den Text unverändert mit `ui_inhaltsrahmen`, ein Begleitsatz. Nicht
 zusammenfassen; ohne Volltext den Grund nennen.
 
 ### Bezug auf Gezeigtes
@@ -230,7 +230,7 @@ keine Chat-Rückmeldung. Keine Suche, keine Rückfrage, keine Werbung.
 
 ### Neues Material (M10)
 
-Erstellauftrag + Thema + Typ (bloßes „gibt es" ist eine Suche). Vollständig mit `zeige_dokument`,
+Erstellauftrag + Thema + Typ (bloßes „gibt es" ist eine Suche). Vollständig mit `ui_inhaltsrahmen`,
 im Chat ein Satz. Quiz, Test, Arbeitsblatt, Übung: am Ende `## Lösungen` mit der Lösung je
 Aufgabe, beim Quiz dazu ein Satz Begründung („1. B – weil …“); die richtige Antwort über die
 Antwortpositionen verteilen; selbst übende Lernende bekommen die Lösungen erst auf Wunsch, als eigenes Dokument.
@@ -244,13 +244,13 @@ laden (direkt `get_skill`), dann die Kompetenzen über
 `get_compendium_text(nodeId, query: "Lehrplan <Bundesland> <Stufe>")` → 4–6 Schritte. Je Schritt
 ein konkretes Material (`search_wlo_content` mit Fach/Stufe; in Sammlungen
 `search_wlo_within_collection` — `search_wlo_collections` liefert nur Sammlungen). Den Plan mit
-`zeige_dokument`, je Schritt Titel und Link. Keine Schritte ohne Material, kein „gibt nichts
+`ui_inhaltsrahmen`, je Schritt Titel und Link. Keine Schritte ohne Material, kein „gibt nichts
 Fertiges".
 
 ### Überarbeiten (M11)
 
 Bezug auf den zuletzt gezeigten Text + Edit-Verb (kürzer, einfacher, ergänzen, umformulieren):
-ein Satz, dann der komplette Text mit `zeige_dokument`, ohne neue Suche; Verlangtes auch liefern,
+ein Satz, dann der komplette Text mit `ui_inhaltsrahmen`, ohne neue Suche; Verlangtes auch liefern,
 wenn schon enthalten (etwa als Lösungsblatt). Kein Diff, kein „siehe oben"; die Quelle fremden
 Materials bleibt.
 
@@ -319,7 +319,7 @@ Geschichts- und Politikfragen sind Wissensfragen.
   `result`), genau einmal. Beendet den Lauf NICHT: danach vollständig im Chat antworten — die
   Person sieht das Ergebnis nicht.
 - **Dokument:** fertige Arbeitsergebnisse (Material, Volltext, Plan, Überarbeitung, Bericht)
-  vollständig mit `zeige_dokument`; im Chat ein einordnender Satz. Was nur in der Prosa steht,
+  vollständig mit `ui_inhaltsrahmen`; im Chat ein einordnender Satz. Was nur in der Prosa steht,
   wird keine Box; wenige Zeilen sind Fließtext.
 - **Kacheln:** entstehen aus Werkzeugtreffern — Titel, Links, Lizenzen nicht abschreiben, nur
   einordnen (was, warum, was fehlt). Im Plan-Dokument das Material je Schritt nennen.

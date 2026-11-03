@@ -1,0 +1,45 @@
+<section class="emn" aria-labelledby="emn-title">
+  <h4 class="emn-title" id="emn-title">{{ t('evalModul.title') }}</h4>
+  <p class="emn-hint">{{ t('evalModul.hint') }}</p>
+
+  @if (nutzung().zuege === 0) {
+    <p class="emn-note">{{ t('evalModul.nochKeine') }}</p>
+  } @else if (!erfasst()) {
+    <p class="emn-note">{{ t('evalModul.nichtErfasst') }}</p>
+  } @else {
+    <p class="emn-note">{{ zusammenfassung() }}</p>
+    @if (module().length === 0) {
+      <p class="emn-note">{{ t('evalModul.keine') }}</p>
+    } @else {
+      @for (tabelle of tabellen(); track tabelle.id) {
+        <!-- Breite Tabellen rollen in ihrem Rahmen; per Tastatur erreichbar (Review U1-f, #8). -->
+        <div class="emn-rahmen" tabindex="0" role="region"
+             [attr.aria-labelledby]="'emn-cap-' + tabelle.id">
+          <table class="emn-tabelle">
+            <caption [id]="'emn-cap-' + tabelle.id">{{ tabelle.titel }}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ tabelle.kopf }}</th>
+                <th scope="col" class="emn-zahl">{{ t('evalModul.col.zuege') }}</th>
+                @for (modul of module(); track modul) {
+                  <th scope="col" class="emn-zahl">{{ modul }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (zeile of tabelle.zeilen; track zeile.name) {
+                <tr>
+                  <th scope="row">{{ zeile.name }}</th>
+                  <td class="emn-zahl">{{ zeile.zuege }}</td>
+                  @for (zelle of zeile.zellen; track $index) {
+                    <td class="emn-zahl">{{ zelle }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  }
+</section>

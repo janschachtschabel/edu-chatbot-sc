@@ -68,6 +68,7 @@ async def generate_response(
     usage_acc: dict[str, Any] | None = None,
     on_token: Any = None,
     rag_einbettung: tuple[str, list[float]] | None = None,
+    vorsatz: str = "",
 ) -> tuple[str, list[dict], list[str], list]:
     """Generate the final response using the selected pattern and MCP tools.
 
@@ -80,6 +81,10 @@ async def generate_response(
     ``respond_to_user`` (extracted progressively from the JSON arg-stream);
     plain content is collected but not forwarded (E-S1). Default ``None``
     keeps the regular non-streaming POST /api/chat unchanged.
+
+    ``vorsatz`` (Paket U1-d2) steht gerahmt vor der Nachricht der Person: die geprüfte Antwort
+    auf die Auswahl-Frage des vorigen Zugs oder die Frage selbst (``ui_module/antwort.vorsatz``).
+    Die Suche im Wissen nimmt weiter nur die Nachricht.
 
     ``session`` is the request-scoped AsyncSession (NEU pg-DI); it is only
     forwarded to the phases that reach the database (RAG retrieval inside the
@@ -130,6 +135,8 @@ async def generate_response(
         pattern_label=pattern_label,
         tool_mode=environment.get("tool_mode"),
         gesperrt=blocked_tools,
+        # Paket U1-d2: Modul-Werkzeuge nur, wenn das Widget sie zeigen kann.
+        ui_module=environment.get("ui_module"),
     )
 
     # Phasen-Split Teil 2: Messages-Aufbau + Prefetch-Injektion (P12+P14)
@@ -167,6 +174,7 @@ async def generate_response(
         seiten_daten=seiten_daten,
         # T1 (Paket 7): die Einbettung aus ``assess`` für den RAG-Vorabruf.
         rag_einbettung=rag_einbettung,
+        vorsatz=vorsatz,
     )
     # Phasen-Split Teil 2: Tool-Loop (P15) als eigene Modul-Funktion.
     # Liefert entweder das finale 4-Tupel (Final-Answer- oder

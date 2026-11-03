@@ -112,7 +112,7 @@ describe("CURATED_VIEWS declaration", () => {
     const RENDERED = [
       "rag-areas", "rag-ingest", "mcp-registry", "agent-tester", "master-skill",
       "privacy-purge", "retention", "agent-tools", "agent-skills", "agent-prompt", "agent-probe",
-      "anrede", "material-typen",
+      "anrede", "material-typen", "ui-module",
     ];
     const declared = CURATED_VIEWS.flatMap((view) =>
       view.sections.flatMap((s) => (isAreaSection(s) ? [] : [s.panel])),
@@ -128,6 +128,12 @@ describe("CURATED_VIEWS declaration", () => {
     expect(panels("werkzeuge")).toEqual(["agent-tools"]);
     expect(panels("skills")).toEqual(["master-skill", "agent-skills"]);
     expect(panels("zielgruppen")).toEqual(["anrede"]);
+    // U1-f: eine Pflegestelle für die Schalter der UI-Module — „Anzeige“ blendet sie aus.
+    expect(panels("ui-module")).toEqual(["ui-module"]);
+    const anzeige = CURATED_VIEWS.find((view) => view.slug === "anzeige")!.sections
+      .find((s) => isAreaSection(s) && s.area === "01-base/display-rules");
+    expect(anzeige && isAreaSection(anzeige) ? anzeige.ohneFelder : null)
+      .toEqual(["display_rules.ui_module"]);
     expect(panels("patterns")).toEqual([]);
   });
 
@@ -140,7 +146,7 @@ describe("CURATED_VIEWS declaration", () => {
     // & Maschine" (D2) ist die erste, die es nicht tut. Eine Erlaubnisliste
     // statt einer gelöschten Zusicherung: ein Tippfehler im Paketnamen soll
     // weiterhin auffallen.
-    const ERLAUBT = ["9-4", "P14", "P15"];
+    const ERLAUBT = ["9-4", "P14", "P15", "U1"];
     for (const view of CURATED_VIEWS) {
       const registered = STUDIO_VIEWS.find((v) => v.slug === view.slug);
       expect(registered, `slug ${view.slug}`).toBeDefined();
@@ -553,6 +559,16 @@ describe("CuratedViewComponent", () => {
     expect(fixture.componentInstance.dirty()).toBe(false);
     fixture.componentInstance.werkzeuge()[0].reg.servers.set(
       [{ name: "wlo", url: "https://example.org/mcp" } as never]);
+    expect(fixture.componentInstance.dirty()).toBe(true);
+  });
+
+  it("zählt einen umgelegten UI-Modul-Schalter als ungespeichert (U1-f)", async () => {
+    const { fixture, http } = await mount("ui-module");
+    http.match(() => true);
+    const panel = fixture.componentInstance.uiModule()[0];
+    expect(fixture.componentInstance.dirty()).toBe(false);
+    panel.doc.set({ area: "01-base/display-rules", data: {}, type: "yaml", version: 1 });
+    panel.entwurf.set({ display_rules: { ui_module: { aus: ["ui_linkbox"] } } });
     expect(fixture.componentInstance.dirty()).toBe(true);
   });
 

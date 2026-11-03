@@ -168,6 +168,38 @@ export class EvalGoldTurnsComponent {
       : '';
   }
 
+  /** U1-g (Review #9): Soll `ui_any`/`ui_none` und die gezeigten Module als eine Zeile — leer
+   *  bei einem Zug ohne UI-Erwartung und ohne erfasste Module (dann fehlt die Zeile). */
+  uiModule(turn: GoldPerTurn): string {
+    const soll = this.names(turn.expected['ui_any']);
+    const verboten = this.names(turn.expected['ui_none']);
+    const gezeigt = turn.observed['ui_module'];
+    if (!soll.length && !verboten.length && !Array.isArray(gezeigt)) return '';
+    const liste = (namen: readonly string[]) => namen.join(', ') || '–';
+    return this.t('evalDetail.uiModule', {
+      any: liste(soll), none: liste(verboten), shown: liste(this.names(gezeigt)),
+    });
+  }
+
+  /** U1-g (Review #9): was mit der Antwort im Auswahlfeld geschah (`observed.ui_antwort`). */
+  uiAntwort(turn: GoldPerTurn): string {
+    const antwort = turn.observed['ui_antwort'];
+    if (!antwort || typeof antwort !== 'object') return '';
+    const { status, gewaehlt } = antwort as { status?: unknown; gewaehlt?: unknown };
+    const code = typeof status === 'string' ? status : '';
+    const key = `evalDetail.uiAntwort.status.${code}`;
+    return this.t('evalDetail.uiAntwort', {
+      status: this.lang.has(key) ? this.t(key) : code || '–',
+      chosen: this.names(gewaehlt).join(', ') || '–',
+    });
+  }
+
+  private names(value: unknown): readonly string[] {
+    return Array.isArray(value)
+      ? value.filter((s): s is string => typeof s === 'string' && s !== '')
+      : [];
+  }
+
   private field(source: Readonly<Record<string, unknown>>, key: string): string {
     const value = source[key];
     return value === undefined || value === null || value === '' ? '–' : String(value);

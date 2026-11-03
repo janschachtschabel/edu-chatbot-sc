@@ -1,0 +1,130 @@
+{
+  "name": "ui_trefferliste",
+  "version": 1,
+  "art": "anzeigen",
+  "titel": {
+    "de": "Trefferliste",
+    "en": "Results"
+  },
+  "beschreibung": "Zeigt die WLO-Treffer einer Antwort — Themenseiten, Sammlungen, Materialien — samt Absprung in die WLO-Suche. Entsteht automatisch aus den Suchergebnissen der Antwort, auch im Agent-Modus.",
+  "wann": [
+    "automatisch, wenn die Antwort WLO-Treffer oder eine Suche enthaelt"
+  ],
+  "nicht_wann": [
+    "fuer Webseiten ausserhalb von WLO — dafuer die Linkbox"
+  ],
+  "agent": false,
+  "eingabe": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "karten",
+      "such_metas",
+      "seiten",
+      "typ_fokus"
+    ],
+    "properties": {
+      "karten": {
+        "type": "array",
+        "maxItems": 100,
+        "description": "Die Treffer als WLO-Karten (Felder wie WloCard im Backend: node_id, title, node_type, url, preview_url, …).",
+        "items": {
+          "type": "object",
+          "required": [
+            "node_id"
+          ],
+          "properties": {
+            "node_id": {
+              "type": "string",
+              "description": "Kennung des Knotens in WLO."
+            },
+            "title": {
+              "type": "string",
+              "description": "Titel des Treffers."
+            },
+            "node_type": {
+              "type": "string",
+              "description": "content, collection oder topic_page."
+            }
+          }
+        }
+      },
+      "such_metas": {
+        "type": "array",
+        "maxItems": 20,
+        "description": "Angaben der Suchen (Suchbegriff, Such-Adresse) fuer den Absprung in die WLO-Suche.",
+        "items": {
+          "type": "object"
+        }
+      },
+      "seiten": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "description": "Seitenangabe beim Blaettern in einer Sammlung (has_more, skip_count, page_size, collection_id), sonst null."
+      },
+      "typ_fokus": {
+        "type": "string",
+        "description": "Gesetzt, wenn nur nach einer Inhaltsart gefragt war (z. B. Video): dann zeigt die Liste nur den Such-Absprung."
+      }
+    }
+  },
+  "datenquelle": null,
+  "faehigkeiten": [
+    "oeffnen"
+  ],
+  "textfassung": {
+    "vorlage": "link_liste",
+    "feld": "karten"
+  },
+  "darstellung": {
+    "breit": false,
+    "platz": "unten"
+  },
+  "beispiele": [
+    {
+      "titel": "Sammlung und Material",
+      "daten": {
+        "karten": [
+          {
+            "node_id": "c1",
+            "title": "Sammlung Optik",
+            "node_type": "collection",
+            "url": "https://wirlernenonline.de/c1"
+          },
+          {
+            "node_id": "m1",
+            "title": "Video: Licht und Schatten",
+            "node_type": "content",
+            "url": "https://wirlernenonline.de/m1"
+          }
+        ],
+        "such_metas": [
+          {
+            "tool_name": "search_wlo_content",
+            "search_term": "Optik",
+            "search_url": "https://wirlernenonline.de/suche?q=Optik"
+          }
+        ],
+        "seiten": null,
+        "typ_fokus": ""
+      }
+    },
+    {
+      "titel": "Nur Such-Absprung (Typ-Fokus)",
+      "daten": {
+        "karten": [],
+        "such_metas": [
+          {
+            "tool_name": "search_wlo_content",
+            "search_term": "Optik Video",
+            "search_url": "https://wirlernenonline.de/suche?q=Optik"
+          }
+        ],
+        "seiten": null,
+        "typ_fokus": "Video"
+      }
+    }
+  ]
+}

@@ -18,11 +18,12 @@ Plan + Begründung: `docs/plans/2026-08-22-golden-v2-anwendungsfaelle.md`.
 | Check | Regel |
 |---|---|
 | `register` | `sie` \| `du`. Ehrlich: misst die Heuristik nichts (neutral), zählt der Turn als „nicht messbar" (None), nicht als bestanden. |
-| `structure` | `idoc` ⇒ ≥1 Dokument-Box, `cards` ⇒ ≥1 Karte — egal, ob Muster-Weiche oder `zeige_dokument` sie erzeugt hat. |
+| `structure` | `idoc` ⇒ ≥1 Dokument-Box, `cards` ⇒ ≥1 Karte — egal, ob Muster-Weiche oder `ui_inhaltsrahmen` sie erzeugt hat. |
 | `tools_any` | mind. eines der genannten Werkzeuge wurde gerufen (Namen vor dem ersten Leerzeichen). Bei je Maschine verschiedenen Namen steht die Vereinigung (`wissen_suchen` = Agent, `query_knowledge` = Muster). |
 | `tools_none` | keines der genannten Werkzeuge wurde gerufen (K0-3). |
 | `tools_max` | höchstens so viele Einträge in `tools_called` (AG-5); `0` heißt „ohne Werkzeug". Im Muster-Weg stehen dort auch interne Schritte (`select_top_cards`, `canvas_service…`), ein Deckel für die Schleife ist darauf nicht gerechnet. Kein ganzzahliger Wert ≥ 0 bricht den Lauf laut ab. |
 | `text` | aus `text_any` (mind. eine Wendung steht im sichtbaren Text) und `text_none` (keine steht darin). Sichtbar = Blase plus Dokument-Boxen, ohne Groß-/Kleinschreibung, geschützte Leerzeichen wie normale (K0-3). |
+| `ui` | aus `ui_any` (mind. eines der Module erscheint als Block in `ui.ui_bloecke`) und `ui_none` (keines erscheint), seit U1-g. **Grundwahrheit ist der gezeigte Block**, nicht `tools_called` — abgeleitete Module (`ui_trefferliste`, `ui_linkbox`) entstehen ohne Aufruf, `ui_entscheidung` steht nie in `tools_called`. Namen werden beim Laden gegen den Katalog geprüft (`backend/src/boerdi/ui_module/manifeste.json`; im Studio gegen den Katalog des Backends). |
 | `qr` | ≥1 Quick-Reply (immer geprüft); `qr: false` im Flow kehrt es um: keine Quick-Reply erwartet (SAFE-Satz). |
 | Fehler-Turn | HTTP-/Transportfehler ⇒ Exit 1. |
 | `host` | **weich**: Karten-Links auf `REPO_BASE_URL` — berichtet, blockiert nie. |
@@ -72,6 +73,76 @@ uv run python ../evals/run_golden.py --flows ../evals/skill-bruecke-flows.yaml -
 
 Ergebnis 2026-09-27 (Plan `2026-09-26-betriebsmodi-und-studio.md`, Log §13):
 kein Unterschied zwischen aus und an.
+
+## UI-Module (Paket U1-g)
+
+Jeder Lauf meldet die **Module des Katalogs** als `environment.ui_module`, wie das Widget
+(Kommandozeile: aus `manifeste.json`; Studio: Schalter „UI-Module melden wie das Widget“, Vorgabe
+an, auch im generativen Lauf). Ohne Meldung bietet der Agent weder Auswahlfeld noch Themenbaum an.
+`--ohne-ui-module` (Studio: Haken weg) misst die Anlage ohne sie — zum Vergleich. Ein
+`ui_module` im `environment` eines Flows gewinnt über beides. Die gemeldete Liste steht im Bericht
+(`ui_module`) bzw. in den Messbedingungen. **Gemeldet heißt nicht angeboten:** ein im Studio
+abgeschaltetes Modul (Seite „UI-Module“) bietet der Server trotzdem nicht an — die
+Messbedingungen eines Studio-Gold-Laufs halten darum auch `ui_module_wirksam` fest (gemeldet und
+aktiv, dazu die nur für den Agenten abgeschalteten) und unter `gold_flows.eigene_ui_module` die
+Flows mit eigenem `ui_module`. `compare_golden.py` nennt die gemeldeten Module beider Berichte im
+Kopf und warnt, wenn sie verschieden sind (kein Blocker).
+
+**Im Auswahlfeld antworten:** ein Zug mit `ui_antwort` antwortet auf den offenen
+`ui_entscheidung`-Block des **vorigen** Zugs:
+
+```yaml
+- message: "Physik"                        # getippt, falls keine Frage kam
+  anwendungsfall: suchen
+  ui_antwort: {waehle: [Physik, Naturwissenschaft], freitext: "Klasse 7"}
+  expect: {ui_any: [ui_trefferliste], ui_none: [ui_entscheidung], must_offer: "…"}
+```
+
+Gewählt wird über die **Beschriftung**, ohne Groß-/Kleinschreibung, in drei Stufen: erst die
+genaue Beschriftung (oder die exakte Kennung), dann die Wendung als ganze Wörter der Beschriftung,
+zuletzt als Wortteil — die Kennungen setzt das Modell erst im Lauf. Je Wendung zählt nur ihre
+beste Stufe: „Physik“ wählt „Physik“, nicht „Astrophysik“. Einzelwahl: die beste Stufe, die eine
+Wendung erreicht, darunter die erste Wendung (Vorrang des Autors); Mehrfachwahl: je Wendung ihre
+besten Treffer, in der Reihenfolge des Blocks. Wendungen deshalb nach Absicht ordnen und keine
+aufnehmen, die eine andere Möglichkeit treffen könnte. `freitext` geht nur mit, wenn der Block ihn
+anbietet, gekürzt auf 1000 Zeichen wie im Widget (`maxLength` des Manifests; der Bericht vermerkt
+`freitext_gekuerzt` mit der ursprünglichen Länge, die Konsole warnt). Die Nachricht ist dann die
+lesbare Fassung wie im Widget (Beschriftungen mit „, “, die Ergänzung auf eigener Zeile). Ohne
+offene Frage oder ohne passende Möglichkeit geht `message` getippt — der Server rahmt die Frage
+für das Modell. Was geschah, steht in `observed.ui_antwort.status` (`gesendet` / `keine_frage` /
+`keine_passende_option`; im Studio im geöffneten Zug). **`gesendet` heißt nicht angenommen:** ob
+der Server die Wahl übernahm, zeigt seine Antwort nicht (eine unpassende verwirft er mit einer
+Log-Zeile; im Verlauf der Sitzung steht der Block dann auf „veraltet“ statt „beantwortet“).
+`ui_antwort` im ersten Zug weist der Runner vor dem Lauf ab.
+
+**Grenze:** einen Knoten im Themenbaum öffnen kann ein Zug nur getippt. Die Quittung des Baums
+nennt dem Agenten keine Knoten, einen Unterknoten erreicht er deshalb kaum gezielt (GV-UI-1 Zug 2
+lässt darum auch die Trefferliste gelten). Später: ein Zug-Schlüssel `aktion` für Direktaktionen.
+
+Judge und simulierte Person sehen die **Textfassung** jedes Blocks außer Inhaltsrahmen und
+Trefferliste (Frage samt Möglichkeiten, Themenbaum); beide sehen auch Karten und Dokumente, in
+der Szenario- wie in der Dialog-Stufe des generativen Laufs. Die simulierte Person liest höchstens
+1500 Zeichen der übrigen Antwort, die Textfassungen danach mit eigenem Deckel — eine lange Blase
+schneidet die Frage nicht mehr ab. Sie antwortet getippt — kein zusätzlicher LLM-Aufruf. Jeder
+Zug-Datensatz trägt `ui_module` (gezeigte Module); das Lauf-Detail im Studio zeigt daraus die
+**Modul-Nutzung** je Muster und Anwendungsfall (auch im Markdown-Bericht; Fehlzüge und
+Ersatzblasen zählen nicht mit). Die Werkzeug-Treue der generativen Auswertung zählt Module weiter
+nicht (MCP-Werkzeuge allein).
+
+**Beispiel-Abläufe** (`ui-module-flows.yaml`, sieben Flows `GV-UI-1` … `GV-UI-7`, NICHT in der
+Seed-Suite — die Maschinen-Matrix bliebe sonst nicht vergleichbar): Themenbaum Physik → Optik,
+Themenbaum Biologie → Material, Fach per Auswahlfeld → Treffer, Stunde planen mit Mehrfachwahl →
+Verlaufsplan, Schülerin mit Brüchen, Gegenprobe Smalltalk/WLO-Frage, Trefferliste in beiden
+Maschinen. Auswahlfeld und Themenbaum bietet heute nur der Agent an:
+
+```powershell
+cd backend
+uv run python ../evals/run_golden.py --flows ../evals/ui-module-flows.yaml --engine agent --label u1g-agent
+uv run python ../evals/run_golden.py --flows ../evals/ui-module-flows.yaml --engine agent --ohne-ui-module --label u1g-ohne
+uv run python ../evals/run_golden.py --flows ../evals/ui-module-flows.yaml --only GV-UI-7 --engine pattern --label u1g-muster
+```
+
+Im Studio laufen sie erst, wenn sie im Bereich `eval/gold-flows` stehen (offen, siehe Plan U1 §17).
 
 ## Läufe (einer je Engine)
 

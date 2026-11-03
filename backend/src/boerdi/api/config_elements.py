@@ -318,7 +318,7 @@ def _pattern_frontmatter(e: PatternEntry) -> dict[str, Any]:
     # Auch leer geschrieben: ``[]`` heißt „keine Bereiche“ bzw. „keine Quelle“,
     # das Fehlen „erben“ bzw. die Vorgabe (Paket 4 C6, Paket 6 B5) — ein
     # GET→PUT kippte sonst das eine in das andere.
-    for k in ("sources", "rag_areas"):
+    for k in ("sources", "rag_areas", "ui_module"):
         v = getattr(e, k)
         if v is not None:
             fm[k] = list(v)

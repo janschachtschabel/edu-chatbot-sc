@@ -11,6 +11,7 @@ import {
   loadMore,
   showContentText,
   showMoreCards,
+  themenbaumZweig,
 } from './collection-actions';
 
 /**
@@ -38,6 +39,7 @@ interface CtxOpts {
   initialMessages?: ChatMessage[];
   messagesContainer?: () => HTMLElement | undefined;
   t?: CollectionActionsContext['t'];
+  ladeZweig?: CollectionActionsContext['ladeZweig'];
 }
 
 function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Calls; getMessages: () => ChatMessage[] } {
@@ -71,6 +73,7 @@ function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Ca
     dispatchPageAction: (pa) => calls.page.push(pa),
     messagesContainer: opts.messagesContainer ?? (() => undefined),
     t: opts.t ?? createTranslator(DE, DE),
+    ladeZweig: opts.ladeZweig ?? (async () => ({ knoten: [] })),
   };
   return { ctx, calls, getMessages: () => messages };
 }
@@ -95,7 +98,7 @@ describe('browseCollection', () => {
     const { ctx, calls } = makeCtx({
       respond: () => makeResp({
         content: 'Inhalte da', cards: [{ id: 'k' }] as unknown as WloCard[], quick_replies: ['q'],
-        pagination, web_links: [{ title: 't', url: 'u' }], inline_documents: [{ kind: 'lernpfad', title: 'L', content: 'c' }],
+        pagination, web_links: [{ title: 't', url: 'u' }],
         display_rules: { fontSize: 90 }, page_action: { action: 'open', payload: 1 },
       }),
     });
@@ -115,7 +118,7 @@ describe('browseCollection', () => {
     expect(real.loading).toBe(false);
     expect(real.rest).toEqual([
       [{ id: 'k' }], ['q'], { pattern: 'M06' }, pagination, undefined,
-      [{ title: 't', url: 'u' }], [{ kind: 'lernpfad', title: 'L', content: 'c' }], { fontSize: 90 },
+      [{ title: 't', url: 'u' }], { fontSize: 90 },
     ]);
     expect(calls.scroll).toEqual([real.id]);
     expect(calls.debug).toEqual([{ pattern: 'M06', persona: 'P-LK' }]);
@@ -139,6 +142,43 @@ describe('browseCollection', () => {
     expect(calls.scroll).toEqual([err.id]);
     expect(calls.page).toEqual([]);
     expect(calls.loading).toEqual([true, false]);
+  });
+});
+
+describe('themenbaumZweig (U1-h, Unterthemen im selben Baum)', () => {
+  it('lädt den Zweig ohne Zug: keine Blase, kein Laden-Zustand, die Daten gehen zurück', async () => {
+    const gefragt: string[] = [];
+    const { ctx, calls } = makeCtx({
+      ladeZweig: async (nodeId) => { gefragt.push(nodeId); return { knoten: [{ id: 'cccc-3333', titel: 'Gleichungen' }] }; },
+    });
+
+    await expect(themenbaumZweig('bbbb-2222', ctx)).resolves.toEqual({ knoten: [{ id: 'cccc-3333', titel: 'Gleichungen' }] });
+
+    expect(gefragt).toEqual(['bbbb-2222']);
+    expect(calls.sent).toEqual([]);
+    expect(calls.bot).toEqual([]);
+    expect(calls.loading).toEqual([]);
+  });
+
+  it('geht auch, während ein Zug läuft (kein Zug, keine Sperre)', async () => {
+    const { ctx } = makeCtx({ isLoading: () => true });
+    await expect(themenbaumZweig('bbbb-2222', ctx)).resolves.toEqual({ knoten: [] });
+  });
+
+  it('wechselt die Sitzung während des Ladens, wird abgelehnt (Sitzungs-Wache)', async () => {
+    let sitzung = 'bb-1';
+    const { ctx } = makeCtx({
+      sessionId: () => sitzung,
+      ladeZweig: async () => { sitzung = 'bb-2'; return { knoten: [] }; },
+    });
+    await expect(themenbaumZweig('bbbb-2222', ctx)).rejects.toThrow(/Sitzung/);
+  });
+
+  it('ein Fehler des Abrufs geht samt Status an das Modul', async () => {
+    const fehler = Object.assign(new Error('Chat error: 502'), { status: 502 });
+    const { ctx, calls } = makeCtx({ ladeZweig: async () => { throw fehler; } });
+    await expect(themenbaumZweig('bbbb-2222', ctx)).rejects.toBe(fehler);
+    expect(calls.bot).toEqual([]);
   });
 });
 
@@ -171,11 +211,17 @@ describe('Fehler-Bubbles kommen aus dem Übersetzer (C1-b4)', () => {
 
 describe('showContentText (M17)', () => {
   it('Loading-Bubble → sendMessage(show_content_text) → Dokument-Box im Bot-Turn', async () => {
-    const doc = { kind: 'volltext', title: 'Arbeitsblatt', content: '# Aufgabe 1' };
+    // Seit U1-b2 reist die Volltext-Box als Inhaltsrahmen-Block an `ui`.
+    const ui = {
+      ui_bloecke: [{
+        block_id: 'b0000001', modul: 'ui_inhaltsrahmen', version: 1, art: 'anzeigen' as const,
+        daten: { titel: 'Arbeitsblatt', art: 'volltext', markdown: '# Aufgabe 1' },
+        text: '# Aufgabe 1', status: 'nur_anzeige' as const,
+      }],
+    };
     const { ctx, calls } = makeCtx({
       respond: () => makeResp({
-        content: 'Hier ist der Inhalt.', quick_replies: ['Daran weiterarbeiten'],
-        inline_documents: [doc],
+        content: 'Hier ist der Inhalt.', quick_replies: ['Daran weiterarbeiten'], ui,
       }),
     });
 
@@ -188,11 +234,9 @@ describe('showContentText (M17)', () => {
       message: 'Inhalt von "Arbeitsblatt"', env: undefined, action: 'show_content_text',
       actionParams: { node_id: 'n7', title: 'Arbeitsblatt' },
     }]);
-    // Die Volltext-Box muss an derselben Stelle der Render-Argumente stehen
-    // wie bei den Geschwister-Aktionen (`inline_documents` = rest[6]) — sonst
-    // landet der Text nicht in der Dokument-Box, sondern nirgends.
+    // Die Volltext-Box reist mit `ui` (rest[2]) — sonst landete der Text nirgends.
     const real = calls.bot.find((b) => b.content === 'Hier ist der Inhalt.')!;
-    expect(real.rest[6]).toEqual([doc]);
+    expect(real.rest[2]).toEqual(ui);
     expect(calls.scroll).toEqual([real.id]);
     expect(calls.loading).toEqual([true, false]);
   });
@@ -487,5 +531,49 @@ describe('Paket 19: „Weitere laden“ und Fristen bei Karten-Aktionen', () => 
     const { ctx, calls } = makeCtx({ initialMessages: [makeMsg({ id: 'm1', pagination })], respond: frist });
     await loadMore('m1', ctx);
     expect(calls.bot.at(-1)?.content).toBe(t('error.stale'));
+  });
+});
+
+describe('loadMore mit Trefferliste (U1-c2b)', () => {
+  it('schreibt die neuen Karten und die Seitenangabe auch in den Block', async () => {
+    const p: PaginationInfo = {
+      total_count: 12, skip_count: 0, page_size: 5, has_more: true, collection_id: 'c1', collection_title: 'Mathe',
+    };
+    const alt = [{ node_id: 'a', title: 'A' }] as unknown as WloCard[];
+    const neu = [{ node_id: 'b', title: 'B' }] as unknown as WloCard[];
+    const block = {
+      block_id: 'b0000007', modul: 'ui_trefferliste', version: 1, art: 'anzeigen' as const,
+      daten: { karten: alt, such_metas: [], seiten: p, typ_fokus: '' }, text: '', status: 'nur_anzeige' as const,
+    };
+    const neuSeiten: PaginationInfo = { ...p, skip_count: 5, has_more: false };
+    const { ctx, getMessages } = makeCtx({
+      initialMessages: [makeMsg({ id: 'm1', cards: alt, pagination: p, ui: { ui_bloecke: [block] } })],
+      respond: () => makeResp({ content: 'mehr', cards: neu, pagination: neuSeiten }),
+    });
+    await loadMore('m1', ctx);
+    const b = getMessages()[0].ui!.ui_bloecke![0];
+    expect((b.daten['karten'] as WloCard[]).map((k) => k.node_id)).toEqual(['a', 'b']);
+    expect(b.daten['seiten']).toEqual(neuSeiten);
+  });
+
+  it('andere Blöcke und Nachrichten ohne ui bleiben unberührt', async () => {
+    const p: PaginationInfo = {
+      total_count: 12, skip_count: 0, page_size: 5, has_more: true, collection_id: 'c1', collection_title: 'Mathe',
+    };
+    const linkbox = {
+      block_id: 'b0000010', modul: 'ui_linkbox', version: 1, art: 'anzeigen' as const,
+      daten: { links: [] }, text: '', status: 'nur_anzeige' as const,
+    };
+    const { ctx, getMessages } = makeCtx({
+      initialMessages: [
+        makeMsg({ id: 'm1', cards: [], pagination: p, ui: { ui_bloecke: [linkbox] } }),
+        makeMsg({ id: 'm2', cards: [], pagination: p }),
+      ],
+      respond: () => makeResp({ content: 'mehr', cards: [], pagination: { ...p, has_more: false } }),
+    });
+    await loadMore('m1', ctx);
+    await loadMore('m2', ctx);
+    expect(getMessages()[0].ui!.ui_bloecke![0]).toEqual(linkbox);
+    expect(getMessages()[1].ui).toBeUndefined();
   });
 });

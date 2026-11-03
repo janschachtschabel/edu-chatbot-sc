@@ -195,6 +195,16 @@
             "pattern": "^[A-Za-z0-9_-]{1,128}$",
             "title": "Session Id",
             "type": "string"
+          },
+          "ui_antwort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UiAntwort"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -243,6 +253,8 @@
             "type": "string"
           },
           "inline_documents": {
+            "deprecated": true,
+            "description": "Veraltet seit U1-b2, immer leer — Boxen stehen als ui_inhaltsrahmen in ui.ui_bloecke.",
             "items": {
               "$ref": "#/components/schemas/InlineDocument"
             },
@@ -726,6 +738,22 @@
               }
             ],
             "title": "Tour Action"
+          },
+          "ui_module": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^ui_[a-z0-9_]{2,40}$",
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ui Module"
           }
         },
         "title": "Environment",
@@ -1021,6 +1049,54 @@
         "title": "SwimlaneBox",
         "type": "object"
       },
+      "ThemenbaumZweigAnfrage": {
+        "description": "Welcher Knoten, in welcher Sitzung, unter welchem Modus der Einbettung.",
+        "properties": {
+          "node_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "tool_mode": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Mode"
+          }
+        },
+        "required": [
+          "session_id",
+          "node_id"
+        ],
+        "title": "ThemenbaumZweigAnfrage",
+        "type": "object"
+      },
+      "ThemenbaumZweigAntwort": {
+        "description": "Die Unterthemen in der Form der Block-Daten von ``ui_themenbaum`` (ohne Überschrift).",
+        "properties": {
+          "daten": {
+            "additionalProperties": true,
+            "title": "Daten",
+            "type": "object"
+          }
+        },
+        "required": [
+          "daten"
+        ],
+        "title": "ThemenbaumZweigAntwort",
+        "type": "object"
+      },
       "ToolOutcome": {
         "description": "Outcome of a tool call — separate from final content (T-23/24).\n\nTracks what happened with a tool call beyond the raw result text:\nsuccess/error/empty status, error messages, item counts, latency.\nUsed to feedback into Confidence (T-25) and State (T-27).",
         "properties": {
@@ -1104,10 +1180,108 @@
         "title": "TraceEntry",
         "type": "object"
       },
+      "UiAntwort": {
+        "description": "Die Antwort der Person auf einen abfragenden Block (Paket U1-d1), an der Anfrage.\n\n``daten`` folgt dem Antwort-Schema des Moduls (``manifest.antwort``); geprüft wird im ersten\nKnoten des Zugs gegen die offene Frage der Sitzung (``services/ui_antwort``). Passt sie nicht,\nfällt sie weg, und ``message`` zählt wie getippt. ``message`` bleibt die lesbare Antwort —\nsie ist die Nutzerblase und steht so im Verlauf.",
+        "properties": {
+          "block_id": {
+            "pattern": "^[a-z0-9]{8,32}$",
+            "title": "Block Id",
+            "type": "string"
+          },
+          "daten": {
+            "additionalProperties": true,
+            "title": "Daten",
+            "type": "object"
+          }
+        },
+        "required": [
+          "block_id"
+        ],
+        "title": "UiAntwort",
+        "type": "object"
+      },
+      "UiBlock": {
+        "description": "Ein Aufruf eines UI-Moduls in einer Bot-Antwort (Paket U1).\n\n``text`` ist die Textfassung: Sie steht da, wo das Widget das Modul nicht kennt (ältere\nWidgets, ``/api/agent``). Anzeigende Blöcke sind ``nur_anzeige``; ein abfragender ist\n``offen``, bis die Person antwortet.",
+        "properties": {
+          "antwort": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Antwort"
+          },
+          "art": {
+            "enum": [
+              "anzeigen",
+              "abfragen"
+            ],
+            "title": "Art",
+            "type": "string"
+          },
+          "block_id": {
+            "pattern": "^[a-z0-9]{8,32}$",
+            "title": "Block Id",
+            "type": "string"
+          },
+          "daten": {
+            "additionalProperties": true,
+            "title": "Daten",
+            "type": "object"
+          },
+          "modul": {
+            "pattern": "^ui_[a-z0-9_]{2,40}$",
+            "title": "Modul",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "offen",
+                  "beantwortet",
+                  "nur_anzeige",
+                  "veraltet"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "block_id",
+          "modul",
+          "version",
+          "art"
+        ],
+        "title": "UiBlock",
+        "type": "object"
+      },
       "UiInfo": {
         "description": "Öffentlicher Teil einer Antwort; alle Felder optional, Vorgabe leer.",
         "properties": {
           "dokumente": {
+            "deprecated": true,
+            "description": "Veraltet seit U1-b2 — die Boxen stehen als ui_inhaltsrahmen in ui_bloecke.",
             "items": {
               "additionalProperties": true,
               "type": "object"
@@ -1178,6 +1352,13 @@
             "default": "",
             "title": "Type Focus",
             "type": "string"
+          },
+          "ui_bloecke": {
+            "items": {
+              "$ref": "#/components/schemas/UiBlock"
+            },
+            "title": "Ui Bloecke",
+            "type": "array"
           },
           "web_links": {
             "items": {
@@ -1784,6 +1965,48 @@
         "summary": "Transcribe",
         "tags": [
           "speech"
+        ]
+      }
+    },
+    "/api/ui/themenbaum/zweig": {
+      "post": {
+        "description": "Lädt die Unterthemen eines Knotens für den Themenbaum im Widget.\n\n``response`` braucht der Decorator der Drosselung für seine Kopfzeilen (wie beim Verlauf).",
+        "operationId": "themenbaum_zweig_api_ui_themenbaum_zweig_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThemenbaumZweigAnfrage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThemenbaumZweigAntwort"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Themenbaum Zweig",
+        "tags": [
+          "ui"
         ]
       }
     }

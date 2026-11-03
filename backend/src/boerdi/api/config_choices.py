@@ -77,7 +77,7 @@ def _rag_areas() -> list[Choice]:
     return _sorted([_entry(name, name, area) for name in cl.get_all_rag_areas()])
 
 
-def _tools() -> list[Choice]:
+def _mcp_werkzeugnamen() -> set[str]:
     """Die Vereinigung der Werkzeuge aller EINGESCHALTETEN Server.
 
     Ein abgeschalteter Server steuert nichts bei: was der Bot nicht rufen kann,
@@ -91,7 +91,26 @@ def _tools() -> list[Choice]:
     }
     # Paket 11 (E): fremde Werkzeuge unter dem Namen, unter dem das Modell sie sieht.
     namen.update(t["function"]["name"] for t in fremdwerkzeuge.definitionen())
-    return _sorted([_entry(name, name, "") for name in namen])
+    return namen
+
+
+def _mcp_tools() -> list[Choice]:
+    """Nur die MCP-Werkzeuge — für Sperrlisten (``crisis_blocked_tools``): ein Modul-Werkzeug
+    ist dort nicht sperrbar (Review U1-d2, Befund 8)."""
+    return _sorted([_entry(name, name, "") for name in _mcp_werkzeugnamen()])
+
+
+def _tools() -> list[Choice]:
+    """Die MCP-Werkzeuge, dazu die UI-Module mit ``agent: true`` (U1-d2) — für ``tools:`` der
+    Muster."""
+    namen = _mcp_werkzeugnamen()
+    # Paket U1-d2 (U-F4): die UI-Module, die ein Muster als Werkzeug nennen darf — samt Titel.
+    # Angeboten werden sie im Zug nur, wenn das Widget sie meldet.
+    from boerdi.ui_module.werkzeuge import modul_werkzeug_titel
+
+    module = modul_werkzeug_titel()
+    return _sorted([*(_entry(name, name, "") for name in namen - set(module)),
+                    *(_entry(name, f"{name}: {titel}", "") for name, titel in module.items())])
 
 
 def _guardrails() -> list[Choice]:
@@ -99,6 +118,17 @@ def _guardrails() -> list[Choice]:
     Schutzregeln des Agenten nicht nur als „R-13“ dastehen."""
     tabelle = agent_kopf.regeln(cl.load_guardrails())
     return _sorted([_entry(k, f"{k}: {text}", "01-base/guardrails") for k, text in tabelle.items()])
+
+
+def _ui_module() -> list[Choice]:
+    """Paket U1-c: die abgeleiteten UI-Module (Linkbox …) mit ihrem Titel aus dem Manifest."""
+    from boerdi.ui_module import katalog
+    from boerdi.ui_module.namen import ABGELEITETE
+
+    kat = katalog.katalog()
+    return [c for name in ABGELEITETE
+            if (c := _entry(name, f"{name}: {kat.get(name, {}).get('titel', {}).get('de', '')}",
+                            ""))]
 
 
 #: Katalogname -> woher seine Einträge kommen. Die einzige Stelle, an der ein
@@ -112,6 +142,8 @@ _SOURCES: dict[str, Callable[[], list[Choice]]] = {
     "entities": lambda: _from_list(cl.load_entities(), "04-entities/entities"),
     "rag_areas": _rag_areas,
     "tools": _tools,
+    "mcp_tools": _mcp_tools,
+    "ui_module": _ui_module,
     "guardrails": _guardrails,
 }
 

@@ -198,6 +198,7 @@ describe("EvalGoldenStartComponent", () => {
       judge: true,
       config_slug: "",
       engine: "default",
+      ui_module: true,
     });
     req.flush({ run_id: "eval-g1", status: "running", warnings: [] });
     await settle();
@@ -223,9 +224,39 @@ describe("EvalGoldenStartComponent", () => {
       judge: true, // Paket 15: Vorgabe an
       config_slug: "",
       engine: "agent",
+      ui_module: true,
     });
     req.flush({ run_id: "eval-g2", status: "running", warnings: [] });
     await settle();
+  });
+
+  it("meldet die UI-Module, solange niemand den Haken nimmt (Paket U1-g)", async () => {
+    await mount();
+    expect(box("ui-module").checked).toBe(true);
+    expect(text()).toContain("UI-Module melden wie das Widget");
+    // Review U1-g #7: gemeldet heißt nicht angeboten — die Studio-Schalter gelten weiter.
+    expect(text()).toContain("Im Studio abgeschaltete Module bietet der Server trotzdem nicht an.");
+    box("ui-module").click();
+    await h.fixture.whenStable();
+    await arm();
+
+    button("Ja, starten")!.click();
+    await h.fixture.whenStable();
+    const req = h.http.expectOne(
+      (r) => r.url === START_URL && r.method === "POST",
+    );
+    expect(req.request.body).toMatchObject({ ui_module: false });
+    req.flush({ run_id: "eval-g3", status: "running", warnings: [] });
+    await settle();
+  });
+
+  it("nimmt die Bestätigung zurück, wenn der Haken der UI-Module wechselt", async () => {
+    await mount();
+    await arm();
+    expect(button("Ja, starten")).toBeTruthy();
+    box("ui-module").click();
+    await h.fixture.whenStable();
+    expect(button("Ja, starten")).toBeNull();
   });
 
   it("surfaces the flow ids the backend dropped", async () => {

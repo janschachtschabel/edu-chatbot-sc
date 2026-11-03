@@ -26,7 +26,7 @@ import { describeProblem, type FieldProblem, pathKey } from '../core/field-probl
 import { formatDecimal } from '../core/format';
 import { type SaveConflict, StudioApiError } from '../core/studio-api-error';
 import type { Translate } from '../i18n/studio-language.service';
-import { getAt } from './form-value';
+import { getAt, removeAt, setAt } from './form-value';
 import type { JsonSchema } from './json-schema';
 
 export class AreaDocEditor {
@@ -127,8 +127,17 @@ export class AreaDocEditor {
    * `force` after a conflict: save anyway, against exactly the version the
    * conflict reported — another save since then is a new conflict, not
    * something to overwrite unseen.
+   *
+   * `vomServer` (Review U1-f, #3): paths this editor does not show (a section's
+   * `ohneFelder`) — another page maintains them. A forced save would send them
+   * as loaded and silently revert that page's change, so it first reads the
+   * stored document and takes these paths from there; the visible rest is the
+   * draft, as before. A normal save needs no read: its version condition
+   * already guarantees the loaded state is the stored one.
    */
-  async save(area: string, options: { force?: boolean } = {}): Promise<boolean> {
+  async save(
+    area: string, options: { force?: boolean; vomServer?: readonly string[] } = {},
+  ): Promise<boolean> {
     if (this.saving() || !this.dirty()) return false;
     if (this.blocked()) {
       this.saveError.set(
@@ -140,19 +149,26 @@ export class AreaDocEditor {
     this.saving.set(true);
     this.saveError.set('');
     this.status.set('');
-    // What was SENT, frozen before the await: the answer echoes it. A field
-    // can change while the request is in flight — adopting the echo then
+    // The draft, frozen before the await: the answer echoes what was sent. A
+    // field can change while the request is in flight — adopting the echo then
     // reverted that edit silently (Audit 2026-09-29). Only the baseline
     // moves in that case, so the edit stays and counts as unsaved.
-    const sent = JSON.stringify(this.doc());
+    const draft = JSON.stringify(this.doc());
     const conflict = this.conflict();
-    const condition = options.force && conflict
+    const forced = !!options.force && !!conflict;
+    const condition = forced
       ? saveCondition(conflict.version)
       : saveCondition(this.version());
     try {
-      const saved = await this.config.saveData(area, JSON.parse(sent), condition);
+      let sent = JSON.parse(draft) as Record<string, unknown>;
+      if (forced && options.vomServer?.length) {
+        const stored = await this.config.data(area);
+        if (!this.isCurrent(generation)) return false;
+        sent = withStoredPaths(sent, stored.data, options.vomServer);
+      }
+      const saved = await this.config.saveData(area, sent, condition);
       if (!this.isCurrent(generation)) return false;
-      if (JSON.stringify(this.doc()) === sent) {
+      if (JSON.stringify(this.doc()) === draft) {
         this.adopt(saved.data);
       } else {
         this.savedDoc.set(JSON.stringify(saved.data));
@@ -227,6 +243,17 @@ export class AreaDocEditor {
     this.doc.set(data);
     this.savedDoc.set(JSON.stringify(data));
   }
+}
+
+/** `draft` with each dotted path taken from `stored` — removed where `stored` has none. */
+function withStoredPaths(
+  draft: Record<string, unknown>, stored: Record<string, unknown>, paths: readonly string[],
+): Record<string, unknown> {
+  return paths.reduce((doc, path) => {
+    const segments = path.split('.');
+    const value = getAt(stored, segments);
+    return value === undefined ? removeAt(doc, segments) : setAt(doc, segments, value);
+  }, draft);
 }
 
 /** Turn an API failure into something an editor can act on. */

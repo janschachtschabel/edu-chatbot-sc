@@ -188,7 +188,8 @@ export class GroupSectionComponent {
     // A refusal notice outlives what it referred to unless it is cleared here;
     // the live region would keep announcing "please save first" after saving.
     this.notice.set('');
-    void this.editor.save(this.selected(), { force }).then((saved) => {
+    // `vomServer` (Review U1-f, #3): die Anrede (`ohneFelder`) pflegt eine andere Seite.
+    void this.editor.save(this.selected(), { force, vomServer: this.section().ohneFelder }).then((saved) => {
       if (saved) this.changed.emit();
     });
   }

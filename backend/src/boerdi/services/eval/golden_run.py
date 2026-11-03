@@ -45,6 +45,7 @@ from boerdi.services.eval.run_store import (
 from boerdi.services.eval.scenario_gen import judge_model
 from boerdi.services.session_origin import EVAL_QUELLE_PREFIX
 from boerdi.services.usage_store import record_turn_usage
+from boerdi.ui_module.katalog import widget_module
 
 logger = logging.getLogger(__name__)
 
@@ -119,10 +120,13 @@ async def start_golden_eval_run(
     # Vor dem ersten bezahlten Zug: ein vertippter Deckel (``tools_max``) fiele
     # sonst erst mitten im Lauf auf, und der Lauf endete ``failed`` (Review
     # 2026-09-26). Dieselbe Prüfung, die der CLI-Weg in ``load_flows`` macht.
+    # U1-g (G-3): ``ui_any``/``ui_none`` gegen den Katalog dieses Backends.
     try:
-        _load_golden_runner().validate_flows(flows)
+        _load_golden_runner().validate_flows(flows, module=widget_module())
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    # U1-g (G-1): die Module, die die Züge melden — wie das Widget, oder keine.
+    ui_module = widget_module() if getattr(req, "ui_module", True) else []
 
     await _ensure_chat_reachable()
     await _ensure_no_running_run(session)
@@ -150,6 +154,7 @@ async def start_golden_eval_run(
             # ST-7a: welche Maschine die Züge bekommen — aufgelöst wie im Chat,
             # damit auch „Server-Vorgabe" sagt, was sie gemessen hat.
             "engine_effective": choose_engine(None if engine == "default" else engine),
+            "ui_module": ui_module,
             # K0-2: bis dahin hart "" — die Lauf-Details verschwiegen das Modell.
             "turns_per_conv": 0, "simulator_model": "",
             "judge_model": judge_model() if req.judge else "",
@@ -165,7 +170,7 @@ async def start_golden_eval_run(
     task = _spawn_background(mit_herzschlag(
         session_factory, "eval_runs", run_id,
         _execute_golden_run(session_factory, run_id, flows, bool(req.judge),
-                            engine=engine),
+                            engine=engine, ui_module=ui_module),
     ))
     _register_run_task(run_id, task)
     return {
@@ -176,6 +181,7 @@ async def start_golden_eval_run(
         "turns_total": turns_total,
         "judge": bool(req.judge),
         "engine": engine,
+        "ui_module": ui_module,
         "warnings": warnings,
     }
 
@@ -244,7 +250,7 @@ def _maschine(conditions: dict[str, Any] | None, engine: str) -> str | None:
 async def _execute_golden_run(
     session_factory: async_sessionmaker[AsyncSession] | None,
     run_id: str, flows: list[dict[str, Any]], judge_enabled: bool,
-    *, engine: str = "default",
+    *, engine: str = "default", ui_module: list[str] | None = None,
 ) -> None:
     """Background job: fire the flows at EVAL_CHAT_URL via the ported runner,
     add the optional judge layer, persist to eval_runs.
@@ -255,7 +261,8 @@ async def _execute_golden_run(
 
     ``engine`` (GV5): anything but "default" rides as ``X-Boerdi-Engine`` on
     every turn — until then this job silently measured whatever engine.yaml
-    said, and the Studio could not choose.
+    said, and the Studio could not choose. ``ui_module`` (U1-g) is what every turn reports
+    as ``environment.ui_module``; ``None`` reports none.
     """
     if session_factory is None:
         logger.error("[golden %s] no session factory — cannot run", run_id)
@@ -274,7 +281,7 @@ async def _execute_golden_run(
         # K0-2: frisch messen und festhalten, womit gemessen wird.
         fresh_tool_cache(run_id)
         conditions = await run_conditions(
-            judge_enabled=judge_enabled, engine=engine, flows=flows)
+            judge_enabled=judge_enabled, engine=engine, flows=flows, ui_module=ui_module)
         headers = {"X-Boerdi-Engine": engine} if engine != "default" else None
         # Feedback 2026-08-22: Flow für Flow statt EIN Block — nur so gibt es
         # Zwischenstände und Teil-Transkripte. ``run_flows`` öffnet je Flow
@@ -282,7 +289,8 @@ async def _execute_golden_run(
         # nichts.
         turns_done = 0
         for i, flow in enumerate(flows, start=1):
-            flow_convs = await runner.run_flows(_chat_url(), [flow], headers=headers)
+            flow_convs = await runner.run_flows(_chat_url(), [flow], headers=headers,
+                                                ui_module=ui_module)
             conversations.extend(flow_convs)
             turns_done = sum(len(c.get("turns") or []) for c in conversations)
             if not await _write_golden_progress(

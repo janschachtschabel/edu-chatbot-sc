@@ -60,8 +60,9 @@ from boerdi.api.schemas import (
     PreparedWriteOut,
     TraceEntry,
 )
-from boerdi.api.schemas_ui import UiInfo
+from boerdi.api.schemas_ui import UiBlock, UiInfo
 from boerdi.domain.cards.build import _is_themenseite_card
+from boerdi.domain.inline_documents import als_inhaltsrahmen
 from boerdi.domain.inline_rendering import _build_inline_document
 from boerdi.domain.prepared_write import (
     VERLAUF_SCHLUESSEL,
@@ -75,6 +76,9 @@ from boerdi.domain.turn_frame import (
     clear_frame,
     note_clarification,
 )
+from boerdi.domain.ui_bloecke import DEBUG_KEY as UI_BLOECKE_KEY
+from boerdi.domain.ui_bloecke import fuer_den_debug_block as ui_bloecke_fuer_debug
+from boerdi.domain.ui_bloecke import regeln_anwenden as ui_bloecke_regeln
 from boerdi.domain.write_anzeige import preview_for_display
 from boerdi.domain.write_confirm import TOKEN_TTL_SECONDS
 from boerdi.domain.zustimmung import is_affirmation
@@ -316,6 +320,7 @@ async def persist_and_build_response(
     _qr_max: int | None,
     _effective_pattern_id: str,
     gelieferte_dokumente: list[dict[str, Any]] | None = None,
+    ui_bloecke: list[UiBlock] | None = None,
 ) -> ChatResponse:
     """Phasen P29-P33: DebugInfo-Anreicherung + Assistant-Persist + Quality-Log,
     guide_urls, finale QR-Politur + display_rules-Gruppen-Trims, Inline-Document-
@@ -356,6 +361,28 @@ async def persist_and_build_response(
     if _type_focus_label:
         # Type-Focus-Marker für die Frontend-Render-Logik (auch beim Restore).
         _debug_for_save["_type_focus"] = _type_focus_label
+    # Paket U1-a: die UI-Blöcke des Zugs, nach den Regeln je Antwort — gespeichert für den
+    # Verlauf, live an ``ui`` (``api/publikum`` lässt sie dort stehen).
+    _ui_bloecke = ui_bloecke_regeln(ui_bloecke or [])
+    if _ui_bloecke:
+        _debug_for_save[UI_BLOECKE_KEY] = ui_bloecke_fuer_debug(_ui_bloecke)
+
+    # ``inline_documents.enabled: false`` ist die Ansage einer Anlage, keine
+    # Boxen zu zeigen — sie galt bisher nur für den geratenen Weg
+    # (``inline_rendering``), und eine gelieferte Box lief daran vorbei. Der
+    # Inhalt darf dabei NICHT verschwinden: das Modell hat ihn nicht in die
+    # Prosa geschrieben, weil das Werkzeug ihm genau das untersagt. Angehängt
+    # VOR dem Speichern (Review U1-b): der F-6-Nachtrag schreibt nur Karten und
+    # Debug nach, nie den Text — sonst fehlte der Inhalt nach dem Neuladen und
+    # im Verlauf des Folgezugs. ``_dokumente`` bleibt dann leer: eine Box gab es
+    # nicht, und im Verlauf stünde der Inhalt doppelt.
+    _display_rules_active = load_display_rules_config()
+    if gelieferte_dokumente and not _boxen_erlaubt(_display_rules_active):
+        logger.info("Inline-Boxen sind abgeschaltet — %d Ergebnis(se) wandern "
+                    "in den Fließtext", len(gelieferte_dokumente))
+        _final_text = "\n\n".join(
+            [_final_text.strip(), *(d.get("content", "") for d in gelieferte_dokumente)]
+        ).strip()
 
     # ``_final_text`` ist hier noch das ungestrippte Roh-Markdown (das Inline-
     # Document-Routing kürzt es erst weiter unten auf den Intro-Text) → wir
@@ -548,14 +575,13 @@ async def persist_and_build_response(
     # Welle E — Inline-Document-Routing: bei M09/M10/M11 wandert das große
     # Markdown in eine gerahmte Box (``inline_documents``); ``content`` bekommt
     # nur einen kurzen Begleittext.
-    _display_rules_active = load_display_rules_config()
     inline_documents: list[dict[str, Any]] = []
     try:
         _winner_id = _effective_pattern_id or winner_id or pattern_output.get("id", "")
     except Exception:
         _winner_id = ""
 
-    # D4: Was das Modell AUSDRÜCKLICH geliefert hat (``zeige_dokument``),
+    # D4: Was das Modell AUSDRÜCKLICH geliefert hat (``ui_inhaltsrahmen``),
     # schlägt die Vermutung aus dem Antworttext. Der Unterschied ist nicht
     # Geschmack: der geratene Weg unten verlangt das richtige Muster, 200
     # Zeichen und ein H1 — vier Bedingungen, die zufällig zusammentreffen
@@ -565,22 +591,13 @@ async def persist_and_build_response(
     #
     # Der Rückfall bleibt vollständig erhalten: liefert das Modell nichts,
     # läuft alles wie bisher.
-    if gelieferte_dokumente and not _boxen_erlaubt(_display_rules_active):
-        # ``inline_documents.enabled: false`` ist die Ansage einer Anlage,
-        # keine Boxen zu zeigen — sie galt bisher nur für den geratenen Weg
-        # (``inline_rendering``), und eine gelieferte Box lief daran vorbei.
-        # Der Inhalt darf dabei NICHT verschwinden: das Modell hat ihn nicht in
-        # die Prosa geschrieben, weil das Werkzeug ihm genau das untersagt.
-        logger.info("Inline-Boxen sind abgeschaltet — %d Ergebnis(se) wandern "
-                    "in den Fließtext", len(gelieferte_dokumente))
-        _final_text = "\n\n".join(
-            [_final_text.strip(), *(d.get("content", "") for d in gelieferte_dokumente)]
-        ).strip()
-    elif gelieferte_dokumente:
-        inline_documents = list(gelieferte_dokumente)
-        logger.info("Inline-Box(en) vom Modell geliefert: %d — %s",
-                    len(inline_documents),
-                    ", ".join(d.get("kind", "?") for d in inline_documents))
+    if gelieferte_dokumente:
+        # Bei abgeschalteten Boxen stehen sie schon im Text (vor dem Speichern, oben).
+        if _boxen_erlaubt(_display_rules_active):
+            inline_documents = list(gelieferte_dokumente)
+            logger.info("Inline-Box(en) vom Modell geliefert: %d — %s",
+                        len(inline_documents),
+                        ", ".join(d.get("kind", "?") for d in inline_documents))
     elif (
         _winner_id in {"M09", "M10", "M11"}
         and _final_text
@@ -689,8 +706,18 @@ async def persist_and_build_response(
     # Reload eine andere Kartenmenge als das Gespräch und bei einem M16-Zug die
     # Schwimmlinien-Ansicht gar nicht. Keine Id = der Datenschutz-Schalter
     # ``messages`` hat das Speichern unterbunden; dann gibt es nichts nachzuziehen.
+    # ── Paket U1-b2: jede Dokument-Box reist als Inhaltsrahmen-Block ──────
+    # Egal woher (Werkzeug, geratene Box, Schreib-Vorschau): ein Kanal. Vor den übrigen
+    # Blöcken, damit bei der Obergrenze kein Arbeitsergebnis wegfällt. Die Dicts bleiben
+    # intern — der Folgezug liest sie gekürzt aus ``_dokumente`` (unten).
+    if inline_documents:
+        _ui_bloecke = ui_bloecke_regeln(
+            [*(als_inhaltsrahmen(d) for d in inline_documents), *_ui_bloecke])
+
     _cards_final = [c.model_dump() for c in cards]
     _debug_final = dict(_debug_for_save)
+    if inline_documents and _ui_bloecke:
+        _debug_final[UI_BLOECKE_KEY] = ui_bloecke_fuer_debug(_ui_bloecke)
     if _topic_page_view is not None:
         _debug_final["_topic_page_view"] = _topic_page_view.model_dump()
     # Paket C (Review 2026-09-29): die gezeigten Boxen reisen mit der Nachricht —
@@ -717,12 +744,11 @@ async def persist_and_build_response(
         quick_replies=quick_replies,
         debug=debug,
         # Der Typ-Fokus steht in keinem Feld des Debug-Blocks; ``api/publikum`` lässt ihn stehen.
-        ui=UiInfo(type_focus=_type_focus_label),
+        ui=UiInfo(type_focus=_type_focus_label, ui_bloecke=_ui_bloecke),
         page_action=page_action,
         pagination=pagination,
         query_metas=_query_meta_entries,
         web_links=_web_links,
-        inline_documents=inline_documents,
         topic_page=_topic_page_view,
         display_rules=_display_rules_active,
         prepared_write=(

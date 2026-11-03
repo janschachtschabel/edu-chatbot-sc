@@ -24,6 +24,7 @@ from boerdi.services.agent_kopf import kopf
 from boerdi.services.agent_tools import build_agent_tools
 from boerdi.services.config_loader import load_engine, load_rag_config
 from boerdi.services.schreibrecht import schreiben_erlaubt
+from boerdi.ui_module.werkzeuge import modul_werkzeug_titel, modul_werkzeuge
 
 #: Was ``respond_agent`` je Zug hinter den stabilen Anfang setzt, in dessen
 #: Reihenfolge. ``result_schema`` ist kein eigener Block: der Satz dazu wird an
@@ -59,6 +60,11 @@ async def prompt_vorschau(sprache: Locale) -> dict[str, Any]:
     # wenn das Studio das Gastkonto erlaubt — wie im Zug (``respond_agent``).
     werkzeuge = build_agent_tools(allow_curation=schreiben_erlaubt(), include_submit=False,
                                   include_dokument=True, wissen_tool=wissen)
+    # U1-d2: Die Modul-Werkzeuge kommen nur dazu, wenn das Widget sie meldet — getrennt genannt.
+    # U1-f: nur die, die das Studio dem Agenten lässt; mit Datenquelle (U1-e) nur bei
+    # verfügbarem Werkzeug — wie im Zug. Namen und Umfang zählen dieselben (Review U1-f, #11).
+    module = modul_werkzeuge(list(modul_werkzeug_titel()),
+                             verfuegbar={t["function"]["name"] for t in werkzeuge}, fuer="agent")
     return {
         "locale": sprache,
         "chain": [
@@ -79,5 +85,9 @@ async def prompt_vorschau(sprache: Locale) -> dict[str, Any]:
         "tools": {
             "count": len(werkzeuge),
             "chars": len(json.dumps(werkzeuge, ensure_ascii=False)),
+            "ui_module": {
+                "names": [m["function"]["name"] for m in module],
+                "chars": len(json.dumps(module, ensure_ascii=False)),
+            },
         },
     }

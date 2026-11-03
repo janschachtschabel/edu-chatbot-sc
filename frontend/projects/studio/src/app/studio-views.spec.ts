@@ -63,6 +63,9 @@ const OHNE_ALT_VORBILD: Readonly<Record<string, string>> = {
   betrieb:
     'Paket 14: Vorgabe-Maschine und Betriebsschalter (Streaming …) — vorher auf der Seite '
     + '„Agent“; sie gelten für beide Arbeitsbereiche',
+  'ui-module':
+    'Paket U1-f: die UI-Module des Widgets mit Vorschau ihrer Beispiele und den Schaltern '
+    + '„aktiv“ und „für den Agenten“ — ALT kannte keine Module, nur feste Boxen',
   // Paket 15: Nutzer-Rundgang 2026-10-17 — Werkzeuge, Skills und Anrede gelten in beiden Modi.
   werkzeuge:
     'Paket 15: alle Werkzeuge aller MCP-Server und die eingebauten, mit Herkunft, Sperrgrund und '
@@ -144,7 +147,7 @@ describe('studio view registry', () => {
     const gemeinsam = navGroups('agent').find((g) => g.titleKey === 'nav.group.gemeinsam')!;
     expect(gemeinsam.views.map((v) => v.slug)).toEqual([
       'begruessung', 'kontext-aktionen', 'fuehrung', 'zielgruppen', 'wissen', 'werkzeuge',
-      'skills', 'anzeige', 'datenschutz',
+      'skills', 'ui-module', 'anzeige', 'datenschutz',
     ]);
     // Lesezeichen auf die alte Agent-Seite „Werkzeuge & Skills“
     expect(children.find((c) => c.path === 'agent-werkzeuge')?.redirectTo).toBe('werkzeuge');
@@ -198,8 +201,8 @@ describe('studio view registry', () => {
     // im Paketnamen soll auffallen, ein neues Paket bewusst eingetragen werden.
     // `D2` steht seit 2026-08-13 neben `K5`: „Agent & Maschine" stammt so wenig
     // aus dem P9-Port wie die Kostenschau.
-    // `P16`: die Nutzungsseite (Rundgang 3, D3).
-    for (const view of STUDIO_VIEWS) expect(view.paket).toMatch(/^(9-[3-6]|K5|P14|P15|P16)$/);
+    // `P16`: die Nutzungsseite (Rundgang 3, D3). `U1`: die Seite „UI-Module“ (U1-f).
+    for (const view of STUDIO_VIEWS) expect(view.paket).toMatch(/^(9-[3-6]|K5|P14|P15|P16|U1)$/);
   });
 
   it('guards the shell and leaves /login open', () => {

@@ -21,6 +21,8 @@ from boerdi.domain.config_models import AREA_MODELS
 ERWARTET = {
     ("PatternFrontmatter", "sources"),
     ("PatternFrontmatter", "rag_areas"),
+    # Paket U1-c1: fehlt = alle abgeleiteten Module, ``[]`` = keines.
+    ("PatternFrontmatter", "ui_module"),
 }
 
 

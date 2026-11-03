@@ -96,6 +96,9 @@ export class EvalGenerativeStartComponent {
   readonly mode = signal<EvalMode>('both');
   readonly scenariosPerCombo = signal(2);
   readonly turnsPerConv = signal(3);
+  /** Paket U1-g: die Züge melden die Katalog-Module wie das Widget — aus nur zum Vergleich.
+   *  Nicht Teil der Schätzung: die Zahl der Aufrufe bleibt dieselbe. */
+  readonly uiModule = signal(true);
   private readonly chosenPersonas = signal<ReadonlySet<string>>(new Set());
   private readonly chosenIntents = signal<ReadonlySet<string>>(new Set());
 
@@ -235,7 +238,9 @@ export class EvalGenerativeStartComponent {
     this.starting.set(true);
     this.startError.set('');
     try {
-      const result = await this.api.startRun({ ...this.request(), config_slug: '' });
+      const result = await this.api.startRun({
+        ...this.request(), config_slug: '', ui_module: this.uiModule(),
+      });
       this.disarm();
       this.status.set(this.t('evalStart.gen.started', { id: result.run_id }));
       this.warnings.set(result.warnings ?? []);
@@ -245,6 +250,11 @@ export class EvalGenerativeStartComponent {
     } finally {
       this.starting.set(false);
     }
+  }
+
+  setUiModule(on: boolean): void {
+    this.uiModule.set(on);
+    this.disarm();
   }
 
   disarm(): void {

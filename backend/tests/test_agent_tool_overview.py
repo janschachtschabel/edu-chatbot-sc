@@ -16,6 +16,8 @@ from boerdi.services.engine_choice import zug_laeuft_ueber_die_schleife
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 from boerdi.services.safety import regex_gate
+from boerdi.ui_module import katalog as modul_katalog
+from boerdi.ui_module.werkzeuge import modul_werkzeug_titel, werkzeug_aus_manifest
 
 
 @pytest.fixture(autouse=True)
@@ -38,9 +40,10 @@ def _sperre(zeile: dict, code: str) -> dict | None:
 
 
 def test_angeboten_ist_genau_der_katalog_eines_chat_zugs():
+    """Ein Chat-Zug aus dem heutigen Widget: es meldet alle seine Module (U1-d2)."""
     liste = ov.werkzeugliste()
     im_zug = {t["function"]["name"] for t in agent_tools.build_agent_tools(
-        include_submit=False, include_dokument=True)}
+        include_submit=False, include_dokument=True, ui_module=modul_werkzeug_titel())}
     assert {t["name"] for t in liste["tools"] if t["offered"]} == im_zug
 
 
@@ -146,9 +149,9 @@ def test_virtuelle_werkzeuge_sind_nicht_sperrbar(monkeypatch):
     # Selbst wenn eine Policy-Regel sie nennt: ``build_agent_tools`` hängt sie
     # NACH dem Sperrfilter an.
     monkeypatch.setattr(ov, "load_policy_config", lambda: {"rules": [
-        {"id": "keine-box", "effect": {"block_tools": ["zeige_dokument"]}}]})
+        {"id": "keine-box", "effect": {"block_tools": ["ui_inhaltsrahmen"]}}]})
     liste = ov.werkzeugliste()
-    dokument = _zeile(liste, "zeige_dokument")
+    dokument = _zeile(liste, "ui_inhaltsrahmen")
     assert (dokument["kind"], dokument["offered"], dokument["locks"]) == ("virtual", True, [])
     ergebnis = _zeile(liste, "liefere_ergebnis")
     assert (ergebnis["kind"], ergebnis["offered"]) == ("virtual", False)
@@ -166,3 +169,21 @@ def test_die_wissenssuche_nur_mit_bereichen(monkeypatch):
     mit = _zeile(ov.werkzeugliste(), "wissen_suchen")
     assert mit["offered"] is True
     assert "Plattformwissen" in mit["description"]
+
+
+# ── UI-Module als Werkzeuge (U1-d2) ─────────────────────────────────────
+
+
+def test_die_modul_werkzeuge_stehen_mit_der_bedingung_des_widgets_da():
+    """Eingebaut wie das Dokument, aber nur, wenn das Widget das Modul meldet — ältere Widgets und
+    der Studio-Probelauf bekommen es nicht."""
+    liste = ov.werkzeugliste()
+    zeile = _zeile(liste, "ui_entscheidung")
+    assert (zeile["kind"], zeile["offered"]) == ("virtual", True)
+    assert zeile["locks"] == [{"code": "widget_module"}]
+    manifest = modul_katalog.katalog()["ui_entscheidung"]
+    beschreibung = werkzeug_aus_manifest(manifest)["function"]["description"]
+    assert zeile["description"] == beschreibung
+    namen = {t["name"] for t in liste["tools"]}
+    assert not namen & {"ui_linkbox", "ui_trefferliste"}       # abgeleitet: kein Werkzeug
+    assert [t["name"] for t in liste["tools"]].count("ui_inhaltsrahmen") == 1

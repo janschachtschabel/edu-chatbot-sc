@@ -1,0 +1,110 @@
+// Vorschau eines UI-Moduls (Paket U1-f). Die Steuerung steht in Studio-Token; die Bühne trägt das
+// M3-Theme des Widgets, damit die Module so aussehen wie im Chat (`theme/_m3-theme.scss`).
+@use 'theme/m3-theme';
+
+:host {
+  display: block;
+  @include m3-theme.theme;
+}
+
+.umv {
+  display: grid;
+  gap: var(--st-3);
+  min-inline-size: 0;
+}
+
+.umv-titel {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.umv-hint,
+.umv-leer {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.umv-steuerung {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2) var(--st-4);
+  align-items: flex-start;
+}
+
+.umv-beispiele {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1) var(--st-3);
+  margin: 0;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+
+  legend {
+    padding-inline: var(--st-1);
+    font-size: 0.8125rem;
+    color: var(--st-text-muted);
+  }
+}
+
+// Ganze Zeile als Zielfläche (WCAG 2.5.8: mindestens 24 px).
+.umv-wahl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-2);
+  min-block-size: 1.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+// Die Bühne: Fläche und Schrift wie im Widget, schmal wie eine Chat-Spalte, damit die Module in
+// ihrer echten Breite erscheinen; auf kleinen Bildschirmen schrumpft sie mit (320 px).
+.umv-buehne {
+  max-inline-size: 26rem;
+  min-inline-size: 0;
+  padding: var(--st-3);
+  border: 1px dashed var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  overflow-wrap: anywhere;
+}
+
+.umv-unbekannt p {
+  margin: 0;
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.umv-meldung {
+  margin: 0;
+  min-block-size: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.umv-daten {
+  summary {
+    cursor: pointer;
+    font-size: 0.8125rem;
+    min-block-size: 1.5rem;
+  }
+
+  pre {
+    margin: var(--st-2) 0 0;
+    padding: var(--st-2) var(--st-3);
+    max-block-size: 20rem;
+    overflow: auto;
+    border-radius: var(--st-radius);
+    background: var(--st-surface-variant);
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}

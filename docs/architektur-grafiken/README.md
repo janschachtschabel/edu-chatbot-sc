@@ -1,6 +1,6 @@
 # Architektur-Grafiken
 
-Sechs interaktive Grafiken zu boerdi-chat, erzeugt mit [archify](https://github.com/tt-a1i/archify).
+Sieben interaktive Grafiken zu boerdi-chat, erzeugt mit [archify](https://github.com/tt-a1i/archify).
 **Ansehen:** als Bild über die PNG-Links unten (zeigt GitHub direkt an), interaktiv nach dem
 Herunterladen oder Klonen über `index.html` (siehe „Lokal nutzen“). Auf GitHub zeigen die
 `.html`-Dateien nur den Quelltext; eine Pages-Seite gibt es derzeit nicht (Repository privat).
@@ -9,6 +9,7 @@ Herunterladen oder Klonen über `index.html` (siehe „Lokal nutzen“). Auf Git
 |---|---|---|---|---|
 | Architektur: Widget, Studio, Backend, MCP, b-api | [PNG](png/architektur.png) | [architektur.html](architektur.html) | [`architektur.json`](quellen/architektur.json) | `2a589a6` |
 | Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [PNG](png/software-stack.png) | [software-stack.html](software-stack.html) | [`software-stack.json`](quellen/software-stack.json) | `2a589a6` |
+| UI-Module: Einbindung und Nutzung (Register, Werkzeug, Ableitung, Host, Antwortweg, Datenquelle) — Erklärung in [`../ui-module.md`](../ui-module.md) | [PNG](png/ui-module-einbindung.png) | [ui-module-einbindung.html](ui-module-einbindung.html) | [`ui-module-einbindung.json`](quellen/ui-module-einbindung.json) | `e7f10c0` (Branch `paket-u1-ui-module`) |
 | Ablauf eines Zuges im Muster-Modus | [PNG](png/ablauf-muster-modus.png) | [ablauf-muster-modus.html](ablauf-muster-modus.html) | [`ablauf-muster-modus.json`](quellen/ablauf-muster-modus.json) | `2a589a6` |
 | Ablauf eines Zuges in der Agent-Schleife | [PNG](png/ablauf-agent-schleife.png) | [ablauf-agent-schleife.html](ablauf-agent-schleife.html) | [`ablauf-agent-schleife.json`](quellen/ablauf-agent-schleife.json) | `2a589a6` |
 | Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [PNG](png/konfiguration-muster-modus.png) | [konfiguration-muster-modus.html](konfiguration-muster-modus.html) | [`konfiguration-muster-modus.json`](quellen/konfiguration-muster-modus.json) | `2a589a6` |
@@ -31,7 +32,7 @@ Jede Komponente verlinkt auf ihre Quellstelle im Repository.
 ## Lokal nutzen
 
 `index.html` im Browser öffnen, per Doppelklick oder über *Datei → Öffnen*. Alles läuft aus dem
-Dateisystem und offline; die Startseite verlinkt die sechs Grafiken relativ. Über das Menü
+Dateisystem und offline; die Startseite verlinkt die sieben Grafiken relativ. Über das Menü
 **Exportieren** lassen sich die Grafiken zusätzlich als Bild für Folien speichern.
 
 Wer lieber eine Adresse im lokalen Netz zeigt, startet im Ordner einen einfachen Webserver und
@@ -89,6 +90,10 @@ node <archify>/bin/archify.mjs finalize architecture docs/architektur-grafiken/q
 
 ```bash
 node <archify>/bin/archify.mjs finalize architecture docs/architektur-grafiken/quellen/konfiguration-agent-schleife.json docs/architektur-grafiken/konfiguration-agent-schleife.html --repo-root . --quality showcase
+```
+
+```bash
+node <archify>/bin/archify.mjs finalize architecture docs/architektur-grafiken/quellen/ui-module-einbindung.json docs/architektur-grafiken/ui-module-einbindung.html --repo-root . --quality showcase
 ```
 
 Jede Quelle trägt ihren eigenen Stand in `meta.repository.revision`. archify prüft die Belege

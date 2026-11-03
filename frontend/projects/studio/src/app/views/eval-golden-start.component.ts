@@ -57,6 +57,9 @@ export class EvalGoldenStartComponent {
    *  Qualitätslinien der Trends bleiben leer. */
   readonly judge = signal(true);
 
+  /** Paket U1-g: die Züge melden die Katalog-Module wie das Widget — aus nur zum Vergleich. */
+  readonly uiModule = signal(true);
+
   /** GV5: eine Maschine je Lauf. "default" = keine Kopfzeile, der Lauf misst
    *  die Server-Vorgabe aus `engine.yaml`. */
   readonly engine = signal<GoldenEngine>('default');
@@ -170,6 +173,11 @@ export class EvalGoldenStartComponent {
     this.disarm();
   }
 
+  setUiModule(on: boolean): void {
+    this.uiModule.set(on);
+    this.disarm();
+  }
+
   setEngine(engine: GoldenEngine): void {
     this.engine.set(engine);
     this.disarm();
@@ -200,7 +208,7 @@ export class EvalGoldenStartComponent {
     try {
       const result = await this.api.startGoldenRun({
         flow_ids: [...this.chosen()], judge: this.judge(), config_slug: '',
-        engine: this.engine(),
+        engine: this.engine(), ui_module: this.uiModule(),
       });
       this.armed.set(false);
       this.status.set(this.t('evalStart.gold.started', { id: result.run_id }));

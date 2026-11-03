@@ -8,13 +8,13 @@ einem Feld ``befund``): **196 Zeichen im Chat gegen 1932 im Ergebnis**. Das ist
 keine Modell-Laune, sondern die Bauform: zwei Aufgaben teilen sich einen Aufruf,
 und das Feld, das der Gastgeber ausdrücklich benannt hat, gewinnt.
 
-Hier ist das Ergebnis ein **eigener Kanal**, virtuell wie ``zeige_dokument``:
+Hier ist das Ergebnis ein **eigener Kanal**, virtuell wie ``ui_inhaltsrahmen``:
 die Schleife fängt den Namen ab, notiert das Ergebnis und
 läuft **weiter**. Die Antwort für die Person entsteht danach als gewöhnlicher
 Zug, und der Lauf endet über ``stop_reason='text'`` wie jeder andere.
 
 **Der Unterschied zum Dokument-Werkzeug ist der Wortlaut, und er ist kein
-Detail.** Eine Dokument-Box steht IM Chat — deshalb sagt ``zeige_dokument``
+Detail.** Eine Dokument-Box steht IM Chat — deshalb sagt ``ui_inhaltsrahmen``
 ausdrücklich, die Prosa daneben sei nur ein Begleitsatz. Das Ergebnis dagegen
 geht an die Anwendung und ist auf dem Bildschirm **unsichtbar**. Denselben Satz
 hier zu wiederholen, hieße die gemessene Lücke festzuschreiben.
@@ -34,7 +34,7 @@ from typing import Any, Final
 
 #: Der Name, an dem die Schleife das Ergebnis erkennt. Konstante statt Literal,
 #: weil ihn mehrere Module vergleichen — dieselbe Begründung wie bei
-#: ``ZEIGE_DOKUMENT`` und ``SUBMIT_RESULT``.
+#: ``INHALTSRAHMEN`` und ``SUBMIT_RESULT``.
 LIEFERE_ERGEBNIS: Final = "liefere_ergebnis"
 
 _BESCHREIBUNG: Final = (

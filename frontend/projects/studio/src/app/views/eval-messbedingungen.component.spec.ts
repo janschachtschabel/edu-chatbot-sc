@@ -66,6 +66,19 @@ describe('EvalMessbedingungenComponent (Paket 13, F2)', () => {
     }
   });
 
+  it('nennt die gemeldeten UI-Module — und unterscheidet „keine“ von „nicht erfasst“ (U1-g)', () => {
+    const zeile = (): string => Array.from(el.querySelectorAll('.emb-liste > div'))
+      .find((d) => d.querySelector('dt')?.textContent === 'UI-Module')?.querySelector('dd')
+      ?.textContent ?? '';
+    expect(zeile()).toBe('—');
+    fixture.componentRef.setInput('mb', { ...MB, ui_module: ['ui_entscheidung', 'ui_themenbaum'] });
+    fixture.detectChanges();
+    expect(zeile()).toBe('ui_entscheidung, ui_themenbaum');
+    fixture.componentRef.setInput('mb', { ...MB, ui_module: [] });
+    fixture.detectChanges();
+    expect(zeile()).toBe('keine gemeldet');
+  });
+
   it('nennt die Route des b-api-Routers (Gesamt-Review Paket 17, AB1)', () => {
     fixture.componentRef.setInput('mb', { ...MB, weg: { ...MB.weg, route: 'boerdi-test-luna' } });
     fixture.detectChanges();

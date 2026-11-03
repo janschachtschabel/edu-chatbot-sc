@@ -1,0 +1,101 @@
+"""UI-Module als Werkzeuge im Muster-Weg (Paket U1-d2, U-F4).
+
+Die Vorrunde der Muster-Schleife (``tool_loop._run_tool_loop``) für Modul-Aufrufe — wie die der
+Ergebnis-Dokumente und aus demselben Grund: ``respond_to_user`` verlässt die Runde mit ``break``,
+und stünde die Antwort vor der Frage, ginge die Frage verloren. Module ohne Datenquelle sind
+virtuell: nie an den MCP, kein Eintrag in ``tools_called``.
+
+Die Regeln sind die der Agent-Schleife (``agent_loop``, U1-d1): nur angebotene Module, der Aufruf
+wird gegen ``eingabe`` geprüft (ein Fehler geht an die KI zurück), höchstens eine Frage je Antwort.
+Die Blöcke legt die Vorrunde im ``session_state`` ab (:data:`MODUL_BLOECKE_KEY`) — die Schleife
+kennt kein ``ctx``, wie bei ``_gelieferte_dokumente``. ``graph/nodes/respond`` holt sie mit
+``pop`` ab, merkt sich die Frage und nimmt die Schnellantworten weg.
+
+Seit U1-e asynchron: ein Modul mit Datenquelle (``ui_themenbaum``) holt seine Daten über das
+MCP-Werkzeug; die KI bekommt nur die Quittung (``ui_module/datenquelle``). Dieser Aufruf steht wie
+jeder MCP-Aufruf in ``tools_called``, ``outcomes`` und der Werkzeugzeit (Review U1-e, Befund 6);
+seine Frist ist die des Transports (``MCP_CALL_TIMEOUT_S``) wie für die übrigen Werkzeuge der
+Schleife. Liefert er keinen Block, meldet die Vorrunde das (:attr:`Vorrunde.ohne_block`): eine
+Antwort derselben Runde gilt dann nicht (Befund 1).
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Collection, Iterable
+from dataclasses import dataclass, field
+from typing import Any, Final
+
+from boerdi.api.schemas_ui import UiBlock
+from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
+from boerdi.obs.zeiten import schritt
+from boerdi.ui_module.antwort import ZWEITE_FRAGE, frage_quittung
+from boerdi.ui_module.datenquelle import aufruf as datenquellen_aufruf
+from boerdi.ui_module.werkzeuge import hat_datenquelle, ist_modul_werkzeug, modul_aufruf_annehmen
+
+_logger = logging.getLogger(__name__)
+
+#: Wo der Muster-Weg die Blöcke der Modul-Werkzeuge ablegt; gehört DIESEM Zug. Bewusst nicht
+#: ``domain/ui_bloecke.DEBUG_KEY`` (gespeicherte Blöcke im Debug-Block, Review U1-d2).
+MODUL_BLOECKE_KEY: Final = "_modul_bloecke_zug"
+
+
+@dataclass(slots=True)
+class Vorrunde:
+    """Was die Vorrunde erledigt hat — und ob ein Modul mit Datenquelle ohne Block blieb."""
+
+    erledigt: set[str] = field(default_factory=set)
+    ohne_block: bool = False
+
+
+def offene_frage(session_state: dict) -> UiBlock | None:
+    """Der abfragende Block dieses Zugs — oder ``None``."""
+    return next((b for b in session_state.get(MODUL_BLOECKE_KEY) or []
+                 if b.art == "abfragen"), None)
+
+
+async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
+                    session_state: dict, vorrunde: Vorrunde,
+                    tools_called: list[str], outcomes: list) -> str:
+    if name not in angeboten:
+        _logger.warning("tool-call %s: nicht angeboten, verworfen", name)
+        return NICHT_ANGEBOTEN
+    try:
+        args = json.loads(roh_args or "{}")
+    except (json.JSONDecodeError, TypeError):
+        args = None   # → die Prüfung gegen ``eingabe`` meldet die fehlenden Felder
+    if hat_datenquelle(name):
+        tools_called.append(name)
+        with schritt("respond.werkzeuge"):
+            ergebnis = await datenquellen_aufruf(name, args)
+        outcomes.append(ergebnis.outcome)
+        if ergebnis.block is not None:
+            session_state.setdefault(MODUL_BLOECKE_KEY, []).append(ergebnis.block)
+        else:
+            vorrunde.ohne_block = True
+        return ergebnis.text
+    block, fehler = modul_aufruf_annehmen(name, args)
+    if block is None:
+        _logger.info("Modul-Werkzeug %s: unbrauchbare Argumente", name)
+        return fehler or ""
+    if block.art == "abfragen" and offene_frage(session_state) is not None:
+        return ZWEITE_FRAGE
+    session_state.setdefault(MODUL_BLOECKE_KEY, []).append(block)
+    return frage_quittung(block) if block.art == "abfragen" else "OK"
+
+
+async def nimm_module_an(tool_calls: Iterable[Any], angeboten: Collection[str],
+                         session_state: dict, messages: list[dict], *,
+                         tools_called: list[str], outcomes: list) -> Vorrunde:
+    """Alle Modul-Aufrufe der Runde annehmen und quittieren; Rückgabe: ihre Aufruf-Kennungen und
+    ob eine Datenquelle ohne Block blieb."""
+    vorrunde = Vorrunde()
+    for tc in tool_calls:
+        if not ist_modul_werkzeug(tc.function.name):
+            continue
+        vorrunde.erledigt.add(tc.id)
+        messages.append({"role": "tool", "tool_call_id": tc.id, "content": await _ergebnis(
+            tc.function.name, tc.function.arguments, angeboten, session_state, vorrunde,
+            tools_called, outcomes)})
+    return vorrunde

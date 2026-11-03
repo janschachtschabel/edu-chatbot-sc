@@ -23,6 +23,7 @@ function fakeHost(): {
     post: (...a: any[]) => { calls.post.push(a); return Promise.resolve({ content: 'ok' }); },
     transcribe: (...a: any[]) => { calls.transcribe.push(a); return Promise.resolve('txt'); },
     synthesize: (...a: any[]) => { calls.synthesize.push(a); return Promise.resolve(new Blob()); },
+    themenbaumZweig: (...a: any[]) => { (calls['zweig'] ??= []).push(a); return Promise.resolve({ knoten: [] }); },
   } as unknown as ChatApiClient;
   let sid = 'sess-1';
   let sprache = 'de';
@@ -99,6 +100,14 @@ describe('buildControllerContexts', () => {
     const { collectionActions } = buildControllerContexts(host);
     collectionActions.sendMessage('Inhalte', undefined, 'browse_collection', { collection_id: 'c1' });
     expect(calls.post[0]).toEqual(['sess-1', 'Inhalte', undefined, 'browse_collection', { collection_id: 'c1' }]);
+  });
+
+  it('collectionActions.ladeZweig geht mit der LIVE-Sitzung an die API (U1-h)', async () => {
+    const { host, calls, setSid } = fakeHost();
+    const { collectionActions } = buildControllerContexts(host);
+    setSid('sess-2');
+    await expect(collectionActions.ladeZweig('bbbb-2222')).resolves.toEqual({ knoten: [] });
+    expect(calls['zweig']).toEqual([['sess-2', 'bbbb-2222']]);
   });
 
   it('collectionActions.messages/updateMessages/messagesContainer/dispatchPageAction delegieren', () => {

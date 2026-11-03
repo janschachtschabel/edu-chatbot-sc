@@ -5,7 +5,7 @@ focused on the handlers.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 # ── top-level PUT body wrappers (malformed body -> 422 automatically) ──
@@ -141,6 +141,17 @@ class PatternEntry(BaseModel):
     # ``None`` = nicht gesetzt (erbt die Bereiche, Paket 4 C6), ``[]`` = keine.
     rag_areas: list[str] | None = None
     tools: list[str] = []
+    # Paket U1-c: ``None`` = nicht gesetzt (alle abgeleiteten Module), ``[]`` = keines.
+    ui_module: list[str] | None = None
+
+    @field_validator("ui_module")
+    @classmethod
+    def _nur_abgeleitete(cls, namen: list[str] | None) -> list[str] | None:
+        # Wie im Frontmatter (``config_models/patterns``): ein Tippfehler schaltete sonst still
+        # die Linkbox ab, weil ihr Name nicht in der Liste stünde.
+        from boerdi.ui_module.namen import pruefe_abgeleitete
+
+        return pruefe_abgeleitete(namen)
     output_mode: str | None = None
     precondition_slots: list[str] = []
     card_text_link_required: bool | None = None

@@ -8,6 +8,8 @@ für die Reihenfolge der Blöcke, die je Zug folgen.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from boerdi.api.schemas import (
@@ -215,3 +217,35 @@ async def test_die_bloecke_je_zug_stehen_in_der_reihenfolge_des_echten_zugs(quel
     assert kette[-1]["role"] == "user"
     reihe = [namen[teil] for m in kette[2:] for teil in m["content"].split("\n\n")]
     assert reihe == [kennung for kennung in pv.JE_ZUG if kennung != "result_schema"]
+
+
+async def test_nennt_die_modul_werkzeuge_getrennt(quellen):
+    """U1-d2: Die Modul-Werkzeuge kommen nur dazu, wenn das Widget sie meldet — die Vorschau
+    zählt sie deshalb nicht mit, sondern nennt sie mit ihrem Umfang daneben."""
+    from boerdi.ui_module.werkzeuge import modul_werkzeuge
+
+    werkzeuge = (await pv.prompt_vorschau("de"))["tools"]
+    module = werkzeuge["ui_module"]
+    assert module["names"] == ["ui_entscheidung", "ui_themenbaum"]
+    # Der Themenbaum (U1-e) zählt mit, weil sein Werkzeug browse_collection_tree angeboten ist.
+    assert module["chars"] == len(json.dumps(modul_werkzeuge(
+        ["ui_entscheidung", "ui_themenbaum"], verfuegbar={"browse_collection_tree"},
+        fuer="agent"),
+        ensure_ascii=False))
+    im_zug = agent_tools.build_agent_tools(
+        include_submit=False, include_dokument=True, wissen_tool=wissen_werkzeug(_RAG))
+    assert werkzeuge["count"] == len(im_zug)
+
+
+async def test_namen_und_umfang_zaehlen_dieselben_module(quellen, monkeypatch):
+    """Review U1-f, Befund 11: Fehlt das Werkzeug der Datenquelle (hier im Studio verborgen),
+    bietet der Zug den Themenbaum nicht an — dann darf ihn auch die Namensliste nicht nennen,
+    der Umfang zählte ihn schon nicht."""
+    from boerdi.ui_module.werkzeuge import modul_werkzeuge
+
+    monkeypatch.setattr(agent_tools, "verborgene_werkzeuge",
+                        lambda: frozenset({"browse_collection_tree"}))
+    module = (await pv.prompt_vorschau("de"))["tools"]["ui_module"]
+    assert module["names"] == ["ui_entscheidung"]
+    assert module["chars"] == len(json.dumps(modul_werkzeuge(
+        ["ui_entscheidung"], verfuegbar=set(), fuer="agent"), ensure_ascii=False))

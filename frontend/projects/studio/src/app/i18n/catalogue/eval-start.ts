@@ -87,6 +87,13 @@ export const EVAL_START: CataloguePart = {
     'evalStart.gold.engine.hint':
       'Gilt für jeden Zug dieses Laufs (Kopfzeile X-Boerdi-Engine). '
       + '„Server-Vorgabe“ misst, was in engine.yaml eingestellt ist.',
+    // Paket U1-g: beide Start-Formulare.
+    'evalStart.uiModule.legend': 'UI-Module',
+    'evalStart.uiModule.label': 'UI-Module melden wie das Widget',
+    'evalStart.uiModule.hint':
+      'An: jeder Zug meldet alle Module des Katalogs — der Agent kann dann Auswahlfelder und '
+      + 'Themenbäume zeigen. Aus nur zum Vergleich: der Lauf misst die Anlage ohne diese Module. '
+      + 'Im Studio abgeschaltete Module bietet der Server trotzdem nicht an.',
     'evalStart.gold.judge.legend': 'Weiche Bewertung',
     'evalStart.gold.judge.label': 'LLM-Judge mitlaufen lassen',
     'evalStart.gold.judge.hint':
@@ -210,6 +217,12 @@ export const EVAL_START: CataloguePart = {
     'evalStart.gold.engine.hint':
       'Applies to every turn of this run (X-Boerdi-Engine header). '
       + '"Server default" measures whatever engine.yaml says.',
+    'evalStart.uiModule.legend': 'UI modules',
+    'evalStart.uiModule.label': 'Report UI modules like the widget',
+    'evalStart.uiModule.hint':
+      'On: every turn reports all modules of the catalogue — the agent can then show choice '
+      + 'boxes and topic trees. Off only for comparison: the run measures the system without '
+      + 'these modules. Modules switched off in the Studio are still not offered by the server.',
     'evalStart.gold.judge.legend': 'Soft scoring',
     'evalStart.gold.judge.label': 'Run the LLM judge along',
     'evalStart.gold.judge.hint':

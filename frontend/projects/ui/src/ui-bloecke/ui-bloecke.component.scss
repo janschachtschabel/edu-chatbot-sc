@@ -1,0 +1,29 @@
+// Abstände wie die übrigen Boxen unter einer Antwort (Inhaltsrahmen, Trefferliste).
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  // Oben und unten 8 px — wie früher die Dokument-Box (`margin: 8px 0`).
+  margin-block: 8px;
+}
+
+// `display: flex` oben überstimmte sonst das `hidden`-Attribut eines leeren Platzes.
+// Unten bringen die Module ihren Abstand selbst mit (`.result-groups`: 8 px oben) — wie die
+// bisherigen Trefferboxen; ein zweiter Rand verdoppelte ihn.
+:host(.ui-bloecke--unten) {
+  margin-block: 0;
+  gap: 0;
+}
+
+:host([hidden]) {
+  display: none;
+}
+
+.ui-block {
+  min-width: 0;
+}
+
+.ui-block__text {
+  font-size: inherit;
+  color: inherit;
+}

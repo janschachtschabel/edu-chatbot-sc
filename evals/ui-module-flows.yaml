@@ -1,0 +1,186 @@
+# ════════════════════════════════════════════════════════════════════
+# Beispiel-Abläufe der UI-Module (Paket U1-g) — NICHT Teil der Tor-Suite
+# ════════════════════════════════════════════════════════════════════
+#
+# Plan docs/plans/2026-11-02-paket-u1-ui-module.md §17. Format wie
+# backend/seeds/eval/gold-flows.yaml, dazu (seit U1-g):
+#   ui_any      — mind. EINES der Module erscheint als Block (ui.ui_bloecke).
+#   ui_none     — KEINES erscheint. Beide zusammen bilden den harten Check „ui“.
+#                 Grundwahrheit ist der gezeigte Block, nicht tools_called.
+#   ui_antwort  — der Zug antwortet im Auswahlfeld (ui_entscheidung) des
+#                 VORIGEN Zugs: {waehle: [Wendung …], freitext?: Text}. Gewählt
+#                 wird über die Beschriftung, ohne Groß-/Kleinschreibung: erst
+#                 die genaue Beschriftung (oder Kennung), dann die Wendung als
+#                 ganze Wörter, zuletzt als Wortteil — die Kennungen wählt das
+#                 Modell erst im Lauf. Einzelwahl: die beste Stufe, darunter die
+#                 erste Wendung. Wendungen nach Absicht ordnen und nichts
+#                 aufnehmen, das eine andere Möglichkeit treffen könnte. Ohne
+#                 offene Frage oder ohne passende Möglichkeit geht `message`
+#                 getippt. Freitext über 1000 Zeichen kürzt der Runner wie das
+#                 Widget.
+#
+# Eigene Datei wie skill-bruecke-flows.yaml: die Maschinen-Matrix liest die
+# Seed-Suite, neue Flows dort machten ihre Zahlen unvergleichbar.
+# Format-Wächter: backend/tests/test_golden_ui_module_flows.py.
+#
+# Maschine: ui_entscheidung und ui_themenbaum bietet heute nur der AGENT an
+# (kein Seed-Muster nennt sie in `tools:`; im Muster-Modus entsteht der Baum
+# nur über die Direktaktion show_collection_tree des Widgets). Diese Abläufe
+# deshalb mit --engine agent fahren. GV-UI-7 ist das Gegenstück für beide
+# Maschinen: Trefferliste und Linkbox werden an der API-Grenze abgeleitet.
+#
+#   cd backend
+#   uv run python ../evals/run_golden.py --flows ../evals/ui-module-flows.yaml \
+#       --engine agent --label u1g-agent
+#   … --ohne-ui-module --label u1g-ohne   (Vergleich: die Anlage ohne Module)
+#   … --only GV-UI-7 --engine pattern --label u1g-muster
+#
+# Erwartungen bewusst robust: je Zug das tragende Modul (ui_any) und kaum
+# Wortlaut; was ein guter Zug inhaltlich leistet, steht in must_offer (Judge).
+#
+# Grenze: einen Knoten im Themenbaum öffnen kann ein Zug nur getippt. Die
+# Quittung des Baums nennt dem Agenten keine Knoten (U1-e), einen Unterknoten
+# erreicht er deshalb kaum gezielt — GV-UI-1 Zug 2 lässt darum auch die
+# Trefferliste gelten. Später: ein Zug-Schlüssel `aktion` für Direktaktionen
+# (Plan §17, „Offen (U1-g)“).
+# ════════════════════════════════════════════════════════════════════
+version: 2
+
+flows:
+  # ── Themenbaum ─────────────────────────────────────────────────────
+  - id: GV-UI-1
+    zielgruppe: P-LEH
+    title: "(nur Agent) Themenbaum Physik → tiefer in die Optik"
+    erwartung: "Eine Physiklehrkraft verschafft sich einen Überblick über die Physik-Themen in WirLernenOnline: der Bot zeigt den Themenbaum des Fachportals und geht auf Nachfrage eine Ebene tiefer in die Optik (als Baum, sonst als Treffer zur Optik) — gesiezt, ohne Rückfrage, im ersten Zug ohne Materialliste statt Baum."
+    turns:
+      - message: "Ich unterrichte Physik in der Mittelstufe und will mir erst mal einen Überblick verschaffen. Welche Themen gibt es bei WirLernenOnline in Physik?"
+        anwendungsfall: orientieren
+        expect:
+          register: sie
+          ui_any: [ui_themenbaum]
+          ui_none: [ui_entscheidung]
+          must_offer: "Der Themenbaum des Fachportals Physik (Unterthemen wie Mechanik, Optik, Elektrizitätslehre, Wärmelehre) als aufklappbarer Baum, dazu ein Satz, wie es weitergeht (ein Thema öffnen oder Material dazu suchen)."
+      - message: "Gehen Sie bitte bei der Optik eine Ebene tiefer — was gibt es dort alles?"
+        anwendungsfall: orientieren
+        expect:
+          register: sie
+          ui_any: [ui_themenbaum, ui_trefferliste]
+          must_offer: "Die Unterthemen der Optik (etwa Lichtbrechung, Reflexion, Linsen, Farben) als Baum — nicht noch einmal der ganze Physik-Baum; erreicht der Bot den Optik-Knoten nicht, ehrlich Material zur Optik als Trefferliste."
+
+  - id: GV-UI-2
+    zielgruppe: P-LEH
+    title: "(nur Agent) Themenbaum Biologie → Material zu einem Unterthema"
+    erwartung: "Eine Biologielehrkraft lässt sich die Themen des Fachportals Biologie zeigen und will dann zu einem Unterthema konkretes Material: erst der Baum, danach Treffer aus dem Bestand."
+    turns:
+      - message: "Zeigen Sie mir bitte die Themenstruktur für Biologie, ich plane gerade das neue Schulhalbjahr."
+        anwendungsfall: orientieren
+        expect:
+          register: sie
+          ui_any: [ui_themenbaum]
+          must_offer: "Der Themenbaum des Fachportals Biologie mit seinen Unterthemen (etwa Zellbiologie, Genetik, Ökologie, Humanbiologie) und ein Anschlussangebot."
+      - message: "Gut, zur Ökologie hätte ich gern Material für die 9. Klasse — am liebsten Arbeitsblätter."
+        anwendungsfall: suchen
+        expect:
+          register: sie
+          structure: cards
+          ui_any: [ui_trefferliste]
+          must_offer: "Material-Treffer zur Ökologie für Klasse 9, bevorzugt Arbeitsblätter, als Trefferliste mit einem Anschlussangebot."
+
+  # ── Entscheidung ───────────────────────────────────────────────────
+  - id: GV-UI-3
+    zielgruppe: P-LEH
+    title: "(nur Agent) Fach offen → Auswahlfeld → Treffer"
+    erwartung: "Eine Lehrkraft sucht Material zum Thema Energie für Klasse 7, ohne das Fach zu nennen: der Bot fragt mit einem Auswahlfeld nach dem Fach, und nach der Antwort kommen passende Treffer — keine zweite Rückfrage."
+    turns:
+      # „Energie“ gibt es in Physik, Biologie, Chemie und Erdkunde — die Rückfrage
+      # nach dem Fach ist hier die beste Antwort, nicht eine Treffermischung.
+      - message: "Ich brauche Material zum Thema Energie für meine 7. Klasse."
+        anwendungsfall: suchen
+        expect:
+          ui_any: [ui_entscheidung]
+          must_offer: "Eine kurze Rückfrage mit Auswahlfeld, für welches Fach das Material sein soll (etwa Physik, Biologie, Chemie, Erdkunde) — noch keine Treffer."
+      - message: "Physik"
+        anwendungsfall: suchen
+        ui_antwort: {waehle: [Physik, Naturwissenschaft]}
+        expect:
+          structure: cards
+          ui_any: [ui_trefferliste]
+          ui_none: [ui_entscheidung]
+          must_offer: "Material-Treffer zu Energie im Physikunterricht der 7. Klasse (Energieformen, Energieumwandlung) als Trefferliste."
+
+  - id: GV-UI-4
+    zielgruppe: P-LEH
+    title: "(nur Agent) Stunde planen: Bausteine wählen (Mehrfachwahl) → Verlaufsplan"
+    erwartung: "Eine Lehrkraft plant eine Doppelstunde Photosynthese für Klasse 8 und lässt sich die möglichen Bausteine zur Auswahl geben: der Bot fragt mit einem Auswahlfeld (mehrere möglich), nach der Wahl steht ein Verlaufsplan mit genau diesen Bausteinen als Dokument."
+    turns:
+      - message: "Ich plane eine Doppelstunde Biologie zur Photosynthese in Klasse 8. Was könnte da alles rein? Geben Sie mir die Bausteine bitte zur Auswahl."
+        anwendungsfall: zusammenstellen
+        expect:
+          ui_any: [ui_entscheidung]
+          must_offer: "Ein Auswahlfeld mit mehreren wählbaren Bausteinen der Stunde (etwa Einstieg, Experiment, Arbeitsblatt, Quiz, Sicherung), mehrere zugleich wählbar."
+      - message: "Einstieg, Experiment, Arbeitsblatt und Quiz bitte. Wir haben 90 Minuten."
+        anwendungsfall: zusammenstellen
+        ui_antwort:
+          waehle: [Einstieg, Experiment, Versuch, Arbeitsblatt, Quiz]
+          freitext: "Wir haben 90 Minuten; Material für einen Versuch mit Wasserpest ist da."
+        expect:
+          register: sie
+          structure: idoc
+          ui_any: [ui_inhaltsrahmen]
+          must_offer: "Ein Verlaufsplan für 90 Minuten als Dokument mit den gewählten Bausteinen in sinnvoller Reihenfolge (Einstieg, Experiment, Arbeitsblatt, Quiz), mit Zeiten und Sozialformen."
+
+  # ── Lernende ───────────────────────────────────────────────────────
+  - id: GV-UI-5
+    zielgruppe: P-LER
+    title: "(nur Agent) Schülerin: Brüche verstehen — Einstieg finden"
+    erwartung: "Eine Schülerin versteht Brüche nicht und weiß nicht, wo sie anfangen soll: der Bot duzt, klärt Klassenstufe oder Vorwissen (gern per Auswahlfeld) oder bietet gleich einfache Lernmaterialien an, und erklärt danach in einfachen Worten den Anfang."
+    turns:
+      - message: "ich versteh brüche einfach nicht. wo fang ich da überhaupt an?"
+        anwendungsfall: erklaeren
+        expect:
+          register: du
+          ui_any: [ui_entscheidung, ui_trefferliste]
+          ui_none: [ui_themenbaum]
+          must_offer: "Ermutigend und geduzt: entweder eine kurze Rückfrage nach Klasse oder Vorwissen (Auswahlfeld) oder gleich einfache Einstiegsmaterialien zu Brüchen."
+      - message: "6. Klasse, ich weiß nicht mal, was Zähler und Nenner sind"
+        anwendungsfall: erklaeren
+        ui_antwort:
+          waehle: [Klasse 6, gar nicht, von vorne, Anfang]
+          freitext: "Ich weiß nicht, was Zähler und Nenner sind."
+        expect:
+          register: du
+          must_offer: "Eine einfache Erklärung von Zähler und Nenner (etwa am Beispiel einer Pizza), dazu ein bis zwei passende Übungen oder Lernvideos für Klasse 6."
+
+  # ── Gegenprobe ─────────────────────────────────────────────────────
+  - id: GV-UI-6
+    zielgruppe: P-AND
+    title: "Gegenprobe: Smalltalk und Frage zu WLO — kein Auswahlfeld, kein Baum"
+    erwartung: "Bei Smalltalk und einer einfachen Frage zu WirLernenOnline antwortet der Bot direkt — ohne Auswahlfeld und ohne Themenbaum."
+    turns:
+      # Ein Auswahlfeld „Wobei kann ich helfen?“ ist hier vertretbar — die
+      # Gegenprobe gegen das Auswahlfeld trägt Zug 2.
+      - message: "Hallo! Na, wie läuft's bei dir heute so?"
+        anwendungsfall: sonstiges
+        expect:
+          ui_none: [ui_themenbaum]
+          must_offer: "Eine freundliche, kurze Antwort und ein Angebot, wobei der Bot helfen kann (Material suchen, Unterricht planen)."
+      - message: "Hat WirLernenOnline eigentlich Öffnungszeiten oder einen Support, den man anrufen kann?"
+        anwendungsfall: wlo_wissen
+        expect:
+          ui_none: [ui_entscheidung, ui_themenbaum]
+          must_offer: "Eine direkte Antwort: WirLernenOnline ist rund um die Uhr online erreichbar; Kontakt- bzw. Support-Weg, soweit aus dem Wissen belegbar — ohne Rückfrage."
+
+  # ── Beide Maschinen ────────────────────────────────────────────────
+  - id: GV-UI-7
+    zielgruppe: P-LEH
+    title: "Beide Maschinen: Materialsuche → Trefferliste"
+    erwartung: "Eine Lehrkraft sucht ein Video zur Lichtbrechung für Klasse 8: in beiden Maschinen erscheinen die Treffer als Trefferliste, ohne Rückfrage."
+    turns:
+      - message: "Haben Sie ein kurzes Video zur Lichtbrechung für meine 8. Klasse?"
+        anwendungsfall: suchen
+        expect:
+          register: sie
+          structure: cards
+          ui_any: [ui_trefferliste]
+          ui_none: [ui_entscheidung]
+          must_offer: "Video-Treffer zur Lichtbrechung für Klasse 8 als Trefferliste mit einem Anschlussangebot."

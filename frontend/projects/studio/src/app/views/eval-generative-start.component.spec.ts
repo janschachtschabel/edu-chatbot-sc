@@ -191,7 +191,9 @@ describe("EvalGenerativeStartComponent", () => {
     const req = h.http.expectOne(
       (r) => r.url === RUNS_URL && r.method === "POST",
     );
-    expect(req.request.body).toEqual({ ...estimated, config_slug: "" });
+    // Paket U1-g: ui_module geht nur an den Start — die Schätzung zählt dieselben Aufrufe.
+    expect(estimated).not.toHaveProperty("ui_module");
+    expect(req.request.body).toEqual({ ...estimated, config_slug: "", ui_module: true });
     req.flush({ run_id: "eval-abc", status: "running", warnings: [] });
     await settle();
 
@@ -199,6 +201,20 @@ describe("EvalGenerativeStartComponent", () => {
     expect(text()).toContain("eval-abc");
     // The confirmation is spent — a second run needs a fresh estimate.
     expect(button("Ja, Lauf starten")).toBeNull();
+  });
+
+  it("startet ohne UI-Module, wenn der Haken fehlt (Paket U1-g)", async () => {
+    await mount();
+    expect(checkbox("ui-module").checked).toBe(true);
+    checkbox("ui-module").click();
+    await h.fixture.whenStable();
+    await check();
+    button("Ja, Lauf starten")!.click();
+    await h.fixture.whenStable();
+    const req = h.http.expectOne((r) => r.url === RUNS_URL && r.method === "POST");
+    expect(req.request.body).toMatchObject({ ui_module: false });
+    req.flush({ run_id: "eval-ohne", status: "running", warnings: [] });
+    await settle();
   });
 
   it("surfaces warnings the backend attached to the start", async () => {

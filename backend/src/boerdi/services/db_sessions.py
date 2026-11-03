@@ -100,6 +100,12 @@ async def get_or_create_session(session: AsyncSession, session_id: str) -> dict[
     return _session_to_dict(obj)
 
 
+async def sitzung_vorhanden(session: AsyncSession, session_id: str) -> bool:
+    """Gibt es diese Sitzung? Ein Abruf über den Primärschlüssel, ohne sie anzulegen — für
+    Endpunkte, die nur eine laufende Sitzung bedienen (U1-h, ``api/ui_themenbaum``)."""
+    return await session.get(ChatSession, session_id) is not None
+
+
 async def update_session(session: AsyncSession, session_id: str, **kwargs: Any) -> None:
     """Patch the given session columns and bump ``updated_at`` to now. A failure is
     rolled back before it is re-raised (:func:`_zurueckrollen`)."""

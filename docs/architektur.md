@@ -15,6 +15,7 @@ Quelltext erhoben; Fundstellen stehen in Klammern.
 | Bauplan/Spezifikation (Quelle der Wahrheit) | [`plans/2026-07-10-boerdi-chat-neubau.md`](plans/2026-07-10-boerdi-chat-neubau.md) |
 | Widget in fremde Seiten einbetten | [`browser-plugin-einbindung.md`](browser-plugin-einbindung.md) · [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) |
 | Agent-Schleife | [`agent-modus.md`](agent-modus.md) |
+| UI-Module: Prinzip, Aufbau, neues Modul ergänzen | [`ui-module.md`](ui-module.md) |
 | Interaktive Grafiken: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [Bilder (PNG)](architektur-grafiken/png/) · [Übersicht und Quellen](architektur-grafiken/README.md) |
 | Master-Skill (Vorgehen, Zielgruppen, Suchdisziplin, 30 Anwendungsfälle) | [`skills/vorgehen.md`](skills/vorgehen.md) |
 | Eingefrorener HTTP-Vertrag | [`api/openapi-v1.json`](api/openapi-v1.json) |
@@ -550,6 +551,7 @@ Vollständige Referenz in [`browser-plugin-einbindung.md`](browser-plugin-einbin
        ├─ stream/              SSE-Client + Wachhunde + POST-Rückfall
        ├─ controllers/         Tour, Kontext-Begrüßung, Sammlungs-Aktionen …
        ├─ cards/ grouping/     Ergebnis-Boxen, Kacheln, Schwimmlinien
+       ├─ ui-bloecke/          UI-Module der Antwort (ui.ui_bloecke), Host je Block
        ├─ markdown/            marked + DOMPurify
        ├─ session/             Sitzungs-ID, Anmeldung, Ticket, prepared-write
        └─ i18n/                de/en, zur Laufzeit umschaltbar
@@ -567,6 +569,12 @@ Vier Bauentscheidungen, die das Verhalten erklären:
 * **Eine Datei.** Kein Nachladen von Teilstücken zur Laufzeit; das macht die
   Einbettung in fremde Seiten und Plugins berechenbar.
 
+**UI-Module** (Paket U1): Dokument, Trefferliste, Linkbox, Auswahlfrage und
+Themenbaum sind Angular-Komponenten in `frontend/projects/ui-module/`, je mit
+einem Manifest. Die Antwort trägt sie als Blöcke in `ui.ui_bloecke`; die KI ruft
+sie wie Werkzeuge. Aufbau, Einbindung und was beim Ergänzen von Hand bleibt:
+[`ui-module.md`](ui-module.md).
+
 ---
 
 ## 7. Studio
@@ -578,8 +586,8 @@ Auswertungen ansehen, Sicherungen ziehen, Agent und Widget testen.
 die Seitenleiste zeigt den eigenen Block der Maschine (Agent: Übersicht, Rolle & Schutz,
 Prompt & Probelauf · Muster: Übersicht, Identität & Schutz, Domänenwissen, Patterns,
 Dimensionen, Materialformate) und darunter, was beide teilen: *Gemeinsam* (Begrüßung,
-Kontext-Aktionen, Tour & Lotse, Zielgruppen, Wissen, Werkzeuge, Skills, Anzeige,
-Datenschutz), *Auswertung* (Nutzung, Sessions, Analyse, Evaluation, Lasttest,
+Kontext-Aktionen, Tour & Lotse, Zielgruppen, Wissen, Werkzeuge, Skills, UI-Module,
+Anzeige, Datenschutz), *Auswertung* (Nutzung, Sessions, Analyse, Evaluation, Lasttest,
 Safety-Logs, Kosten) und *System* (Betrieb, Alle Bereiche, Sicherung, Vorschau). Ein
 Bereich hat je Arbeitsbereich genau eine Heimat (`views/area-homes.ts`), jedes Feld
 eine Plakette, in welcher Maschine es wirkt (`GET /api/config/effects`, `fields`).
@@ -741,6 +749,7 @@ Wer etwas ändern will, findet hier den Ort:
 | Neue HTTP-Route | `api/` — Achtung, `/api` ist vertraglich eingefroren |
 | Neuer Schritt im Zug | `graph/nodes/` + Verdrahtung in `graph/build.py` |
 | Neues Attribut am Widget | `widget.component.ts` + Studio-Referenztabelle (ein Test erzwingt beides) |
+| Neues UI-Modul im Chat | `npm run module:neu` + `npm run module:register` — Anleitung in [`ui-module.md`](ui-module.md) |
 | Neues Feld in einem Bereich | Pydantic-Modell in `domain/config_models/` — das Studio-Formular folgt |
 | Neue Tabelle/Spalte | `db/models.py` + Alembic-Migration |
 

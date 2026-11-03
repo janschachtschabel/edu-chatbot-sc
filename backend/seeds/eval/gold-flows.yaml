@@ -13,7 +13,7 @@
 #   register   — sie | du. Ehrlich: misst die Heuristik nichts (neutral),
 #                zählt der Check als „nicht messbar", nicht als bestanden.
 #   structure  — idoc (≥1 Dokument-Box) | cards (≥1 Karte). Engine-fair:
-#                ob Muster-Weiche oder zeige_dokument, ist egal.
+#                ob Muster-Weiche oder ui_inhaltsrahmen, ist egal.
 #   tools_any  — mind. EINES der genannten Werkzeuge wurde gerufen
 #                (Namen vor dem ersten Leerzeichen verglichen). Kodiert
 #                „Zuerst handeln"; bei Werkzeugen, die je Maschine anders

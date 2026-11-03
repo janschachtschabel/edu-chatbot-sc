@@ -593,7 +593,12 @@ def test_direktaktion_schreibt_keine_inhalte_ins_log(welt):
     assert len(gespeichert) == 1
     assert gespeichert[0]["debug"]["pattern"] == "ACTION: generate_learning_path"
     assert MARKE in gespeichert[0]["content"]
-    assert antwort["content"] or antwort.get("inline_documents")
+    # Der Lernpfad muss die Person erreichen — sonst schnitte der Test einen Zug ohne Inhalt mit.
+    # Seit U1-b2 kommt er als Inhaltsrahmen-Block (``ui.ui_bloecke``), ``inline_documents`` bleibt
+    # leer.
+    rahmen = [b["daten"]["markdown"] for b in (antwort.get("ui") or {}).get("ui_bloecke") or []
+              if b.get("modul") == "ui_inhaltsrahmen"]
+    assert any(MARKE in t for t in [antwort["content"], *rahmen]), "kein Lernpfad in der Antwort"
     _ohne_marke(eintraege, "Direktaktion")
 
 

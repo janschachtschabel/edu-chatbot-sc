@@ -25,6 +25,11 @@ def test_oeffentliche_zuege_haben_die_engste_grenze():
         assert body_limit_for(pfad) == 2 * MIB
 
 
+def test_der_zweig_des_themenbaums_braucht_kaum_einen_rumpf():
+    # U1-h: öffentlich, drei kurze Felder — die allgemeine Grenze (16 MiB) wäre hier nur Fläche.
+    assert body_limit_for("/api/ui/themenbaum/zweig") == 16 * 1024
+
+
 def test_uploads_folgen_ihren_fachlichen_deckeln(monkeypatch):
     assert body_limit_for("/api/speech/transcribe") == MAX_AUDIO_BYTES + MIB
     assert body_limit_for("/api/config/restore") == MAX_CONFIG_UPLOAD_BYTES + MIB

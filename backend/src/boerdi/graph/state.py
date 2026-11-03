@@ -54,6 +54,7 @@ from boerdi.api.schemas import (
     WebLink,
     WloCard,
 )
+from boerdi.api.schemas_ui import UiBlock
 from boerdi.obs.usage import new_accumulator
 
 
@@ -76,6 +77,13 @@ class TurnContext(BaseModel):
     # DB-/Memory-Rand konvertiert gegen ``SessionState`` beim Laden/Speichern.
     session_state: dict[str, Any] = Field(default_factory=dict)
     history: list[dict[str, Any]] = Field(default_factory=list)
+    #: Paket U1-d1: die in ``setup`` geprüfte Antwort auf die offene Frage — ``{block_id, modul,
+    #: frage, daten, labels}`` (``ui_module/antwort``) — oder ``None``. Steht im Debug-Block der
+    #: Nutzernachricht und gerahmt vor ihrer Nachricht an die KI.
+    ui_antwort: dict[str, Any] | None = None
+    #: Review U1-d1, Befund 3: die Frage, die dieser Zug geschlossen hat (``merke_frage``) — ohne
+    #: geprüfte Antwort steht sie gerahmt vor der Nachricht an die KI (``antwort.frage_block``).
+    geschlossene_frage: dict[str, Any] | None = None
     # Früh-Ausstieg (Tour/Kontext-Begrüßung/Preflight) → im Graphen eine
     # bedingte Kante. Gesetzt ⇒ Assessment/Route/Respond werden übersprungen.
     early_response: ChatResponse | None = None
@@ -160,9 +168,11 @@ class TurnContext(BaseModel):
     master_skill_zeile: str = ""
     effective_pattern_id: str = ""
     effective_pattern_label: str = ""
-    #: Vom Modell GELIEFERTE Ergebnis-Boxen (D2, ``zeige_dokument``). Leer =
+    #: Vom Modell GELIEFERTE Ergebnis-Boxen (D2, ``ui_inhaltsrahmen``). Leer =
     #: keine geliefert, dann greift die geratene Box aus ``turn_persist``.
     gelieferte_dokumente: list[dict[str, Any]] = Field(default_factory=list)
+    #: Paket U1: die UI-Blöcke dieses Zugs (Modul-Werkzeuge, feste Einbindung im Muster).
+    ui_bloecke: list[UiBlock] = Field(default_factory=list)
     qr_mode: str | None = None
     qr_max: int | None = None
     qr_spec_task: Any = None

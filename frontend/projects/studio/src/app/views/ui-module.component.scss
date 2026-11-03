@@ -1,0 +1,230 @@
+// Seite „UI-Module“ (Paket U1-f): Liste links, Detail rechts; unter 48rem untereinander.
+// Nur Studio-Token. `--st-accent` trägt keinen Text (offener Kontrastbefund), nur Linien.
+@use './section-shell';
+
+.um-geltung {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-rule-strong);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.um {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: var(--st-4);
+  align-items: start;
+
+  @media (max-width: 48rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.um-liste {
+  display: grid;
+  gap: var(--st-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.um-eintrag {
+  display: grid;
+  gap: 0.125rem;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--st-surface-variant);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+
+  // Gewählt: Fläche und eine Linie am Rand — die Bedeutung trägt `aria-current`, nicht die Farbe.
+  &[aria-current='true'] {
+    background: var(--st-accent-soft);
+    border-inline-start: 3px solid var(--st-accent);
+  }
+}
+
+.um-eintrag-titel {
+  font-weight: 600;
+}
+
+.um-eintrag-name,
+.um-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.um-eintrag-name,
+.um-eintrag-zustand {
+  color: var(--st-text-muted);
+  font-size: 0.75rem;
+}
+
+.um-detail {
+  display: grid;
+  gap: var(--st-3);
+  min-inline-size: 0;
+}
+
+.um-titel {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+
+  .um-name {
+    margin-inline-start: var(--st-2);
+    font-weight: 400;
+    color: var(--st-text-muted);
+  }
+}
+
+.um-beschreibung {
+  margin: 0;
+  max-inline-size: 72ch;
+  line-height: 1.5;
+}
+
+.um-schalter {
+  display: grid;
+  gap: var(--st-1);
+  margin: 0;
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+
+  legend {
+    padding-inline: var(--st-1);
+    font-weight: 600;
+  }
+}
+
+// Ganze Zeile als Zielfläche (WCAG 2.5.8).
+.um-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-2);
+  min-block-size: 1.5rem;
+  margin-block-start: var(--st-2);
+  font-weight: 600;
+  cursor: pointer;
+
+  input {
+    inline-size: 1.125rem;
+    block-size: 1.125rem;
+  }
+}
+
+.um-switch-hint,
+.um-fest {
+  margin: 0;
+  max-inline-size: 72ch;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.um-fest {
+  margin-block-start: var(--st-2);
+}
+
+.um-dirty {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-warn-text);
+}
+
+.um-h {
+  margin: var(--st-2) 0 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.um-angaben {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--st-1) var(--st-3);
+  margin: 0;
+  font-size: 0.875rem;
+
+  dt {
+    color: var(--st-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 30rem) {
+    grid-template-columns: minmax(0, 1fr);
+
+    dd {
+      margin-block-end: var(--st-2);
+    }
+  }
+}
+
+.um-punkte {
+  margin: 0;
+  padding-inline-start: var(--st-4);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+// Breite Tabellen scrollen in ihrem Rahmen, nicht die Seite (320 px).
+.um-tabelle {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.um-felder {
+  inline-size: 100%;
+  // Unter dieser Breite scrollt die Tabelle in ihrem Rahmen, statt die Beschreibung Wort für Wort
+  // umzubrechen.
+  min-inline-size: 30rem;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
+    padding: var(--st-2);
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+    vertical-align: top;
+  }
+
+  thead th {
+    font-weight: 400;
+    color: var(--st-text-muted);
+    white-space: nowrap;
+  }
+
+  tbody th {
+    font-weight: 400;
+  }
+}
+
+.um-werte {
+  display: block;
+  margin-block-start: var(--st-1);
+  color: var(--st-text-muted);
+}

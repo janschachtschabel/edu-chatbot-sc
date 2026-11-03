@@ -433,7 +433,7 @@ async def run_lp_fast_path(
             # Welle E (2026-05-23) — Lernpfad-Markdown bleibt im
             # response_text, kein page_action canvas_open mehr. Das
             # InlineDocument-Routing am Hauptpfad-Ende packt es in die
-            # ``inline_documents``-Box; response_text enthält bereits
+            # Dokument-Box (seit U1-b2 ein Inhaltsrahmen-Block); response_text enthält bereits
             # den vollständigen Markdown von generate_learning_path_text.
 
     except (json.JSONDecodeError, KeyError) as e:

@@ -102,7 +102,7 @@ export interface CuratedPanelSection {
   readonly panel:
     | 'rag-areas' | 'rag-ingest' | 'mcp-registry' | 'agent-tester' | 'master-skill'
     | 'privacy-purge' | 'retention' | 'agent-tools' | 'agent-skills' | 'agent-prompt'
-    | 'agent-probe' | 'anrede' | 'material-typen';
+    | 'agent-probe' | 'anrede' | 'material-typen' | 'ui-module';
   readonly labelKey: string;
   readonly hintKey: string;
   /** Paket 15: der Reiter der Seite, in dem das Panel steht (`CuratedView.reiter`). */

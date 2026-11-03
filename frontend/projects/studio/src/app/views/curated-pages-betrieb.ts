@@ -35,6 +35,9 @@ export const BETRIEB_SEITEN: readonly CuratedView[] = [
       {
         area: '01-base/display-rules',
         reiter: 'chat',
+        // Paket U1-f: die Schalter der UI-Module stehen auf der Seite „UI-Module“ (eine
+        // Pflegestelle); gespeichert reisen sie mit dem ganzen Dokument mit.
+        ohneFelder: ['display_rules.ui_module'],
         labelKey: 'curated.anzeige.display.label',
         hintKey: 'curated.anzeige.display.hint',
       },

@@ -285,6 +285,18 @@ def phase3_modulate(
         "_tone_modifier_pattern_default_tone": pattern.default_tone,
     }
 
+    # Paket U1-d2 (U-F4): UI-Module in ``tools:`` stehen getrennt von den MCP-Werkzeugen. Die
+    # Pflicht-Prüfung (A1), die Kuratier-Absicht und der Medientyp-Strip lesen ``tools`` als
+    # MCP-Liste — ein Modul darin verlangte sonst eine „KORREKTUR“-Runde für eine Rückfrage.
+    # Angeboten werden sie in ``response_tool_selection`` (nur, was das Widget meldet).
+    from boerdi.ui_module.katalog import katalog
+    from boerdi.ui_module.namen import UI_WERKZEUGE_KEY
+
+    _module = katalog()
+    if ui_werkzeuge := [t for t in output["tools"] if t in _module]:
+        output["tools"] = [t for t in output["tools"] if t not in _module]
+        output[UI_WERKZEUGE_KEY] = ui_werkzeuge
+
     # ── Automatic tool-dependency enforcement ──────────────────
     # Helper tools are always required when search tools are active
     SEARCH_TOOLS = {"search_wlo_collections", "search_wlo_content", "get_collection_contents"}
