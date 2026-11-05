@@ -39,8 +39,11 @@ def antwort_oder_ersatz(lauf: AgentRun, sprache: str) -> str:
     if lauf.text.strip():
         return lauf.text
     if lauf.stop_reason == "frage":
-        # U1-d1: Die Frage steht im Auswahlfeld darunter — ein kurzer fester Satz genügt.
-        return bot_text(sprache, "agent.frage")
+        # U1-d1: Die Frage steht im Auswahlfeld darunter — ein kurzer fester Satz genügt; unter
+        # einem Strukturentwurf ein eigener (U2).
+        from boerdi.ui_module.antwort import frage_satz
+
+        return bot_text(sprache, frage_satz(lauf.ui_bloecke))
     if lauf.dokumente or lauf.result is not None:
         # Ein Lauf, der ein Ergebnis GELIEFERT hat, ist nicht gescheitert — ihm
         # fehlt nur der Begleitsatz. Der Deckel-Satz („zu umfangreich, stell sie

@@ -24,6 +24,8 @@ SCHON_GEZEIGT = frozenset({"ui_inhaltsrahmen", "ui_trefferliste"})
 #: ``ui_module/namen.ENTSCHEIDUNG`` — hier als Text, die Datei bleibt ohne ``boerdi.*``; ein
 #: Wächter hält beide gleich.
 ENTSCHEIDUNG = "ui_entscheidung"
+#: Paket U2: der Strukturentwurf — ``ui_antwort: {uebernehmen: true}`` übernimmt ihn.
+STRUKTURENTWURF = "ui_strukturentwurf"
 TEXTFASSUNG_MAX = 1500
 #: ``maxLength`` des Freitexts im Antwort-Schema von ``ui_entscheidung`` — das Widget kürzt
 #: darauf (``FREITEXT_MAX`` im Modul), der Runner auch; ein Test hält beide am Manifest.
@@ -75,6 +77,35 @@ def offene_frage(bot_resp: dict[str, Any]) -> dict[str, Any] | None:
                 and block.get("status") in (None, "offen")):
             return block
     return None
+
+
+def offener_entwurf(bot_resp: dict[str, Any]) -> dict[str, Any] | None:
+    """The open ``ui_strukturentwurf`` block of an answer (U2) — like :func:`offene_frage`."""
+    for block in reversed(ui_bloecke(bot_resp)):
+        if (block.get("modul") == STRUKTURENTWURF and block.get("art") == "abfragen"
+                and block.get("status") in (None, "offen")):
+            return block
+    return None
+
+
+def _punkte(knoten: Any) -> int:
+    return sum(1 + _punkte(k.get("kinder")) for k in knoten or [] if isinstance(k, dict))
+
+
+def baue_entwurf_antwort(
+    entwurf: dict[str, Any] | None, getippt: str,
+) -> tuple[dict[str, Any] | None, str, dict[str, Any]]:
+    """``(ui_antwort, message, observed)`` for a turn that accepts the open draft unchanged —
+    the widget's "Übernehmen" (U2): ``uebernommen: true``, ``bearbeitet: false`` and the
+    widget's German sentence. No open draft → ``getippt`` goes as typed text."""
+    if entwurf is None:
+        return None, getippt, {"status": "kein_entwurf"}
+    daten = dict(entwurf.get("daten") or {})
+    text = (f"Entwurf „{daten.get('titel') or ''}“ übernommen "
+            f"({_punkte(daten.get('knoten'))} Punkte).")
+    return ({"block_id": str(entwurf.get("block_id") or ""),
+             "daten": {**daten, "uebernommen": True, "bearbeitet": False}}, text,
+            {"status": "gesendet", "uebernommen": True})
 
 
 def baue_ui_antwort(

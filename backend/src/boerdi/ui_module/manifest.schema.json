@@ -42,6 +42,23 @@
       ],
       "description": "Große Daten holt das Backend selbst: Die KI nennt nur diese Argumente, das Werkzeug liefert die Daten."
     },
+    "dienst": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["name", "parameter"],
+          "properties": {
+            "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,40}$", "description": "Name des Dienstes im Backend (ui_module/dienst.py)." },
+            "parameter": {
+              "type": "object", "required": ["type", "properties"],
+              "properties": { "type": { "const": "object" } },
+              "description": "JSON Schema des Auftrags: die Werkzeug-Parameter für die KI; jedes Feld trägt eine description."
+            }
+          }
+        }
+      ],
+      "description": "Paket U2: Das Backend erzeugt die Daten selbst (z. B. einen Strukturentwurf). Die KI nennt nur den Auftrag (parameter); schließt eine datenquelle aus."
+    },
     "faehigkeiten": {
       "type": "array", "uniqueItems": true,
       "items": { "enum": ["antworten", "drucken", "herunterladen", "nachladen", "oeffnen"] },

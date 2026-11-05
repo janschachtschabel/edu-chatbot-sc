@@ -6,6 +6,16 @@ das erste Modul mit **Datenquelle**. Die Logik stammt aus dem MCP-Widget `browse
 Auf-/Zuklappen lokal, gekürzte Zweige markiert. Seit U1-h geht es **im selben Baum** tiefer:
 fehlende Unterthemen lädt das Aufklappen nach (siehe „Nachladen“).
 
+**Bestand, nicht Entwurf (Paket U2, Plan `docs/plans/2026-11-04-paket-u2-themenbaum-entwurf.md`):**
+Dieses Modul zeigt nur, was es in WLO gibt (Marke „Aus WLO“ im Kopf). Eine **neue** Gliederung
+entwirft `ui_strukturentwurf` (eigener Ordner `../ui-strukturentwurf/`). Baum, Tasten, Ansage und
+Aussehen teilen beide über den gemeinsamen Kern `../_baum/` (kein Modul; das Register übergeht
+ihn). Unter dem Baum steht für die Wurzel **„Als Entwurf bearbeiten“** — nur, wenn die Daten
+`entwurf_moeglich` tragen (das Backend setzt es, solange der Entwurf im Studio aktiv ist): Host-Aktion `alsEntwurf`
+(Fähigkeit `oeffnen`) → Direktaktion `edit_collection_as_draft` → ein neuer Zug ohne KI mit einem
+`ui_strukturentwurf`-Block (Quelle `wlo`). Bestandsknoten erreichen die KI auch dann erst, wenn die
+Person den Entwurf übernimmt oder dazu schreibt.
+
 - **Aufruf:** Die KI ruft `ui_themenbaum` mit `subject` (Name eines Fachportals) **oder** `nodeId`
   (Kennung einer Sammlung). Mehr sieht sie nicht: die Parameter kommen aus der Beschreibung von
   `browse_collection_tree`, `depth: 2` und `maxResults: 31` setzt das Backend fest

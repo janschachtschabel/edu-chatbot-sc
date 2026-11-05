@@ -120,3 +120,13 @@ test('ein Manifest mit BOM am Anfang wird gelesen', () => {
   const manifeste = JSON.parse(readFileSync(join(backend, 'manifeste.json'), 'utf8'));
   assert.deepEqual(manifeste.map((m) => m.name), ['ui_alpha']);
 });
+
+test('ein gemeinsamer Ordner ohne ui-Präfix (_baum, Paket U2) ist kein Modul', () => {
+  const { quelle, backend } = aufbau([['ui-alpha', manifest('ui_alpha')]]);
+  mkdirSync(join(quelle, '_baum'));
+  writeFileSync(join(quelle, '_baum', 'baum-tasten.ts'), 'export const x = 1;');
+  erzeuge({ quelle, backend });
+  const manifeste = JSON.parse(readFileSync(join(backend, 'manifeste.json'), 'utf8'));
+  assert.deepEqual(manifeste.map((m) => m.name), ['ui_alpha']);
+  assert.doesNotMatch(readFileSync(join(quelle, 'register.generated.ts'), 'utf8'), /_baum/);
+});

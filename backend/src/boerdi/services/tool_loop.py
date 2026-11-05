@@ -456,7 +456,8 @@ async def _run_tool_loop(
             _vorrunde = await nimm_module_an(
                 choice.message.tool_calls, _direkt_angeboten, session_state, messages,
                 tools_called=tools_called, outcomes=outcomes,
-                dokumente=len(session_state.get(GELIEFERTE_DOKUMENTE_KEY) or []))
+                dokumente=len(session_state.get(GELIEFERTE_DOKUMENTE_KEY) or []),
+                usage_acc=usage_acc)
             _dokument_calls |= _vorrunde.erledigt
             _frage = offene_frage(session_state)
 

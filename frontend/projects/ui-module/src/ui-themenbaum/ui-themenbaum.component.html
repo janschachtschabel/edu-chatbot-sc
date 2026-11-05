@@ -1,6 +1,8 @@
 <section class="ui-themenbaum">
   <div class="ui-themenbaum__kopf" [id]="kennung('kopf')">
     <span class="bb-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
+    <!-- U2 (T-2): die Herkunft — der Bestand sieht nie aus wie ein Entwurf. -->
+    <span class="ui-themenbaum__marke">{{ texte().marke }}</span>
     {{ texte().ueberschrift(daten().titel ?? '') }}
   </div>
   @if (daten().knoten.length) {
@@ -20,7 +22,14 @@
   } @else {
     <p class="ui-themenbaum__leer">{{ texte().leer }}</p>
   }
-  <p class="ui-themenbaum__ansage" role="status" aria-live="polite">{{ ansage() }}</p>
+  @if (daten().wurzel_id && daten().entwurf_moeglich && !kontext().nurLesen) {
+    <!-- U2 (T-13): die Brücke zum Entwurf — für die Wurzel des Baums. -->
+    <div class="ui-themenbaum__bruecke">
+      <button type="button" class="ui-themenbaum__knopf" [attr.aria-disabled]="beschaeftigt() ? 'true' : null"
+              (click)="alsEntwurf()">{{ texte().alsEntwurf }}</button>
+    </div>
+  }
+  <p class="ui-themenbaum__ansage" role="status" aria-live="polite">{{ ansage.text() }}</p>
   @if (ziel(); as z) {
     <div class="ui-themenbaum__aktionen" role="group" [attr.aria-label]="texte().aktionen(z.titel)">
       <span class="ui-themenbaum__ziel" aria-hidden="true">{{ z.titel }}</span>

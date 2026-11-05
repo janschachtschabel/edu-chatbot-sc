@@ -350,5 +350,6 @@ def test_der_werkzeug_katalog_nennt_die_modul_werkzeuge(monkeypatch):
     monkeypatch.setattr(config_choices.cl, "get_enabled_mcp_servers", lambda: [])
     monkeypatch.setattr(fremdwerkzeuge, "definitionen", lambda: [])
     eintraege = {e["value"]: e for e in tools_katalog()}
-    assert set(eintraege) == {ENTSCHEIDUNG, "ui_themenbaum"}      # U1-e: auch der Themenbaum
+    # U1-e: auch der Themenbaum; U2: der Strukturentwurf.
+    assert set(eintraege) == {ENTSCHEIDUNG, "ui_themenbaum", "ui_strukturentwurf"}
     assert "Entscheidung" in eintraege[ENTSCHEIDUNG]["label"]

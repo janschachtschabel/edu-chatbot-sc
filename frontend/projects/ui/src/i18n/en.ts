@@ -142,6 +142,7 @@ export const EN: Catalogue = {
   'error.browseCollection': 'Sorry, I could not load the contents of “{title}”. Please try again!',
   'error.contentText': 'Sorry, I could not load the content of “{title}”. Please try again!',
   'error.learningPath': 'Sorry, I could not create the learning path for “{title}”. Please try again!',
+  'error.draftFromCollection': 'Sorry, I could not open the structure of “{title}” as a draft. Please try again!',
   'error.tourStart': 'Sorry, the tour could not be started just now. Please try again.',
   'error.transcription': 'Voice input could not be processed. Please type your message.',
   'error.micDenied': 'I cannot reach your microphone. Allow access in your browser '

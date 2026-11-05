@@ -58,13 +58,20 @@ def _pruefe(manifest: Any, schema_pruefer: Draft202012Validator) -> Manifest:
     fehler = _fehlerliste(schema_pruefer, manifest)
     if fehler:
         raise KatalogFehler(f"Manifest {name}: " + "; ".join(fehler))
-    for feld in ("eingabe", "antwort"):
-        if feld in manifest:
-            try:
-                Draft202012Validator.check_schema(manifest[feld])
-            except SchemaError as e:
-                raise KatalogFehler(f"Manifest {name}, {feld}: kein gültiges JSON Schema "
-                                    f"({e.message})") from e
+    dienst = manifest.get("dienst")
+    schemas = {feld: manifest[feld] for feld in ("eingabe", "antwort") if feld in manifest}
+    if isinstance(dienst, dict):
+        # Paket U2 (T-4): der Auftrag ist die Werkzeugbeschreibung — Datenquelle und Dienst sind
+        # zwei Wege zu denselben Block-Daten, nie beide.
+        if manifest.get("datenquelle"):
+            raise KatalogFehler(f"Manifest {name}: Datenquelle und Dienst schließen sich aus")
+        schemas["dienst.parameter"] = dienst["parameter"]
+    for feld, schema in schemas.items():
+        try:
+            Draft202012Validator.check_schema(schema)
+        except SchemaError as e:
+            raise KatalogFehler(f"Manifest {name}, {feld}: kein gültiges JSON Schema "
+                                f"({e.message})") from e
     feld = manifest["textfassung"].get("feld")
     if feld is not None and feld not in manifest["eingabe"].get("properties", {}):
         raise KatalogFehler(f"Manifest {name}: textfassung.feld „{feld}“ steht nicht in eingabe")

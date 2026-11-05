@@ -72,6 +72,12 @@ def _anbieter_deckel() -> int:
     return _B_API_DECKEL.get(get_provider(), LIVE_VORGABE)
 
 
+def anbieter_deckel() -> int:
+    """Wie viele Aufrufe der Anbieter gleichzeitig nimmt — für Dienste, die ihre eigene
+    Parallelität danach richten (Paket U2, Strukturentwurf)."""
+    return _anbieter_deckel()
+
+
 def _groesse(name: str) -> int:
     s = get_settings()
     if name == "bg":

@@ -756,3 +756,38 @@ describe('UiThemenbaum — Nachladen im Baum (U1-h)', () => {
     expect(ids.every((id) => id.startsWith('tb-b0000001-'))).toBe(true);
   });
 });
+
+describe('UiThemenbaum — Bestand und Entwurf (Paket U2)', () => {
+  const knopf = (el: HTMLElement, text: string) =>
+    [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text);
+
+  it('sagt im Kopf „Aus WLO“ — der Bestand sieht nie aus wie ein Entwurf', async () => {
+    const { el } = await render(BAUM);
+    expect(el.querySelector('.ui-themenbaum__marke')?.textContent).toBe('Aus WLO');
+    TestBed.resetTestingModule();
+    const en = await render(BAUM, 'en');
+    expect(en.el.querySelector('.ui-themenbaum__marke')?.textContent).toBe('From WLO');
+  });
+
+  it('„Als Entwurf bearbeiten“ öffnet die Wurzel als Entwurf (Host-Aktion)', async () => {
+    const { el } = await render(BAUM);
+    knopf(el, 'Als Entwurf bearbeiten')!.click();
+    expect(h.aktion).toHaveBeenCalledWith('alsEntwurf', { nodeId: 'aaaa-1111', title: 'Mathematik' });
+  });
+
+  it('ohne Wurzel keine Brücke; während eines Zugs gesperrt', async () => {
+    const ohne = await render(manifest.beispiele[1].daten as UiThemenbaumDaten);
+    expect(knopf(ohne.el, 'Als Entwurf bearbeiten')).toBeUndefined();
+    // Review U2, Befund 9: ohne Erlaubnis des Backends (Entwurf im Studio aus) kein Knopf.
+    TestBed.resetTestingModule();
+    const aus = await render({ ...BAUM, entwurf_moeglich: false });
+    expect(knopf(aus.el, 'Als Entwurf bearbeiten')).toBeUndefined();
+    TestBed.resetTestingModule();
+    beschaeftigt.set(true);
+    const { el } = await render(BAUM);
+    const b = knopf(el, 'Als Entwurf bearbeiten')!;
+    expect(b.getAttribute('aria-disabled')).toBe('true');
+    b.click();
+    expect(h.aktion).not.toHaveBeenCalled();
+  });
+});

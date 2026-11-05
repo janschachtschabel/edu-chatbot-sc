@@ -1,0 +1,289 @@
+{
+  "name": "ui_strukturentwurf",
+  "version": 1,
+  "art": "abfragen",
+  "titel": {
+    "de": "Strukturentwurf",
+    "en": "Structure draft"
+  },
+  "beschreibung": "Entwirft eine NEUE Gliederung (Themenbaum), die es so in WLO noch nicht gibt — etwa fuer eine Unterrichtsreihe, eine neue Sammlung oder ein Thema ohne WLO-Sammlung. Du nennst nur den Auftrag; das System erzeugt die Ebenen von oben nach unten (je Punkt Titel, Beschreibung, Schlagworte). Die Person bearbeitet den Entwurf im Chat (umbenennen, ergaenzen, loeschen, verschieben, ein- und ausruecken), laedt ihn herunter oder uebernimmt ihn; ihr Stand kommt im naechsten Zug zurueck. Beendet deinen Zug: den kurzen Begleitsatz in derselben Runde ueber respond_to_user, keine Aufzaehlung.",
+  "wann": [
+    "die Person will eine neue Gliederung: 'entwirf', 'gliedere', 'neue Struktur', 'Unterrichtsreihe', 'Sammlung aufbauen zu Thema X'",
+    "ein Thema ohne WLO-Sammlung soll gegliedert werden",
+    "einen mitgeschickten Entwurf vertiefen (vorlage, vertiefen)"
+  ],
+  "nicht_wann": [
+    "zeigen, was es in WLO schon gibt — Themen eines Fachportals oder einer Sammlung (dafuer ui_themenbaum)",
+    "'Themenbaum fuer <Fachportal oder Sammlung>' ohne Wunsch nach etwas Neuem (ui_themenbaum, danach Entwurf anbieten)",
+    "Material suchen oder einen Lernpfad aus vorhandenem Material bauen",
+    "ein fertiges Dokument (ui_inhaltsrahmen)"
+  ],
+  "agent": true,
+  "dienst": {
+    "name": "strukturentwurf",
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thema"],
+      "properties": {
+        "thema": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 200,
+          "pattern": "\\S",
+          "description": "Thema der neuen Gliederung, z. B. 'Optik in Klasse 8' oder 'Unterrichtsreihe Klimawandel'."
+        },
+        "fach": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Fach als Klartext (z. B. 'Physik'), nur wenn genannt oder eindeutig."
+        },
+        "bildungsstufe": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Bildungsstufe als WLO-Label (Elementarbereich, Primarstufe, Sekundarstufe I, Sekundarstufe II, Berufliche Bildung, Hochschule, Erwachsenenbildung, Fortbildung), nur wenn genannt oder eindeutig; Klasse 1-4 = Primarstufe, 5-10 = Sekundarstufe I, 11-13 = Sekundarstufe II."
+        },
+        "anzahl_oben": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 20,
+          "description": "Punkte auf der oberen Ebene, 5-20; ohne Angabe 10. Nach den Anforderungen der Person."
+        },
+        "tiefe": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Ebenen, 1-3; ohne Angabe 2. 3 nur fuer eine feine Gliederung; nicht jeder Punkt bekommt alle Ebenen."
+        },
+        "hinweise": {
+          "type": "string",
+          "maxLength": 600,
+          "description": "Wuensche der Person zur Gliederung: Schwerpunkte, Reihenfolge, was fehlen oder vorkommen soll."
+        },
+        "vorlage": {
+          "type": "boolean",
+          "description": "true: den Entwurf aus [ENTWURF DER PERSON] (mit dieser Nachricht geschickt) oder [DEIN LETZTER ENTWURF] als Grundlage nehmen — seine Punkte bleiben, es wird nur vertieft (oder mit erneut_zeigen unveraendert gezeigt)."
+        },
+        "erneut_zeigen": {
+          "type": "boolean",
+          "description": "Nur mit vorlage: den Entwurf unveraendert erneut als bearbeitbares Feld zeigen (ohne neue Punkte), etwa wenn die Person weiter bearbeiten will."
+        },
+        "vertiefen": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "description": "Nur mit vorlage: Titel der Punkte (wie im Entwurf), die Unterthemen bekommen sollen; ohne Angabe alle Punkte ohne Unterthemen."
+        }
+      }
+    }
+  },
+  "eingabe": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["titel", "quelle", "knoten"],
+    "properties": {
+      "titel": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Titel des Entwurfs." },
+      "quelle": { "enum": ["ki", "wlo"], "description": "ki: von der KI erzeugt; wlo: aus einer WLO-Sammlung uebernommen (Bruecke im Themenbaum)." },
+      "thema": { "type": "string", "maxLength": 200, "description": "Das Thema des Auftrags." },
+      "fach": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Fach des Entwurfs, falls erkannt." },
+      "bildungsstufe": { "$ref": "#/$defs/stufe" },
+      "wurzel_wlo_id": { "$ref": "#/$defs/wlo_id" },
+      "gekuerzt": { "type": "boolean", "description": "Die WLO-Sammlung hatte mehr Punkte, als der Entwurf uebernommen hat." },
+      "knoten": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "$ref": "#/$defs/ebene1" }, "description": "Die Punkte der oberen Ebene." }
+    },
+    "$defs": {
+      "stufe": {
+        "enum": ["Elementarbereich", "Primarstufe", "Sekundarstufe I", "Sekundarstufe II", "Berufliche Bildung", "Hochschule", "Erwachsenenbildung", "Fortbildung"],
+        "description": "Bildungsstufe (WLO-Label), nur wenn erkannt."
+      },
+      "wlo_id": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        "description": "Kennung der WLO-Sammlung, aus der der Punkt stammt."
+      },
+      "felder": {
+        "type": "object",
+        "required": ["id", "titel"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,40}$", "description": "Stabile Kennung des Punkts im Entwurf." },
+          "titel": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Titel des Punkts." },
+          "beschreibung": { "type": "string", "maxLength": 300, "description": "Kurzer Beschreibungstext." },
+          "keywords": { "type": "array", "maxItems": 8, "items": { "type": "string", "minLength": 1, "maxLength": 40 }, "description": "Schlagworte." },
+          "fach": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Fach, nur wenn es vom Entwurf abweicht." },
+          "bildungsstufe": { "$ref": "#/$defs/stufe" },
+          "wlo_id": { "$ref": "#/$defs/wlo_id" },
+          "ausstehend": { "type": "boolean", "description": "Unterthemen sind vorgesehen, aber (noch) nicht erzeugt." }
+        }
+      },
+      "ebene4": { "$ref": "#/$defs/felder", "unevaluatedProperties": false },
+      "ebene3": {
+        "$ref": "#/$defs/felder",
+        "properties": { "kinder": { "type": "array", "maxItems": 15, "items": { "$ref": "#/$defs/ebene4" }, "description": "Unterpunkte." } },
+        "unevaluatedProperties": false
+      },
+      "ebene2": {
+        "$ref": "#/$defs/felder",
+        "properties": { "kinder": { "type": "array", "maxItems": 15, "items": { "$ref": "#/$defs/ebene3" }, "description": "Unterpunkte." } },
+        "unevaluatedProperties": false
+      },
+      "ebene1": {
+        "$ref": "#/$defs/felder",
+        "properties": { "kinder": { "type": "array", "maxItems": 15, "items": { "$ref": "#/$defs/ebene2" }, "description": "Unterpunkte." } },
+        "unevaluatedProperties": false
+      }
+    }
+  },
+  "antwort": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["titel", "quelle", "knoten", "uebernommen", "bearbeitet"],
+    "properties": {
+      "titel": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Titel des Entwurfs." },
+      "quelle": { "enum": ["ki", "wlo"], "description": "Herkunft wie in der Eingabe." },
+      "thema": { "type": "string", "maxLength": 200, "description": "Das Thema des Auftrags." },
+      "fach": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Fach des Entwurfs." },
+      "bildungsstufe": { "$ref": "#/$defs/stufe" },
+      "wurzel_wlo_id": { "$ref": "#/$defs/wlo_id" },
+      "gekuerzt": { "type": "boolean", "description": "Wie in der Eingabe." },
+      "knoten": { "type": "array", "maxItems": 30, "items": { "$ref": "#/$defs/ebene1" }, "description": "Der Stand der Person." },
+      "uebernommen": { "type": "boolean", "description": "true: die Person hat 'Uebernehmen' gewaehlt; false: der Stand ging mit einer getippten Nachricht mit." },
+      "bearbeitet": { "type": "boolean", "description": "Die Person hat den Entwurf veraendert." }
+    },
+    "$defs": {
+      "stufe": {
+        "enum": ["Elementarbereich", "Primarstufe", "Sekundarstufe I", "Sekundarstufe II", "Berufliche Bildung", "Hochschule", "Erwachsenenbildung", "Fortbildung"],
+        "description": "Bildungsstufe (WLO-Label)."
+      },
+      "wlo_id": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        "description": "Kennung der WLO-Sammlung."
+      },
+      "felder": {
+        "type": "object",
+        "required": ["id", "titel"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,40}$", "description": "Kennung des Punkts." },
+          "titel": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Titel." },
+          "beschreibung": { "type": "string", "maxLength": 300, "description": "Beschreibung." },
+          "keywords": { "type": "array", "maxItems": 8, "items": { "type": "string", "minLength": 1, "maxLength": 40 }, "description": "Schlagworte." },
+          "fach": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Fach." },
+          "bildungsstufe": { "$ref": "#/$defs/stufe" },
+          "wlo_id": { "$ref": "#/$defs/wlo_id" },
+          "ausstehend": { "type": "boolean", "description": "Unterthemen fehlen noch." }
+        }
+      },
+      "ebene4": { "$ref": "#/$defs/felder", "unevaluatedProperties": false },
+      "ebene3": {
+        "$ref": "#/$defs/felder",
+        "properties": { "kinder": { "type": "array", "maxItems": 15, "items": { "$ref": "#/$defs/ebene4" }, "description": "Unterpunkte." } },
+        "unevaluatedProperties": false
+      },
+      "ebene2": {
+        "$ref": "#/$defs/felder",
+        "properties": { "kinder": { "type": "array", "maxItems": 15, "items": { "$ref": "#/$defs/ebene3" }, "description": "Unterpunkte." } },
+        "unevaluatedProperties": false
+      },
+      "ebene1": {
+        "$ref": "#/$defs/felder",
+        "properties": { "kinder": { "type": "array", "maxItems": 15, "items": { "$ref": "#/$defs/ebene2" }, "description": "Unterpunkte." } },
+        "unevaluatedProperties": false
+      }
+    }
+  },
+  "datenquelle": null,
+  "faehigkeiten": ["antworten", "herunterladen"],
+  "textfassung": { "vorlage": "markdown" },
+  "darstellung": { "breit": false, "platz": "oben" },
+  "beispiele": [
+    {
+      "titel": "KI-Entwurf mit zwei Ebenen",
+      "daten": {
+        "titel": "Optik in Klasse 8",
+        "quelle": "ki",
+        "thema": "Optik in Klasse 8",
+        "fach": "Physik",
+        "bildungsstufe": "Sekundarstufe I",
+        "knoten": [
+          {
+            "id": "k1", "titel": "Ausbreitung des Lichts",
+            "beschreibung": "Licht breitet sich geradlinig aus; Schatten und Lichtquellen.",
+            "keywords": ["Lichtstrahl", "Schatten"],
+            "kinder": [
+              { "id": "k1-1", "titel": "Lichtquellen", "beschreibung": "Selbstleuchtende und beleuchtete Koerper." },
+              { "id": "k1-2", "titel": "Schatten", "keywords": ["Kernschatten", "Halbschatten"] }
+            ]
+          },
+          {
+            "id": "k2", "titel": "Reflexion",
+            "beschreibung": "Reflexionsgesetz am ebenen Spiegel.",
+            "kinder": [ { "id": "k2-1", "titel": "Reflexionsgesetz" } ]
+          },
+          { "id": "k3", "titel": "Brechung", "beschreibung": "Licht an Grenzflaechen.", "keywords": ["Brechungsgesetz"] }
+        ]
+      },
+      "antwort": {
+        "titel": "Optik in Klasse 8",
+        "quelle": "ki",
+        "fach": "Physik",
+        "knoten": [
+          { "id": "k1", "titel": "Licht und Schatten" },
+          { "id": "n1", "titel": "Linsen", "kinder": [ { "id": "n2", "titel": "Sammellinse" } ] }
+        ],
+        "uebernommen": true,
+        "bearbeitet": true
+      }
+    },
+    {
+      "titel": "Aus einer WLO-Sammlung uebernommen",
+      "daten": {
+        "titel": "Mathematik",
+        "quelle": "wlo",
+        "wurzel_wlo_id": "5e40e372-735c-4b17-bbf7-e827a5702b57",
+        "gekuerzt": true,
+        "knoten": [
+          {
+            "id": "k1", "titel": "Algebra", "wlo_id": "11111111-2222-4333-8444-555555555555",
+            "beschreibung": "Terme, Gleichungen und Funktionen.",
+            "kinder": [ { "id": "k1-1", "titel": "Gleichungen", "wlo_id": "11111111-2222-4333-8444-666666666666" } ]
+          },
+          { "id": "k2", "titel": "Geometrie", "wlo_id": "11111111-2222-4333-8444-777777777777" }
+        ]
+      }
+    },
+    {
+      "titel": "Mit ausstehenden Unterthemen",
+      "daten": {
+        "titel": "Klimawandel",
+        "quelle": "ki",
+        "bildungsstufe": "Sekundarstufe II",
+        "knoten": [
+          { "id": "k1", "titel": "Ursachen", "kinder": [ { "id": "k1-1", "titel": "Treibhauseffekt" } ] },
+          { "id": "k2", "titel": "Folgen", "ausstehend": true },
+          { "id": "k3", "titel": "Klimapolitik", "fach": "Politik", "ausstehend": true }
+        ]
+      }
+    },
+    {
+      "titel": "Drei Ebenen",
+      "daten": {
+        "titel": "Bruchrechnung",
+        "quelle": "ki",
+        "fach": "Mathematik",
+        "bildungsstufe": "Sekundarstufe I",
+        "knoten": [
+          {
+            "id": "k1", "titel": "Brueche verstehen",
+            "kinder": [
+              {
+                "id": "k1-1", "titel": "Anteile darstellen",
+                "kinder": [ { "id": "k1-1-1", "titel": "Kreis- und Rechteckmodelle" }, { "id": "k1-1-2", "titel": "Zahlenstrahl" } ]
+              }
+            ]
+          },
+          { "id": "k2", "titel": "Mit Bruechen rechnen", "kinder": [ { "id": "k2-1", "titel": "Addieren" }, { "id": "k2-2", "titel": "Multiplizieren" } ] }
+        ]
+      }
+    }
+  ]
+}

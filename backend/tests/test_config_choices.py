@@ -74,8 +74,10 @@ def test_leerer_bestand_liefert_alle_kataloge_leer(cfg) -> None:
                  "rag_areas", "guardrails"):
         assert body[name] == [], name
     # U1-d2 (U-F4): die Modul-Werkzeuge stehen im Manifest-Katalog, nicht im Bestand
-    # (seit U1-e auch ``ui_themenbaum`` — sein Datenquellen-Werkzeug muss dafür nicht laufen).
-    assert [e["value"] for e in body["tools"]] == ["ui_entscheidung", "ui_themenbaum"]
+    # (seit U1-e auch ``ui_themenbaum`` — sein Datenquellen-Werkzeug muss dafür nicht laufen;
+    # seit U2 ``ui_strukturentwurf``, ein Modul mit Dienst).
+    assert [e["value"] for e in body["tools"]] == [
+        "ui_entscheidung", "ui_strukturentwurf", "ui_themenbaum"]
 
 
 def test_leitplanken_kommen_aus_der_regel_tabelle(cfg) -> None:
@@ -147,7 +149,8 @@ def test_werkzeuge_vereinigen_die_eingeschalteten_server(cfg) -> None:
     ]})
     eintraege = client.get("/api/config/choices", headers=_AUTH).json()["tools"]
     assert [e["value"] for e in eintraege] == [
-        "get_node_details", "get_url_text", "search_wlo_all", "ui_entscheidung", "ui_themenbaum"]
+        "get_node_details", "get_url_text", "search_wlo_all", "ui_entscheidung",
+        "ui_strukturentwurf", "ui_themenbaum"]
     assert all(e["area"] == "" for e in eintraege)
 
 

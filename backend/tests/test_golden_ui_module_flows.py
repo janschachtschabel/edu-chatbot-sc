@@ -30,7 +30,7 @@ def _flow(flow_id: str) -> dict:
 def test_die_ablaeufe_laden_mit_dem_katalog_und_tragen_nur_bekannte_felder() -> None:
     flows = _flows()
     ids = [f["id"] for f in flows]
-    assert ids == [f"GV-UI-{i}" for i in range(1, 8)]
+    assert ids == [f"GV-UI-{i}" for i in range(1, 13)]      # U2: 8 … 12
     for flow in flows:
         assert set(flow) <= _FLOW_FELDER, flow["id"]
         assert flow["zielgruppe"] in {"P-LEH", "P-LER", "P-AND"}
@@ -48,7 +48,10 @@ def test_jede_antwort_im_auswahlfeld_folgt_auf_eine_erwartete_frage() -> None:
     antworten = 0
     for flow in _flows():
         for vorher, turn in zip(flow["turns"], flow["turns"][1:], strict=False):
-            if "ui_antwort" in turn:
+            if "ui_antwort" in turn and "uebernehmen" in turn["ui_antwort"]:
+                # U2: übernommen wird der Entwurf des vorigen Zugs.
+                assert "ui_strukturentwurf" in vorher["expect"].get("ui_any", []), flow["id"]
+            elif "ui_antwort" in turn:
                 antworten += 1
                 assert "ui_entscheidung" in vorher["expect"].get("ui_any", []), flow["id"]
                 assert turn["ui_antwort"]["waehle"], flow["id"]
@@ -102,3 +105,19 @@ def test_smalltalk_verbietet_nur_den_baum() -> None:
     erster, zweiter = _flow("GV-UI-6")["turns"]
     assert erster["expect"]["ui_none"] == ["ui_themenbaum"]
     assert set(zweiter["expect"]["ui_none"]) == {"ui_entscheidung", "ui_themenbaum"}
+
+
+def test_die_datei_trennt_bestand_und_entwurf() -> None:
+    """Plan 2026-11-04 T-14: Bestand eindeutig, Entwurf samt Übernehmen, mehrdeutig, Gegenprobe."""
+    assert "ui_strukturentwurf" in _flow("GV-UI-8")["turns"][0]["expect"]["ui_none"]
+    entwurf = _flow("GV-UI-9")["turns"]
+    assert entwurf[0]["expect"]["ui_any"] == ["ui_strukturentwurf"]
+    assert entwurf[1]["ui_antwort"] == {"uebernehmen": True}
+    # Drittes Review U2, Befund 2: ein Zug später vertieft der Bot den gemerkten Entwurf.
+    assert entwurf[2]["expect"]["ui_any"] == ["ui_strukturentwurf"]
+    assert "ui_antwort" not in entwurf[2]
+    mehrdeutig = _flow("GV-UI-10")["turns"][0]["expect"]
+    assert mehrdeutig["ui_any"] == ["ui_themenbaum"] and "Neue Gliederung dazu entwerfen" in (
+        mehrdeutig["must_offer"])
+    assert {"ui_themenbaum", "ui_strukturentwurf"} <= set(
+        _flow("GV-UI-11")["turns"][0]["expect"]["ui_none"])

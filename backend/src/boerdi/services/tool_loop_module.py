@@ -12,7 +12,9 @@ kennt kein ``ctx``, wie bei ``_gelieferte_dokumente``. ``graph/nodes/respond`` h
 ``pop`` ab, merkt sich die Frage und nimmt die Schnellantworten weg.
 
 Seit U1-e asynchron: ein Modul mit Datenquelle (``ui_themenbaum``) holt seine Daten über das
-MCP-Werkzeug; die KI bekommt nur die Quittung (``ui_module/datenquelle``). Dieser Aufruf steht wie
+MCP-Werkzeug; die KI bekommt nur die Quittung (``ui_module/datenquelle``). Seit U2 ebenso ein
+Modul mit Dienst (``ui_strukturentwurf``, über ``ui_module/aufruf``) — mit dem Token-Zähler des
+Zugs, ohne Vorlage (die Schleife kennt die Antwort des Zugs nicht). Dieser Aufruf steht wie
 jeder MCP-Aufruf in ``tools_called``, ``outcomes`` und der Werkzeugzeit (Review U1-e, Befund 6);
 seine Frist ist die des Transports (``MCP_CALL_TIMEOUT_S``) wie für die übrigen Werkzeuge der
 Schleife. Liefert er keinen Block, meldet die Vorrunde das (:attr:`Vorrunde.ohne_block`): eine
@@ -32,10 +34,11 @@ from boerdi.domain.ui_bloecke import GENUG_BLOECKE, platz_fuer_anzeige
 from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
 from boerdi.obs.zeiten import schritt
 from boerdi.ui_module.antwort import ZWEITE_FRAGE, frage_quittung
-from boerdi.ui_module.datenquelle import aufruf as datenquellen_aufruf
+from boerdi.ui_module.aufruf import Umgebung, asynchron
+from boerdi.ui_module.strukturentwurf_merken import vorlage as entwurf_vorlage
 from boerdi.ui_module.werkzeuge import (
-    hat_datenquelle,
     ist_abfragendes_modul,
+    ist_asynchron,
     ist_modul_werkzeug,
     modul_aufruf_annehmen,
 )
@@ -67,7 +70,8 @@ def _anzeigende(session_state: dict) -> int:
 
 async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
                     session_state: dict, vorrunde: Vorrunde,
-                    tools_called: list[str], outcomes: list, dokumente: int) -> str:
+                    tools_called: list[str], outcomes: list, dokumente: int,
+                    usage_acc: dict[str, Any] | None) -> str:
     if name not in angeboten:
         _logger.warning("tool-call %s: nicht angeboten, verworfen", name)
         return NICHT_ANGEBOTEN
@@ -82,10 +86,15 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
         args = json.loads(roh_args or "{}")
     except (json.JSONDecodeError, TypeError):
         args = None   # → die Prüfung gegen ``eingabe`` meldet die fehlenden Felder
-    if hat_datenquelle(name):
+    if ist_asynchron(name):
+        # U2: eine zweite Frage kostet keinen Dienst-Aufruf; ohne Laufrist gilt die des Dienstes.
+        if ist_abfragendes_modul(name) and offene_frage(session_state) is not None:
+            return ZWEITE_FRAGE
         tools_called.append(name)
         with schritt("respond.werkzeuge"):
-            ergebnis = await datenquellen_aufruf(name, args)
+            # Drittes Review U2, Befund 2: der gemerkte Entwurf (``respond`` merkt ihn vorher).
+            ergebnis = await asynchron(name, args, Umgebung(
+                usage_acc=usage_acc, vorlage=entwurf_vorlage(session_state.get("entities") or {})))
         outcomes.append(ergebnis.outcome)
         if ergebnis.block is not None:
             session_state.setdefault(MODUL_BLOECKE_KEY, []).append(ergebnis.block)
@@ -104,7 +113,8 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
 
 async def nimm_module_an(tool_calls: Iterable[Any], angeboten: Collection[str],
                          session_state: dict, messages: list[dict], *,
-                         tools_called: list[str], outcomes: list, dokumente: int = 0) -> Vorrunde:
+                         tools_called: list[str], outcomes: list, dokumente: int = 0,
+                         usage_acc: dict[str, Any] | None = None) -> Vorrunde:
     """Alle Modul-Aufrufe der Runde annehmen und quittieren; Rückgabe: ihre Aufruf-Kennungen und
     ob eine Datenquelle ohne Block blieb. ``dokumente``: die schon gelieferten Dokumente des Zugs
     (sie belegen Anzeige-Plätze)."""
@@ -115,5 +125,5 @@ async def nimm_module_an(tool_calls: Iterable[Any], angeboten: Collection[str],
         vorrunde.erledigt.add(tc.id)
         messages.append({"role": "tool", "tool_call_id": tc.id, "content": await _ergebnis(
             tc.function.name, tc.function.arguments, angeboten, session_state, vorrunde,
-            tools_called, outcomes, dokumente)})
+            tools_called, outcomes, dokumente, usage_acc)})
     return vorrunde

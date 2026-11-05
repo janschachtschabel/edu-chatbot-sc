@@ -95,6 +95,7 @@ from boerdi.services.config_loader import load_engine
 from boerdi.services.quick_replies_llm import _max_chars
 from boerdi.services.schreibrecht import schreiben_erlaubt
 from boerdi.services.write_approval import merke_abnahme
+from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
 from boerdi.ui_module.antwort import merke_frage
 from boerdi.ui_module.antwort import vorsatz as frage_vorsatz
 
@@ -277,7 +278,13 @@ async def respond_agent(
     # Paket U1-d1: die geprüfte Antwort auf die Frage des vorigen Zugs, gerahmt davor — der
     # Werkzeugaufruf mit Frage und Möglichkeiten steht nicht im Verlauf, nur Text. Ohne geprüfte
     # Antwort die Frage selbst (Review U1-d1, Befund 3): getippt, älteres Widget, POST-Rückfall.
-    vorsatz = [b for b in (frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage), gezeigt) if b]
+    # Drittes Review U2, Befund 2: der letzte Entwurf über den Zug hinaus — die geprüfte Antwort
+    # (dieser Knoten läuft nach der Sicherheitsprüfung) merken, sonst den gemerkten kurz rahmen.
+    _entities = ctx.session_state.setdefault("entities", {})
+    # Gegenreview 2026-11-05: der Antwort-Zug zählt nicht zu den Folgezügen.
+    _letzter = entwurf_merken.rahmen_fuer_zug(_entities, ctx.ui_antwort)
+    vorsatz = [b for b in (frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage, _letzter),
+                           gezeigt) if b]
     messages.append({"role": "user", "content": "\n\n".join([*vorsatz, ctx.req.message])})
 
     # Erklärt der Gastgeber ein Schema, bekommt der Lauf seinen Ergebnis-Kanal
@@ -343,6 +350,8 @@ async def respond_agent(
         limits=enforce_write_mode(fuer_diesen_zug(einstellung.agent)),
         usage_acc=ctx.usage,
         progress=progress,
+        # Paket U2 (T-5): der Strukturentwurf, den die Person mit dieser Nachricht schickte.
+        modul_vorlage=entwurf_merken.vorlage(_entities),
         on_tool_result=lambda name, text: ernten.append(collect_cards(all_cards, name, text)),
         wissen=_wissen if _wissen_tool else None,
         # Paket 2: eine nicht eingelöste Schreib-Vorschau nimmt die Person im
@@ -451,6 +460,7 @@ async def respond_agent(
     # zeigt sie — dann muss die Sitzung sie kennen, sonst fiele die Antwort weg.
     # Gemerkt wird nur eine Frage, die die Regeln je Antwort übersteht (Review U1 gesamt, Befund 3).
     ctx.ui_bloecke = regeln_anwenden(list(lauf.ui_bloecke))
+    entwurf_merken.aus_bloecken(_entities, ctx.ui_bloecke)
     if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):
         merke_frage(ctx.session_state.setdefault("entities", {}), offen)
         ctx.qr_mode = "none"

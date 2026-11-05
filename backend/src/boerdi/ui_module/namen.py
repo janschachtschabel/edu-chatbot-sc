@@ -18,6 +18,8 @@ LINKBOX: Final = "ui_linkbox"
 #: Paket U1-e: Modul-Werkzeug mit Datenquelle; die Direktaktion show_collection_tree baut ihn auch.
 THEMENBAUM: Final = "ui_themenbaum"
 ENTSCHEIDUNG: Final = "ui_entscheidung"
+#: Paket U2: neue Gliederung (KI-Entwurf oder aus dem Bestand übernommen) — Modul mit Dienst.
+STRUKTURENTWURF: Final = "ui_strukturentwurf"
 
 #: Anzeige-Reihenfolge: erst die WLO-Treffer, dann die Webseiten (wie bisher die Boxen).
 ABGELEITETE: Final = (TREFFERLISTE, LINKBOX)

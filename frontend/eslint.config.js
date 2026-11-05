@@ -64,8 +64,16 @@ module.exports = tseslint.config(
     files: ['projects/ui-module/src/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', {
-        paths: [{ name: '@boerdi/ui', message: 'Einzeldatei importieren, z. B. @boerdi/ui/icons/…' }],
-        patterns: [{ group: ['**/shell/**', '@boerdi/ui/shell/**'], message: 'UI-Module dürfen die Chat-Shell nicht importieren.' }],
+        paths: [
+          { name: '@boerdi/ui', message: 'Einzeldatei importieren, z. B. @boerdi/ui/icons/…' },
+          // Review U2, Befund 6: auch nicht über den Alias — der Sammel-Export lädt das Register.
+          { name: '@boerdi/ui-module', message: 'UI-Module importieren einander nicht — relativ aus _baum/ oder _vertrag/.' },
+        ],
+        patterns: [
+          { group: ['**/shell/**', '@boerdi/ui/shell/**'], message: 'UI-Module dürfen die Chat-Shell nicht importieren.' },
+          // Paket U2 (Plan 2026-11-04 T-1): zwei Modul-Ordner, ein gemeinsamer Kern.
+          { group: ['../ui-*', '../ui-*/**', '@boerdi/ui-module/ui-*', '@boerdi/ui-module/ui-*/**'], message: 'UI-Module importieren einander nicht — Gemeinsames liegt in _baum/ oder _vertrag/.' },
+        ],
       }],
     },
   },

@@ -431,7 +431,7 @@ TOOL_DEFINITIONS = [
                 "properties": {
                     "subject": {
                         "type": "string",
-                        "description": "Name eines WLO-Fachportals, z.B. 'Mathematik' oder 'Mathe'. Der einfachste Weg, wenn der Nutzer ein Fach nennt und keine nodeId vorliegt.",
+                        "description": "Nur der Fachname eines WLO-Fachportals, z.B. 'Deutsch', 'Mathematik' oder 'Mathe' — nicht 'Fachportal Deutsch'. Der einfachste Weg, wenn der Nutzer ein Fach nennt und keine nodeId vorliegt.",
                     },
                     "nodeId": {
                         "type": "string",

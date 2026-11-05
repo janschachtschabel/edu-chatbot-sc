@@ -14,6 +14,8 @@ macht daraus einen Block samt Textfassung. Ein Fehler ist ein Werkzeug-Ergebnis 
 Seit U1-e Module mit Datenquelle (``ui_module/datenquelle``): Ihre Parameter sind nur die
 ``argumente`` der Datenquelle, nicht die ``eingabe`` (die beschreibt die Block-Daten, die das
 Backend selbst holt), und angeboten werden sie nur, wenn ihr Werkzeug im Lauf verfügbar ist.
+Seit U2 Module mit Dienst (``ui_module/dienst``): ihre Parameter sind der Auftrag
+(``dienst.parameter``). Beide laufen asynchron (:func:`ist_asynchron`, ``ui_module/aufruf``).
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from typing import Any, Literal
 
 from boerdi.api.schemas_ui import UiBlock
 from boerdi.domain.ui_bloecke import neuer_block
-from boerdi.ui_module import datenquelle, katalog, schalter
+from boerdi.ui_module import datenquelle, dienst, katalog, schalter
 from boerdi.ui_module.katalog import Manifest
 from boerdi.ui_module.namen import OHNE_WIRKUNG_IN_TOOLS
 
@@ -70,9 +72,14 @@ def _beschreibung(manifest: Manifest) -> str:
 
 def werkzeug_aus_manifest(manifest: Manifest) -> dict[str, Any]:
     """Die Funktionsbeschreibung (OpenAI-Form) eines Moduls; das Manifest bleibt unverändert.
-    Mit Datenquelle sind die Parameter deren Argumente (U1-e), sonst die ``eingabe``."""
-    parameter = (datenquelle.parameter(manifest) if datenquelle.werkzeug(manifest)
-                 else _fuer_die_ki(manifest["eingabe"]))
+    Mit Datenquelle sind die Parameter deren Argumente (U1-e), mit Dienst der Auftrag (U2),
+    sonst die ``eingabe``."""
+    if dienst.name(manifest):
+        parameter = dienst.parameter(manifest)
+    elif datenquelle.werkzeug(manifest):
+        parameter = datenquelle.parameter(manifest)
+    else:
+        parameter = _fuer_die_ki(manifest["eingabe"])
     return {
         "type": "function",
         "function": {
@@ -102,11 +109,11 @@ def ist_modul_werkzeug(name: object) -> bool:
     return isinstance(name, str) and name in _agent_module()
 
 
-def hat_datenquelle(name: object) -> bool:
-    """Holt das Backend die Daten dieses Modul-Werkzeugs selbst (U1-e)? Dann ist der Aufruf
-    asynchron (:func:`datenquelle.aufruf`) statt :func:`modul_aufruf_annehmen`."""
+def ist_asynchron(name: object) -> bool:
+    """Holt oder erzeugt das Backend die Daten selbst — Datenquelle (U1-e) oder Dienst (U2)? Dann
+    läuft der Aufruf über :func:`ui_module.aufruf.asynchron` statt :func:`modul_aufruf_annehmen`."""
     manifest = _agent_module().get(name) if isinstance(name, str) else None
-    return manifest is not None and datenquelle.werkzeug(manifest) is not None
+    return manifest is not None and bool(datenquelle.werkzeug(manifest) or dienst.name(manifest))
 
 
 def ist_abfragendes_modul(name: object) -> bool:
@@ -124,7 +131,10 @@ def modul_werkzeug_titel() -> dict[str, str]:
 
 def _anbietbar(manifest: Manifest, verfuegbar: Collection[str] | None) -> bool:
     """Ein Modul mit Datenquelle nur, wenn sein Werkzeug im Lauf verfügbar ist (Sperren der
-    Sicherheit, Studio-Schalter, Modus der Einbettung — Plan §15, E-3) und das Backend es kennt."""
+    Sicherheit, Studio-Schalter, Modus der Einbettung — Plan §15, E-3) und das Backend es kennt;
+    ein Modul mit Dienst, wenn das Backend den Dienst kennt (U2)."""
+    if dienst.name(manifest):
+        return dienst.parameter(manifest) is not None
     quelle = datenquelle.werkzeug(manifest)
     return quelle is None or (verfuegbar is not None and quelle in verfuegbar
                               and datenquelle.parameter(manifest) is not None)

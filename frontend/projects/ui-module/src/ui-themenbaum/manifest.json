@@ -6,12 +6,13 @@
     "de": "Themenbaum",
     "en": "Topic tree"
   },
-  "beschreibung": "Zeigt die Unterthemen eines WLO-Fachportals oder einer Sammlung als aufklappbaren Baum mit zwei Ebenen; die Person kann von dort die Inhalte eines Themas oder tiefere Unterthemen oeffnen. Den Baum holt das System selbst: du nennst nur das Fach (subject) ODER die Sammlung (nodeId) und siehst die Themen nicht. Fuer ein Unterthema eines Fachs (z. B. Optik in Physik) die Sammlung zuerst mit search_wlo_collections finden (query = Unterthema, discipline = Fach) und ihre nodeId nennen. Schreibe dazu hoechstens einen kurzen Begleitsatz und zaehle keine Themen auf; tiefer klappt die Person selbst auf.",
+  "beschreibung": "Zeigt NUR, was es in WLO schon gibt: die Unterthemen eines WLO-Fachportals oder einer Sammlung als aufklappbaren Baum. Den Baum holt das System: du nennst nur das Fach (subject) ODER die Sammlung (nodeId) und siehst die Themen nicht. Fuer ein Unterthema eines Fachs (z. B. Optik in Physik) die Sammlung zuerst mit search_wlo_collections finden (query = Unterthema, discipline = Fach) und ihre nodeId nennen. Hoechstens ein kurzer Begleitsatz, keine Themenliste; tiefer klappt die Person selbst auf. Eine neue Gliederung entwirft ui_strukturentwurf.",
   "wann": [
     "die Person will wissen, welche Themen oder Unterthemen es in einem Fach oder einer Sammlung gibt",
     "gefuehrtes Stoebern, z. B. 'zeig mir die Themen in Mathe' oder 'was gibt es unter Optik?'"
   ],
   "nicht_wann": [
+    "eine NEUE Gliederung, die es so noch nicht gibt (entwerfen, gliedern, Unterrichtsreihe) — dafuer ui_strukturentwurf",
     "du wertest die Unterthemen selbst aus (pruefen, Luecken finden, Lernpfad bauen) — dafuer browse_collection_tree; zum Zeigen immer dieses Werkzeug",
     "die Materialien einer Sammlung (dafuer get_collection_contents)",
     "eine Suche nach Inhalten"
@@ -47,6 +48,10 @@
       "wurzel_mehr": {
         "type": "boolean",
         "description": "Die erste Ebene hat mehr Unterthemen, als der Baum zeigt."
+      },
+      "entwurf_moeglich": {
+        "type": "boolean",
+        "description": "Setzt das System: der Baum darf als Strukturentwurf geoeffnet werden (Knopf 'Als Entwurf bearbeiten')."
       },
       "knoten": {
         "type": "array",
@@ -170,6 +175,7 @@
         "titel": "Mathematik",
         "wurzel_id": "aaaa-1111",
         "gekuerzt": true,
+        "entwurf_moeglich": true,
         "knoten": [
           {
             "id": "bbbb-2222",
@@ -218,6 +224,7 @@
       "daten": {
         "titel": "Optik",
         "wurzel_id": "hhhh-8888",
+        "entwurf_moeglich": true,
         "knoten": []
       }
     },
@@ -228,6 +235,7 @@
         "wurzel_id": "iiii-9999",
         "wurzel_url": "https://redaktion.example.org/edu-sharing/components/collections?id=iiii-9999",
         "wurzel_mehr": true,
+        "entwurf_moeglich": true,
         "knoten": [
           {
             "id": "jjjj-0001",

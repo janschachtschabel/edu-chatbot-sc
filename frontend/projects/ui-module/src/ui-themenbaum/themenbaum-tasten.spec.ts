@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { tastenAktion } from './themenbaum-tasten';
+import { tastenAktion } from '../_baum/baum-tasten';
 import { ebenen, type Eintrag, flach } from './themenbaum-zweige';
 
 /**
  * Tastatur des Themenbaums als reine Regel (Review U1 gesamt, Befund 8 — aus der Komponente
- * gezogen, Verhalten unverändert; die Komponenten-Spec prüft dieselben Tasten im DOM).
+ * gezogen, Verhalten unverändert; die Komponenten-Spec prüft dieselben Tasten im DOM). Seit U2
+ * liegt die Regel im gemeinsamen Baum-Kern (`_baum/baum-tasten.ts`); diese Spec prüft sie weiter
+ * mit den Einträgen des Bestands.
  */
 const KNOTEN = [
   { id: 'a', titel: 'Algebra', kinder: [{ id: 'a1', titel: 'Gleichungen' }, { id: 'a2', titel: 'Terme' }] },

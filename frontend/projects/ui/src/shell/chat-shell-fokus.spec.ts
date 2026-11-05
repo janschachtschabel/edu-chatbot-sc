@@ -80,6 +80,31 @@ describe('ChatShellComponent — Fokus und Eingabe (Paket 10, L-9)', () => {
     expect(document.activeElement).toBe(eingabefeld(f));
   });
 
+  // CI-Befund PR #46 (2026-11-05): das Zurückholen läuft 100 ms später. Setzte die Person den
+  // Fokus in der Zwischenzeit selbst — in einen Block der Antwort oder auf die Gastseite —, riss
+  // die Shell ihn ihr wieder weg (Esc im Strukturentwurf landete so im Eingabefeld).
+  it('ein in der Wartezeit selbst gesetzter Fokus bleibt, wo die Person ihn hingesetzt hat', () => {
+    vi.useFakeTimers();
+    const f = gerendert();
+    (document.activeElement as HTMLElement | null)?.blur();
+    const imBlock = document.createElement('button');
+    (f.nativeElement as HTMLElement).appendChild(imBlock);
+
+    (f.componentInstance as any)._sendCtx.focusInput();
+    imBlock.focus();
+    vi.advanceTimersByTime(200);
+    expect(document.activeElement).toBe(imBlock);
+
+    const fremd = document.createElement('input');
+    fremd.setAttribute('data-fremd', '');
+    document.body.appendChild(fremd);
+    imBlock.focus();
+    (f.componentInstance as any)._sendCtx.focusInput();
+    fremd.focus();
+    vi.advanceTimersByTime(200);
+    expect(document.activeElement).toBe(fremd);
+  });
+
   // CI-Kippler auth-button.spec.ts:101 (2026-10-17): beim ersten Öffnen läuft
   // der Kontext-Ping, das Feld ist gesperrt — der Öffnen-Fokus verpuffte, und
   // nach dem Ping holte ihn niemand nach. Tastaturnutzer standen auf `body`.

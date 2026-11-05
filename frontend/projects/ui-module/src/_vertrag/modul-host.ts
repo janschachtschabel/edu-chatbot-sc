@@ -32,6 +32,7 @@ export interface ModulHost {
   /** Eine Aktion der Shell auslösen (U1-c2): `volltext` (M17), `sammlung` (Sammlung öffnen) und
    *  `lernpfad` mit `{ nodeId, title }`; `mehrLaden` mit `{ blockId }` — die Shell lädt die nächste
    *  Seite und schreibt die neuen Karten in den Block, das Modul bekommt sie als neue Daten.
+   *  `alsEntwurf` (U2) öffnet eine Sammlung als Strukturentwurf.
    *  (`themenbaum` — Unterthemen als neue Antwort, U1-e — ist seit U1-h `zweig`.) */
   aktion(name: KartenAktion, parameter: { readonly nodeId: string; readonly title: string }): void;
   aktion(name: 'mehrLaden', parameter: { readonly blockId: string }): void;
@@ -41,6 +42,12 @@ export interface ModulHost {
    *  lesbare Fassung — sie wird die Nutzerblase. Die Shell sendet beides als nächsten Zug
    *  (`ui_antwort`) und setzt den Block danach auf `beantwortet`. */
   antworten(daten: Record<string, unknown>, text: string): void;
+  /** Eine Antwort vormerken, die mit der nächsten GETIPPTEN Nachricht der Person mitgeht (U2,
+   *  Fähigkeit `antworten`): solange der Block offen ist, hängt die Shell `daten` als `ui_antwort`
+   *  an einen Zug aus Eingabefeld oder Schnellantwort und setzt den Block `beantwortet` statt
+   *  `veraltet` — so geht der bearbeitete Strukturentwurf nie verloren. `null` nimmt die
+   *  Vormerkung zurück. Karten- und Direktaktionen nehmen nichts mit. */
+  vormerken(daten: Record<string, unknown> | null): void;
   /** Die Unterthemen eines Knotens im Themenbaum nachladen (U1-h, Fähigkeit `nachladen`): ohne
    *  Zug und ohne KI, nichts wird gespeichert. Löst mit Daten in der Form der Block-Daten von
    *  `ui_themenbaum` auf (`knoten`, `gekuerzt?`, `wurzel_mehr?`, …; ohne Überschrift); lehnt ab
@@ -48,7 +55,9 @@ export interface ModulHost {
   zweig(nodeId: string): Promise<Record<string, unknown>>;
 }
 
-export type KartenAktion = 'volltext' | 'sammlung' | 'lernpfad';
+/** `alsEntwurf` (U2): die Sammlung `nodeId` als bearbeitbaren Strukturentwurf öffnen (Brücke im
+ *  Themenbaum, Direktaktion `edit_collection_as_draft`). */
+export type KartenAktion = 'volltext' | 'sammlung' | 'lernpfad' | 'alsEntwurf';
 
 export interface TrefferUmgebung {
   readonly kontext: unknown;

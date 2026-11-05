@@ -92,7 +92,7 @@ const TREFFER = {
     externalLinkWarning: (url: string | null | undefined) => (url?.includes('fremd') ? 'Externe Seite' : ''),
   },
   kacheln: () => true, beschaeftigt: () => false,
-  volltext: vi.fn(), sammlung: vi.fn(), lernpfad: vi.fn(), mehrLaden: vi.fn(),
+  volltext: vi.fn(), sammlung: vi.fn(), lernpfad: vi.fn(), alsEntwurf: vi.fn(), mehrLaden: vi.fn(),
   zweig: vi.fn(async (nodeId: string) => ({ knoten: [{ id: `${nodeId}-1`, titel: 'Gleichungen' }] })),
 } satisfies ShellTreffer;
 
