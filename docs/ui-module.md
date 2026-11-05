@@ -2,11 +2,13 @@
 
 Entwicklerdoku für die UI-Module des Widgets (Paket U1). Sie erklärt, wie ein Modul gebaut ist,
 wie ein Block in eine Antwort kommt, was beim Ergänzen von selbst geschieht und was Handarbeit
-bleibt. Stand 2026-11-03 (U1-a … U1-h); alle Aussagen sind am Quelltext geprüft.
+bleibt. Stand 2026-11-04 (U1-a … U1-h, U2 Themenbaum: Bestand und KI-Entwurf); alle Aussagen
+sind am Quelltext geprüft.
 
 | Vertiefung | Dokument |
 |---|---|
 | Plan mit allen Entscheiden und offenen Punkten | [`plans/2026-11-02-paket-u1-ui-module.md`](plans/2026-11-02-paket-u1-ui-module.md) |
+| Paket U2: Bestand und Entwurf, Dienst, Brücke | [`plans/2026-11-04-paket-u2-themenbaum-entwurf.md`](plans/2026-11-04-paket-u2-themenbaum-entwurf.md) |
 | Regeln für Modul-Autoren (kurz) | [`frontend/projects/ui-module/README.md`](../frontend/projects/ui-module/README.md) |
 | Grafik: Einbindung und Nutzung | [interaktiv](architektur-grafiken/ui-module-einbindung.html) · [Bild (PNG)](architektur-grafiken/png/ui-module-einbindung.png) · [Quelle](architektur-grafiken/quellen/ui-module-einbindung.json) |
 | Gesamtbild | [`architektur.md`](architektur.md) |
@@ -48,6 +50,11 @@ Unterstrich (`ui-themenbaum` → `ui_themenbaum`, Klasse `UiThemenbaum`).
 | `README.md` | wofür, Grenzen, Beispiel |
 | weitere `*.ts` | eigene Hilfen ohne Angular, z. B. `themenbaum-zweige.ts`, `inhaltsrahmen.ts` |
 
+Ordner ohne `ui-`-Präfix sind keine Module; das Register übergeht sie. Neben `_vertrag/` ist das
+seit U2 **`_baum/`**, der gemeinsame Baum-Kern von Bestand und Entwurf (Tastenregel
+`baum-tasten.ts`, Ansage `baum-ansage.ts`, SCSS-Mixin `_baum.scss`). Module importieren einander
+nicht (ESLint); Gemeinsames gehört nach `_baum/` oder `_vertrag/`.
+
 Daneben der gemeinsame Vertrag `src/_vertrag/` (nur mit Plan ändern):
 
 | Datei | Inhalt |
@@ -74,6 +81,7 @@ Daneben der gemeinsame Vertrag `src/_vertrag/` (nur mit Plan ändern):
 | `eingabe` | JSON Schema der Block-Daten; ohne Datenquelle zugleich die Werkzeug-Parameter. **Jedes Feld braucht eine `description`** — die KI liest sie |
 | `antwort` | JSON Schema der Antwort (nur `abfragen`) |
 | `datenquelle` | `{werkzeug, argumente[], vorgaben?}` oder `null`: die KI nennt nur `argumente`, `vorgaben` setzt das Backend fest und überschreibt Werte der KI |
+| `dienst` (U2) | `{name, parameter}` oder `null`: das Backend **erzeugt** die Daten (`ui_module/dienst.py`); die KI sieht nur `parameter` (den Auftrag). Schließt `datenquelle` aus |
 | `faehigkeiten` | `antworten`, `drucken`, `herunterladen`, `nachladen`, `oeffnen` — nur diese schaltet der Host frei |
 | `textfassung` | `{vorlage, feld?}`: Rückfall, wo das Widget das Modul nicht kennt (`markdown`, `nummerierte_liste`, `link_liste`, `zusammenfassung`) |
 | `darstellung` | `platz`: `oben` (Vorgabe, vor den Trefferboxen) oder `unten` (danach); `breit` siehe §7 |
@@ -101,8 +109,9 @@ export class UiBeispiel {
 | `herunterladen(datei, mime, inhalt)` | `herunterladen` | Datei im Browser speichern |
 | `drucken(titel, markdown)` | `drucken` | Druckansicht des Widgets (auch „Als PDF speichern“) |
 | `link(url)` | `oeffnen` | `{href, hinweis}` mit Sitzungs-Kennung bzw. Warnung; nur `http(s)`, sonst wie ohne Fähigkeit leer |
-| `aktion(name, …)` | `oeffnen` | `volltext`, `sammlung`, `lernpfad`, `mehrLaden` der Shell |
+| `aktion(name, …)` | `oeffnen` | `volltext`, `sammlung`, `lernpfad`, `alsEntwurf` (U2), `mehrLaden` der Shell |
 | `antworten(daten, text)` | `antworten` | nächster Zug mit `ui_antwort` |
+| `vormerken(daten \| null)` (U2) | `antworten` | die nächste **getippte** Nachricht nimmt `daten` als `ui_antwort` mit, solange der Block offen ist (Block wird `beantwortet` statt `veraltet`) |
 | `zweig(nodeId)` | `nachladen` | Daten ohne Zug nachladen (heute nur Themenbaum); ohne Fähigkeit Ablehnung mit `status: 403` |
 | `markdown(text)`, `treffer()`, `beschaeftigt()` | immer | Darstellung; ohne `oeffnen` baut der Kontext von `treffer()` keine Adressen (`withBsid`/`externalLinkWarning` leer) |
 
@@ -183,7 +192,27 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 - Das Backend ruft das MCP-Werkzeug selbst (`call_mcp_tool_status`, mit Cache und Zugang),
   formt die Daten und prüft sie gegen `eingabe`. Die KI bekommt nur eine Quittung ohne Knoten.
 - Nachladen ohne Zug: `POST /api/ui/themenbaum/zweig` (`api/ui_themenbaum.py`) — öffentlich,
-  gedrosselt, ohne KI, nichts gespeichert.
+  gedrosselt, ohne KI, nichts gespeichert. **Betrieb:** Ein Proxy vor dem Backend (etwa die B-API)
+  muss `/api/ui/*` durchreichen; sonst scheitert das Aufklappen („nicht geladen“), während
+  `/api/chat` geht. Die Konsole des Widgets nennt dann den Status
+  (`boerdi: Unterthemen nicht geladen — StreamHttpError status=404`).
+
+**Dienst** (U2, `ui_module/dienst.py`, `ui_module/aufruf.py`)
+
+- Die KI sieht nur den Auftrag (`dienst.parameter`); der Aufruf wird dagegen geprüft, der Dienst
+  erzeugt die Block-Daten, das Backend prüft sie gegen `eingabe` und die Deckel des Moduls.
+- Asynchron wie die Datenquelle: die Schleifen fragen `werkzeuge.ist_asynchron` und rufen
+  `aufruf.asynchron(name, args, Umgebung)`. Die `Umgebung` trägt den Token-Zähler des Zugs, das
+  Fristende des Laufs und den mitgeschickten Entwurf der Person (`vorlage`).
+- Heute ein Dienst: `strukturentwurf` (`services/strukturentwurf_dienst.py`) — top-down, Ebene 1 in
+  einem Aufruf, Ebene 2 je Punkt parallel (höchstens 5 zugleich und höchstens die Hälfte des
+  Anbieter-Deckels `LLM_MAX_CONCURRENCY`, eigene Platz-Frist bis zum Fristende), Ebene 3 nur bei
+  `tiefe: 3`; was die Frist nicht schafft, wird `ausstehend`. Eine reine Funktion Auftrag → Struktur mit ersetzbarer LLM-Naht — später als Job
+  hinter der B-API denkbar.
+- Den letzten Entwurf merkt sich die Sitzung (`ui_module/strukturentwurf_merken.py`, nach der
+  Sicherheitsprüfung, die 5 Züge nach dem Antwort-Zug): als `vorlage` späterer Züge und als Rahmen
+  `[DEIN LETZTER ENTWURF]`. Die Brücke „Als Entwurf bearbeiten“ vergisst ihn; über 60 000 Zeichen
+  ohne Beschreibungen/Schlagworte gemerkt, dann lehnt `erneut_zeigen` ab (Vertiefen geht).
 
 ---
 
@@ -240,7 +269,8 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 | Modul mit Datenquelle | Umformer in `datenquelle._UMFORMER` (Ergebnis → Block-Daten, Textfassung, Quittung) wie `ui_module/themenbaum.py`; das Werkzeug muss in `services/mcp/tool_defs.py` stehen. Ohne Umformer wird das Modul nicht angeboten |
 | Nachladen ohne Zug für ein anderes Modul | eigener Endpunkt wie `api/ui_themenbaum.py` und eigene Host-Kette; `zweig` ist auf den Themenbaum zugeschnitten |
 | Neue Fähigkeit oder Host-Aktion | Schema-Enum, `ModulFaehigkeit`, `ModulHost`, `BlockModulHost` (Freigabe), `WidgetModulHost` und Shell-Naht, `VorschauModulHost` im Studio, Studio-Text `uiModule.faehigkeit.<name>` |
-| Abfragendes Modul mit anderer Antwortform | `antwort.merke_frage`, `_grund`, `antwort_block`, `frage_block` erweitern; Gold-Zug `ui_antwort` in `evals/run_golden.py` kennt nur `ui_entscheidung` |
+| Abfragendes Modul mit anderer Antwortform | eine Datei wie `ui_module/strukturentwurf_antwort.py` und die Weichen in `antwort.merke_frage`, `_grund`, `antwort_block`, `frage_block`, `sicherheits_text`, `frage_satz` (U2); Gold-Zug `ui_antwort` in `evals/run_golden.py` kennt `ui_entscheidung` (`waehle`) und `ui_strukturentwurf` (`uebernehmen`) |
+| Modul mit Dienst (U2) | Dienst in `ui_module/dienst._DIENSTE` eintragen (Auftrag prüfen, erzeugen, Block, Quittung); ohne Eintrag wird das Modul nicht angeboten |
 | Vom System gesetztes Modul | Code an der Stelle, die den Block baut (wie `turn_persist` oder `themenbaum_aktion`) |
 | Textfassung `link_liste` oder `zusammenfassung` | eigene Textfassung bauen; der allgemeine Weg kennt nur `markdown` (Text-Feld) und `nummerierte_liste` |
 | Muster soll das Modul nutzen | `tools:` (Werkzeug) oder `ui_module:` (abgeleitet) im Muster-Seed bzw. im Studio; heute nennt kein Seed ein Modul |
@@ -278,6 +308,14 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 | [`ui_trefferliste`](../frontend/projects/ui-module/src/ui-trefferliste/README.md) | anzeigen | abgeleitet aus `cards`, `query_metas`, `pagination` | — | oeffnen | unten | U1-c2 |
 | [`ui_entscheidung`](../frontend/projects/ui-module/src/ui-entscheidung/README.md) | abfragen | Modul-Werkzeug (`agent: true`) | — | antworten | oben | U1-d |
 | [`ui_themenbaum`](../frontend/projects/ui-module/src/ui-themenbaum/README.md) | anzeigen | Modul-Werkzeug; Direktaktion `show_collection_tree` | `browse_collection_tree` (`depth: 2`, `maxResults: 31`) | oeffnen, nachladen | oben | U1-e, U1-h |
+| [`ui_strukturentwurf`](../frontend/projects/ui-module/src/ui-strukturentwurf/README.md) | abfragen | Modul-Werkzeug mit **Dienst** `strukturentwurf`; Direktaktion `edit_collection_as_draft` (Brücke aus dem Themenbaum) | — | antworten, herunterladen | oben | U2 |
+
+**Zwei Anwendungsfälle, zwei Module (U2):** `ui_themenbaum` zeigt **nur Bestand** („Aus WLO“) —
+die Knoten laufen nie durchs Modell. `ui_strukturentwurf` ist eine **neue** Gliederung („Entwurf
+(KI)“ bzw. „Entwurf (aus WLO)“), bearbeitbar, herunterladbar, übernehmbar; ihr Stand geht kompakt
+an die KI. Erkennung: Werkzeugbeschreibungen schließen sich aus, der Master-Skill regelt den
+mehrdeutigen Fall („Themenbaum für <Fachportal>“ → Bestand + Schnellantwort „Neue Gliederung dazu
+entwerfen“; „entwirf / gliedere / neue Struktur / Unterrichtsreihe“ → Entwurf).
 
 `ui_inhaltsrahmen` ist im Studio fest (nicht abschaltbar); seine Anzeige steuert
 `display_rules.inline_documents.enabled`.
@@ -300,9 +338,10 @@ Evaluation (`ui_any`/`ui_none`, Modul-Nutzung); CI-Wächter.
 | Ableitung ist Code je Modul (`abgeleitet.py`) | jede Quelle (Karten, Links) hat eigene Regeln | bei neuen abgeleiteten Modulen bewusst ergänzen |
 | Inhaltsrahmen fest, eigener Werkzeugweg | trägt Systemarten; Schreib-Vorschau muss vor einer Freigabe sichtbar sein | bleibt so (F-4) |
 | Datenquelle kennt nur `browse_collection_tree`; Fehlertexte und Zählung sind auf den Baum zugeschnitten | erste und einzige Datenquelle | beim zweiten Fall verallgemeinern |
+| Dienst-Verzeichnis kennt nur `strukturentwurf` (Auftrag, Fehlertexte, Frist im Dienst selbst) | erster Dienst | bei Kestra/B-API-Jobs eine zweite Umsetzung derselben Schnittstelle |
 | Nachladen (`zweig`) und Endpunkt `/api/ui/themenbaum/zweig` nur für den Themenbaum | kleinste öffentliche Fläche ohne LLM (H-1) | allgemeiner Endpunkt erst bei Bedarf |
 | Nachgeladene Unterthemen gelten nur bis zum Neuladen | Speichern hieße die Nachricht ohne Zug ändern (H-8) | Entscheid Nutzer offen |
-| Antwortweg abfragender Module setzt die Form von `ui_entscheidung` voraus (`frage`, `optionen`, `gewaehlt`) | einziges abfragendes Modul | beim zweiten abfragenden Modul verallgemeinern |
+| Antwortweg abfragender Module: eine Weiche je Modul in `ui_module/antwort.py` (U2: Entscheidung, Strukturentwurf) | zwei Antwortformen | beim dritten abfragenden Modul ein Verzeichnis der Formen |
 | Allgemeine Textfassung nur für `markdown` und `nummerierte_liste` | Themenbaum und abgeleitete bauen ihre eigene | bei Bedarf weitere Vorlagen umsetzen |
 | `darstellung.breit` wird nirgends ausgewertet | Vertrag vorbereitet, Größer-Knopf nicht angebunden | anbinden, sobald ein Modul es braucht |
 | Alle Module statisch im Haupt-Bündel | Regel „eine Einbettungs-Datei“; Bündel 180,52 von 200 kB gzip (Stand 2026-11-03) | Nachladen großer oder seltener Module (U-F2) — Mechanismus fehlt noch |
