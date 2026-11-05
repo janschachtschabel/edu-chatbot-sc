@@ -434,3 +434,32 @@ def test_knapp_lernende_auswahlfeld_oder_schnellantworten(knapp: str) -> None:
     """Befund 15: nach einer Erklärung war offen, wann Auswahlfeld und wann Schnellantworten."""
     assert ("Ändert eine offene Angabe den nächsten Schritt (Klasse, Vorwissen) → Auswahlfeld, "
             "sonst Schnellantworten mit Übungsangebot") in _unterabschnitt(knapp, "M04")
+
+
+# ── Paket U2 (2026-11-04): Bestand oder Entwurf — die beiden Fälle sauber trennen ──
+
+
+def test_knapp_bestand_oder_entwurf_mit_der_mehrdeutigkeits_regel(knapp: str) -> None:
+    """Plan 2026-11-04 T-14: „Themenbaum für <Fachportal>“ ohne Hinweis → Bestand und die
+    Schnellantwort, ausdrücklich Neues → Entwurf. Die Werkzeugbeschreibungen allein reichten bei
+    U1 nicht (Golden-Lauf 2026-11-03)."""
+    tiefer = _unterabschnitt(knapp, "M08")
+    assert "`ui_themenbaum` zeigt nur, was es in WLO gibt" in tiefer
+    assert "„Sammlung aufbauen zu Thema X“" in tiefer and "→ `ui_strukturentwurf`" in tiefer
+    assert "ein Thema ohne WLO-Sammlung" in tiefer
+    assert "die Schnellantwort „Neue Gliederung dazu entwerfen“" in tiefer
+
+
+def test_knapp_entwurf_endet_den_zug_und_arbeitet_mit_dem_stand_der_person(knapp: str) -> None:
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "`ui_strukturentwurf` entwirft eine neue Gliederung" in oberflaeche
+    assert "Er beendet den Zug wie das Auswahlfeld" in oberflaeche
+    # Review U2, Befund 7: die Quittung liest kein Modell mehr — der Satz kommt in derselben Runde.
+    assert "den kurzen Begleitsatz in derselben Runde über `respond_to_user`" in oberflaeche
+    # Drittes Review U2, Befund 2: der letzte Entwurf gilt auch Züge später.
+    assert "Später steht der letzte Stand als `[DEIN LETZTER ENTWURF]` da" in oberflaeche
+    assert "unverändert wieder zum Bearbeiten mit `vorlage` und erneut_zeigen" in oberflaeche
+    assert "(`[ENTWURF DER PERSON]`), damit weiterarbeiten, nicht neu entwerfen" in oberflaeche
+    assert "`vorlage` und `vertiefen`" in oberflaeche and "Nie für den Bestand." in oberflaeche
+    assert "Fehlt der Entwurf" in oberflaeche
+    assert "neue Gliederung → Entwurf" in _abschnitt(knapp, "Immer gültig")
