@@ -90,13 +90,13 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     # Die ECHTE Signatur — dieselbe A4b-Regel wie unten bei ``load_engine``.
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
-                    on_token=None, start=None):
+                    on_token=None, start=None, modul_vorlage=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
             "usage_acc": usage_acc, "progress": progress,
             "on_tool_result": on_tool_result, "wissen": wissen,
             "on_offene_abnahme": on_offene_abnahme, "on_token": on_token,
-            "start": start,
+            "start": start, "modul_vorlage": modul_vorlage,
         }
         if on_token is not None:
             on_token("Hallo [Li")  # wie ein Antwort-Aufruf mit offenem Link am Ende

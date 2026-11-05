@@ -62,7 +62,8 @@ from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
 from boerdi.services.tool_loop_module import MODUL_BLOECKE_KEY
-from boerdi.ui_module.antwort import merke_frage
+from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
+from boerdi.ui_module.antwort import frage_satz, merke_frage
 from boerdi.ui_module.antwort import vorsatz as frage_vorsatz
 
 if TYPE_CHECKING:
@@ -430,6 +431,11 @@ async def respond(
         # Token-Streaming (Plan 2026-10-01, T11): offen → der Strom geht an die
         # Antwortrunde; gesperrt oder ohne Strom → ``None`` wie bisher.
         _antwort_strom = strom_fuer_muster_zug(on_token, ctx, pattern_output)
+        # Drittes Review U2, Befund 2: wie im Agent-Zug — nach der Sicherheitsprüfung merken,
+        # sonst den gemerkten Entwurf kurz rahmen; die Vorrunde der Schleife nimmt ihn als Vorlage.
+        _entities = session_state.setdefault("entities", {})
+        # Gegenreview 2026-11-05: der Antwort-Zug zählt nicht zu den Folgezügen.
+        _letzter = entwurf_merken.rahmen_fuer_zug(_entities, ctx.ui_antwort)
         progress.start("response", "LLM response generation")
         try:
             (
@@ -456,7 +462,7 @@ async def respond(
                 rag_einbettung=ctx.rag_einbettung,
                 # Paket U1-d2: die Antwort auf die Auswahl-Frage des vorigen Zugs (oder die
                 # Frage selbst) gerahmt vor der Nachricht — wie im Agent-Zug.
-                vorsatz=frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage),
+                vorsatz=frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage, _letzter),
             )
             if _antwort_strom is not None:
                 _antwort_strom.schliessen()  # den zurückgehaltenen Rest senden
@@ -512,11 +518,13 @@ async def respond(
         # eine Frage merkt sich die Sitzung, darunter keine Schnellantworten — wie im Agent-Zug.
         # Gemerkt wird nur eine Frage, die die Regeln je Antwort übersteht (Review U1 gesamt).
         ctx.ui_bloecke = regeln_anwenden(list(session_state.pop(MODUL_BLOECKE_KEY, None) or []))
+        entwurf_merken.aus_bloecken(session_state.setdefault("entities", {}), ctx.ui_bloecke)
         if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):
             merke_frage(session_state.setdefault("entities", {}), offen)
             ctx.qr_mode = "none"
             if not (response_text or "").strip():
-                response_text = bot_text(resolve_locale(req.environment.locale), "agent.frage")
+                response_text = bot_text(resolve_locale(req.environment.locale),
+                                         frage_satz(ctx.ui_bloecke))
 
         # Aussetzer des Anbieters, der auch die Wiederholungen im Tool-Loop
         # überlebt hat (``llm.LEERLAUF_VERSUCHE``): kein Fehler, nur eine

@@ -103,7 +103,7 @@ class _Sammler:
 def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
           limits=None, usage_acc=None, progress=None, clock=None, raises=None,
           echter_transport=False, on_tool_result=None, wissen=None,
-          on_offene_abnahme=None, tools=None):
+          on_offene_abnahme=None, tools=None, modul_vorlage=None):
     """``echter_transport=True`` fälscht eine Ebene tiefer (``llm._acompletion``).
 
     Nötig für alles, was die **Buchung** prüft: die Schleife reicht ``usage_acc``
@@ -132,6 +132,8 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
         kwargs["wissen"] = wissen
     if on_offene_abnahme is not None:
         kwargs["on_offene_abnahme"] = on_offene_abnahme
+    if modul_vorlage is not None:
+        kwargs["modul_vorlage"] = modul_vorlage
     if tools is None:
         # Angeboten ist, was das Modell im Skript ruft: so rufen die Tests nur
         # Angebotenes, wie im Betrieb. Wer die Sperre fuer nicht Angebotenes

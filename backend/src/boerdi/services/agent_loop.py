@@ -89,11 +89,12 @@ from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.ui_module.antwort import NACH_DER_FRAGE, ZWEITE_FRAGE, frage_quittung
+from boerdi.ui_module.aufruf import Umgebung as ModulUmgebung
+from boerdi.ui_module.aufruf import asynchron as modul_asynchron
 from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
-from boerdi.ui_module.datenquelle import aufruf as datenquellen_aufruf
 from boerdi.ui_module.werkzeuge import (
-    hat_datenquelle,
     ist_abfragendes_modul,
+    ist_asynchron,
     ist_modul_werkzeug,
     modul_aufruf_annehmen,
 )
@@ -254,6 +255,7 @@ async def run_agent_loop(
     on_offene_abnahme: Callable[[dict[str, Any], str], None] | None = None,
     on_token: Callable[[str], None] | None = None,
     start: float | None = None,
+    modul_vorlage: dict[str, Any] | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -285,6 +287,10 @@ async def run_agent_loop(
     ``clock``: Gate und Vorabruf laufen vor der Schleife und zählen zur Frist.
     Ohne ihn beginnt die Uhr hier. Die Frist gilt auch IN laufenden Modell- und
     Werkzeugaufrufen (``services/agent_frist``), nicht nur am Rundenanfang.
+
+    ``modul_vorlage`` (Paket U2, T-5): der Strukturentwurf, den die Person mit dieser Nachricht
+    geschickt hat — ein Modul mit Dienst bekommt ihn samt Zähler und Fristende
+    (``ui_module/aufruf.Umgebung``).
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
     strom_verbraucht = False
@@ -615,11 +621,18 @@ async def run_agent_loop(
                 messages.append(_tool_turn(tc.id, GENUG_BLOECKE))
                 ohne_block = True
                 continue
-            if hat_datenquelle(name):
+            # Asynchron (Datenquelle U1-e, Dienst U2): eine zweite Frage wird abgewiesen, bevor
+            # der Aufruf läuft — ein Dienst kostet LLM-Aufrufe. Ein abfragender Block (der
+            # Strukturentwurf) beendet die Runde wie ``ui_entscheidung``.
+            if ist_asynchron(name):
+                if ist_abfragendes_modul(name) and frage is not None:
+                    messages.append(_tool_turn(tc.id, _ZWEITE_FRAGE))
+                    continue
                 run.tools_called.append(name)
+                umgebung = ModulUmgebung(usage_acc=acc, frist_ende=ende, vorlage=modul_vorlage)
                 try:
                     with schritt("respond.werkzeuge"):
-                        ergebnis = await innerhalb(ende, datenquellen_aufruf(name, args))
+                        ergebnis = await innerhalb(ende, modul_asynchron(name, args, umgebung))
                 except FristAbgelaufen:
                     run.outcomes.append(ToolOutcome(tool=name, status="timeout",
                                                     error="Frist abgelaufen"))
@@ -628,6 +641,8 @@ async def run_agent_loop(
                 if ergebnis.block is not None:
                     run.ui_bloecke.append(ergebnis.block)
                     progress.record("agent_modul", f"Modul: {name}", {"modul": name})
+                    if ergebnis.block.art == "abfragen":
+                        frage = ergebnis.block
                 else:
                     ohne_block = True
                 messages.append(_tool_turn(tc.id, ergebnis.text))

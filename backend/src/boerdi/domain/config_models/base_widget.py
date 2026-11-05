@@ -161,8 +161,9 @@ class ContextPill(AreaModel):
     #: vier Namen und laesst alles andere still durchfallen — der Knopf
     #: taete dann nichts, und niemand sagte es. Die Liste ist mit dem Dispatch
     #: gepaart; ein Waechter prueft sie gegen den ausgelieferten Seed. Die
-    #: fuenfte Aktion des Dispatch, ``show_collection_tree`` (U1-e), fehlt hier
-    #: mit Absicht: sie kommt nur aus dem Themenbaum, der die Kennung kennt.
+    #: fuenfte und sechste Aktion des Dispatch, ``show_collection_tree`` (U1-e) und
+    #: ``edit_collection_as_draft`` (U2), fehlen hier mit Absicht: sie kommen nur
+    #: aus dem Themenbaum, der die Kennung kennt.
     action: Annotated[str, Choices(
         "browse_collection", "curate_collection",
         "generate_learning_path", "show_content_text",
