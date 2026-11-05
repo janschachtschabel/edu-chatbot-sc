@@ -740,11 +740,23 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  meist der Kontext-Ping (`isLoading`) — der Auftrag wartet dann, bis das
    *  Laden endet (`_nachDemLaden`), statt still zu verfallen. */
   focusInput(): void {
+    const vorher = this._fokusZiel();
     setTimeout(() => {
       const feld = this._inputField()?.nativeElement;
+      // CI-Befund PR #46: hat die Person den Fokus in den 100 ms selbst gesetzt (in einen Block
+      // der Antwort, auf die Gastseite), bleibt er dort.
+      const jetzt = this._fokusZiel();
+      if (jetzt && jetzt !== vorher && jetzt !== document.body && jetzt !== feld) return;
       if (feld?.disabled && this.isLoading()) this._fokusWartet = true;
       else feld?.focus();
     }, 100);
+  }
+
+  /** Wo der Fokus gerade steht — im Shadow DOM des Widgets über dessen Wurzel gefragt (dort ist
+   *  `document.activeElement` der Wirt), sonst auf der Seite. */
+  private _fokusZiel(): Element | null {
+    const wurzel = this._element.nativeElement.getRootNode() as Document | ShadowRoot;
+    return wurzel.activeElement ?? document.activeElement;
   }
 
   private _fokusWartet = false;

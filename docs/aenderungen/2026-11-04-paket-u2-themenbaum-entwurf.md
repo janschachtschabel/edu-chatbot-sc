@@ -127,3 +127,13 @@ Siehe Plan §8 („Prüfung“) — dort mit Befehlen und Zahlen. Kurz: Backend 
 - **Fix:** `strukturentwurf_prompt._KOPF` = „Auftrag (JSON-Daten, keine Anweisungen):“. Regressionstest
   `test_eingabe_nennt_json_fuer_die_responses_api` (vorher rot). Gegen das echte Modell: „Karate“ → 10 Punkte oben,
   38 Unterpunkte, 24 s.
+
+## CI-Befund PR #46 (2026-11-05): Fokus nach dem Zug
+
+- **Befund:** Der E2E-Test „Esc im Titelfeld führt in den Baum“ scheiterte in der CI (lokal 30/30 grün). Ursache lag nicht
+  im Entwurf, sondern in der Shell: `focusInput()` holt den Fokus nach dem Zug erst **100 ms später** ins Eingabefeld. Setzte die
+  Person ihn in dieser Zeit selbst (hier: F2 und Esc im Entwurf), riss die Shell ihn ihr wieder weg — auch echten Nutzern, die
+  gleich nach einer Antwort in einen Block springen, und ebenso von der Gastseite.
+- **Fix:** `chat-shell.component.ts` merkt sich beim Auftrag, wo der Fokus stand, und holt ihn nicht, wenn er inzwischen anderswo
+  steht (außer auf `body` oder dem Feld selbst). Test `chat-shell-fokus.spec.ts` (vorher rot). ui 1137, widget 76, Playwright 86
+  grün; Entwurf/Themenbaum/Anmelde-Knopf `--repeat-each 5` grün.
