@@ -95,6 +95,8 @@ ui_bloecke = ui_golden.ui_bloecke
 gezeigte_module = ui_golden.gezeigte_module
 offene_frage = ui_golden.offene_frage
 baue_ui_antwort = ui_golden.baue_ui_antwort
+offener_entwurf = ui_golden.offener_entwurf
+baue_entwurf_antwort = ui_golden.baue_entwurf_antwort
 
 ENGINE_HEADER = "X-Boerdi-Engine"
 ENGINES = ("pattern", "agent")
@@ -290,6 +292,11 @@ def _ui_antwort_spec(turn: dict[str, Any]) -> dict[str, Any] | None:
     spec = turn.get("ui_antwort")
     if spec is None or spec == {}:
         return None
+    if isinstance(spec, dict) and "uebernehmen" in spec:
+        # U2: den Strukturentwurf des vorigen Zugs übernehmen — nur ``{uebernehmen: true}``.
+        if spec != {"uebernehmen": True}:
+            raise ValueError(f"ui_antwort must be {{uebernehmen: true}} for a draft, got {spec!r}")
+        return spec
     waehle = spec.get("waehle") if isinstance(spec, dict) else None
     if (not isinstance(spec, dict) or set(spec) - {"waehle", "freitext"}
             or not isinstance(waehle, list) or not waehle
@@ -785,7 +792,9 @@ async def run_flows(
             expect = tspec.get("expect") or {}
             antwort_spec = _ui_antwort_spec(tspec)
             ui_antwort, beobachtet = None, None
-            if antwort_spec is not None:
+            if antwort_spec is not None and antwort_spec.get("uebernehmen"):
+                ui_antwort, msg, beobachtet = baue_entwurf_antwort(offener_entwurf(vorige), msg)
+            elif antwort_spec is not None:
                 ui_antwort, msg, beobachtet = baue_ui_antwort(
                     antwort_spec, offene_frage(vorige), msg)
                 if beobachtet.get("freitext_gekuerzt"):

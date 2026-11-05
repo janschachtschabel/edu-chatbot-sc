@@ -18,6 +18,10 @@
 #                 offene Frage oder ohne passende Möglichkeit geht `message`
 #                 getippt. Freitext über 1000 Zeichen kürzt der Runner wie das
 #                 Widget.
+#   ui_antwort: {uebernehmen: true}  — (seit U2) übernimmt den offenen
+#                 Strukturentwurf (ui_strukturentwurf) des VORIGEN Zugs unverändert
+#                 wie der Knopf „Übernehmen“; ohne offenen Entwurf geht `message`
+#                 getippt (observed.ui_antwort.status = kein_entwurf).
 #
 # Eigene Datei wie skill-bruecke-flows.yaml: die Maschinen-Matrix liest die
 # Seed-Suite, neue Flows dort machten ihre Zahlen unvergleichbar.
@@ -184,3 +188,88 @@ flows:
           ui_any: [ui_trefferliste]
           ui_none: [ui_entscheidung]
           must_offer: "Video-Treffer zur Lichtbrechung für Klasse 8 als Trefferliste mit einem Anschlussangebot."
+
+  # ── Paket U2: Bestand oder Entwurf (Plan 2026-11-04, T-14) ──────────
+  # ui_themenbaum zeigt nur, was es in WLO gibt; ui_strukturentwurf entwirft eine
+  # neue Gliederung. Mehrdeutig („Themenbaum für <Fachportal>“) → Bestand und die
+  # Schnellantwort „Neue Gliederung dazu entwerfen“. Der Entwurf läuft nur im
+  # Agenten (kein Seed-Muster nennt ihn) — mit --engine agent fahren.
+  - id: GV-UI-8
+    zielgruppe: P-LEH
+    title: "(nur Agent) Bestand eindeutig: Themen des Fachportals Chemie"
+    erwartung: "Eine Chemielehrkraft fragt, welche Themen es im Fachportal Chemie gibt: der Bot zeigt den Bestand als Themenbaum und entwirft nichts Neues."
+    turns:
+      - message: "Welche Themen gibt es im Fachportal Chemie bei WirLernenOnline?"
+        anwendungsfall: orientieren
+        expect:
+          register: sie
+          ui_any: [ui_themenbaum]
+          ui_none: [ui_strukturentwurf, ui_entscheidung]
+          must_offer: "Der Themenbaum des Fachportals Chemie (Bestand aus WLO) mit einem kurzen Begleitsatz, keine selbst ausgedachte Gliederung."
+
+  - id: GV-UI-9
+    zielgruppe: P-LEH
+    title: "(nur Agent) Entwurf: Unterrichtsreihe Klimawandel → übernehmen"
+    erwartung: "Eine Lehrkraft lässt sich eine neue Gliederung für eine Unterrichtsreihe entwerfen und übernimmt sie: erst der bearbeitbare Entwurf (kein Bestandsbaum), danach arbeitet der Bot mit dem übernommenen Stand weiter, ohne neu zu entwerfen."
+    turns:
+      - message: "Entwerfen Sie mir bitte eine Gliederung für eine Unterrichtsreihe zum Klimawandel in Klasse 9, etwa acht Themen."
+        anwendungsfall: erzeugen
+        expect:
+          register: sie
+          ui_any: [ui_strukturentwurf]
+          ui_none: [ui_themenbaum]
+          must_offer: "Ein bearbeitbarer Entwurf mit etwa acht Punkten zum Klimawandel (Sekundarstufe I), dazu ein kurzer Begleitsatz ohne Aufzählung der Punkte."
+      - message: "Passt so."
+        anwendungsfall: erzeugen
+        ui_antwort: {uebernehmen: true}
+        expect:
+          register: sie
+          ui_none: [ui_strukturentwurf]
+          must_offer: "Bestätigt die übernommene Gliederung und bietet einen nächsten Schritt an (etwa Material je Punkt suchen oder einen Punkt vertiefen), ohne einen neuen Entwurf."
+      # Drittes Review U2: ein Zug später — der Bot kennt den gemerkten Entwurf ([DEIN LETZTER
+      # ENTWURF]) und vertieft ihn (vorlage + vertiefen), statt neu zu entwerfen.
+      - message: "Vertiefen Sie bitte den ersten Punkt noch um eine Ebene."
+        anwendungsfall: erzeugen
+        expect:
+          register: sie
+          ui_any: [ui_strukturentwurf]
+          ui_none: [ui_themenbaum]
+          must_offer: "Der übernommene Entwurf mit neuen Unterpunkten unter dem ersten Punkt; die übrigen Punkte bleiben — kein Entwurf von vorn."
+
+  - id: GV-UI-10
+    zielgruppe: P-LEH
+    title: "(nur Agent) Mehrdeutig: Themenbaum für Mathematik"
+    erwartung: "„Themenbaum für Mathematik“ ohne Wunsch nach etwas Neuem: der Bot zeigt den Bestand des Fachportals und bietet an, dazu eine neue Gliederung zu entwerfen."
+    turns:
+      - message: "Zeigen Sie mir den Themenbaum für Mathematik."
+        anwendungsfall: orientieren
+        expect:
+          register: sie
+          ui_any: [ui_themenbaum]
+          ui_none: [ui_strukturentwurf]
+          must_offer: "Der Themenbaum des Fachportals Mathematik aus WLO und die Schnellantwort „Neue Gliederung dazu entwerfen“."
+
+  - id: GV-UI-11
+    zielgruppe: P-LER
+    title: "Gegenprobe: Erklärung ohne Baum und ohne Entwurf"
+    erwartung: "Eine Schülerin will eine kurze Erklärung zur Photosynthese: Fließtext, weder Themenbaum noch Entwurf."
+    turns:
+      - message: "was ist eigentlich photosynthese? kurz bitte"
+        anwendungsfall: erklaeren
+        expect:
+          register: du
+          ui_none: [ui_themenbaum, ui_strukturentwurf]
+          must_offer: "Eine kurze, altersgerechte Erklärung der Photosynthese, geduzt, ohne Baum oder Gliederung."
+
+  - id: GV-UI-12
+    zielgruppe: P-LEH
+    title: "(nur Agent) Entwurf: neue Sammlung zu einem Thema ohne WLO-Sammlung"
+    erwartung: "Eine Lehrkraft will eine neue Sammlung zu Escape Rooms im Unterricht aufbauen: der Bot entwirft eine Gliederung, statt einen Bestandsbaum zu suchen."
+    turns:
+      - message: "Ich möchte eine neue Sammlung zum Thema Escape Rooms im Unterricht aufbauen. Wie könnte die gegliedert sein?"
+        anwendungsfall: erzeugen
+        expect:
+          register: sie
+          ui_any: [ui_strukturentwurf]
+          ui_none: [ui_themenbaum]
+          must_offer: "Ein bearbeitbarer Entwurf für die neue Sammlung (Planung, Rätseltypen, Materialien, Durchführung …) mit einem kurzen Begleitsatz."
