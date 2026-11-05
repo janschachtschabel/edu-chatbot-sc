@@ -7,9 +7,10 @@ import {
 import { ICONS } from '@boerdi/ui/icons/icons';
 import { SafeSvgPipe } from '@boerdi/ui/icons/safe-svg.pipe';
 
+import { BaumAnsage } from '../_baum/baum-ansage';
+import { tastenAktion } from '../_baum/baum-tasten';
 import { MODUL_HOST } from '../_vertrag/modul-host';
 import type { ModulKontext } from '../_vertrag/ui-block';
-import { tastenAktion } from './themenbaum-tasten';
 import { TEXTE } from './themenbaum-texte';
 import {
   type Eintrag, ebenen, flach, type ThemenbaumBlatt, type ThemenbaumKnoten, type ZweigZustand, zweigKnoten,
@@ -24,11 +25,10 @@ export interface UiThemenbaumDaten {
   readonly wurzel_url?: string;
   readonly gekuerzt?: boolean;
   readonly wurzel_mehr?: boolean;
+  /** U2 (Review, Befund 9): das Backend erlaubt „Als Entwurf bearbeiten“ (Entwurf im Studio aktiv). */
+  readonly entwurf_moeglich?: boolean;
   readonly knoten: readonly ThemenbaumKnoten[];
 }
-
-/** Pause zwischen Leeren und erneutem Setzen derselben Ansage (wie `LiveAnnouncer` im CDK). */
-const ANSAGE_PAUSE_MS = 100;
 
 /** Wofür die Aktionsleiste gilt. */
 interface Ziel {
@@ -59,7 +59,8 @@ interface Ziel {
  *
  * Bedienung nach dem WAI-ARIA-Muster „Tree View“: `tree`/`treeitem`/`group`, Ebene, Position,
  * `aria-expanded`, wandernder `tabindex`, die Auswahl folgt dem Fokus (`aria-selected` = der
- * Knoten, für den die Aktionsleiste gilt); die Tasten stehen in `themenbaum-tasten.ts`, das
+ * Knoten, für den die Aktionsleiste gilt); Tasten und Ansage stehen seit U2 im gemeinsamen
+ * Baum-Kern `../_baum/` (auch für den Strukturentwurf), das
  * Markup in `ui-themenbaum.component.html` (Review U1 gesamt). Anzahl, „weitere“ und der Ladezustand
  * hängen über `aria-describedby` am Eintrag, der Name bleibt der Titel. Im Baumeintrag stehen
  * keine Bedienelemente (APG): die Aktionen des aktiven Knotens stehen in einer Leiste darunter
@@ -89,13 +90,11 @@ export class UiThemenbaum {
   private readonly offen = signal<ReadonlySet<string>>(new Set());
   private readonly zweige = signal<ReadonlyMap<string, ZweigZustand>>(new Map());
   protected readonly aktiv = signal('0');
-  /** Die letzte Ansage für Vorleser (Statuszeile, höflich). */
-  protected readonly ansage = signal('');
-  /** Eine wiederholte Ansage, die nach dem Leeren noch aussteht (Review U1-h, Befund 10). */
-  private ansageFrist: ReturnType<typeof setTimeout> | undefined;
+  /** Die Statuszeile für Vorleser (höflich; derselbe Text zweimal wird zweimal angesagt). */
+  protected readonly ansage = new BaumAnsage();
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => clearTimeout(this.ansageFrist));
+    inject(DestroyRef).onDestroy(() => this.ansage.aufraeumen());
   }
 
   protected readonly beschaeftigt = computed(() => this.host.beschaeftigt());
@@ -197,13 +196,13 @@ export class UiThemenbaum {
       // Review U1-h, Befund 2: ohne bekannte Kinder wieder zu — sonst stünde „offen“ ohne Gruppe
       // da, und →/Enter/Klick klappten zu statt neu zu laden.
       if (!this.sichtbar().find((s) => s.knoten.id === knoten.id)?.kinder.length) this.setzeOffen(knoten.id, false);
-      this.ansagen(gedrosselt ? t.gedrosselt(knoten.titel) : t.fehler(knoten.titel));
+      this.ansage.sagen(gedrosselt ? t.gedrosselt(knoten.titel) : t.fehler(knoten.titel));
       return;
     }
     const fokusImBaum = this.fokusImBaum();
     const aktiveId = this.sichtbar().find((s) => s.pfad === this.aktiv())?.knoten.id;
     this.setzeZweig(knoten.id, { status: 'fertig', knoten: liste, mehr });
-    this.ansagen(liste.length ? t.geladen(liste.length, knoten.titel) : t.keine(knoten.titel));
+    this.ansage.sagen(liste.length ? t.geladen(liste.length, knoten.titel) : t.keine(knoten.titel));
     // Wurde eine gekürzte Liste ersetzt, folgt die Auswahl dem Thema (die Pfade verschieben sich).
     const neu = this.sichtbar();
     const ziel = neu.find((s) => s.knoten.id === aktiveId) ?? neu.find((s) => s.knoten.id === knoten.id);
@@ -218,20 +217,6 @@ export class UiThemenbaum {
     const fokussiert = wurzel.activeElement;
     const baum = this.el.nativeElement.querySelector('[role="tree"]');
     return !!fokussiert && !!baum && baum.contains(fokussiert);
-  }
-
-  /** Text der Statuszeile. Derselbe Text wie zuletzt wird erst geleert und {@link ANSAGE_PAUSE_MS}
-   *  später neu gesetzt — sonst ändert sich nichts, und Vorleser sagen ihn nicht noch einmal an
-   *  (Review U1-h, 10). In einem eigenen Schritt wie der `LiveAnnouncer` des CDK: im selben Zeichnen
-   *  sähe die Zugänglichkeits-Schnittstelle keine Änderung. */
-  private ansagen(text: string): void {
-    clearTimeout(this.ansageFrist);
-    if (this.ansage() !== text) {
-      this.ansage.set(text);
-      return;
-    }
-    this.ansage.set('');
-    this.ansageFrist = setTimeout(() => this.ansage.set(text), ANSAGE_PAUSE_MS);
   }
 
   protected klick(ereignis: Event, e: Eintrag): void {
@@ -279,6 +264,14 @@ export class UiThemenbaum {
   protected inhalte(z: Ziel): void {
     if (this.beschaeftigt()) return;
     this.host.aktion('sammlung', { nodeId: z.id, title: z.titel });
+  }
+
+  /** U2 (T-13): „Als Entwurf bearbeiten“ — die Sammlung der Wurzel als neuer Zug ohne KI
+   *  (Direktaktion `edit_collection_as_draft`); gesperrt während eines Zugs wie „Inhalte anzeigen“. */
+  protected alsEntwurf(): void {
+    const d = this.daten();
+    if (this.beschaeftigt() || !d.wurzel_id || !d.entwurf_moeglich) return;
+    this.host.aktion('alsEntwurf', { nodeId: d.wurzel_id, title: d.titel || this.texte().ueberschrift('') });
   }
 
   /** „Erneut laden“: der Knopf verschwindet beim Laden — der Fokus geht an den Eintrag zurück. */

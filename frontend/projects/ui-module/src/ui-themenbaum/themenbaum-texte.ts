@@ -2,6 +2,9 @@
 export const TEXTE = {
   de: {
     ueberschrift: (t: string) => (t ? `Unterthemen von ${t}` : 'Unterthemen'),
+    // U2: Herkunft im Kopf und die Brücke zum Entwurf.
+    marke: 'Aus WLO',
+    alsEntwurf: 'Als Entwurf bearbeiten',
     leer: 'Hier gibt es keine Unterthemen.',
     // Review U1-h, Befund 11: ein nachgeladener Zweig ist selbst gedeckelt — „mehr“, nicht „alle“.
     gekuerzt: 'Nicht alle Unterthemen passen in diese Übersicht. Zweige mit „weitere“ laden beim Aufklappen mehr; vollständig zeigt sie WLO.',
@@ -22,6 +25,8 @@ export const TEXTE = {
   },
   en: {
     ueberschrift: (t: string) => (t ? `Subtopics of ${t}` : 'Subtopics'),
+    marke: 'From WLO',
+    alsEntwurf: 'Edit as draft',
     leer: 'There are no subtopics here.',
     gekuerzt: 'Not all subtopics fit into this overview. Branches marked “more” load more when expanded; WLO shows all of them.',
     wurzelMehr: 'There are more subtopics than shown here.',

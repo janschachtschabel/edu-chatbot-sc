@@ -123,10 +123,8 @@ export function ebenen(
   });
 }
 
-/** Alle sichtbaren Einträge in Lesereihenfolge. */
-export function flach(baum: readonly Eintrag[]): Eintrag[] {
-  return baum.flatMap((e) => [e, ...flach(e.kinder)]);
-}
+/** Alle sichtbaren Einträge in Lesereihenfolge — seit U2 aus dem gemeinsamen Baum-Kern. */
+export { flach } from '../_baum/baum-tasten';
 
 function istBlatt(wert: unknown): wert is ThemenbaumBlatt {
   const k = wert as Partial<ThemenbaumBlatt> | null;

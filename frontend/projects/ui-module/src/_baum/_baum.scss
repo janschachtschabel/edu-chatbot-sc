@@ -1,0 +1,193 @@
+// Gemeinsamer Baum-Kern (Paket U2, Plan 2026-11-04 T-1): das Aussehen beider Bäume — Bestand
+// (`ui-themenbaum`) und Entwurf (`ui-strukturentwurf`). Seit U2 hier statt im Themenbaum
+// (Regeln unverändert); jedes Modul behält seine Klassen (`@include baum.baum('ui-…')`).
+// Nur Theme-Token. Zeilen mindestens 28 px hoch, Knöpfe 32 px (WCAG 2.5.8); Fokus sichtbar am
+// Baumeintrag selbst; der Pfeil dreht sich ohne Übergang.
+
+@mixin baum($p) {
+  $border: var(--mat-sys-outline-variant);
+  $text: var(--mat-sys-on-surface);
+  $text-muted: var(--mat-sys-on-surface-variant);
+
+  .#{$p} {
+    position: relative;            // Bezug der unsichtbaren Ansage-Zeile
+    border: 1px solid $border;
+    border-radius: var(--mat-sys-corner-small);
+    padding: 8px 10px 10px;
+    background: var(--mat-sys-surface);
+    color: $text;
+    font-size: .82rem;
+    line-height: 1.4;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .#{$p}__kopf {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: .86rem;
+    overflow-wrap: anywhere;
+  }
+
+  // Herkunft im Kopf (T-2): „Aus WLO“ bzw. „Entwurf (KI)“ — Text, nicht nur Farbe.
+  .#{$p}__marke {
+    flex-shrink: 0;
+    padding: 0 6px;
+    border: 1px solid var(--mat-sys-outline);
+    border-radius: var(--mat-sys-corner-extra-small);
+    color: $text-muted;
+    font-size: .72rem;
+    font-weight: 600;
+  }
+
+  .#{$p}__baum,
+  .#{$p}__gruppe {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  // Einrückung je Ebene wächst mit der Breite (Prozent der Elternzeile): 20 px ab rund 500 px Baum,
+  // bei 320 px Fensterbreite (Baum rund 200 px) etwa 8 px — sonst bliebe dem Titel auf tiefen
+  // Ebenen kaum Platz (Review U1-h, Befund 5; gemessen in e2e/themenbaum.spec.ts). Die Ebene sagt
+  // zusätzlich `aria-level`, der Pfeil steht je Zeile davor.
+  .#{$p}__gruppe {
+    padding-inline-start: clamp(6px, 4%, 20px);
+  }
+
+  .#{$p}__eintrag {
+    cursor: pointer;
+    border-radius: var(--mat-sys-corner-extra-small);
+
+    &:focus {
+      outline: none;
+    }
+
+    // Der Fokus gehört dem Eintrag; sichtbar an seiner eigenen Zeile, nicht an den Kindern.
+    &:focus-visible > .#{$p}__zeile {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: -2px;
+    }
+  }
+
+  .#{$p}__zeile {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    min-block-size: 28px;
+    padding: 2px 6px 2px 2px;
+    border-radius: var(--mat-sys-corner-extra-small);
+
+    &:hover {
+      background: color-mix(in srgb, var(--mat-sys-primary) 6%, var(--mat-sys-surface));
+    }
+  }
+
+  // Der aktive Eintrag (für die Aktionsleiste) — nicht nur über die Farbe: zusätzlich fett.
+  .#{$p}__eintrag[tabindex='0'] > .#{$p}__zeile {
+    background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
+
+    .#{$p}__titel {
+      font-weight: 600;
+    }
+  }
+
+  .#{$p}__pfeil {
+    display: inline-flex;
+    inline-size: 18px;
+    flex-shrink: 0;
+    justify-content: center;
+    color: $text-muted;
+
+    &--offen .bb-icon {
+      transform: rotate(90deg);
+    }
+  }
+
+  .#{$p}__titel {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .#{$p}__neben {
+    color: $text-muted;
+    font-size: .76rem;
+  }
+
+  .#{$p}__hinweis,
+  .#{$p}__leer {
+    margin: 0;
+    color: $text-muted;
+    font-size: .78rem;
+  }
+
+  .#{$p}__aktionen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding-block-start: 6px;
+    border-block-start: 1px solid $border;
+  }
+
+  .#{$p}__ziel {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  // Umrissene Knöpfe im Ton des Widgets; ein Link sieht aus wie sie, bleibt aber ein Link.
+  .#{$p}__knopf {
+    display: inline-flex;
+    align-items: center;
+    // `border-box` wie bei `<button>` (Browser-Vorgabe): sonst wäre der Link „In WLO öffnen“ 42 px
+    // hoch, die Knöpfe daneben 32 px (gemessen, e2e/themenbaum.spec.ts „Rhythmus“).
+    box-sizing: border-box;
+    min-block-size: 32px;
+    padding: 4px 12px;
+    border: 1px solid var(--mat-sys-outline);
+    border-radius: var(--mat-sys-corner-large);
+    background: var(--mat-sys-surface);
+    color: var(--mat-sys-primary);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover:not(:disabled, [aria-disabled='true']) {
+      background: color-mix(in srgb, var(--mat-sys-primary) 8%, var(--mat-sys-surface));
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: 2px;
+    }
+
+    // Gesperrt nicht nur blasser: der Mauszeiger sagt es mit; Text bleibt lesbar. `aria-disabled`
+    // während eines Zugs — der Knopf bleibt fokussierbar (Review U1 gesamt).
+    &:disabled,
+    &[aria-disabled='true'] {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+  }
+
+  // Die Statuszeile für Vorleser: vorhanden, aber nicht sichtbar.
+  .#{$p}__ansage {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}

@@ -1,176 +1,18 @@
-// Themenbaum (Paket U1-e) — gleicher Rahmen wie Entscheidung und Inhaltsrahmen, nur Theme-Token.
-// Zeilen mindestens 28 px hoch, Knöpfe 32 px (WCAG 2.5.8); Fokus sichtbar am Baumeintrag selbst.
-// Der Pfeil dreht sich ohne Übergang. Der Lade-Kreisel (U1-h) dreht sich nur ohne
-// `prefers-reduced-motion`; der Text „lädt …“ steht in beiden Fällen daneben.
-
-$border: var(--mat-sys-outline-variant);
-$text: var(--mat-sys-on-surface);
-$text-muted: var(--mat-sys-on-surface-variant);
+// Themenbaum (Paket U1-e) — gleicher Rahmen wie Entwurf und Entscheidung, nur Theme-Token.
+// Seit U2 kommt das gemeinsame Aussehen beider Bäume aus `_baum/_baum.scss`; hier steht nur,
+// was der Bestand allein hat: „weitere“, der Hinweis-Link, die Brücke zum Entwurf und das
+// Nachladen (U1-h). Der Lade-Kreisel dreht sich nur ohne `prefers-reduced-motion`; „lädt …“
+// steht in beiden Fällen daneben.
+@use '../_baum/baum';
 
 :host {
   display: block;
 }
 
-.ui-themenbaum {
-  position: relative;            // Bezug der unsichtbaren Ansage-Zeile
-  border: 1px solid $border;
-  border-radius: var(--mat-sys-corner-small);
-  padding: 8px 10px 10px;
-  background: var(--mat-sys-surface);
-  color: $text;
-  font-size: .82rem;
-  line-height: 1.4;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.ui-themenbaum__kopf {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  font-size: .86rem;
-  overflow-wrap: anywhere;
-}
-
-.ui-themenbaum__baum,
-.ui-themenbaum__gruppe {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-// Einrückung je Ebene wächst mit der Breite (Prozent der Elternzeile): 20 px ab rund 500 px Baum,
-// bei 320 px Fensterbreite (Baum rund 200 px) etwa 8 px — sonst bliebe dem Titel auf Ebene 8 kaum
-// Platz (Review U1-h, Befund 5; gemessen in e2e/themenbaum.spec.ts). Die Ebene sagt zusätzlich
-// `aria-level`, der Pfeil steht je Zeile davor.
-.ui-themenbaum__gruppe {
-  padding-inline-start: clamp(6px, 4%, 20px);
-}
-
-.ui-themenbaum__eintrag {
-  cursor: pointer;
-  border-radius: var(--mat-sys-corner-extra-small);
-
-  &:focus {
-    outline: none;
-  }
-
-  // Der Fokus gehört dem Eintrag; sichtbar an seiner eigenen Zeile, nicht an den Kindern.
-  &:focus-visible > .ui-themenbaum__zeile {
-    outline: 2px solid var(--mat-sys-primary);
-    outline-offset: -2px;
-  }
-}
-
-.ui-themenbaum__zeile {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px 6px;
-  min-block-size: 28px;
-  padding: 2px 6px 2px 2px;
-  border-radius: var(--mat-sys-corner-extra-small);
-
-  &:hover {
-    background: color-mix(in srgb, var(--mat-sys-primary) 6%, var(--mat-sys-surface));
-  }
-}
-
-// Der aktive Eintrag (für die Aktionsleiste) — nicht nur über die Farbe: zusätzlich fett.
-.ui-themenbaum__eintrag[tabindex='0'] > .ui-themenbaum__zeile {
-  background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
-
-  .ui-themenbaum__titel {
-    font-weight: 600;
-  }
-}
-
-.ui-themenbaum__pfeil {
-  display: inline-flex;
-  inline-size: 18px;
-  flex-shrink: 0;
-  justify-content: center;
-  color: $text-muted;
-
-  &--offen .bb-icon {
-    transform: rotate(90deg);
-  }
-}
-
-.ui-themenbaum__titel {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.ui-themenbaum__neben {
-  color: $text-muted;
-  font-size: .76rem;
-}
+@include baum.baum('ui-themenbaum');
 
 .ui-themenbaum__mehr {
   font-style: italic;
-}
-
-.ui-themenbaum__hinweis,
-.ui-themenbaum__leer {
-  margin: 0;
-  color: $text-muted;
-  font-size: .78rem;
-}
-
-.ui-themenbaum__aktionen {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding-block-start: 6px;
-  border-block-start: 1px solid $border;
-}
-
-.ui-themenbaum__ziel {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-  min-width: 0;
-  flex-basis: 100%;
-}
-
-// Umrissene Knöpfe im Ton des Widgets; der Link sieht aus wie sie, bleibt aber ein Link.
-.ui-themenbaum__knopf {
-  display: inline-flex;
-  align-items: center;
-  // `border-box` wie bei `<button>` (Browser-Vorgabe): sonst wäre der Link „In WLO öffnen“ 42 px
-  // hoch, die Knöpfe daneben 32 px (gemessen, e2e/themenbaum.spec.ts „Rhythmus“).
-  box-sizing: border-box;
-  min-block-size: 32px;
-  padding: 4px 12px;
-  border: 1px solid var(--mat-sys-outline);
-  border-radius: var(--mat-sys-corner-large);
-  background: var(--mat-sys-surface);
-  color: var(--mat-sys-primary);
-  font: inherit;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-
-  &:hover:not(:disabled, [aria-disabled='true']) {
-    background: color-mix(in srgb, var(--mat-sys-primary) 8%, var(--mat-sys-surface));
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--mat-sys-primary);
-    outline-offset: 2px;
-  }
-
-  // Gesperrt nicht nur blasser: der Mauszeiger sagt es mit; Text bleibt lesbar. `aria-disabled`
-  // während eines Zugs — der Knopf bleibt fokussierbar (Review U1 gesamt).
-  &:disabled,
-  &[aria-disabled='true'] {
-    opacity: .5;
-    cursor: not-allowed;
-  }
 }
 
 // Review U1-e: der Link zur ganzen Sammlung im Hinweis „mehr, als hier stehen“ — als Link
@@ -184,6 +26,14 @@ $text-muted: var(--mat-sys-on-surface-variant);
     outline: 2px solid var(--mat-sys-primary);
     outline-offset: 2px;
   }
+}
+
+// U2 (T-13): „Als Entwurf bearbeiten“ — eine eigene Zeile unter dem Baum, für die Wurzel.
+.ui-themenbaum__bruecke {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
 // ── U1-h: Nachladen im Baum ───────────────────────────────────────────────
@@ -214,17 +64,4 @@ $text-muted: var(--mat-sys-on-surface-variant);
 
 @keyframes ui-themenbaum-drehen {
   to { transform: rotate(360deg); }
-}
-
-// Die Statuszeile für Vorleser: vorhanden, aber nicht sichtbar.
-.ui-themenbaum__ansage {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
 }
