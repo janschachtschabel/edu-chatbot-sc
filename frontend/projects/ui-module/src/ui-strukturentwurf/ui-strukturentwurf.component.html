@@ -1,0 +1,116 @@
+<section class="ui-strukturentwurf">
+  <div class="ui-strukturentwurf__kopf" [id]="kennung('kopf')">
+    <span class="bb-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
+    <span class="ui-strukturentwurf__marke">{{ texte().marke[daten().quelle] }}</span>
+    {{ daten().titel }}
+  </div>
+  <p class="ui-strukturentwurf__neben ui-strukturentwurf__angaben">
+    @if (daten().fach) { <span>{{ texte().fach }}: {{ daten().fach }}</span> }
+    @if (daten().bildungsstufe) { <span>{{ texte().stufe }}: {{ daten().bildungsstufe }}</span> }
+    <span>{{ texte().punkte(zahl()) }}</span>
+  </p>
+  @if (daten().gekuerzt) { <p class="ui-strukturentwurf__hinweis">{{ texte().gekuerzt }}</p> }
+
+  @if (struktur().length) {
+    @if (hatKinder()) {
+      <button type="button" class="ui-strukturentwurf__knopf ui-strukturentwurf__alles" (click)="allesUmschalten()">
+        {{ allesOffen() ? texte().allesZu : texte().allesAuf }}</button>
+    }
+    <ul class="ui-strukturentwurf__baum" role="tree" [attr.aria-labelledby]="kennung('kopf')">
+      <ng-container *ngTemplateOutlet="ebene; context: { $implicit: baum() }" />
+    </ul>
+  } @else {
+    <p class="ui-strukturentwurf__leer">{{ texte().leer }}</p>
+  }
+
+  @if (status()) {
+    <p class="ui-strukturentwurf__status" tabindex="-1" #statusZeile>{{ status() }}</p>
+  }
+
+  @if (!nurLesen()) {
+    @if (aktiv(); as a) {
+      <div class="ui-strukturentwurf__aktionen" role="group" [attr.aria-label]="texte().bearbeiten(a.knoten.titel)">
+        <span class="ui-strukturentwurf__ziel" aria-hidden="true">{{ a.knoten.titel }}</span>
+        <button type="button" class="ui-strukturentwurf__knopf" (click)="hinzufuegen('kind')">{{ texte().unterpunkt }}</button>
+        <button type="button" class="ui-strukturentwurf__knopf" (click)="hinzufuegen('danach')">{{ texte().danach }}</button>
+        <!-- Review U2, Befund 10/14: der Fokus bleibt am Knopf; die Tasten gelten im Baum (Hinweis unten). -->
+        <button type="button" class="ui-strukturentwurf__knopf" (click)="bewegen('hoch', true)">{{ texte().hoch }}</button>
+        <button type="button" class="ui-strukturentwurf__knopf" (click)="bewegen('runter', true)">{{ texte().runter }}</button>
+        <button type="button" class="ui-strukturentwurf__knopf" (click)="bewegen('ein', true)">{{ texte().ein }}</button>
+        <button type="button" class="ui-strukturentwurf__knopf" (click)="bewegen('aus', true)">{{ texte().aus }}</button>
+        <button type="button" class="ui-strukturentwurf__knopf" (click)="loeschen(true)">{{ texte().loeschen }}</button>
+        <button type="button" class="ui-strukturentwurf__knopf" (click)="rueckgaengig()">{{ texte().rueckgaengig }}</button>
+      </div>
+      <div class="ui-strukturentwurf__details" role="group" [attr.aria-label]="texte().details(a.knoten.titel)">
+        <label class="ui-strukturentwurf__feld">
+          <span>{{ texte().titel }}</span>
+          <input type="text" [id]="kennung('titel')" [value]="a.knoten.titel" [attr.maxlength]="grenzen.titel"
+                 (focus)="feldBetreten('titel')" (blur)="feldGeschlossen()" (input)="feldAendern('titel', $event)"
+                 (keydown.enter)="zurueckInDenBaum($event)" (keydown.escape)="zurueckInDenBaum($event)" />
+        </label>
+        <label class="ui-strukturentwurf__feld">
+          <span>{{ texte().beschreibung }}</span>
+          <textarea rows="2" [value]="a.knoten.beschreibung ?? ''" [attr.maxlength]="grenzen.beschreibung"
+                    (focus)="feldBetreten('beschreibung')" (blur)="feldGeschlossen()"
+                    (input)="feldAendern('beschreibung', $event)" (keydown.escape)="zurueckInDenBaum($event)"></textarea>
+        </label>
+        <label class="ui-strukturentwurf__feld">
+          <span>{{ texte().keywords }}</span>
+          <input type="text" [value]="kwText() ?? (a.knoten.keywords ?? []).join(', ')" [attr.aria-describedby]="kennung('kw-hinweis')"
+                 (focus)="feldBetreten('keywords')" (blur)="feldGeschlossen()" (input)="feldAendern('keywords', $event)"
+                 (keydown.escape)="zurueckInDenBaum($event)" />
+          <span class="ui-strukturentwurf__neben" [id]="kennung('kw-hinweis')">{{ texte().kwHinweis }}</span>
+        </label>
+      </div>
+    } @else {
+      <div class="ui-strukturentwurf__aktionen">
+        <button type="button" class="ui-strukturentwurf__knopf" [id]="kennung('erster')" (click)="hinzufuegen('danach')">{{ texte().ersterPunkt }}</button>
+      </div>
+    }
+    <p class="ui-strukturentwurf__hinweis">{{ texte().hinweis }}</p>
+  } @else if (aktiv(); as a) {
+    <div class="ui-strukturentwurf__details ui-strukturentwurf__details--lesen">
+      <p class="ui-strukturentwurf__ziel">{{ a.knoten.titel }}</p>
+      <p>{{ a.knoten.beschreibung || texte().keineBeschreibung }}</p>
+      @if (a.knoten.keywords?.length) { <p class="ui-strukturentwurf__neben">{{ texte().schlagworte }}: {{ a.knoten.keywords!.join(', ') }}</p> }
+    </div>
+  }
+
+  <div class="ui-strukturentwurf__abschluss">
+    @if (!nurLesen()) {
+      <button type="button" class="ui-strukturentwurf__knopf ui-strukturentwurf__knopf--haupt"
+              [attr.aria-disabled]="beschaeftigt() ? 'true' : null" (click)="uebernehmen()">{{ texte().uebernehmen }}</button>
+    }
+    <button type="button" class="ui-strukturentwurf__knopf" (click)="herunterladen('json')">{{ texte().json }}</button>
+    <button type="button" class="ui-strukturentwurf__knopf" (click)="herunterladen('md')">{{ texte().markdown }}</button>
+  </div>
+  <p class="ui-strukturentwurf__ansage" role="status" aria-live="polite">{{ ansage.text() }}</p>
+</section>
+
+<!-- Eine Ebene des Baums; ruft sich für offene Einträge selbst auf (bis Ebene 4). -->
+<ng-template #ebene let-liste>
+  @for (e of liste; track e.knoten.id) {
+    <li role="treeitem" class="ui-strukturentwurf__eintrag" [id]="kennung('k-' + e.knoten.id)"
+        [attr.aria-labelledby]="kennung('n-' + e.knoten.id)"
+        [attr.aria-describedby]="e.knoten.ausstehend ? kennung('a-' + e.knoten.id) : null"
+        [attr.aria-level]="e.ebene" [attr.aria-setsize]="e.setsize" [attr.aria-posinset]="e.posinset"
+        [attr.aria-expanded]="e.aufklappbar ? istOffen(e) : null"
+        [attr.tabindex]="aktiv()?.knoten?.id === e.knoten.id ? 0 : -1" [attr.aria-selected]="aktiv()?.knoten?.id === e.knoten.id"
+        (click)="klick($event, e)" (keydown)="taste($event)" (focus)="fokusErhalten(e)">
+      <span class="ui-strukturentwurf__zeile">
+        <span class="ui-strukturentwurf__pfeil" aria-hidden="true" [class.ui-strukturentwurf__pfeil--offen]="e.aufklappbar && istOffen(e)">
+          @if (e.aufklappbar) { <span class="bb-icon" [innerHTML]="pfeil | safeSvg"></span> }
+        </span>
+        <span class="ui-strukturentwurf__titel" [id]="kennung('n-' + e.knoten.id)">{{ e.knoten.titel }}</span>
+        @if (e.knoten.ausstehend) {
+          <span class="ui-strukturentwurf__neben ui-strukturentwurf__ausstehend" [id]="kennung('a-' + e.knoten.id)">{{ texte().ausstehend }}</span>
+        }
+      </span>
+      @if (e.kinder.length) {
+        <ul role="group" class="ui-strukturentwurf__gruppe">
+          <ng-container *ngTemplateOutlet="ebene; context: { $implicit: e.kinder }" />
+        </ul>
+      }
+    </li>
+  }
+</ng-template>
