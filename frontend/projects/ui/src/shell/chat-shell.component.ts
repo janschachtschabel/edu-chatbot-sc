@@ -22,8 +22,9 @@ import type { TranslateFn } from '../i18n/i18n';
 import { DEFAULT_LOCALE, Locale } from '../i18n/locale';
 import { UiBloeckeComponent } from '../ui-bloecke/ui-bloecke.component';
 import { alsBeantwortet, offeneFragenSchliessen, wiederOffen } from '../ui-bloecke/fragen-status';
+import { Vormerkungen } from '../ui-bloecke/vormerkungen';
 import { modulDarstellbar } from '../ui-bloecke/modul-darstellbar';
-import type { ShellAntworten, ShellTreffer } from '../ui-bloecke/widget-modul-host';
+import type { ShellAntworten, ShellTreffer, ShellVormerken } from '../ui-bloecke/widget-modul-host';
 import { QuickRepliesComponent } from '../chips/quick-replies.component';
 import { BOERDI_LOGO_DATA_URL } from '../branding/boerdi-logo';
 import { SHELL_PRINT } from '../print/print-gates';
@@ -31,7 +32,8 @@ import { ChatApiClient, type UiAntwortAnfrage } from '../stream/chat-api';
 import { ZUG_POST_FRIST_MS } from '../stream/stream-client';
 import { formatPhaseLabel } from '../stream/phase-label';
 import {
-  browseCollection, generateLearningPath, loadMore, showContentText, showMoreCards, themenbaumZweig,
+  browseCollection, editCollectionAsDraft, generateLearningPath, loadMore, showContentText, showMoreCards,
+  themenbaumZweig,
 } from '../controllers/collection-actions';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
 import { TourController } from '../controllers/tour.controller';
@@ -320,6 +322,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     volltext: (nodeId, title) => void this.showContentText(nodeId, title),
     sammlung: (nodeId, title) => void this.browseCollection(nodeId, title),
     lernpfad: (nodeId, title) => void this.generateLearningPath(nodeId, title),
+    alsEntwurf: (nodeId, title) => void editCollectionAsDraft(nodeId, title, this._contexts.collectionActions),
     zweig: (nodeId) => this._mitAbbruch((signal) => themenbaumZweig(nodeId, this._contexts.collectionActions, signal)),
     mehrLaden: (nachrichtId) => void this.loadMoreCards(nachrichtId),
   };
@@ -341,6 +344,11 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       if (!angenommen) this._store.update((msgs) => wiederOffen(msgs, nachrichtId, blockId));
     });
   };
+
+  /** Paket U2 (Plan 2026-11-04, T-10): vorgemerkte Antworten offener Blöcke (Strukturentwurf) —
+   *  sie gehen mit der nächsten getippten Nachricht mit (`sendMessage`). */
+  private readonly _vormerkungen = new Vormerkungen();
+  protected readonly modulVormerken: ShellVormerken = (auftrag) => this._vormerkungen.setzen(auftrag);
 
   /** Trägt die Nachricht eine Trefferliste, die ihr Modul zeigt? Dann zeigt es die Boxen — die
    *  bisherigen schweigen; bei einer fremden Hauptversion (nur Textfassung) bleiben sie. */
@@ -568,7 +576,19 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   sendMessage(
     text?: string, action?: string, actionParams?: Record<string, any>, uiAntwort?: UiAntwortAnfrage,
   ): Promise<void> {
-    return runSendMessage(text, action, actionParams, this._sendCtx, uiAntwort).then(() => undefined);
+    // U2 (T-10): eine getippte Nachricht (Eingabefeld, Schnellantwort) nimmt den vorgemerkten
+    // Stand eines offenen Blocks mit — der Block wird beantwortet statt veraltet. Kam der Zug nie an,
+    // ist er wieder offen (wie `modulAntworten`). Ein Auftrag des Gastgebers (`startTask`) ist keine
+    // Nachricht der Person und nimmt nichts mit (Review U2, Befund 5).
+    const getippt = !action && !uiAntwort && !this._hostTurn && !this.isLoading()
+      && !!(text ?? this.userInput()).trim();
+    const mit = getippt ? this._vormerkungen.fuerZug(this.messages()) : null;
+    if (!mit) return runSendMessage(text, action, actionParams, this._sendCtx, uiAntwort).then(() => undefined);
+    this._store.update((msgs) => alsBeantwortet(msgs, mit.nachrichtId, mit.blockId, mit.daten));
+    return runSendMessage(text, undefined, undefined, this._sendCtx, { block_id: mit.blockId, daten: mit.daten })
+      .then((angenommen) => {
+        if (!angenommen) this._store.update((msgs) => wiederOffen(msgs, mit.nachrichtId, mit.blockId));
+      });
   }
 
   /** Gilt die Blase des laufenden Zuges als Auftrag des Gastgebers?

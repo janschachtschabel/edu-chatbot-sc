@@ -7,6 +7,7 @@ import { UI_MODUL_REGISTER, type UiModulManifest } from '@boerdi/ui-module';
 import entscheidung from '@boerdi/ui-module/ui-entscheidung/manifest.json';
 import inhaltsrahmen from '@boerdi/ui-module/ui-inhaltsrahmen/manifest.json';
 import linkbox from '@boerdi/ui-module/ui-linkbox/manifest.json';
+import strukturentwurf from '@boerdi/ui-module/ui-strukturentwurf/manifest.json';
 import themenbaum from '@boerdi/ui-module/ui-themenbaum/manifest.json';
 import trefferliste from '@boerdi/ui-module/ui-trefferliste/manifest.json';
 import { MODUL_REGISTER } from '@boerdi/ui-module/register.generated';
@@ -20,7 +21,7 @@ import { UiModulVorschauComponent } from './ui-modul-vorschau.component';
  * Register — und nichts davon verlässt die Seite: Herunterladen, Drucken, Aktionen und Antworten
  * werden angesagt, Links öffnen nicht.
  */
-const MANIFESTE = [entscheidung, inhaltsrahmen, linkbox, themenbaum, trefferliste] as unknown as UiModulManifest[];
+const MANIFESTE = [entscheidung, inhaltsrahmen, linkbox, strukturentwurf, themenbaum, trefferliste] as unknown as UiModulManifest[];
 
 function eintrag(manifest: UiModulManifest): UiModulEintrag {
   return { name: manifest.name, manifest, schaltbar: { aktiv: true, agent: true }, abgeleitet: false };

@@ -11,7 +11,7 @@ import type { TranslateFn } from '../i18n/i18n';
 import { BlockModulHost } from './block-modul-host';
 import { blockDarstellbar } from './modul-darstellbar';
 import { schriftProzent } from './schrift-skala';
-import { type ShellAntworten, type ShellTreffer, WidgetModulHost } from './widget-modul-host';
+import { type ShellAntworten, type ShellTreffer, type ShellVormerken, WidgetModulHost } from './widget-modul-host';
 
 interface Darstellung {
   readonly block: UiBlock;
@@ -75,6 +75,8 @@ export class UiBloeckeComponent {
   readonly nachrichtId = input.required<string>();
   /** Antwort-Weg der Shell für abfragende Module (U1-d1). */
   readonly antworten = input.required<ShellAntworten>();
+  /** U2: Vormerkung für die nächste getippte Nachricht (Strukturentwurf); ohne: keine. */
+  readonly vormerken = input<ShellVormerken | null>(null);
 
   private readonly register = inject(UI_MODUL_REGISTER);
   private readonly injector = inject(Injector);

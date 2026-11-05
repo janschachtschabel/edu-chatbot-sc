@@ -17,7 +17,7 @@ function basis() {
     link: vi.fn(() => ({ href: 'https://x/?bsid=1', hinweis: '' })),
     treffer: vi.fn(() => ({ kontext: null, kacheln: false, beschaeftigt: true })),
     beschaeftigt: vi.fn(() => true),
-    aktion: vi.fn(), antwortSenden: vi.fn(),
+    aktion: vi.fn(), antwortSenden: vi.fn(), vormerken: vi.fn(),
     zweig: vi.fn(async (nodeId: string) => ({ knoten: [{ id: `${nodeId}-1`, titel: 'Kind' }] })),
   };
 }
@@ -43,6 +43,19 @@ describe('BlockModulHost', () => {
     expect(b.aktion).toHaveBeenCalledWith('mehrLaden', { blockId: 'b0000007' });
     // Die Antwort trägt die Kennung DIESES Blocks — das Modul nennt sie nicht selbst.
     expect(b.antwortSenden).toHaveBeenCalledWith('b0000007', { gewaehlt: ['a'] }, 'A');
+  });
+
+  it('U2: vormerken gehört zur Fähigkeit `antworten` und trägt die Block-Kennung', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const mit = host(['antworten']);
+    mit.h.vormerken({ knoten: [] });
+    mit.h.vormerken(null);
+    expect(mit.b.vormerken).toHaveBeenNthCalledWith(1, 'b0000007', { knoten: [] });
+    expect(mit.b.vormerken).toHaveBeenNthCalledWith(2, 'b0000007', null);
+    const ohne = host(['herunterladen']);
+    ohne.h.vormerken({ knoten: [] });
+    expect(ohne.b.vormerken).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith('boerdi: Modul-Fähigkeit fehlt', 'antworten', 'b0000007');
   });
 
   it('U1-h: mit Fähigkeit `nachladen` geht `zweig` an den Widget-Host und kommt mit Daten zurück', async () => {

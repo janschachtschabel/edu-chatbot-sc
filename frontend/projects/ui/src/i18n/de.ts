@@ -202,6 +202,7 @@ export const DE: Catalogue = {
   'error.browseCollection': 'Ich konnte die Inhalte von "{title}" leider nicht laden. Versuch es nochmal!',
   'error.contentText': 'Den Inhalt von "{title}" konnte ich leider nicht laden. Versuch es nochmal!',
   'error.learningPath': 'Den Lernpfad für "{title}" konnte ich leider nicht erstellen. Versuch es nochmal!',
+  'error.draftFromCollection': 'Die Gliederung von "{title}" konnte ich leider nicht als Entwurf öffnen. Versuch es nochmal!',
   'error.tourStart': 'Entschuldigung, die Tour konnte gerade nicht gestartet werden. Bitte versuch es nochmal.',
   'error.transcription': 'Spracheingabe konnte nicht verarbeitet werden. Bitte tippe deine Nachricht.',
   /** Paket 19 (N-38): Mikrofon verweigert oder nicht vorhanden — vorher endete

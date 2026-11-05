@@ -13,8 +13,8 @@ const OHNE_ADRESSEN = { withBsid: () => '', externalLinkWarning: () => '' } as c
  * Der Host EINES Blocks (Paket U1-d1, aus U1-b1 verschoben). Der Platzhalter gibt ihn jedem Block
  * über den Injector von `NgComponentOutlet`. Er kennt die Block-Kennung — eine Antwort trägt sie,
  * ohne dass das Modul sie nennt — und lässt nur zu, was das Manifest unter `faehigkeiten` angibt:
- * `herunterladen`, `drucken`, `oeffnen` (Links und Karten-Aktionen), `antworten` und `nachladen`
- * (U1-h). Fehlt eine, passiert nichts außer einer Warnung; `zweig` lehnt dann mit `status: 403` ab
+ * `herunterladen`, `drucken`, `oeffnen` (Links und Karten-Aktionen), `antworten` (samt
+ * `vormerken`, U2) und `nachladen` (U1-h). Fehlt eine, passiert nichts außer einer Warnung; `zweig` lehnt dann mit `status: 403` ab
  * (wie das Backend für „nicht angeboten“ — das Modul bietet keinen neuen Versuch an). Darstellung
  * (`markdown`, `treffer`, `beschaeftigt`) ist immer erlaubt; ohne `oeffnen` baut der Kontext von
  * `treffer` aber keine Adressen.
@@ -81,5 +81,10 @@ export class BlockModulHost implements ModulHost {
 
   antworten(daten: Record<string, unknown>, text: string): void {
     if (this.darf('antworten')) this.basis.antwortSenden(this.blockId, daten, text);
+  }
+
+  /** U2: wie `antworten` an die Fähigkeit gebunden — eine Vormerkung ist eine Antwort auf Abruf. */
+  vormerken(daten: Record<string, unknown> | null): void {
+    if (this.darf('antworten')) this.basis.vormerken(this.blockId, daten);
   }
 }

@@ -23,6 +23,9 @@ export interface HostSeams {
   nachrichtId(): string;
   /** Antwort-Weg der Shell (U1-d1): sendet die Antwort als nächsten Zug mit `ui_antwort`. */
   antworten(): ShellAntworten;
+  /** U2: merkt eine Antwort vor, die mit der nächsten getippten Nachricht mitgeht; `null` ohne
+   *  diesen Weg (dann tut `vormerken` nichts). */
+  vormerken(): ShellVormerken | null;
 }
 
 /** Was die Shell für eine Modul-Antwort braucht (U1-d1). */
@@ -35,7 +38,14 @@ export interface ModulAntwortAuftrag {
 
 export type ShellAntworten = (auftrag: ModulAntwortAuftrag) => void;
 
-const KARTEN_AKTIONEN: ReadonlySet<string> = new Set<KartenAktion>(['volltext', 'sammlung', 'lernpfad']);
+/** U2: Vormerkung einer Antwort für die nächste getippte Nachricht (`daten: null` = zurück). */
+export type ShellVormerken = (auftrag: {
+  readonly nachrichtId: string;
+  readonly blockId: string;
+  readonly daten: Record<string, unknown> | null;
+}) => void;
+
+const KARTEN_AKTIONEN: ReadonlySet<string> = new Set<KartenAktion>(['volltext', 'sammlung', 'lernpfad', 'alsEntwurf']);
 
 export interface ShellTreffer {
   readonly kontext: unknown;
@@ -44,6 +54,8 @@ export interface ShellTreffer {
   volltext(nodeId: string, title: string): void;
   sammlung(nodeId: string, title: string): void;
   lernpfad(nodeId: string, title: string): void;
+  /** U2: eine Sammlung als Strukturentwurf öffnen (Direktaktion `edit_collection_as_draft`). */
+  alsEntwurf(nodeId: string, title: string): void;
   /** U1-h: Unterthemen eines Knotens im Themenbaum laden — ohne Zug, für denselben Baum. */
   zweig(nodeId: string): Promise<Record<string, unknown>>;
   /** Nächste Seite der Sammlung laden — für diese Nachricht. */
@@ -59,7 +71,7 @@ export interface ShellTreffer {
  * Block-Kennung und Fähigkeiten kennt und hierher weiterreicht — darum heißt das Antworten hier
  * `antwortSenden` und nimmt die Kennung mit.
  */
-export class WidgetModulHost implements Omit<ModulHost, 'antworten'> {
+export class WidgetModulHost implements Omit<ModulHost, 'antworten' | 'vormerken'> {
   constructor(private readonly seams: HostSeams) {}
 
   herunterladen(dateiname: string, mime: string, inhalt: string): void {
@@ -98,6 +110,10 @@ export class WidgetModulHost implements Omit<ModulHost, 'antworten'> {
 
   antwortSenden(blockId: string, daten: Record<string, unknown>, text: string): void {
     this.seams.antworten()({ nachrichtId: this.seams.nachrichtId(), blockId, daten, text });
+  }
+
+  vormerken(blockId: string, daten: Record<string, unknown> | null): void {
+    this.seams.vormerken()?.({ nachrichtId: this.seams.nachrichtId(), blockId, daten });
   }
 
   aktion(name: KartenAktion, parameter: { readonly nodeId: string; readonly title: string }): void;

@@ -157,6 +157,19 @@ export function generateLearningPath(
   }, title, ctx);
 }
 
+/** Eine Sammlung als bearbeitbaren Strukturentwurf öffnen (Paket U2, „Als Entwurf bearbeiten“ im
+ *  Themenbaum): neuer Zug ohne KI über die Direktaktion `edit_collection_as_draft`; die Antwort
+ *  trägt einen `ui_strukturentwurf`-Block. */
+export function editCollectionAsDraft(
+  nodeId: string, title: string, ctx: CollectionActionsContext,
+): Promise<void> {
+  return runCardAction({
+    nachricht: `Gliederung "${title}" als Entwurf bearbeiten`, aktion: 'edit_collection_as_draft',
+    parameter: { collection_id: nodeId, title }, fehlerSchluessel: 'error.draftFromCollection',
+    protokoll: 'Entwurf nicht geladen',
+  }, title, ctx);
+}
+
 /** Unterthemen eines Knotens im Themenbaum (Paket U1-h): das Modul hängt sie in denselben Baum.
  *  Kein Zug — keine Blase, kein Laden-Zustand der Shell (geht auch während eines Zugs). Bis U1-h
  *  öffnete die Direktaktion `show_collection_tree` einen neuen Baum als Antwort darunter.
@@ -167,7 +180,15 @@ export async function themenbaumZweig(
   nodeId: string, ctx: CollectionActionsContext, signal?: AbortSignal,
 ): Promise<Record<string, unknown>> {
   const veraltet = sitzungsWache(() => ctx.sessionId());
-  const daten = await ctx.ladeZweig(nodeId, signal);
+  let daten: Record<string, unknown>;
+  try {
+    daten = await ctx.ladeZweig(nodeId, signal);
+  } catch (err) {
+    // U2 (Plan 2026-11-04 T-18): Art und HTTP-Status in die Konsole — ein Proxy vor dem Backend,
+    // der `/api/ui/*` nicht durchreicht, zeigt sich als 404/405/502 (nie der Text, Paket 18E).
+    console.warn('boerdi: Unterthemen nicht geladen —', fehlerKurz(err));
+    throw err;
+  }
   if (veraltet()) throw new Error('boerdi: Sitzung gewechselt — Zweig verworfen');
   return daten;
 }

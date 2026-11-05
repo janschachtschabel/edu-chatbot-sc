@@ -61,4 +61,9 @@ export class VorschauModulHost implements ModulHost {
   antworten(_daten: Record<string, unknown>, text: string): void {
     this.melde('uiModule.vorschau.antworten', { text });
   }
+
+  /** U2: die Vormerkung des Strukturentwurfs ändert sich bei jeder Bearbeitung — keine Ansage. */
+  vormerken(): void {
+    // In der Vorschau gibt es keine nächste Nachricht.
+  }
 }
