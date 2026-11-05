@@ -111,6 +111,7 @@ def test_aus_dem_werkzeug_ergebnis_werden_schlanke_knoten():
     daten = themenbaum.daten_aus(_payload(), titel="Mathe")
 
     assert daten.pop("wurzel_url").endswith("collections?id=aaaa-1111")   # Review U1-e, Befund 2
+    assert daten.pop("entwurf_moeglich") is True       # U2: die Brücke zum Entwurf ist offen
     assert daten == {
         "titel": "Mathe", "wurzel_id": "aaaa-1111", "gekuerzt": True,
         "knoten": [
@@ -237,6 +238,42 @@ async def test_ein_fehler_des_werkzeugs_geht_ohne_fremdtext_an_die_ki(monkeypatc
     block, text, _outcome = await datenquelle.aufruf(THEMENBAUM, {"subject": "X"})
     assert block is None and text.startswith("Fehler")
     assert "Kein Fachportal" not in text
+
+
+class _ErstFehler(_Rufer):
+    """Der erste Aufruf scheitert mit ``art``, der zweite liefert den Baum."""
+
+    def __init__(self, art: str):
+        super().__init__()
+        self.erste_art = art
+
+    async def __call__(self, werkzeug, args):
+        self.calls.append((werkzeug, dict(args)))
+        if len(self.calls) == 1:
+            return "MCP error: Fehler beim Sub-Sammlungs-Abruf: upstream 502", self.erste_art
+        return self.text, ""
+
+
+@pytest.mark.anyio
+async def test_ein_werkzeugfehler_wird_einmal_wiederholt(monkeypatch):
+    """Die Datenquelle liest nur: scheitert edu-sharing hinter dem MCP-Server kurz (kommt als
+    ``tool``-Fehler an), hilft ein zweiter Versuch — der MCP-Client wiederholt nur Fehler ohne
+    Serverantwort."""
+    r = _ErstFehler("tool")
+    monkeypatch.setattr(datenquelle, "_rufen", r)
+    block, _text, outcome = await datenquelle.aufruf(THEMENBAUM, {"subject": "Physik"})
+    assert block is not None and len(r.calls) == 2 and outcome.status == "success"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("art", ["timeout", "auth", "transport"])
+async def test_frist_anmeldung_und_verbindung_werden_nicht_noch_einmal_versucht(monkeypatch, art):
+    """Eine Frist hinge doppelt so lang, ein abgewiesener Zugang bliebe abgewiesen, und
+    Verbindungsfehler wiederholt der MCP-Client schon selbst."""
+    r = _ErstFehler(art)
+    monkeypatch.setattr(datenquelle, "_rufen", r)
+    block, _text, _outcome = await datenquelle.aufruf(THEMENBAUM, {"subject": "Physik"})
+    assert block is None and len(r.calls) == 1
 
 
 @pytest.mark.anyio

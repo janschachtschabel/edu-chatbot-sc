@@ -117,6 +117,19 @@ BOT_TEXT: Final[Catalogue] = {
             'Die Ansicht „Themenbaum“ ist abgeschaltet — die Unterthemen von "{title}" kann ich '
             "hier nicht öffnen."
         ),
+        # Paket U2: „Als Entwurf bearbeiten“ im Themenbaum (Direktaktion edit_collection_as_draft).
+        "action.draft.header": (
+            'Die Gliederung von "{title}" als Entwurf — unten bearbeiten, herunterladen oder '
+            "übernehmen."
+        ),
+        "action.draft.loadFailed": (
+            'Die Gliederung von "{title}" ließ sich gerade nicht als Entwurf laden.'
+        ),
+        "action.draft.ohneTitel": "Gliederung aus WLO",
+        "action.draft.inactive": (
+            'Entwürfe sind hier abgeschaltet — die Gliederung von "{title}" kann ich nicht als '
+            "Entwurf öffnen."
+        ),
         "action.curate.searchPill": "Fehlende Inhalte zu {title} suchen",
         "action.curate.searchPillPlain": "Fehlende Inhalte suchen",
         "action.curate.noCompendium": (
@@ -403,6 +416,7 @@ BOT_TEXT: Final[Catalogue] = {
         # U1-d1: Die KI stellt eine Frage mit Auswahlfeld (``ui_entscheidung``) und schreibt
         # selbst keinen Satz dazu — die Frage steht im Feld darunter.
         "agent.frage": "Bitte wähle unten aus.",
+        "agent.entwurf": "Hier ist ein Entwurf — unten bearbeiten, herunterladen oder übernehmen.",
         # ── Kontext-Bestätigung: was ich in dieser Sammlung sehe ───────────
         # Nutzer-Vorgabe 2026-08-14: die Begrüßung soll ZEIGEN, dass der
         # Kontext angekommen ist, statt es zu behaupten. Drei Fassungen, weil
@@ -480,6 +494,16 @@ BOT_TEXT: Final[Catalogue] = {
         ),
         "action.tree.inactive": (
             'The topic tree view is switched off — I cannot open the subtopics of "{title}" here.'
+        ),
+        "action.draft.header": (
+            'The structure of "{title}" as a draft — edit, download or accept it below.'
+        ),
+        "action.draft.loadFailed": (
+            'Could not load the structure of "{title}" as a draft right now.'
+        ),
+        "action.draft.ohneTitel": "Structure from WLO",
+        "action.draft.inactive": (
+            'Drafts are switched off here — I cannot open the structure of "{title}" as a draft.'
         ),
         "action.curate.searchPill": "Search for content missing from {title}",
         "action.curate.searchPillPlain": "Search for missing content",
@@ -667,6 +691,7 @@ BOT_TEXT: Final[Catalogue] = {
         ),
         "agent.delivered": "Here is the result.",
         "agent.frage": "Please choose below.",
+        "agent.entwurf": "Here is a draft — edit, download or accept it below.",
         "context.stock.both": (
             "I can see {materials} materials and {skills} approved guides for it."
         ),

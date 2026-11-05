@@ -21,7 +21,9 @@ from itertools import accumulate
 #: ``ANTWORT`` und ``FRAGE`` rahmen die Antwort auf ein Auswahlfeld und die übergangene Frage
 #: (``ui_module/antwort``, Review U1-d1).
 _MARKEN = {"FREMDINHALT": "FREMDINHALT", "ZULETZTGEZEIGT": "ZULETZT GEZEIGT",
-           "SEITENKONTEXT": "SEITENKONTEXT", "ANTWORT": "ANTWORT", "FRAGE": "FRAGE"}
+           "SEITENKONTEXT": "SEITENKONTEXT", "ANTWORT": "ANTWORT", "FRAGE": "FRAGE",
+           # Paket U2: der Strukturentwurf der Person (``ui_module/strukturentwurf_antwort``).
+           "ENTWURF": "ENTWURF"}
 
 #: Kyrillische und griechische Doppelgaenger der Buchstaben in diesen Marken —
 #: keine allgemeine Verwechslungstabelle, nur was eine Marke nachbilden kann.

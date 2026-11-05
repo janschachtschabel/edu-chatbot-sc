@@ -127,6 +127,46 @@ def _fehlschlag(name: str, text: str, art: str, latenz_ms: int = 0) -> Ergebnis:
                                             latency_ms=latenz_ms))
 
 
+class Geladen(NamedTuple):
+    """Das rohe Ergebnis des Werkzeugs (Paket U2): ``payload`` (JSON) oder ``None`` mit ``art``
+    (``modul``, ``argumente``, eine Art aus ``call_mcp_tool_status``, ``form``)."""
+
+    payload: Any
+    art: str
+    gesendet: dict[str, Any] | None
+    latenz_ms: int
+
+
+async def laden(name: str, args: Any) -> Geladen:
+    """Das Werkzeug der Datenquelle mit den Argumenten der KI und den Vorgaben rufen und den
+    JSON-Text lesen — ohne Umformung. Gemeinsam mit :func:`aufruf` und der Brücke „Als Entwurf
+    bearbeiten“ (``services/strukturentwurf_aktion``), die mehr Felder braucht als der Baum."""
+    manifest = katalog.katalog().get(name)
+    werkzeug_name = werkzeug(manifest) if manifest else None
+    if manifest is None or werkzeug_name not in _UMFORMER:
+        return Geladen(None, "modul", None, 0)
+    gesendet = _gesendete_argumente(manifest, args)
+    if gesendet is None:
+        return Geladen(None, "argumente", None, 0)
+    t0 = time.monotonic()
+    text, art = await _rufen(werkzeug_name, gesendet)
+    if art == "tool":
+        # Eine Datenquelle liest nur — ein zweiter Versuch ist gefahrlos. Ein kurzer Ausfall
+        # von edu-sharing hinter dem MCP-Server kommt als ``tool``-Fehler an, und den wiederholt
+        # der MCP-Client nicht (dort heißt ``tool`` „der Server hat abgelehnt“). Frist, Anmeldung
+        # und Verbindung bleiben bei einem Versuch: das Warten verdoppelte sich, ein abgewiesener
+        # Zugang bliebe abgewiesen, und Verbindungsfehler wiederholt der Client schon.
+        logger.info("Datenquelle %s für %s: Werkzeugfehler, zweiter Versuch", werkzeug_name, name)
+        text, art = await _rufen(werkzeug_name, gesendet)
+    latenz_ms = int((time.monotonic() - t0) * 1000)
+    if art:
+        return Geladen(None, art, gesendet, latenz_ms)
+    try:
+        return Geladen(json.loads(text), "", gesendet, latenz_ms)
+    except (json.JSONDecodeError, TypeError):
+        return Geladen(None, "form", gesendet, latenz_ms)
+
+
 async def aufruf(name: str, args: Any, *, titel: str | None = None) -> Ergebnis:
     """Ein Modul-Aufruf mit Datenquelle → ``(Block, Quittung, Ergebnis)`` oder
     ``(None, Fehlertext, Ergebnis)``.
@@ -137,30 +177,26 @@ async def aufruf(name: str, args: Any, *, titel: str | None = None) -> Ergebnis:
 
     Der Fehlertext enthält keinen Text des Servers: er ginge sonst ungerahmt an die KI.
     """
-    manifest = katalog.katalog().get(name)
-    werkzeug_name = werkzeug(manifest) if manifest else None
-    if manifest is None or werkzeug_name not in _UMFORMER:
+    geladen = await laden(name, args)
+    if geladen.art == "modul":
         return _fehlschlag(name, f"Fehler: {name} ist kein UI-Modul mit Datenquelle.", "modul")
-    gesendet = _gesendete_argumente(manifest, args)
-    if gesendet is None:
+    manifest = katalog.katalog()[name]
+    if geladen.art == "argumente":
         return _fehlschlag(name, _FEHLER_ARGUMENTE.format(
             name=name, argumente=" oder ".join(manifest["datenquelle"]["argumente"])),
             "argumente")
+    werkzeug_name = werkzeug(manifest) or ""
+    latenz_ms = geladen.latenz_ms
+    if geladen.art in _UNERREICHBAR:
+        logger.info("Datenquelle %s für %s: nicht erreichbar (%s)", werkzeug_name, name,
+                    geladen.art)
+        return _fehlschlag(name, _FEHLER_UNERREICHBAR.format(name=name), geladen.art, latenz_ms)
     formen, text_aus, quittung_aus = _UMFORMER[werkzeug_name]
-    t0 = time.monotonic()
-    text, art = await _rufen(werkzeug_name, gesendet)
-    latenz_ms = int((time.monotonic() - t0) * 1000)
-    if art in _UNERREICHBAR:
-        logger.info("Datenquelle %s für %s: nicht erreichbar (%s)", werkzeug_name, name, art)
-        return _fehlschlag(name, _FEHLER_UNERREICHBAR.format(name=name), art, latenz_ms)
-    try:
-        payload = None if art else json.loads(text)
-    except (json.JSONDecodeError, TypeError):
-        payload = None
+    gesendet = geladen.gesendet or {}
     ueberschrift = titel if titel is not None else str(gesendet.get("subject") or "")
-    daten = formen(payload, ueberschrift) if payload is not None else None
+    daten = formen(geladen.payload, ueberschrift) if geladen.payload is not None else None
     if daten is None or katalog.daten_fehler(manifest, daten):
-        grund = art or ("abweichung" if daten is not None else "form")
+        grund = geladen.art or ("abweichung" if daten is not None else "form")
         logger.info("Datenquelle %s für %s: kein brauchbares Ergebnis (%s)", werkzeug_name, name,
                     grund)
         return _fehlschlag(name, _FEHLER_LADEN.format(name=name), grund, latenz_ms)
@@ -170,4 +206,3 @@ async def aufruf(name: str, args: Any, *, titel: str | None = None) -> Ergebnis:
     return Ergebnis(block, quittung_aus(daten),
                     ToolOutcome(tool=name, status="success" if anzahl else "empty",
                                 item_count=anzahl, latency_ms=latenz_ms))
-

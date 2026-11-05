@@ -112,8 +112,20 @@ def daten_aus(payload: Any, titel: str = "") -> dict[str, Any] | None:
     # Gezählt wird, was der Server schickte: auch ein unbrauchbarer Knoten fehlt im Baum.
     if len(payload["results"]) > HOECHSTENS_OBEN:
         daten["wurzel_mehr"] = True
+    if _entwurf_moeglich():
+        daten["entwurf_moeglich"] = True
     daten["knoten"] = knoten
     return daten
+
+
+def _entwurf_moeglich() -> bool:
+    """Paket U2 (Review, Befund 9): „Als Entwurf bearbeiten“ nur, wenn der Strukturentwurf im
+    Studio aktiv ist — sonst wiese die Direktaktion ab (``services/strukturentwurf_aktion``).
+    Dass das Widget ihn meldet, gilt für jedes Widget, das den Knopf kennt."""
+    from boerdi.ui_module import schalter
+    from boerdi.ui_module.namen import STRUKTURENTWURF
+
+    return schalter.aktiv(STRUKTURENTWURF)
 
 
 def _zeile(knoten: dict[str, Any], einzug: str) -> str:
