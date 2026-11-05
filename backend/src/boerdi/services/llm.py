@@ -60,6 +60,7 @@ from boerdi.services.llm_parallel import (  # noqa: F401
 from boerdi.services.llm_responses import (
     RESPONSES_PRAEFIX,
     denkparameter_verlegen,
+    json_hinweis_sichern,
     nichts_ablegen,
 )
 
@@ -223,6 +224,8 @@ def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
     # Die Form der Folge je Anbieter (Responses-Plan E-A1, E-AC): ``llm_nachrichten``.
     if "messages" in kwargs:
         kwargs["messages"] = nachrichten_fuer(get_provider(), kwargs["messages"])
+    # Fix 2026-11-05: ``json_object`` braucht „json“ in einer Eingabe-Nachricht (Responses-Weg).
+    json_hinweis_sichern(kwargs)
 
 
 async def chat_completion(

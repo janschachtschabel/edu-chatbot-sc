@@ -22,6 +22,7 @@ Zwei Aufgaben, beide aus Messungen an LiteLLM 1.91:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Final
 
 #: So beginnt der Modellname, den ``llm.route`` für den ausdrücklichen Responses-Weg setzt.
@@ -82,6 +83,56 @@ def denkparameter_verlegen(kwargs: dict[str, Any], *, gpt5_familie: bool) -> Non
             extra["verbosity"] = verbosity
     if extra:
         kwargs["extra_body"] = extra
+
+
+#: Angehängt, wenn ``json_object`` verlangt ist und keine Eingabe-Nachricht „json“ nennt.
+JSON_HINWEIS: Final = "Antworte als JSON-Objekt."
+_JSON_ABSTAND_S: Final = 300.0
+_logger = logging.getLogger(__name__)
+
+
+def _text(inhalt: Any) -> str:
+    if isinstance(inhalt, str):
+        return inhalt
+    if isinstance(inhalt, list):
+        return " ".join(str(t.get("text") or "") for t in inhalt if isinstance(t, dict))
+    return ""
+
+
+def json_hinweis_sichern(kwargs: dict[str, Any]) -> None:
+    """Fix 2026-11-05 (Absicherung): ``response_format: json_object`` verlangt auf dem
+    Responses-Weg das Wort „json“ in den Eingabe-Nachrichten; ein Hinweis nur im Systemteil reicht
+    nicht (die rechtliche Prüfung scheiterte so still). Fehlt es, hängt diese Funktion
+    :data:`JSON_HINWEIS` an eine Kopie der LETZTEN Nutzernachricht (in einer neuen Liste unter
+    ``kwargs["messages"]``) — der Anfang der Kette (Cache-Präfix)
+    bleibt — und schreibt eine gedrosselte Warnung. Wirft nie."""
+    try:
+        formt = kwargs.get("response_format")
+        nachrichten = kwargs.get("messages")
+        if not (isinstance(formt, dict) and formt.get("type") == "json_object"
+                and isinstance(nachrichten, list)):
+            return
+        eingaben = [m for m in nachrichten if isinstance(m, dict) and m.get("role") != "system"]
+        if any("json" in _text(m.get("content")).lower() for m in eingaben):
+            return
+        letzte = next((m for m in reversed(eingaben) if m.get("role") == "user"), None)
+        if letzte is None:
+            return
+        inhalt = letzte.get("content")
+        if isinstance(inhalt, list):
+            ergaenzt: Any = [*inhalt, {"type": "text", "text": JSON_HINWEIS}]
+        else:
+            ergaenzt = f"{inhalt or ''}\n\n{JSON_HINWEIS}"
+        # Neue Liste, neues Dict: die Nachrichten des Aufrufers bleiben unverändert (er kann sie
+        # für einen zweiten Versuch oder den eigenen Verlauf weiterverwenden).
+        kwargs["messages"] = [{**m, "content": ergaenzt} if m is letzte else m
+                              for m in nachrichten]
+        from boerdi.obs.drossel import gedrosselt
+
+        gedrosselt(_logger, logging.WARNING, "json_hinweis", _JSON_ABSTAND_S,
+                   "json_object ohne „json“ in den Eingabe-Nachrichten — Hinweis angehängt")
+    except Exception:  # noqa: BLE001 — eine Absicherung darf den Aufruf nie verhindern
+        _logger.debug("json_hinweis_sichern übersprungen", exc_info=True)
 
 
 def nichts_ablegen(kwargs: dict[str, Any], *, gpt5_familie: bool) -> None:
