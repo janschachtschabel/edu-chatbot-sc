@@ -27,6 +27,11 @@ export interface UiModulManifest {
     readonly argumente: readonly string[];
     readonly vorgaben?: Readonly<Record<string, unknown>>;
   } | null;
+  /** Paket U2: Daten erzeugt ein Dienst des Backends; die KI nennt nur den Auftrag (`parameter`). */
+  readonly dienst?: {
+    readonly name: string;
+    readonly parameter: Record<string, unknown>;
+  } | null;
   readonly faehigkeiten?: readonly ModulFaehigkeit[];
   readonly textfassung: { readonly vorlage: string; readonly feld?: string };
   /** `platz`: `oben` (Vorgabe) vor den Trefferboxen, `unten` danach. */
