@@ -82,9 +82,11 @@ Daneben der gemeinsame Vertrag `src/_vertrag/` (nur mit Plan ändern):
 | `antwort` | JSON Schema der Antwort (nur `abfragen`) |
 | `datenquelle` | `{werkzeug, argumente[], vorgaben?}` oder `null`: die KI nennt nur `argumente`, `vorgaben` setzt das Backend fest und überschreibt Werte der KI |
 | `dienst` (U2) | `{name, parameter}` oder `null`: das Backend **erzeugt** die Daten (`ui_module/dienst.py`); die KI sieht nur `parameter` (den Auftrag). Schließt `datenquelle` aus |
-| `faehigkeiten` | `antworten`, `drucken`, `herunterladen`, `nachladen`, `oeffnen` — nur diese schaltet der Host frei |
+| `faehigkeiten` | `antworten`, `auftrag` (K1b), `drucken`, `herunterladen`, `hochladen` (U3-2c), `nachladen`, `oeffnen` — nur diese schaltet der Host frei |
+| `vorgang` (V2) | `schreibt: [Teil…]` — was eine geprüfte Antwort im Vorgang hinterlässt; `liest: [Teil…]` — was der Dienst des Moduls serverseitig liest. Teile reisen nie durch das Modell; Werkzeuge bekommen sie per `{"$teil": "<name>"}` (Plan `docs/plans/2026-11-05-vorgang-und-ablaeufe.md`) |
 | `textfassung` | `{vorlage, feld?}`: Rückfall, wo das Widget das Modul nicht kennt (`markdown`, `nummerierte_liste`, `link_liste`, `zusammenfassung`) |
 | `darstellung` | `platz`: `oben` (Vorgabe, vor den Trefferboxen) oder `unten` (danach); `breit` siehe §7 |
+| `laden` (U3-0) | `sofort` (Vorgabe: Angular-Komponente im Haupt-Bündel) oder `bei_bedarf`: rahmenloses Custom Element in einem eigenen Bündel, das das Widget erst beim ersten Block lädt (§2.5) |
 | `beispiele` | 1–10 `{titel, daten, antwort?}` für Spec, Studio-Vorschau und Backend-Prüfung |
 | `x-nur-system` (an einem Feld) | Werte, die nur das System setzt; gehen nicht an die KI (z. B. `ui_inhaltsrahmen.art`: `volltext`, `schreib_vorschau`) |
 
@@ -113,6 +115,9 @@ export class UiBeispiel {
 | `antworten(daten, text)` | `antworten` | nächster Zug mit `ui_antwort` |
 | `vormerken(daten \| null)` (U2) | `antworten` | die nächste **getippte** Nachricht nimmt `daten` als `ui_antwort` mit, solange der Block offen ist (Block wird `beantwortet` statt `veraltet`) |
 | `zweig(nodeId)` | `nachladen` | Daten ohne Zug nachladen (heute nur Themenbaum); ohne Fähigkeit Ablehnung mit `status: 403` |
+| `hochladen(datei, onFortschritt?)` | `hochladen` | Ein Dokument ohne Zug lesen lassen (U3-2c, `POST /api/ui/dokumente`); löst mit dem Befund auf, lehnt mit `status` und `code` ab |
+| `ablegen(schritt)` | `hochladen` | Ein Schritt der Ablage im persönlichen Bereich (U3-3b, `POST /api/ui/ablage/*`), ohne Zug |
+| `auftrag(schritt)` | `auftrag` | K1b: `stand` fragt den Stand eines Ablauf-Auftrags ohne Zug (`POST /api/ui/auftrag/stand`, `{stand}`; 409 = kein wartender Auftrag); `abholen` lässt die Shell das Ergebnis im Zug holen (Direktaktion `ablauf_auftrag_pruefen`, ohne Nutzerblase) → `{gesendet}` |
 | `markdown(text)`, `treffer()`, `beschaeftigt()` | immer | Darstellung; ohne `oeffnen` baut der Kontext von `treffer()` keine Adressen (`withBsid`/`externalLinkWarning` leer) |
 
 Fehlt eine Fähigkeit, passiert nichts außer einer Warnung in der Konsole
@@ -138,6 +143,47 @@ bleiben sie stehen.
 - Barrierefrei nach WCAG 2.2 AA, bedienbar ab 320 px, Texte de und en.
 
 ---
+
+### 2.5 Nachgeladene Module (`laden: "bei_bedarf"`, Paket U3-0)
+
+Das Widget ist eine Datei mit festem Budget (`check-widget-budget.mjs`, Warnung ab 190 kB gzip).
+Selten gebrauchte oder große Module kommen deshalb **nicht** ins Haupt-Bündel, sondern in ein eigenes:
+
+- **Quelltext:** `ui-<name>/ui-<name>.element.ts` statt der Komponente — ein rahmenloses Custom Element
+  `boerdi-ui-<name>` (kein `@angular`-Import; das Bündel-Skript weist ihn ab). **Pflicht:** nur
+  definieren, wenn der Name frei ist (`if (!customElements.get(name)) customElements.define(…)`) — ein
+  Bündel kann zweimal laufen (zwei Widgets mit verschiedener API-Basis, Skript nach Fristablauf). CSS-Dateien werden als
+  Text importiert und in den Shadow Root gesetzt. Styles nur über die M3-Tokens (`--mat-sys-*`, erben in
+  den Shadow Root).
+- **Vertrag** (`ui-module/_nachladen/element-vertrag.ts`): Der Platzhalter setzt am Element die
+  Eigenschaften `daten`, `kontext`, `host` und `beschaeftigt` — bei jeder Änderung neu, am **selben**
+  Element (eigener Zustand bleibt). `host` ist eine eingefrorene Brücke mit den Methoden des Block-Hosts
+  **ohne** `markdown` und `treffer` (beide hängen an Angular); die Fähigkeiten aus dem Manifest gelten wie
+  bei Komponenten. Das Element zeichnet sich bei jeder Zuweisung neu.
+- **Register:** `npm run module:register` trägt den gemeinsamen Platzhalter
+  (`_nachladen/nachlade-platzhalter.component.ts`) und den Element-Namen ein; nichts vom Modul landet im
+  Haupt-Bündel.
+- **Build:** `npm run build:widget` ruft zuerst `scripts/build-nachlade-module.mjs`: esbuild (`iife`,
+  klassisches Skript wie das Widget) → `dist/widget-module/ui-<name>.<sha256-8>.js` und der Index
+  `ui/ui-bloecke/nachlade-index.build.ts` (Datei + SRI `sha384`, **nicht eingecheckt**), den der Build per
+  `fileReplacements` statt des leeren `nachlade-index.ts` einbindet. Budget: je Modul ≤ 20 kB gzip (seit U3-3b, vorher 15),
+  zusammen ≤ 60 kB (`scripts/check-module-budget.mjs`, auch in CI).
+- **Laden:** `ui/ui-bloecke/nachladen.ts` hängt beim ersten Block ein `<script>` mit `integrity` und
+  `crossorigin="anonymous"` an; Adresse = API-Basis ohne `/api` + `/widget/module/<datei>`, jede Adresse
+  **je Seite** einmal (auch bei zwei Widgets), Frist 10 s, nach einem Fehler darf ein späterer Block neu
+  versuchen. Verlangt die Gastseite Trusted Types, geht die Adresse durch die Richtlinie
+  `boerdi-ui-module` (eine je Seite), die nur gehashte Bündel unter `/widget/module/` zulässt. Scheitert etwas (Netz, SRI, CSP, kein Index-Eintrag), zeigt der Platzhalter
+  die **Textfassung** des Blocks — wie bei einem unbekannten Modul.
+- **Auslieferung:** `GET /widget/module/{datei}` (Backend `api/widget.py`): nur gehashte Namen aus
+  dem Modul-Ordner, unveränderlich gecacht, CORS `*` (sonst prüft der Browser das SRI nicht),
+  `nosniff`. Im Image ist das `widget_dist/module/` (das Dockerfile kopiert `dist/widget-module`
+  dorthin); lokal zeigt `WIDGET_MODULE_DIR` direkt auf `frontend/dist/widget-module` — ein Ordner
+  unter `dist/widget/browser` bräche die Einzeldatei-Schranke des Widget-Budgets. Die E2E-Harness muss
+  die Bündel von dort mit CORS ausliefern (kommt mit dem ersten Modul, U3-1).
+- **Einbettung mit strenger CSP:** `script-src` muss den Ursprung des Widgets erlauben (wie für das
+  Widget selbst); Seiten, die nur Nonces oder Hashes zulassen, sehen die Textfassung.
+- **Dev-Build, Tests, Studio:** der Index ist leer → Textfassung, solange niemand einen eigenen Lader
+  setzt (Eingabe `nachladen` von `<boerdi-ui-bloecke>`).
 
 ## 3. Wie ein Block entsteht und ankommt
 
@@ -308,7 +354,9 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 | [`ui_trefferliste`](../frontend/projects/ui-module/src/ui-trefferliste/README.md) | anzeigen | abgeleitet aus `cards`, `query_metas`, `pagination` | — | oeffnen | unten | U1-c2 |
 | [`ui_entscheidung`](../frontend/projects/ui-module/src/ui-entscheidung/README.md) | abfragen | Modul-Werkzeug (`agent: true`) | — | antworten | oben | U1-d |
 | [`ui_themenbaum`](../frontend/projects/ui-module/src/ui-themenbaum/README.md) | anzeigen | Modul-Werkzeug; Direktaktion `show_collection_tree` | `browse_collection_tree` (`depth: 2`, `maxResults: 31`) | oeffnen, nachladen | oben | U1-e, U1-h |
-| [`ui_strukturentwurf`](../frontend/projects/ui-module/src/ui-strukturentwurf/README.md) | abfragen | Modul-Werkzeug mit **Dienst** `strukturentwurf`; Direktaktion `edit_collection_as_draft` (Brücke aus dem Themenbaum) | — | antworten, herunterladen | oben | U2 |
+| [`ui_strukturentwurf`](../frontend/projects/ui-module/src/ui-strukturentwurf/README.md) | abfragen | Modul-Werkzeug mit **Dienst** `strukturentwurf`; Direktaktion `edit_collection_as_draft` (Brücke aus dem Themenbaum); „Als Themenbaum-Entwurf übernehmen“ in `ui_upload` (`quelle: ordner`) | — | antworten, herunterladen | oben | U2 |
+| [`ui_upload`](../frontend/projects/ui-module/src/ui-upload/README.md) | abfragen, **nachgeladen** (`laden: bei_bedarf`) | Modul-Werkzeug mit **Dienst** `upload_angebot` | — | antworten, hochladen, oeffnen | oben | U3-1, U3-2, U3-3 |
+| [`ui_fortschritt`](../frontend/projects/ui-module/src/ui-fortschritt/README.md) | anzeigen, **nachgeladen** | nur der Ablauf-Treiber, wenn ein `auftrag`-Schritt startet (`agent: false`) | — | auftrag | oben | K1b |
 
 **Zwei Anwendungsfälle, zwei Module (U2):** `ui_themenbaum` zeigt **nur Bestand** („Aus WLO“) —
 die Knoten laufen nie durchs Modell. `ui_strukturentwurf` ist eine **neue** Gliederung („Entwurf
@@ -316,6 +364,27 @@ die Knoten laufen nie durchs Modell. `ui_strukturentwurf` ist eine **neue** Glie
 an die KI. Erkennung: Werkzeugbeschreibungen schließen sich aus, der Master-Skill regelt den
 mehrdeutigen Fall („Themenbaum für <Fachportal>“ → Bestand + Schnellantwort „Neue Gliederung dazu
 entwerfen“; „entwirf / gliedere / neue Struktur / Unterrichtsreihe“ → Entwurf).
+
+**Ordner erfassen (U3-1):** `ui_upload` liest einen Ordner im Browser (Knopf oder Ablegen) und zeigt
+ihn als Baum mit Dateizahlen; die Person setzt Rollen (Inhalt, Strukturdokument, ignorieren). Zurück
+gehen nur Ordnernamen und Zahlen, nie Dateinamen; hochgeladen wird nichts. „Als Themenbaum-Entwurf
+übernehmen“ formt die Ordner im Backend ohne LLM zu einem Strukturentwurf
+(`ui_module/strukturentwurf_ordner.py`, `services/ordner_aktion.py`, Haken in `graph/nodes/preflight`
+hinter derselben Sicherheitsprüfung wie Direktaktionen). Die Antwortformen abfragender Module stehen
+seit U3-1 in einem Verzeichnis (`ui_module/antwort_formen.py`).
+
+**Strukturdokument lesen (U3-2):** Ist in `ui_upload` ein Strukturdokument markiert und erlaubt es
+das System (Studio „UI-Module → Hochladen“, Bereich `01-base/upload-config`; ohne WLO-Anmeldung nur
+mit `dokument_ohne_anmeldung`), lädt das Modul genau diese Datei über die Host-Fähigkeit `hochladen`
+an `POST /api/ui/dokumente`. Das Backend wandelt sie um (Kindprozess, Frist), gliedert sie, lässt
+Übersicht und Anfang moderieren und legt Markdown + Gliederung an der Sitzung ab
+(`dokument_uploads`, Frist nach letzter Nutzung, Aufbewahrungslauf); die Rohdatei bleibt nicht
+liegen. Das Modul antwortet mit dem Befund und einem **Ziel** (heute `themenbaum`); der Rahmen
+`[DOKUMENT DER PERSON …]` sagt der KI, `ui_strukturentwurf` mit `aus_dokument: true` zu rufen. Der
+Dienst liest das Dokument serverseitig über einen Lader in der Umgebung (`services/dokumente/stand`):
+Ebene 1 sieht Gliederung (≤ 8000) und Anfang (≤ 1500), Ebene 2 den Text der zugeordneten Abschnitte
+(≤ 6000) — jeder solche Auszug geht vorher einmal durch die Moderation (beanstandet oder ohne Urteil
+bei `MODERATION_FAILURE_MODE=closed` → kein Auszug; `services/strukturentwurf_auszug`); jeder Punkt trägt `abschnitte` und `fundstelle`, der Entwurf `quelle: dokument`.
 
 `ui_inhaltsrahmen` ist im Studio fest (nicht abschaltbar); seine Anzeige steuert
 `display_rules.inline_documents.enabled`.

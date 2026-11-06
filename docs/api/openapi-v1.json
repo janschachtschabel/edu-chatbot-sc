@@ -1,6 +1,32 @@
 {
   "components": {
     "schemas": {
+      "Abschluss": {
+        "properties": {
+          "batch_token": {
+            "pattern": "^[A-Za-z0-9_.\\-]{10,200}$",
+            "title": "Batch Token",
+            "type": "string"
+          },
+          "block_id": {
+            "pattern": "^[a-z0-9]{8,32}$",
+            "title": "Block Id",
+            "type": "string"
+          },
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "block_id",
+          "batch_token"
+        ],
+        "title": "Abschluss",
+        "type": "object"
+      },
       "AgentRequest": {
         "description": "Der Auftrag eines Gastgebers.",
         "properties": {
@@ -140,6 +166,71 @@
           "data"
         ],
         "title": "AreaData",
+        "type": "object"
+      },
+      "Body_datei_api_ui_ablage_datei_post": {
+        "properties": {
+          "batch_token": {
+            "pattern": "^[A-Za-z0-9_.\\-]{10,200}$",
+            "title": "Batch Token",
+            "type": "string"
+          },
+          "block_id": {
+            "pattern": "^[a-z0-9]{8,32}$",
+            "title": "Block Id",
+            "type": "string"
+          },
+          "datei": {
+            "contentMediaType": "application/octet-stream",
+            "title": "Datei",
+            "type": "string"
+          },
+          "index": {
+            "maximum": 199.0,
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "block_id",
+          "batch_token",
+          "index",
+          "datei"
+        ],
+        "title": "Body_datei_api_ui_ablage_datei_post",
+        "type": "object"
+      },
+      "Body_dokument_hochladen_api_ui_dokumente_post": {
+        "properties": {
+          "block_id": {
+            "pattern": "^[a-z0-9]{8,32}$",
+            "title": "Block Id",
+            "type": "string"
+          },
+          "datei": {
+            "contentMediaType": "application/octet-stream",
+            "title": "Datei",
+            "type": "string"
+          },
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "block_id",
+          "datei"
+        ],
+        "title": "Body_dokument_hochladen_api_ui_dokumente_post",
         "type": "object"
       },
       "Body_ingest_file_api_rag_ingest_file_post": {
@@ -993,6 +1084,97 @@
           "label"
         ],
         "title": "DocumentCreate",
+        "type": "object"
+      },
+      "DokumentAntwort": {
+        "description": "Was das Modul anzeigt und in seiner Antwort mitschickt — kein Text des Dokuments.",
+        "properties": {
+          "befund": {
+            "additionalProperties": true,
+            "title": "Befund",
+            "type": "object"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ueberschriften_vorschau": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ueberschriften Vorschau",
+            "type": "array"
+          },
+          "upload_id": {
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "name",
+          "format",
+          "befund",
+          "ueberschriften_vorschau"
+        ],
+        "title": "DokumentAntwort",
+        "type": "object"
+      },
+      "DokumentLoeschen": {
+        "properties": {
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "upload_id": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "upload_id"
+        ],
+        "title": "DokumentLoeschen",
+        "type": "object"
+      },
+      "Eintrag": {
+        "properties": {
+          "art": {
+            "pattern": "^(pdf|docx|pptx|xlsx|odt|ods|odp|png|jpg|gif|webp|mp3|mp4|txt|md)$",
+            "title": "Art",
+            "type": "string"
+          },
+          "groesse": {
+            "exclusiveMinimum": 0.0,
+            "title": "Groesse",
+            "type": "integer"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "titel": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Titel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "titel",
+          "sha256",
+          "groesse",
+          "art"
+        ],
+        "title": "Eintrag",
         "type": "object"
       },
       "EntitiesPayload": {
@@ -1915,6 +2097,32 @@
         "title": "SnapshotCreate",
         "type": "object"
       },
+      "StandAnfrage": {
+        "properties": {
+          "ablauf": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Ablauf",
+            "type": "string"
+          },
+          "kuerzel": {
+            "pattern": "^[0-9a-f]{12}$",
+            "title": "Kuerzel",
+            "type": "string"
+          },
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "ablauf",
+          "kuerzel"
+        ],
+        "title": "StandAnfrage",
+        "type": "object"
+      },
       "StartRequest": {
         "properties": {
           "config_slug": {
@@ -2457,6 +2665,43 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "Vorbereiten": {
+        "properties": {
+          "block_id": {
+            "pattern": "^[a-z0-9]{8,32}$",
+            "title": "Block Id",
+            "type": "string"
+          },
+          "eintraege": {
+            "items": {
+              "$ref": "#/components/schemas/Eintrag"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Eintraege",
+            "type": "array"
+          },
+          "ordner": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Ordner",
+            "type": "string"
+          },
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "block_id",
+          "ordner",
+          "eintraege"
+        ],
+        "title": "Vorbereiten",
         "type": "object"
       },
       "WebLink": {
@@ -8841,6 +9086,257 @@
         ]
       }
     },
+    "/api/ui/ablage/abschluss": {
+      "post": {
+        "operationId": "abschluss_api_ui_ablage_abschluss_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Abschluss"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Abschluss Api Ui Ablage Abschluss Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Abschluss",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
+    "/api/ui/ablage/datei": {
+      "post": {
+        "operationId": "datei_api_ui_ablage_datei_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_datei_api_ui_ablage_datei_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Datei Api Ui Ablage Datei Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Datei",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
+    "/api/ui/ablage/vorbereiten": {
+      "post": {
+        "operationId": "vorbereiten_api_ui_ablage_vorbereiten_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Vorbereiten"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Vorbereiten Api Ui Ablage Vorbereiten Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Vorbereiten",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
+    "/api/ui/auftrag/stand": {
+      "post": {
+        "operationId": "stand_api_ui_auftrag_stand_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StandAnfrage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Stand Api Ui Auftrag Stand Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stand",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
+    "/api/ui/dokumente": {
+      "post": {
+        "description": "Liest das Dokument, legt Markdown und Gliederung an der Sitzung ab, gibt den Befund.\n\n``response`` braucht der Decorator der Drosselung für seine Kopfzeilen (wie beim Zweig).",
+        "operationId": "dokument_hochladen_api_ui_dokumente_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_dokument_hochladen_api_ui_dokumente_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DokumentAntwort"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dokument Hochladen",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
+    "/api/ui/dokumente/loeschen": {
+      "post": {
+        "description": "Löscht das Dokument — 204 auch für fremde oder unbekannte Kennungen (verrät nichts).",
+        "operationId": "dokument_loeschen_api_ui_dokumente_loeschen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DokumentLoeschen"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dokument Loeschen",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
     "/api/ui/themenbaum/zweig": {
       "post": {
         "description": "Lädt die Unterthemen eines Knotens für den Themenbaum im Widget.\n\n``response`` braucht der Decorator der Drosselung für seine Kopfzeilen (wie beim Verlauf).",
@@ -9409,6 +9905,47 @@
           }
         },
         "summary": "Widget Demo Inline",
+        "tags": [
+          "widget"
+        ]
+      }
+    },
+    "/widget/module/{datei}": {
+      "get": {
+        "description": "Ein nachgeladenes UI-Modul (Paket U3-0) — nur aus ``module/``, nur gehashte Namen.\n\nUnveränderlich gecacht: der Name trägt den Inhalts-Hash, ein neuer Build erzeugt einen neuen\nNamen, und das Widget kennt ihn samt SRI aus seinem eigenen Bündel. CORS ``*`` ist hier Pflicht,\nnicht Bequemlichkeit: ein Skript mit ``integrity`` von fremder Herkunft prüft der Browser nur\nmit CORS. Unbekannte oder ungehashte Namen bekommen 404 wie eine fehlende Datei.",
+        "operationId": "widget_modul_widget_module__datei__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "datei",
+            "required": true,
+            "schema": {
+              "title": "Datei",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Widget Modul",
         "tags": [
           "widget"
         ]
