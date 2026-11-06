@@ -425,3 +425,35 @@ def test_der_text_schritt_nutzt_den_teilindex(db, monkeypatch):
     plan = _lauf(db, szenario)
     assert "ix_quality_logs_text_offen" in plan, plan
 
+
+
+def test_der_lauf_loescht_abgelaufene_dokumente_ausserhalb_des_berichts(db, monkeypatch):
+    """Paket U3-2a: hochgeladene Dokumente verfallen 24 h nach letzter Nutzung. Sie sind kein
+    Protokoll — der Bericht (Studio „Aufbewahrung“) bleibt, wie er ist."""
+    from sqlalchemy import text
+
+    from boerdi.services import aufbewahrung
+
+    _fristen(monkeypatch)
+
+    async def szenario(engine, factory):
+        from datetime import timedelta
+
+        async with factory() as s:
+            for kennung, versatz in (("alt", timedelta(hours=-1)), ("frisch", timedelta(hours=1))):
+                await s.execute(text("INSERT INTO sessions (session_id) VALUES (:s)"),
+                                {"s": f"sitzung-dok-{kennung}"})
+                await s.execute(text(
+                    "INSERT INTO dokument_uploads (id, session_id, block_id, name, format, groesse,"
+                    " befund, gliederung, markdown, verfaellt_am) VALUES (:k, :s, 'b0000001', 'x',"
+                    " 'pdf', 1, '{}', '[]', '#', now() + :v)"),
+                    {"k": kennung, "s": f"sitzung-dok-{kennung}", "v": versatz})
+            await s.commit()
+        geloescht = await aufbewahrung.lauf(engine, factory)
+        async with factory() as s:
+            rest = (await s.execute(text("SELECT id FROM dokument_uploads"))).scalars().all()
+        return geloescht, rest
+
+    geloescht, rest = _lauf(db, szenario)
+    assert "dokument_uploads" not in geloescht
+    assert rest == ["frisch"]

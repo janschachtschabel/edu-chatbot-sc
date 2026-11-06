@@ -36,6 +36,11 @@ async def verbindung_freigeben(session: object) -> None:
     """
     if not isinstance(session, AsyncSession):
         return
+    if session.in_nested_transaction():
+        # Review Q3 (Nachprüfung), Befund 1: ein ``commit()`` schlösse hier die äußere
+        # Transaktion — die Zeilensperre des Savepoints wäre weg, und dessen nächste Abfrage
+        # endete in ``InvalidRequestError``. Wer einen Savepoint öffnet, schreibt selbst fest.
+        return
     offen = (len(session.new), len(session.dirty), len(session.deleted))
     if not session.in_transaction() and not any(offen):
         return

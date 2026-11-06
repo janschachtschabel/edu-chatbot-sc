@@ -44,6 +44,11 @@ export const FIELDS_DATENSCHUTZ: CataloguePart = {
       'Ältere Chatnachrichten und Gedächtnis-Einträge löscht das Backend alle sechs Stunden '
       + 'endgültig; 0 = unbegrenzt aufbewahren. Die Sitzungen und ihre Verbrauchszahlen '
       + 'bleiben. Was gerade fällig ist, zeigt „Aufbewahrung“ auf dieser Seite.',
+    'feld.PrivacyLoggingBlock.vorgang_tage.label': 'Aufbewahrung eines Arbeitsstands (Tage)',
+    'feld.PrivacyLoggingBlock.vorgang_tage.hint':
+      'So lange nach der letzten Nutzung bleibt ein Vorgang (erfasste Ordner, gelesenes Dokument, '
+      + 'Entwurf, Stand eines Ablaufs) gespeichert, 1 bis 30. Danach löscht ihn der '
+      + 'Aufbewahrungslauf; je Person höchstens drei.',
     'feld.QualityLogConfigArea.logging.label': 'Protokollierung',
     'feld.QualityLogConfigArea.logging.hint':
       'Ob je Chat-Zug ein Auswertungseintrag gespeichert wird; daraus speist sich die '
@@ -101,6 +106,10 @@ export const FIELDS_DATENSCHUTZ: CataloguePart = {
       'The backend deletes older chat messages and memory entries for good every six hours; '
       + '0 = keep without limit. Sessions and their usage figures stay. What is due right now is '
       + 'shown under “Retention” on this page.',
+    'feld.PrivacyLoggingBlock.vorgang_tage.label': 'Retention of a work item (days)',
+    'feld.PrivacyLoggingBlock.vorgang_tage.hint':
+      'How long after its last use a work item (captured folders, read document, draft, state of '
+      + 'a workflow) is kept, 1 to 30. Then the retention run deletes it; at most three per person.',
     'feld.QualityLogConfigArea.logging.label': 'Logging',
     'feld.QualityLogConfigArea.logging.hint':
       'Whether an analysis entry is stored per chat turn; the analysis draws on it.',

@@ -15,3 +15,6 @@ logging:
   # services/aufbewahrung.py); 0 = unbegrenzt. Sitzungen und ihre
   # Verbrauchszahlen bleiben.
   retention_days: 30
+  # Paket A2a: Frist eines Vorgangs (Arbeitsstand: Ordner, Dokument, Entwurf, Ablauf) nach
+  # seiner letzten Nutzung, 1 bis 30 Tage (services/arbeitsstand.tage).
+  vorgang_tage: 3

@@ -106,6 +106,8 @@ def _keine_wahrheitswerte(wert: Any) -> Any:
 #: (``services/aufbewahrung``). Die Grenze VOR dem Validator: dahinter schriebe
 #: pydantic ``"ge"`` statt ``"minimum"`` ins Schema, das Studio kennte sie nicht.
 _Tage = Annotated[int, Field(ge=0), BeforeValidator(_keine_wahrheitswerte)]
+#: Frist eines Vorgangs: nie unbegrenzt, höchstens 30 Tage (Plan 2026-11-05, V-4).
+_VorgangTage = Annotated[int, Field(ge=1, le=30), BeforeValidator(_keine_wahrheitswerte)]
 
 
 class SafetyLoggingBlock(AreaModel):
@@ -188,6 +190,9 @@ class PrivacyLoggingBlock(AreaModel):
     # Paket 8 (Nutzer 2026-10-09): Frist der Gesprächsverläufe — Nachrichten und
     # Sitzungsgedächtnis; Sitzungen und ihre Verbrauchszahlen bleiben.
     retention_days: _Tage = 30
+    # Paket A2a: Frist eines Vorgangs (Arbeitsstand) nach seiner letzten Nutzung — 1 bis 30 Tage,
+    # Vorgabe 3 (Nutzerentscheid E-16); gelesen von ``services/arbeitsstand.tage``.
+    vorgang_tage: _VorgangTage = 3
 
 
 class PrivacyConfigArea(AreaModel):
