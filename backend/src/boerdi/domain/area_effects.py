@@ -88,6 +88,9 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     # Krisentext liest nur das Gate von `/api/agent`, Krisen-Felder wirken im Agent-Modus
     # nur auf Krisen-Zügen (Rundgang 3, Plan B1 — die Felder stehen unten).
     "01-base/safety-config": _e("teilweise", "teilweise"),
+    # Paket U3-2a: liest ``upload_angebot`` (Block von ui_upload) und ``/api/ui/dokumente`` —
+    # unabhängig von der Maschine.
+    "01-base/upload-config": _e("voll", "voll"),
     "01-base/website-tour": _e("voll", "voll"),
     "01-base/welcome-config": _e("voll", "voll"),
     # Der einzige Leser steckt in einem Zweig, der nie läuft (ST-9).
@@ -111,6 +114,8 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     # Muster: `mode` und `description`; Agent: der Schalter `agent` und `description`.
     "05-knowledge/rag-config": _e("teilweise", "teilweise"),
     "eval/gold-flows": _e("voll", "voll"),
+    # Paket A1: der lokale Treiber läuft im Preflight, vor der Maschinenwahl.
+    "06-ablaeufe/katalog": _e("voll", "voll"),
 }
 
 

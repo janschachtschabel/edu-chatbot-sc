@@ -7,6 +7,7 @@ resolves a file key to its model (prefix rule for the two grouped areas).
 
 from pydantic import BaseModel
 
+from boerdi.domain.config_models.ablauf import AblaufKatalogArea
 from boerdi.domain.config_models.base_governance import (
     CardPipelineArea,
     ClassifyOverridesArea,
@@ -50,6 +51,7 @@ from boerdi.domain.config_models.knowledge import (
 from boerdi.domain.config_models.md import LayerDocArea
 from boerdi.domain.config_models.patterns import PatternArea
 from boerdi.domain.config_models.pricing import PricingArea
+from boerdi.domain.config_models.upload import UploadConfigArea
 
 AREA_MODELS: dict[str, type[BaseModel]] = {
     # 01-base (19)
@@ -76,6 +78,8 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
     "01-base/rag-retrieval": RagRetrievalArea,
     "01-base/safety-config": SafetyConfigArea,
     "01-base/tone-modifiers": ToneModifiersArea,
+    # Kein ALT-Gegenstück: ALT kannte kein Hochladen in den Chat (Paket U3-2a).
+    "01-base/upload-config": UploadConfigArea,
     "01-base/website-tour": WebsiteTourArea,
     "01-base/welcome-config": WelcomeArea,
     "01-base/widget-modes": WidgetModesArea,
@@ -98,6 +102,8 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
     # 05-knowledge (2) + eval (1)
     "05-knowledge/mcp-servers": McpServersArea,
     "05-knowledge/rag-config": RagConfigArea,
+    # Kein ALT-Gegenstück: ALT kannte nur die Webseiten-Tour als Ablauf (Paket A1).
+    "06-ablaeufe/katalog": AblaufKatalogArea,
     "eval/gold-flows": GoldFlowsArea,
 }
 
