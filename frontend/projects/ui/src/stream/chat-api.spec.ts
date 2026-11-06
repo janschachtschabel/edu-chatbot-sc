@@ -269,6 +269,13 @@ describe('ChatApiClient', () => {
     expect(calls[1].url).toBe('https://api.example/api/chat');
   });
 
+  it('apiBasis nennt die Basis, aus der auch die Modul-Bündel kommen (U3-0)', () => {
+    const client = new ChatApiClient({ fetchImpl: vi.fn() as unknown as typeof fetch });
+    expect(client.apiBasis()).toBe('/api');
+    client.setBaseUrl('https://api.example/');
+    expect(client.apiBasis()).toBe('https://api.example/api');
+  });
+
   it('Konstruktor übernimmt window.BOERDI_API_URL als Basis', async () => {
     (window as any).BOERDI_API_URL = 'https://runtime.host';
     const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));

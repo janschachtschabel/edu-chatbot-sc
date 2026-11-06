@@ -419,6 +419,21 @@ describe('ChatShellComponent — Entscheidung (U1-d1)', () => {
     expect(warn).toHaveBeenCalled();
   });
 
+  it('Querschnitts-Review FE-2: für einen nicht mehr offenen Block geht keine Antwort hin', () => {
+    const { c } = make();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const senden = vi.fn();
+    (c as unknown as { _api: { stream: unknown; post: unknown } })._api.stream = senden;
+    (c as unknown as { _api: { stream: unknown; post: unknown } })._api.post = senden;
+    store(c).addBotMessage('F', false, [], undefined, { ui_bloecke: [{ ...frage('b0000027'), status: 'veraltet' }] });
+    const id = c.messages()[0].id;
+    (c as unknown as { modulAntworten: (a: object) => void })
+      .modulAntworten({ nachrichtId: id, blockId: 'b0000027', daten: { gewaehlt: ['a'] }, text: 'Klasse 5' });
+    expect(senden).not.toHaveBeenCalled();
+    expect(c.messages().some((m) => m.sender === 'user')).toBe(false);
+    expect(warn).toHaveBeenCalled();
+  });
+
   it('meldet dem Backend die Module seines Registers (Review U1-d1, Befund 8)', () => {
     const { c } = make();
     const env = (c as unknown as { _api: { buildEnvironment: () => Record<string, unknown> } })._api.buildEnvironment();

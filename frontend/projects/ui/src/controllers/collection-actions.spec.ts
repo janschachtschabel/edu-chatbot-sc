@@ -5,6 +5,9 @@ import { ChatMessage, ChatResponse, DebugInfo, PaginationInfo } from '../groupin
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import {
+  ablageSchritt,
+  auftragAbholen,
+  auftragStand,
   CollectionActionsContext,
   browseCollection,
   generateLearningPath,
@@ -29,7 +32,7 @@ interface Calls {
   debug: unknown[];
   loading: boolean[];
   page: unknown[];
-  sent: Array<{ message: string; env: any; action?: string; actionParams?: any }>;
+  sent: Array<{ message: string; env: any; action?: string; actionParams?: any; opts?: any }>;
 }
 
 interface CtxOpts {
@@ -40,6 +43,9 @@ interface CtxOpts {
   messagesContainer?: () => HTMLElement | undefined;
   t?: CollectionActionsContext['t'];
   ladeZweig?: CollectionActionsContext['ladeZweig'];
+  ladeDokument?: CollectionActionsContext['ladeDokument'];
+  ladeAblage?: CollectionActionsContext['ladeAblage'];
+  ladeAuftragStand?: CollectionActionsContext['ladeAuftragStand'];
 }
 
 function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Calls; getMessages: () => ChatMessage[] } {
@@ -48,8 +54,8 @@ function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Ca
   let n = 0;
   let messages: ChatMessage[] = opts.initialMessages ?? [];
   const ctx: CollectionActionsContext = {
-    sendMessage: async (message, env, action, actionParams) => {
-      calls.sent.push({ message, env, action, actionParams });
+    sendMessage: async (message, env, action, actionParams, weitere) => {
+      calls.sent.push({ message, env, action, actionParams, ...(weitere ? { opts: weitere } : {}) });
       return opts.respond ? opts.respond(message, env, action, actionParams) : makeResp();
     },
     sessionId: opts.sessionId ?? (() => 'bb-1'),
@@ -74,6 +80,9 @@ function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Ca
     messagesContainer: opts.messagesContainer ?? (() => undefined),
     t: opts.t ?? createTranslator(DE, DE),
     ladeZweig: opts.ladeZweig ?? (async () => ({ knoten: [] })),
+    ladeDokument: opts.ladeDokument ?? (async () => ({ upload_id: 'u-1' })),
+    ladeAblage: opts.ladeAblage ?? (async () => ({ stand: 'stored' })),
+    ladeAuftragStand: opts.ladeAuftragStand ?? (async () => ({ stand: 'laeuft' })),
   };
   return { ctx, calls, getMessages: () => messages };
 }
@@ -179,6 +188,37 @@ describe('themenbaumZweig (U1-h, Unterthemen im selben Baum)', () => {
     const { ctx, calls } = makeCtx({ ladeZweig: async () => { throw fehler; } });
     await expect(themenbaumZweig('bbbb-2222', ctx)).rejects.toBe(fehler);
     expect(calls.bot).toEqual([]);
+  });
+});
+
+describe('ablageSchritt (U3-3b, Ablage im persönlichen Bereich)', () => {
+  const SCHRITT = { schritt: 'abschluss', batchToken: 'tok-1234567890' } as const;
+
+  it('geht ohne Zug an den Client: keine Blase, kein Laden-Zustand', async () => {
+    const gefragt: unknown[] = [];
+    const { ctx, calls } = makeCtx({ ladeAblage: async (blockId, schritt) => { gefragt.push([blockId, schritt]); return { stand: 'stored' }; } });
+    await expect(ablageSchritt('b0000001', SCHRITT, ctx)).resolves.toEqual({ stand: 'stored' });
+    expect(gefragt).toEqual([['b0000001', SCHRITT]]);
+    expect(calls.sent).toEqual([]);
+    expect(calls.bot).toEqual([]);
+    expect(calls.loading).toEqual([]);
+  });
+
+  it('wechselt die Sitzung währenddessen, wird abgelehnt (Sitzungs-Wache)', async () => {
+    let sitzung = 'bb-1';
+    const { ctx } = makeCtx({ sessionId: () => sitzung, ladeAblage: async () => { sitzung = 'bb-2'; return {}; } });
+    await expect(ablageSchritt('b0000001', SCHRITT, ctx)).rejects.toMatchObject({ code: 'sitzung' });
+  });
+
+  it('ein Fehler geht samt Code an das Modul; geloggt ohne Dateinamen', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fehler = Object.assign(new Error('Transport: 403 nur_angemeldet'), { status: 403, code: 'nur_angemeldet' });
+    const { ctx } = makeCtx({ ladeAblage: async () => { throw fehler; } });
+    const datei = new File(['x'], 'Zeugnis Mustermann.pdf');
+    await expect(ablageSchritt('b0000001', { schritt: 'datei', batchToken: 'tok-1234567890', index: 0, datei }, ctx))
+      .rejects.toBe(fehler);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('Mustermann');
+    warn.mockRestore();
   });
 });
 
@@ -575,5 +615,62 @@ describe('loadMore mit Trefferliste (U1-c2b)', () => {
     await loadMore('m2', ctx);
     expect(getMessages()[0].ui!.ui_bloecke![0]).toEqual(linkbox);
     expect(getMessages()[1].ui).toBeUndefined();
+  });
+});
+
+describe('auftragStand / auftragAbholen (K1b, Fortschritt eines Ablauf-Auftrags)', () => {
+  it('der Stand geht ohne Zug an den Client', async () => {
+    const gefragt: unknown[] = [];
+    const { ctx, calls } = makeCtx({ ladeAuftragStand: async (ablauf, kuerzel) => { gefragt.push([ablauf, kuerzel]); return { stand: 'fertig' }; } });
+    await expect(auftragStand('lesen', '0123456789ab', ctx)).resolves.toEqual({ stand: 'fertig' });
+    expect(gefragt).toEqual([['lesen', '0123456789ab']]);
+    expect(calls.sent).toEqual([]);
+    expect(calls.bot).toEqual([]);
+  });
+
+  it('ein Stand aus einer inzwischen gewechselten Sitzung gilt nicht', async () => {
+    let sitzung = 'bb-1';
+    const { ctx } = makeCtx({ sessionId: () => sitzung, ladeAuftragStand: async () => { sitzung = 'bb-2'; return { stand: 'fertig' }; } });
+    await expect(auftragStand('lesen', '0123456789ab', ctx)).rejects.toMatchObject({ code: 'sitzung' });
+  });
+
+  it('abholen = die Direktaktion „Stand prüfen“ als Zug ohne Nutzerblase', async () => {
+    const { ctx, calls } = makeCtx({ respond: () => makeResp({ content: 'Gelesen.' }) });
+    await expect(auftragAbholen('lesen', ctx)).resolves.toEqual({ gesendet: true });
+    // Querschnitts-Review M1: automatisch, und offene Fragen anderer Module bleiben offen.
+    expect(calls.sent).toEqual([{
+      message: 'Stand prüfen', env: undefined, action: 'ablauf_auftrag_pruefen',
+      actionParams: { ablauf: 'lesen', automatisch: true }, opts: { fragenOffen: true },
+    }]);
+    expect(calls.bot.map((b) => b.content)).toContain('Gelesen.');
+  });
+
+  it('Review Q1, Befund 5: bringt das Abholen eine neue Frage, gilt die alte als veraltet (eine je Sitzung)', async () => {
+    const alt = { block_id: 'u1', modul: 'ui_upload', version: 1, art: 'abfragen', status: 'offen', daten: {}, text: 'x', antwort: null };
+    const neu = { ...alt, block_id: 'e1', modul: 'ui_entscheidung' };
+    const { ctx, getMessages } = makeCtx({
+      initialMessages: [{ id: 'm1', sender: 'bot', content: 'Ordner', ui: { ui_bloecke: [alt] } } as unknown as ChatMessage],
+      respond: () => makeResp({ content: 'Gelesen.', ui: { ui_bloecke: [neu] } as never }),
+    });
+    await auftragAbholen('lesen', ctx);
+    const status = getMessages().flatMap((m) => m.ui?.ui_bloecke ?? []).map((b) => [b.block_id, b.status]);
+    expect(status).toContainEqual(['u1', 'veraltet']);
+  });
+
+  it('ohne neue Frage bleibt die alte offen', async () => {
+    const alt = { block_id: 'u1', modul: 'ui_upload', version: 1, art: 'abfragen', status: 'offen', daten: {}, text: 'x', antwort: null };
+    const { ctx, getMessages } = makeCtx({
+      initialMessages: [{ id: 'm1', sender: 'bot', content: 'Ordner', ui: { ui_bloecke: [alt] } } as unknown as ChatMessage],
+      respond: () => makeResp({ content: 'Gelesen.' }),
+    });
+    await auftragAbholen('lesen', ctx);
+    const status = getMessages().flatMap((m) => m.ui?.ui_bloecke ?? []).map((b) => [b.block_id, b.status]);
+    expect(status).toContainEqual(['u1', 'offen']);
+  });
+
+  it('während eines Zugs wird nicht abgeholt (das Modul versucht es danach)', async () => {
+    const { ctx, calls } = makeCtx({ isLoading: () => true });
+    await expect(auftragAbholen('lesen', ctx)).resolves.toEqual({ gesendet: false });
+    expect(calls.sent).toEqual([]);
   });
 });
