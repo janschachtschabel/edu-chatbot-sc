@@ -191,6 +191,9 @@ services:
       B_API_KEY: ${B_API_KEY:-}
       B_API_BASE_URL: ${B_API_BASE_URL:-}
       B_API_ROUTE: ${B_API_ROUTE:-}
+      B_API_JOBS_START_PATH: ${B_API_JOBS_START_PATH:-}
+      B_API_JOBS_STATUS_PATH: ${B_API_JOBS_STATUS_PATH:-}
+      B_API_JOBS_FLOWS: ${B_API_JOBS_FLOWS:-}
       B_API_KEY_MODE: ${B_API_KEY_MODE:-}
       MODERATION_FAILURE_MODE: ${MODERATION_FAILURE_MODE:-}
       B_API_AUDIO: ${B_API_AUDIO:-}
@@ -279,7 +282,8 @@ services:
       CARD_CE_GATE_CONTENT: ${CARD_CE_GATE_CONTENT:-}
       CHAT_DISABLE_SELECT_TOP_CARDS: ${CHAT_DISABLE_SELECT_TOP_CARDS:-}
       # Bewusst NICHT hier: BOERDI_VERSION, GIT_SHA (Build-Argumente), CONFIG_SEED_DIR,
-      # WIDGET_DIST_DIR, STUDIO_DIST_DIR, EVAL_RUNNER_PATH (Pfade im Image, Dockerfile-ENV).
+      # WIDGET_DIST_DIR, WIDGET_MODULE_DIR, STUDIO_DIST_DIR, EVAL_RUNNER_PATH (Pfade im Image,
+      # Dockerfile-ENV bzw. Vorgabe im Code).
       # Eine leere Durchreichung überschriebe die ENV des Images mit „leer“ und damit mit der
       # Code-Vorgabe — im Compose-Betrieb sind sie über die .env nicht einstellbar.
       # Absoluter Mount-Punkt, damit die Auflösung nicht am Arbeitsverzeichnis

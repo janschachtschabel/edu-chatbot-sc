@@ -111,6 +111,8 @@ COPY evals/run_golden.py ./evals/run_golden.py
 COPY evals/ui_module_golden.py ./evals/ui_module_golden.py
 
 COPY --from=frontend /build/dist/widget/browser ./widget_dist
+# Paket U3-0: Bündel der nachgeladenen UI-Module (ausgeliefert unter /widget/module/).
+COPY --from=frontend /build/dist/widget-module ./widget_dist/module
 COPY --from=frontend /build/dist/studio/browser ./studio_dist
 
 USER boerdi

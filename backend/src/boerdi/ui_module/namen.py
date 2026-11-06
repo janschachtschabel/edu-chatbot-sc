@@ -20,6 +20,10 @@ THEMENBAUM: Final = "ui_themenbaum"
 ENTSCHEIDUNG: Final = "ui_entscheidung"
 #: Paket U2: neue Gliederung (KI-Entwurf oder aus dem Bestand übernommen) — Modul mit Dienst.
 STRUKTURENTWURF: Final = "ui_strukturentwurf"
+#: Paket U3-1: Ordner und Dateien im Browser erfassen (nachgeladenes Modul).
+UPLOAD: Final = "ui_upload"
+#: Paket K1b: Stand eines Ablauf-Auftrags (nachgeladen; nur der Treiber baut es).
+FORTSCHRITT: Final = "ui_fortschritt"
 
 #: Anzeige-Reihenfolge: erst die WLO-Treffer, dann die Webseiten (wie bisher die Boxen).
 ABGELEITETE: Final = (TREFFERLISTE, LINKBOX)

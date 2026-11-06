@@ -59,9 +59,17 @@
       ],
       "description": "Paket U2: Das Backend erzeugt die Daten selbst (z. B. einen Strukturentwurf). Die KI nennt nur den Auftrag (parameter); schließt eine datenquelle aus."
     },
+    "vorgang": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "schreibt": { "type": "array", "uniqueItems": true, "maxItems": 4, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,29}$" }, "description": "Teile, die eine geprüfte Antwort im Vorgang setzt (Paket V2)." },
+        "liest": { "type": "array", "uniqueItems": true, "maxItems": 8, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,29}$" }, "description": "Teile des Vorgangs, die der Dienst des Moduls serverseitig liest." }
+      },
+      "description": "Paket V2: Datenübergabe über den Vorgang — was das Modul hinterlässt und braucht, ohne Umweg über das Modell."
+    },
     "faehigkeiten": {
       "type": "array", "uniqueItems": true,
-      "items": { "enum": ["antworten", "drucken", "herunterladen", "nachladen", "oeffnen"] },
+      "items": { "enum": ["antworten", "auftrag", "drucken", "herunterladen", "hochladen", "nachladen", "oeffnen"] },
       "description": "Was das Modul vom Widget braucht; nur das wird freigeschaltet."
     },
     "textfassung": {
@@ -79,6 +87,7 @@
         "platz": { "enum": ["oben", "unten"], "default": "oben", "description": "oben: vor den Trefferboxen (Vorgabe); unten: danach — für Module, die zu den Treffern gehören (Linkbox, Trefferliste)." }
       }
     },
+    "laden": { "enum": ["sofort", "bei_bedarf"], "default": "sofort", "description": "sofort: im Haupt-Bündel des Widgets (Angular-Komponente); bei_bedarf: eigenes Bündel aus einem rahmenlosen Custom Element (ui-<name>.element.ts), das das Widget erst beim ersten Block lädt (Paket U3-0)." },
     "beispiele": {
       "type": "array", "minItems": 1, "maxItems": 10,
       "items": {

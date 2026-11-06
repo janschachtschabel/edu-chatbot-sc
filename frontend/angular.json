@@ -115,7 +115,13 @@
             "optimization": true,
             "sourceMap": false,
             "extractLicenses": false,
-            "namedChunks": false
+            "namedChunks": false,
+            "fileReplacements": [
+              {
+                "replace": "projects/ui/src/ui-bloecke/nachlade-index.ts",
+                "with": "projects/ui/src/ui-bloecke/nachlade-index.build.ts"
+              }
+            ]
           },
           "configurations": {
             "production": {

@@ -68,6 +68,11 @@ BUNDLE = "main.js"
 #: ``boerdi-widget.<12 hex>.js`` — minted by the redirect below, never on disk.
 _HASHED = re.compile(r"^boerdi-widget\.[0-9a-f]{12}\.js$")
 
+#: Paket U3-0: ein nachgeladenes UI-Modul ``<ordner>.<8 hex>.js``
+#: (gebaut von ``frontend/scripts/build-nachlade-module.mjs``).
+_MODUL = re.compile(r"^ui-[a-z0-9-]+\.[0-9a-f]{8}\.js$")
+_MODUL_DIR = "module"
+
 _IMMUTABLE = "public, max-age=31536000, immutable"
 _NO_STORE = "no-store, must-revalidate"
 
@@ -79,14 +84,22 @@ def _widget_dir() -> Path:
     return Path(get_settings().widget_dist_dir)
 
 
-def _resolve(asset_name: str) -> Path:
-    """A path inside the widget directory, or an HTTP error.
+def _modul_dir() -> Path:
+    """Paket U3-0: Ort der Modul-Bündel — im Image ``<WIDGET_DIST_DIR>/module``, lokal per
+    ``WIDGET_MODULE_DIR`` direkt ``frontend/dist/widget-module`` (ein Unterordner im Widget-Ordner
+    bräche dort die Einzeldatei-Schranke des Budgets)."""
+    eigen = get_settings().widget_module_dir
+    return Path(eigen) if eigen else _widget_dir() / _MODUL_DIR
+
+
+def _resolve(asset_name: str, base: Path | None = None) -> Path:
+    """A path inside the widget directory (or ``base``), or an HTTP error.
 
     The containment check runs **before** the existence check on purpose: a
     "not found" for a path outside the directory would answer whether a file
     exists on the host filesystem. Both cases now look the same from outside.
     """
-    base = _widget_dir()
+    base = base if base is not None else _widget_dir()
     target = (base / asset_name).resolve()
     try:
         target.relative_to(base.resolve())
@@ -172,6 +185,23 @@ def widget_demo_frameless(kontext: _Kontext = None, wert: _Wert = None) -> Respo
     return HTMLResponse(widget_demo_html.frameless_page((kontext, wert)))
 
 
+@public_router.get("/module/{datei}")
+def widget_modul(datei: str) -> Response:
+    """Ein nachgeladenes UI-Modul (Paket U3-0) — nur aus ``module/``, nur gehashte Namen.
+
+    Unveränderlich gecacht: der Name trägt den Inhalts-Hash, ein neuer Build erzeugt einen neuen
+    Namen, und das Widget kennt ihn samt SRI aus seinem eigenen Bündel. CORS ``*`` ist hier Pflicht,
+    nicht Bequemlichkeit: ein Skript mit ``integrity`` von fremder Herkunft prüft der Browser nur
+    mit CORS. Unbekannte oder ungehashte Namen bekommen 404 wie eine fehlende Datei.
+    """
+    if not _MODUL.match(datei):
+        raise HTTPException(status_code=404, detail="asset not found")
+    target = _resolve(datei, _modul_dir())
+    resp = _public(FileResponse(target, media_type=_MEDIA_TYPES[".js"]), _IMMUTABLE)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
+
+
 @public_router.get("/{asset_name}")
 def widget_asset(asset_name: str) -> Response:
     """Any other file the build emits — plus the hashed bundle alias.
@@ -181,13 +211,14 @@ def widget_asset(asset_name: str) -> Response:
     called ``inline``.
     """
     if _HASHED.match(asset_name):
-        # Serves whatever the current digest is: exactly one bundle exists at a
-        # time, and this URL is only ever reached through the redirect above,
-        # which is itself uncacheable — so the content always matches the hash
-        # the client was just handed.
-        return _public(
-            FileResponse(_resolve(BUNDLE), media_type=_MEDIA_TYPES[".js"]), _IMMUTABLE
-        )
+        # Only the CURRENT digest is served (Querschnitts-Review 2026-11-06): during a
+        # rolling deploy the new page may ask an old replica for the new name, and
+        # that replica used to answer with its old bundle — cached under the new
+        # name for a year. A stale or foreign digest is a plain 404, never cached.
+        bundle = _resolve(BUNDLE)
+        if asset_name != f"boerdi-widget.{_digest(bundle)}.js":
+            raise HTTPException(status_code=404, detail="asset not found")
+        return _public(FileResponse(bundle, media_type=_MEDIA_TYPES[".js"]), _IMMUTABLE)
     target = _resolve(asset_name)
     return _public(
         FileResponse(target, media_type=_MEDIA_TYPES.get(target.suffix)), _NO_STORE

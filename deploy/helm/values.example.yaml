@@ -143,6 +143,7 @@ imageEnv:
   - GIT_SHA
   - CONFIG_SEED_DIR
   - WIDGET_DIST_DIR
+  - WIDGET_MODULE_DIR
   - STUDIO_DIST_DIR
   - EVAL_RUNNER_PATH
 
@@ -163,6 +164,10 @@ env:
   # open (Vorgabe) | closed (keine Antwort, solange die Moderation fehlt)
   MODERATION_FAILURE_MODE: "open"
   B_API_ROUTE: ""
+  # Aufträge (Kestra hinter der b-api, Paket K1a): leer = aus; nur lesende Flows freischalten.
+  B_API_JOBS_START_PATH: ""
+  B_API_JOBS_STATUS_PATH: "/api/v1/jobs/{job_id}"
+  B_API_JOBS_FLOWS: ""
   CARD_CE_GATE_COLLECTION: "-1.0"
   CARD_CE_GATE_CONTENT: "-1.5"
   CARD_CE_TOP_N: "3"

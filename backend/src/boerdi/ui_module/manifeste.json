@@ -171,6 +171,72 @@
     ]
   },
   {
+    "name": "ui_fortschritt",
+    "version": 1,
+    "art": "anzeigen",
+    "titel": {
+      "de": "Fortschritt eines Auftrags",
+      "en": "Progress of a job"
+    },
+    "beschreibung": "Zeigt, dass ein Auftrag eines Ablaufs (z. B. ein Dokument lesen lassen) im Hintergrund laeuft, fragt selbst nach dem Stand und holt das Ergebnis ab, sobald es fertig ist. Nur der Ablauf-Treiber baut dieses Modul; die KI ruft es nicht auf.",
+    "wann": [
+      "ein Schritt eines Ablaufs hat einen Auftrag gestartet und wartet auf sein Ergebnis"
+    ],
+    "nicht_wann": [
+      "irgendetwas anderes - das Modul entsteht nur im Ablauf"
+    ],
+    "agent": false,
+    "laden": "bei_bedarf",
+    "eingabe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ablauf",
+        "kuerzel",
+        "text"
+      ],
+      "properties": {
+        "ablauf": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "description": "Kennung des Ablaufs, dessen Schritt wartet."
+        },
+        "kuerzel": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{12}$",
+          "description": "Pruefkuerzel des Auftrags (nicht die Job-ID)."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Was gerade passiert, in einem Satz."
+        }
+      }
+    },
+    "datenquelle": null,
+    "faehigkeiten": [
+      "auftrag"
+    ],
+    "textfassung": {
+      "vorlage": "markdown",
+      "feld": "text"
+    },
+    "darstellung": {
+      "breit": false
+    },
+    "beispiele": [
+      {
+        "titel": "Laeuft",
+        "daten": {
+          "ablauf": "lesen",
+          "kuerzel": "0123456789ab",
+          "text": "Ich lasse das Dokument lesen."
+        }
+      }
+    ]
+  },
+  {
     "name": "ui_inhaltsrahmen",
     "version": 1,
     "art": "anzeigen",
@@ -376,7 +442,8 @@
     "wann": [
       "die Person will eine neue Gliederung: 'entwirf', 'gliedere', 'neue Struktur', 'Unterrichtsreihe', 'Sammlung aufbauen zu Thema X'",
       "ein Thema ohne WLO-Sammlung soll gegliedert werden",
-      "einen mitgeschickten Entwurf vertiefen (vorlage, vertiefen)"
+      "einen mitgeschickten Entwurf vertiefen (vorlage, vertiefen)",
+      "die Person hat ein Dokument gelesen ([DOKUMENT DER PERSON], etwa ein Lehrplan) und will daraus einen Themenbaum (aus_dokument)"
     ],
     "nicht_wann": [
       "zeigen, was es in WLO schon gibt — Themen eines Fachportals oder einer Sammlung (dafuer ui_themenbaum)",
@@ -430,7 +497,7 @@
           },
           "vorlage": {
             "type": "boolean",
-            "description": "true: den Entwurf aus [ENTWURF DER PERSON] (mit dieser Nachricht geschickt) oder [DEIN LETZTER ENTWURF] als Grundlage nehmen — seine Punkte bleiben, es wird nur vertieft (oder mit erneut_zeigen unveraendert gezeigt)."
+            "description": "true: den Entwurf aus [ENTWURF DER PERSON] (mit dieser Nachricht geschickt), [DEIN LETZTER ENTWURF] oder den Teil draft aus [ARBEITSSTAND] als Grundlage nehmen — seine Punkte bleiben, es wird nur vertieft (oder mit erneut_zeigen unveraendert gezeigt)."
           },
           "erneut_zeigen": {
             "type": "boolean",
@@ -445,6 +512,10 @@
               "maxLength": 120
             },
             "description": "Nur mit vorlage: Titel der Punkte (wie im Entwurf), die Unterthemen bekommen sollen; ohne Angabe alle Punkte ohne Unterthemen."
+          },
+          "aus_dokument": {
+            "type": "boolean",
+            "description": "true: die Gliederung aus dem Dokument der Person ableiten, das sie im Auswahlfeld (ui_upload) hat lesen lassen ([DOKUMENT DER PERSON]); das System liest es selbst. thema ist dann sein Titel oder Zweck. Nicht zusammen mit vorlage."
           }
         }
       }
@@ -467,9 +538,11 @@
         "quelle": {
           "enum": [
             "ki",
-            "wlo"
+            "wlo",
+            "ordner",
+            "dokument"
           ],
-          "description": "ki: von der KI erzeugt; wlo: aus einer WLO-Sammlung uebernommen (Bruecke im Themenbaum)."
+          "description": "ki: von der KI erzeugt; wlo: aus einer WLO-Sammlung uebernommen (Bruecke im Themenbaum); ordner: aus der Ordnerstruktur der Person (ui_upload); dokument: aus dem Dokument der Person (ui_upload, aus_dokument)."
         },
         "thema": {
           "type": "string",
@@ -569,6 +642,21 @@
             "ausstehend": {
               "type": "boolean",
               "description": "Unterthemen sind vorgesehen, aber (noch) nicht erzeugt."
+            },
+            "fundstelle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Mit quelle dokument: Titel des Abschnitts im Dokument, aus dem der Punkt stammt."
+            },
+            "abschnitte": {
+              "type": "array",
+              "maxItems": 12,
+              "items": {
+                "type": "string",
+                "pattern": "^a[1-9][0-9]{0,2}$"
+              },
+              "description": "Mit quelle dokument: Kennungen der Abschnitte im Dokument, aus denen der Punkt stammt."
             }
           }
         },
@@ -640,7 +728,9 @@
         "quelle": {
           "enum": [
             "ki",
-            "wlo"
+            "wlo",
+            "ordner",
+            "dokument"
           ],
           "description": "Herkunft wie in der Eingabe."
         },
@@ -749,6 +839,21 @@
             "ausstehend": {
               "type": "boolean",
               "description": "Unterthemen fehlen noch."
+            },
+            "fundstelle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Abschnitt im Dokument (quelle dokument)."
+            },
+            "abschnitte": {
+              "type": "array",
+              "maxItems": 12,
+              "items": {
+                "type": "string",
+                "pattern": "^a[1-9][0-9]{0,2}$"
+              },
+              "description": "Abschnitte im Dokument (quelle dokument)."
             }
           }
         },
@@ -801,6 +906,16 @@
       }
     },
     "datenquelle": null,
+    "vorgang": {
+      "schreibt": [
+        "draft"
+      ],
+      "liest": [
+        "structure",
+        "document",
+        "draft"
+      ]
+    },
     "faehigkeiten": [
       "antworten",
       "herunterladen"
@@ -1376,6 +1491,840 @@
           ],
           "seiten": null,
           "typ_fokus": "Video"
+        }
+      }
+    ]
+  },
+  {
+    "name": "ui_upload",
+    "version": 1,
+    "art": "abfragen",
+    "titel": {
+      "de": "Ordner und Dateien",
+      "en": "Folders and files"
+    },
+    "beschreibung": "Laesst die Person einen Ordner (oder einzelne Dateien) auswaehlen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Erfasst wird nur im Browser, hochgeladen wird nichts. Die Person kann Dateien ignorieren und ein Strukturdokument (z. B. einen Lehrplan) markieren, danach den Befund schicken oder die Ordnerstruktur als Themenbaum-Entwurf uebernehmen. Zurueck kommen nur Ordnernamen und Zahlen, keine Dateinamen.",
+    "wann": [
+      "die Person hat Materialien in Ordnern und will daraus eine Sammlungsstruktur oder einen Themenbaum machen",
+      "die Person will einen Ordner mit Dateien einbringen, sichten oder ordnen",
+      "die Person fragt, ob sie Dateien oder einen Ordner hochladen kann"
+    ],
+    "nicht_wann": [
+      "ein Thema ohne eigene Dateien gliedern (dafuer ui_strukturentwurf)",
+      "zeigen, was es in WLO schon gibt (dafuer ui_themenbaum)",
+      "ein einzelnes Bild ansehen oder beschreiben lassen"
+    ],
+    "agent": true,
+    "laden": "bei_bedarf",
+    "dienst": {
+      "name": "upload_angebot",
+      "parameter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "zweck"
+        ],
+        "properties": {
+          "zweck": {
+            "enum": [
+              "sammlungsstruktur"
+            ],
+            "description": "sammlungsstruktur: Ordner erfassen, um daraus eine Sammlungsstruktur bzw. einen Themenbaum zu machen."
+          },
+          "hinweis": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Kurzer Satz an die Person, was sie auswaehlen soll (z. B. 'Waehle den Ordner mit deinen Physik-Materialien.')."
+          }
+        }
+      }
+    },
+    "eingabe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "zweck"
+      ],
+      "properties": {
+        "zweck": {
+          "enum": [
+            "sammlungsstruktur"
+          ],
+          "description": "Wozu erfasst wird."
+        },
+        "hinweis": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Satz an die Person ueber dem Auswahlfeld."
+        },
+        "grenzen": {
+          "type": "object",
+          "x-nur-system": true,
+          "additionalProperties": false,
+          "description": "Grenzen fuer das Erfassen (setzt das System).",
+          "properties": {
+            "max_dateien": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000,
+              "description": "Hoechstzahl erfasster Dateien."
+            },
+            "max_tiefe": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "description": "Hoechste Ordnertiefe."
+            },
+            "max_mb_datei": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "description": "Groesste Datei in MB."
+            },
+            "max_mb_ablage": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "description": "Groesste Datei in MB fuer die Ablage in WLO."
+            }
+          }
+        },
+        "schalter": {
+          "type": "object",
+          "x-nur-system": true,
+          "additionalProperties": false,
+          "description": "Was im Studio eingeschaltet ist (setzt das System).",
+          "properties": {
+            "dokument_im_chat": {
+              "type": "boolean",
+              "description": "Darf ein Dokument im Chat gelesen werden."
+            },
+            "ablage_in_wlo": {
+              "type": "boolean",
+              "description": "Duerfen Inhalte in WLO abgelegt werden."
+            }
+          }
+        }
+      }
+    },
+    "antwort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aktion",
+        "struktur",
+        "zahlen",
+        "strukturdokument",
+        "warnungen"
+      ],
+      "$defs": {
+        "ordner1": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ordner2"
+              },
+              "description": "Unterordner."
+            }
+          }
+        },
+        "ordner2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ordner3"
+              },
+              "description": "Unterordner."
+            }
+          }
+        },
+        "ordner3": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ordner4"
+              },
+              "description": "Unterordner."
+            }
+          }
+        },
+        "ordner4": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ordner5"
+              },
+              "description": "Unterordner."
+            }
+          }
+        },
+        "ordner5": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ordner6"
+              },
+              "description": "Unterordner."
+            }
+          }
+        },
+        "ordner6": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ordner7"
+              },
+              "description": "Unterordner."
+            }
+          }
+        },
+        "ordner7": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ordner8"
+              },
+              "description": "Unterordner."
+            }
+          }
+        },
+        "ordner8": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/ordner9"
+              },
+              "description": "Unterordner."
+            }
+          }
+        },
+        "ordner9": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "dateien",
+            "alle_dateien",
+            "kinder"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Ordnername (leer bei der Auswahl mehrerer Ordner)."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien direkt in diesem Ordner."
+            },
+            "alle_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien samt Unterordnern."
+            },
+            "kinder": {
+              "type": "array",
+              "maxItems": 0,
+              "description": "Tiefer erfasst das Modul nicht (Wurzel + 8 Ebenen)."
+            }
+          }
+        }
+      },
+      "properties": {
+        "aktion": {
+          "enum": [
+            "erfasst",
+            "ordner_als_entwurf",
+            "dokument",
+            "uebertragen"
+          ],
+          "description": "erfasst: nur der Befund; ordner_als_entwurf: die Ordnerstruktur als Themenbaum-Entwurf uebernehmen; dokument: das Dokument wurde gelesen (Feld dokument), die Person will damit weiterarbeiten (ziel). uebertragen: die Dateien wurden in den persoenlichen Bereich in WLO uebertragen (Feld ablage)."
+        },
+        "struktur": {
+          "$ref": "#/$defs/ordner1",
+          "description": "Der erfasste Ordnerbaum (Wurzel + höchstens 8 Ebenen, höchstens 500 Ordner)."
+        },
+        "zahlen": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ordner",
+            "dateien",
+            "inhalte",
+            "ignoriert",
+            "strukturdokumente",
+            "bytes"
+          ],
+          "description": "Zahlen der Erfassung.",
+          "properties": {
+            "ordner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Zahl der Ordner."
+            },
+            "dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Alle erfassten Dateien."
+            },
+            "inhalte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Dateien mit der Rolle Inhalt."
+            },
+            "ignoriert": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000,
+              "description": "Ignorierte Dateien."
+            },
+            "strukturdokumente": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Markierte Strukturdokumente (hoechstens eins)."
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Groesse aller nicht ignorierten Dateien."
+            }
+          }
+        },
+        "strukturdokument": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "groesse",
+                "endung"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120,
+                  "pattern": "^[^\\n\\r]*$",
+                  "description": "Dateiname des Strukturdokuments."
+                },
+                "groesse": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Groesse in Bytes."
+                },
+                "endung": {
+                  "enum": [
+                    "pdf",
+                    "docx",
+                    "txt",
+                    "md"
+                  ],
+                  "description": "Dateiendung."
+                }
+              }
+            }
+          ],
+          "description": "Das markierte Strukturdokument oder null."
+        },
+        "warnungen": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "enum": [
+              "zu_viele",
+              "zu_tief",
+              "zu_gross",
+              "leer",
+              "ungueltiger_pfad",
+              "zu_viele_ordner"
+            ]
+          },
+          "description": "Was beim Erfassen weggefallen ist."
+        },
+        "dokument": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "upload_id",
+            "name",
+            "format",
+            "ziel",
+            "befund",
+            "vorschau"
+          ],
+          "description": "Nur mit aktion dokument: was das System beim Lesen festgestellt hat (kein Text des Dokuments).",
+          "properties": {
+            "upload_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "description": "Kennung des gelesenen Dokuments (POST /api/ui/dokumente)."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\n\r]*$",
+              "description": "Name des Dokuments."
+            },
+            "format": {
+              "enum": [
+                "pdf",
+                "docx",
+                "txt",
+                "md"
+              ],
+              "description": "Erkannte Art."
+            },
+            "ziel": {
+              "enum": [
+                "themenbaum"
+              ],
+              "description": "Was die Person mit dem Dokument tun will: themenbaum = einen Themenbaum-Entwurf daraus."
+            },
+            "befund": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "seiten",
+                "woerter",
+                "abschnitte",
+                "gliederung_art",
+                "warnungen"
+              ],
+              "properties": {
+                "seiten": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    }
+                  ],
+                  "description": "Seiten (nur PDF)."
+                },
+                "woerter": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000000,
+                  "description": "Woerter."
+                },
+                "abschnitte": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 400,
+                  "description": "Abschnitte der Gliederung."
+                },
+                "gliederung_art": {
+                  "enum": [
+                    "ueberschriften",
+                    "nummeriert",
+                    "teile"
+                  ],
+                  "description": "Woran gegliedert wurde."
+                },
+                "warnungen": {
+                  "type": "array",
+                  "maxItems": 4,
+                  "items": {
+                    "enum": [
+                      "bilder_entfernt",
+                      "wenig_text",
+                      "keine_gliederung",
+                      "gekuerzt"
+                    ]
+                  },
+                  "description": "Hinweise beim Lesen."
+                }
+              }
+            },
+            "vorschau": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "pattern": "^[^\n\r]*$"
+              },
+              "description": "Die ersten Ueberschriften des Dokuments."
+            }
+          }
+        },
+        "ablage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "layout",
+            "gesamt",
+            "abgelegt",
+            "unklar",
+            "fehler",
+            "abgebrochen",
+            "ordner_verweigert",
+            "vorgang_abgelegt"
+          ],
+          "description": "Nur mit aktion uebertragen: nur Zahlen, keine Kennungen und keine Dateinamen.",
+          "properties": {
+            "layout": {
+              "enum": [
+                "ordner",
+                "flach"
+              ],
+              "description": "ordner: in einem eigenen Ordner; flach: direkt im persoenlichen Bereich."
+            },
+            "gesamt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200,
+              "description": "Dateien in der Freigabe."
+            },
+            "abgelegt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200,
+              "description": "Abgelegt (auch: Knoten da, Inhalt verworfen)."
+            },
+            "unklar": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200,
+              "description": "Ohne Antwort - koennen abgelegt sein."
+            },
+            "fehler": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200,
+              "description": "Nicht abgelegt."
+            },
+            "abgebrochen": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200,
+              "description": "Nicht gesendet (abgebrochen)."
+            },
+            "ordner_verweigert": {
+              "type": "boolean",
+              "description": "Der Ordner durfte nicht angelegt werden; die Dateien liegen flach."
+            },
+            "vorgang_abgelegt": {
+              "type": "boolean",
+              "description": "vorgang.json liegt im Ordner."
+            }
+          }
+        }
+      }
+    },
+    "datenquelle": null,
+    "vorgang": {
+      "schreibt": [
+        "structure",
+        "document"
+      ]
+    },
+    "faehigkeiten": [
+      "antworten",
+      "hochladen",
+      "oeffnen"
+    ],
+    "textfassung": {
+      "vorlage": "markdown"
+    },
+    "darstellung": {
+      "breit": false,
+      "platz": "oben"
+    },
+    "beispiele": [
+      {
+        "titel": "Bereit zum Erfassen",
+        "daten": {
+          "zweck": "sammlungsstruktur",
+          "hinweis": "Waehle den Ordner mit deinen Physik-Materialien.",
+          "grenzen": {
+            "max_dateien": 500,
+            "max_tiefe": 8,
+            "max_mb_datei": 50
+          }
+        }
+      },
+      {
+        "titel": "Erfasst und beantwortet",
+        "daten": {
+          "zweck": "sammlungsstruktur"
+        },
+        "antwort": {
+          "aktion": "ordner_als_entwurf",
+          "struktur": {
+            "name": "Physik 7",
+            "dateien": 1,
+            "alle_dateien": 12,
+            "kinder": [
+              {
+                "name": "01_Mechanik",
+                "dateien": 6,
+                "alle_dateien": 6,
+                "kinder": []
+              },
+              {
+                "name": "02_Optik",
+                "dateien": 5,
+                "alle_dateien": 5,
+                "kinder": []
+              }
+            ]
+          },
+          "zahlen": {
+            "ordner": 3,
+            "dateien": 14,
+            "inhalte": 11,
+            "ignoriert": 2,
+            "strukturdokumente": 1,
+            "bytes": 18234567
+          },
+          "strukturdokument": {
+            "name": "Lehrplan_Physik.pdf",
+            "groesse": 812345,
+            "endung": "pdf"
+          },
+          "warnungen": []
         }
       }
     ]

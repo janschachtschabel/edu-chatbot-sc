@@ -1,10 +1,12 @@
 import { NgComponentOutlet } from '@angular/common';
 import {
-  ChangeDetectionStrategy, Component, computed, inject, Injector, input, type Type,
+  ChangeDetectionStrategy, Component, computed, inject, Injector, input, type StaticProvider, type Type,
 } from '@angular/core';
 import type { SafeHtml } from '@angular/platform-browser';
 
-import { MODUL_HOST, UI_MODUL_REGISTER, type ModulKontext, type UiBlock } from '@boerdi/ui-module';
+import {
+  MODUL_HOST, NACHLADE_ZIEL, UI_MODUL_REGISTER, type ModulKontext, type NachladeZiel, type UiBlock,
+} from '@boerdi/ui-module';
 
 import type { GroupingContext } from '../grouping/result-grouping';
 import type { TranslateFn } from '../i18n/i18n';
@@ -77,6 +79,8 @@ export class UiBloeckeComponent {
   readonly antworten = input.required<ShellAntworten>();
   /** U2: Vormerkung für die nächste getippte Nachricht (Strukturentwurf); ohne: keine. */
   readonly vormerken = input<ShellVormerken | null>(null);
+  /** U3-0: lädt das Bündel eines nachgeladenen Moduls; ohne: solche Module zeigen die Textfassung. */
+  readonly nachladen = input<((modul: string) => Promise<void>) | null>(null);
 
   private readonly register = inject(UI_MODUL_REGISTER);
   private readonly injector = inject(Injector);
@@ -89,12 +93,27 @@ export class UiBloeckeComponent {
     const schluessel = `${block.block_id} ${block.modul}`;
     let injector = this.hosts.get(schluessel);
     if (!injector) {
-      const host = new BlockModulHost(this.basis, block.block_id,
-        this.register[block.modul]?.manifest.faehigkeiten);
-      injector = Injector.create({ providers: [{ provide: MODUL_HOST, useValue: host }], parent: this.injector });
+      const eintrag = this.register[block.modul];
+      const host = new BlockModulHost(this.basis, block.block_id, eintrag?.manifest.faehigkeiten);
+      const providers: StaticProvider[] = [{ provide: MODUL_HOST, useValue: host }];
+      if (eintrag?.element) providers.push({ provide: NACHLADE_ZIEL, useValue: this.nachladeZiel(block, eintrag.element) });
+      injector = Injector.create({ providers, parent: this.injector });
       this.hosts.set(schluessel, injector);
     }
     return injector;
+  }
+
+  /** U3-0: was der Platzhalter eines nachgeladenen Moduls braucht. Der Lader wird erst beim
+   *  Laden gelesen — die Shell setzt ihn als Eingabe, die sich nach dem Erzeugen ändern kann. */
+  private nachladeZiel(block: UiBlock, element: string): NachladeZiel {
+    return {
+      element,
+      text: block.text ?? '',
+      laden: () => {
+        const lader = this.nachladen();
+        return lader ? lader(block.modul) : Promise.reject(new Error('Kein Lader für nachgeladene Module'));
+      },
+    };
   }
 
   private readonly schriftSkala = computed(() => schriftProzent(this.displayRules()) / 100);

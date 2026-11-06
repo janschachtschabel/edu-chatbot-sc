@@ -283,9 +283,10 @@ async def test_die_prompt_vorschau_nennt_nur_module_fuer_den_agenten(bind, monke
 
     module = (await pv.prompt_vorschau("de"))["tools"]["ui_module"]
 
-    assert module["names"] == ["ui_strukturentwurf", THEMENBAUM]           # U2: der Entwurf
+    assert module["names"] == ["ui_strukturentwurf", THEMENBAUM, "ui_upload"]  # U2, U3-1
     assert module["chars"] == len(json.dumps(modul_werkzeuge(
-        ["ui_strukturentwurf", THEMENBAUM], verfuegbar={"browse_collection_tree"}, fuer="agent"),
+        ["ui_strukturentwurf", THEMENBAUM, "ui_upload"], verfuegbar={"browse_collection_tree"},
+        fuer="agent"),
         ensure_ascii=False))
 
 

@@ -59,7 +59,7 @@ test('erzeugt Register, Manifeste und Schema-Kopie, sortiert nach Name', () => {
 test('pruefen meldet veraltete Ausgaben, ohne zu schreiben', () => {
   const { quelle, backend } = aufbau([['ui-alpha', manifest('ui_alpha')]]);
   assert.deepEqual(erzeuge({ quelle, backend, pruefen: true }).veraltet.sort(),
-    ['manifest.schema.json', 'manifeste.json', 'register.generated.ts']);
+    ['manifest.schema.json', 'manifeste.json', 'nachlade-quellen.generated.ts', 'register.generated.ts']);
   erzeuge({ quelle, backend });
   assert.deepEqual(erzeuge({ quelle, backend, pruefen: true }).veraltet, []);
 });
@@ -129,4 +129,46 @@ test('ein gemeinsamer Ordner ohne ui-Präfix (_baum, Paket U2) ist kein Modul', 
   const manifeste = JSON.parse(readFileSync(join(backend, 'manifeste.json'), 'utf8'));
   assert.deepEqual(manifeste.map((m) => m.name), ['ui_alpha']);
   assert.doesNotMatch(readFileSync(join(quelle, 'register.generated.ts'), 'utf8'), /_baum/);
+});
+
+// Paket U3-0: ein selten gebrauchtes Modul wird bei Bedarf nachgeladen. Es hat statt der
+// Angular-Komponente ein rahmenloses Custom Element; im Register steht der gemeinsame Platzhalter.
+test('ein Modul mit laden: bei_bedarf bekommt den Platzhalter und seinen Element-Namen', () => {
+  const { quelle, backend } = aufbau([
+    ['ui-alpha', manifest('ui_alpha')],
+    ['ui-probe', manifest('ui_probe', { laden: 'bei_bedarf' }), false],
+  ]);
+  writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.ts'), 'export {};');
+  erzeuge({ quelle, backend });
+  const register = readFileSync(join(quelle, 'register.generated.ts'), 'utf8');
+  assert.match(register, /import \{ NachladePlatzhalter \} from '\.\/_nachladen\/nachlade-platzhalter\.component';/);
+  assert.match(register, /ui_probe: \{ manifest: .*, komponente: NachladePlatzhalter, element: 'boerdi-ui-probe' \},/);
+  // nichts aus dem Element-Quelltext im Haupt-Bündel
+  assert.doesNotMatch(register, /ui-probe\.element/);
+  assert.doesNotMatch(register, /UiProbe\b/);
+});
+
+test('ein nachgeladenes Modul ohne Element-Datei wird abgewiesen', () => {
+  const { quelle, backend } = aufbau([['ui-probe', manifest('ui_probe', { laden: 'bei_bedarf' }), false]]);
+  assert.throws(() => erzeuge({ quelle, backend }), /ui-probe\.element\.ts/);
+});
+
+test('ohne nachgeladene Module kein Import des Platzhalters', () => {
+  const { quelle, backend } = aufbau([['ui-alpha', manifest('ui_alpha', { laden: 'sofort' })]]);
+  erzeuge({ quelle, backend });
+  assert.doesNotMatch(readFileSync(join(quelle, 'register.generated.ts'), 'utf8'), /NachladePlatzhalter/);
+});
+
+test('U3-1a: die Element-Quellen der nachgeladenen Module stehen in einer eigenen Datei (nur fürs Studio)', () => {
+  const { quelle, backend } = aufbau([
+    ['ui-alpha', manifest('ui_alpha')],
+    ['ui-probe', manifest('ui_probe', { laden: 'bei_bedarf' }), false],
+  ]);
+  writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.ts'), 'export {};');
+  erzeuge({ quelle, backend });
+  const quellen = readFileSync(join(quelle, 'nachlade-quellen.generated.ts'), 'utf8');
+  assert.match(quellen, /ui_probe: \(\) => import\('\.\/ui-probe\/ui-probe\.element'\),/);
+  assert.doesNotMatch(quellen, /ui_alpha/);
+  // das Register selbst importiert keine Element-Quelle (sonst landete sie im Widget-Bündel)
+  assert.doesNotMatch(readFileSync(join(quelle, 'register.generated.ts'), 'utf8'), /import\(/);
 });

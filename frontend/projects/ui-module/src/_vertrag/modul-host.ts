@@ -8,8 +8,9 @@
  *
  * Seit U1-d1 hat jeder Block seinen eigenen Host: Er kennt die Block-Kennung und lässt nur die
  * Fähigkeiten aus dem Manifest (`faehigkeiten`) zu — `herunterladen`, `drucken`, `oeffnen`
- * (`link`, `aktion`), `antworten`, `nachladen` (`zweig`, U1-h). Fehlt eine, passiert nichts außer
- * einer Warnung in der Konsole (`zweig` lehnt ab). `markdown`, `treffer` und `beschaeftigt` sind
+ * (`link`, `aktion`), `antworten`, `nachladen` (`zweig`, U1-h), `hochladen` (U3-2c; seit U3-3b auch
+ * `ablegen`), `auftrag` (K1b). Fehlt eine,
+ * passiert nichts außer einer Warnung in der Konsole (`zweig` und `hochladen` lehnen ab). `markdown`, `treffer` und `beschaeftigt` sind
  * Darstellung und immer erlaubt.
  */
 import { InjectionToken } from '@angular/core';
@@ -53,7 +54,45 @@ export interface ModulHost {
    *  `ui_themenbaum` auf (`knoten`, `gekuerzt?`, `wurzel_mehr?`, …; ohne Überschrift); lehnt ab
    *  mit einem Fehler, dessen `status` (HTTP) sagt, ob ein neuer Versuch hilft (403: nein). */
   zweig(nodeId: string): Promise<Record<string, unknown>>;
+  /** Ein Dokument lesen lassen (U3-2c, Fähigkeit `hochladen`): ohne Zug und ohne KI liest das Backend
+   *  es, legt den Text an der Sitzung ab und löst mit dem Befund auf (`upload_id`, `name`, `format`,
+   *  `befund`, `ueberschriften_vorschau` — nie der Text). `onFortschritt` meldet den gesendeten Anteil
+   *  (0…1). Lehnt ab mit `status` und `code` (`bild`, `zu_gross`, `kein_text`, `nur_angemeldet` …). */
+  hochladen(datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>>;
+  /** Ein Schritt der Ablage im persönlichen Bereich in WLO (U3-3b, Fähigkeit `hochladen`): ohne Zug
+   *  und ohne KI, nur mit bestätigter Anmeldung (`/api/ui/ablage/*`). Löst mit der Antwort des Backends
+   *  auf (Vorschau, Stand einer Datei, Abschluss); lehnt ab mit `status` und `code` (`nur_angemeldet`,
+   *  `aus`, `kein_recht`, `neu_vorbereiten` …). Die Dateien gehen nacheinander, eine zur Zeit. */
+  ablegen(schritt: AblageSchritt): Promise<Record<string, unknown>>;
+  /** Ein Auftrag eines Ablaufs (K1b, Fähigkeit `auftrag`): `stand` fragt ohne Zug nach (löst mit
+   *  `{ stand: 'laeuft' | 'fertig' | 'fehler' }` auf, lehnt ab mit `status` — 409: kein wartender
+   *  Auftrag mehr, 403: nicht angemeldet, 503: gerade nicht abrufbar); `abholen` lässt die Shell das
+   *  Ergebnis im Zug der Person holen (Direktaktion „Stand prüfen“) und löst mit `{ gesendet }` auf —
+   *  `false`, solange ein anderer Zug läuft. */
+  auftrag(schritt: AuftragSchritt): Promise<Record<string, unknown>>;
 }
+
+/** K1b: Ablauf und Kürzel des Auftrags stehen in den Block-Daten von `ui_fortschritt` (nie die Job-ID). */
+export type AuftragSchritt =
+  | { readonly schritt: 'stand'; readonly ablauf: string; readonly kuerzel: string }
+  | { readonly schritt: 'abholen'; readonly ablauf: string };
+
+/** U3-3b: ein Eintrag der Freigabe — nur, was das MCP dafür braucht (keine Pfade, kein Inhalt). */
+export interface AblageEintrag {
+  readonly titel: string;
+  readonly sha256: string;
+  readonly groesse: number;
+  readonly art: string;
+}
+
+/** U3-3b: die drei Schritte der Ablage — Freigabe vorbereiten, eine Datei, Abschluss (`vorgang.json`). */
+export type AblageSchritt =
+  | { readonly schritt: 'vorbereiten'; readonly ordner: string; readonly eintraege: readonly AblageEintrag[] }
+  | {
+    readonly schritt: 'datei'; readonly batchToken: string; readonly index: number; readonly datei: File;
+    readonly onFortschritt?: (anteil: number) => void;
+  }
+  | { readonly schritt: 'abschluss'; readonly batchToken: string };
 
 /** `alsEntwurf` (U2): die Sammlung `nodeId` als bearbeitbaren Strukturentwurf öffnen (Brücke im
  *  Themenbaum, Direktaktion `edit_collection_as_draft`). */

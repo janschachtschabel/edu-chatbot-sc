@@ -1,6 +1,6 @@
 import type { SafeHtml } from '@angular/platform-browser';
 
-import type { KartenAktion, ModulHost, TrefferUmgebung } from '@boerdi/ui-module';
+import type { AblageSchritt, AuftragSchritt, KartenAktion, ModulHost, TrefferUmgebung } from '@boerdi/ui-module';
 
 import type { GroupingContext } from '../grouping/result-grouping';
 import type { TranslateFn } from '../i18n/i18n';
@@ -58,6 +58,12 @@ export interface ShellTreffer {
   alsEntwurf(nodeId: string, title: string): void;
   /** U1-h: Unterthemen eines Knotens im Themenbaum laden — ohne Zug, für denselben Baum. */
   zweig(nodeId: string): Promise<Record<string, unknown>>;
+  /** U3-2c: ein Dokument aus `ui_upload` lesen lassen — ohne Zug; löst mit dem Befund auf. */
+  hochladen(blockId: string, datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>>;
+  /** U3-3b: ein Schritt der Ablage im persönlichen Bereich — ohne Zug. */
+  ablegen(blockId: string, schritt: AblageSchritt): Promise<Record<string, unknown>>;
+  /** K1b: Stand eines Ablauf-Auftrags (ohne Zug) oder ihn im Zug abholen (Direktaktion). */
+  auftrag(schritt: AuftragSchritt): Promise<Record<string, unknown>>;
   /** Nächste Seite der Sammlung laden — für diese Nachricht. */
   mehrLaden(nachrichtId: string): void;
 }
@@ -71,7 +77,7 @@ export interface ShellTreffer {
  * Block-Kennung und Fähigkeiten kennt und hierher weiterreicht — darum heißt das Antworten hier
  * `antwortSenden` und nimmt die Kennung mit.
  */
-export class WidgetModulHost implements Omit<ModulHost, 'antworten' | 'vormerken'> {
+export class WidgetModulHost implements Omit<ModulHost, 'antworten' | 'vormerken' | 'hochladen' | 'ablegen'> {
   constructor(private readonly seams: HostSeams) {}
 
   herunterladen(dateiname: string, mime: string, inhalt: string): void {
@@ -106,6 +112,18 @@ export class WidgetModulHost implements Omit<ModulHost, 'antworten' | 'vormerken
 
   zweig(nodeId: string): Promise<Record<string, unknown>> {
     return this.seams.treffer().zweig(nodeId);
+  }
+
+  hochladen(blockId: string, datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>> {
+    return this.seams.treffer().hochladen(blockId, datei, onFortschritt);
+  }
+
+  ablegen(blockId: string, schritt: AblageSchritt): Promise<Record<string, unknown>> {
+    return this.seams.treffer().ablegen(blockId, schritt);
+  }
+
+  auftrag(schritt: AuftragSchritt): Promise<Record<string, unknown>> {
+    return this.seams.treffer().auftrag(schritt);
   }
 
   antwortSenden(blockId: string, daten: Record<string, unknown>, text: string): void {

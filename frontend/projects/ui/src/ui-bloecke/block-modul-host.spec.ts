@@ -19,6 +19,8 @@ function basis() {
     beschaeftigt: vi.fn(() => true),
     aktion: vi.fn(), antwortSenden: vi.fn(), vormerken: vi.fn(),
     zweig: vi.fn(async (nodeId: string) => ({ knoten: [{ id: `${nodeId}-1`, titel: 'Kind' }] })),
+    ablegen: vi.fn(async () => ({ stand: 'stored' })),
+    auftrag: vi.fn(async () => ({ stand: 'laeuft' })),
   };
 }
 
@@ -62,6 +64,30 @@ describe('BlockModulHost', () => {
     const { b, h } = host(['nachladen']);
     await expect(h.zweig('n3')).resolves.toEqual({ knoten: [{ id: 'n3-1', titel: 'Kind' }] });
     expect(b.zweig).toHaveBeenCalledWith('n3');
+  });
+
+  it('U3-3b: `ablegen` gehört zur Fähigkeit `hochladen` und trägt die Block-Kennung', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const mit = host(['hochladen']);
+    const schritt = { schritt: 'abschluss', batchToken: 'tok-1234567890' } as const;
+    await expect(mit.h.ablegen(schritt)).resolves.toEqual({ stand: 'stored' });
+    expect(mit.b.ablegen).toHaveBeenCalledWith('b0000007', schritt);
+    const ohne = host(['antworten']);
+    await expect(ohne.h.ablegen(schritt)).rejects.toMatchObject({ status: 403, code: 'aus' });
+    expect(ohne.b.ablegen).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith('boerdi: Modul-Fähigkeit fehlt', 'hochladen', 'b0000007');
+  });
+
+  it('K1b: `auftrag` gehört zur Fähigkeit `auftrag`', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const mit = host(['auftrag']);
+    const schritt = { schritt: 'stand', ablauf: 'lesen', kuerzel: '0123456789ab' } as const;
+    await expect(mit.h.auftrag(schritt)).resolves.toEqual({ stand: 'laeuft' });
+    expect(mit.b.auftrag).toHaveBeenCalledWith(schritt);
+    const ohne = host(['hochladen']);
+    await expect(ohne.h.auftrag(schritt)).rejects.toMatchObject({ status: 403, code: 'aus' });
+    expect(ohne.b.auftrag).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith('boerdi: Modul-Fähigkeit fehlt', 'auftrag', 'b0000007');
   });
 
   it('U1-h: ohne Fähigkeit `nachladen` lehnt `zweig` ab, ohne zu laden', async () => {

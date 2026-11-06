@@ -162,3 +162,14 @@ def test_darstellung_kennt_den_platz(tmp_path, platz, ok):
     else:
         with pytest.raises(katalog.KatalogFehler):
             katalog.lade(datei)
+
+
+@pytest.mark.parametrize("laden,ok", [("sofort", True), ("bei_bedarf", True), ("spaeter", False)])
+def test_laden_kennt_sofort_und_bei_bedarf(tmp_path, laden, ok):
+    """U3-0: ``bei_bedarf`` = eigenes Bündel, das das Widget erst beim ersten Block nachlädt."""
+    datei = _schreibe(tmp_path, _manifest(laden=laden))
+    if ok:
+        assert katalog.lade(datei)["ui_probe"]["laden"] == laden
+    else:
+        with pytest.raises(katalog.KatalogFehler):
+            katalog.lade(datei)
