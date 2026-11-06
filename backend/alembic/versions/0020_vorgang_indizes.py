@@ -2,8 +2,8 @@
 
 - ``ix_vorgaenge_session_id``: ``session_id … ON DELETE SET NULL`` prüfte sonst bei jedem gelöschten
   Sitzungs-Datensatz die ganze Tabelle (die Aufbewahrung löscht in Stapeln zu 5000).
-- ``ix_vorgaenge_aufrufer_muster`` (``text_pattern_ops``): ``aufrufer LIKE 'sitzung:%'`` nutzt so den
-  Index auch unter einer Sortierfolge, die nicht ``C`` ist.
+- ``ix_vorgaenge_aufrufer_muster`` (``text_pattern_ops``): ``aufrufer LIKE 'sitzung:%'`` nutzt so
+  den Index auch unter einer Sortierfolge, die nicht ``C`` ist.
 - ``ix_vorgaenge_aufrufer`` (0018) fällt weg: der Muster-Index trägt auch ``aufrufer = :a``.
 - ``ix_vorgang_auftraege_vorgang`` heißt wie im Modell ``ix_vorgang_auftraege_vorgang_id``.
 
