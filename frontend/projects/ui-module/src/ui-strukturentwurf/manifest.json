@@ -10,7 +10,8 @@
   "wann": [
     "die Person will eine neue Gliederung: 'entwirf', 'gliedere', 'neue Struktur', 'Unterrichtsreihe', 'Sammlung aufbauen zu Thema X'",
     "ein Thema ohne WLO-Sammlung soll gegliedert werden",
-    "einen mitgeschickten Entwurf vertiefen (vorlage, vertiefen)"
+    "einen mitgeschickten Entwurf vertiefen (vorlage, vertiefen)",
+    "die Person hat ein Dokument gelesen ([DOKUMENT DER PERSON], etwa ein Lehrplan) und will daraus einen Themenbaum (aus_dokument)"
   ],
   "nicht_wann": [
     "zeigen, was es in WLO schon gibt — Themen eines Fachportals oder einer Sammlung (dafuer ui_themenbaum)",
@@ -62,7 +63,7 @@
         },
         "vorlage": {
           "type": "boolean",
-          "description": "true: den Entwurf aus [ENTWURF DER PERSON] (mit dieser Nachricht geschickt) oder [DEIN LETZTER ENTWURF] als Grundlage nehmen — seine Punkte bleiben, es wird nur vertieft (oder mit erneut_zeigen unveraendert gezeigt)."
+          "description": "true: den Entwurf aus [ENTWURF DER PERSON] (mit dieser Nachricht geschickt), [DEIN LETZTER ENTWURF] oder den Teil draft aus [ARBEITSSTAND] als Grundlage nehmen — seine Punkte bleiben, es wird nur vertieft (oder mit erneut_zeigen unveraendert gezeigt)."
         },
         "erneut_zeigen": {
           "type": "boolean",
@@ -73,6 +74,10 @@
           "maxItems": 20,
           "items": { "type": "string", "minLength": 1, "maxLength": 120 },
           "description": "Nur mit vorlage: Titel der Punkte (wie im Entwurf), die Unterthemen bekommen sollen; ohne Angabe alle Punkte ohne Unterthemen."
+        },
+        "aus_dokument": {
+          "type": "boolean",
+          "description": "true: die Gliederung aus dem Dokument der Person ableiten, das sie im Auswahlfeld (ui_upload) hat lesen lassen ([DOKUMENT DER PERSON]); das System liest es selbst. thema ist dann sein Titel oder Zweck. Nicht zusammen mit vorlage."
         }
       }
     }
@@ -83,7 +88,7 @@
     "required": ["titel", "quelle", "knoten"],
     "properties": {
       "titel": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Titel des Entwurfs." },
-      "quelle": { "enum": ["ki", "wlo"], "description": "ki: von der KI erzeugt; wlo: aus einer WLO-Sammlung uebernommen (Bruecke im Themenbaum)." },
+      "quelle": { "enum": ["ki", "wlo", "ordner", "dokument"], "description": "ki: von der KI erzeugt; wlo: aus einer WLO-Sammlung uebernommen (Bruecke im Themenbaum); ordner: aus der Ordnerstruktur der Person (ui_upload); dokument: aus dem Dokument der Person (ui_upload, aus_dokument)." },
       "thema": { "type": "string", "maxLength": 200, "description": "Das Thema des Auftrags." },
       "fach": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Fach des Entwurfs, falls erkannt." },
       "bildungsstufe": { "$ref": "#/$defs/stufe" },
@@ -112,7 +117,9 @@
           "fach": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Fach, nur wenn es vom Entwurf abweicht." },
           "bildungsstufe": { "$ref": "#/$defs/stufe" },
           "wlo_id": { "$ref": "#/$defs/wlo_id" },
-          "ausstehend": { "type": "boolean", "description": "Unterthemen sind vorgesehen, aber (noch) nicht erzeugt." }
+          "ausstehend": { "type": "boolean", "description": "Unterthemen sind vorgesehen, aber (noch) nicht erzeugt." },
+          "fundstelle": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Mit quelle dokument: Titel des Abschnitts im Dokument, aus dem der Punkt stammt." },
+          "abschnitte": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^a[1-9][0-9]{0,2}$" }, "description": "Mit quelle dokument: Kennungen der Abschnitte im Dokument, aus denen der Punkt stammt." }
         }
       },
       "ebene4": { "$ref": "#/$defs/felder", "unevaluatedProperties": false },
@@ -139,7 +146,7 @@
     "required": ["titel", "quelle", "knoten", "uebernommen", "bearbeitet"],
     "properties": {
       "titel": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Titel des Entwurfs." },
-      "quelle": { "enum": ["ki", "wlo"], "description": "Herkunft wie in der Eingabe." },
+      "quelle": { "enum": ["ki", "wlo", "ordner", "dokument"], "description": "Herkunft wie in der Eingabe." },
       "thema": { "type": "string", "maxLength": 200, "description": "Das Thema des Auftrags." },
       "fach": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Fach des Entwurfs." },
       "bildungsstufe": { "$ref": "#/$defs/stufe" },
@@ -170,7 +177,9 @@
           "fach": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Fach." },
           "bildungsstufe": { "$ref": "#/$defs/stufe" },
           "wlo_id": { "$ref": "#/$defs/wlo_id" },
-          "ausstehend": { "type": "boolean", "description": "Unterthemen fehlen noch." }
+          "ausstehend": { "type": "boolean", "description": "Unterthemen fehlen noch." },
+          "fundstelle": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Abschnitt im Dokument (quelle dokument)." },
+          "abschnitte": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^a[1-9][0-9]{0,2}$" }, "description": "Abschnitte im Dokument (quelle dokument)." }
         }
       },
       "ebene4": { "$ref": "#/$defs/felder", "unevaluatedProperties": false },
@@ -192,6 +201,7 @@
     }
   },
   "datenquelle": null,
+  "vorgang": { "schreibt": ["draft"], "liest": ["structure", "document", "draft"] },
   "faehigkeiten": ["antworten", "herunterladen"],
   "textfassung": { "vorlage": "markdown" },
   "darstellung": { "breit": false, "platz": "oben" },

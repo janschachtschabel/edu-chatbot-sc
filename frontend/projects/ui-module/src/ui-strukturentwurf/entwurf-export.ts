@@ -10,7 +10,7 @@ import type { Baum } from './entwurf-regeln';
 
 export interface EntwurfDaten {
   readonly titel: string;
-  readonly quelle: 'ki' | 'wlo';
+  readonly quelle: 'ki' | 'wlo' | 'ordner' | 'dokument';
   readonly thema?: string;
   readonly fach?: string;
   readonly bildungsstufe?: string;

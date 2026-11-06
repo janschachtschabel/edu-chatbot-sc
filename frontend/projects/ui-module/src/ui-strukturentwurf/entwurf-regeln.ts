@@ -16,6 +16,9 @@ export interface EntwurfKnoten {
   readonly bildungsstufe?: string;
   readonly wlo_id?: string;
   readonly ausstehend?: boolean;
+  /** U3-2b, `quelle: dokument`: Titel und Kennungen der Abschnitte, aus denen der Punkt stammt. */
+  readonly fundstelle?: string;
+  readonly abschnitte?: readonly string[];
   readonly kinder?: readonly EntwurfKnoten[];
 }
 
