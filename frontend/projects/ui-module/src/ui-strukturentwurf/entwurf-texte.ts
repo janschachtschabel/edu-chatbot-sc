@@ -6,9 +6,10 @@ const zahl = (n: number, eins: string, viele: string, ort: string) =>
 
 export const TEXTE = {
   de: {
-    marke: { ki: 'Entwurf (KI)', wlo: 'Entwurf (aus WLO)' },
+    marke: { ki: 'Entwurf (KI)', wlo: 'Entwurf (aus WLO)', ordner: 'Entwurf (aus Ordnern)', dokument: 'Entwurf (aus Dokument)' },
     punkte: (n: number) => zahl(n, 'Punkt', 'Punkte', 'de-DE'),
     gekuerzt: 'Die Sammlung in WLO hat mehr Punkte, als der Entwurf übernommen hat.',
+    gekuerztOrdner: 'Der Ordner hat mehr Ebenen oder Unterordner, als der Entwurf übernommen hat.',
     leer: 'Der Entwurf ist leer.',
     ausstehend: 'Unterthemen fehlen noch',
     allesAuf: 'Alles aufklappen',
@@ -67,9 +68,10 @@ export const TEXTE = {
     } satisfies Record<Grund, string>,
   },
   en: {
-    marke: { ki: 'Draft (AI)', wlo: 'Draft (from WLO)' },
+    marke: { ki: 'Draft (AI)', wlo: 'Draft (from WLO)', ordner: 'Draft (from folders)', dokument: 'Draft (from document)' },
     punkte: (n: number) => zahl(n, 'item', 'items', 'en-GB'),
     gekuerzt: 'The WLO collection has more items than the draft took over.',
+    gekuerztOrdner: 'The folder has more levels or subfolders than the draft took over.',
     leer: 'The draft is empty.',
     ausstehend: 'subtopics still missing',
     allesAuf: 'Expand all',

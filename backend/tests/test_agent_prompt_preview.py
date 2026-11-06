@@ -64,7 +64,8 @@ async def test_kopf_und_master_skill_sind_wortgleich_mit_dem_zug(quellen, monkey
     # Die ECHTE Signatur von ``run_agent_loop`` (A4b-Regel für Attrappen).
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
-                    on_token=None, start=None, modul_vorlage=None):
+                    on_token=None, start=None, modul_vorlage=None, modul_dokument=None,
+                    modul_teile=None):
         gesehen["messages"] = [dict(m) for m in messages]
         return AgentRun(text="ok", stop_reason="text", iterations=1)
 
@@ -188,7 +189,8 @@ async def test_die_bloecke_je_zug_stehen_in_der_reihenfolge_des_echten_zugs(quel
 
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
-                    on_token=None, start=None, modul_vorlage=None):
+                    on_token=None, start=None, modul_vorlage=None, modul_dokument=None,
+                    modul_teile=None):
         gesehen["messages"] = [dict(m) for m in messages]
         return AgentRun(text="ok", stop_reason="text", iterations=1)
 
@@ -227,10 +229,12 @@ async def test_nennt_die_modul_werkzeuge_getrennt(quellen):
     werkzeuge = (await pv.prompt_vorschau("de"))["tools"]
     module = werkzeuge["ui_module"]
     # U2: der Strukturentwurf (Dienst, ohne MCP-Werkzeug) zählt immer mit.
-    assert module["names"] == ["ui_entscheidung", "ui_strukturentwurf", "ui_themenbaum"]
+    # U3-1: ui_upload (Dienst, ohne MCP-Werkzeug) zählt immer mit.
+    assert module["names"] == [
+        "ui_entscheidung", "ui_strukturentwurf", "ui_themenbaum", "ui_upload"]
     # Der Themenbaum (U1-e) zählt mit, weil sein Werkzeug browse_collection_tree angeboten ist.
     assert module["chars"] == len(json.dumps(modul_werkzeuge(
-        ["ui_entscheidung", "ui_strukturentwurf", "ui_themenbaum"],
+        ["ui_entscheidung", "ui_strukturentwurf", "ui_themenbaum", "ui_upload"],
         verfuegbar={"browse_collection_tree"},
         fuer="agent"),
         ensure_ascii=False))
@@ -248,7 +252,7 @@ async def test_namen_und_umfang_zaehlen_dieselben_module(quellen, monkeypatch):
     monkeypatch.setattr(agent_tools, "verborgene_werkzeuge",
                         lambda: frozenset({"browse_collection_tree"}))
     module = (await pv.prompt_vorschau("de"))["tools"]["ui_module"]
-    assert module["names"] == ["ui_entscheidung", "ui_strukturentwurf"]
+    assert module["names"] == ["ui_entscheidung", "ui_strukturentwurf", "ui_upload"]
     assert module["chars"] == len(json.dumps(modul_werkzeuge(
-        ["ui_entscheidung", "ui_strukturentwurf"], verfuegbar=set(), fuer="agent"),
+        ["ui_entscheidung", "ui_strukturentwurf", "ui_upload"], verfuegbar=set(), fuer="agent"),
         ensure_ascii=False))

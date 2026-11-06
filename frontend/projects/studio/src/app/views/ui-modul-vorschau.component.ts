@@ -31,7 +31,9 @@ import type { ResultGroupsContext } from '@boerdi/ui/grouping/result-grouping';
 import { DE } from '@boerdi/ui/i18n/de';
 import { createTranslator } from '@boerdi/ui/i18n/dictionary';
 import { EN } from '@boerdi/ui/i18n/en';
-import { MODUL_HOST, TREFFERLISTE, UI_MODUL_REGISTER } from '@boerdi/ui-module';
+import { MODUL_HOST, NACHLADE_ZIEL, TREFFERLISTE, UI_MODUL_REGISTER } from '@boerdi/ui-module';
+// U3-1a: Element-Quellen nachgeladener Module — nur hier (Studio), nie im Widget-Bündel.
+import { NACHLADE_QUELLEN } from '@boerdi/ui-module/nachlade-quellen.generated';
 
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { type UiModulEintrag, vorschauKontext } from './ui-module';
@@ -127,8 +129,19 @@ export class UiModulVorschauComponent {
     this.index();
     this.beantwortet();
     this.kacheln();
+    const name = this.eintrag().name;
+    const element = this.register[name]?.element;
+    const quelle = NACHLADE_QUELLEN[name];
     return Injector.create({
-      providers: [{ provide: MODUL_HOST, useValue: this.host }], parent: this.injector,
+      providers: [
+        { provide: MODUL_HOST, useValue: this.host },
+        // U3-1a: ein nachgeladenes Modul kommt im Studio als Lazy-Chunk statt als Bündel mit SRI.
+        ...(element ? [{ provide: NACHLADE_ZIEL, useValue: {
+          element, text: this.eintrag().manifest.beschreibung,
+          laden: () => (quelle ? quelle().then(() => undefined) : Promise.reject(new Error(name))),
+        } }] : []),
+      ],
+      parent: this.injector,
     });
   });
 

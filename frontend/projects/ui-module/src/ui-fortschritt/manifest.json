@@ -1,0 +1,66 @@
+{
+  "name": "ui_fortschritt",
+  "version": 1,
+  "art": "anzeigen",
+  "titel": {
+    "de": "Fortschritt eines Auftrags",
+    "en": "Progress of a job"
+  },
+  "beschreibung": "Zeigt, dass ein Auftrag eines Ablaufs (z. B. ein Dokument lesen lassen) im Hintergrund laeuft, fragt selbst nach dem Stand und holt das Ergebnis ab, sobald es fertig ist. Nur der Ablauf-Treiber baut dieses Modul; die KI ruft es nicht auf.",
+  "wann": [
+    "ein Schritt eines Ablaufs hat einen Auftrag gestartet und wartet auf sein Ergebnis"
+  ],
+  "nicht_wann": [
+    "irgendetwas anderes - das Modul entsteht nur im Ablauf"
+  ],
+  "agent": false,
+  "laden": "bei_bedarf",
+  "eingabe": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "ablauf",
+      "kuerzel",
+      "text"
+    ],
+    "properties": {
+      "ablauf": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,39}$",
+        "description": "Kennung des Ablaufs, dessen Schritt wartet."
+      },
+      "kuerzel": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{12}$",
+        "description": "Pruefkuerzel des Auftrags (nicht die Job-ID)."
+      },
+      "text": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300,
+        "description": "Was gerade passiert, in einem Satz."
+      }
+    }
+  },
+  "datenquelle": null,
+  "faehigkeiten": [
+    "auftrag"
+  ],
+  "textfassung": {
+    "vorlage": "markdown",
+    "feld": "text"
+  },
+  "darstellung": {
+    "breit": false
+  },
+  "beispiele": [
+    {
+      "titel": "Laeuft",
+      "daten": {
+        "ablauf": "lesen",
+        "kuerzel": "0123456789ab",
+        "text": "Ich lasse das Dokument lesen."
+      }
+    }
+  ]
+}

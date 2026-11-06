@@ -13,8 +13,12 @@
  * sind verbatim aus ALT. Kein Modul-Global-State — `baseUrl`/`guideMode`/
  * `guideHost`/`startTime` sind Instanzfelder; `fetchImpl` ist injizierbar.
  */
+import type { AblageSchritt } from '@boerdi/ui-module';
+
 import { ChatResponse, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { fehlerKurz } from '../obs/fehler-kurz';
+import { ablageSenden } from './ablage-transport';
+import { type DokumentBefund, dokumentHochladen } from './dokument-transport';
 import { verlaufAbrufen } from './history-transport';
 import { ChatStreamEvent, postChat, streamChat } from './stream-client';
 
@@ -147,6 +151,9 @@ export interface HistoryMessage {
 
 /** Frist für einen Zweig des Themenbaums: über `MCP_CALL_TIMEOUT_S` (60 s) des Backends. */
 const ZWEIG_FRIST_MS = 75_000;
+/** K1b: eine Standabfrage ist eine kurze b-api-Abfrage — länger wartet das Modul nicht. */
+const AUFTRAG_FRIST_MS = 25_000;
+const AUFTRAG_STAENDE: ReadonlySet<unknown> = new Set(['laeuft', 'fertig', 'fehler']);
 
 /**
  * Zustandsbehafteter Chat-Client: hält `baseUrl` (+ Runtime-Override) und den
@@ -180,6 +187,12 @@ export class ChatApiClient {
         this.setBaseUrl(w.BOERDI_API_URL.trim());
       }
     } catch { /* ignore */ }
+  }
+
+  /** Die aktuelle Backend-Basis (`…/api`); U3-0: daraus leitet der Lader die Adresse der
+   *  nachgeladenen Modul-Bündel ab (`…/widget/module/`). */
+  apiBasis(): string {
+    return this.baseUrl;
   }
 
   /** Backend-Basis überschreiben (trailing slash weg, `/api` anhängen). */
@@ -458,6 +471,40 @@ export class ChatApiClient {
     const daten = antwort?.daten;
     if (!daten || typeof daten !== 'object' || Array.isArray(daten)) throw new Error('Themenbaum: Antwort ohne Daten');
     return daten as Record<string, unknown>;
+  }
+
+  /** Ein Dokument aus `ui_upload` lesen lassen (U3-2c, `POST /api/ui/dokumente`): kein Zug; der
+   *  Transport (`dokument-transport.ts`) meldet den Fortschritt und wirft mit `status` und `code`. */
+  async dokumentHochladen(
+    sessionId: string, blockId: string, datei: File,
+    opts: { onFortschritt?: (anteil: number) => void; signal?: AbortSignal } = {},
+  ): Promise<DokumentBefund> {
+    await this.anmeldung;
+    return dokumentHochladen({ url: `${this.baseUrl}/ui/dokumente`, sessionId, blockId, datei, ...opts });
+  }
+
+  /** Ein Schritt der Ablage im persönlichen Bereich (U3-3b, `POST /api/ui/ablage/*`): kein Zug; der
+   *  Transport (`ablage-transport.ts`) wirft mit `status` und `code`. */
+  async ablageSchritt(
+    sessionId: string, blockId: string, schritt: AblageSchritt, signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> {
+    await this.anmeldung;
+    return ablageSenden({ basis: this.baseUrl, sessionId, blockId, schritt, signal });
+  }
+
+  /** Der Stand eines Ablauf-Auftrags (K1b, `POST /api/ui/auftrag/stand`): kein Zug, nur Sitzung,
+   *  Ablauf und Kürzel; der Zugangsblock reist mit. Ein unbekannter Stand wirft (nie „fertig“ raten). */
+  async auftragStand(sessionId: string, ablauf: string, kuerzel: string, signal?: AbortSignal): Promise<{ stand: string }> {
+    await this.anmeldung;
+    const antwort = await postChat<{ stand?: unknown }>({
+      url: `${this.baseUrl}/ui/auftrag/stand`,
+      body: { session_id: sessionId, ablauf, kuerzel },
+      fetchImpl: this.fetchImpl,
+      fristMs: AUFTRAG_FRIST_MS,
+      signal,
+    });
+    if (!AUFTRAG_STAENDE.has(antwort?.stand)) throw new Error('Auftrag: unbekannter Stand');
+    return { stand: antwort.stand as string };
   }
 
   // ── Sprach-Transport (STT/TTS) ──────────────────────────────────

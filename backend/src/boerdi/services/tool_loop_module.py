@@ -33,6 +33,7 @@ from boerdi.api.schemas_ui import UiBlock
 from boerdi.domain.ui_bloecke import GENUG_BLOECKE, platz_fuer_anzeige
 from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
 from boerdi.obs.zeiten import schritt
+from boerdi.services import teil_verweise
 from boerdi.ui_module.antwort import ZWEITE_FRAGE, frage_quittung
 from boerdi.ui_module.aufruf import Umgebung, asynchron
 from boerdi.ui_module.strukturentwurf_merken import vorlage as entwurf_vorlage
@@ -48,6 +49,11 @@ _logger = logging.getLogger(__name__)
 #: Wo der Muster-Weg die Blöcke der Modul-Werkzeuge ablegt; gehört DIESEM Zug. Bewusst nicht
 #: ``domain/ui_bloecke.DEBUG_KEY`` (gespeicherte Blöcke im Debug-Block, Review U1-d2).
 MODUL_BLOECKE_KEY: Final = "_modul_bloecke_zug"
+#: U3-2b: der Lader für das Dokument der Sitzung (``services/dokumente/stand.lader``) — oberste
+#: Ebene des ``session_state`` wie die Blöcke: er stirbt mit dem Zug, gespeichert wird er nie.
+DOKUMENT_LADER_KEY: Final = "_dokument_lader_zug"
+#: Paket V1: der Teil-Lader des aktiven Vorgangs — wie der Dokument-Lader nur für diesen Zug.
+TEIL_LADER_KEY: Final = "_teil_lader_zug"
 
 
 @dataclass(slots=True)
@@ -86,6 +92,11 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
         args = json.loads(roh_args or "{}")
     except (json.JSONDecodeError, TypeError):
         args = None   # → die Prüfung gegen ``eingabe`` meldet die fehlenden Felder
+    if isinstance(args, dict):
+        # Paket V2 (Review, Befund 2): wie in der Agent-Schleife — nur Teile, die das Modul liest.
+        args, fehlt = await teil_verweise.einsetzen(args, session_state.get(TEIL_LADER_KEY), name)
+        if fehlt:
+            return teil_verweise.fehlertext(fehlt)
     if ist_asynchron(name):
         # U2: eine zweite Frage kostet keinen Dienst-Aufruf; ohne Laufrist gilt die des Dienstes.
         if ist_abfragendes_modul(name) and offene_frage(session_state) is not None:
@@ -94,7 +105,9 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
         with schritt("respond.werkzeuge"):
             # Drittes Review U2, Befund 2: der gemerkte Entwurf (``respond`` merkt ihn vorher).
             ergebnis = await asynchron(name, args, Umgebung(
-                usage_acc=usage_acc, vorlage=entwurf_vorlage(session_state.get("entities") or {})))
+                usage_acc=usage_acc, vorlage=entwurf_vorlage(session_state.get("entities") or {}),
+                dokument=session_state.get(DOKUMENT_LADER_KEY),
+                teile=session_state.get(TEIL_LADER_KEY)))
         outcomes.append(ergebnis.outcome)
         if ergebnis.block is not None:
             session_state.setdefault(MODUL_BLOECKE_KEY, []).append(ergebnis.block)

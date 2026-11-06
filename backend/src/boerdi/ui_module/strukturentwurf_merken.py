@@ -7,9 +7,10 @@ Zug noch einen Gegenstand hat, merkt sich die Sitzung den letzten Entwurf in
 
 - **Woher:** die geprüfte Antwort der Person (:func:`aus_antwort`) oder ein Block, den der Dienst
   in diesem Zug erzeugt hat (:func:`aus_bloecken`). Beides rufen die Antwort-Knoten, also nach
-  ``assess``. Die Brücke aus dem Bestand (``services/strukturentwurf_aktion``) schreibt nichts
-  (Bestandsknoten erreichen die KI erst, wenn die Person den Entwurf zurückschickt) und vergisst
-  einen älteren gemerkten Entwurf.
+  ``assess``. Die Brücke aus den Ordnern (``services/ordner_aktion``) merkt ihren Entwurf — die
+  Ordnernamen gingen durch die Prüfung des Zugs. Die Brücke aus dem Bestand
+  (``services/strukturentwurf_aktion``) schreibt nichts (Bestandsknoten erreichen die KI erst, wenn
+  die Person den Entwurf zurückschickt) und vergisst einen älteren gemerkten Entwurf.
 - **Wie groß:** höchstens :data:`HOECHSTENS_ZEICHEN` als JSON; sonst ohne Beschreibungen und
   Schlagworte (die gehen ohnehin an kein Modell) und mit der Marke :data:`OHNE_TEXTE` — so
   gemerkt taugt er zum Vertiefen, aber nicht zum unveränderten Wiederzeigen (``erneut_zeigen``

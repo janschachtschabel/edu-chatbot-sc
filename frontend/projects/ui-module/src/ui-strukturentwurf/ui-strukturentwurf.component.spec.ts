@@ -78,6 +78,13 @@ describe('UiStrukturentwurf', () => {
     expect(wlo.el.textContent).toContain('mehr Punkte, als der Entwurf übernommen hat');
   });
 
+  it('Review U3-1, Befund 5: ein Entwurf aus Ordnern sagt seine Herkunft und kürzt ohne WLO-Satz', async () => {
+    const { el } = await render({ ...BEISPIEL, quelle: 'ordner', gekuerzt: true } as EntwurfDaten);
+    expect(el.querySelector('.ui-strukturentwurf__marke')?.textContent).toBe('Entwurf (aus Ordnern)');
+    expect(el.textContent).toContain('Der Ordner hat mehr Ebenen oder Unterordner');
+    expect(el.textContent).not.toContain('Sammlung in WLO');
+  });
+
   it('Baum mit Ebene, Position, Zustand; ausstehende Punkte sagen es am Eintrag', async () => {
     const { el } = await render(manifest.beispiele[2].daten as unknown as EntwurfDaten);
     const [ursachen, folgen] = items(el);

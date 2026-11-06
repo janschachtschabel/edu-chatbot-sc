@@ -10,6 +10,8 @@ import linkbox from '@boerdi/ui-module/ui-linkbox/manifest.json';
 import strukturentwurf from '@boerdi/ui-module/ui-strukturentwurf/manifest.json';
 import themenbaum from '@boerdi/ui-module/ui-themenbaum/manifest.json';
 import trefferliste from '@boerdi/ui-module/ui-trefferliste/manifest.json';
+import fortschritt from '@boerdi/ui-module/ui-fortschritt/manifest.json';
+import upload from '@boerdi/ui-module/ui-upload/manifest.json';
 import { MODUL_REGISTER } from '@boerdi/ui-module/register.generated';
 
 import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
@@ -21,7 +23,22 @@ import { UiModulVorschauComponent } from './ui-modul-vorschau.component';
  * Register — und nichts davon verlässt die Seite: Herunterladen, Drucken, Aktionen und Antworten
  * werden angesagt, Links öffnen nicht.
  */
-const MANIFESTE = [entscheidung, inhaltsrahmen, linkbox, strukturentwurf, themenbaum, trefferliste] as unknown as UiModulManifest[];
+const MANIFESTE = [entscheidung, fortschritt, inhaltsrahmen, linkbox, strukturentwurf, themenbaum, trefferliste, upload] as unknown as UiModulManifest[];
+
+/** Text der Bühne samt Shadow Roots (nachgeladene Module zeichnen in ihren Shadow Root, U3-1a). */
+function text(e: Element | null): string {
+  if (!e) return '';
+  const innen = e.shadowRoot ? [...e.shadowRoot.children].map(text).join(' ') : '';
+  return [e.childElementCount ? [...e.children].map(text).join(' ') : (e.textContent ?? ''), innen].join(' ');
+}
+
+/** Bis ein nachgeladenes Element da ist: Lazy-Chunk laden, Effekt laufen lassen. */
+async function geladen(f: { whenStable(): Promise<unknown> }): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    await new Promise((r) => setTimeout(r, 0));
+    await f.whenStable();
+  }
+}
 
 function eintrag(manifest: UiModulManifest): UiModulEintrag {
   return { name: manifest.name, manifest, schaltbar: { aktiv: true, agent: true }, abgeleitet: false };
@@ -67,9 +84,10 @@ describe('UiModulVorschauComponent', () => {
       it(`rendert ${manifest.name} „${beispiel.titel}“ mit der echten Komponente`, async () => {
         const { f, el } = await render(manifest);
         await waehle(f, el, index);
+        await geladen(f);
         const buehne = el.querySelector('.umv-buehne');
         expect(buehne?.children.length).toBeGreaterThan(0);
-        expect(buehne?.textContent?.trim()).not.toBe('');
+        expect(text(buehne).trim()).not.toBe('');
         expect(el.querySelector('.umv-unbekannt')).toBeNull();
       });
     }

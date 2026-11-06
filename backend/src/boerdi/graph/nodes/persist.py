@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Any
 
 from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
+from boerdi.services import arbeitsstand
 from boerdi.services.tool_loop import GELIEFERTE_DOKUMENTE_KEY
 from boerdi.services.turn_links import _finalize_links_and_metas
 from boerdi.services.turn_persist import (
@@ -78,7 +79,14 @@ async def persist(
 
     ``engine`` (AG-1) ist die Maschine des Zugs aus ``build_turn_graph``; sie
     geht mit der Spur, die ``respond_agent`` an ``ctx.debug`` abgelegt hat, in
-    den Debug-Block."""
+    den Debug-Block.
+
+    Paket V1: zuerst die geprüfte Modul-Antwort als Teil des Vorgangs (``services/arbeitsstand``),
+    damit der Verweis mit derselben Sitzungs-Schreibung festgeht — nicht, wenn das Sicherheits-Gate
+    den Zug als hoch riskant eingestuft hat."""
+    if ctx.ui_antwort and not (ctx.safety and ctx.safety.risk_level == "high"):
+        await arbeitsstand.uebernehmen(session, ctx.req.session_id,
+                                       ctx.session_state.setdefault("entities", {}), ctx.ui_antwort)
     debug = await build_debug_and_update_session(
         session,
         req=ctx.req,

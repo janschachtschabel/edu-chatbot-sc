@@ -9,7 +9,7 @@
     @if (daten().bildungsstufe) { <span>{{ texte().stufe }}: {{ daten().bildungsstufe }}</span> }
     <span>{{ texte().punkte(zahl()) }}</span>
   </p>
-  @if (daten().gekuerzt) { <p class="ui-strukturentwurf__hinweis">{{ texte().gekuerzt }}</p> }
+  @if (daten().gekuerzt) { <p class="ui-strukturentwurf__hinweis">{{ daten().quelle === 'ordner' ? texte().gekuerztOrdner : texte().gekuerzt }}</p> }
 
   @if (struktur().length) {
     @if (hatKinder()) {

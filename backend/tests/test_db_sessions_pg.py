@@ -250,6 +250,7 @@ def test_delete_session_clears_all_dependents_and_counts(test_db) -> None:
         "memory": 1,
         "quality_logs": 1,
         "safety_logs": 1,
+        "vorgaenge": 0,  # Paket V1: anonyme Vorgänge gehen mit der Sitzung
         "sessions": 1,
     }
     assert sessions_left == 1  # only bb-keep remains

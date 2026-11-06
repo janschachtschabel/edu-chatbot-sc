@@ -22,10 +22,10 @@ import logging
 from typing import Any, Final
 
 from boerdi.api.schemas_ui import UiAntwort, UiBlock
-from boerdi.domain.endmarken import entschaerfe_endmarken
 from boerdi.ui_module import katalog
-from boerdi.ui_module import strukturentwurf_antwort as entwurf
-from boerdi.ui_module.namen import STRUKTURENTWURF
+from boerdi.ui_module.antwort_formen import form
+from boerdi.ui_module.rahmen import gerahmt as _gerahmt
+from boerdi.ui_module.rahmen import zeile as _zeile
 
 logger = logging.getLogger(__name__)
 
@@ -47,15 +47,13 @@ FRAGE_FRAME_START: Final = (
 )
 FRAGE_FRAME_END: Final = "[ENDE FRAGE]"
 
-_ZEILE: Final = 300
-
 
 def merke_frage(entities: dict[str, Any], block: UiBlock) -> None:
     """Die offene Frage eines abfragenden Blocks — nur, was die Prüfung der Antwort braucht.
-    Beim Strukturentwurf (U2) Kennung, Titel und Umfang (``strukturentwurf_antwort.merken``)."""
+    Module mit eigener Antwortform (``antwort_formen``) merken sich ihr Eigenes."""
     daten = block.daten
-    if block.modul == STRUKTURENTWURF:
-        entities[OFFENE_FRAGE] = entwurf.merken(block.block_id, block.modul, daten)
+    if f := form(block.modul):
+        entities[OFFENE_FRAGE] = f.merken(block.block_id, block.modul, daten)
         return
     entities[OFFENE_FRAGE] = {
         "block_id": block.block_id,
@@ -77,8 +75,8 @@ def _grund(offen: Any, antwort: UiAntwort) -> str | None:
         return "Modul unbekannt"
     if fehler := katalog.antwort_fehler(manifest, antwort.daten):
         return "; ".join(fehler)
-    if offen.get("modul") == STRUKTURENTWURF:
-        return entwurf.grund(antwort.daten)
+    if f := form(offen.get("modul")):
+        return f.grund(antwort.daten)
     gewaehlt = antwort.daten.get("gewaehlt") or []
     if not set(gewaehlt) <= {o.get("id") for o in offen.get("optionen") or []}:
         return "Kennung, die die Frage nicht anbot"
@@ -97,22 +95,11 @@ def antwort_pruefen(offen: Any, antwort: UiAntwort) -> dict[str, Any] | None:
         return None
     labels = {o["id"]: o["label"] for o in offen.get("optionen") or []}
     # U2 (Review, Befund 4): beim Entwurf jeder Text eine Zeile — gilt auch für die Vorlage.
-    daten = (entwurf.normalisiert(antwort.daten) if offen["modul"] == STRUKTURENTWURF
-             else dict(antwort.daten))
+    f = form(offen["modul"])
+    daten = f.normalisiert(antwort.daten) if f else dict(antwort.daten)
     return {"block_id": antwort.block_id, "modul": offen["modul"], "frage": offen["frage"],
             "daten": daten,
             "labels": [labels[k] for k in antwort.daten.get("gewaehlt") or [] if k in labels]}
-
-
-def _zeile(wert: object, deckel: int = _ZEILE) -> str:
-    """Eine Zeile: ein Umbruch darf im Block keinen eigenen Abschnitt beginnen."""
-    return " ".join(str(wert).split())[:deckel] if wert is not None else ""
-
-
-def _gerahmt(start: str, zeilen: list[str], ende: str) -> str:
-    """Zeilen im Rahmen. Frage, Beschriftungen (Modell) und Ergänzung (Person) dürfen den Block
-    nicht vorzeitig schließen — in keiner Schreibweise der Endmarke (``domain/endmarken``)."""
-    return "\n".join([start, entschaerfe_endmarken("\n".join(zeilen)), ende])
 
 
 def _freitext(daten: dict[str, Any]) -> str:
@@ -122,9 +109,9 @@ def _freitext(daten: dict[str, Any]) -> str:
 
 def antwort_block(geprueft: dict[str, Any]) -> str:
     """Der gerahmte Block für die KI, vor der Nachricht der Person."""
-    if geprueft.get("modul") == STRUKTURENTWURF:
-        kopf, zeilen = entwurf.zeilen(geprueft)
-        return _gerahmt(kopf, zeilen, entwurf.ENTWURF_FRAME_END)
+    if f := form(geprueft.get("modul")):
+        kopf, zeilen = f.zeilen(geprueft)
+        return _gerahmt(kopf, zeilen, f.ende_fuer(geprueft) if f.ende_fuer else f.ende)
     daten = geprueft.get("daten") or {}
     gewaehlt = [f"{_zeile(label)} ({_zeile(kennung, 40)})"
                 for label, kennung in zip(geprueft.get("labels") or [],
@@ -139,9 +126,8 @@ def antwort_block(geprueft: dict[str, Any]) -> str:
 def frage_block(offen: dict[str, Any]) -> str:
     """Die übergangene Frage (``merke_frage``) gerahmt für die KI, vor der Nachricht der Person —
     nur, wenn keine geprüfte Antwort kam (Review U1-d1, Befund 3)."""
-    if offen.get("modul") == STRUKTURENTWURF:
-        return _gerahmt(entwurf.LETZTER_FRAME_START, entwurf.frage_zeilen(offen),
-                        entwurf.ENTWURF_FRAME_END)
+    if f := form(offen.get("modul")):
+        return _gerahmt(f.frage_start, f.frage_zeilen(offen), f.ende)
     zeilen = [f"Frage: „{_zeile(offen.get('frage'))}“", "Möglichkeiten:"]
     zeilen += [f"{nr}. {_zeile(o.get('label'))}"
                for nr, o in enumerate(offen.get("optionen") or [], start=1) if isinstance(o, dict)]
@@ -160,12 +146,14 @@ def vorsatz(geprueft: dict[str, Any] | None, geschlossen: dict[str, Any] | None,
     ``letzter`` (drittes Review U2, Befund 2): der Rahmen des gemerkten Entwurfs
     (``strukturentwurf_merken.rahmen``). Er ersetzt bei einem geschlossenen Entwurf das
     „Seinen Stand kennst du nicht“ und entfällt, wenn der Entwurf gerade als Antwort kam."""
-    entwurf = STRUKTURENTWURF
+    def ersetzt(teil: dict[str, Any] | None) -> bool:
+        return bool((f := form((teil or {}).get("modul"))) and f.letzter_entwurf)
+
     if geprueft:
         haupt = antwort_block(geprueft)
-        if geprueft.get("modul") == entwurf:
+        if ersetzt(geprueft):
             letzter = ""
-    elif geschlossen and not (geschlossen.get("modul") == entwurf and letzter):
+    elif geschlossen and not (ersetzt(geschlossen) and letzter):
         haupt = frage_block(geschlossen)
     else:
         haupt = ""
@@ -180,9 +168,9 @@ def sicherheits_text(message: str, geprueft: dict[str, Any] | None) -> str:
     bleibt es die Nachricht, Zeichen für Zeichen.
     """
     daten = (geprueft or {}).get("daten") or {}
-    if (geprueft or {}).get("modul") == STRUKTURENTWURF:
-        # U2: was ein Modell vom Entwurf sieht, zuerst (Gegenreview, Befund 3).
-        return f"{entwurf.sicherheit(daten)}\n{message}"
+    if f := form((geprueft or {}).get("modul")):
+        # U2: was ein Modell davon sieht, zuerst (Gegenreview, Befund 3).
+        return f"{f.sicherheit(daten)}\n{message}"
     ergaenzung = _freitext(daten)
     return f"{message}\n{ergaenzung}" if ergaenzung else message
 
@@ -199,7 +187,8 @@ def frage_satz(bloecke: list[UiBlock]) -> str:
     """Der Text-Schlüssel des festen Satzes unter einer Frage ohne Begleittext: beim
     Strukturentwurf ein eigener (U2), sonst „Bitte wähle unten aus.“"""
     abfragend = next((b for b in bloecke if b.art == "abfragen"), None)
-    return "agent.entwurf" if abfragend and abfragend.modul == STRUKTURENTWURF else "agent.frage"
+    f = form(abfragend.modul) if abfragend else None
+    return f.satz if f else "agent.frage"
 
 
 def frage_quittung(block: UiBlock) -> str:

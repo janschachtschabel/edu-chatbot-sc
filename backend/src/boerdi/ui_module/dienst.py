@@ -1,8 +1,9 @@
 """Module mit Dienst (Paket U2, Plan 2026-11-04 T-4): das Backend erzeugt die Block-Daten selbst.
 
 Anders als bei der Datenquelle (``ui_module/datenquelle``, ein MCP-Werkzeug liefert die Daten)
-ruft hier ein Dienst des Backends — heute nur ``strukturentwurf`` (``services/
-strukturentwurf_dienst``). Die KI sieht nur den Auftrag (``dienst.parameter`` im Manifest); der
+ruft hier ein Dienst des Backends — ``strukturentwurf``
+(``services/strukturentwurf_dienst``) und ``upload_angebot`` (``ui_module/dienst_upload``). Die KI
+sieht nur den Auftrag (``dienst.parameter`` im Manifest); der
 Aufruf wird dagegen geprüft, der Dienst gerufen und sein Ergebnis gegen ``eingabe`` (und die
 Deckel des Moduls) geprüft. Ergebnis wie bei der Datenquelle: Block, Text für die KI,
 ``ToolOutcome``.
@@ -13,6 +14,7 @@ Ein Fehlertext nennt nie Inhalte des Modells oder Ausnahmetexte — nur die Art.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Final
@@ -26,6 +28,7 @@ from boerdi.ui_module import strukturentwurf as se
 from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
 from boerdi.ui_module import strukturentwurf_text as st
 from boerdi.ui_module.datenquelle import Ergebnis
+from boerdi.ui_module.dienst_upload import upload_angebot
 from boerdi.ui_module.katalog import Manifest
 
 if TYPE_CHECKING:
@@ -40,6 +43,11 @@ _FEHLER_ARGUMENTE: Final = ("Fehler: Der Aufruf von {name} passt nicht zur Besch
                             "Werkzeugs. Berichtige die Argumente und rufe es noch einmal, oder "
                             "antworte in Prosa. Abweichungen: {fehler}")
 _FEHLER: Final = {
+    "kein_dokument": ("Fehler: Es liegt kein Dokument der Person vor (nicht hochgeladen, oder es "
+                      "ist abgelaufen). Rufe {name} nicht mit aus_dokument auf; bitte die Person, "
+                      "das Dokument im Auswahlfeld (ui_upload) noch einmal zu wählen."),
+    "dokument_vorlage": ("Fehler: aus_dokument und vorlage schließen sich aus. Rufe {name} für "
+                         "einen neuen Entwurf aus dem Dokument ohne vorlage auf."),
     "vorlage": ("Fehler: Mit dieser Nachricht wurde kein Entwurf mitgeschickt. Rufe {name} ohne "
                 "vorlage auf (ein neuer Entwurf) oder antworte in Prosa."),
     "ausgelastet": ("Fehler: Der Entwurf ließ sich gerade nicht erzeugen, das System ist "
@@ -74,6 +82,17 @@ def _fehlschlag(modul: str, text: str, art: str, latenz_ms: int = 0) -> Ergebnis
                                             else "error", error=art, latency_ms=latenz_ms))
 
 
+def _moderation():
+    """Querschnitts-Review 2026-11-06: der Auszug des Dokuments für Ebene 2 geht erst nach der
+    Moderation ans Modell (``services/strukturentwurf_auszug``)."""
+    import functools
+
+    from boerdi.services.safety.moderation import moderate
+
+    # Review Q4, Befund 1: unter eigener Stufe gezählt, nicht im Alarm der Chat-Züge.
+    return functools.partial(moderate, stufe="strukturentwurf_auszug")
+
+
 def _frist(umgebung: Umgebung) -> float:
     """Fristende des Dienstes: vor dem Ende des Laufs (Reserve), höchstens die Gesamtfrist."""
     from boerdi.services.strukturentwurf_dienst import GESAMT_FRIST_S
@@ -89,6 +108,11 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
     from boerdi.services import strukturentwurf_dienst as dienst
 
     modul = manifest["name"]
+    if args.get("vorlage") is True and not isinstance(umgebung.vorlage, dict) and umgebung.teile:
+        # Paket V1: ohne mitgeschickten oder gemerkten Entwurf den übernommenen aus dem Vorgang —
+        # auch Tage später und aus einer neuen Sitzung derselben Person.
+        if isinstance(entwurf := await umgebung.teile("draft"), dict) and entwurf.get("knoten"):
+            umgebung = dataclasses.replace(umgebung, vorlage=entwurf)
     if args.get("vorlage") is True and not isinstance(umgebung.vorlage, dict):
         return _fehlschlag(modul, _FEHLER["vorlage"].format(name=modul), "vorlage")
     if args.get("erneut_zeigen") is True:
@@ -100,6 +124,15 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
         return _block(manifest, dict(umgebung.vorlage or {}), 0)
     if args.get("vertiefen") and args.get("vorlage") is not True:
         return _fehlschlag(modul, _FEHLER["vertiefen"].format(name=modul), "argumente")
+    dokument = None
+    if args.get("aus_dokument") is True:
+        # U3-2b: das Dokument der Sitzung, serverseitig gelesen — nie aus den Argumenten.
+        if args.get("vorlage") is True:
+            return _fehlschlag(modul, _FEHLER["dokument_vorlage"].format(name=modul), "argumente")
+        dokument = await umgebung.dokument() if umgebung.dokument is not None else None
+        if dokument is None:
+            return _fehlschlag(modul, _FEHLER["kein_dokument"].format(name=modul),
+                               "kein_dokument")
     auftrag = dienst.Auftrag(
         thema=" ".join(args["thema"].split()), fach=args.get("fach"),
         bildungsstufe=args.get("bildungsstufe"), anzahl_oben=args.get("anzahl_oben", 10),
@@ -108,7 +141,8 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
     t0 = time.monotonic()
     erzeugt = await dienst.erzeugen(
         auftrag, llm=dienst.llm_json(umgebung.usage_acc), frist_ende=_frist(umgebung),
-        vorlage=umgebung.vorlage if args.get("vorlage") is True else None)
+        vorlage=umgebung.vorlage if args.get("vorlage") is True else None, dokument=dokument,
+        moderieren=_moderation() if dokument is not None else None)
     latenz_ms = int((time.monotonic() - t0) * 1000)
     daten = erzeugt.daten
     if daten is None:
@@ -130,7 +164,11 @@ def _block(manifest: Manifest, daten: dict[str, Any], latenz_ms: int) -> Ergebni
 
 
 _Dienst = Callable[[Manifest, dict[str, Any], "Umgebung"], Awaitable[Ergebnis]]
-_DIENSTE: Final[dict[str, _Dienst]] = {"strukturentwurf": _strukturentwurf}
+_DIENSTE: Final[dict[str, _Dienst]] = {
+    "strukturentwurf": _strukturentwurf,
+    # Paket U3-1b: das Auswahlfeld von ui_upload (Grenzen und Schalter setzt das Backend).
+    "upload_angebot": upload_angebot,
+}
 
 
 def parameter(manifest: Manifest) -> dict[str, Any] | None:

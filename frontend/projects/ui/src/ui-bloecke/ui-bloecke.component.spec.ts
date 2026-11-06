@@ -4,7 +4,9 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MODUL_HOST, UI_MODUL_REGISTER, type ModulKontext, type ModulRegister, type UiBlock } from '@boerdi/ui-module';
+import {
+  MODUL_HOST, NACHLADE_ZIEL, UI_MODUL_REGISTER, type ModulKontext, type ModulRegister, type UiBlock,
+} from '@boerdi/ui-module';
 
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
@@ -63,6 +65,22 @@ class TestFrage {
   protected readonly host = inject(MODUL_HOST);
 }
 
+/** U3-0: steht im Register für ein nachgeladenes Modul (wie der echte Platzhalter) und zeigt,
+ *  was die Shell ihm je Block mitgibt. */
+@Component({
+  selector: 'ui-test-spaet',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<button type="button" class="test-spaet" [attr.data-element]="ziel.element"
+                     [attr.data-text]="ziel.text" (click)="laden()">laden</button>`,
+})
+class TestSpaet {
+  readonly daten = input.required<Record<string, unknown>>();
+  readonly kontext = input.required<ModulKontext>();
+  protected readonly ziel = inject(NACHLADE_ZIEL);
+  laden(): void { this.ziel.laden().then(() => SPAET.push('ok'), () => SPAET.push('abgelehnt')); }
+}
+const SPAET: string[] = [];
+
 // Seit U1-d1 gilt je Block nur, was das Manifest unter `faehigkeiten` nennt (eigener Host).
 const ALLES = ['herunterladen', 'drucken', 'oeffnen', 'nachladen'] as const;
 const REGISTER: ModulRegister = {
@@ -77,6 +95,10 @@ const REGISTER: ModulRegister = {
   ui_frage: {
     manifest: { name: 'ui_frage', version: 1, art: 'abfragen', titel: { de: 'Frage' }, faehigkeiten: ['antworten'] },
     komponente: TestFrage,
+  },
+  ui_spaet: {
+    manifest: { name: 'ui_spaet', version: 1, art: 'anzeigen', titel: { de: 'Spät' } },
+    komponente: TestSpaet, element: 'boerdi-ui-spaet',
   },
 };
 
@@ -94,6 +116,9 @@ const TREFFER = {
   kacheln: () => true, beschaeftigt: () => false,
   volltext: vi.fn(), sammlung: vi.fn(), lernpfad: vi.fn(), alsEntwurf: vi.fn(), mehrLaden: vi.fn(),
   zweig: vi.fn(async (nodeId: string) => ({ knoten: [{ id: `${nodeId}-1`, titel: 'Gleichungen' }] })),
+  hochladen: vi.fn(async (blockId: string, datei: File) => ({ upload_id: `${blockId}-${datei.name}` })),
+  ablegen: vi.fn(async () => ({ stand: 'stored' })),
+  auftrag: vi.fn(async () => ({ stand: 'laeuft' })),
 } satisfies ShellTreffer;
 
 const ANTWORTEN = vi.fn<ShellAntworten>();
@@ -105,6 +130,7 @@ const VERWEISE = {
 
 async function render(
   bloecke: UiBlock[], displayRules: Record<string, unknown> | null = null, platz: 'oben' | 'unten' = 'oben',
+  nachladen: ((modul: string) => Promise<void>) | null = null,
 ): Promise<HTMLElement> {
   TestBed.configureTestingModule({
     imports: [UiBloeckeComponent],
@@ -121,6 +147,7 @@ async function render(
   f.componentRef.setInput('treffer', TREFFER);
   f.componentRef.setInput('nachrichtId', 'm1');
   f.componentRef.setInput('antworten', ANTWORTEN);
+  if (nachladen) f.componentRef.setInput('nachladen', nachladen);
   f.componentRef.setInput('renderMarkdown', (c: string): SafeHtml => sanitizer.bypassSecurityTrustHtml(`<p class="md">${c}</p>`));
   await f.whenStable();
   fixture = f;
@@ -342,6 +369,28 @@ describe('UiBloeckeComponent', () => {
     const nachher = el.querySelector('.test-modul');
     expect(nachher?.textContent).toBe('neu');
     expect(nachher).toBe(vorher);
+  });
+
+  it('U3-0: ein nachgeladenes Modul bekommt Element-Name, Textfassung und den Lader der Shell', async () => {
+    SPAET.length = 0;
+    const lader = vi.fn(async () => {});
+    const el = await render([block({ modul: 'ui_spaet', version: 1, text: 'Spät-Text' })], null, 'oben', lader);
+    const knopf = el.querySelector('.test-spaet') as HTMLButtonElement;
+    expect(knopf.dataset['element']).toBe('boerdi-ui-spaet');
+    expect(knopf.dataset['text']).toBe('Spät-Text');
+    knopf.click();
+    await fixture.whenStable();
+    expect(lader).toHaveBeenCalledWith('ui_spaet');
+    expect(SPAET).toEqual(['ok']);
+  });
+
+  it('U3-0: ohne Lader der Shell lehnt das Laden ab (dann steht die Textfassung)', async () => {
+    SPAET.length = 0;
+    const el = await render([block({ modul: 'ui_spaet', version: 1 })]);
+    (el.querySelector('.test-spaet') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    await Promise.resolve();
+    expect(SPAET).toEqual(['abgelehnt']);
   });
 
   it('ohne Blöcke rendert nichts', async () => {

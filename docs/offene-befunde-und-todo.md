@@ -36,6 +36,15 @@ Die zugehörigen Pläne:
 
 ## 1 Befunde mit Wirkung im Betrieb
 
+- **Querschnitts-Review 2026-11-06** (Pakete V1 … U3-3b, K1b): alle 7 MAJOR und die MINOR/NIT behoben in den
+  Paketen Q1–Q4 (Plan [`plans/2026-11-06-querschnitts-befunde.md`](plans/2026-11-06-querschnitts-befunde.md),
+  Notizen `aenderungen/2026-11-06-paket-q{1,2,3,4}-*.md`). Beim Deploy: Migration **0020**, Widget-Bündel neu.
+  Noch offen daraus: ein Einstieg zu „Arbeitsstand löschen“ außerhalb eines Ablaufs (Entscheid);
+  `ui_auftrag._wartender_auftrag` liest den Verweis ohne Auffrischen; theoretische Verklemmung Verdrängen in
+  `vorgaenge.anlegen` gegen die sortierte Sperre in `dokument_teile_entfernen`; Bestands-Brücke und alter
+  `draft` (bewusst, Q4-Notiz); `Teil` doppelt definiert. Nicht in diesem Plan: markitdown-Update/`pip-audit`,
+  Multipart vor den Prüfungen (Starlette), Text in 429-`detail`, `_`-Entities des Klassifikators.
+
 1. **Klassifikator ohne Prompt-Cache auf dem Responses-Weg** (abgeleitet in Paket 7, nicht gemessen; nur Muster-Modus).
    - Der Systemprompt des Klassifikators endet mit dem Zug-Kontext (Zugzähler, Zustand, Entities — `services/classify_prompt.py`, `_dynamic_block`). Auf `/v1/responses` steht er ganz in `instructions`, und jede Änderung dort kostet den ganzen Cache (Responses-Plan §2.4). Bei gpt-6 über OpenAI direkt wäre damit jede Klassifikation ungecacht.
    - Hebel wie in Paket B: den Zug-Kontext als Nachricht hinter den festen Teil setzen. Vorher nachmessen (`usage.cached_tokens` je `classify`-Phase im Debug-Block).
@@ -128,8 +137,32 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Einen Screenreader-Test gab es bisher nicht.
   - Den Start-Knopf des generativen Laufs hat niemand im Browser gesehen. Sein CSS gleicht dem gemessenen Gold-Knopf, und der Kontrast-Wächter deckt ihn ab.
 
+- **Vorgänge und Abläufe (2026-11-06) — Frist eines Vorgangs mit laufendem Auftrag (Plan V-4):** Heute gilt
+  auch dann `vorgang_tage` (Vorgabe 3), die b-api hält den Auftrag 30 Tage. Empfehlung: solange der Lauf auf
+  einen Auftrag wartet, mindestens bis zum Abholen, höchstens 30 Tage (Aufbewahrung und `beruehren` müssen
+  den Stand kennen). Entscheid steht aus; bis dahin geht ein nicht abgeholter Auftrag mit dem Vorgang
+  verloren (bei der b-api bleibt er abrufbar).
+- **K22 (neu, an das b-api-Team):** Darf `B_API_KEY` einen mit dem Schlüssel einer Person gestarteten Auftrag
+  lesen? Nur dann ginge ein Wächter im Hintergrund; bis dahin fragt nur ein Zug der Person ab („Stand
+  prüfen“ bzw. seit K1b das Modul `ui_fortschritt` über `POST /api/ui/auftrag/stand`). Dazu weiter offen: K16
+  (Start-Pfad), K18 (`X-Edu-User-Id`), K21 (Abbruch).
+- **K1b `ui_fortschritt` (2026-11-06):** fertig und reviewt (Notiz
+  [`aenderungen/2026-11-06-paket-k1b-fortschritt.md`](aenderungen/2026-11-06-paket-k1b-fortschritt.md)). Offen:
+  403 `abgewiesen` zeigt das Modul wie „nicht angemeldet“ (der Client reicht nur den Status durch).
+- **Übertragen in den persönlichen Bereich (U3-3a/b, 2026-11-06):** fertig und reviewt, wirkt aber erst,
+  wenn (1) im MCP-Server `registerCurationBatchTools` in `wlo-mcp-server-sc/src/server.ts` verdrahtet ist
+  (Nutzerdatei, bewusst nicht angefasst) und `WLO_BATCH_UPLOAD_ENABLED` an ist, (2) MA-0 (Messung mit dem
+  Testkonto) gelaufen ist und (3) im Studio „Inhalte in WLO ablegen“ eingeschaltet wird (Vorgabe aus).
+  Offen im Paket: T1b („letzte Ablagen“ nach der Anmeldung), „Vorgang herunterladen“, Neu-Vorbereiten nach
+  abgelaufener Freigabe (Gefahr doppelter Ablage). (`ui-upload.element.ts` ist seit Q4 geteilt.) Bewusst
+  angehoben: Budget je nachgeladenem Modul 15 → 20 kB gzip (`ui-upload` 16,2 kB).
+
 ## 4 Beim nächsten Deploy
 
+- **Vorgänge, Abläufe, Aufträge (2026-11-05/06):** Migrationen `0018` (`vorgaenge`, `vorgang_ablage`) und
+  `0019` (`vorgang_auftraege`) laufen im `migrate`-Dienst. Neuer Bereich `06-ablaeufe/katalog` (Werksfassung:
+  Ablauf `sammlungsstruktur`, aus) und `privacy-config.logging.vorgang_tage` kommen mit dem Werksabgleich.
+  Aufträge bleiben aus, bis `B_API_JOBS_START_PATH` und `B_API_JOBS_FLOWS` gesetzt sind (K16).
 - **Migration `0013` (Review PR #18):** Teilindex `ix_quality_logs_text_offen` für den Text-Schritt der Aufbewahrung; wird `CONCURRENTLY` gebaut (sperrt das Schreiben nicht) und läuft im `migrate`-Dienst mit `alembic upgrade head`.
 - **Paket 16 — Plattform-Wissen neu einlesen:** der RAG-Seed `Plattformwissen.jsonl` folgt jetzt dem Domänen-Dokument 2.0 (13 Abschnitte). Nur diesen Bereich ersetzen: die Datei allein in ein Verzeichnis legen und `boerdi import-rag --seed <verz> --force` (leert nur die Bereiche dieses Seeds; Einbettung von 13 Abschnitten). Ohne den Schritt bleibt in bestehenden Datenbanken die Fassung 1.0.
 - **Paket 12 — Werk und eigene Fassung:** Migration `0011` (läuft im `migrate`-Dienst), der
@@ -209,6 +242,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Reiter-Namen der Muster fest deutsch** (`views/pattern-field-tabs.ts`, `views/feld-reiter.ts`): „Identität“, „Tools & Wissen“ … und der Satz „Reiter „…““ stehen auch in der englischen Oberfläche. Älter als Paket 6 (A7), dort nur verschoben.
 - ~~**Blockierendes `getaddrinfo` in der Restore-Prüfung**~~ erledigt in Paket 20 (B1): alle Adressprüfungen laufen per `asyncio.to_thread`. War: (`api/config_guards.py`): Für jeden weiteren MCP-Server eines hochgeladenen ZIPs löst die Prüfung den Namen im Ereignis-Loop auf. Selten, aber ein langsamer DNS hält dabei den ganzen Prozess an.
 - **E2E-Kippler `frontend/e2e/auth-button.spec.ts:95`** (Tab-Reihenfolge, 2026-10-31 einmal rot, während die Backend-Suite parallel lief; isoliert 3× grün). Nicht in Paket 20: erst nachstellen (Vorgehen in der Erinnerung „E2E-Kippler“: alte Reihenfolge rot, neue grün), dann ändern.
+- **`runCardAction` bei gewechselter Sitzung** (`frontend/projects/ui/src/controllers/collection-actions.ts`,
+  gesehen im Review K1b): kehrt bei `veraltet()` zurück, ohne `setLoading(false)` — der Laden-Zustand bleibt
+  stehen, bis der nächste Zug ihn setzt. Älter als K1b (Frontend-Split); prüfen, ob der Sitzungswechsel ihn
+  ohnehin zurücksetzt.
 - **Frontend-Tests kippen unter Last.**
   - 2026-10-31 (Paket 20): `studio/views/agent-tools.component.spec.ts` „verweist bei Policy-Sperren auf die Seite des offenen Arbeitsbereichs“ einmal rot im vollen Lauf, einzeln 3× und im zweiten vollen Lauf grün. Verdacht: die gewählte Ansicht (`StudioAnsicht`) eines früheren Tests wirkt nach (`isolate: false`).
   - Im vollen Lauf am 2026-09-29 fielen 5 Studio-Dateien um (`i18n/en.spec.ts`, `agent-skills`, `eval-trends`, `loadtest`, `rag-ingest`) und `ui/print/print-utils.spec.ts`; einzeln und im Wiederholungslauf grün.

@@ -36,7 +36,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from boerdi.api.schemas import ToolOutcome
 from boerdi.api.schemas_ui import UiBlock
@@ -71,7 +71,8 @@ from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD, is_confirmable
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import add_usage, extract_usage, new_accumulator
 from boerdi.obs.zeiten import schritt, seit_ms
-from boerdi.services import llm, outcome_service
+from boerdi.services import llm, outcome_service, teil_verweise
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_frist import (
     ABGEBROCHEN_FRIST,
     NICHT_AUSGEFUEHRT_FRIST,
@@ -92,6 +93,11 @@ from boerdi.ui_module.antwort import NACH_DER_FRAGE, ZWEITE_FRAGE, frage_quittun
 from boerdi.ui_module.aufruf import Umgebung as ModulUmgebung
 from boerdi.ui_module.aufruf import asynchron as modul_asynchron
 from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
+
+if TYPE_CHECKING:
+    from boerdi.services.arbeitsstand import TeilLader
+    from boerdi.services.dokumente.stand import DokumentLader
+
 from boerdi.ui_module.werkzeuge import (
     ist_abfragendes_modul,
     ist_asynchron,
@@ -164,6 +170,8 @@ class AgentRun:
     #: Paket U1-d1: Blöcke der allgemeinen Modul-Werkzeuge, in Aufrufreihenfolge. Ein
     #: abfragender beendet den Lauf mit ``stop_reason`` „frage“ (die Person ist am Zug).
     ui_bloecke: list[UiBlock] = field(default_factory=list)
+    #: Paket A2a: vorgeschlagene Abläufe (Kennungen) — den Knopf setzt die Zusammenstellung.
+    ablauf_vorschlaege: list[str] = field(default_factory=list)
 
 
 def _spent(acc: dict[str, Any]) -> int:
@@ -256,6 +264,8 @@ async def run_agent_loop(
     on_token: Callable[[str], None] | None = None,
     start: float | None = None,
     modul_vorlage: dict[str, Any] | None = None,
+    modul_dokument: DokumentLader | None = None,
+    modul_teile: TeilLader | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -290,7 +300,9 @@ async def run_agent_loop(
 
     ``modul_vorlage`` (Paket U2, T-5): der Strukturentwurf, den die Person mit dieser Nachricht
     geschickt hat — ein Modul mit Dienst bekommt ihn samt Zähler und Fristende
-    (``ui_module/aufruf.Umgebung``).
+    (``ui_module/aufruf.Umgebung``). ``modul_dokument`` (U3-2b): der Lader für das Dokument der
+    Sitzung (``services/dokumente/stand``) — gelesen erst, wenn ein Dienst es braucht.
+    ``modul_teile`` (V1): liest Teile des aktiven Vorgangs (``services/arbeitsstand``).
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
     strom_verbraucht = False
@@ -491,10 +503,11 @@ async def run_agent_loop(
                 continue
             if antwort is not None and not (
                     ist_dokument_werkzeug(name) or name == LIEFERE_ERGEBNIS
-                    or ist_modul_werkzeug(name)):
+                    or ist_modul_werkzeug(name) or name == ablauf_vorschlag.NAME):
                 messages.append(_tool_turn(tc.id, _NACH_DER_ANTWORT))
                 continue
             # Nach einer Frage (U1-d1) wie nach der Antwort: kein echtes Werkzeug mehr.
+            # Kein Ablauf-Vorschlag (Review A2a, Befund 5): unter einer Frage gibt es keinen Knopf.
             if frage is not None and not (
                     ist_dokument_werkzeug(name) or name == LIEFERE_ERGEBNIS
                     or ist_modul_werkzeug(name)):
@@ -527,6 +540,15 @@ async def run_agent_loop(
                 run.result = args.get("result")
                 ueber_budget_gemeldet()
                 return schluss("submit")
+
+            # Paket A2a: einen Ablauf vorschlagen — virtuell, nur gemerkt (die Kennung gegen die
+            # Aufzählung im Schema geprüft); den Knopf setzt die Zusammenstellung.
+            if name == ablauf_vorschlag.NAME:
+                abweichungen = argument_fehler(angebotene_parameter(tools, name), args)
+                messages.append(_tool_turn(tc.id, ergebnis_ungueltig(abweichungen) if abweichungen
+                                           else ablauf_vorschlag.merken(run.ablauf_vorschlaege,
+                                                                        str(args["ablauf"]))))
+                continue
 
             # Das Ergebnis als eigener Kanal (J1): virtuell wie ``submit_result``
             # — aber es beendet den Lauf NICHT. Die Antwort für die Person
@@ -565,6 +587,12 @@ async def run_agent_loop(
                 messages.append(_tool_turn(tc.id, ERGEBNIS_UEBERNOMMEN))
                 continue
 
+            # Paket V2: ``{"$teil": name}`` aus dem Vorgang — VOR der Wall, damit Vorschau,
+            # Fingerabdruck und Abnahme den eingesetzten Wert sehen, nicht den Namen.
+            args, fehlt = await teil_verweise.einsetzen(args, modul_teile, name)
+            if fehlt:
+                messages.append(_tool_turn(tc.id, teil_verweise.fehlertext(fehlt)))
+                continue
             # Die Wall zuerst: sie kann einen Schlüssel einsetzen, und der
             # gehört zur Identität des Aufrufs (siehe ``_call_key``).
             args = gate.prepare(name, args)
@@ -629,7 +657,8 @@ async def run_agent_loop(
                     messages.append(_tool_turn(tc.id, _ZWEITE_FRAGE))
                     continue
                 run.tools_called.append(name)
-                umgebung = ModulUmgebung(usage_acc=acc, frist_ende=ende, vorlage=modul_vorlage)
+                umgebung = ModulUmgebung(usage_acc=acc, frist_ende=ende, vorlage=modul_vorlage,
+                                         dokument=modul_dokument, teile=modul_teile)
                 try:
                     with schritt("respond.werkzeuge"):
                         ergebnis = await innerhalb(ende, modul_asynchron(name, args, umgebung))

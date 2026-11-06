@@ -62,23 +62,47 @@ def oben(*, thema: str, fach: str | None, bildungsstufe: str | None, anzahl_oben
                                   "anzahl_oben": anzahl_oben, "hinweise": hinweise})
 
 
+def oben_aus_dokument(*, thema: str, fach: str | None, bildungsstufe: str | None,
+                      anzahl_oben: int, hinweise: str, gliederung: str, anfang: str
+                      ) -> list[dict[str, Any]]:
+    """Die obere Ebene nach dem Dokument der Person (Paket U3-2b): wie :func:`oben`, dazu je
+    Punkt ``abschnitte`` — die Kennungen ``aN`` der Abschnitte, aus denen er stammt."""
+    aufgabe = (
+        "Aufgabe: die obere Ebene einer Gliederung NACH DEM DOKUMENT der Person — \"dokument\" "
+        "enthält seine Gliederung (Titel mit Kennungen [aN]) und seinen Anfang. Folge der Ordnung "
+        "des Dokuments, wo sie trägt; fasse sehr kleine Abschnitte zusammen und lass Verwaltendes "
+        "weg (Vorwort, Inhaltsverzeichnis, Impressum, Literatur, Anhang). Höchstens "
+        "\"anzahl_oben\" Punkte. Antwort: {\"titel\": Titel der Gliederung, \"fach\": Fach oder "
+        "null, \"bildungsstufe\": Stufe oder null, \"knoten\": [Punkte]}. Je Punkt zusätzlich "
+        "\"abschnitte\": die Kennungen (\"a3\" …) der Abschnitte aus der Gliederung, aus denen er "
+        f"stammt, 1 bis 12. \"unterthemen\" je Punkt 0 bis {UNTERTHEMEN_OBEN}.")
+    return _nachrichten(aufgabe, {"thema": thema, "fach": fach, "bildungsstufe": bildungsstufe,
+                                  "anzahl_oben": anzahl_oben, "hinweise": hinweise,
+                                  "dokument": {"gliederung": gliederung, "anfang": anfang}})
+
+
 def unterthemen(*, entwurf: str, thema: str, fach: str | None, bildungsstufe: str | None,
                 hinweise: str, pfad: list[str], knoten: dict[str, Any], geschwister: list[str],
                 anzahl: int, letzte_ebene: bool, vorhanden: list[str] | None = None,
-                ) -> list[dict[str, Any]]:
+                auszug: str = "") -> list[dict[str, Any]]:
     """Die Unterpunkte EINES Punkts: ``{knoten: [Punkt …]}``. ``vorhanden``: seine Unterpunkte
-    aus dem Entwurf der Person — neue ergänzen sie (Review U2, Befund 2)."""
+    aus dem Entwurf der Person — neue ergänzen sie (Review U2, Befund 2). ``auszug`` (U3-2b):
+    der Text des Dokuments zu diesem Punkt."""
     grenze = "0 (es ist die letzte Ebene)" if letzte_ebene else f"0 bis {UNTERTHEMEN_TIEF}"
     aufgabe = (
         "Aufgabe: die Unterpunkte des Punkts \"knoten\" in der Gliederung \"entwurf\" — genau "
         "\"anzahl\" Punkte, die nur ihn ausfüllen (nicht seine Geschwister, nicht die Punkte über "
         "ihm) und die schon vorhandenen Unterpunkte \"vorhanden\" ergänzen, ohne sie zu "
         f"wiederholen. Antwort: {{\"knoten\": [Punkte]}}. \"unterthemen\" je Punkt {grenze}.")
+    if auszug:
+        aufgabe += (" Leite die Unterpunkte aus \"auszug\" ab, dem Text des Dokuments der Person "
+                    "zu diesem Punkt; erfinde nichts hinzu, was dort nicht angelegt ist.")
     return _nachrichten(aufgabe, {
         "entwurf": entwurf, "thema": thema, "fach": fach, "bildungsstufe": bildungsstufe,
         "hinweise": hinweise, "pfad": pfad,
         "knoten": {"titel": knoten.get("titel"), "beschreibung": knoten.get("beschreibung")},
-        "geschwister": geschwister, "vorhanden": vorhanden or [], "anzahl": anzahl})
+        "geschwister": geschwister, "vorhanden": vorhanden or [], "anzahl": anzahl,
+        "auszug": auszug})
 
 
 def punkte(antwort: Any) -> list[dict[str, Any]]:

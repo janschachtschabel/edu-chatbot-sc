@@ -15,6 +15,9 @@ export type RegisterManifest = Pick<UiModulManifest, 'name' | 'version' | 'art' 
 export interface RegisterEintrag {
   readonly manifest: RegisterManifest;
   readonly komponente: Type<unknown>;
+  /** Paket U3-0: nur bei nachgeladenen Modulen — der Name ihres Custom Elements
+   *  (`boerdi-ui-<name>`); `komponente` ist dann der gemeinsame Platzhalter. */
+  readonly element?: string;
 }
 
 export type ModulRegister = Readonly<Record<string, RegisterEintrag>>;

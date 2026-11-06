@@ -124,8 +124,8 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
   const collectionActions: CollectionActionsContext = {
     // Karten-Aktionen und „Weitere laden“ sind Züge der Person: offene Fragen schließen wie im
     // Backend (`services/ui_antwort`) — vor dem POST, wie `_sendCtx.addUserMessage` (Review U1).
-    sendMessage: (message, env, action, actionParams) => {
-      host.updateMessages(offeneFragenSchliessen);
+    sendMessage: (message, env, action, actionParams, opts) => {
+      if (!opts?.fragenOffen) host.updateMessages(offeneFragenSchliessen);
       return post(message, env, action, actionParams);
     },
     sessionId: () => host.sessionId(),
@@ -141,6 +141,11 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     messagesContainer: () => host.messagesContainer(),
     t: (key, params) => host.t(key, params),
     ladeZweig: (nodeId, signal) => host.api().themenbaumZweig(host.sessionId(), nodeId, signal),
+    ladeDokument: async (blockId, datei, onFortschritt, signal) => ({
+      ...await host.api().dokumentHochladen(host.sessionId(), blockId, datei, { onFortschritt, signal }),
+    }),
+    ladeAblage: (blockId, schritt, signal) => host.api().ablageSchritt(host.sessionId(), blockId, schritt, signal),
+    ladeAuftragStand: (ablauf, kuerzel, signal) => host.api().auftragStand(host.sessionId(), ablauf, kuerzel, signal),
   };
 
   const speech: SpeechContext = {

@@ -45,8 +45,10 @@ from boerdi.domain.config_models.base_governance import (
     SafetyLoggingBlock,
 )
 from boerdi.services.config_loader import area, load_quality_log_config, load_safety_config
+from boerdi.services.dokumente.ablage import verfallene_loeschen as verfallene_dokumente_loeschen
 from boerdi.services.qualitaet_text import MARKE, text_entfernen
 from boerdi.services.sitzungssperre import SitzungBeschaeftigt, sitzungssperre
+from boerdi.services.vorgaenge import verfallene_loeschen as verfallene_vorgaenge_loeschen
 
 logger = logging.getLogger(__name__)
 
@@ -278,11 +280,17 @@ async def lauf(engine: AsyncEngine,
         async with sitzungssperre(engine, SPERRE, warten_s=0.0):
             jetzt = datetime.now(UTC)
             ergebnis = {f.bereich: await _bereinige(sitzungen, f, jetzt) for f in fristen()}
+            # Paket U3-2a: hochgeladene Dokumente haben ihre eigene Frist (24 h nach letzter
+            # Nutzung) und sind kein Protokoll — deshalb nicht im Bericht (Studio „Aufbewahrung“).
+            dokumente = await verfallene_dokumente_loeschen(sitzungen, jetzt)
+            # Paket V1: Vorgänge (3 Tage nach letzter Nutzung), ebenfalls nicht im Bericht.
+            vorgaenge_weg = await verfallene_vorgaenge_loeschen(sitzungen, jetzt)
     except SitzungBeschaeftigt:
         logger.info("Aufbewahrung: läuft schon auf einer anderen Kopie")
         return None
-    if any(ergebnis.values()):
-        logger.info("Aufbewahrung: gelöscht %s", ergebnis)
+    if any(ergebnis.values()) or dokumente or vorgaenge_weg:
+        logger.info("Aufbewahrung: gelöscht %s, Dokumente %d, Vorgänge %d", ergebnis, dokumente,
+                    vorgaenge_weg)
     return ergebnis
 
 

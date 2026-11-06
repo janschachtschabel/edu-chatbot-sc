@@ -57,8 +57,9 @@ async def convert_to_markdown(file_path: str, *, ausfuehren: Ausfuehrer | None =
     return await (ausfuehren or im_kindprozess)(wandle_datei, file_path)
 
 
-def wandle_datei(file_path: str) -> str:
-    """Die Umwandlung einer Datei — synchron; läuft im Kindprozess."""
+def wandle_datei(file_path: str, vorgeprueft: bool = False) -> str:
+    """Die Umwandlung einer Datei — synchron; läuft im Kindprozess. ``vorgeprueft``: der Aufrufer
+    hat :func:`vorpruefung` schon gemacht (U3-2, ein PDF wird nicht zweimal geparst)."""
     try:
         size = os.path.getsize(file_path) if os.path.exists(file_path) else -1
     except Exception:
@@ -68,7 +69,7 @@ def wandle_datei(file_path: str) -> str:
     except ImportError as e:
         logger.exception("%s Datei: %s (%d bytes)", _IMPORT_FEHLT, file_path, size)
         return Umwandlungsfehler(f"Fehler beim Konvertieren (ImportError): {e}", art="server")
-    if size > 0 and (zu_gross := vorpruefung(file_path)):
+    if size > 0 and not vorgeprueft and (zu_gross := vorpruefung(file_path)):
         return zu_gross
     try:
         return MarkItDown().convert(file_path).text_content
@@ -80,12 +81,10 @@ def wandle_datei(file_path: str) -> str:
             logger.warning("markitdown liest das Format von %s nicht: %s",
                            file_path, type(e).__name__)
             return Umwandlungsfehler(f"{FORMAT_NICHT_LESBAR}: {type(e).__name__}", art="format")
-        # Volltext-Trace ins Backend-Log — die HTTP-Antwort kürzt nur die
-        # Top-Zeile mit, daher hier explizit logger.exception aufrufen.
-        logger.exception(
-            "markitdown convert failed für %s (%d bytes): %s",
-            file_path, size, e,
-        )
+        # Querschnitts-Review 2026-11-06 (Logs ohne Inhalte): nur Art und Größe — der Text einer
+        # markitdown-Ausnahme und ihr Trace können Stücke des Dokuments tragen, der Pfad den
+        # Dateinamen. Die Meldung an das Studio (Admin) behält den Grund.
+        logger.warning("markitdown convert failed (%d bytes): %s", size, type(e).__name__)
         return Umwandlungsfehler(f"Fehler beim Konvertieren: {type(e).__name__}: {e}",
                                  detail=f"{type(e).__name__}: {e}")
 

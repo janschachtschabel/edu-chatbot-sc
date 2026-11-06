@@ -17,3 +17,6 @@
 # Editor / OS
 .DS_Store
 Thumbs.db
+
+# Paket U3-0: Index der nachgeladenen Modul-Bündel, erzeugt von scripts/build-nachlade-module.mjs
+/projects/ui/src/ui-bloecke/nachlade-index.build.ts

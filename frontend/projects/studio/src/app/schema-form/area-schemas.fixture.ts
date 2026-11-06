@@ -17,6 +17,431 @@ import type { JsonSchema } from './json-schema';
 
 export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
 {
+  "06-ablaeufe/katalog": {
+    "$defs": {
+      "AblaufArea": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "titel": {
+            "additionalProperties": {
+              "maxLength": 120,
+              "type": "string"
+            },
+            "title": "Titel",
+            "type": "object"
+          },
+          "beschreibung": {
+            "default": "",
+            "maxLength": 600,
+            "title": "Beschreibung",
+            "type": "string"
+          },
+          "wann": {
+            "default": [],
+            "items": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Wann",
+            "type": "array"
+          },
+          "nicht_wann": {
+            "default": [],
+            "items": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Nicht Wann",
+            "type": "array"
+          },
+          "aktiv": {
+            "default": false,
+            "title": "Aktiv",
+            "type": "boolean"
+          },
+          "ausloeser": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/Ausloeser"
+            },
+            "title": "Ausloeser",
+            "type": "array"
+          },
+          "voraussetzungen": {
+            "default": [],
+            "items": {
+              "type": "string",
+              "x-choices": [
+                "anmeldung"
+              ]
+            },
+            "title": "Voraussetzungen",
+            "type": "array"
+          },
+          "schritte": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/Schritt"
+            },
+            "title": "Schritte",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "titel"
+        ],
+        "title": "AblaufArea",
+        "type": "object"
+      },
+      "AgentSchritt": {
+        "additionalProperties": true,
+        "description": "Paket A2b: was die KI in einem ``agent``-Schritt darf — Grenzen prüft ``pruefung``.",
+        "properties": {
+          "werkzeuge": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Werkzeuge",
+            "type": "array"
+          },
+          "hinweis": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hinweis"
+          },
+          "ausgabe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ausgabe"
+          },
+          "zuege": {
+            "default": 5,
+            "title": "Zuege",
+            "type": "integer"
+          }
+        },
+        "title": "AgentSchritt",
+        "type": "object"
+      },
+      "Ausloeser": {
+        "additionalProperties": true,
+        "properties": {
+          "art": {
+            "pattern": "^(knopf|agent|text|modul)$",
+            "title": "Art",
+            "type": "string",
+            "x-choices": [
+              "knopf",
+              "agent",
+              "text",
+              "modul"
+            ]
+          },
+          "modus": {
+            "default": "vorschlagen",
+            "title": "Modus",
+            "type": "string",
+            "x-choices": [
+              "vorschlagen"
+            ]
+          },
+          "wendungen": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Wendungen",
+            "type": "array"
+          },
+          "modul": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Modul"
+          },
+          "wenn_teil": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wenn Teil"
+          }
+        },
+        "required": [
+          "art"
+        ],
+        "title": "Ausloeser",
+        "type": "object"
+      },
+      "Schritt": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "typ": {
+            "pattern": "^(nachricht|modul|werkzeug|verzweigung|agent|auftrag|ende)$",
+            "title": "Typ",
+            "type": "string",
+            "x-choices": [
+              "nachricht",
+              "modul",
+              "werkzeug",
+              "verzweigung",
+              "agent",
+              "auftrag",
+              "ende"
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Text"
+          },
+          "modul": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Modul"
+          },
+          "daten": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Daten"
+          },
+          "werkzeug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Werkzeug"
+          },
+          "flow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Flow"
+          },
+          "argumente": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Argumente"
+          },
+          "schreibt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Schreibt"
+          },
+          "weiter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/$defs/Weiter"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Weiter"
+          },
+          "bei_fehler": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Bei Fehler"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AgentSchritt"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "typ"
+        ],
+        "title": "Schritt",
+        "type": "object"
+      },
+      "Weiter": {
+        "additionalProperties": true,
+        "description": "Eine Regel der Verzweigung — die erste passende gilt; ``sonst`` zuletzt.",
+        "properties": {
+          "wenn_teil": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wenn Teil"
+          },
+          "wenn_gewaehlt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wenn Gewaehlt"
+          },
+          "dann": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Dann"
+          },
+          "sonst": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sonst"
+          }
+        },
+        "title": "Weiter",
+        "type": "object"
+      }
+    },
+    "additionalProperties": true,
+    "description": "Alle Abläufe in einem Bereich — ein Eintrag je Ablauf, die ``id`` ist der Schlüssel.",
+    "properties": {
+      "ablaeufe": {
+        "default": [],
+        "items": {
+          "$ref": "#/$defs/AblaufArea"
+        },
+        "title": "Ablaeufe",
+        "type": "array"
+      }
+    },
+    "title": "AblaufKatalogArea",
+    "type": "object"
+  },
   "05-canvas/material-types": {
     "$defs": {
       "MaterialType": {
@@ -2632,6 +3057,13 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "minimum": 0,
             "title": "Retention Days",
             "type": "integer"
+          },
+          "vorgang_tage": {
+            "default": 3,
+            "maximum": 30,
+            "minimum": 1,
+            "title": "Vorgang Tage",
+            "type": "integer"
           }
         },
         "title": "PrivacyLoggingBlock",
@@ -2647,7 +3079,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "memory": true,
           "quality": true,
           "safety": true,
-          "retention_days": 30
+          "retention_days": 30,
+          "vorgang_tage": 3
         }
       }
     },
@@ -3396,6 +3829,70 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
     "title": "ToneModifiersArea",
     "type": "object"
   },
+  "01-base/upload-config": {
+    "$defs": {
+      "UploadSettings": {
+        "additionalProperties": true,
+        "description": "Was die Person hochladen darf und wie lange es bleibt.",
+        "properties": {
+          "dokument_im_chat": {
+            "default": true,
+            "title": "Dokument Im Chat",
+            "type": "boolean"
+          },
+          "dokument_ohne_anmeldung": {
+            "default": false,
+            "title": "Dokument Ohne Anmeldung",
+            "type": "boolean"
+          },
+          "ablage_in_wlo": {
+            "default": false,
+            "title": "Ablage In Wlo",
+            "type": "boolean"
+          },
+          "max_mb": {
+            "default": 10,
+            "maximum": 25,
+            "minimum": 1,
+            "title": "Max Mb",
+            "type": "integer"
+          },
+          "max_seiten": {
+            "default": 300,
+            "maximum": 1000,
+            "minimum": 1,
+            "title": "Max Seiten",
+            "type": "integer"
+          },
+          "aufbewahrung_h": {
+            "default": 24,
+            "maximum": 72,
+            "minimum": 1,
+            "title": "Aufbewahrung H",
+            "type": "integer"
+          }
+        },
+        "title": "UploadSettings",
+        "type": "object"
+      }
+    },
+    "additionalProperties": true,
+    "properties": {
+      "upload": {
+        "$ref": "#/$defs/UploadSettings",
+        "default": {
+          "dokument_im_chat": true,
+          "dokument_ohne_anmeldung": false,
+          "ablage_in_wlo": false,
+          "max_mb": 10,
+          "max_seiten": 300,
+          "aufbewahrung_h": 24
+        }
+      }
+    },
+    "title": "UploadConfigArea",
+    "type": "object"
+  },
   "01-base/website-tour": {
     "$defs": {
       "LabelPath": {
@@ -4138,6 +4635,7 @@ export const AREA_KEYS: readonly string[] = [
   "01-base/rag-retrieval",
   "01-base/safety-config",
   "01-base/tone-modifiers",
+  "01-base/upload-config",
   "01-base/website-tour",
   "01-base/welcome-config",
   "01-base/widget-modes",
@@ -4155,5 +4653,6 @@ export const AREA_KEYS: readonly string[] = [
   "05-canvas/type-aliases",
   "05-knowledge/mcp-servers",
   "05-knowledge/rag-config",
+  "06-ablaeufe/katalog",
   "eval/gold-flows"
 ] as const;

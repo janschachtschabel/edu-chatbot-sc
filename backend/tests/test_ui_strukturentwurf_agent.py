@@ -30,9 +30,9 @@ def gesehen(monkeypatch):
     aufrufe: list[dict[str, Any]] = []
     ergebnis = {"wert": dienst.Erzeugt(dict(_DATEN))}
 
-    async def attrappe(auftrag, *, llm, frist_ende, vorlage=None):
+    async def attrappe(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
         aufrufe.append({"auftrag": auftrag, "frist_ende": frist_ende, "vorlage": vorlage,
-                        "llm": llm})
+                        "llm": llm, "dokument": dokument})
         return ergebnis["wert"]
 
     def naht(usage_acc):
@@ -86,7 +86,7 @@ def test_der_dienst_endet_vor_der_frist_des_laufs(monkeypatch, gesehen):
 
     beginn: dict[str, float] = {}
 
-    async def messe(auftrag, *, llm, frist_ende, vorlage=None):
+    async def messe(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
         beginn["jetzt"] = asyncio.get_running_loop().time()
         gesehen[0].append({"frist_ende": frist_ende})
         return dienst.Erzeugt(dict(_DATEN))
@@ -153,3 +153,28 @@ async def test_die_muster_vorrunde_weist_einen_zweiten_entwurf_ab(gesehen):
                  _tool_call(STRUKTURENTWURF, {"thema": "Optik"}, "c2")),
         [ENTSCHEIDUNG, STRUKTURENTWURF], state, msgs, tools_called=[], outcomes=[])
     assert msgs[1]["content"] == ZWEITE_FRAGE and gesehen[0] == []
+
+
+# ── Paket U3-2b: der Dokument-Lader erreicht den Dienst in beiden Maschinen ──
+
+_STAND = object()
+
+
+async def _lader():
+    return _STAND
+
+
+def test_agent_schleife_reicht_den_dokument_lader_an_den_dienst(monkeypatch, gesehen):
+    _lauf(monkeypatch, [_resp_tools([_tool_call(STRUKTURENTWURF, {
+        "thema": "Lehrplan", "aus_dokument": True})])], modul_dokument=_lader)
+    assert gesehen[0][0]["dokument"] is _STAND
+
+
+async def test_muster_vorrunde_reicht_den_dokument_lader_an_den_dienst(gesehen):
+    from boerdi.services.tool_loop_module import DOKUMENT_LADER_KEY, nimm_module_an
+
+    state: dict[str, Any] = {DOKUMENT_LADER_KEY: _lader}
+    await nimm_module_an(
+        _aufrufe(_tool_call(STRUKTURENTWURF, {"thema": "Lehrplan", "aus_dokument": True})),
+        [STRUKTURENTWURF], state, [], tools_called=[], outcomes=[])
+    assert gesehen[0][0]["dokument"] is _STAND

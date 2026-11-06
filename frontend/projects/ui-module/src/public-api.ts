@@ -6,6 +6,11 @@ export type { ModulKontext, UiBlock, UiBlockStatus, UiModulArt } from './_vertra
 export type { ModulFaehigkeit, UiModulManifest } from './_vertrag/manifest';
 export { MODUL_HOST } from './_vertrag/modul-host';
 export { INHALTSRAHMEN, LINKBOX, TREFFERLISTE } from './_vertrag/modul-namen';
-export type { KartenAktion, ModulHost, TrefferUmgebung } from './_vertrag/modul-host';
+export type {
+  AblageEintrag, AblageSchritt, AuftragSchritt, KartenAktion, ModulHost, TrefferUmgebung,
+} from './_vertrag/modul-host';
 export { UI_MODUL_REGISTER } from './_vertrag/register';
 export type { ModulRegister, RegisterEintrag, RegisterManifest } from './_vertrag/register';
+// Paket U3-0: nachgeladene Module (Custom Elements in eigenen Bündeln).
+export { NACHLADE_ZIEL } from './_nachladen/element-vertrag';
+export type { ElementHost, NachladeElement, NachladeZiel } from './_nachladen/element-vertrag';

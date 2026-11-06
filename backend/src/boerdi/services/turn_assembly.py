@@ -50,6 +50,8 @@ from boerdi.domain.guide_markers import _strip_guide_markers_from_text
 from boerdi.domain.quick_reply_policy import _qr_default_count
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.tasks import _retrieve_task_exception
+from boerdi.services.ablauf import auftrag_zug, ki_schritt
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.guide_markers import _attach_guide_qr
 from boerdi.services.guide_qr_injector import ist_lotse
@@ -390,6 +392,24 @@ async def _assemble_cards_and_qrs(
     # Absichtlich als LETZTE Station: der Relevanz-Rückfall darüber setzt
     # ebenfalls an Position 0 und kürzt auf vier; davor eingesetzt wanderte
     # die Anmeldung wieder nach hinten oder fiele ganz heraus.
+    # Paket A2a: der Knopf eines Ablaufs, den die KI vorgeschlagen hat (``ablauf_vorschlagen``) —
+    # nicht unter einer offenen Frage (``qr_mode`` none: ein Klick machte sie veraltet). Vor der
+    # Anmeldung eingesetzt: die geht weiter an die Spitze.
+    _ablauf_ids = (session_state.pop(ablauf_vorschlag.SITZUNG_KEY, None)
+                   if isinstance(session_state, dict) else None)
+    # Review A2a, Befund 6: nicht unter Chips des Gastgebers (die bleiben vorn und ungekürzt), und
+    # nie über seine Höchstzahl.
+    if _ablauf_ids and _qr_mode != "none" and not _canvas_forced_quick_replies:
+        quick_replies = ablauf_vorschlag.anhaengen(
+            quick_replies, ablauf_vorschlag.schnellantworten(_ablauf_ids, _qr_lang),
+            hoechstens=_host_qr_max)
+    # Paket A2b: „Weiter im Ablauf“, solange ein Lauf am agent-Schritt wartet — dieselben Grenzen.
+    _weiter = ((ki_schritt.weiter_knopf(req.session_id, session_state, _qr_lang)
+                or auftrag_zug.pruefen_knopf(req.session_id, session_state, _qr_lang))
+               if isinstance(session_state, dict) else None)
+    if _weiter and _qr_mode != "none" and not _canvas_forced_quick_replies:
+        quick_replies = ablauf_vorschlag.anhaengen(quick_replies, [_weiter],
+                                                   hoechstens=_host_qr_max)
     quick_replies = inject_auth_qr(
         quick_replies,
         blocked=curation_blocked_by_mode(pattern_output),

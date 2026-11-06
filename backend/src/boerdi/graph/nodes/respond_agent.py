@@ -73,12 +73,15 @@ from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import cancel_and_drain
 from boerdi.services import (
+    arbeitsstand,
     betriebsschalter,
     master_skill,
     page_context,
     prompt_ablage,
     seitenkontext_prompt,
 )
+from boerdi.services.ablauf import ki_schritt
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_abschluss import abschluss_nachholen, antwort_oder_ersatz
 from boerdi.services.agent_deckel import fuer_diesen_zug
 from boerdi.services.agent_knowledge import WISSENS_REGEL, wissen_werkzeug
@@ -92,6 +95,7 @@ from boerdi.services.agent_write import enforce_write_mode
 from boerdi.services.agent_zugblock import zuletzt_gezeigt
 from boerdi.services.card_collect import collect_cards, juengste_zuerst
 from boerdi.services.config_loader import load_engine
+from boerdi.services.dokumente.stand import lader as dokument_lader
 from boerdi.services.quick_replies_llm import _max_chars
 from boerdi.services.schreibrecht import schreiben_erlaubt
 from boerdi.services.write_approval import merke_abnahme
@@ -283,9 +287,18 @@ async def respond_agent(
     _entities = ctx.session_state.setdefault("entities", {})
     # Gegenreview 2026-11-05: der Antwort-Zug zählt nicht zu den Folgezügen.
     _letzter = entwurf_merken.rahmen_fuer_zug(_entities, ctx.ui_antwort)
-    vorsatz = [b for b in (frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage, _letzter),
+    # Paket V1: die Kennzeile des Arbeitsstands (keine Daten) zuerst.
+    # Den Verweis hat der Preflight aufgefrischt (``arbeitsstand.auffrischen``).
+    _kennzeile = arbeitsstand.kennzeile(_entities, arbeitsstand.aufrufer_fuer(ctx.req.session_id))
+    # Paket A2b: wartet ein Lauf am agent-Schritt, die Zeile dazu (und unten nur dessen Werkzeuge).
+    # Die Zeile selbst kommt unten, wenn feststeht, welche Werkzeuge übrig sind (Review A2b, 5).
+    _ki = ki_schritt.fuer_zug(ctx.session_state, ctx.req.session_id, ctx.safety)
+    _ki_zug = ki_schritt.zaehlen(_entities, *_ki) if _ki else 0
+    vorsatz = [b for b in (_kennzeile,
+                           frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage, _letzter),
                            gezeigt) if b]
     messages.append({"role": "user", "content": "\n\n".join([*vorsatz, ctx.req.message])})
+    _nutzer = messages[-1]
 
     # Erklärt der Gastgeber ein Schema, bekommt der Lauf seinen Ergebnis-Kanal
     # (2026-08-14, seit J1 ``liefere_ergebnis`` statt ``submit_result``). Nur
@@ -309,7 +322,8 @@ async def respond_agent(
     # lief hier jede Frage nach WLO, OER oder edu-sharing ins Modellgedaechtnis.
     # Ohne Vorabruf und mit allen Bereichen zugleich: siehe Modulkopf von
     # ``services/agent_knowledge``.
-    _wissen_tool = wissen_werkzeug(ctx.rag_config or {})
+    # Im agent-Schritt eines Laufs nicht: er nennt seine Werkzeuge selbst (Review A2b, Befund 5).
+    _wissen_tool = None if _ki else wissen_werkzeug(ctx.rag_config or {})
 
     # Werkzeug im Katalog ⇔ Regel im Prompt — dieselbe Kopplung wie beim
     # ``result_schema`` oben. ``wissen_suchen`` ist virtuell und damit nicht
@@ -327,9 +341,7 @@ async def respond_agent(
     # Angebot — dessen Text ist das Einzige, was hinausgeht (E-S1).
     _strom = strom_fuer_agent_zug(on_token, ctx, antwort_werkzeug=_antwort_tool is not None)
     progress.start("response", "LLM response generation")
-    lauf = await run_agent_loop(
-        messages=messages,
-        tools=build_agent_tools(
+    _werkzeuge = build_agent_tools(
             allow_curation=_darf_schreiben,
             blocked_tools=ctx.safety.blocked_tools,
             # ``submit_result`` gehört seit J1 dem Agent-Endpunkt: es beendet
@@ -343,7 +355,18 @@ async def respond_agent(
             # verspraeche das Modell, was ihm die Liste gleich nimmt.
             tool_mode=ctx.req.environment.tool_mode,
             wissen_tool=_wissen_tool,
-            antwort_tool=_antwort_tool),
+            antwort_tool=_antwort_tool,
+            # Paket A2a: nur mit vorschlagbarem Ablauf (Auslöser ``agent``) im Angebot — nicht im
+            # agent-Schritt eines Laufs (dort zählen nur dessen Werkzeuge).
+            ablauf_tool=None if _ki else ablauf_vorschlag.werkzeug(sprache))
+    if _ki:
+        _werkzeuge = ki_schritt.einengen(_werkzeuge, _ki[1])
+        _ki_zeile = ki_schritt.zeile(*_ki, sprache, zuege=_ki_zug, angeboten={
+            (t.get("function") or {}).get("name") for t in _werkzeuge})
+        _nutzer["content"] = f"{_ki_zeile}\n\n{_nutzer['content']}"
+    lauf = await run_agent_loop(
+        messages=messages,
+        tools=_werkzeuge,
         # AG-6: ohne angemeldete Person gelten die engeren anonymen Deckel.
         # Die Schreibregel zuletzt: was auch immer davor die Deckel ändert,
         # ``execute`` ohne Person kommt hier nicht durch.
@@ -352,6 +375,9 @@ async def respond_agent(
         progress=progress,
         # Paket U2 (T-5): der Strukturentwurf, den die Person mit dieser Nachricht schickte.
         modul_vorlage=entwurf_merken.vorlage(_entities),
+        # U3-2b: das Dokument der Sitzung, gelesen erst, wenn ein Dienst es braucht.
+        modul_dokument=dokument_lader(session, ctx.req.session_id),
+        modul_teile=arbeitsstand.teil_lader(session, ctx.req.session_id, _entities),
         on_tool_result=lambda name, text: ernten.append(collect_cards(all_cards, name, text)),
         wissen=_wissen if _wissen_tool else None,
         # Paket 2: eine nicht eingelöste Schreib-Vorschau nimmt die Person im
@@ -453,6 +479,9 @@ async def respond_agent(
     # Zusammenstellung nimmt sie vor dem eigenen Aufruf (und filtert sie gleich).
     if lauf.vorschlaege:
         ctx.session_state["_inline_quick_replies"] = lauf.vorschlaege
+    # Paket A2a: vorgeschlagene Abläufe — den Knopf setzt die Zusammenstellung.
+    if lauf.ablauf_vorschlaege:
+        ctx.session_state[ablauf_vorschlag.SITZUNG_KEY] = list(lauf.ablauf_vorschlaege)
     # Paket U1-d1: Blöcke der Modul-Werkzeuge (``turn_persist`` speichert und liefert sie). Eine
     # Frage merkt sich die Sitzung für den nächsten Zug; darunter keine Schnellantworten — ein
     # Klick darauf machte die Frage veraltet.

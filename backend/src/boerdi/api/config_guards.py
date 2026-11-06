@@ -31,6 +31,7 @@ _PATTERN_PREFIX = "03-patterns/"
 _GUIDE_RULES_AREA = "02-domain/guide-rules"
 #: The policy rules: their ``match.message_regex`` must compile (Paket 6, B1).
 _POLICY_AREA = "01-base/policy"
+_ABLAEUFE_AREA = "06-ablaeufe/katalog"
 
 
 def _assert_servers_public(servers: object, lang: Locale) -> None:
@@ -101,6 +102,31 @@ def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
         _assert_guide_patterns_compile(data.get("message_rules"), lang)
     if key == _POLICY_AREA and isinstance(data, dict):
         _assert_policy_patterns_compile(data.get("rules"), lang)
+    if key == _ABLAEUFE_AREA and isinstance(data, dict):
+        _assert_ablaeufe_ausfuehrbar(data, lang)
+
+
+def _assert_ablaeufe_ausfuehrbar(data: dict, lang: Locale) -> None:
+    """Paket A1: jeder Ablauf muss den Prüfungen des Treibers genügen (``services/ablauf/pruefung``)
+    — Ziele, Ende, Module, Werkzeuge (nicht schreibend), Teilnamen, Schleifen; IDs eindeutig."""
+    from pydantic import ValidationError
+
+    from boerdi.domain.config_models.ablauf import AblaufKatalogArea
+    from boerdi.services.ablauf.pruefung import pruefe
+
+    try:
+        katalog = AblaufKatalogArea.model_validate(data)
+    except ValidationError:
+        return   # die Modellprüfung meldet das (422 mit allen Einwänden)
+    befunde: list[str] = []
+    ids = [a.id for a in katalog.ablaeufe]
+    if doppelt := sorted({i for i in ids if ids.count(i) > 1}):
+        befunde.append(("Ablauf-IDs doppelt: " if lang == "de" else "Duplicate workflow ids: ")
+                       + ", ".join(doppelt))
+    for ablauf in katalog.ablaeufe:
+        befunde += [f"{ablauf.id}: {b}" for b in pruefe(ablauf, lang)]
+    if befunde:
+        raise HTTPException(400, msg(lang, "ablaeufe.ungueltig", value="; ".join(befunde)[:900]))
 
 
 def _assert_guide_patterns_compile(rules: object, lang: Locale) -> None:

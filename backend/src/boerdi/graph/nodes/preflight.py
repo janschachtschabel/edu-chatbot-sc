@@ -42,7 +42,9 @@ DI (Regel 3): ``session`` is injected — the graph-build (P4-6) binds the reque
 session, mirroring how ``assess`` injects ``memory_fetch``. Deviation over ALT:
 the high-risk log passes the ``SafetyDecision`` object (not ``model_dump()``);
 ``log_safety_event`` reads it via ``_field`` (R3b), which fixes ALT's silent
-getattr-on-dict default. Tests patch the boundaries on THIS module.
+getattr-on-dict default. Tests patch the boundaries on THIS module — except the Ablauf,
+Auftrag and Vorgang dispatch, which lives in ``preflight_ablauf`` (Q4): patch those on the
+service modules (``ablauf_zug``, ``auftrag_zug``, ``vorgang_aktion``) instead.
 """
 
 from __future__ import annotations
@@ -52,18 +54,22 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatResponse, DebugInfo
+from boerdi.graph.nodes import preflight_ablauf
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.quality_events import log_safety_event
-from boerdi.services import abnahme_hinweis
+from boerdi.services import abnahme_hinweis, arbeitsstand, vorgang_aktion
+from boerdi.services.ablauf import auftrag_zug
+from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.content_text_action import _handle_show_content_text
-from boerdi.services.db_sessions import save_message
+from boerdi.services.db_sessions import save_message, update_session
 from boerdi.services.direct_actions import (
     _direct_action_safety_text,
     _handle_browse_collection,
     _handle_curate_collection,
     _handle_generate_learning_path,
 )
+from boerdi.services.ordner_aktion import handle_folders_as_draft
 from boerdi.services.rate_limits import check_rate_limit
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.service import regex_rueckfall, sperrt_ohne_moderation
@@ -71,6 +77,7 @@ from boerdi.services.strukturentwurf_aktion import handle_edit_collection_as_dra
 from boerdi.services.themenbaum_aktion import handle_show_collection_tree
 from boerdi.services.turn_quality import log_turn_quality
 from boerdi.services.write_approval import redeem_write_approval
+from boerdi.ui_module.antwort import sicherheits_text
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +90,15 @@ _DIRECT_ACTIONS = {
     "show_collection_tree",
     # Paket U2: „Als Entwurf bearbeiten“ im Themenbaum — ohne KI, durch dieselbe Prüfung.
     "edit_collection_as_draft",
+    # Paket A1: einen Ablauf aus dem Katalog starten (Knopf, Seite) — ohne KI, gleiche Prüfung.
+    ablauf_zug.AKTION,
+    # Paket A2b: „Weiter im Ablauf“ am agent-Schritt.
+    ablauf_zug.AKTION_WEITER,
+    # Paket K1a: „Stand prüfen“ am auftrag-Schritt (b-api-Auftrag).
+    auftrag_zug.AKTION,
+    # Querschnitts-Review 2026-11-06 (M6, Datenschutz): neues Vorhaben, Arbeitsstand löschen.
+    vorgang_aktion.AKTION_NEU,
+    vorgang_aktion.AKTION_LOESCHEN,
 }
 
 
@@ -117,6 +133,11 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
         )
         return ctx
 
+    # Querschnitts-Review 2026-11-06 (Review Q3, Befund 10): der Verweis folgt einmal je Zug dem
+    # Vorgang — vor den Ablauf-Prüfungen unten, die nur ihn lesen (``lauf_wartet``, Auslöser).
+    await arbeitsstand.auffrischen(session, req.session_id,
+                                   ctx.session_state.setdefault("entities", {}))
+
     # ── S5 (2026-08-15): eine offene Schreib-Abnahme einlösen ─────────────
     # Vor dem Klassifikator, und genau darin liegt der Fix: eine Abnahme ist
     # ein bestimmter Zustand (Werkzeug, Argumente und Schlüssel liegen fertig
@@ -146,10 +167,16 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             await _log_early_quality(ctx, session)
             return ctx
 
-    if req.action not in _DIRECT_ACTIONS:
+    # Auslöser ohne Knopf: Ordner-Aktion, offener Block eines Laufs, Modul-Antwort, Wendung
+    # (``preflight_ablauf.bestimmen``).
+    a = await preflight_ablauf.bestimmen(ctx, session)
+    if req.action not in _DIRECT_ACTIONS and not a.irgendeiner:
         return ctx
 
-    safety_text = _direct_action_safety_text(req)
+    # Querschnitts-Review 2026-11-06, M4: eine Wendung beantwortet die Nachricht — die ganze, nicht
+    # nur 500 Zeichen wie bei einer Direktaktion (eine Krise dahinter bliebe sonst ungesehen).
+    safety_text = (sicherheits_text(req.message, ctx.ui_antwort) if a.irgendeiner
+                   else _direct_action_safety_text(req))
     signals = ctx.session_state.get("signal_history", [])
     # ``assess_safety`` runs the regex gate first internally and short-circuits
     # on a hard hit, so one call gives the full multi-stage gate; on failure we
@@ -157,12 +184,19 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     try:
         decision = await assess_safety(safety_text, signals, usage_acc=ctx.usage)
     except Exception as err:
-        logger.warning("direct-action safety assess failed: %s", err)
+        # Nur die Art (Review Q4, älter): der Ausnahmetext kann Inhalt der Nachricht tragen.
+        logger.warning("direct-action safety assess failed: %s", type(err).__name__)
         decision = regex_rueckfall(safety_text, signals)
 
     # Paket 18A: mit ``MODERATION_FAILURE_MODE=closed`` gilt eine Direkt-Aktion
     # ohne Moderation wie ein freier Zug (``pruefung_fehlt``) — keine Antwort.
     ohne_pruefung = decision.risk_level != "high" and sperrt_ohne_moderation(decision)
+    # Review A2a, Befund 2: eine getippte Nachricht, die nur zufällig eine Wendung trägt, geht bei
+    # hohem Risiko (Krise) oder ohne Prüfung den gewöhnlichen Weg — samt Krisenantwort M01 — statt
+    # die Abweisung einer Direktaktion zu bekommen.
+    if a.per_text is not None and not req.action and (decision.risk_level == "high"
+                                                      or ohne_pruefung):
+        return ctx
     if decision.risk_level == "high" or ohne_pruefung:
         if not ohne_pruefung:
             await log_safety_event(
@@ -220,6 +254,18 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     elif req.action == "edit_collection_as_draft":
         ctx.early_response = await handle_edit_collection_as_draft(
             session, req, ctx.session_state, blocked_tools=decision.blocked_tools)
+    elif (ablauf := await preflight_ablauf.antwort(ctx, session, a,
+                                                   decision.blocked_tools)) is not None:
+        # Abläufe, Aufträge und Vorgangs-Aktionen (``preflight_ablauf.antwort``).
+        ctx.early_response = ablauf.antwort
+    elif a.ordner and ctx.ui_antwort is not None:
+        # Paket V1: dieser Zug erreicht ``persist`` nie — die Ordner werden hier Teil des Vorgangs.
+        _entities = ctx.session_state.setdefault("entities", {})
+        await arbeitsstand.uebernehmen(session, req.session_id, _entities, ctx.ui_antwort)
+        # Review V1, Befund 7: der Verweis geht fest, auch wenn der Handler früh (nur Text) endet.
+        await update_session(session, req.session_id, entities=_entities)
+        ctx.early_response = await handle_folders_as_draft(
+            session, req, ctx.session_state, ctx.ui_antwort)
     await _log_early_quality(ctx, session)
     return ctx
 

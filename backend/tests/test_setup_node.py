@@ -259,3 +259,25 @@ def test_waehrend_einer_tour_oder_ohne_ping_bleibt_der_verfall_sofort(
 
     assert "_pending_write" not in out.session_state["entities"]
     assert len(gespeichert.calls) == 1
+
+
+
+def test_automatisches_abholen_laesst_die_frage_offen_und_verwirft_die_abnahme(monkeypatch):
+    """Querschnitts-Review Q1, Befund 1: das Abholen ist sichtbar — eine Abnahme verfällt wie nach
+    jedem sichtbaren Zug (und in der DB); nur die offene Frage eines anderen Moduls bleibt offen."""
+    from boerdi.ui_module.antwort import OFFENE_FRAGE
+
+    row = _row_mit_abnahme()
+    row["entities"] = {**row["entities"], OFFENE_FRAGE: {"block_id": "b1", "modul": "ui_upload"}}
+    _patch(monkeypatch, row=row)
+    gespeichert = _Spy()
+    monkeypatch.setattr(wa_mod, "update_session", gespeichert)
+    ctx = state_mod.TurnContext(req=ChatRequest(
+        session_id="bb-1", message="Stand prüfen", action="ablauf_auftrag_pruefen",
+        action_params={"ablauf": "lesen", "automatisch": True}))
+
+    out = _run(ctx)
+
+    assert out.session_state["entities"][OFFENE_FRAGE]["block_id"] == "b1"
+    assert "_pending_write" not in out.session_state["entities"]
+    assert len(gespeichert.calls) == 1

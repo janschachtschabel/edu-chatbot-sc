@@ -49,6 +49,10 @@ async def offene_frage_schliessen(
 ) -> FrageSchluss:
     """Die offene Frage schließen und eine mitgeschickte Antwort prüfen.
 
+    ``hintergrund``: ein Zug, den das Widget von sich aus schickt (Kontext-Ping, Tour-Tick) oder das
+    automatische Abholen eines Ablauf-Auftrags (Querschnitts-Review 2026-11-06, M1) — die offene
+    Frage bleibt dann offen, eine mitgeschickte Antwort wird verworfen.
+
     Setzt ``req.ui_antwort`` auf ``None``, wenn sie nicht geprüft übernommen wird — die übrigen
     Knoten sehen dann einen gewöhnlich getippten Zug. Dass eine Antwort KAM, merkt sich ``setup``
     vorher: für die Schreib-Abnahme zählt auch eine verworfene als NEIN.

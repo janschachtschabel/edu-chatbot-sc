@@ -607,3 +607,363 @@ def test_ein_anderes_anliegen_bekommt_keinen_hinweis(monkeypatch):
     out = _zug(_ctx(None, message="Zeig mir Videos zu Brüchen", session_state=zustand))
 
     assert out.early_response is None
+
+
+# ── Paket U3-1b: „Ordnerstruktur als Entwurf“ aus ui_upload ────────────────
+
+def _ordner_ctx(aktion: str = "ordner_als_entwurf") -> state_mod.TurnContext:
+    ctx = _ctx(None, message="Ordnerstruktur „Physik“ als Themenbaum-Entwurf übernehmen")
+    ctx.ui_antwort = {"block_id": "b0000001", "modul": "ui_upload", "frage": "Ordner erfassen",
+                      "labels": [], "daten": {"aktion": aktion, "struktur": {
+                          "name": "Physik", "dateien": 0, "alle_dateien": 1,
+                          "kinder": [{"name": "Böses <Ordner>", "dateien": 1, "alle_dateien": 1,
+                                      "kinder": []}]}}}
+    return ctx
+
+
+def test_ordner_als_entwurf_wird_geprueft_und_ohne_llm_beantwortet(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    handler = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
+    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", handler)
+    uebernommen: list = []
+
+    async def uebernehmen(session, session_id, entities, geprueft):
+        uebernommen.append(geprueft)
+
+    gespeichert: list = []
+
+    async def update_session(session, session_id, **felder):
+        gespeichert.append(felder)
+
+    monkeypatch.setattr(pf_mod.arbeitsstand, "uebernehmen", uebernehmen)
+    monkeypatch.setattr(pf_mod, "update_session", update_session)
+    ctx = _ordner_ctx()
+    out = asyncio.run(preflight(ctx, _SESSION))
+    assert out.early_response.content == "ORDNER-OK"
+    # Paket V1: die Ordner werden Teil des Vorgangs (dieser Zug erreicht ``persist`` nie), und der
+    # Verweis geht sofort fest (Review V1, Befund 7)
+    assert uebernommen == [ctx.ui_antwort] and "entities" in gespeichert[0]
+    # die Sicherheitsprüfung las die Ordnernamen (nicht nur die Blase)
+    assert "Böses <Ordner>" in safety.calls[0]["args"][0]
+    assert handler.calls[0]["args"][3] is ctx.ui_antwort
+
+
+def test_ordner_als_entwurf_wird_bei_hohem_risiko_nicht_gebaut(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
+    handler = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
+    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", handler)
+    out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
+    assert out.early_response.content != "ORDNER-OK" and handler.calls == []
+
+
+def test_nur_der_befund_geht_den_gewoehnlichen_weg(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    handler = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
+    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", handler)
+    out = asyncio.run(preflight(_ordner_ctx("erfasst"), _SESSION))
+    assert out.early_response is None and handler.calls == [] and safety.calls == []
+
+
+def test_ordner_als_entwurf_ohne_moderation_wird_nicht_gebaut(monkeypatch):
+    """Review U3-1, Befund 10: ``MODERATION_FAILURE_MODE=closed`` gilt auch hier."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    monkeypatch.setattr(pf_mod, "sperrt_ohne_moderation", lambda _d: True)
+    handler = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
+    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", handler)
+    out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
+    assert out.early_response is not None and out.early_response.content != "ORDNER-OK"
+    assert handler.calls == []
+
+
+# ── Paket A1 (Review, Befund 1/2/13): Abläufe im Preflight ─────────────────────────────────
+
+def _lauf_spione(monkeypatch, wartet=True):
+    gerufen: dict[str, list] = {"starten": [], "fortsetzen": []}
+
+    async def wartet_auf(session, sid, state, geprueft):
+        return wartet
+
+    async def starten(session, req, state, **k):
+        gerufen["starten"].append(k)
+        return ChatResponse(session_id="bb-1", content="ABLAUF-START")
+
+    async def fortsetzen(session, req, state, geprueft, **k):
+        gerufen["fortsetzen"].append((geprueft, k))
+        return ChatResponse(session_id="bb-1", content="ABLAUF-WEITER")
+
+    monkeypatch.setattr(pf_mod.ablauf_zug, "wartet_auf", wartet_auf)
+    monkeypatch.setattr(pf_mod.ablauf_zug, "starten", starten)
+    monkeypatch.setattr(pf_mod.ablauf_zug, "fortsetzen", fortsetzen)
+    return gerufen
+
+
+def test_der_ordner_knopf_im_lauf_setzt_den_ablauf_fort(monkeypatch):
+    """Befund 1: ``ordner_als_entwurf`` auf den offenen Block eines Laufs gehört dem Treiber."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="medium",
+                                                       blocked_tools=["search_wlo_all"]))
+    ordner = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
+    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", ordner)
+    gerufen = _lauf_spione(monkeypatch)
+    ctx = _ordner_ctx()
+    out = asyncio.run(preflight(ctx, _SESSION))
+    assert out.early_response.content == "ABLAUF-WEITER" and ordner.calls == []
+    [(geprueft, k)] = gerufen["fortsetzen"]
+    assert geprueft is ctx.ui_antwort and k["blocked_tools"] == ["search_wlo_all"]
+    # die Ordnernamen gingen durch die Sicherheitsprüfung
+    assert "Böses <Ordner>" in safety.calls[0]["args"][0]
+
+
+def test_ohne_lauf_bleibt_der_ordner_knopf_beim_ordner_weg(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    ordner = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
+    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", ordner)
+
+    async def nichts(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(pf_mod.arbeitsstand, "uebernehmen", nichts)
+    monkeypatch.setattr(pf_mod, "update_session", nichts)
+    gerufen = _lauf_spione(monkeypatch, wartet=False)
+    out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
+    assert out.early_response.content == "ORDNER-OK" and gerufen["fortsetzen"] == []
+
+
+def test_ablauf_starten_gibt_die_werkzeugsperren_weiter(monkeypatch):
+    """Befund 2: eine mittlere Einstufung sperrt Werkzeuge auch für die Schritte."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="medium",
+                                              blocked_tools=["search_wlo_all"]))
+    gerufen = _lauf_spione(monkeypatch)
+    ctx = _ctx("ablauf_starten", ablauf="sammlungsstruktur")
+    out = asyncio.run(preflight(ctx, _SESSION))
+    assert out.early_response.content == "ABLAUF-START"
+    assert gerufen["starten"] == [{"blocked_tools": ["search_wlo_all"]}]
+
+
+def test_ablauf_starten_bei_hohem_risiko_startet_nicht(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
+    gerufen = _lauf_spione(monkeypatch)
+    out = asyncio.run(preflight(_ctx("ablauf_starten", ablauf="x"), _SESSION))
+    assert out.early_response.content != "ABLAUF-START" and gerufen["starten"] == []
+
+
+# ── Paket A2a: Auslöser Wendung und Modul-Antwort im Preflight ───────────────────────────────
+
+def _ausloeser_spione(monkeypatch, *, text=None, modul=None):
+    gerufen: dict[str, list] = {"text": [], "modul": []}
+    monkeypatch.setattr(pf_mod.ablauf_zug, "text_ausloeser", lambda nachricht: text)
+    monkeypatch.setattr(pf_mod.ablauf_zug, "modul_ausloeser", lambda geprueft: modul)
+
+    async def starten_mit(session, req, state, ablauf, **k):
+        gerufen["text"].append((ablauf, k))
+        return ChatResponse(session_id="bb-1", content="ABLAUF-TEXT")
+
+    async def per_modul_starten(session, req, state, geprueft, treffer, **k):
+        gerufen["modul"].append((treffer, k))
+        return ChatResponse(session_id="bb-1", content="ABLAUF-MODUL")
+
+    monkeypatch.setattr(pf_mod.ablauf_zug, "starten_mit", starten_mit)
+    monkeypatch.setattr(pf_mod.ablauf_zug, "per_modul_starten", per_modul_starten)
+    return gerufen
+
+
+def test_eine_wendung_startet_den_ablauf_nach_der_sicherheitspruefung(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="medium",
+                                                       blocked_tools=["search_wlo_all"]))
+    gerufen = _ausloeser_spione(monkeypatch, text="ABLAUF")
+    out = asyncio.run(preflight(_ctx(None, message="Themenbaum aus meinem Ordner"), _SESSION))
+    assert out.early_response.content == "ABLAUF-TEXT"
+    assert gerufen["text"] == [("ABLAUF", {"blocked_tools": ["search_wlo_all"]})]
+    assert "Themenbaum aus meinem Ordner" in safety.calls[0]["args"][0]
+
+
+def test_eine_wendung_bei_hohem_risiko_geht_den_gewoehnlichen_weg(monkeypatch):
+    """Review A2a, Befund 2: keine Abweisung als Direktaktion — der gewöhnliche Weg antwortet
+    (bei einer Krise mit M01), und er protokolliert selbst."""
+    _patch_handlers(monkeypatch)
+    log, _save = _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
+    gerufen = _ausloeser_spione(monkeypatch, text="ABLAUF")
+    out = asyncio.run(preflight(_ctx(None, message="Themenbaum aus meinem Ordner"), _SESSION))
+    assert out.early_response is None and gerufen["text"] == [] and log.calls == []
+
+
+def test_eine_wendung_waehrend_eines_wartenden_laufs_ersetzt_ihn_nicht(monkeypatch):
+    """Review A2a, Befund 1: getippter Text im Lauf ist ein gewöhnlicher Zug (F1)."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    gerufen = _ausloeser_spione(monkeypatch, text="ABLAUF")
+    monkeypatch.setattr(pf_mod.ablauf_zug, "lauf_wartet", lambda sid, state: True)
+    out = asyncio.run(preflight(_ctx(None, message="Themenbaum aus meinem Ordner"), _SESSION))
+    assert out.early_response is None and gerufen["text"] == [] and safety.calls == []
+
+
+def test_ohne_wendung_geht_der_zug_den_gewoehnlichen_weg(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    _ausloeser_spione(monkeypatch)
+    out = asyncio.run(preflight(_ctx(None, message="Hallo"), _SESSION))
+    assert out.early_response is None and safety.calls == []
+
+
+def test_ein_modul_ausloeser_geht_vor_der_ordner_aktion(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    ordner = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
+    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", ordner)
+    _lauf_spione(monkeypatch, wartet=False)
+    gerufen = _ausloeser_spione(monkeypatch, modul=("ABLAUF", 1))
+    out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
+    assert out.early_response.content == "ABLAUF-MODUL" and ordner.calls == []
+    assert gerufen["modul"] == [(("ABLAUF", 1), {"blocked_tools": []})]
+    assert "Böses <Ordner>" in safety.calls[0]["args"][0]
+
+
+def test_ablauf_weiter_ist_eine_direktaktion_hinter_der_pruefung(monkeypatch):
+    """Paket A2b: „Weiter im Ablauf“ — mit den Werkzeugsperren dieser Prüfung."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low", blocked_tools=["x"]))
+    gerufen: list = []
+
+    async def weiter_nach_ki(session, req, state, **k):
+        gerufen.append(k)
+        return ChatResponse(session_id="bb-1", content="WEITER")
+
+    monkeypatch.setattr(pf_mod.ablauf_zug, "weiter_nach_ki", weiter_nach_ki)
+    out = asyncio.run(preflight(_ctx("ablauf_weiter", ablauf="baum"), _SESSION))
+    assert out.early_response.content == "WEITER" and gerufen == [{"blocked_tools": ["x"]}]
+
+
+
+def test_eine_modul_antwort_im_wartenden_lauf_startet_keinen_neuen(monkeypatch):
+    """Review A2b, Befund 2: am agent-Schritt zeigt die KI Module — ihre Antwort ersetzt den Lauf
+    nicht."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    ordner = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
+    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", ordner)
+    _lauf_spione(monkeypatch, wartet=False)
+    gerufen = _ausloeser_spione(monkeypatch, modul=("ABLAUF", 1))
+    monkeypatch.setattr(pf_mod.ablauf_zug, "lauf_wartet", lambda sid, state: True)
+
+    async def nichts(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(pf_mod.arbeitsstand, "uebernehmen", nichts)
+    monkeypatch.setattr(pf_mod, "update_session", nichts)
+    asyncio.run(preflight(_ordner_ctx(), _SESSION))
+    assert gerufen["modul"] == []
+
+
+# ── Querschnitts-Review 2026-11-06 (Q2) ─────────────────────────────────────────────────────
+
+def test_m4_eine_wendung_prueft_die_ganze_nachricht(monkeypatch):
+    """Vorher nur die ersten 500 Zeichen: eine Krise dahinter blieb ungesehen, der Ablauf
+    startete."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    _ausloeser_spione(monkeypatch, text="ABLAUF")
+    lang = "Themenbaum aus meinem Ordner " + "x" * 700 + " ich will nicht mehr leben"
+    asyncio.run(preflight(_ctx(None, message=lang), _SESSION))
+    assert "nicht mehr leben" in safety.calls[0]["args"][0]
+
+
+def _pruef_spion(monkeypatch):
+    gerufen: list[dict] = []
+
+    async def pruefen(session, req, state, **k):
+        gerufen.append(k)
+        return ChatResponse(session_id="bb-1", content="STAND")
+
+    monkeypatch.setattr(pf_mod.auftrag_zug, "pruefen", pruefen)
+    return gerufen
+
+
+def test_stand_pruefen_geht_durch_die_sicherheitspruefung_mit_sperren(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="medium",
+                                              blocked_tools=["search_wlo_all"]))
+    gerufen = _pruef_spion(monkeypatch)
+    out = asyncio.run(preflight(_ctx("ablauf_auftrag_pruefen", ablauf="lesen"), _SESSION))
+    assert out.early_response.content == "STAND"
+    assert gerufen == [{"blocked_tools": ["search_wlo_all"]}]
+
+
+def test_stand_pruefen_bei_hohem_risiko_nicht(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
+    gerufen = _pruef_spion(monkeypatch)
+    out = asyncio.run(preflight(_ctx("ablauf_auftrag_pruefen", ablauf="lesen"), _SESSION))
+    assert out.early_response.content != "STAND" and gerufen == []
+
+
+def test_der_verweis_wird_vor_den_ablauf_pruefungen_aufgefrischt(monkeypatch):
+    """Review Q3, Befund 10: ``lauf_wartet`` und die Auslöser lesen nur den Verweis — er muss
+    vorher dem Vorgang gefolgt sein."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    _ausloeser_spione(monkeypatch)
+    reihe: list[str] = []
+
+    async def auffrischen(session, sid, entities):
+        reihe.append("auffrischen")
+
+    def wartet(sid, state):
+        reihe.append("lauf_wartet")
+        return False
+
+    monkeypatch.setattr(pf_mod.arbeitsstand, "auffrischen", auffrischen)
+    monkeypatch.setattr(pf_mod.ablauf_zug, "lauf_wartet", wartet)
+    asyncio.run(preflight(_ctx(None, message="Hallo"), _SESSION))
+    assert reihe[:2] == ["auffrischen", "lauf_wartet"]
+
+
+def test_neues_vorhaben_und_loeschen_gehen_durch_die_sicherheitspruefung(monkeypatch):
+    """Querschnitts-Review 2026-11-06 (Q3): die neuen Direktaktionen wie jede andere."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    gerufen: list[str] = []
+
+    async def neu(session, req, state):
+        gerufen.append("neu")
+        return ChatResponse(session_id="bb-1", content="NEU")
+
+    async def loeschen(session, req, state):
+        gerufen.append("loeschen")
+        return ChatResponse(session_id="bb-1", content="WEG")
+
+    monkeypatch.setattr(pf_mod.vorgang_aktion, "neu", neu)
+    monkeypatch.setattr(pf_mod.vorgang_aktion, "loeschen", loeschen)
+    assert asyncio.run(preflight(_ctx("vorgang_neu"), _SESSION)).early_response.content == "NEU"
+    weg = asyncio.run(preflight(_ctx("vorgang_loeschen"), _SESSION))
+    assert weg.early_response.content == "WEG"
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
+    assert asyncio.run(preflight(_ctx("vorgang_neu"), _SESSION)).early_response.content != "NEU"
+    assert gerufen == ["neu", "loeschen"]

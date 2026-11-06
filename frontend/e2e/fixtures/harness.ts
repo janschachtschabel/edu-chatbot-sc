@@ -242,6 +242,17 @@ export async function mount(page: Page, opts: MountOptions = {}): Promise<Harnes
     if (path.startsWith('/api/sessions/')) {
       return route.fulfill({ json: opts.history ?? [] });
     }
+    // Paket U3-1a: nachgeladene UI-Module wie das Backend (`/widget/module/<datei>`) — mit CORS, sonst
+    // prüft der Browser das SRI des fremden Skripts nicht und lädt es nie.
+    if (path.startsWith('/widget/module/')) {
+      const datei = resolve(process.cwd(), 'dist/widget-module', path.slice('/widget/module/'.length));
+      try {
+        return route.fulfill({ contentType: 'application/javascript', body: readFileSync(datei, 'utf8'),
+          headers: { 'Access-Control-Allow-Origin': '*' } });
+      } catch {
+        return route.fulfill({ status: 404, json: { detail: 'Modul-Bündel fehlt — npm run build:widget' } });
+      }
+    }
     return route.fulfill({ status: 404, json: { detail: `nicht gestubbt: ${path}` } });
   });
 

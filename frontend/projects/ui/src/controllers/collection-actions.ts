@@ -19,6 +19,7 @@
  * stehen so auch im gespeicherten Verlauf; eine Übersetzung machte die Historie
  * sprachabhängig.
  */
+import type { AblageSchritt } from '@boerdi/ui-module';
 import { TREFFERLISTE } from '@boerdi/ui-module/_vertrag/modul-namen';
 
 import { WloCard } from '../cards/card-types';
@@ -28,6 +29,7 @@ import {
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { fehlerKurz } from '../obs/fehler-kurz';
+import { offeneFragenSchliessen } from '../ui-bloecke/fragen-status';
 import { drosselHinweis, fristHinweis } from '../stream/http-fehler';
 import { sitzungsWache } from '../session/session-id';
 
@@ -40,6 +42,9 @@ export interface CollectionActionsContext {
   sendMessage: (
     message: string, env: any, action?: string,
     actionParams?: Record<string, any>,
+    /** `fragenOffen`: ein Zug, den das Widget von sich aus schickt (automatisches Abholen) — offene
+     *  Fragen anderer Module bleiben offen (Querschnitts-Review M1). */
+    opts?: { readonly fragenOffen?: boolean },
   ) => Promise<ChatResponse>;
   /** LIVE-Sitzungs-ID: ein Vorgang gehört der Sitzung, in der er begann
    *  (`sitzungsWache`, Paket 3 T6). */
@@ -74,6 +79,13 @@ export interface CollectionActionsContext {
   t: TranslateFn;
   /** U1-h: Unterthemen eines Knotens (`ChatApiClient.themenbaumZweig` mit LIVE-Sitzung). */
   ladeZweig: (nodeId: string, signal?: AbortSignal) => Promise<Record<string, unknown>>;
+  /** U3-2c: ein Dokument aus `ui_upload` (`ChatApiClient.dokumentHochladen` mit LIVE-Sitzung). */
+  ladeDokument: (blockId: string, datei: File, onFortschritt: ((anteil: number) => void) | undefined,
+    signal?: AbortSignal) => Promise<Record<string, unknown>>;
+  /** U3-3b: ein Schritt der Ablage aus `ui_upload` (`ChatApiClient.ablageSchritt` mit LIVE-Sitzung). */
+  ladeAblage: (blockId: string, schritt: AblageSchritt, signal?: AbortSignal) => Promise<Record<string, unknown>>;
+  /** K1b: Stand eines Ablauf-Auftrags (`ChatApiClient.auftragStand` mit LIVE-Sitzung). */
+  ladeAuftragStand: (ablauf: string, kuerzel: string, signal?: AbortSignal) => Promise<Record<string, unknown>>;
 }
 
 /** Was eine Karten-Aktion ausmacht: gesendeter Text (bleibt deutsch — er ist die Anweisung ans
@@ -81,7 +93,9 @@ export interface CollectionActionsContext {
 interface KartenAktionAuftrag {
   readonly nachricht: string;
   readonly aktion: string;
-  readonly parameter: Record<string, string>;
+  readonly parameter: Record<string, string | boolean>;
+  /** Kein Zug der Person: offene Fragen anderer Module bleiben offen (M1). */
+  readonly fragenOffen?: boolean;
   readonly fehlerSchluessel: string;
   readonly protokoll: string;
 }
@@ -91,37 +105,46 @@ interface KartenAktionAuftrag {
  *  statt vier fast wortgleicher Kopien (Upgrade-Pfad des früheren `simplify:`-Vermerks). */
 async function runCardAction(
   auftrag: KartenAktionAuftrag, title: string, ctx: CollectionActionsContext,
-): Promise<void> {
-  if (ctx.isLoading()) return;
+): Promise<boolean> {
+  if (ctx.isLoading()) return false;
   const veraltet = sitzungsWache(() => ctx.sessionId());
   ctx.setLoading(true);
   const loadingId = ctx.addBotMessage('', true);
 
   try {
-    const resp = await ctx.sendMessage(auftrag.nachricht, undefined, auftrag.aktion, auftrag.parameter);
-    if (veraltet()) return;
+    const resp = await ctx.sendMessage(auftrag.nachricht, undefined, auftrag.aktion, auftrag.parameter,
+      ...(auftrag.fragenOffen ? [{ fragenOffen: true }] : []));
+    if (veraltet()) return false;
+    // Review Q1, Befund 5: das Backend kennt EINE offene Frage je Sitzung. Bringt die Antwort eine neue,
+    // ist die alte dort ersetzt — hier also ebenso veraltet (ihr Stapel läuft trotzdem weiter, M2).
+    if (auftrag.fragenOffen && resp.ui?.ui_bloecke?.some((b) => b.art === 'abfragen')) {
+      ctx.updateMessages(offeneFragenSchliessen);
+    }
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug, resp.ui);
     ctx.dispatchPageAction(resp.page_action);
   } catch (err) {
-    if (veraltet()) return;
+    if (veraltet()) return false;
     console.warn(`boerdi: ${auftrag.protokoll} —`, fehlerKurz(err));
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(
       drosselHinweis(ctx.t, err) ?? fristHinweis(ctx.t, err)
         ?? ctx.t(auftrag.fehlerSchluessel, { title }));
     ctx.setScrollTarget(errId);
+    ctx.setLoading(false);
+    return false;
   }
   ctx.setLoading(false);
+  return true;
 }
 
 /** Inhalte einer Sammlung als neuen Bot-Turn laden (Card-Button „Inhalte zeigen"). */
-export function browseCollection(
+export async function browseCollection(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
-  return runCardAction({
+  await runCardAction({
     nachricht: `Inhalte der Sammlung "${title}"`, aktion: 'browse_collection',
     parameter: { collection_id: nodeId, title }, fehlerSchluessel: 'error.browseCollection',
     protokoll: 'Sammlung nicht geladen',
@@ -136,10 +159,10 @@ export function browseCollection(
  *  Backend-Modul `services/content_text_action.py`). Für diese Seite heißt
  *  das: nichts Besonderes zu tun — die Box steht an derselben Stelle der
  *  Render-Argumente wie bei M09/M10. */
-export function showContentText(
+export async function showContentText(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
-  return runCardAction({
+  await runCardAction({
     nachricht: `Inhalt von "${title}"`, aktion: 'show_content_text',
     parameter: { node_id: nodeId, title }, fehlerSchluessel: 'error.contentText',
     protokoll: 'Inhaltstext nicht geladen',
@@ -147,10 +170,10 @@ export function showContentText(
 }
 
 /** Lernpfad zu einer Sammlung generieren (Card-Button „Lernpfad"). */
-export function generateLearningPath(
+export async function generateLearningPath(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
-  return runCardAction({
+  await runCardAction({
     nachricht: `Lernpfad für "${title}"`, aktion: 'generate_learning_path',
     parameter: { collection_id: nodeId, title }, fehlerSchluessel: 'error.learningPath',
     protokoll: 'Lernpfad nicht erzeugt',
@@ -160,10 +183,10 @@ export function generateLearningPath(
 /** Eine Sammlung als bearbeitbaren Strukturentwurf öffnen (Paket U2, „Als Entwurf bearbeiten“ im
  *  Themenbaum): neuer Zug ohne KI über die Direktaktion `edit_collection_as_draft`; die Antwort
  *  trägt einen `ui_strukturentwurf`-Block. */
-export function editCollectionAsDraft(
+export async function editCollectionAsDraft(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
-  return runCardAction({
+  await runCardAction({
     nachricht: `Gliederung "${title}" als Entwurf bearbeiten`, aktion: 'edit_collection_as_draft',
     parameter: { collection_id: nodeId, title }, fehlerSchluessel: 'error.draftFromCollection',
     protokoll: 'Entwurf nicht geladen',
@@ -191,6 +214,64 @@ export async function themenbaumZweig(
   }
   if (veraltet()) throw new Error('boerdi: Sitzung gewechselt — Zweig verworfen');
   return daten;
+}
+
+/** U3-2c: ein Dokument aus `ui_upload` lesen lassen — wie `themenbaumZweig` ohne Zug; ein Befund aus
+ *  einer inzwischen gewechselten Sitzung gilt nicht (das Dokument liegt dann an der alten). */
+export async function dokumentLesen(
+  blockId: string, datei: File, onFortschritt: ((anteil: number) => void) | undefined,
+  ctx: CollectionActionsContext, signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  return ohneZug('Dokument', ctx, () => ctx.ladeDokument(blockId, datei, onFortschritt, signal));
+}
+
+/** U3-3b: ein Schritt der Ablage im persönlichen Bereich — wie das Dokument ohne Zug. */
+export async function ablageSchritt(
+  blockId: string, schritt: AblageSchritt, ctx: CollectionActionsContext, signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  return ohneZug(`Ablage (${schritt.schritt})`, ctx, () => ctx.ladeAblage(blockId, schritt, signal));
+}
+
+/** K1b: der Stand eines Ablauf-Auftrags für `ui_fortschritt` — wie die Ablage ohne Zug. */
+export async function auftragStand(
+  ablauf: string, kuerzel: string, ctx: CollectionActionsContext, signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  return ohneZug('Auftrag (Stand)', ctx, () => ctx.ladeAuftragStand(ablauf, kuerzel, signal));
+}
+
+/** K1b: ein fertiger Auftrag wird im Zug der Person abgeholt — die Direktaktion hinter dem Knopf
+ *  „Stand prüfen“, ohne Nutzerblase wie eine Karten-Aktion. Läuft schon ein Zug, geht nichts hin
+ *  (`gesendet: false`; ebenso bei einem Fehler — die Fehlerblase steht dann im Chat); das Modul
+ *  versucht es, sobald die Shell wieder frei ist, bzw. bietet „Ergebnis abholen“ an. */
+export async function auftragAbholen(
+  ablauf: string, ctx: CollectionActionsContext,
+): Promise<{ gesendet: boolean }> {
+  const gesendet = await runCardAction({
+    // `automatisch`: das Backend schließt dabei keine offene Frage — ein laufender Upload-Stapel bleibt so
+    // offen (M1). Eine Schreib-Abnahme verfällt dagegen wie nach jedem sichtbaren Zug (Review Q1, 1).
+    nachricht: 'Stand prüfen', aktion: 'ablauf_auftrag_pruefen', parameter: { ablauf, automatisch: true },
+    fehlerSchluessel: 'error.auftragAbholen', protokoll: 'Auftrag nicht abgeholt', fragenOffen: true,
+  }, '', ctx);
+  return { gesendet };
+}
+
+/** Ein Abruf eines Moduls ohne Zug: Fehler mit Art, Status und Code geloggt — nie der Dateiname
+ *  (Datenschutz) und nie ein Text des Servers; eine inzwischen gewechselte Sitzung verwirft. */
+async function ohneZug(
+  was: string, ctx: CollectionActionsContext, abruf: () => Promise<Record<string, unknown>>,
+): Promise<Record<string, unknown>> {
+  const veraltet = sitzungsWache(() => ctx.sessionId());
+  let ergebnis: Record<string, unknown>;
+  try {
+    ergebnis = await abruf();
+  } catch (err) {
+    console.warn(`boerdi: ${was} nicht gelungen —`, fehlerKurz(err));
+    throw err;
+  }
+  if (veraltet()) {
+    throw Object.assign(new Error(`boerdi: Sitzung gewechselt — ${was} verworfen`), { status: 0, code: 'sitzung' });
+  }
+  return ergebnis;
 }
 
 /** „Mehr anzeigen": Karten-Fenster einer Message um 5 erweitern.

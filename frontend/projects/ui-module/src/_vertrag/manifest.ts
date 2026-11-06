@@ -5,8 +5,9 @@
  */
 import type { UiModulArt } from './ui-block';
 
-/** `nachladen` (U1-h): Daten über den Host nachholen, ohne Zug (`ModulHost.zweig`). */
-export type ModulFaehigkeit = 'antworten' | 'drucken' | 'herunterladen' | 'nachladen' | 'oeffnen';
+/** `nachladen` (U1-h): Daten über den Host nachholen, ohne Zug (`ModulHost.zweig`). `auftrag` (K1b): den Stand
+ *  eines Ablauf-Auftrags abfragen und ihn abholen lassen (`ModulHost.auftrag`). */
+export type ModulFaehigkeit = 'antworten' | 'auftrag' | 'drucken' | 'herunterladen' | 'hochladen' | 'nachladen' | 'oeffnen';
 
 export interface UiModulManifest {
   readonly name: string;
@@ -33,9 +34,13 @@ export interface UiModulManifest {
     readonly parameter: Record<string, unknown>;
   } | null;
   readonly faehigkeiten?: readonly ModulFaehigkeit[];
+  /** Paket V2: welchen Teil des Vorgangs eine Antwort setzt, welche Teile der Dienst liest. */
+  readonly vorgang?: { readonly schreibt?: readonly string[]; readonly liest?: readonly string[] };
   readonly textfassung: { readonly vorlage: string; readonly feld?: string };
   /** `platz`: `oben` (Vorgabe) vor den Trefferboxen, `unten` danach. */
   readonly darstellung?: { readonly breit?: boolean; readonly platz?: 'oben' | 'unten' };
+  /** Paket U3-0: `bei_bedarf` = eigenes Bündel (Custom Element), erst beim ersten Block geladen. */
+  readonly laden?: 'sofort' | 'bei_bedarf';
   readonly beispiele: readonly {
     readonly titel: string;
     readonly daten: Record<string, unknown>;

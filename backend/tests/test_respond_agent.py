@@ -90,7 +90,8 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     # Die ECHTE Signatur — dieselbe A4b-Regel wie unten bei ``load_engine``.
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
-                    on_token=None, start=None, modul_vorlage=None):
+                    on_token=None, start=None, modul_vorlage=None, modul_dokument=None,
+                    modul_teile=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
             "usage_acc": usage_acc, "progress": progress,
@@ -1501,3 +1502,105 @@ def test_ein_abgebrochener_agent_lauf_nennt_die_fehlernummer():
     assert antwort_oder_ersatz(AgentRun(stop_reason="error"), "de").endswith(
         "(Fehlernummer: -)")
     assert "Fehlernummer" not in antwort_oder_ersatz(AgentRun(stop_reason="ende"), "de")
+
+
+# ── Paket V1: die Kennzeile des Arbeitsstands steht vor der Nachricht ──
+
+async def test_die_kennzeile_des_arbeitsstands_steht_vor_der_nachricht(monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    ctx = _ctx(message="vertiefe Optik")
+    from boerdi.services.arbeitsstand import _besitz
+
+    ctx.session_state = {"entities": {"_vorgang": {
+        "id": "v-geheim", "b": _besitz("sitzung:s1"), "titel": "Physik 7",
+        "teile": {"draft": {"v": 2, "z": "14 Punkte"}},
+        "bis": (datetime.now(UTC) + timedelta(days=1)).isoformat()}}}
+    await respond_agent(ctx)
+    letzte = seen["run_agent_loop"]["messages"][-1]["content"]
+    assert letzte.startswith("[ARBEITSSTAND") and letzte.endswith("vertiefe Optik")
+    assert "draft v2" in letzte and "v-geheim" not in letzte
+
+
+
+# ── Paket A2a (Review, Befund 7): Ablauf-Vorschlag vom Werkzeug bis zur Sitzung ──────────────
+
+@pytest.mark.anyio
+async def test_ein_vorschlagbarer_ablauf_wird_angeboten_und_der_vorschlag_gemerkt(monkeypatch):
+    from boerdi.services.ablauf import vorschlag
+
+    werkzeug = {"type": "function", "function": {"name": vorschlag.NAME, "parameters": {}}}
+    monkeypatch.setattr(agent_mod.ablauf_vorschlag, "werkzeug", lambda lang: werkzeug)
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(text="Antwort", stop_reason="text", iterations=1,
+                                            ablauf_vorschlaege=["baum"]))
+    ctx = await respond_agent(_ctx())
+    assert vorschlag.NAME in _namen(seen["run_agent_loop"]["tools"])
+    assert ctx.session_state[vorschlag.SITZUNG_KEY] == ["baum"]
+
+
+@pytest.mark.anyio
+async def test_ohne_vorschlagbaren_ablauf_kein_werkzeug(monkeypatch):
+    from boerdi.services.ablauf import vorschlag
+
+    monkeypatch.setattr(agent_mod.ablauf_vorschlag, "werkzeug", lambda lang: None)
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    ctx = await respond_agent(_ctx())
+    assert vorschlag.NAME not in _namen(seen["run_agent_loop"]["tools"])
+    assert vorschlag.SITZUNG_KEY not in ctx.session_state
+
+
+# ── Paket A2b: am agent-Schritt nur dessen Werkzeuge, mit Zeile und Zählung ───────────────────
+
+@pytest.mark.anyio
+async def test_am_agent_schritt_engt_der_lauf_die_werkzeuge_ein(monkeypatch):
+    from boerdi.domain.config_models.ablauf import AblaufArea
+    from boerdi.services.ablauf import ki_schritt
+
+    ablauf = AblaufArea.model_validate({
+        "id": "umbau", "titel": {"de": "Umbau"}, "aktiv": True, "schritte": [
+            {"id": "k", "typ": "agent", "agent": {"werkzeuge": ["search_wlo_all"],
+                                                  "hinweis": {"de": "Nur suchen."}}},
+            {"id": "e", "typ": "ende"}]})
+    monkeypatch.setattr(agent_mod.ki_schritt, "aktueller",
+                        lambda state, sid: (ablauf, ablauf.schritte[0]))
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    ctx = await respond_agent(_ctx())
+    namen = _namen(seen["run_agent_loop"]["tools"])
+    assert "search_wlo_all" in namen and "get_node_details" not in namen
+    nachricht = seen["run_agent_loop"]["messages"][-1]["content"]
+    assert "[ABLAUFSCHRITT — " in nachricht and "Nur suchen." in nachricht
+    assert ctx.session_state["entities"][ki_schritt.ZUEGE_KEY]["zuege"] == 1
+
+
+
+@pytest.mark.anyio
+async def test_im_agent_schritt_bleibt_die_sperre_und_kein_wissen(monkeypatch):
+    """Review A2b, Befund 5/8: ein gesperrtes Werkzeug kommt durch den Schritt nicht zurück, die
+    Zeile nennt es nicht, und die Wissensregel fehlt mit ihrem Werkzeug."""
+    from boerdi.domain.config_models.ablauf import AblaufArea
+    from boerdi.services.agent_knowledge import WISSENS_REGEL
+
+    ablauf = AblaufArea.model_validate({
+        "id": "umbau", "titel": {"de": "Umbau"}, "aktiv": True, "schritte": [
+            {"id": "k", "typ": "agent", "agent": {"werkzeuge": ["search_wlo_all",
+                                                                "get_node_details"]}},
+            {"id": "e", "typ": "ende"}]})
+    monkeypatch.setattr(agent_mod.ki_schritt, "aktueller",
+                        lambda state, sid: (ablauf, ablauf.schritte[0]))
+    monkeypatch.setattr(agent_mod, "wissen_werkzeug",
+                        lambda cfg: {"type": "function", "function": {"name": "wissen_suchen"}})
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    await respond_agent(_ctx(safety=SafetyDecision(risk_level="low",
+                                                   blocked_tools=["search_wlo_all"])))
+    namen = _namen(seen["run_agent_loop"]["tools"])
+    assert "search_wlo_all" not in namen and "get_node_details" in namen
+    assert "wissen_suchen" not in namen
+    nachricht = seen["run_agent_loop"]["messages"][-1]["content"]
+    assert "Nur diese Werkzeuge: get_node_details." in nachricht
+    assert WISSENS_REGEL not in seen["run_agent_loop"]["messages"][0]["content"]

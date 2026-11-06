@@ -25,6 +25,7 @@ Das Backend braucht dafür **nur** den Pfad zum gebauten Bündel:
 ```powershell
 cd ..\frontend; npm run build:widget          # → frontend/dist/widget/browser/main.js
 $env:WIDGET_DIST_DIR = "..\frontend\dist\widget\browser"
+$env:WIDGET_MODULE_DIR = "..\frontend\dist\widget-module"   # nachgeladene UI-Module (U3-0)
 uv run uvicorn boerdi.main:app --port 8100
 ```
 

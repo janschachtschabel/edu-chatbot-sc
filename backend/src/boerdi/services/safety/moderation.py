@@ -198,7 +198,7 @@ def _zusammengefasst(results: list[Any]) -> dict[str, Any]:
     }
 
 
-async def moderate(message: str) -> dict[str, Any]:
+async def moderate(message: str, *, stufe: str = "openai_moderation") -> dict[str, Any]:
     """Run omni-moderation over ``message`` (in sections of 4000 chars, see
     ``_abschnitte``).
 
@@ -207,11 +207,14 @@ async def moderate(message: str) -> dict[str, Any]:
     message were checked), or ``{}`` when the message stayed UNCHECKED (any error, an
     incomplete answer, or no credential). ``{}`` never means "clean": ``service``
     records it as a failed stage (Paket 18A). Free of charge on OpenAI.
+
+    ``stufe``: the label in ``boerdi_safety_stage_total`` — a caller other than the chat turn (the
+    structure-draft excerpts, Review Q4) counts under its own, outside the per-turn alarm.
     """
     global _ohne_zugang_gemeldet
     target = _moderation_target()
     if target is None:
-        metrics.sicherheitsstufe("openai_moderation", "keine_zugangsdaten")
+        metrics.sicherheitsstufe(stufe, "keine_zugangsdaten")
         if not _ohne_zugang_gemeldet:
             # Einmal je Prozess: ein Setup ohne Moderation ist ein Zustand, kein
             # Ereignis — aber er darf nicht stumm sein (Prüfung 2026-10-28).
@@ -239,11 +242,13 @@ async def moderate(message: str) -> dict[str, Any]:
     except Exception as e:  # noqa: BLE001 — fail-open by design (regex floor stays)
         # Mit Art: ``str(TimeoutError())`` ist leer, das Log sagte nur „failed: “.
         gedrosselt(logger, logging.WARNING, f"moderation:{type(e).__name__}",
-                   _AUSFALL_ABSTAND_S, "moderation skipped, message passes unchecked: %s: %s",
-                   type(e).__name__, e)
-        metrics.sicherheitsstufe("openai_moderation", "fehler")
+                   _AUSFALL_ABSTAND_S, "moderation skipped, message passes unchecked: %s",
+                   # Review Q4 (älter): nur die Art — der Text einer Anbieter-Ausnahme kann die
+                   # geprüfte Nachricht wiedergeben.
+                   type(e).__name__)
+        metrics.sicherheitsstufe(stufe, "fehler")
         return {}
     if not ganz:
         befund["teilweise"] = True
-    metrics.sicherheitsstufe("openai_moderation", "ok" if ganz else "teilweise")
+    metrics.sicherheitsstufe(stufe, "ok" if ganz else "teilweise")
     return befund

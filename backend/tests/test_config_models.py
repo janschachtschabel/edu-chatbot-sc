@@ -50,6 +50,14 @@ NEUE_BEREICHE = {
         "nur einen Weg, hat also kein Gegenstück. Vorgabe seit Paket 7 (K6) "
         "``agent`` — im Betrieb die Vorgabe (D-15)."
     ),
+    "06-ablaeufe/katalog": (
+        "Paket A1: Abläufe mit festen Schritten für den lokalen Treiber. ALT kannte nur die "
+        "Webseiten-Tour als festen Ablauf, hat also kein Gegenstück."
+    ),
+    "01-base/upload-config": (
+        "Paket U3-2a: Schalter und Grenzen für Dokumente, die die Person ins Widget "
+        "hochlädt. ALT kannte kein Hochladen in den Chat, hat also kein Gegenstück."
+    ),
 }
 
 # Bereiche aus ALT, die NEU bewusst streicht — je mit Grund, als Gegenstück zu

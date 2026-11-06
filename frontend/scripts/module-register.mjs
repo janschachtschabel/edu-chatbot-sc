@@ -6,8 +6,11 @@
  * Ausgaben (alle erzeugt, nie von Hand ändern):
  *   - projects/ui-module/src/register.generated.ts — statische Importe der Komponenten und je
  *     Modul nur die Laufzeit-Felder des Manifests (Name, Version, Art, Titel, Fähigkeiten,
- *     Darstellung). Statisch, weil das Widget eine einzige Datei ist (Bündel-Regel);
- *     Nachladen kommt erst, wenn ein Modul es braucht.
+ *     Darstellung). Statisch, weil das Widget eine einzige Datei ist (Bündel-Regel).
+ *     Ausnahme (Paket U3-0): ein Modul mit `laden: "bei_bedarf"` hat statt der Komponente ein
+ *     rahmenloses Custom Element `ui-<name>.element.ts`, das ein eigenes Bündel wird
+ *     (`scripts/build-nachlade-module.mjs`); im Register steht dafür der gemeinsame Platzhalter
+ *     und der Element-Name `boerdi-ui-<name>`.
  *   - backend/src/boerdi/ui_module/manifeste.json — alle Manifeste vollständig; das Backend
  *     baut daraus die Werkzeugbeschreibungen und prüft gegen das Schema.
  *   - backend/src/boerdi/ui_module/manifest.schema.json — Kopie des Vertrags-Schemas.
@@ -45,20 +48,36 @@ function leseModule(quelle) {
     if (manifest.name !== name.replace(/-/g, '_')) {
       throw new Error(`${name}/manifest.json: name „${manifest.name}“ passt nicht zum Ordner ${name}`);
     }
-    if (!existsSync(join(quelle, name, `${name}.component.ts`))) {
-      throw new Error(`${name}: ${name}.component.ts fehlt`);
-    }
+    const datei = istNachgeladen(manifest) ? `${name}.element.ts` : `${name}.component.ts`;
+    if (!existsSync(join(quelle, name, datei))) throw new Error(`${name}: ${datei} fehlt`);
     module.push({ ordner: name, manifest });
   }
   // Codepunkte statt localeCompare: gleiche Reihenfolge auf jeder Maschine und wie Pythons sorted().
   return module.sort((a, b) => (a.manifest.name < b.manifest.name ? -1 : a.manifest.name > b.manifest.name ? 1 : 0));
 }
 
+/** Paket U3-0: wird das Modul erst bei Bedarf als eigenes Bündel geladen? */
+export function istNachgeladen(manifest) {
+  return manifest.laden === 'bei_bedarf';
+}
+
+/** Name des Custom Elements eines nachgeladenen Moduls: `ui-upload` → `boerdi-ui-upload`. */
+export function elementName(ordner) {
+  return `boerdi-${ordner}`;
+}
+
 function registerText(module) {
-  const importe = module.map(({ ordner }) => `import { ${pascal(ordner)} } from './${ordner}/${ordner}.component';`);
+  const sofort = module.filter(({ manifest }) => !istNachgeladen(manifest));
+  const importe = sofort.map(({ ordner }) => `import { ${pascal(ordner)} } from './${ordner}/${ordner}.component';`);
+  if (sofort.length < module.length) {
+    importe.unshift("import { NachladePlatzhalter } from './_nachladen/nachlade-platzhalter.component';");
+  }
   const eintraege = module.map(({ ordner, manifest }) => {
     const laufzeit = Object.fromEntries(LAUFZEIT.filter((k) => k in manifest).map((k) => [k, manifest[k]]));
-    return `  ${manifest.name}: { manifest: ${JSON.stringify(laufzeit)}, komponente: ${pascal(ordner)} },`;
+    const ziel = istNachgeladen(manifest)
+      ? `komponente: NachladePlatzhalter, element: '${elementName(ordner)}'`
+      : `komponente: ${pascal(ordner)}`;
+    return `  ${manifest.name}: { manifest: ${JSON.stringify(laufzeit)}, ${ziel} },`;
   });
   return [
     '// ERZEUGT von `npm run module:register` — nicht von Hand ändern.',
@@ -71,11 +90,29 @@ function registerText(module) {
   ].join('\n');
 }
 
-/** Erzeugt (oder prüft mit `pruefen`) die drei Ausgaben; gibt die veralteten Dateinamen zurück. */
+/** U3-1a: Quellen der nachgeladenen Elemente — NUR fürs Studio (Vorschau ohne Bündel). Das Widget
+ *  importiert diese Datei nie: jeder `import()` darin würde dort ein zweites Bündel erzeugen. */
+function quellenText(module) {
+  const zeilen = module.filter(({ manifest }) => istNachgeladen(manifest))
+    .map(({ ordner, manifest }) => `  ${manifest.name}: () => import('./${ordner}/${ordner}.element'),`);
+  const typ = 'Readonly<Record<string, () => Promise<unknown>>>';
+  return [
+    '// ERZEUGT von `npm run module:register` — nicht von Hand ändern. Nur fürs Studio importieren,',
+    '// nie im Widget (jeder import() hier würde dort ein zweites Bündel erzeugen).',
+    '',
+    zeilen.length
+      ? `export const NACHLADE_QUELLEN: ${typ} = {\n${zeilen.join('\n')}\n};`
+      : `export const NACHLADE_QUELLEN: ${typ} = {};`,
+    '',
+  ].join('\n');
+}
+
+/** Erzeugt (oder prüft mit `pruefen`) die Ausgaben; gibt die veralteten Dateinamen zurück. */
 export function erzeuge({ quelle, backend, pruefen = false }) {
   const module = leseModule(quelle);
   const ausgaben = [
     [join(quelle, 'register.generated.ts'), registerText(module)],
+    [join(quelle, 'nachlade-quellen.generated.ts'), quellenText(module)],
     [join(backend, 'manifeste.json'), JSON.stringify(module.map((m) => m.manifest), null, 2) + '\n'],
     [join(backend, 'manifest.schema.json'), readFileSync(join(quelle, '_vertrag', 'manifest.schema.json'), 'utf8')],
   ];

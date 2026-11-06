@@ -1,7 +1,7 @@
 import type { SafeHtml } from '@angular/platform-browser';
 
 import type {
-  KartenAktion, ModulFaehigkeit, ModulHost, TrefferUmgebung,
+  AblageSchritt, AuftragSchritt, KartenAktion, ModulFaehigkeit, ModulHost, TrefferUmgebung,
 } from '@boerdi/ui-module';
 
 import type { WidgetModulHost } from './widget-modul-host';
@@ -14,7 +14,7 @@ const OHNE_ADRESSEN = { withBsid: () => '', externalLinkWarning: () => '' } as c
  * über den Injector von `NgComponentOutlet`. Er kennt die Block-Kennung — eine Antwort trägt sie,
  * ohne dass das Modul sie nennt — und lässt nur zu, was das Manifest unter `faehigkeiten` angibt:
  * `herunterladen`, `drucken`, `oeffnen` (Links und Karten-Aktionen), `antworten` (samt
- * `vormerken`, U2) und `nachladen` (U1-h). Fehlt eine, passiert nichts außer einer Warnung; `zweig` lehnt dann mit `status: 403` ab
+ * `vormerken`, U2), `nachladen` (U1-h), `hochladen` (U3-2c) und `auftrag` (K1b). Fehlt eine, passiert nichts außer einer Warnung; `zweig` lehnt dann mit `status: 403` ab
  * (wie das Backend für „nicht angeboten“ — das Modul bietet keinen neuen Versuch an). Darstellung
  * (`markdown`, `treffer`, `beschaeftigt`) ist immer erlaubt; ohne `oeffnen` baut der Kontext von
  * `treffer` aber keine Adressen.
@@ -77,6 +77,30 @@ export class BlockModulHost implements ModulHost {
       return Promise.reject(Object.assign(new Error('boerdi: Fähigkeit nachladen fehlt'), { status: 403 }));
     }
     return this.basis.zweig(nodeId);
+  }
+
+  /** U3-2c: wie `zweig` an eine Fähigkeit gebunden (`hochladen`); die Block-Kennung kennt nur der Host. */
+  hochladen(datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>> {
+    if (!this.darf('hochladen')) {
+      return Promise.reject(Object.assign(new Error('boerdi: Fähigkeit hochladen fehlt'), { status: 403, code: 'aus' }));
+    }
+    return this.basis.hochladen(this.blockId, datei, onFortschritt);
+  }
+
+  /** U3-3b: die Ablage gehört zur Fähigkeit `hochladen` — wie das Dokument geht sie ohne Zug. */
+  ablegen(schritt: AblageSchritt): Promise<Record<string, unknown>> {
+    if (!this.darf('hochladen')) {
+      return Promise.reject(Object.assign(new Error('boerdi: Fähigkeit hochladen fehlt'), { status: 403, code: 'aus' }));
+    }
+    return this.basis.ablegen(this.blockId, schritt);
+  }
+
+  /** K1b: Stand und Abholen eines Ablauf-Auftrags an die Fähigkeit `auftrag` gebunden. */
+  auftrag(schritt: AuftragSchritt): Promise<Record<string, unknown>> {
+    if (!this.darf('auftrag')) {
+      return Promise.reject(Object.assign(new Error('boerdi: Fähigkeit auftrag fehlt'), { status: 403, code: 'aus' }));
+    }
+    return this.basis.auftrag(schritt);
   }
 
   antworten(daten: Record<string, unknown>, text: string): void {

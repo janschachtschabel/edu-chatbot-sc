@@ -23,6 +23,8 @@ import { DEFAULT_LOCALE, Locale } from '../i18n/locale';
 import { UiBloeckeComponent } from '../ui-bloecke/ui-bloecke.component';
 import { alsBeantwortet, offeneFragenSchliessen, wiederOffen } from '../ui-bloecke/fragen-status';
 import { Vormerkungen } from '../ui-bloecke/vormerkungen';
+import { NACHLADE_INDEX } from '../ui-bloecke/nachlade-index';
+import { erzeugeLader } from '../ui-bloecke/nachladen';
 import { modulDarstellbar } from '../ui-bloecke/modul-darstellbar';
 import type { ShellAntworten, ShellTreffer, ShellVormerken } from '../ui-bloecke/widget-modul-host';
 import { QuickRepliesComponent } from '../chips/quick-replies.component';
@@ -33,6 +35,10 @@ import { ZUG_POST_FRIST_MS } from '../stream/stream-client';
 import { formatPhaseLabel } from '../stream/phase-label';
 import {
   browseCollection, editCollectionAsDraft, generateLearningPath, loadMore, showContentText, showMoreCards,
+  ablageSchritt,
+  auftragAbholen,
+  auftragStand,
+  dokumentLesen,
   themenbaumZweig,
 } from '../controllers/collection-actions';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
@@ -324,6 +330,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     lernpfad: (nodeId, title) => void this.generateLearningPath(nodeId, title),
     alsEntwurf: (nodeId, title) => void editCollectionAsDraft(nodeId, title, this._contexts.collectionActions),
     zweig: (nodeId) => this._mitAbbruch((signal) => themenbaumZweig(nodeId, this._contexts.collectionActions, signal)),
+    hochladen: (blockId, datei, onFortschritt) => this._mitAbbruch(
+      (signal) => dokumentLesen(blockId, datei, onFortschritt, this._contexts.collectionActions, signal)),
+    ablegen: (blockId, schritt) => this._mitAbbruch(
+      (signal) => ablageSchritt(blockId, schritt, this._contexts.collectionActions, signal)),
+    auftrag: (schritt) => schritt.schritt === 'abholen'
+      ? auftragAbholen(schritt.ablauf, this._contexts.collectionActions)
+      : this._mitAbbruch((signal) => auftragStand(schritt.ablauf, schritt.kuerzel, this._contexts.collectionActions, signal)),
     mehrLaden: (nachrichtId) => void this.loadMoreCards(nachrichtId),
   };
 
@@ -338,6 +351,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       console.warn('boerdi: Modul-Antwort verworfen —', this.isLoading() ? 'ein Zug läuft' : 'ohne Text');
       return;
     }
+    // Querschnitts-Review FE-2: ein inzwischen veralteter Block (ein Zug kam dazwischen) antwortet nicht
+    // mehr — sonst stünde eine Blase im Chat, deren `ui_antwort` das Backend verwirft.
+    if (!this.blockOffen(nachrichtId, blockId)) {
+      console.warn('boerdi: Modul-Antwort verworfen — der Block ist nicht mehr offen');
+      return;
+    }
     this._store.update((msgs) => alsBeantwortet(msgs, nachrichtId, blockId, daten));
     // `runSendMessage` direkt statt `sendMessage`: nur es sagt, ob der Server den Zug angenommen hat.
     void runSendMessage(blase, undefined, undefined, this._sendCtx, { block_id: blockId, daten }).then((angenommen) => {
@@ -345,10 +364,18 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     });
   };
 
+  private blockOffen(nachrichtId: string, blockId: string): boolean {
+    const msg = this.messages().find((m) => m.id === nachrichtId);
+    return !!msg?.ui?.ui_bloecke?.some((b) => b.block_id === blockId && b.status === 'offen');
+  }
+
   /** Paket U2 (Plan 2026-11-04, T-10): vorgemerkte Antworten offener Blöcke (Strukturentwurf) —
    *  sie gehen mit der nächsten getippten Nachricht mit (`sendMessage`). */
   private readonly _vormerkungen = new Vormerkungen();
   protected readonly modulVormerken: ShellVormerken = (auftrag) => this._vormerkungen.setzen(auftrag);
+  /** U3-0: lädt die Bündel nachgeladener Module von der Widget-Adresse des Backends (gelesen beim
+   *  Laden, denn `api-url` kommt erst nach dem Start). Einer je Shell: jedes Bündel lädt einmal. */
+  protected readonly modulNachladen = erzeugeLader(() => this._api.apiBasis(), NACHLADE_INDEX);
 
   /** Trägt die Nachricht eine Trefferliste, die ihr Modul zeigt? Dann zeigt es die Boxen — die
    *  bisherigen schweigen; bei einer fremden Hauptversion (nur Textfassung) bleiben sie. */
@@ -539,6 +566,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
 
   /** Einen Abruf mit eigenem Abbruch starten, der mit dem Widget endet. */
   private async _mitAbbruch<T>(abruf: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    // Ein entferntes Widget startet nichts mehr (Review U3-3b, Befund 2: sonst lief ein Stapel weiter).
+    if (this._zerstoert) throw new DOMException('Widget entfernt', 'AbortError');
     const steuerung = new AbortController();
     this._nachfragen.add(steuerung);
     try {

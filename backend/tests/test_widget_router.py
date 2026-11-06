@@ -161,6 +161,63 @@ def test_a_directory_is_404_not_a_listing(client, dist):
 # caller that passes an unchecked name must still be refused.
 
 
+# ── GET /widget/module/<datei> — nachgeladene UI-Module (Paket U3-0) ────────
+
+MODUL = "ui-upload.0123abcd.js"
+
+
+def _modul(dist, name: str = MODUL, body: str = "(()=>{})();") -> None:
+    (dist / "module").mkdir(exist_ok=True)
+    (dist / "module" / name).write_text(body, encoding="utf-8")
+
+
+def test_a_module_bundle_is_served_immutably_with_cors(client, dist):
+    _modul(dist)
+    r = client.get(f"/widget/module/{MODUL}")
+    assert r.status_code == 200
+    assert r.text == "(()=>{})();"
+    assert r.headers["content-type"].startswith("application/javascript")
+    assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+    # SRI on a cross-origin script needs CORS — without it the browser refuses to check the hash.
+    assert r.headers["access-control-allow-origin"] == "*"
+    assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_a_missing_module_bundle_is_404(client, dist):
+    assert client.get(f"/widget/module/{MODUL}").status_code == 404
+
+
+@pytest.mark.parametrize("name", [
+    "ui-upload.js",                 # no content hash: could never be cached immutably
+    "ui-upload.0123abcd.css",       # not a script
+    "UI-Upload.0123abcd.js",        # names are lowercase
+    "..%2Fmain.js",                 # traversal, encoded
+    "ui-upload.0123abcz.js",        # hash is hex
+])
+def test_only_hashed_module_bundle_names_are_served(client, dist, name):
+    _modul(dist, name="ui-upload.js")
+    (dist / "main.js").write_text("// bundle", encoding="utf-8")
+    assert client.get(f"/widget/module/{name}").status_code == 404
+
+
+def test_the_module_route_does_not_reach_the_widget_root(client, dist):
+    """Nur das Unterverzeichnis ``module/`` — nie ``main.js`` oder andere Dateien daneben."""
+    (dist / "main.js").write_text("// bundle", encoding="utf-8")
+    _modul(dist)
+    assert client.get("/widget/module/main.js").status_code == 404
+
+
+def test_the_module_directory_can_live_elsewhere(client, dist, tmp_path_factory, monkeypatch):
+    """Lokal liegen die Bündel in ``frontend/dist/widget-module``, nicht unter dem Widget-Ordner:
+    ein Unterordner dort bräche die Einzeldatei-Schranke des Widget-Budgets."""
+    anderswo = tmp_path_factory.mktemp("widget-module")
+    (anderswo / MODUL).write_text("// anderswo", encoding="utf-8")
+    monkeypatch.setenv("WIDGET_MODULE_DIR", str(anderswo))
+    get_settings.cache_clear()
+    r = client.get(f"/widget/module/{MODUL}")
+    assert r.status_code == 200 and r.text == "// anderswo"
+
+
 def test_guard_refuses_parent_traversal_before_looking_the_file_up(dist):
     # 400 rather than 404 on purpose: answering "not found" for a path outside
     # the directory would turn the endpoint into an existence oracle for the
@@ -863,3 +920,17 @@ def test_no_control_promises_an_attribute_the_element_does_not_have():
     bekannt = set(re.findall(r"attr: '([a-z-]+)'", vertrag.read_text(encoding="utf-8")))
     unbekannt = {c.attr for c in widget_demo_controls.CONTROLS} - bekannt
     assert not unbekannt, f"kein Host-Attribut: {sorted(unbekannt)}"
+
+
+def test_ein_fremder_digest_bekommt_404_statt_des_aktuellen_buendels(client, dist):
+    """Querschnitts-Review 2026-11-06 (schon vorher da): beim rollenden Deploy fragte eine neue
+    Seite die alte Kopie nach dem neuen Namen — und die legte ihr altes Bündel unter dem neuen
+    Namen für ein Jahr in den Browser-Cache. Jetzt nur der passende Digest."""
+    import hashlib
+
+    _bundle(dist, "// aktuell")
+    richtig = hashlib.sha256(b"// aktuell").hexdigest()[:12]
+    assert client.get(f"/widget/boerdi-widget.{richtig}.js").status_code == 200
+    falsch = client.get("/widget/boerdi-widget.0123456789ab.js")
+    assert falsch.status_code == 404
+    assert "immutable" not in falsch.headers.get("cache-control", "")

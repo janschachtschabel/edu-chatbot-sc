@@ -49,7 +49,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest
 from boerdi.db.verbindung import verbindung_freigeben
-from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
+from boerdi.domain.hintergrund_zug import ist_automatisches_abholen, ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
 from boerdi.services.db_sessions import get_messages, get_or_create_session
 from boerdi.services.ui_antwort import offene_frage_schliessen
@@ -112,8 +112,12 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
     # (Review U1-d1, Befund 2); für das Modell zählt der Text einer verworfenen wie getippt
     # (``services/ui_antwort``).
     modul_antwort = req.ui_antwort is not None
+    # Querschnitts-Review 2026-11-06 (M1, Review Q1 Befund 1): das automatische Abholen von
+    # ``ui_fortschritt`` schließt keine offene Frage (ein laufender Upload-Stapel bleibt offen) — es
+    # ist aber sichtbar, also verfällt eine Abnahme wie nach jedem sichtbaren Zug.
+    frage_offen = hintergrund or ist_automatisches_abholen(req.action, req.action_params)
     schluss = await offene_frage_schliessen(
-        session, req, ctx.session_state, hintergrund=hintergrund)
+        session, req, ctx.session_state, hintergrund=frage_offen)
     ctx.ui_antwort = schluss.antwort
     ctx.geschlossene_frage = schluss.frage
     await discard_stale_approval(session, req, ctx.session_state, hintergrund=hintergrund,

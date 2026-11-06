@@ -17,7 +17,8 @@ from boerdi.ui_module.strukturentwurf import alle, anzahl
 
 #: Zeichen der Kompaktfassung (≈ 1500 Token): reicht für ~250 kurze Titel.
 KOMPAKT_ZEICHEN: Final = 6000
-_KOPF: Final = {"ki": "Entwurf (KI)", "wlo": "Entwurf (aus WLO)"}
+_KOPF: Final = {"ki": "Entwurf (KI)", "wlo": "Entwurf (aus WLO)", "ordner": "Entwurf (aus Ordnern)",
+                 "dokument": "Entwurf (aus Dokument)"}
 
 
 def kopf(daten: dict[str, Any]) -> str:
