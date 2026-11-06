@@ -93,6 +93,10 @@ def _display_length(reply: str) -> int:
     return len(text.strip())
 
 
+#: Vorsätze, die nur das Backend setzt (``context_greeting``, ``ablauf/vorschlag``, ``auth_qr``).
+_NUR_DAS_BACKEND = ("__action__|", "__auth__")
+
+
 def filtere_vorschlaege(vorschlaege: list[str], *, anzahl: int, max_zeichen: int) -> list[str]:
     """Die EINE Regel für Schnellantworten — aus dem eigenen Aufruf wie aus dem
     Antwort-Aufruf (``respond_to_user``, Plan 2026-09-30).
@@ -115,6 +119,10 @@ def filtere_vorschlaege(vorschlaege: list[str], *, anzahl: int, max_zeichen: int
     for vorschlag in vorschlaege:
         schluessel = vorschlag.lower()
         if not schluessel or schluessel in gesehen:
+            continue
+        # Review A2a (Vorbefund): ein Knopf (``__action__|…``) oder die Anmeldung kommt nie aus dem
+        # Modell — das Widget schickte ihn als Direktaktion. Knöpfe setzt nur das Backend.
+        if schluessel.startswith(_NUR_DAS_BACKEND):
             continue
         if max_zeichen and _display_length(vorschlag) > max_zeichen:
             zu_lang += 1

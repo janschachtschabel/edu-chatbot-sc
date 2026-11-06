@@ -50,7 +50,10 @@ from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception, cancel_and_drain, merke_zug_aufgabe
 from boerdi.obs.zeiten import schritt
+from boerdi.services import arbeitsstand
+from boerdi.services.ablauf import ki_schritt
 from boerdi.services.agent_tools import verborgene_werkzeuge
+from boerdi.services.dokumente.stand import lader as dokument_lader
 from boerdi.services.engine_choice import (
     laeuft_ueber_die_schleife,
     zug_laeuft_ueber_die_schleife,
@@ -61,7 +64,11 @@ from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergeh
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
-from boerdi.services.tool_loop_module import MODUL_BLOECKE_KEY
+from boerdi.services.tool_loop_module import (
+    DOKUMENT_LADER_KEY,
+    MODUL_BLOECKE_KEY,
+    TEIL_LADER_KEY,
+)
 from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
 from boerdi.ui_module.antwort import frage_satz, merke_frage
 from boerdi.ui_module.antwort import vorsatz as frage_vorsatz
@@ -436,6 +443,18 @@ async def respond(
         _entities = session_state.setdefault("entities", {})
         # Gegenreview 2026-11-05: der Antwort-Zug zählt nicht zu den Folgezügen.
         _letzter = entwurf_merken.rahmen_fuer_zug(_entities, ctx.ui_antwort)
+        # U3-2b: ein Dienst (Strukturentwurf ``aus_dokument``) liest das Dokument erst bei Bedarf.
+        session_state[DOKUMENT_LADER_KEY] = dokument_lader(session, req.session_id)
+        session_state[TEIL_LADER_KEY] = arbeitsstand.teil_lader(session, req.session_id, _entities)
+        # Den Verweis hat der Preflight aufgefrischt (``arbeitsstand.auffrischen``).
+        _kennzeile = arbeitsstand.kennzeile(_entities, arbeitsstand.aufrufer_fuer(req.session_id))
+        # Paket A2b: am agent-Schritt eines Laufs die Zeile dazu (Werkzeuge engt nur der Agent ein).
+        # Nicht unter einem von der Sicherheitsprüfung vorgegebenen Muster (Review A2b, Befund 1).
+        _ki = ki_schritt.fuer_zug(session_state, req.session_id, safety)
+        if _ki:
+            _kennzeile = "\n\n".join(t for t in (_kennzeile, ki_schritt.zeile(
+                *_ki, resolve_locale(req.environment.locale),
+                zuege=ki_schritt.zaehlen(_entities, *_ki), eingeengt=False)) if t)
         progress.start("response", "LLM response generation")
         try:
             (
@@ -462,7 +481,9 @@ async def respond(
                 rag_einbettung=ctx.rag_einbettung,
                 # Paket U1-d2: die Antwort auf die Auswahl-Frage des vorigen Zugs (oder die
                 # Frage selbst) gerahmt vor der Nachricht — wie im Agent-Zug.
-                vorsatz=frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage, _letzter),
+                vorsatz="\n\n".join(t for t in (
+                    _kennzeile,
+                    frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage, _letzter)) if t),
             )
             if _antwort_strom is not None:
                 _antwort_strom.schliessen()  # den zurückgehaltenen Rest senden
@@ -517,6 +538,8 @@ async def respond(
         # Paket U1-d2: Blöcke der Modul-Werkzeuge (``turn_persist`` speichert und liefert sie);
         # eine Frage merkt sich die Sitzung, darunter keine Schnellantworten — wie im Agent-Zug.
         # Gemerkt wird nur eine Frage, die die Regeln je Antwort übersteht (Review U1 gesamt).
+        session_state.pop(DOKUMENT_LADER_KEY, None)
+        session_state.pop(TEIL_LADER_KEY, None)
         ctx.ui_bloecke = regeln_anwenden(list(session_state.pop(MODUL_BLOECKE_KEY, None) or []))
         entwurf_merken.aus_bloecken(session_state.setdefault("entities", {}), ctx.ui_bloecke)
         if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):

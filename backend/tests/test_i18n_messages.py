@@ -135,6 +135,17 @@ def test_jeder_in_api_gelesene_schluessel_steht_im_katalog() -> None:
     assert not fehlen, f"gelesen, aber nicht im Katalog: {sorted(fehlen)}"
 
 
+#: Paket U3-2a: die Codes von ``/api/ui/dokumente`` (``detail``) — ein Satz je Code steht im Modul.
+_CODE_U32 = ("Code, kein Text: nur das Modul ui_upload ruft den Endpunkt (U3-2a) und zeigt "
+             "je Code einen eigenen Satz in der Sprache des Widgets")
+
+#: Paket U3-3a: die Codes von ``/api/ui/ablage/*`` — wie beim Dokument zeigt das Modul je Code
+#: einen Satz in der Sprache des Widgets.
+_CODE_K1B = ("Code, kein Text: nur ui_fortschritt ruft den Endpunkt (K1b) und wertet den Status "
+             "aus; den Satz zeigt das Modul in der Sprache der Person")
+_CODE_U33 = ("Code, kein Text: nur das Modul ui_upload ruft die Ablage (U3-3a) und zeigt "
+             "je Code einen eigenen Satz in der Sprache des Widgets")
+
 # ── Wächter: keine Meldung am Katalog vorbei ───────────────────────────────
 #: Jede ``HTTPException``-Meldung in ``api/``, die NICHT durch ``msg()`` geht,
 #: mit dem Grund, warum sie einsprachig bleiben darf. Der Wächter läuft in die
@@ -198,6 +209,29 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'sitzung_unbekannt'": "Code, kein Text: nur das Widget ruft den Endpunkt (U1-h), es "
                                "wertet nur den Status aus und zeigt am Knoten „nicht geladen“",
     },
+    "ui_ablage.py": {
+        "'aus'": _CODE_U33,
+        "'fremder_stapel'": _CODE_U33,
+        "'index'": _CODE_U33,
+        "'keine_anfrage'": _CODE_U33,
+        "'nur_angemeldet'": _CODE_U33,
+        "'sitzung_unbekannt'": _CODE_U33,
+        "'zu_gross'": _CODE_U33,
+    },
+    "ui_auftrag.py": {
+        "'kein_auftrag'": _CODE_K1B,
+        "'nicht_abrufbar'": _CODE_K1B,
+        "'nur_angemeldet'": _CODE_K1B,
+        "'sitzung_unbekannt'": _CODE_K1B,
+    },
+    "ui_dokumente.py": {
+        "'aus'": _CODE_U32,
+        "'keine_anfrage'": _CODE_U32,
+        "'laeuft_schon'": _CODE_U32,
+        "'nur_angemeldet'": _CODE_U32,
+        "'sitzung_unbekannt'": _CODE_U32,
+        "'zu_gross'": _CODE_U32,
+    },
     "studio_bff.py": {
         "'Wrong password'": "der Login bildet per STATUS-Code auf "
                             "`login.error.wrongPassword` ab",
@@ -213,6 +247,8 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
     "widget.py": {
         "'invalid path'": "Auslieferung von Dateien, kein Redaktions-Text",
         "f'asset not found: {asset_name}'": "dito",
+        # U3-0: unbekannter oder ungehashter Name eines Modul-Bündels — wie eine fehlende Datei.
+        "'asset not found'": "dito",
         "'Widget bundle not built yet. "
         "Run `cd frontend && npm run build:widget` first.'": "Bau-Hinweis für Entwickler",
     },

@@ -145,6 +145,7 @@ def build_agent_tools(
     tool_mode: str | None = None,
     wissen_tool: dict[str, Any] | None = None,
     antwort_tool: dict[str, Any] | None = None,
+    ablauf_tool: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Der volle Katalog plus ``submit_result``.
 
@@ -209,6 +210,10 @@ def build_agent_tools(
     Seite „UI-Module“). Virtuell und nicht sperrbar wie das Dokument;
     der Chat-Zug reicht die Meldung durch, ``/api/agent`` nicht (dort zeigt niemand einen Block).
 
+    ``ablauf_tool`` (Paket A2a) legt ``ablauf_vorschlagen`` dazu — gebaut von
+    ``services/ablauf/vorschlag.werkzeug`` aus den aktiven Abläufen mit Auslöser ``agent``.
+    Virtuell und nicht sperrbar: es ruft nichts, es setzt nur einen Knopf.
+
     ``list(TOOL_DEFINITIONS)`` und nicht die Modul-Globale selbst: unten wird
     angehaengt, und eine Referenz schriebe in den Katalog. Genau so wuchs er im
     E2-Fund bei jedem Zug um einen Eintrag.
@@ -238,4 +243,6 @@ def build_agent_tools(
         tools.append(ergebnis_werkzeug(result_schema))
     if antwort_tool:
         tools.append(antwort_tool)
+    if ablauf_tool:
+        tools.append(ablauf_tool)
     return tools

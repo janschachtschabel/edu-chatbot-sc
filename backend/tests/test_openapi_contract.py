@@ -6,6 +6,8 @@ and GET/PUT /api/config/data/{area} (improvement V3 — the exported schema need
 a JSON counterpart to bind a form to; ``/config/file`` is YAML text, see 9-3a)
 and GET /widget/frameless (U1 — the demo page for the frameless embed mode,
 which ALT did not have; purely additive, one path, nothing changed or removed)
+and GET /widget/module/{datei} (U3-0 — bundles of lazily loaded UI modules,
+immutable, hashed names only; purely additive)
 and GET /api/usage/{session,period} (K4 — cost monitoring, which ALT did not do
 at all) and GET/POST /api/config/seed{,/apply} (S3 — applying the config tree
 that ships inside the image, which ALT reached only over SSH; the reason per
@@ -161,6 +163,12 @@ POST   /api/config/fassungen/umschalten
 GET    /api/config/fassungen/vergleich
 GET    /api/config/ui-module
 POST   /api/ui/themenbaum/zweig
+POST   /api/ui/dokumente
+POST   /api/ui/dokumente/loeschen
+POST   /api/ui/ablage/vorbereiten
+POST   /api/ui/ablage/datei
+POST   /api/ui/ablage/abschluss
+POST   /api/ui/auftrag/stand
 GET    /api/usage/period
 GET    /api/usage/session/{session_id}
 GET    /health
@@ -173,6 +181,7 @@ GET    /widget/boerdi-widget.js
 GET    /widget/classic
 GET    /widget/frameless
 GET    /widget/inline
+GET    /widget/module/{datei}
 GET    /widget/{asset_name}
 """
 
@@ -186,8 +195,18 @@ PUBLIC_ROUTES = {
     "GET /api/config/guide-mode", "GET /widget/", "GET /widget/boerdi-widget.js",
     # Paket U1-h: Unterthemen im Themenbaum aufklappen (Widget, ohne Zug).
     "POST /api/ui/themenbaum/zweig",
+    "POST /api/ui/dokumente",
+    "POST /api/ui/dokumente/loeschen",
+    # Paket U3-3a: Übertragen in den persönlichen Bereich (Widget, ohne Zug; Anmeldung im Block).
+    "POST /api/ui/ablage/vorbereiten",
+    "POST /api/ui/ablage/datei",
+    "POST /api/ui/ablage/abschluss",
+    # Paket K1b: Stand eines Ablauf-Auftrags für ui_fortschritt (Widget, ohne Zug, schreibt nichts).
+    "POST /api/ui/auftrag/stand",
     "GET /widget/classic", "GET /widget/frameless", "GET /widget/inline",
     "GET /widget/{asset_name}",
+    # Paket U3-0: Bündel nachgeladener UI-Module (Widget lädt sie von fremden Seiten).
+    "GET /widget/module/{datei}",
     # studio-bff (P9-1): the login pair must be reachable unauthenticated, like
     # ALT's PUBLIC_PATHS (middleware.ts:25). GET /studio/api/auth/session is NOT
     # here — it carries the StudioCookie marker, which is what the else-branch

@@ -106,6 +106,15 @@ async def sitzung_vorhanden(session: AsyncSession, session_id: str) -> bool:
     return await session.get(ChatSession, session_id) is not None
 
 
+async def sitzung_entities(session: AsyncSession, session_id: str) -> dict[str, Any] | None:
+    """Die ``entities`` einer laufenden Sitzung, ohne sie anzulegen — ``None``, wenn es sie nicht
+    gibt (U3-2a, ``api/ui_dokumente``: die offene Frage des Auswahlfelds steht dort)."""
+    obj = await session.get(ChatSession, session_id)
+    if obj is None:
+        return None
+    return obj.entities if isinstance(obj.entities, dict) else {}
+
+
 async def update_session(session: AsyncSession, session_id: str, **kwargs: Any) -> None:
     """Patch the given session columns and bump ``updated_at`` to now. A failure is
     rolled back before it is re-raised (:func:`_zurueckrollen`)."""
@@ -345,6 +354,10 @@ async def delete_session(session: AsyncSession, session_id: str) -> dict[str, in
     ):
         res = await session.execute(delete(model).where(model.session_id == session_id))
         counts[name] = res.rowcount or 0
+    # Paket V1: Vorgänge ohne Anmeldung gehören der Sitzung; die einer Person überdauern sie.
+    from boerdi.services.vorgaenge import anonyme_der_sitzung_loeschen
+
+    counts["vorgaenge"] = await anonyme_der_sitzung_loeschen(session, session_id)
     res = await session.execute(
         delete(ChatSession).where(ChatSession.session_id == session_id)
     )
@@ -382,6 +395,10 @@ async def purge_all(
     if safety_logs:
         counts["safety_logs"] = (await session.execute(delete(SafetyLog))).rowcount or 0
     if sessions:
+        # Paket V1 (Review, Befund 10): ohne Sitzungen keine anonymen Vorgänge.
+        from boerdi.services.vorgaenge import alle_anonymen_loeschen
+
+        counts["vorgaenge"] = await alle_anonymen_loeschen(session)
         counts["sessions"] = (await session.execute(delete(ChatSession))).rowcount or 0
     await session.commit()
     return counts

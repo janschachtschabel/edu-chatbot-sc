@@ -75,8 +75,8 @@ def test_werkzeuge_gibt_es_nur_fuer_agent_module_ohne_eigenen_weg():
     namen = [w["function"]["name"] for w in modul_werkzeuge(katalog.katalog(), fuer="agent")]
     # Inhaltsrahmen hat seinen eigenen Weg (Dokument-Werkzeug), Linkbox und Trefferliste
     # entstehen ohne Aufruf aus der Antwort. Ohne verfügbare MCP-Werkzeuge fehlt der Themenbaum
-    # (Datenquelle); der Strukturentwurf (U2, Dienst) braucht keines.
-    assert namen == [ENTSCHEIDUNG, "ui_strukturentwurf"]
+    # (Datenquelle); Strukturentwurf (U2) und Upload (U3-1) haben einen Dienst und brauchen keines.
+    assert namen == [ENTSCHEIDUNG, "ui_strukturentwurf", "ui_upload"]
     assert ist_modul_werkzeug(ENTSCHEIDUNG)
     for name in ("ui_inhaltsrahmen", "ui_linkbox", "ui_trefferliste", "search_wlo_content"):
         assert not ist_modul_werkzeug(name)

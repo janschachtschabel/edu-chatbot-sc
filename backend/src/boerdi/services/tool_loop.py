@@ -84,7 +84,7 @@ from boerdi.i18n.prompt_language import SPRACHE_DER_PERSON
 from boerdi.obs.log_inhalt import inhalt
 from boerdi.obs.usage import add_usage, extract_usage
 from boerdi.obs.zeiten import seit_ms
-from boerdi.services import llm
+from boerdi.services import llm, teil_verweise
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
@@ -95,7 +95,7 @@ from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.services.response_tool_selection import _nameable_tools
-from boerdi.services.tool_loop_module import nimm_module_an, offene_frage
+from boerdi.services.tool_loop_module import TEIL_LADER_KEY, nimm_module_an, offene_frage
 from boerdi.services.zustimmung_pruefen import zugestimmt
 from boerdi.ui_module.antwort import NACH_DER_FRAGE
 from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
@@ -483,6 +483,14 @@ async def _run_tool_loop(
                                     "mit korrektem JSON wiederholen."),
                     })
                     continue
+                # Paket V2: ``{"$teil": name}`` aus dem Vorgang — vor jeder Vorschau und Abnahme.
+                if isinstance(tool_args, dict):
+                    tool_args, _fehlt = await teil_verweise.einsetzen(
+                        tool_args, session_state.get(TEIL_LADER_KEY), tool_name)
+                    if _fehlt:
+                        messages.append({"role": "tool", "tool_call_id": tc.id,
+                                         "content": teil_verweise.fehlertext(_fehlt)})
+                        continue
                 # Darstellungswerkzeuge nur mit Angebot (Paket 4, A2, s. o.).
                 # ``query_knowledge`` ist bewusst ausgenommen: Die Domänen-Regeln
                 # verlangen es musterübergreifend, M10 als Pflicht für Berichte —

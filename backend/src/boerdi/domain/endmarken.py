@@ -23,7 +23,11 @@ from itertools import accumulate
 _MARKEN = {"FREMDINHALT": "FREMDINHALT", "ZULETZTGEZEIGT": "ZULETZT GEZEIGT",
            "SEITENKONTEXT": "SEITENKONTEXT", "ANTWORT": "ANTWORT", "FRAGE": "FRAGE",
            # Paket U2: der Strukturentwurf der Person (``ui_module/strukturentwurf_antwort``).
-           "ENTWURF": "ENTWURF"}
+           "ENTWURF": "ENTWURF",
+           # Paket U3-1b: die erfasste Ordnerstruktur der Person (``ui_module/upload_antwort``).
+           "ORDNER": "ORDNER",
+           # Paket U3-2b: das gelesene Dokument der Person (``ui_module/upload_antwort``).
+           "DOKUMENT": "DOKUMENT"}
 
 #: Kyrillische und griechische Doppelgaenger der Buchstaben in diesen Marken —
 #: keine allgemeine Verwechslungstabelle, nur was eine Marke nachbilden kann.

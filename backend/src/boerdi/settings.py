@@ -193,6 +193,22 @@ class Settings(BaseSettings):
         "", validation_alias=_env("B_API_ROUTE"),
         description="b-api router route name for the chat model (b-api-openai only)",
     )
+    # Paket K1a (Plan 2026-11-05 §5/§9): Aufträge (Kestra-Flows hinter der b-api). Der Start-Pfad
+    # ist noch offen (K16) — leer = Aufträge aus (Vorgabe). Pfade gelten ab der Wurzel der b-api
+    # (``B_API_BASE_URL`` ohne ``/api/v1/llm``). Nur die hier freigeschalteten Flows startet ein
+    # Ablauf; die Redaktion kann keinen weiteren eintragen.
+    b_api_jobs_start_path: str = Field(
+        "", validation_alias=_env("B_API_JOBS_START_PATH"),
+        description="b-api path template to start a flow job, with {flow}; empty = jobs off",
+    )
+    b_api_jobs_status_path: str = Field(
+        "/api/v1/jobs/{job_id}", validation_alias=_env("B_API_JOBS_STATUS_PATH"),
+        description="b-api path template to read a job, with {job_id}",
+    )
+    b_api_jobs_flows: str = Field(
+        "", validation_alias=_env("B_API_JOBS_FLOWS"),
+        description="comma-separated flows a workflow may start (read-only flows only)",
+    )
     # Paket 17 (AB2, Nutzer 2026-10-20): woher der b-api-Schlüssel eines Zuges kommt.
     # ``auto`` (Vorgabe, auch leer/unbekannt): ``Authorization: Bearer`` vom b-api-Proxy, sonst
     # ``B_API_KEY``. ``static``: immer ``B_API_KEY``, der Kopf zählt nicht (wie vor Paket 17).
@@ -526,6 +542,8 @@ class Settings(BaseSettings):
         ),
     )
     widget_dist_dir: str = Field("widget_dist", validation_alias=_env("WIDGET_DIST_DIR"))
+    #: Paket U3-0: Ort der nachgeladenen Modul-Bündel; leer = ``<WIDGET_DIST_DIR>/module`` (Image).
+    widget_module_dir: str = Field("", validation_alias=_env("WIDGET_MODULE_DIR"))
 
     # ── Normalization (parity with ALT read sites) ──────────────────────
     @field_validator("rate_limit_chat")

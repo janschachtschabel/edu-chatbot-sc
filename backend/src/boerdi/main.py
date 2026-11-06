@@ -39,6 +39,9 @@ from boerdi.api import (
     sessions,
     speech,
     studio_bff,
+    ui_ablage,
+    ui_auftrag,
+    ui_dokumente,
     ui_themenbaum,
     usage,
     widget,
@@ -392,6 +395,9 @@ def create_app() -> FastAPI:
     app.include_router(speech.public_router)
     app.include_router(widget.public_router)
     app.include_router(ui_themenbaum.public_router)
+    app.include_router(ui_dokumente.public_router)
+    app.include_router(ui_ablage.public_router)
+    app.include_router(ui_auftrag.public_router)
     app.include_router(studio_bff.router)
     # Mount last: SpaFiles owns /studio, the BFF routes above must win.
     from boerdi.api.studio_static import mount_studio_spa

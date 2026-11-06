@@ -91,6 +91,8 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
             "Die Muster-Kennung {value} ist reserviert: Sie kennzeichnet die Züge "
             "der Agent-Schleife."
         ),
+        # Paket A1: ein Ablauf, den der Treiber nicht sicher ausführen könnte.
+        "ablaeufe.ungueltig": "Ablauf nicht ausführbar: {value}",
         # Paket 8 (A): der Lauf läuft schon — auf dieser oder einer anderen Kopie.
         "retention.busy": "Die Bereinigung läuft gerade schon. Gleich noch einmal versuchen.",
         # ── Sicherung: Snapshots + Werksstand (C1-e2) ──────────────────
@@ -234,6 +236,7 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
         "patterns.idReserved": (
             "The pattern id {value} is reserved: it marks the turns of the agent loop."
         ),
+        "ablaeufe.ungueltig": "Workflow cannot be run: {value}",
         "retention.busy": "Cleanup is already running. Try again in a moment.",
         "upload.tooLarge": "File too large (max {mb} MB).",
         "snapshots.notFound": "Snapshot not found.",

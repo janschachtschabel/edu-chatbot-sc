@@ -292,3 +292,27 @@ def test_maschine_und_spur_gehen_in_den_debug_bau(monkeypatch):
     _args, kwargs = c.bd
     assert kwargs["engine"] == "agent"
     assert kwargs["trace"] == ctx.debug.trace
+
+
+# ── Paket V1: die geprüfte Modul-Antwort wird Teil des Vorgangs ──
+
+@pytest.mark.parametrize(("risiko", "erwartet"), [("low", 1), ("high", 0)])
+def test_die_modul_antwort_geht_vor_dem_speichern_in_den_vorgang(monkeypatch, risiko, erwartet):
+    from boerdi.api.schemas_debug import SafetyDecision
+
+    c = _patch(monkeypatch)
+    gesehen: list = []
+
+    async def uebernehmen(session, session_id, entities, geprueft):
+        gesehen.append(geprueft)
+        entities["_vorgang"] = {"id": "v-1"}
+
+    monkeypatch.setattr(persist_mod.arbeitsstand, "uebernehmen", uebernehmen)
+    ctx = _ctx()
+    ctx.ui_antwort = {"modul": "ui_upload", "daten": {}}
+    ctx.safety = SafetyDecision(risk_level=risiko)
+    asyncio.run(persist(ctx, _SESSION))
+    assert len(gesehen) == erwartet
+    if erwartet:   # der Verweis steht schon in den entities, die gleich gespeichert werden
+        assert ctx.session_state["entities"]["_vorgang"] == {"id": "v-1"}
+    assert c is not None

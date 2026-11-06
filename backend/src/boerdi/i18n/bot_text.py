@@ -130,6 +130,54 @@ BOT_TEXT: Final[Catalogue] = {
             'Entwürfe sind hier abgeschaltet — die Gliederung von "{title}" kann ich nicht als '
             "Entwurf öffnen."
         ),
+        # Paket U3-1b: „Als Themenbaum-Entwurf übernehmen“ in ui_upload.
+        "action.folderDraft.header": (
+            'Die Ordnerstruktur von "{title}" als Entwurf — unten bearbeiten, herunterladen oder '
+            "übernehmen."
+        ),
+        "action.folderDraft.empty": (
+            'In "{title}" gibt es keine Unterordner, aus denen ein Themenbaum werden könnte.'
+        ),
+        "action.folderDraft.ohneTitel": "Gliederung aus Ordnern",
+        "action.folderDraft.inactive": (
+            'Entwürfe sind hier abgeschaltet — die Ordnerstruktur von "{title}" kann ich nicht als '
+            "Entwurf öffnen."
+        ),
+        # Paket A1: Abläufe aus dem Katalog (``services/ablauf/zug``).
+        "action.ablauf.unbekannt": "Diesen Ablauf gibt es hier nicht oder er ist ausgeschaltet.",
+        "action.ablauf.anmeldung": "Für diesen Ablauf melde dich bitte bei WLO an.",
+        "action.ablauf.konflikt": (
+            "Dein Arbeitsstand wurde gerade an anderer Stelle geändert. Bitte versuche es "
+            "noch einmal."),
+        "action.ablauf.fehler": "An dieser Stelle kommt der Ablauf nicht weiter.",
+        "action.ablauf.weiter": "Weiter geht's.",
+        "action.ablauf.fertig": "Der Ablauf ist abgeschlossen.",
+        "action.ablauf.weiterKnopf": "Weiter im Ablauf",
+        "action.ablauf.auftragKnopf": "Stand prüfen",
+        "action.ablauf.auftragGestartet": "Ein Auftrag läuft im Hintergrund.",
+        "action.vorgang.neu": (
+            "Gut, wir fangen neu an. Dein bisheriger Arbeitsstand ist abgeschlossen."),
+        "action.vorgang.geloescht": "Dein Arbeitsstand ist gelöscht.",
+        "action.vorgang.keiner": "Gerade gibt es keinen Arbeitsstand.",
+        "action.vorgang.neuKnopf": "Neues Vorhaben",
+        "action.vorgang.loeschenKnopf": "Arbeitsstand löschen",
+        "action.vorgang.loeschenFrage": (
+            "Soll ich deinen Arbeitsstand wirklich löschen? Dazu gehören alle gespeicherten "
+            "Vorhaben, auch abgeschlossene, und das hochgeladene Dokument dieser Sitzung. Das "
+            "lässt sich nicht rückgängig machen."),
+        "action.vorgang.loeschenJa": "Ja, löschen",
+        "action.ablauf.auftragAbgewiesen": (
+            "Den Stand dieses Auftrags darf ich mit deiner Anmeldung nicht abrufen. Melde dich "
+            "bitte neu an und starte den Ablauf noch einmal."),
+        "action.ablauf.auftragLaeuft": (
+            "Der Auftrag läuft noch. Schau gern später wieder nach — tippe dann auf "
+            "„Stand prüfen“."),
+        "action.ablauf.auftragNichtAbrufbar": (
+            "Den Stand des Auftrags kann ich gerade nicht abrufen. Versuch es bitte gleich noch "
+            "einmal."),
+        "action.ablauf.fehltNoch": (
+            "Für den nächsten Schritt fehlt noch etwas. Arbeite gern noch an diesem Schritt weiter "
+            "und tippe dann wieder auf „Weiter im Ablauf“."),
         "action.curate.searchPill": "Fehlende Inhalte zu {title} suchen",
         "action.curate.searchPillPlain": "Fehlende Inhalte suchen",
         "action.curate.noCompendium": (
@@ -505,6 +553,47 @@ BOT_TEXT: Final[Catalogue] = {
         "action.draft.inactive": (
             'Drafts are switched off here — I cannot open the structure of "{title}" as a draft.'
         ),
+        "action.folderDraft.header": (
+            'The folder structure of "{title}" as a draft — edit, download or accept it below.'
+        ),
+        "action.folderDraft.empty": (
+            '"{title}" has no subfolders that could become a topic tree.'
+        ),
+        "action.folderDraft.ohneTitel": "Structure from folders",
+        "action.folderDraft.inactive": (
+            'Drafts are switched off here — I cannot open the folder structure of "{title}" as a '
+            "draft."
+        ),
+        "action.ablauf.unbekannt": "This workflow does not exist here or is switched off.",
+        "action.ablauf.anmeldung": "Please sign in to WLO for this workflow.",
+        "action.ablauf.konflikt": (
+            "Your work was just changed elsewhere. Please try again."),
+        "action.ablauf.fehler": "The workflow cannot continue at this point.",
+        "action.ablauf.weiter": "Let's continue.",
+        "action.ablauf.fertig": "The workflow is complete.",
+        "action.ablauf.weiterKnopf": "Continue workflow",
+        "action.ablauf.auftragKnopf": "Check status",
+        "action.ablauf.auftragGestartet": "A job is running in the background.",
+        "action.vorgang.neu": "Fine, let's start afresh. Your previous work is closed.",
+        "action.vorgang.geloescht": "Your work in progress has been deleted.",
+        "action.vorgang.keiner": "There is no work in progress right now.",
+        "action.vorgang.neuKnopf": "New project",
+        "action.vorgang.loeschenKnopf": "Delete work in progress",
+        "action.vorgang.loeschenFrage": (
+            "Do you really want me to delete your work in progress? This includes all saved "
+            "projects, closed ones too, and the document uploaded in this session. This cannot "
+            "be undone."),
+        "action.vorgang.loeschenJa": "Yes, delete",
+        "action.ablauf.auftragAbgewiesen": (
+            "I am not allowed to fetch the status of this job with your sign-in. Please sign in "
+            "again and start the workflow once more."),
+        "action.ablauf.auftragLaeuft": (
+            "The job is still running. Feel free to check back later — then tap “Check status”."),
+        "action.ablauf.auftragNichtAbrufbar": (
+            "I can't fetch the status of the job right now. Please try again in a moment."),
+        "action.ablauf.fehltNoch": (
+            "Something is still missing for the next step. Keep working on this step, then tap "
+            "“Continue workflow” again."),
         "action.curate.searchPill": "Search for content missing from {title}",
         "action.curate.searchPillPlain": "Search for missing content",
         "action.curate.noCompendium": (

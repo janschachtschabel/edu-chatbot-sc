@@ -320,7 +320,12 @@ async def _call_tool(
         # hat geantwortet — WARNING, gedrosselt.
         gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:tool", _ABSTAND_S,
                    "MCP tool %s error @ %s: %s", tool_name, target_url, inhalt(message))
-        return {"error": {"message": message, "kind": "tool"}}
+        fehler: dict[str, Any] = {"message": message, "kind": "tool"}
+        # Paket U3-3a (Review, Befund 2): der Grund eines abgelehnten Stapel-Aufrufs steht im
+        # strukturierten Teil (``reason``) — ohne ihn sähe der Aufrufer nur „abgelehnt“.
+        if getattr(result, "structuredContent", None) is not None:
+            fehler["structured"] = result.structuredContent
+        return {"error": fehler}
 
     normalisiert: dict[str, Any] = {"content": _text_blocks(result)}
     # Der strukturierte Teil reist nur mit, wenn das Werkzeug einen geschickt

@@ -633,3 +633,47 @@ async def test_blase_ohne_spec_task_ruft_keinen_exakten_generator(monkeypatch, _
     seen = _zaehler(monkeypatch)
     await _call()
     assert seen["gen"] == 0
+
+
+# ── Paket A2a: der Knopf eines vorgeschlagenen Ablaufs ─────────────────────────────────────
+async def test_ein_vorgeschlagener_ablauf_wird_ein_knopf_vorn(monkeypatch):
+    from boerdi.services.ablauf import vorschlag
+
+    monkeypatch.setattr(vorschlag, "schnellantworten",
+                        lambda ids, lang: [f"__action__|Baum|ablauf_starten|{ids[0]}"])
+    zustand = {"entities": {}, vorschlag.SITZUNG_KEY: ["baum"]}
+    _cards, qrs, *_ = await _call(session_state=zustand)
+    assert qrs[0].startswith("__action__|Baum|ablauf_starten|") and "genQR1" in qrs
+    assert vorschlag.SITZUNG_KEY not in zustand            # gilt nur für diesen Zug
+
+
+async def test_unter_einer_offenen_frage_kein_ablauf_knopf(monkeypatch):
+    from boerdi.services.ablauf import vorschlag
+
+    monkeypatch.setattr(vorschlag, "schnellantworten", lambda ids, lang: ["__action__|B|x|{}"])
+    zustand = {"entities": {}, vorschlag.SITZUNG_KEY: ["baum"]}
+    _cards, qrs, *_ = await _call(session_state=zustand, _qr_mode="none")
+    assert not any(q.startswith("__action__") for q in qrs)
+    assert vorschlag.SITZUNG_KEY not in zustand
+
+
+async def test_unter_chips_des_gastgebers_kein_ablauf_knopf(monkeypatch):
+    """Review A2a, Befund 6: die Chips des Gastgebers bleiben vorn und ungekürzt."""
+    from boerdi.services.ablauf import vorschlag
+
+    monkeypatch.setattr(vorschlag, "schnellantworten", lambda ids, lang: ["__action__|B|x|{}"])
+    zustand = {"entities": {}, vorschlag.SITZUNG_KEY: ["baum"]}
+    _cards, qrs, *_ = await _call(session_state=zustand, _canvas_forced_quick_replies=["Host 1"])
+    assert not any(q.startswith("__action__") for q in qrs)
+
+
+async def test_am_agent_schritt_steht_weiter_im_ablauf_darunter(monkeypatch):
+    """Paket A2b: der Knopf „Weiter im Ablauf“, solange ein Lauf am agent-Schritt wartet."""
+    from boerdi.services.ablauf import ki_schritt
+
+    monkeypatch.setattr(ki_schritt, "weiter_knopf",
+                        lambda sid, state, lang: "__action__|Weiter im Ablauf|ablauf_weiter|{}")
+    _cards, qrs, *_ = await _call()
+    assert qrs[0] == "__action__|Weiter im Ablauf|ablauf_weiter|{}"
+    _cards, qrs, *_ = await _call(_qr_mode="none")
+    assert not any(q.startswith("__action__") for q in qrs)

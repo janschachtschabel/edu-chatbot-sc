@@ -198,7 +198,8 @@ def test_der_mcp_katalog_nennt_keine_module(monkeypatch):
     assert [e["value"] for e in config_choices._mcp_tools()] == ["search_wlo_all"]
     assert [e["value"] for e in config_choices._tools()] == [
         "search_wlo_all", ENTSCHEIDUNG, "ui_strukturentwurf",            # U2: der Entwurf
-        "ui_themenbaum"]                                                 # U1-e: auch der Themenbaum
+        "ui_themenbaum",                                                 # U1-e: auch der Themenbaum
+        "ui_upload"]                                                     # U3-1: Ordner erfassen
     assert "mcp_tools" in config_choices.CATALOG_NAMES
 
 
