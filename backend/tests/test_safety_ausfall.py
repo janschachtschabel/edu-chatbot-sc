@@ -156,6 +156,16 @@ def test_ohne_zugangsdaten_warnt_sie_einmal_und_zaehlt_jeden_zug(monkeypatch, ca
     assert _zaehler("openai_moderation", "keine_zugangsdaten") == vorher + 2
 
 
+def test_die_auszuege_eines_entwurfs_zaehlen_unter_eigener_stufe(monkeypatch):
+    """Review Q4, Befund 1: nicht im Alarm der Chat-Züge (``openai_moderation``)."""
+    monkeypatch.setattr(mod, "_moderation_target", lambda: None)
+    zug = _zaehler("openai_moderation", "keine_zugangsdaten")
+    eigen = _zaehler("strukturentwurf_auszug", "keine_zugangsdaten")
+    assert asyncio.run(mod.moderate("x", stufe="strukturentwurf_auszug")) == {}
+    assert _zaehler("openai_moderation", "keine_zugangsdaten") == zug
+    assert _zaehler("strukturentwurf_auszug", "keine_zugangsdaten") == eigen + 1
+
+
 def _ergebnis(flagged: bool, score: float):
     return SimpleNamespace(
         flagged=flagged, categories={"sexual": flagged},
