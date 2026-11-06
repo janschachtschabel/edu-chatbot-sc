@@ -70,17 +70,29 @@ def _einer() -> asyncio.Semaphore:
     return _semaphores[schleife]
 
 
-async def im_kindprozess(funktion: Callable[..., str], *args: Any) -> str:
+async def im_kindprozess(funktion: Callable[..., str], *args: Any, frist_s: float | None = None,
+                         platz_frist_s: float | None = None) -> str:
     """``funktion(*args)`` in einem eigenen Prozess — das Ergebnis oder ein
     :class:`Umwandlungsfehler`. ``funktion`` muss auf Modulebene stehen (``spawn``
     importiert sie über ihren Namen). Wirft nur, wenn kein Kindprozess startet: das
-    ist ein Fehler des Servers (500), kein Fehler der Datei (Review Paket 9)."""
+    ist ein Fehler des Servers (500), kein Fehler der Datei (Review Paket 9).
+
+    ``frist_s`` (U3-2, Review Befund 4): eigene Frist statt ``RAG_CONVERSION_TIMEOUT_S`` — der
+    Kindprozess wird dann beendet und gibt den Platz frei. ``platz_frist_s``: so lange höchstens
+    auf den Platz warten, danach ``ausgelastet``; die Frist der Umwandlung beginnt erst mit ihm."""
     s = get_settings()
     platz = _einer()
-    await platz.acquire()
+    if platz_frist_s is None:
+        await platz.acquire()
+    else:
+        try:
+            await asyncio.wait_for(platz.acquire(), platz_frist_s)
+        except TimeoutError:
+            return Umwandlungsfehler("Fehler: Umwandlung ausgelastet", art="ausgelastet")
     try:
         lauf = asyncio.ensure_future(asyncio.to_thread(
-            _ausfuehren, funktion, args, s.rag_conversion_timeout_s, s.rag_conversion_max_mb))
+            _ausfuehren, funktion, args, frist_s or s.rag_conversion_timeout_s,
+            s.rag_conversion_max_mb))
     except BaseException:
         platz.release()
         raise
@@ -197,14 +209,14 @@ def _zip_pruefen(quelle: str | bytes) -> Umwandlungsfehler | None:
 
 
 def _pdf_pruefen(quelle: str | bytes) -> Umwandlungsfehler | None:
-    seiten = _pdf_seiten(quelle)
+    seiten = pdf_seiten(quelle)
     if seiten is not None and seiten > MAX_PDF_SEITEN:
         return Umwandlungsfehler(f"Fehler: {seiten} Seiten", art="zu_viele_seiten",
                                  wert=MAX_PDF_SEITEN)
     return None
 
 
-def _pdf_seiten(quelle: str | bytes) -> int | None:
+def pdf_seiten(quelle: str | bytes) -> int | None:
     """Die Seitenzahl aus dem Seitenbaum (``/Count``) — ohne die Seiten zu lesen."""
     from pdfminer.pdfdocument import PDFDocument
     from pdfminer.pdfparser import PDFParser

@@ -30,6 +30,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from boerdi.api.scope_pfad import route_path
+from boerdi.domain.config_models.upload import UploadSettings
 from boerdi.services.snapshots import MAX_CONFIG_UPLOAD_BYTES
 from boerdi.services.speech_proxy import MAX_AUDIO_BYTES
 from boerdi.settings import get_settings
@@ -43,6 +44,16 @@ _OEFFENTLICH_BYTES = 2 * _MIB
 #: Unterthemen im Themenbaum (U1-h): öffentlich, drei kurze Felder.
 _ZWEIG = "/api/ui/themenbaum/zweig"
 _ZWEIG_BYTES = 16 * 1024
+#: Ein Dokument aus dem Auswahlfeld (U3-2a): die harte Obergrenze des Studio-Felds ``max_mb``
+#: plus Platz für die Formularteile; die eingestellte Grenze prüft der Endpunkt (413 ``zu_gross``).
+_DOKUMENT = "/api/ui/dokumente"
+_DOKUMENT_BYTES = (UploadSettings.OBERGRENZE_MB + 1) * _MIB
+_DOKUMENT_LOESCHEN = "/api/ui/dokumente/loeschen"
+#: Paket U3-3a: eine Datei der Stapel-Ablage (Grenze je Datei wie beim Dokument), die
+#: JSON-Aufrufe (Vorschau mit bis zu 200 Einträgen, Abschluss) mit 256 KiB.
+_ABLAGE_DATEI = "/api/ui/ablage/datei"
+_ABLAGE_JSON = ("/api/ui/ablage/vorbereiten", "/api/ui/ablage/abschluss")
+_ABLAGE_JSON_BYTES = 256 * 1024
 #: Alles andere (Studio-JSON, Konfig-Bereiche, Text-Ingest).
 _ALLGEMEIN_BYTES = 16 * _MIB
 _KONFIG_UPLOADS = ("/api/config/restore", "/api/config/factory/upload")
@@ -61,8 +72,14 @@ def body_limit_for(path: str) -> int | None:
     if path == "/api/rag/ingest/file":
         max_mb = get_settings().max_ingest_mb
         return (max_mb + 1) * _MIB if max_mb > 0 else None
-    if path == _ZWEIG:
+    if path in (_ZWEIG, _DOKUMENT_LOESCHEN):
         return _ZWEIG_BYTES
+    if path == _DOKUMENT:
+        return _DOKUMENT_BYTES
+    if path == _ABLAGE_DATEI:
+        return _DOKUMENT_BYTES
+    if path in _ABLAGE_JSON:
+        return _ABLAGE_JSON_BYTES
     if any(_unter(path, p) for p in _OEFFENTLICHE_ZUEGE):
         return _OEFFENTLICH_BYTES
     return _ALLGEMEIN_BYTES
