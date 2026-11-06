@@ -53,6 +53,8 @@ import { FIELDS_REGELWERK } from './fields-regelwerk';
 import { FIELDS_SICHERHEIT } from './fields-sicherheit';
 import { FIELDS_TONE } from './fields-tone';
 import { FIELDS_TOUR } from './fields-tour';
+import { FIELDS_ABLAEUFE } from './fields-ablaeufe';
+import { FIELDS_UPLOAD } from './fields-upload';
 import { FIELDS_WISSENSBEREICHE } from './fields-wissensbereiche';
 import { FRAME } from './frame';
 import { GROUP_SECTION } from './group-section';
@@ -119,5 +121,5 @@ export const STUDIO_PARTS: readonly CataloguePart[] = [
   CURATED_GEMEINSAM,
   MATERIAL_FORMATE,
   // Paket U1-f: Seite „UI-Module“
-  UI_MODULE,
+  UI_MODULE, FIELDS_UPLOAD, FIELDS_ABLAEUFE,
 ];

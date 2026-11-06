@@ -50,6 +50,18 @@ export const GEMEINSAME_SEITEN: readonly CuratedView[] = [
         labelKey: 'curated.uiModule.panel.label',
         hintKey: 'curated.uiModule.panel.hint',
       },
+      {
+        // Paket U3-2a: was ui_upload mit einem Dokument tun darf (`01-base/upload-config`).
+        area: '01-base/upload-config',
+        labelKey: 'curated.uiModule.upload.label',
+        hintKey: 'curated.uiModule.upload.hint',
+      },
+      {
+        // Paket A1: Abläufe aus Modulen, Werkzeugen und Nachrichten (`06-ablaeufe/katalog`).
+        area: '06-ablaeufe/katalog',
+        labelKey: 'curated.uiModule.ablaeufe.label',
+        hintKey: 'curated.uiModule.ablaeufe.hint',
+      },
     ],
   },
   {
