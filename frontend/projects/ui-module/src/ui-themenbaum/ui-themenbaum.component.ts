@@ -119,7 +119,9 @@ export class UiThemenbaum {
   /** Die Sammlung der Wurzel in WLO — für den Hinweis „mehr, als hier stehen“ (Review U1-e). */
   protected readonly wurzelLink = computed(() => {
     const url = this.daten().wurzel_url;
-    return url ? this.host.link(url) : null;
+    const link = url ? this.host.link(url) : null;
+    // Ohne http(s)-Adresse kein Link (Review 2026-11-07) — wie beim Ziel eines Knotens.
+    return link?.href ? link : null;
   });
 
   private zielAus(knoten: ThemenbaumBlatt, erneut: Eintrag | null): Ziel {
