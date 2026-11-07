@@ -28,7 +28,12 @@ from typing import Any
 from boerdi.domain.repo_links import editor_url, render_url
 from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import get_repo_base_url
-from boerdi.services.mcp.client import call_mcp_tool, call_mcp_tool_status, is_mcp_error
+from boerdi.services.mcp.client import (
+    call_mcp_tool,
+    call_mcp_tool_status,
+    fehlercode,
+    is_mcp_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +161,9 @@ async def skill_suche(suchbegriff: str) -> dict[str, Any]:
     """
     roh, art = await call_mcp_tool_status(
         "search_skill", {"query": suchbegriff, "outputFormat": "json", "maxResults": SUCHE_MAX})
-    if (art or is_mcp_error(roh)) and _SUCHE_FEHLT.search(roh):
+    # Paket M1: der Server meldet ``unknown_tool``; der Text bleibt Rückfall (älterer Server).
+    if (art or is_mcp_error(roh)) and (fehlercode(roh) == "unknown_tool"
+                                       or _SUCHE_FEHLT.search(roh)):
         return {"query": suchbegriff, "available": False, "entries": [], "truncated": False}
     if art or is_mcp_error(roh):
         logger.warning("Skill-Suche %s: %s", inhalt(suchbegriff), inhalt(roh))

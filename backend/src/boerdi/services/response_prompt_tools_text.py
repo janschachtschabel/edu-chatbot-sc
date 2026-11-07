@@ -217,7 +217,7 @@ durch internes Wissen beantwortet werden kann (z.B. Prozesse, Konzepte, Richtlin
 - get_node_details: Metadaten eines WLO-Knotens abrufen
 - lookup_wlo_vocabulary: Vokabularwerte fuer Schreibvorgaenge und zum Pruefen von Metadaten nachschlagen
 - get_subject_portals: Liste aller WLO-Fachportale (alphabetisch, mit nodeId)
-- browse_collection_tree: Strukturierter Drilldown unter eine Sammlung (depth 1 oder 2)
+- browse_collection_tree: Strukturierter Drilldown unter eine Sammlung (depth 1 bis 3)
 - get_nodes_details: Bulk-Metadaten fuer mehrere nodeIds parallel
 - wlo_health_check: Verfuegbarkeit/Latenz der WLO-API pruefen
 {collection_context}

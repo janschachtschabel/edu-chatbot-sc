@@ -19,7 +19,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD
+from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 
 #: Werkzeugargumente, deren Wert ins Log darf: Filter des WLO-Katalogs, Kennungen, Steuerung.
 #: Alles andere — ``query``, ``url``, Titel, Beschreibungen, Metadaten — nur als Länge. Ein
@@ -51,7 +51,7 @@ def kennung(session_id: str | None) -> str:
 
 
 def _wert(schluessel: str, wert: Any) -> Any:
-    if schluessel == CONFIRM_TOKEN_FIELD:
+    if schluessel in SCHLUESSEL_FELDER:
         return "‹geschwärzt›"
     if wert is None or isinstance(wert, bool | int | float):
         return wert
