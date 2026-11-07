@@ -22,6 +22,7 @@ import json
 from typing import Any, Final
 
 from boerdi.api.schemas import ChatRequest, ChatResponse
+from boerdi.domain.write_confirm import OFFENER_PLAN_KEY
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.services import arbeitsstand, vorgaenge
 from boerdi.services.ablauf import zug_basis as basis
@@ -82,5 +83,6 @@ async def loeschen(session: Any, req: ChatRequest, session_state: dict) -> ChatR
     await session.commit()
     arbeitsstand.verweis_weg(entities, aufrufer)
     entities.pop(strukturentwurf_merken.KEY, None)
+    entities.pop(OFFENER_PLAN_KEY, None)  # Paket M5 (Review, Befund 7)
     schluessel = "action.vorgang.geloescht" if zahl or hatte else "action.vorgang.keiner"
     return await basis.nur_text(session, req, schluessel, entities)

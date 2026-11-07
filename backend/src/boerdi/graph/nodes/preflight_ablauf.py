@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatResponse
 from boerdi.graph.state import TurnContext
-from boerdi.services import vorgang_aktion
+from boerdi.services import plan_fortsetzen, vorgang_aktion
 from boerdi.services.ablauf import auftrag_zug
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.ordner_aktion import ist_ordner_als_entwurf
@@ -80,6 +80,8 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
         return Antwort(await vorgang_aktion.neu(session, req, state))
     if req.action == vorgang_aktion.AKTION_LOESCHEN:
         return Antwort(await vorgang_aktion.loeschen(session, req, state))
+    if req.action == plan_fortsetzen.AKTION:
+        return Antwort(await plan_fortsetzen.weiter(session, req, state, blocked_tools=gesperrt))
     if req.action == ablauf_zug.AKTION_WEITER:
         return Antwort(await ablauf_zug.weiter_nach_ki(session, req, state,
                                                        blocked_tools=gesperrt))
