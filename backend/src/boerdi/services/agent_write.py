@@ -43,12 +43,14 @@ from boerdi.domain.config_models.engine import AgentLimits
 from boerdi.domain.write_confirm import (
     extract_confirm_token,
     is_confirmable,
+    is_plan,
     redact_confirm_token,
     remember_pending,
     strip_confirm_token,
     token_for,
 )
 from boerdi.services.mcp.auth import aufrufer_kennung, has_personal_auth
+from boerdi.services.mcp.client import is_mcp_error, nimm_bestaetigung
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +101,8 @@ class WriteGate:
         if not is_confirmable(tool_name):
             return args
         sauber = strip_confirm_token(tool_name, args)
-        if not self._execute:
+        # Paket M5 (Re-Review, Befund 1): einen Plan löst nur der Vorlauf ein (Fortsetzen).
+        if not self._execute or is_plan(tool_name):
             return sauber
         schluessel = token_for(self._pending, tool_name, sauber, now=self._now())
         if not schluessel:
@@ -123,7 +126,11 @@ class WriteGate:
         """
         if not is_confirmable(tool_name):
             return result_text
-        gepraegt = extract_confirm_token(result_text)
+        # Paket M2: der Schlüssel aus ``structuredContent.confirm``, der Text ist Rückfall.
+        # Aus einer Fehlermeldung nie (Review M2, Befund 7: fremder Titel darin).
+        gepraegt = nimm_bestaetigung(tool_name, args)
+        if gepraegt is None and not is_mcp_error(result_text):
+            gepraegt = extract_confirm_token(result_text)
         text = redact_confirm_token(result_text)
         if gepraegt:
             # Die letzte Vorschau gewinnt: ein neuer Schlüssel ersetzt den alten.

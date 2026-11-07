@@ -181,7 +181,9 @@ def _liegengelassene_abnahme(monkeypatch):
     _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
     monkeypatch.setattr(pf_mod, "_log_early_quality", _Spy())
     schreiben = _Spy(("Der Datensatz wurde angelegt.", ""))
-    monkeypatch.setattr(wa_mod, "call_mcp_tool_status", schreiben)
+    from tests.test_write_approval import als_antwort
+
+    monkeypatch.setattr(wa_mod, "call_mcp_tool_antwort", als_antwort(schreiben))
     monkeypatch.setattr(wa_mod, "update_session", _Spy())
     monkeypatch.setattr(wa_mod, "save_message", _Spy())
     # Eine angemeldete Person: seit Paket 7 (S4) die Bedingung jeder Einlösung.

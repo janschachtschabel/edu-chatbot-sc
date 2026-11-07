@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from boerdi.domain.write_confirm import TOKEN_PLACEHOLDER, redact_confirm_token
+from boerdi.domain.write_confirm import (
+    OFFENER_PLAN_KEY,
+    TOKEN_PLACEHOLDER,
+    redact_confirm_token,
+)
 
 #: Schlüssel der Vorschau-Kopie im Merkposten (Paket 19, Review 19-5) und ihr Deckel.
 VORSCHAU_KOPIE = "vorschau"
@@ -74,7 +78,10 @@ def entities_for_display(entities: dict[str, Any]) -> dict[str, Any]:
     aus und gehört allein dem Vorlauf (Review Paket 2, 2026-10-01). Eine Kopie;
     die Sitzung selbst bleibt unberührt.
     """
-    merkposten = entities.get("_pending_write")
-    if not isinstance(merkposten, dict) or "token" not in merkposten:
-        return entities
-    return {**entities, "_pending_write": {**merkposten, "token": TOKEN_PLACEHOLDER}}
+    gezeigt = dict(entities)
+    # Paket M5 (Review, Befund 6): der Fortsetzungs-Schlüssel eines Plans schreibt ebenso.
+    for schluessel in ("_pending_write", OFFENER_PLAN_KEY):
+        merkposten = gezeigt.get(schluessel)
+        if isinstance(merkposten, dict) and "token" in merkposten:
+            gezeigt[schluessel] = {**merkposten, "token": TOKEN_PLACEHOLDER}
+    return gezeigt
