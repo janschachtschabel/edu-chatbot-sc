@@ -260,8 +260,33 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - **Secrets** (in beiden Dateien als Geheimnis gekennzeichnet):
   - `STUDIO_API_KEY`, `STUDIO_PASSWORD`
   - `B_API_KEY`, `OPENAI_API_KEY`
-  - `MCP_AUTH_TOKEN`
+  - `MCP_AUTH_TOKEN`, `MCP_CLIENT_KEY`
   - `POSTGRES_PASSWORD`, `DATABASE_URL`
+- **MCP-Anbindung (Plan 2026-11-07, MCP-Stand S1–S7):**
+  - `MCP_CLIENT_KEY`: Client-Schlüssel beim MCP-Server. Mit ihm zählt der Server den Chatbot in einem eigenen
+    Budget (vereinbart 360 Werkzeugaufrufe/min) statt im Budget der Adresse.
+    - Mindestens 32 Zeichen, mit dem MCP-Team außerhalb jedes Chats tauschen; dort steht er als
+      `boerdi:360:<schlüssel>` in `TRUSTED_CLIENT_KEYS`.
+    - Geht nur an den primären MCP-Server, erscheint nie im Log. Die Startzeile „MCP-Budget: …“ sagt nur, ob
+      er gesetzt ist.
+  - `MCP_BUDGET_RPM` (Vorgabe 300): Werkzeugaufrufe je Minute, die der Chatbot selbst einhält.
+    - **Ohne Client-Schlüssel auf 280 setzen**: Dann gilt das Adress-Budget des Servers (live 300).
+    - Bei mehreren Repliken durch ihre Zahl teilen; der Wächter zählt je Prozess.
+  - Ausfall-Schalter: `MCP_BREAKER_FAILURES` 3 Fehler in `MCP_BREAKER_WINDOW_S` 60 s öffnen ihn für
+    `MCP_BREAKER_OPEN_S` 30 s.
+    - Danach fragt der Chatbot `GET /ready` des MCP-Servers.
+    - Metrik `boerdi_mcp_breaker_open`; dazu der Ausgang `busy` in `boerdi_mcp_calls_total`.
+  - `MCP_CONNECT_TIMEOUT_S` 5 s für den Verbindungsaufbau (die Gesamtfrist bleibt `MCP_CALL_TIMEOUT_S`).
+  - `AUTH_GRACE_S` 1800: So lange gilt die letzte Bestätigung einer Person weiter, wenn der MCP-Server die
+    Anmeldung gerade nicht prüfen kann.
+  - **Herkunftslisten am MCP-Server** (setzt das MCP-Team, Werte liefert der Betrieb):
+    - `TICKET_ALLOWED_ORIGINS` = die Seiten, die das Widget mit `ticket` einbetten. Das ist dieselbe Liste wie
+      `CORS_ORIGINS` hier; beide gemeinsam pflegen.
+    - `WIDGET_OAUTH_ORIGINS` = die öffentliche Herkunft **dieses Backends**: Das Widget kehrt nach der
+      Anmeldung auf `<Backend>/widget/oauth-callback.html` zurück.
+    - Ohne die beiden Listen gelten keine 12-h-Frist für Widget-Anmeldungen und keine Sperre fremder Seiten.
+    - Das Studio zeigt beides zum Abgleich auf der Seite „Vorschau“ unter „Einbettende Seiten“, als kopierbare
+      Zeilen. Übernommen werden nur Einträge, die der MCP-Server als Herkunft annimmt.
 - **Betriebswerte, die der Aufbau bestimmt:** `FORWARDED_ALLOW_IPS` (Ingress-CIDR; im
   Testbetrieb ohne Proxy `127.0.0.1`), `TRUST_FORWARDED_FOR` (`false`), `B_API_KEY_MODE`,
   `B_API_ROUTE`, `RATE_LIMIT_STORAGE_URI` (Valkey), `LOG_FORMAT=json`, `INTERNAL_PORT`.
@@ -293,7 +318,9 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - **Evaluationen** kosten zusätzlich (Judge, Simulator), werden gesondert gebucht und vom Nutzer gestartet.
 - **Externe Dienste:**
   - b-api (LLM)
-  - WLO-MCP-Server
+  - WLO-MCP-Server — vorausgesetzt ist der Stand vom 07.11.2026 (Antwortvertrag mit `structuredContent`,
+    Pläne, `find_content_by_url`); bei einem Deploy zuerst den MCP, dann das Backend
+    (`docs/offene-befunde-und-todo.md` §4).
   - Hugging Face (einmaliger Modell-Download)
 
 ## 14 Ansprechperson

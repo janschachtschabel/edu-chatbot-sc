@@ -274,13 +274,16 @@ Der Zugang zum WLO-Bestand. Kein eigener Index, keine Kopie des Repositoriums.
 
 | Modul | Aufgabe |
 |---|---|
-| `transport.py` | MCP-SDK, Streamable HTTP |
-| `client.py` | `call_mcp_tool` — der eine Aufrufweg, mit Zug-Sammlern |
+| `transport.py` | MCP-SDK, Streamable HTTP; Arten `tool`/`transport`/`timeout`/`auth`/`busy` (429/503, Budget, Schalter — nichts lief) |
+| `client.py` | `call_mcp_tool` — der eine Aufrufweg, mit Zug-Sammlern; `call_mcp_tool_antwort` liefert dazu Fehlercode und strukturierten Teil. Verzweigt wird über `structuredContent` (`error.code`, `confirm`, Plan-Stand), der Text ist Rückfall (MCP-Stand 07.11.2026, Pakete M1/M2) |
 | `tool_defs.py` / `tool_defs_curation.py` | Werkzeugliste fürs LLM |
 | `fremdwerkzeuge.py` | Werkzeuge **weiterer** MCP-Server, nur lesend, im Zug `server__werkzeug` (Paket 11) — eigener Aufrufweg, nie mit dem Block der WLO-Anmeldung |
 | `tool_args.py` | Argument-Prüfung (Pydantic) vor dem Absetzen |
 | `arg_resolvers.py` | Platzhalter aus dem Zug-Zustand auflösen |
-| `tool_cache.py` | Ergebnis-Zwischenspeicher je Zug |
+| `schutz.py` | Ausfall-Schalter je Server (Probe über `GET /ready`) und Budget-Wächter am primären Server (`MCP_BUDGET_RPM`, gleitendes 60-s-Fenster) — Plan 2026-11-07, CB-3/CB-5 |
+| `wiederholung.py` | Wann ein Aufruf ein zweites Mal hinausgeht: eine kurze `Retry-After` bei „ausgelastet“ (429/503, `upstream_busy`), und das Nachholen der Antwort eines bestätigten Schreibaufrufs mit demselben Schlüssel (S3: `replayed`, `inProgress`; `confirm_*` lässt den Ausgang offen) |
+| `anmelde_endpunkte.py` | `GET /auth/status` (Anmeldestand, `expiresAt`) und `POST /auth/revoke` per Bearer (Abmelden) — ohne MCP-Sitzung, mit Client-Schlüssel |
+| `tool_cache.py` | Ergebnis-Zwischenspeicher mit Frist je Werkzeug (Aufrufer im Schlüssel); schreibende Werkzeuge, die Dublettenprüfung per Adresse und Teilantworten (`missing`) nie |
 | `parsers/` | Antworten lesen: Karten, Themenseiten, Skill-Registry, JSON-Scan |
 | `auth.py` | Zugangsblock je Zug (persönliche Anmeldung) |
 
@@ -396,7 +399,12 @@ einem Bild:
 | Werkzeugfamilie | Zweck |
 |---|---|
 | `search_wlo_all` | **eine** breite Suche über Inhalte, Sammlungen und Themenseiten — der Standardweg |
-| `search_wlo_content` / `_collections` / `_topic_pages` / `_within_collection` | gezielte Einzelsuchen; Filter als deutsche Labels (`learningResourceType`, `discipline`, `educationalContext`), dazu `license` (u. a. Sammelwert `"OER"`) und `excludeNodeIds` („zeig mehr davon"; bei `_within_collection` stattdessen `skipCount`, der Server kennt dort kein `excludeNodeIds`). Alle Filter gleicht der Client vor dem Aufruf ab (`arg_resolvers`, `lizenz_abgleich`) |
+| `search_wlo_content` / `_collections` / `_topic_pages` / `_within_collection` | gezielte Einzelsuchen; Filter als deutsche Labels (`learningResourceType`, `discipline`, `educationalContext`), dazu `license` (u. a. Sammelwert `"OER"`; eine unbekannte Lizenz geht unverändert hin, der Server antwortet mit 0 Treffern und Vorschlägen) und `excludeNodeIds` („zeig mehr davon", auch in `_within_collection`). Alle Filter gleicht der Client vor dem Aufruf ab (`arg_resolvers`, `lizenz_abgleich`) |
+| `get_collection_overview` | eine Sammlung auf einen Blick: Pfad, Gliederung des Kompendiums, Zahlen, Skills, Untersammlungen, erste Inhalte — in einem Aufruf |
+| `browse_collection_tree` · `get_collection_contents` · `get_collection_stats` | Untersammlungen (bis Tiefe 3, höchstens 300 Knoten), Inhalte, Aufschlüsselung nach Typ/Fach/Stufe |
+| `count_wlo_content_matches` | Trefferzahlen für bis zu 30 Anfragen zugleich (über ganz WLO), je mit den besten Treffern — Abdeckung eines Lehrplans |
+| `find_content_by_url` | Gibt es zu einer Adresse schon einen Datensatz? Genau (`exact`) oder bereinigt (`normalized`), bis 20 Adressen |
+| *nicht angeboten* | `search` und `fetch` (die Belegstellen-Konvention von ChatGPT; der Chatbot hat die reicheren Such- und Lese-Werkzeuge), `resolve_wlo_filters` (die eigene Argumentauflösung macht dasselbe vor jeder Suche, `offene-befunde-und-todo.md`), `search_skill` ab Werk verborgen (im Studio freischaltbar; ist es am Server abgeschaltet, fängt das der Skill-Abruf ab) |
 | `get_node_details` / `get_nodes_details` | Einzelheiten, im Bündel bis 50 Knoten in einem Aufruf |
 | `get_compendium_text` | die kuratierte Übersichts-Prosa einer Sammlung; mit `query` nur die passenden Absätze, im Bündel bis 9 Sammlungen je Aufruf (bewusst unter dem Server-Maximum 25, weil die Langform ungedeckelt in den Prompt geht). Suchtreffer tragen nur das Signal `hasCompendium` — den Text holt der Seitenkontext bei Bedarf nach |
 | `get_related_content` · `get_node_breadcrumb` · `get_node_collections` | „mehr wie dieses", Einordnung im Baum |
@@ -430,6 +438,9 @@ Skills sind im Repositorium gepflegte Arbeitsanleitungen (Inhaltsart
 * Suchtreffer und Sammlungen tragen ihre **Skill-Registry** mit (Katalog der
   freigegebenen Skills, je Eintrag mit Arbeitskontext); der volle Katalog ist
   die Vorgabe, ein Kontextfilter greift nur auf ausdrücklichen Wunsch.
+* `get_skill_registry` mit `task` lässt den Server den passenden Skill wählen und liefert dessen
+  Anleitung gleich mit (bei unklarer Wahl die Kandidaten); die gewählte Anleitung zählt wie nach
+  `get_skill` als laufende Anleitung.
 * `get_skill` holt die Anleitung **ungekürzt** — sie wird Teil des Prompts und
   schlägt die mitgelieferte Systemvorlage (Skill-Vorrang,
   `domain/skill_precedence.py`): steht an einer Sammlung „Stunde planen", plant
@@ -444,12 +455,26 @@ Skills sind im Repositorium gepflegte Arbeitsanleitungen (Inhaltsart
 
 ### 5.4 Schreiben und Kuratieren
 
-Der Schreibweg ist **zweistufig**: das Modell führt nie direkt aus, sondern
-beschreibt die Änderung (`PreparedWrite` + Bestätigungs-Token); erst die
-Bestätigung im Folgezug löst den MCP-Schreibaufruf aus. Werkzeuge
-(`tool_defs_curation.py`): Inhalt anlegen/ändern/einreichen, in Sammlungen
+Der Schreibweg ist **zweistufig**: der erste Aufruf liefert nur eine Vorschau samt
+Bestätigungsschlüssel (`structuredContent.confirm`; das Modell sieht ihn nie); erst das Ja
+der Person im Folgezug löst den MCP-Schreibaufruf aus — im Vorlauf
+(`services/write_approval.py`), ohne Modell. Ist der Schlüssel abgelaufen, legt der Chat die
+Vorschau neu vor; Fehler unterscheidet er über `error.code` (z. B. `exists` → vorhandenen
+Datensatz anbieten).
+
+Seit dem MCP-Stand S1–S7:
+- Geht die Antwort verloren, holt der Chat sie mit demselben Schlüssel nach (`replayed`), ohne doppelt zu
+  schreiben (`services/mcp/wiederholung.py`).
+- Nach der Einlösung entscheidet `outcomeOpen`: bei `false` neu vorlegen (außer `exists`), bei `true` „bitte
+  nachsehen“. `requiresNewPreview` allein sagt nichts darüber, ob geschrieben wurde.
+- Ist WLO ausgelastet (`busy`), bleibt die Freigabe liegen. Werkzeuge (`tool_defs_curation.py`): Inhalt anlegen/ändern/einreichen —
+anlegen und einsortieren in **einer** Bestätigung (`addToCollectionId`) —, in Sammlungen
 einsortieren, Sammlungen anlegen/umbenennen, Metadaten-Vorschläge erzeugen und
-entscheiden. Was eine Einbettung davon darf, begrenzt `tool_mode`
+entscheiden. **Pläne** (`wlo_create_collection_tree`, `wlo_add_to_collections`): ein Baum
+bzw. bis zu 200 Aufnahmen unter einer Bestätigung; der Server arbeitet in Abschnitten, große
+Pläne setzt die Person über den Knopf „Weiter anlegen“ fort (`services/plan_fortsetzen.py`).
+Die Ablage von Dateien im persönlichen Bereich läuft über das Upload-Modul und eigene
+Stapel-Werkzeuge, nie über das Modell. Was eine Einbettung davon darf, begrenzt `tool_mode`
 (`read-only` · `curate` · `full`) — die Grenze steht zusätzlich im Systemprompt,
 damit das Modell nichts verspricht, was es nicht ausführen kann.
 

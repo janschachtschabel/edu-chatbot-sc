@@ -24,8 +24,13 @@ Audits `audits/2026-10-10-*.md`.
   dort den Block lesen und damit bis zum Widerruf als die Person in WLO lesen und schreiben (der Block
   enthält das Passwort verschlüsselt, läuft nicht ab und ist an nichts gebunden). Dokumentiert für das
   MCP-Team in [`mcp-und-anmeldung.md`](mcp-und-anmeldung.md) (R1, Wünsche §4). Bis dahin: mit Anmeldung
-  nur auf vertrauenswürdigen Seiten einbetten, `CORS_ORIGINS` setzen.
-- **A-4 Abmelden widerruft nicht:** Der MCP-Server hat `POST /auth/revoke`, aber ohne CORS — das Widget
+  nur auf vertrauenswürdigen Seiten einbetten, `CORS_ORIGINS` setzen. **Stand 2026-11-07:** Ticket- und
+  Widget-Blöcke laufen jetzt nach 12 h ab (R1-A, sobald `WIDGET_OAUTH_ORIGINS` gesetzt ist). Die Bindung an die
+  Sitzung im Backend bleibt ein eigenes Paket.
+- **Erledigt 2026-11-07, A-4:** Abmelden widerruft jetzt. Das Widget ruft `POST /api/auth/abmelden`, das
+  Backend widerruft per Bearer am MCP-Server (R2-A, Plan
+  [`plans/2026-11-07-stabilitaet-mcp-anbindung.md`](plans/2026-11-07-stabilitaet-mcp-anbindung.md)). Die frühere
+  Fassung: **A-4 Abmelden widerruft nicht:** Der MCP-Server hat `POST /auth/revoke`, aber ohne CORS — das Widget
   kann ihn auf einer fremden Seite nicht rufen. **Ohne MCP-Änderung machbar:** Das Widget schickt den Block
   beim Abmelden an ein neues Backend-Ende, das Backend widerruft serverseitig. Gebraucht: Ja/Nein (oder
   warten, bis der Umbau es löst). Einzelheiten: [`mcp-und-anmeldung.md`](mcp-und-anmeldung.md) R2.
