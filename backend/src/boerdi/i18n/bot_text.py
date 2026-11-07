@@ -376,8 +376,9 @@ BOT_TEXT: Final[Catalogue] = {
         # einen Schritt, der die Unsicherheit auflöst. Konservativ in die
         # richtige Richtung: nachsehen kostet eine Minute, eine Dublette bleibt.
         # Der Server hat geantwortet und abgelehnt. Hier DARF „nichts geändert"
-        # stehen: der Beleg dafür ist seine Antwort. Den Grund nennt der Satz
-        # nicht — er ist ein Interna-Auszug und steht im Protokoll.
+        # stehen: der Beleg dafür ist seine Antwort. Seit Paket M2 folgt ein fachlicher
+        # Grund (``write.rejectedReason``, nur für ``refused``/``invalid_input``/
+        # ``not_found``/…); Repository-Interna bleiben im Protokoll.
         # Paket 10 (Kurzaudit S-1/S-3/S-4): Zustimmung zu einer Vorschau, die unter
         # einer anderen Anmeldung entstand (``services/abnahme_hinweis``).
         "write.callerChanged": (
@@ -391,6 +392,60 @@ BOT_TEXT: Final[Catalogue] = {
             "es wurde nichts geändert. Sag mir, was ich anders machen soll; "
             "dann lege ich sie dir erneut zur Abnahme vor."
         ),
+        "write.confirmRenewed": (
+            "Die Freigabe war nicht mehr gültig — es wurde nichts geändert. Unten steht die "
+            "Vorschau noch einmal; bestätige sie bitte erneut."),
+        "write.loginNeeded": (
+            "Dafür braucht WLO deine eigene Anmeldung — es wurde nichts geändert. Melde dich "
+            "an und bitte mich dann noch einmal darum."),
+        "write.rejectedReason": "Grund: {grund}",
+        "write.existsHint": (
+            "Dazu gibt es schon einen Datensatz: „{titel}“ ({kennung}). Soll ich stattdessen "
+            "mit diesem weiterarbeiten?"),
+        "write.confirmExpired": (
+            "Die Freigabe war nicht mehr gültig — es wurde nichts geändert. Bitte mich gleich "
+            "noch einmal darum, dann lege ich dir die Änderung neu vor."),
+        "write.nothingToChange": "Da gibt es nichts zu ändern — in WLO steht es schon so.",
+        "write.planOpen": (
+            "Noch nicht alles fertig — mit „Weiter anlegen“ geht es ohne neue Bestätigung weiter "
+            "(bis zu 30 Minuten nach der Freigabe)."),
+        "write.planExpired": (
+            "Der Plan ist abgelaufen oder nicht mehr bekannt — weiter geändert wurde nichts; was "
+            "schon angelegt ist, bleibt. Stoße ihn neu an, vorhandene Sammlungen werden "
+            "übernommen."),
+        "write.planNone": "Gerade gibt es keinen offenen Plan, den ich fortsetzen könnte.",
+        "write.timeoutNothingDone": (
+            "WLO hat nicht rechtzeitig geantwortet — geändert wurde nichts. Bitte mich einfach "
+            "noch einmal darum, dann lege ich dir die Vorschau neu vor."),
+        "write.planStillOpen": (
+            "Ein früherer Plan ist noch nicht fertig — es wurde nichts geändert. Führe ihn zuerst "
+            "mit „Weiter anlegen“ zu Ende; danach lege ich dir die neue Vorschau gern vor."),
+        "write.planTooLarge": (
+            "Dieser Plan ist zu groß, um ihn hier zu bestätigen — es wurde nichts geändert. Lass "
+            "ihn uns in kleineren Teilen anlegen."),
+        "write.planUnclearStart": (
+            "Von WLO kam keine Antwort — ob der Plan angelaufen ist, ist offen. „Weiter anlegen“ "
+            "setzt ihn fort, falls ja; sonst sage ich es dir."),
+        "write.planUnclear": (
+            "Vom Server kam keine Antwort. Der Plan bleibt bestehen; „Weiter anlegen“ setzt ihn "
+            "gefahrlos fort."),
+        # Plan 2026-11-07 (CB-2/CB-4): nichts lief — die Abnahme bleibt liegen.
+        "write.busy": (
+            "WLO ist gerade ausgelastet — ausgeführt wurde noch nichts. Deine Freigabe gilt "
+            "weiter: tippe gleich noch einmal auf „Ja, so ausführen“."),
+        "write.authUnclear": (
+            "Deine Anmeldung ließ sich gerade nicht prüfen — ausgeführt wurde noch nichts. Deine "
+            "Freigabe gilt weiter: tippe gleich noch einmal auf „Ja, so ausführen“."),
+        "write.planBusy": (
+            "WLO ist gerade ausgelastet — weiter angelegt wurde noch nichts. Der Plan bleibt "
+            "bestehen; „Weiter anlegen“ setzt ihn gleich fort."),
+        "write.tooManyPlans": (
+            "Unter deiner Anmeldung laufen schon fünf unfertige Pläne — es wurde nichts geändert. "
+            "Führe zuerst einen davon zu Ende; danach lege ich dir die Vorschau gern neu vor."),
+        "write.planBlocked": (
+            "Fortsetzen geht hier gerade nicht — das Werkzeug ist in diesem Zusammenhang nicht "
+            "freigegeben. Weiter geändert wurde nichts."),
+        "action.plan.weiterKnopf": "Weiter anlegen",
         "write.executeUnconfirmed": (
             "Die Änderung ist nicht bestätigt zurückgekommen — ob sie "
             "angekommen ist, kann ich von hier aus nicht sagen. Sieh bitte in "
@@ -408,6 +463,10 @@ BOT_TEXT: Final[Catalogue] = {
             "Hinweis: Nach {values} konnte ich nicht filtern und habe "
             "allgemeiner gesucht."
         ),
+        "facets.unresolvedLicense": (
+            "Hinweis: Die Lizenz {value} kenne ich nicht — mit ihr finde ich keine "
+            "Materialien."),
+        "facets.licenseSuggestion": "Meintest du {values}?",
         "qr.passQuality": "Hat das geholfen?",
         # ── Was der Nutzer sieht, wenn etwas nicht geht ────────────────
         "error.safetyBlocked": (
@@ -737,6 +796,57 @@ BOT_TEXT: Final[Catalogue] = {
             "was modified. Tell me what to do differently and I will put it "
             "up for approval again."
         ),
+        "write.confirmRenewed": (
+            "The approval was no longer valid — nothing was changed. The preview is below "
+            "once more; please confirm it again."),
+        "write.loginNeeded": (
+            "WLO needs your own sign-in for this — nothing was changed. Please sign in and "
+            "then ask me again."),
+        "write.rejectedReason": "Reason: {grund}",
+        "write.existsHint": (
+            "There is already a record for this: “{titel}” ({kennung}). Shall I work with "
+            "that one instead?"),
+        "write.confirmExpired": (
+            "The approval was no longer valid — nothing was changed. Just ask me again and I "
+            "will present the change anew."),
+        "write.nothingToChange": "There is nothing to change — WLO already has it this way.",
+        "write.planOpen": (
+            "Not everything is done yet — “Continue” carries on without a new approval (up to 30 "
+            "minutes after the approval)."),
+        "write.planExpired": (
+            "The plan has expired or is no longer known — nothing further was changed; what was "
+            "already created stays. Start it again; existing collections will be reused."),
+        "write.planNone": "There is no open plan I could continue right now.",
+        "write.timeoutNothingDone": (
+            "WLO did not answer in time — nothing was changed. Just ask me again and I will show "
+            "you the preview anew."),
+        "write.planStillOpen": (
+            "An earlier plan is not finished yet — nothing was changed. Finish it with “Continue” "
+            "first; then I will gladly show you the new preview."),
+        "write.planTooLarge": (
+            "This plan is too large to confirm here — nothing was changed. Let us create it in "
+            "smaller parts."),
+        "write.planUnclearStart": (
+            "WLO did not answer — whether the plan started is unclear. “Continue” resumes it if "
+            "it did; otherwise I will tell you."),
+        "write.planUnclear": (
+            "The server did not answer. The plan remains; “Continue” resumes it safely."),
+        "write.busy": (
+            "WLO is busy right now — nothing has been carried out yet. Your approval still "
+            "stands: tap “Yes, go ahead” again in a moment."),
+        "write.authUnclear": (
+            "Your sign-in could not be checked just now — nothing has been carried out yet. Your "
+            "approval still stands: tap “Yes, go ahead” again in a moment."),
+        "write.planBusy": (
+            "WLO is busy right now — nothing more has been created yet. The plan remains; "
+            "“Continue” resumes it in a moment."),
+        "write.tooManyPlans": (
+            "Five unfinished plans are already running under your sign-in — nothing was changed. "
+            "Finish one of them first; then I will gladly show you the preview again."),
+        "write.planBlocked": (
+            "Continuing is not possible here right now — the tool is not enabled in this context. "
+            "Nothing further was changed."),
+        "action.plan.weiterKnopf": "Continue",
         "write.executeUnconfirmed": (
             "The change did not come back confirmed — from here I cannot tell "
             "whether it went through. Please check in WLO before trying again, "
@@ -748,6 +858,9 @@ BOT_TEXT: Final[Catalogue] = {
             "Note: I could not filter by {values} and searched more broadly "
             "instead."
         ),
+        "facets.unresolvedLicense": (
+            "Note: I do not know the licence {value}, so I find no materials with it."),
+        "facets.licenseSuggestion": "Did you mean {values}?",
         "qr.passQuality": "Did that help?",
         "error.safetyBlocked": (
             "I could not process this request — it breaks our safety or "

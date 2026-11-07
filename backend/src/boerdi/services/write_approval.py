@@ -79,24 +79,29 @@ from boerdi.domain.prepared_write import (
     fuer_den_verlauf,
     single_prepared_write,
 )
-from boerdi.domain.write_anzeige import VORSCHAU_KOPIE, merke_vorschau
+from boerdi.domain.write_anzeige import VORSCHAU_KOPIE, merke_vorschau, preview_for_display
 from boerdi.domain.write_confirm import (
+    CONFIRM_TOKEN_FIELD,
     TOKEN_TTL_SECONDS,
     confirmed_args,
+    extract_confirm_token,
     is_expired,
     redact_confirm_token,
+    remember_pending,
 )
 from boerdi.i18n import Locale, bot_text, resolve_locale
 from boerdi.obs.log_inhalt import inhalt, kennung
-from boerdi.services import abnahme_hinweis, zustimmung_pruefen
+from boerdi.services import abnahme_hinweis, plan_fortsetzen, zustimmung_pruefen
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.db_sessions import save_message, update_session
 from boerdi.services.fehlertext import ausgelastet_text
-from boerdi.services.mcp.auth import aufrufer_kennung
+from boerdi.services.mcp.auth import aufrufer_kennung, has_personal_auth, zug_anmeldung_unklar
 from boerdi.services.mcp.client import (
-    call_mcp_tool_status,
+    McpAntwort,
+    call_mcp_tool_antwort,
     get_prepared_writes,
     is_mcp_error,
+    nimm_bestaetigung,
 )
 from boerdi.services.schreibrecht import schreiben_erlaubt
 
@@ -115,6 +120,14 @@ def _gehoert_dem_aufrufer(pending: object) -> bool:
     verfällt, statt unter unbekannter Identität eingelöst zu werden.
     """
     return isinstance(pending, dict) and pending.get("caller") == aufrufer_kennung()
+
+
+def _anmeldung_unpruefbar(pending: object) -> bool:
+    """Plan 2026-11-07 (CB-4): der Server konnte die Anmeldung dieses Zugs nicht prüfen, und es
+    gab keine frühere Bestätigung (etwa nach einem Neustart). Dann ist „fremd“ nicht feststellbar
+    — ein Vorgang einer Person bleibt liegen, eingelöst wird er erst nach einer Prüfung."""
+    return (zug_anmeldung_unklar() and not has_personal_auth() and isinstance(pending, dict)
+            and str(pending.get("caller") or "").startswith("p:"))
 
 
 async def discard_stale_approval(
@@ -174,7 +187,7 @@ async def discard_stale_approval(
             "offener Vorgang für %s ruht — Hintergrund-Zug, nur im Speicher verworfen",
             pending.get("tool") if isinstance(pending, dict) else "?")
         return True
-    fremd = not _gehoert_dem_aufrufer(pending)
+    fremd = not _gehoert_dem_aufrufer(pending) and not _anmeldung_unpruefbar(pending)
     # Paket 10, A-6: Liste, Veto, dann das Modell — einmal je Zug; Vorlauf und
     # Werkzeug-Schleife lesen das Urteil (``zustimmung_pruefen.zugestimmt``).
     # Eine Modul-Antwort (U1-d1) zählt wie eine Direkt-Aktion als NEIN — sonst würde eine gewählte
@@ -246,6 +259,10 @@ async def redeem_write_approval(
 ) -> ChatResponse | None:
     """Die offene Abnahme einlösen — oder ``None``, wenn keine ansteht.
 
+    Paket M2 (MCP-Stand 2026-11-07): verzweigt über ``error.code``. Gilt der Schlüssel nicht
+    mehr (``confirm_*``, ``plan_*``), legt sie dieselben Angaben OHNE Schlüssel neu vor — eine
+    Vorschau, die nichts schreibt — und zeigt sie mit Bestätigungs-Chip.
+
     ``None`` ist der Normalfall und kein Fehler: die weit überwiegende Zahl der
     Züge hat keinen offenen Vorgang. Der Aufrufer (``graph/nodes/preflight``)
     lässt den Zug dann unverändert weiterlaufen.
@@ -268,12 +285,21 @@ async def redeem_write_approval(
     if not pending or not (
             unklar or zustimmung_pruefen.zugestimmt(session_state, req.message)):
         return None
+    tool = str(pending.get("tool") or "")
+    if _anmeldung_unpruefbar(pending):
+        # Plan 2026-11-07 (CB-4): ohne Prüfung kein Schreibrecht — aber auch kein Grund, die
+        # Abnahme zu verwerfen. Sie bleibt; das nächste „ja“ löst sie nach einer Prüfung ein.
+        # Auch bei unklarer Zustimmung (Review 2026-11-07, Befund 2): sonst liefe der Zug weiter,
+        # und der Fingerabdruck-Weg der Werkzeug-Schleife fände den Schlüssel ohne ein Ja.
+        lang = resolve_locale(req.environment.locale)
+        debug = DebugInfo(pattern=_PATTERN_ID, tools_called=[], entities={"tool": tool})
+        return await _liegen_lassen(session, req, session_state, pending, lang, debug,
+                                    "write.authUnclear", "anmeldung_unklar")
     if not _gehoert_dem_aufrufer(pending):
         # Im Graphen hat ``setup`` ihn schon verworfen; diese Wache gilt für
         # jeden Weg, der den Vorlauf ohne ``setup`` erreicht (Paket 4, A1).
         logger.warning("offener Vorgang eines anderen Aufrufers — nicht eingelöst")
         return None
-    tool = str(pending.get("tool") or "")
     grund = _nicht_einloesbar(tool, req)
     if grund:
         # Paket 7 (S4): etwa das Gastkonto zwischen Vorschau und „ja“ im Studio
@@ -295,10 +321,35 @@ async def redeem_write_approval(
         return await _zustimmung_unklar(session, req, session_state, tool)
 
     args = confirmed_args(pending, tool, now=time.time())
+    if args is None and plan_fortsetzen.ist_plan(tool) and not is_expired(pending, now=time.time()):
+        # Review M6 (Befund 6): ein Plan, dessen Angaben zu groß zum Merken waren. Den
+        # Fingerabdruck-Weg gibt es für Pläne nicht — jedes „ja“ ergäbe wortlos eine neue Vorschau.
+        entities.pop("_pending_write", None)
+        lang = resolve_locale(req.environment.locale)
+        debug = DebugInfo(pattern=_PATTERN_ID, tools_called=[], entities={"tool": tool,
+                                                                            "reason": "zu_gross"})
+        antwort = ChatResponse(session_id=req.session_id,
+                               content=bot_text(lang, "write.planTooLarge"), debug=debug)
+        await _persist(session, req, session_state, antwort.content, debug)
+        return antwort
     if args is None:
         # Abgelaufen oder ohne gemerkte Argumente. Beides ist kein Fehler,
         # sondern der Fall, für den der Fingerabdruck-Weg im Tool-Loop bleibt.
         return None
+    if plan_fortsetzen.ist_plan(tool) and plan_fortsetzen.anderer_plan_offen(
+            entities, tool, args, caller=aufrufer_kennung(), now=time.time()):
+        # Review 2026-11-07: es gibt einen Platz für den offenen Plan. Ein zweiter, der ebenfalls
+        # offen bliebe, nähme dem ersten Schlüssel und Knopf — auf dem Server bliebe er bis zur
+        # Frist liegen und zählte gegen die fünf Pläne je Anmeldung. Erst den ersten zu Ende führen.
+        entities.pop("_pending_write", None)
+        lang = resolve_locale(req.environment.locale)
+        debug = DebugInfo(pattern=_PATTERN_ID, tools_called=[], entities={"tool": tool,
+                                                                            "reason": "plan_offen"})
+        antwort = ChatResponse(session_id=req.session_id,
+                               content=bot_text(lang, "write.planStillOpen"),
+                               quick_replies=[plan_fortsetzen.knopf(lang)], debug=debug)
+        await _persist(session, req, session_state, antwort.content, debug)
+        return antwort
 
     # Verbraucht, BEVOR gerufen wird. Der Schlüssel gilt serverseitig genau
     # einmal; ob ein fehlgeschlagener Aufruf den Server erreicht hat, ist von
@@ -317,7 +368,31 @@ async def redeem_write_approval(
     debug = DebugInfo(pattern=_PATTERN_ID, tools_called=[tool], entities={"tool": tool})
 
     try:
-        rohtext, fehlerart = await call_mcp_tool_status(tool, args)
+        antwort_mcp = await call_mcp_tool_antwort(tool, args)
+        if antwort_mcp.art == "busy":
+            # Plan 2026-11-07 (CB-2): ausgelastet — kein Werkzeug lief, der Schlüssel ist nicht
+            # eingelöst. Die Abnahme kommt zurück; der Chip löst sie gleich noch einmal ein.
+            return await _liegen_lassen(session, req, session_state, pending, lang, debug,
+                                        "write.busy", "busy")
+        if is_mcp_error(antwort_mcp.text) and _neu_vorlegen(antwort_mcp):
+            # Paket M2: der Schlüssel galt nicht mehr (abgelaufen, schon benutzt, andere
+            # Änderung, Plan weg) — geschrieben wurde nichts. Dieselben Angaben ohne Schlüssel
+            # neu vorlegen: eine frische Vorschau statt „abgelehnt“.
+            erneut = await call_mcp_tool_antwort(
+                tool, {k: v for k, v in args.items() if k != CONFIRM_TOKEN_FIELD})
+            if not erneut.art and not is_mcp_error(erneut.text):
+                return await _neu_vorgelegt(session, req, session_state, tool, args, erneut)
+            if erneut.art not in ("tool", "auth"):
+                # Review M2, Befund 2: der Server HAT geantwortet (Schlüssel ungültig) — dass die
+                # neue Vorschau danach ausblieb, macht daraus kein „vielleicht angekommen“.
+                debug.entities["reason"] = "confirm_expired"
+                antwort = ChatResponse(session_id=req.session_id,
+                                       content=bot_text(lang, "write.confirmExpired"),
+                                       debug=debug)
+                await _persist(session, req, session_state, antwort.content, debug)
+                return antwort
+            antwort_mcp = erneut
+        rohtext, fehlerart = antwort_mcp.text, antwort_mcp.art
     except Exception as err:
         # Der SELTENE Weg. ``transport.call_tool`` fängt jede Ausnahme ab, hier
         # kommt also nur an, was daran vorbeigeht. Trotzdem eine Wache: ein Zug
@@ -331,6 +406,44 @@ async def redeem_write_approval(
             tool, kennung(req.session_id), type(err).__name__)
         return await _unbestaetigt(session, req, session_state, lang, debug)
 
+    if (is_mcp_error(rohtext) and antwort_mcp.code == "timeout"
+            and (antwort_mcp.fehler or {}).get("outcomeOpen") is False):
+        # Review 2026-11-07: der Server sagt ausdrücklich, dass nichts geschah — keine Ablehnung,
+        # an der die Person etwas ändern müsste. Die Abnahme ist verbraucht; neu bitten genügt.
+        debug.entities["reason"] = "timeout_ohne_wirkung"
+        antwort = ChatResponse(session_id=req.session_id,
+                               content=bot_text(lang, "write.timeoutNothingDone"), debug=debug)
+        await _persist(session, req, session_state, antwort.content, debug)
+        return antwort
+
+    if is_mcp_error(rohtext) and antwort_mcp.code == "too_many_plans":
+        # Paket M5: nichts geschrieben. Der Merkposten bleibt verbraucht (Review M5, Befund 2):
+        # jeder Folgezug, auch „Weiter anlegen“, verwürfe ihn ohnehin — der Text sagt deshalb, dass
+        # danach eine neue Vorschau kommt. Liegt ein eigener Plan offen, steht sein Knopf da.
+        debug.entities["reason"] = "too_many_plans"
+        antwort = ChatResponse(
+            session_id=req.session_id, content=bot_text(lang, "write.tooManyPlans"),
+            quick_replies=([plan_fortsetzen.knopf(lang)] if plan_fortsetzen.offen_fuer(
+                entities, aufrufer_kennung(), time.time()) else []),
+            debug=debug)
+        await _persist(session, req, session_state, antwort.content, debug)
+        return antwort
+
+    if (is_mcp_error(rohtext) and plan_fortsetzen.ist_plan(tool)
+            and fehlerart in ("timeout", "transport")
+            and plan_fortsetzen.merke_unklar(entities, tool, args, caller=aufrufer_kennung(),
+                                             now=time.time())):
+        # Review M5, Befund 3: der erste Abschnitt ist der längste. Ohne Antwort KANN der Plan
+        # laufen — der Bestätigungsschlüssel setzt ihn fort (oder der Server sagt ``plan_expired``).
+        logger.warning("Abnahme für Plan %s (Sitzung %s) ohne Antwort — Fortsetzen angeboten",
+                       tool, kennung(req.session_id))
+        debug.entities["reason"] = "plan_unklar"
+        antwort = ChatResponse(session_id=req.session_id,
+                               content=bot_text(lang, "write.planUnclearStart"),
+                               quick_replies=[plan_fortsetzen.knopf(lang)], debug=debug)
+        await _persist(session, req, session_state, antwort.content, debug)
+        return antwort
+
     if is_mcp_error(rohtext) and fehlerart in ("tool", "auth"):
         # Der Server hat GEANTWORTET und abgelehnt — damit steht fest, dass er
         # nichts geschrieben hat (``auth``: den Zugang schon vor dem Werkzeug).
@@ -342,7 +455,7 @@ async def redeem_write_approval(
         debug.entities["reason"] = "rejected"
         antwort = ChatResponse(
             session_id=req.session_id,
-            content=bot_text(lang, "write.executeRejected"),
+            content=_abgelehnt_text(lang, antwort_mcp),
             debug=debug,
         )
         await _persist(session, req, session_state, antwort.content, debug)
@@ -367,6 +480,14 @@ async def redeem_write_approval(
     # Tiefenstaffelung, wie auf dem Rückweg im Tool-Loop: nennt der Server in
     # seiner Erfolgsmeldung einen Schlüssel, geht er hier nicht weiter.
     text = redact_confirm_token(rohtext)
+    knoepfe: list[str] = []
+    if plan_fortsetzen.ist_plan(tool):
+        # Paket M5: ein Plan, der noch nicht fertig ist, wird gemerkt und per Knopf fortgesetzt —
+        # ohne neue Bestätigung, nur von dieser Person (``services/plan_fortsetzen``).
+        offen = plan_fortsetzen.merke(entities, tool, args, antwort_mcp,
+                                      caller=aufrufer_kennung(), now=time.time())
+        text = plan_fortsetzen.anzeige(rohtext, lang, offen=offen)
+        knoepfe = [plan_fortsetzen.knopf(lang)] if offen else []
     logger.info(
         "Abnahme für %s (Sitzung %s) eingelöst — es galten die gezeigten Argumente",
         tool, kennung(req.session_id))
@@ -389,6 +510,7 @@ async def redeem_write_approval(
     antwort = ChatResponse(
         session_id=req.session_id,
         content=text,
+        quick_replies=knoepfe,
         debug=debug,
         prepared_write=(
             PreparedWriteOut(
@@ -402,6 +524,124 @@ async def redeem_write_approval(
         ),
     )
     await _persist(session, req, session_state, text, debug, vorbereitet=prepared)
+    return antwort
+
+
+#: Paket M2: Codes, bei denen der Schlüssel nicht mehr gilt — nichts geschrieben, neu vorlegen.
+def _neu_vorlegen(antwort: McpAntwort) -> bool:
+    """Gilt der Schlüssel nicht mehr, ohne dass etwas geschrieben sein kann? Dann dieselben
+    Angaben ohne Schlüssel neu vorlegen.
+
+    ``requiresNewPreview`` allein genügt NICHT (Review 2026-11-07, Befund 1): der Server setzt es
+    an JEDEN Fehler nach der Einlösung, auch an ``not_visible``/``unverified`` („angenommen, aber
+    nicht nachweisbar“). Neu vorgelegt wird nur, wenn der Server geantwortet hat (``tool``) und
+    der Code sagt, dass der Schlüssel nicht galt — oder er ausdrücklich ``outcomeOpen: false``
+    meldet. Jede andere Ablehnung zeigt ihren Grund, ein offener Ausgang „bitte nachsehen“."""
+    if antwort.art != "tool":
+        return False
+    fehler = antwort.fehler or {}
+    # ``exists`` (Dublette) trägt nach der Einlösung ``outcomeOpen: false`` — eine neue Vorschau
+    # träfe dieselbe Dublette; die Ablehnung nennt dafür den vorhandenen Datensatz (Paket M2).
+    return antwort.code in _NEU_VORLEGEN or (
+        bool(fehler.get("requiresNewPreview")) and fehler.get("outcomeOpen") is False
+        and antwort.code != "exists")
+
+
+async def _liegen_lassen(session: AsyncSession | None, req: ChatRequest, session_state: dict,
+                         pending: dict, lang: Locale, debug: DebugInfo, schluessel: str,
+                         grund: str) -> ChatResponse:
+    """Die Abnahme wurde nicht ausgeführt und bleibt liegen (Plan 2026-11-07, CB-2/CB-4): zurück
+    in die Sitzung, ein Satz dazu und der Bestätigungs-Chip — der Folgezug löst ohne Modell ein."""
+    session_state.setdefault("entities", {})["_pending_write"] = pending
+    debug.entities["reason"] = grund
+    antwort = ChatResponse(session_id=req.session_id, content=bot_text(lang, schluessel),
+                           quick_replies=[bot_text(lang, "action.write.confirmChip")],
+                           debug=debug)
+    await _persist(session, req, session_state, antwort.content, debug)
+    logger.info("Abnahme für %s (Sitzung %s) nicht ausgeführt (%s) — sie bleibt liegen",
+                pending.get("tool"), kennung(req.session_id), grund)
+    return antwort
+
+
+_NEU_VORLEGEN = frozenset({"confirm_expired", "confirm_unknown", "confirm_mismatch",
+                           "plan_expired", "plan_mismatch"})
+_ANMELDUNG = frozenset({"login_required", "login_rejected"})
+#: Nur fachliche Gründe erreichen die Person (Review M2, Befund 1): ``upstream_error`` und
+#: ``forbidden`` tragen Text des Repositoriums — der gehört ins Protokoll.
+_GRUND_ZEIGEN = frozenset({"refused", "invalid_input", "not_found", "not_a_collection",
+                           "not_checked"})
+_GRUND_ZEICHEN = 300
+
+
+def _abgelehnt_text(lang: Locale, antwort: McpAntwort) -> str:
+    """Die Ablehnung — mit dem Grund des Servers (``error.message``), bei fehlender Anmeldung
+    der Hinweis dazu, bei einer Dublette der vorhandene Datensatz (Paket M2)."""
+    if antwort.code in _ANMELDUNG:
+        return bot_text(lang, "write.loginNeeded")
+    text = bot_text(lang, "write.executeRejected")
+    fehler = antwort.fehler or {}
+    vorhanden = fehler.get("existing") if isinstance(fehler.get("existing"), dict) else None
+    if antwort.code == "exists" and vorhanden and str(vorhanden.get("title") or "").strip():
+        # Mit Kennung (Review M2, Befund 6): die Rückfrage braucht etwas, woran sie anknüpft.
+        return f"{text}\n\n" + bot_text(lang, "write.existsHint",
+                                         titel=str(vorhanden["title"]).strip()[:200],
+                                         kennung=str(vorhanden.get("nodeId") or "")[:80])
+    if antwort.code not in _GRUND_ZEIGEN or lang != "de":
+        return text           # der Grund des Servers ist deutsch — in EN nur der Satz
+    grund = " ".join(redact_confirm_token(str(fehler.get("message") or "")).split())
+    if len(grund) > _GRUND_ZEICHEN:
+        grund = grund[:_GRUND_ZEICHEN - 1].rstrip() + "…"
+    return f"{text}\n\n" + bot_text(lang, "write.rejectedReason", grund=grund) if grund else text
+
+
+async def _neu_vorgelegt(
+    session: AsyncSession | None,
+    req: ChatRequest,
+    session_state: dict,
+    tool: str,
+    args: dict,
+    erneut: McpAntwort,
+) -> ChatResponse:
+    """Die frische Vorschau nach einem verbrauchten Schlüssel (Paket M2): merken wie im
+    Werkzeug-Zug und mit Bestätigungs-Chip zeigen. Ohne Schlüssel (``unchanged``: nichts zu
+    ändern) nur der Text des Servers."""
+    lang = resolve_locale(req.environment.locale)
+    entities = session_state.setdefault("entities", {})
+    debug = DebugInfo(pattern=_PATTERN_ID, tools_called=[tool],
+                      entities={"tool": tool, "reason": "confirm_renewed"})
+    ohne = {k: v for k, v in args.items() if k != CONFIRM_TOKEN_FIELD}
+    schluessel = nimm_bestaetigung(tool, ohne)
+    if schluessel is None:
+        schluessel = extract_confirm_token(erneut.text)
+    text = redact_confirm_token(erneut.text)
+    if not schluessel:
+        # Nichts zu ändern (``unchanged``) — ein eigener Satz statt des Servertexts (Befund 5).
+        debug.entities["reason"] = "unchanged"
+        unveraendert = bool((erneut.strukturiert or {}).get("unchanged"))
+        antwort = ChatResponse(
+            session_id=req.session_id,
+            content=bot_text(lang, "write.nothingToChange") if unveraendert else text,
+            debug=debug)
+        await _persist(session, req, session_state, antwort.content, debug)
+        return antwort
+    entities["_pending_write"] = merke_vorschau(remember_pending(
+        tool, ohne, schluessel, now=time.time(), caller=aufrufer_kennung()), text)
+    box = InlineDocument(
+        kind="schreib_vorschau",
+        title=bot_text(lang, "inline.title.writePreview"),
+        # Die ganze Vorschau wie im Werkzeug-Zug, nicht die gekürzte Kopie (Befund 3).
+        content=preview_for_display(text) + "\n\n" + bot_text(
+            lang, "inline.writePreview.frist", minuten=TOKEN_TTL_SECONDS // 60) + " "
+        + bot_text(lang, "inline.writePreview.ask"),
+    )
+    antwort = ChatResponse(
+        session_id=req.session_id,
+        content=bot_text(lang, "write.confirmRenewed"),
+        quick_replies=[bot_text(lang, "action.write.confirmChip")],
+        ui=UiInfo(ui_bloecke=[als_inhaltsrahmen(box)]),
+        debug=debug,
+    )
+    await _persist(session, req, session_state, antwort.content, debug)
     return antwort
 
 

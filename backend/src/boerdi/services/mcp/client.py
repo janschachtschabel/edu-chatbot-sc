@@ -36,16 +36,23 @@ import asyncio
 import contextvars as _ctxvars
 import json
 import logging
+import re
 import time as _time
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Final
 
 from boerdi.domain.fremdwerkzeug import ist_fremd
 from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
 from boerdi.domain.werkzeug_freigabe import uebernommen
-from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD
+from boerdi.domain.write_confirm import (
+    CONFIRM_TOKEN_FIELD,
+    SCHLUESSEL_FELDER,
+    change_fingerprint,
+    is_confirmable,
+)
 from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.log_inhalt import ereignis, filterwerte
-from boerdi.services.mcp import anmeldung, fremdwerkzeuge, transport
+from boerdi.services.mcp import anmeldung, auth, fremdwerkzeuge, transport, wiederholung
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
 from boerdi.services.mcp.listen_argumente import braucht_umformung, mit_listen
 from boerdi.services.mcp.tool_args import (
@@ -54,11 +61,11 @@ from boerdi.services.mcp.tool_args import (
 )
 from boerdi.services.mcp.tool_cache import (
     _TOOL_CACHE,
-    _TOOL_CACHE_BLOCKLIST,
     _TOOL_META_CACHE,
     _cache_get,
     _cache_key,
     _cache_set,
+    cache_gesperrt,
     darf_cachen,
 )
 from boerdi.services.zugakte import aktuelle_zugakte
@@ -86,6 +93,48 @@ _WIEDERHOLUNG_ABSTAND_S = 60.0
 _MCP_ERROR_PREFIX = "MCP error"
 
 
+@dataclass(frozen=True)
+class McpAntwort:
+    """Ein Werkzeugaufruf mit allem, was ein deterministischer Aufrufer braucht (Paket M1, Plan
+    2026-11-07): der Text wie bei :func:`call_mcp_tool`, die Art wie bei
+    :func:`call_mcp_tool_status`, dazu aus dem Antwortvertrag des Servers der Fehlercode
+    (``structuredContent.error.code``) samt Zusatzfeldern (``outcomeOpen``, ``reasons``,
+    ``existing`` …) und der strukturierte Teil eines Erfolgs. Aus dem Cache: ohne
+    strukturierten Teil (der Cache hält nur Text)."""
+
+    text: str
+    art: str = ""
+    code: str | None = None
+    fehler: dict[str, Any] | None = None
+    strukturiert: dict[str, Any] | None = None
+
+
+#: Ausgang offen: es KANN geschrieben sein (Review M1, Befund 4) — für jeden Aufrufer wie
+#: „keine Antwort“, nie wie „abgelehnt, nichts geändert“.
+_CODE_IM_TEXT: Final = re.compile(r"MCP error \[([a-z_]+)\]:")
+_AUSGANG_OFFEN: Final = frozenset({"not_visible", "unverified"})
+#: Die Arten eines Fehlers (Docstring von :func:`call_mcp_tool_antwort`).
+_ARTEN: Final = frozenset({"tool", "transport", "timeout", "auth", "busy"})
+#: Plan 2026-11-07 (CB-2/CB-3): der Text für das Modell bei „ausgelastet“ — je Grund.
+_AUSGELASTET_TEXT: Final = {
+    "breaker": "WLO ist gerade nicht erreichbar. Es wurde nichts ausgeführt. Rufe in diesem Zug "
+               "kein WLO-Werkzeug mehr auf; sag der Person, sie möge es gleich noch einmal "
+               "versuchen.",
+}
+_AUSGELASTET_STANDARD: Final = ("WLO ist gerade ausgelastet. Es wurde nichts ausgeführt. Rufe "
+                                "das Werkzeug in diesem Zug nicht noch einmal auf; sag der Person, "
+                                "sie möge es gleich noch einmal versuchen.")
+
+
+def fehlercode(text: str | None) -> str | None:
+    """Der Code einer Fehler-Antwort von :func:`call_mcp_tool` (``MCP error [code]: …``) — für
+    Aufrufer, die nur den Text haben. ``None`` ohne Code oder ohne Fehler."""
+    if not is_mcp_error(text):
+        return None
+    m = _CODE_IM_TEXT.match(str(text))
+    return m.group(1) if m else None
+
+
 def is_mcp_error(text: str | None) -> bool:
     """Ist ``text`` die Fehler-Antwort von :func:`call_mcp_tool` statt eines Ergebnisses?
 
@@ -111,7 +160,7 @@ def _args_for_log(arguments: Any) -> Any:
         return arguments
     zeile: dict[str, Any] = {}
     for key, value in arguments.items():
-        if key == CONFIRM_TOKEN_FIELD:
+        if key in SCHLUESSEL_FELDER:
             zeile[key] = "‹geschwärzt›"
         elif isinstance(value, str) and len(value) > _LOG_VALUE_MAX_CHARS:
             zeile[key] = f"‹{len(value)} Zeichen›"
@@ -154,9 +203,37 @@ _prepared_writes: _ctxvars.ContextVar[list[PreparedWrite]] = _ctxvars.ContextVar
 )
 
 
+#: Paket M2: die Schlüssel aus ``structuredContent.confirm`` dieses Zugs — (Werkzeug,
+#: Fingerabdruck der Angaben, Schlüssel). Zu Zugbeginn gebunden (:func:`reset_prepared_writes`),
+#: in place ergänzt — wie ``_query_metas``. Der Fingerabdruck bindet einen Schlüssel an SEINEN
+#: Aufruf, auch wenn einmal zwei Vorschauen desselben Werkzeugs nebeneinander laufen (Review M2,
+#: Befund 4).
+_bestaetigungen: _ctxvars.ContextVar[list[tuple[str, str, str]]] = _ctxvars.ContextVar(
+    "_bestaetigungen", default=[],  # noqa: B039 — wie ``_query_metas``: nie in place am Default
+)
+
+
 def reset_prepared_writes() -> None:
-    """Sammler der vorbereiteten Schreibzugriffe leeren (zu Zugbeginn)."""
+    """Sammler der vorbereiteten Schreibzugriffe (und der geprägten Schlüssel) leeren — zu
+    Zugbeginn."""
     _prepared_writes.set([])
+    _bestaetigungen.set([])
+
+
+def nimm_bestaetigung(tool_name: str, args: dict[str, Any]) -> str | None:
+    """Der in ``structuredContent.confirm`` geprägte Schlüssel des Aufrufs ``tool_name`` mit
+    ``args`` (wie sie hineingingen) — und weg damit (Paket M2: der strukturierte Teil ist
+    verbindlich, der Vorschautext Rückfall).
+
+    Dreiwertig (Review 2026-11-07): ``""`` heißt „der Server schickte einen strukturierten Teil
+    OHNE Schlüssel“ (etwa ``unchanged``) — dann kein Rückfall auf den Text, der fremde Titel trägt;
+    ``None`` heißt „kein strukturierter Teil“ — dann der Text."""
+    abdruck = change_fingerprint(tool_name, args)
+    liste = _bestaetigungen.get([])
+    for i in range(len(liste) - 1, -1, -1):
+        if liste[i][0] == tool_name and liste[i][1] == abdruck:
+            return liste.pop(i)[2]
+    return None
 
 
 def get_prepared_writes() -> list[PreparedWrite]:
@@ -258,9 +335,20 @@ async def call_mcp_tool(
 async def call_mcp_tool_status(
     tool_name: str, arguments: dict[str, Any], *, use_cache: bool = True,
 ) -> tuple[str, str]:
-    """Wie :func:`call_mcp_tool`, sagt aber zusätzlich die **Art** des Fehlers.
+    """``(text, art)`` — siehe :func:`call_mcp_tool_antwort`, das zusätzlich Code und
+    strukturierten Teil trägt. Seit Paket M1 heißt ``timeout`` auch „Ausgang offen“ (``timeout``
+    mit ``outcomeOpen``, ``not_visible``, ``unverified``)."""
+    antwort = await call_mcp_tool_antwort(tool_name, arguments, use_cache=use_cache)
+    return antwort.text, antwort.art
 
-    Rückgabe ``(text, art)`` mit ``art`` aus ``""`` (kein Fehler) · ``"tool"``
+
+async def call_mcp_tool_antwort(
+    tool_name: str, arguments: dict[str, Any], *, use_cache: bool = True,
+) -> McpAntwort:
+    """Wie :func:`call_mcp_tool`, sagt aber zusätzlich die **Art** des Fehlers — und als
+    :class:`McpAntwort` Code, Zusatzfelder und strukturierten Teil.
+
+    Die Art: ``text``/``art`` mit ``art`` aus ``""`` (kein Fehler) · ``"tool"``
     (der Server hat geantwortet und abgelehnt) · ``"transport"`` (es kam keine
     Antwort) · ``"timeout"`` (keine Antwort binnen ``MCP_CALL_TIMEOUT_S``; für
     die Frage „wurde geschrieben?" dasselbe wie ``transport``) · ``"auth"`` (der
@@ -296,29 +384,30 @@ async def call_mcp_tool_status(
             raise
         text = f"{_MCP_ERROR_PREFIX}: {text}" if art else text
         _in_die_akte(tool_name, arguments, arguments, text, art, aus_cache=False, t0=t0)
-        return text, art
+        return McpAntwort(text, art)
 
     # Paket 18B: ein Suchfilter als Liste („Arbeitsblatt oder interaktives Material“)
     # wird ausgepackt oder in Einzelaufrufe aufgefächert — der Server kennt je Filter
     # nur einen Wert (``listen_argumente``).
     if braucht_umformung(tool_name, arguments):
         # Jeder Teilaufruf läuft wieder hier durch und trägt sich selbst in die Zugakte ein.
-        return await mit_listen(tool_name, arguments, call_mcp_tool_status,
-                                use_cache=use_cache)
+        text, art = await mit_listen(tool_name, arguments, call_mcp_tool_status,
+                                     use_cache=use_cache)
+        return McpAntwort(text, art)
 
     t0 = _time.perf_counter()
     # Eine Liste statt eines Dicts (Review 2026-10-30): auch LEERE gesendete Argumente
     # sind eine Angabe — ``gesendet or arguments`` zeigte dann die Rohargumente.
     gesendet: list[dict[str, Any]] = []
     try:
-        text, art, aus_cache = await _einzelaufruf(
+        antwort, aus_cache = await _einzelaufruf(
             tool_name, arguments, use_cache=use_cache, gesendet=gesendet)
     except BaseException as e:
         _abbruch_in_die_akte(tool_name, arguments, gesendet[0] if gesendet else arguments, e, t0)
         raise
-    _in_die_akte(tool_name, arguments, gesendet[0] if gesendet else arguments, text, art,
-                 aus_cache=aus_cache, t0=t0)
-    return text, art
+    _in_die_akte(tool_name, arguments, gesendet[0] if gesendet else arguments, antwort.text,
+                 antwort.art, aus_cache=aus_cache, t0=t0)
+    return antwort
 
 
 def _abbruch_in_die_akte(name: str, eingang: dict[str, Any], gesendet: dict[str, Any],
@@ -354,11 +443,13 @@ def _in_die_akte(name: str, eingang: dict[str, Any], gesendet: dict[str, Any], t
 async def _einzelaufruf(
     tool_name: str, arguments: dict[str, Any], *, use_cache: bool,
     gesendet: list[dict[str, Any]],
-) -> tuple[str, str, bool]:
+) -> tuple[McpAntwort, bool]:
     """Ein Aufruf am WLO-Server: Prüfung, Auflösung, Cache, Transport, Auswertung.
 
-    Rückgabe wie :func:`call_mcp_tool_status`, dazu ``aus_cache``. In ``gesendet`` stehen danach
+    Rückgabe wie :func:`call_mcp_tool_antwort`, dazu ``aus_cache``. In ``gesendet`` stehen danach
     die Argumente, wie sie nach Prüfung und Auflösung hinausgingen (für die Zugakte)."""
+    # Die Angaben, wie sie hereinkamen — an ihnen hängt ein geprägter Schlüssel (Paket M2).
+    eingang = arguments
     # Per-Call-Server-URL: zuerst aus der Studio-Registry, sonst Default.
     target_url = _get_server_url_for_tool(tool_name)
 
@@ -410,7 +501,7 @@ async def _einzelaufruf(
     # Cache-Lookup BEVOR der Transport bemüht wird (Hits sparen den kompletten
     # SDK-Handshake+Call). Blocklist-Tools (Health-Checks) umgehen den Cache.
     cache_key = None
-    if tool_name not in _TOOL_CACHE_BLOCKLIST:
+    if not cache_gesperrt(tool_name, arguments):
         cache_key = _cache_key(tool_name, arguments, url=target_url)
         cached = _cache_get(cache_key) if use_cache else None
         if cached is not None:
@@ -428,7 +519,7 @@ async def _einzelaufruf(
                     "re-emitted %d cached queryMetas for %s",
                     len(_cached_metas), tool_name,
                 )
-            return cached, "", True
+            return McpAntwort(cached), True
 
     # SDK-Transport (5-1b): Handshake + Call + Result-Normalisierung liegen im
     # Transport, ein Call = frische Session. Result-Dict trägt die ALT-
@@ -446,53 +537,98 @@ async def _einzelaufruf(
     # Transport; eine Zeile hier wäre dieselbe noch einmal. Ohne ``kind`` wird
     # wiederholt: unbekannt zählt wie „keine Antwort" (Docstring).
     #
-    # **Ein bestätigter Schreibaufruf wird nie wiederholt** (offener Befund 1.2,
+    # **Ein bestätigter Schreibaufruf wird nicht blind wiederholt** (offener Befund 1.2,
     # 2026-09-29). „Keine Antwort" heisst nicht „nicht angekommen": der erste
-    # Aufruf kann geschrieben haben, nur die Antwort ging verloren. Die
-    # Wiederholung verbrauchte dann den schon eingelösten Schlüssel, bekam
-    # „unbekannt oder bereits benutzt" (``kind == "tool"``), und die Abnahme
-    # meldete „nichts geändert" — wer daraufhin neu anlegt, erzeugt eine
-    # Dublette. So bleibt es bei ``transport``, und ``write_approval`` bittet
-    # darum, in WLO nachzusehen.
+    # Aufruf kann geschrieben haben, nur die Antwort ging verloren. Vor S3 verbrauchte
+    # die Wiederholung den schon eingelösten Schlüssel, bekam „unbekannt“, und die
+    # Abnahme meldete „nichts geändert“ — eine Dublette drohte. Darum holt er seit S3
+    # nur die ANTWORT nach (unten); ein ``confirm_*`` dabei lässt den Ausgang offen, und
+    # ``write_approval`` bittet darum, in WLO nachzusehen.
     #
     # **Eine abgelaufene Frist wird ebenfalls nicht wiederholt** (Paket 4, B2):
     # der zweite Versuch hinge genauso lange — die doppelte Wartezeit, die das
     # externe Audit (F04) beschreibt. **Ein abgewiesener Zugang auch nicht**
     # (Paket 10, Kurzaudit A-3): derselbe Block würde wieder abgewiesen.
-    if "error" in result and result["error"].get("kind") not in ("tool", "timeout", "auth"):
+    #
+    # **Ausgelastet** (``busy``, Plan 2026-11-07) auch nicht sofort — ``wiederholung`` wartet
+    # höchstens eine kurze Wartezeit des Servers ab.
+    #
+    # **Seit S3 (MCP-Stand 2026-11-07) holt ein bestätigter Schreibaufruf ohne Antwort seine
+    # Antwort nach** (CB-6): derselbe Schlüssel bringt die erste Antwort zurück, ohne erneut zu
+    # schreiben (``wiederholung.bestaetigten_aufruf_nachholen``). Kennt der Server den Schlüssel
+    # nicht mehr, bleibt der Ausgang offen wie zuvor.
+    def rufe() -> Any:
+        return transport.call_tool(tool_name, arguments, url=target_url)
+
+    def nachholen() -> Any:
+        return transport.call_tool(tool_name, arguments, url=target_url, nachholen=True)
+
+    if "error" in result and CONFIRM_TOKEN_FIELD in arguments:
+        result = await wiederholung.bestaetigten_aufruf_nachholen(tool_name, result, nachholen)
+    elif "error" in result and result["error"].get("kind") not in (
+            "tool", "timeout", "auth", "busy"):
         # Nur Transportfehler: ``tool``-Fehler mit Serverantwort laufen nicht hier durch. Den
         # Grund hat ``transport`` eben ohne Fremdtexte gemeldet — hier nicht noch einmal roh
         # (Review 2026-10-30: der Text eines ``-32603`` stand so bis zu viermal im Log).
         # Paket 19 (N-15): DEBUG — die Zeile des Transports steht schon da.
         logger.debug("MCP tool %s error @ %s (%s)", tool_name, target_url,
                      result["error"].get("kind") or "transport")
-        if CONFIRM_TOKEN_FIELD in arguments:
-            logger.warning(
-                "MCP tool %s: bestätigter Schreibaufruf wird nicht wiederholt — ob "
-                "er den Server erreicht hat, ist offen", tool_name)
-        else:
-            logger.debug("Retrying MCP tool %s with fresh session @ %s...",
-                         tool_name, target_url)
-            result = await transport.call_tool(tool_name, arguments, url=target_url)
-            if "error" in result:
-                # Paket 19 (N-15): eine Zeile je Server und Minute, dass auch die Wiederholung
-                # scheiterte — den Grund meldet der Transport, den Alarm ``mcp_aufruf``.
-                gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:wiederholung",
-                           _WIEDERHOLUNG_ABSTAND_S, "MCP tool %s retry failed @ %s (%s)",
-                           tool_name, target_url, result["error"].get("kind") or "transport")
+        logger.debug("Retrying MCP tool %s with fresh session @ %s...",
+                     tool_name, target_url)
+        result = await transport.call_tool(tool_name, arguments, url=target_url)
+        if "error" in result:
+            # Paket 19 (N-15): eine Zeile je Server und Minute, dass auch die Wiederholung
+            # scheiterte — den Grund meldet der Transport, den Alarm ``mcp_aufruf``.
+            gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:wiederholung",
+                       _WIEDERHOLUNG_ABSTAND_S, "MCP tool %s retry failed @ %s (%s)",
+                       tool_name, target_url, result["error"].get("kind") or "transport")
+    result = await wiederholung.nach_kurzer_wartezeit(result, rufe)
 
     if "error" in result:
         # Ohne ``kind`` gilt „keine Antwort" — siehe Docstring: „abgelehnt"
         # ist die stärkere Behauptung und braucht einen Beleg.
         _art = result["error"].get("kind")
+        # Paket M1: der Antwortvertrag trägt den Code im strukturierten Teil.
+        _sc = result["error"].get("structured")
+        fehler = _sc.get("error") if isinstance(_sc, dict) else None
+        fehler = dict(fehler) if isinstance(fehler, dict) else None
+        code = str(fehler.get("code")) if fehler and fehler.get("code") else None
+        if code == "login_rejected" or (code == "login_required"
+                                        and auth.zug_block_wirkt_persoenlich()):
+            # Das Repository lehnt die Anmeldung ab — bzw. kennt den persönlichen Block nicht
+            # (für eine gültige Person sendet der Server ``login_required`` nie). Wie ein
+            # abgewiesener Zugang. Ohne persönlichen Block (anonym, Anlage) bleibt
+            # ``login_required`` eine Ablehnung: nichts wegwerfen, kein Alarm über die Anlage
+            # (Review M1, Befund 3).
+            _art = "auth"
+        elif code in _AUSGANG_OFFEN or (code == "timeout"
+                                        and fehler.get("outcomeOpen") is not False):
+            _art = "timeout"
+        elif fehler and fehler.get("outcomeOpen") is True:
+            # S3 (MCP-Stand 2026-11-07): ein Abbruch NACH der Einlösung (``upstream_error`` mit
+            # ``outcomeOpen``) — es KANN geschrieben sein. Nie wie „abgelehnt, nichts geändert“.
+            _art = "timeout"
+        elif code == "upstream_busy" and not fehler.get("requiresNewPreview"):
+            # S2: das Repository ist ausgelastet, das Werkzeug lief nicht — wie ein 429.
+            _art = "busy"
+        elif code == "upstream_busy" and fehler.get("outcomeOpen") is not False:
+            # Review 2026-11-07 (Befund 1): ausgelastet NACH der Einlösung — bei einem Vorgang aus
+            # mehreren Schritten kann ein Teil geschrieben sein. Seit der zweiten Antwort des
+            # MCP-Teams sagt ``outcomeOpen: false``, dass nichts geschrieben wurde: dann ``tool``.
+            _art = "timeout"
         if _art == "auth":
             # Der Rest des Zuges läuft ohne den Block, das Widget erfährt es.
             anmeldung.markiere_abgelehnt()
-        return (
-            f"{_MCP_ERROR_PREFIX}: {result['error'].get('message', 'Unknown error')}",
-            _art if _art in ("tool", "transport", "timeout", "auth") else "transport",
-            False,
-        )
+        # Plan M1.1: der Code steht im Text, den das Modell liest — der Präfix bleibt.
+        _vorsatz = f"{_MCP_ERROR_PREFIX} [{code}]" if code else _MCP_ERROR_PREFIX
+        _meldung = result["error"].get("message", "Unknown error")
+        if _art == "busy" and not code:
+            _meldung = _AUSGELASTET_TEXT.get(result["error"].get("grund"), _AUSGELASTET_STANDARD)
+        return McpAntwort(
+            f"{_vorsatz}: {_meldung}",
+            _art if _art in _ARTEN else "transport",
+            code, fehler,
+        ), False
 
     # Extract text content from result, separating _queryMeta blocks.
     result_data = result.get("result", {})
@@ -529,6 +665,28 @@ async def _einzelaufruf(
     # dem Modell, dass hier nichts geschrieben wurde. Unbrauchbares wird still
     # verworfen (``read_prepared_write``): abgesetzt wird das später von einem
     # Browser mit fremden Rechten, da ist nichts besser als etwas Halbes.
+    strukturiert = result_data.get("structuredContent")
+    strukturiert = strukturiert if isinstance(strukturiert, dict) else None
+    # Paket M1: ``unresolvedFilters``/``facets`` stehen seit 2026-11-07 auch im strukturierten
+    # Teil — ohne Meta-Textblock (ein Server ohne ihn) gilt der strukturierte Teil.
+    if not _extracted_metas_this_call and strukturiert and (
+            strukturiert.get("unresolvedFilters") or strukturiert.get("facets")):
+        meta = {"toolName": tool_name,
+                **{k: strukturiert[k] for k in ("unresolvedFilters", "facets")
+                   if strukturiert.get(k)}}
+        # An die gebundene Liste anhängen (wie oben): Knoten und Vorabruf laufen in kopierten
+        # Kontexten, nur so erreicht der Eintrag ``persist`` (Review M1, Befund 1).
+        metas = _query_metas.get([])
+        metas.append(meta)
+        _query_metas.set(metas)
+        _extracted_metas_this_call.append(meta)
+    bestaetigung = strukturiert.get("confirm") if strukturiert else None
+    if strukturiert is not None and is_confirmable(tool_name):
+        gepraegt = (bestaetigung["token"] if isinstance(bestaetigung, dict)
+                    and isinstance(bestaetigung.get("token"), str) else "")
+        schluessel = _bestaetigungen.get([])
+        schluessel.append((tool_name, change_fingerprint(tool_name, eingang), gepraegt))
+        _bestaetigungen.set(schluessel)
     vorbereitet = read_prepared_write(result_data.get("structuredContent"))
     if vorbereitet is not None:
         offene = _prepared_writes.get([])
@@ -565,7 +723,10 @@ async def _einzelaufruf(
 
     # Successful response into cache (only if we have a key, i.e. the tool
     # isn't in the blocklist).
-    if cache_key is not None and darf_cachen(tool_name, response):
+    # Paket M4 (Review, Befund 5): eine Teilantwort (``missing`` — Zeitüberschreitung,
+    # vorübergehender Fehler) nicht fünf Minuten lang wieder ausspielen.
+    teilantwort = bool(strukturiert and strukturiert.get("missing"))
+    if cache_key is not None and not teilantwort and darf_cachen(tool_name, response):
         _cache_set(cache_key, response)
         # Auch die extrahierten queryMetas mit-cachen, damit Cache-Hits die
         # strukturierten Filter-Daten (URI-resolved discipline /
@@ -574,4 +735,4 @@ async def _einzelaufruf(
         # (Paket 19, M-11: ein zu großer bleibt draußen — seine Metas sonst für immer).
         if _extracted_metas_this_call and cache_key in _TOOL_CACHE:
             _TOOL_META_CACHE[cache_key] = _extracted_metas_this_call
-    return response, "", False
+    return McpAntwort(response, strukturiert=strukturiert), False
