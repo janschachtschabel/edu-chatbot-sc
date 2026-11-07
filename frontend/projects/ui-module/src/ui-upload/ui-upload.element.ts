@@ -81,11 +81,25 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
   connectedCallback(): void { this.uebertragen.verbinden(); }
   disconnectedCallback(): void { this.uebertragen.trennen(); }
 
-  set daten(d: Record<string, unknown>) { this._daten = d ?? {}; this.zeichne(); }
+  // Nur bei echter Änderung neu zeichnen: der Platzhalter setzt alle drei bei jedem Zugbeginn und -ende,
+  // und `kontext` kommt dabei jedes Mal als neues Objekt (Review 2026-11-07, Befund 2).
+  set daten(d: Record<string, unknown>) {
+    if (d === this._daten) return;
+    this._daten = d ?? {};
+    this.zeichne();
+  }
   get daten(): Record<string, unknown> { return this._daten; }
-  set kontext(k: ModulKontext) { this._kontext = k; this.zeichne(); }
+  set kontext(k: ModulKontext) {
+    if (this._kontext && gleicherKontext(this._kontext, k)) return;
+    this._kontext = k;
+    this.zeichne();
+  }
   get kontext(): ModulKontext { return this._kontext as ModulKontext; }
-  set beschaeftigt(b: boolean) { this._beschaeftigt = b; this.zeichne(); }
+  set beschaeftigt(b: boolean) {
+    if (b === this._beschaeftigt) return;
+    this._beschaeftigt = b;
+    this.zeichne();
+  }
   get beschaeftigt(): boolean { return this._beschaeftigt; }
 
   private get sprache(): Sprache { return this._kontext?.sprache === 'en' ? 'en' : 'de'; }
@@ -229,8 +243,16 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
   private zeichne(): void {
     if (!this._kontext) return;
     const fokus = (this.wurzel.activeElement as HTMLElement | null)?.dataset?.['fokus'];
+    // Die Ergebnisliste rollt per Tastatur und Maus; neu gebaut stünde sie wieder oben (Review 2026-11-07).
+    const rollen = this.inhalt.querySelector<HTMLElement>('.u__ergebnis')?.scrollTop ?? 0;
     const sicht = this.sicht();
     this.inhalt.replaceChildren(...ansichtTeile(sicht));
+    this.fokusZurueck(fokus, sicht);
+    const liste = this.inhalt.querySelector<HTMLElement>('.u__ergebnis');
+    if (liste && rollen) liste.scrollTop = rollen;
+  }
+
+  private fokusZurueck(fokus: string | undefined, sicht: UploadSicht): void {
     if (!fokus) return;
     // Vergleich statt Selektor: der Schlüssel enthält Ordnernamen (beliebige Zeichen).
     const alle = [...this.inhalt.querySelectorAll<HTMLElement>('[data-fokus]')];
@@ -264,6 +286,12 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
       return input;
     });
   }
+}
+
+/** Flach verglichen: dieselben Werte heißen derselbe Kontext, auch als neues Objekt. */
+function gleicherKontext(a: ModulKontext, b: ModulKontext): boolean {
+  const ka = Object.keys(a) as (keyof ModulKontext)[];
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
 }
 
 /** Pflicht aus dem Element-Vertrag: ein zweites Laden des Bündels definiert nicht noch einmal. */

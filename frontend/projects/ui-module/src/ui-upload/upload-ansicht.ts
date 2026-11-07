@@ -159,7 +159,8 @@ function ablageTeil(s: UploadSicht, e: Erfassung<File>, nurLesen = false): HTMLE
   const teil = knoten('div', 'u__wlo');
   teil.append(...uebertragenTeile({
     t: uebertragenTexte(s.sprache), auswahl: auswahl(e, max), maxMb: Math.round(max / 1024 / 1024),
-    lauf: u.lauf, ergebnisse: u.ergebnisse, anhalten: u.anhalten, ordnerVerweigert: u.ordnerVerweigert,
+    lauf: u.lauf, ergebnisse: u.ergebnisse, letzte: u.letzte, letzteOffen: u.letzteOffen,
+    letzteUmschalten: (offen) => { u.letzteOffen = offen; }, anhalten: u.anhalten, ordnerVerweigert: u.ordnerVerweigert,
     vorgangFehlt: u.vorgang === 'fehlt', weiterLaeuft: u.weiterLaeuft, gesperrt: s.beschaeftigt || s.dokument.laeuft(),
     beschaeftigt: s.beschaeftigt, nurLesen, link: (url) => s.link(url),
     knoten: (tag, klasse, text) => knoten(tag, klasse, text),

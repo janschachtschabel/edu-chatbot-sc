@@ -14,6 +14,11 @@ und „Jetzt übertragen“ gewählt hat. Kein Zug und keine KI — das Backend 
    ihn offen; ohne Antwort wird er ``unverified`` (es KANN abgelegt sein).
 3. ``abschluss`` → ``vorgang.json`` (baut der MCP-Server) und Teil ``abgeschlossen``.
 
+Paket M6 (MCP-Stand 2026-11-07): ``vorbereiten`` bringt die eigenen letzten Ablagen mit
+(``letzte``, ``wlo_list_my_batches``) — neben der Vorschau, damit dieselbe Auswahl nicht zweimal
+landet. Parallel zur Freigabe und danach höchstens ``_LETZTE_REST_S`` länger; scheitert oder dauert
+die Liste, bleibt sie leer und hält nichts auf.
+
 Bremsen wie beim Dokument (``ui_dokumente``): Sitzung, nur mit **bestätigter Anmeldung** (403
 ``nur_angemeldet`` vor jedem MCP-Aufruf), Studio-Schalter ``ablage_in_wlo`` (403 ``aus``), Größe je
 Datei = ``max_mb`` des Studios (413, schon beim Vorbereiten). ``vorbereiten`` verlangt die **offene
@@ -27,6 +32,7 @@ Servertext; der Dateiname wird nicht geloggt.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from typing import Annotated, Any
@@ -47,7 +53,11 @@ from boerdi.services import arbeitsstand
 from boerdi.services.ablage import mcp_ablage, vorgang_teil
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.config_loader.upload import load_upload_config
-from boerdi.services.db_sessions import sitzung_entities, update_session
+from boerdi.services.db_sessions import (
+    sitzung_entities,
+    sitzung_entities_frisch,
+    update_session,
+)
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import has_personal_auth
 from boerdi.services.rate_limits import check_rate_limit
@@ -134,8 +144,11 @@ async def _verweis_zurueckschreiben(session: AsyncSession, session_id: str,
     """Nur den Verweis auf den Vorgang zurück in die Sitzung — auf einem FRISCH gelesenen Stand
     (Review, Befund 3): zwischen Lesen und Schreiben lag ein MCP-Aufruf von Sekunden, und ein Zug in
     der Zeit schrieb seine Entities sonst still zurück."""
-    frisch = await sitzung_entities(session, session_id)
-    if frisch is None or arbeitsstand.VERWEIS not in entities:
+    if arbeitsstand.VERWEIS not in entities:
+        return
+    frisch = await sitzung_entities_frisch(session, session_id)
+    if frisch is None:
+        await session.rollback()      # die Sperre nicht bis zum Ende der Anfrage halten
         return
     frisch[arbeitsstand.VERWEIS] = entities[arbeitsstand.VERWEIS]
     await update_session(session, session_id, entities=frisch)
@@ -170,30 +183,78 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
     if vorgang_teil.haelt_noch(vorher):
         raise _fehler("stapel_offen")
     await verbindung_freigeben(session)
+    # Paket M6: die Liste läuft neben der Freigabe — und hält sie nicht auf (Review M6, Befund 1):
+    # danach bekommt sie nur noch :data:`_LETZTE_REST_S`; scheitert die Freigabe, wird sie
+    # abgebrochen.
+    liste = asyncio.create_task(_letzte_oder_leer())
     try:
         plan = await mcp_ablage.vorbereiten(anfrage.ordner,
                                             [e.model_dump() for e in anfrage.eintraege])
-    except mcp_ablage.AblageFehler as f:
-        raise _fehler(f.code) from None
+    except BaseException as fehler:
+        liste.cancel()
+        if isinstance(fehler, mcp_ablage.AblageFehler):
+            raise _fehler(fehler.code) from None
+        raise
+    letzte = await _letzte_abwarten(liste)
     token = str(plan["batchToken"])
     teil = vorgang_teil.aus_plan(plan, token, anfrage.block_id, vorher)
 
+    dazwischen = False
+
     async def neu() -> dict[str, Any] | None:
+        nonlocal dazwischen
         # Review Q1, Befund 2: zwischen der Prüfung und hier lag der MCP-Aufruf — hat inzwischen ein
         # anderer Stapel abgelegt, wird er nicht überschrieben.
         frisch = await vorgang_teil.lesen(session, anfrage.session_id, entities)
         if vorgang_teil.haelt_noch(frisch):
+            dazwischen = True
             return None
         return vorgang_teil.aus_plan(plan, token, anfrage.block_id, frisch)
 
     if not await vorgang_teil.speichern(session, anfrage.session_id, entities, teil, neu=neu):
+        # Der wahre Grund statt „noch einmal versuchen“ (Review 2026-11-07, UI-Backend Befund 6).
+        if dazwischen:
+            raise _fehler("stapel_offen")
         # Ohne den Teil scheiterte jede Datei an ``fremder_stapel`` (Review, Befund 4).
         raise _fehler("nicht_gespeichert")
     await _verweis_zurueckschreiben(session, anfrage.session_id, entities)
     return {"batch_token": token, "layout": teil["layout"], "ordner": teil["ordner"],
             "gesamt": int(plan.get("totalBytes") or 0),
             "eintraege": [{k: e[k] for k in ("index", "titel", "art", "groesse", "name")}
-                          for e in teil["inhalte"]]}
+                          for e in teil["inhalte"]],
+            "letzte": letzte}
+
+
+#: Paket M6: so lange wartet ``vorbereiten`` nach der Freigabe noch auf die Liste der letzten
+#: Ablagen.
+_LETZTE_REST_S = 3.0
+_LEER: dict[str, Any] = {"ablagen": [], "gekappt": False}
+
+
+async def _letzte_abwarten(liste: asyncio.Task[dict[str, Any]]) -> dict[str, Any]:
+    try:
+        fertig, _ = await asyncio.wait({liste}, timeout=_LETZTE_REST_S)
+    finally:
+        # Auch wenn die Anfrage selbst abbricht (Client weg, Herunterfahren): kein verwaister
+        # Aufruf.
+        if not liste.done():
+            liste.cancel()
+    if not fertig:
+        logger.info("Ablage: letzte Ablagen zu langsam — ohne Liste weiter")
+        return dict(_LEER)
+    return liste.result()
+
+
+async def _letzte_oder_leer() -> dict[str, Any]:
+    """Paket M6: die letzten Ablagen — eine Orientierung, kein Teil der Freigabe. Ein Fehler (auch
+    ein Server ohne das Werkzeug) gibt eine leere Liste, nie einen Fehler der Vorbereitung."""
+    try:
+        return await mcp_ablage.letzte_ablagen()
+    except mcp_ablage.AblageFehler as f:
+        logger.info("Ablage: letzte Ablagen nicht lesbar (%s)", f.code)
+    except Exception:  # noqa: BLE001 — siehe Docstring
+        logger.warning("Ablage: letzte Ablagen nicht lesbar", exc_info=True)
+    return dict(_LEER)
 
 
 async def _stuecke(datei: UploadFile) -> AsyncIterator[bytes]:

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { erfasse, type Quelle } from './upload-erfassen';
 import {
   ansageFaellig,
-  ablageErlaubt, artVon, auswahl, codeAblage, type Ergebnis, maxBytesAblage, nochmalSenden, planAus, sha256Hex,
+  ablageErlaubt, artVon, auswahl, codeAblage, type Ergebnis, letzteAus, maxBytesAblage, nochmalSenden, planAus, sha256Hex,
   stapelEnde, standAus, titelVon, uebertragenAntwort, zaehlung,
 } from './upload-uebertragen';
 
@@ -149,5 +149,22 @@ describe('fehlerSatz (Review Q1, Befund 10)', () => {
     expect(fehlerSatz(t, 'constructor')).toBe(t.fehler.fehler);
     expect(fehlerSatz(t, '__proto__')).toBe(t.fehler.fehler);
     expect(fehlerSatz(t, 'voll')).toBe(t.fehler.voll);
+  });
+});
+
+describe('Letzte Ablagen (Paket M6)', () => {
+  it('liest die Liste aus der Antwort von vorbereiten — ohne Kennungen, unlesbarer Stand ohne Zahlen', () => {
+    const l = letzteAus({ letzte: { gekappt: true, ablagen: [
+      { titel: 'Physik 7', datum: '2026-11-06T10:15:00Z', lesbar: true, stored: 30, dropped: 1, failed: 2, open: 1, unverified: 2 },
+      { titel: 'Chemie', datum: 'x', lesbar: false },
+      { titel: '', lesbar: true },
+    ] } });
+    // Wie `zaehlung`: `dropped` ist abgelegt, „unklar“ (kann abgelegt sein) steht für sich (Review M6, Befund 2).
+    expect(l).toEqual({ gekappt: true, ablagen: [
+      { titel: 'Physik 7', datum: '2026-11-06T10:15:00Z', zahlen: { abgelegt: 31, unklar: 2, gescheitert: 2, offen: 1 } },
+      { titel: 'Chemie', datum: 'x', zahlen: null },
+    ] });
+    expect(letzteAus({})).toEqual({ ablagen: [], gekappt: false });
+    expect(letzteAus({ letzte: { ablagen: 'kaputt' } })).toEqual({ ablagen: [], gekappt: false });
   });
 });

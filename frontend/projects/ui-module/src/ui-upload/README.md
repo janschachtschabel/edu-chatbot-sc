@@ -28,7 +28,8 @@ eigenen Bündel (siehe `docs/ui-module.md` §2.5).
   es erlaubt (`schalter.ablage_in_wlo` — Studio **und** bestätigte Anmeldung). Übertragen werden nicht
   ignorierte Dateien bekannter Art bis `grenzen.max_mb_ablage`, höchstens 200 je Freigabe. Ablauf: prüfen
   (sha256 im Browser, k von n) → `host.ablegen({schritt: 'vorbereiten'})` → **Vorschau** (Ziel, Ordner oder
-  flach, Namen des Servers) mit „Jetzt übertragen“/„Abbrechen“ → je Datei **nacheinander**
+  flach, Namen des Servers; daneben eingeklappt die eigenen **letzten Ablagen**, Paket M6 — `letzte` aus
+  derselben Antwort, `letzteAus`) mit „Jetzt übertragen“/„Abbrechen“ → je Datei **nacheinander**
   (`schritt: 'datei'`, Fortschritt) → Ergebnisliste (Stand als Text und Symbol, Link je Knoten über
   `host.link`) → `vorgang.json` (`schritt: 'abschluss'`) → „Im Chat weitermachen“ (Antwort
   `aktion: "uebertragen"` mit `ablage{…}` — **nur Zahlen**, auch vorgemerkt). „Anhalten“ wirkt nach der

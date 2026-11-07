@@ -9,6 +9,8 @@ Modell dazwischen, die Person hat im Modul „Jetzt übertragen“ gewählt:
   ``application/octet-stream``), nie ganz im Speicher; Antwort ``ref`` + Prüfsumme + erkannte Art.
 - :func:`datei_ablegen` → ``wlo_store_batch_file`` (Index + ``ref``), :func:`abschliessen` →
   ``wlo_store_batch_manifest`` (``vorgang.json`` baut der Server).
+- :func:`letzte_ablagen` → ``wlo_list_my_batches`` (Paket M6, MCP-Stand 2026-11-07): die eigenen
+  letzten Ablagen, nur lesend — Titel, Datum, Zahlen; keine Kennungen.
 
 Regeln: nur mit **bestätigter Anmeldung** (``has_personal_auth``) und nur mit dem **Zugangsblock des
 Zuges** — nie dem der Anlage. Ergebnisse aus ``structuredContent`` (wie ``mcp/anmeldung``). Fehler
@@ -26,27 +28,41 @@ from urllib.parse import quote
 import httpx
 
 from boerdi.obs.trace_id import ausgehende_koepfe
-from boerdi.services.mcp import transport
+from boerdi.services.mcp import schutz, transport
 from boerdi.services.mcp.auth import _block_des_zuges as _zug_block
 from boerdi.services.mcp.auth import has_personal_auth
 
 logger = logging.getLogger(__name__)
 
 WERKZEUGE: Final = frozenset({"wlo_prepare_file_batch", "wlo_store_batch_file",
-                              "wlo_store_batch_manifest"})
+                              "wlo_store_batch_manifest", "wlo_list_my_batches"})
+#: Paket M6: so viele eigene Ablagen zeigt das Modul neben der Vorschau.
+LETZTE_ANZAHL: Final = 5
+_ZAHLEN: Final = ("stored", "dropped", "unverified", "failed", "open")
 #: Für Tests: eine ``httpx.MockTransport``.
 _transport: httpx.AsyncBaseTransport | None = None
 #: Unter der Frist des MCP-Pfads (25 s) plus Luft für die Antwort.
 _UPLOAD_FRIST: Final = httpx.Timeout(30.0, connect=5.0)
+#: 503 ``upstream_unreachable`` (MCP-Stand 2026-11-07, zweite Antwort): edu-sharing hat die
+#: Anmeldeprüfung nicht beantwortet — nichts abgelegt, gleich noch einmal; kein Urteil über die
+#: Anmeldung.
 _UPLOAD_CODES: Final = {401: "kein_recht", 403: "kein_recht", 408: "zu_langsam", 413: "zu_gross",
-                        415: "art", 429: "voll"}
+                        415: "art", 429: "voll", 503: "nicht_erreichbar"}
 #: Gründe des MCP-Stapels (``reason`` im strukturierten Teil) → Code. ``erneut``: nichts
 #: angelegt, dieselbe Datei darf noch einmal geschickt werden; ``neu_vorbereiten``: die Freigabe
 #: gilt nicht mehr.
 _GRUENDE: Final = {"slot_missing": "erneut", "folder_failed": "erneut",
                    "mismatch_bytes": "passt_nicht",
+                   "batch_unknown": "neu_vorbereiten", "batch_expired": "neu_vorbereiten",
+                   "batch_mismatch": "neu_vorbereiten", "nothing_stored": "nichts_abgelegt",
+                   # Paket M1: die Namen vor dem MCP-Stand vom 2026-11-07 (Rückfall).
                    "unknown": "neu_vorbereiten", "expired": "neu_vorbereiten",
-                   "mismatch": "neu_vorbereiten", "nothing_stored": "nichts_abgelegt"}
+                   "mismatch": "neu_vorbereiten"}
+#: Codes des Antwortvertrags ohne Stapel-Stand (Paket M1). ``timeout`` mit offenem Ausgang
+#: wird ``zu_langsam`` — die Datei KANN abgelegt sein (``api/ui_ablage``: „ohne Antwort“).
+_FEHLER_CODES: Final = {"login_rejected": "kein_recht", "login_required": "nur_angemeldet",
+                        "forbidden": "kein_recht", "timeout": "zu_langsam",
+                        "not_visible": "zu_langsam", "unverified": "zu_langsam"}
 #: ``timeout`` fängt :func:`_rufe` vorher ab (``zu_langsam``).
 _FEHLER_ARTEN: Final = {"auth": "kein_recht", "tool": "abgewiesen", "transport": "nicht_erreichbar"}
 
@@ -59,8 +75,7 @@ class AblageFehler(Exception):
 
 def _mcp_wurzel() -> str:
     # Wie die Werkzeug-Aufrufe (Review, Befund 7): eine leere Einstellung fällt auf die Vorgabe.
-    url = transport.resolve_mcp_url().rstrip("/")
-    return url[: -len("/mcp")] if url.endswith("/mcp") else url
+    return schutz.wurzel(transport.resolve_mcp_url())
 
 
 def _pruefe_person() -> str:
@@ -77,8 +92,15 @@ async def _werkzeug(name: str, args: dict[str, Any]) -> dict[str, Any]:
     _pruefe_person()
     antwort = await transport.call_tool(name, args)
     if fehler := antwort.get("error"):
-        if isinstance(fehler.get("structured"), dict):
-            return fehler["structured"]
+        strukturiert = fehler.get("structured")
+        if isinstance(strukturiert, dict) and strukturiert.get("status"):
+            return strukturiert     # eine Ablehnung des Stapels (``status``/``reason``)
+        if isinstance(strukturiert, dict) and isinstance(strukturiert.get("error"), dict):
+            # Paket M1 (MCP-Stand 2026-11-07): jeder andere Fehler trägt ``error.code``.
+            code = str(strukturiert["error"].get("code") or "")
+            if code == "timeout" and strukturiert["error"].get("outcomeOpen") is False:
+                raise AblageFehler("abgewiesen")
+            raise AblageFehler(_FEHLER_CODES.get(code, "abgewiesen"))
         if fehler.get("kind") == "timeout":
             raise AblageFehler("zu_langsam")
         raise AblageFehler(_FEHLER_ARTEN.get(str(fehler.get("kind")), "nicht_erreichbar"))
@@ -95,7 +117,15 @@ async def vorbereiten(ordner: str, eintraege: list[dict[str, Any]]) -> dict[str,
         "target": "home", "folderName": ordner,
         "entries": [{"title": e["titel"], "sha256": e["sha256"], "size": e["groesse"],
                      "ext": e["art"]} for e in eintraege]})
-    if not isinstance(daten.get("batchToken"), str) or not isinstance(daten.get("entries"), list):
+    liste = daten.get("entries")
+    # Je Eintrag ein ganzzahliger Index 0…n−1 in Reihenfolge — sonst kippte
+    # ``vorgang_teil.aus_plan`` mit einer 500, oder ein Index wäre über ``/datei`` nie einlösbar
+    # (Review 2026-11-07, Befund 4).
+    if (not isinstance(daten.get("batchToken"), str) or not isinstance(liste, list)
+            or len(liste) != len(eintraege)
+            or [e.get("index") if isinstance(e, dict) else None for e in liste]
+            != list(range(len(liste)))
+            or any(isinstance(e.get("index"), bool) for e in liste)):
         raise AblageFehler("abgewiesen")
     return daten
 
@@ -138,7 +168,10 @@ def _fehlercode(antwort: httpx.Response) -> str:
         daten = antwort.json()
     except ValueError:
         return ""
-    return str(daten.get("error") or "") if isinstance(daten, dict) else ""
+    # ``error`` trägt am Upload den Code; seit dem MCP-Stand vom 07.11. steht er auch in ``code``.
+    if not isinstance(daten, dict):
+        return ""
+    return str(daten.get("code") or daten.get("error") or "")
 
 
 def grund(ergebnis: dict[str, Any]) -> str | None:
@@ -152,6 +185,32 @@ async def datei_ablegen(batch_token: str, index: int, ref: str) -> dict[str, Any
     """Eine hochgeladene Datei als Eintrag ``index`` des freigegebenen Stapels ablegen."""
     return await _werkzeug("wlo_store_batch_file",
                            {"batchToken": batch_token, "index": index, "ref": ref})
+
+
+def _ablage(b: Any) -> dict[str, Any] | None:
+    """Eine Ablage aus ``wlo_list_my_batches`` für das Modul: Titel, Datum (ISO), Zahlen — oder
+    ``lesbar: False`` ohne Zahlen. Keine ``manifestNodeId``/``folderNodeId`` — das Modul zeigt
+    nur."""
+    if not isinstance(b, dict) or not isinstance(b.get("title"), str):
+        return None
+    zahlen = b.get("counts") if isinstance(b.get("counts"), dict) else None
+    # Ein unlesbarer Zähler macht nur DIESE Ablage unlesbar, nicht die Liste (Review 2026-11-07).
+    if zahlen is not None and not all(isinstance(zahlen.get(k, 0), int) for k in _ZAHLEN):
+        zahlen = None
+    lesbar = b.get("status") == "ok" and zahlen is not None
+    return {"titel": " ".join(b["title"].split())[:200],
+            "datum": str(b.get("createdAt") or "")[:40], "lesbar": lesbar,
+            **({k: int(zahlen.get(k) or 0) for k in _ZAHLEN} if lesbar else {})}
+
+
+async def letzte_ablagen(limit: int = LETZTE_ANZAHL) -> dict[str, Any]:
+    """Die eigenen letzten Ablagen (Paket M6, T1b) — ``{"ablagen": [...], "gekappt": bool}``. Nur
+    mit bestätigter Anmeldung (sonst ``nur_angemeldet``), nie über den Suchindex (der Server liest
+    die Knoten-Ablage des eigenen Bereichs)."""
+    daten = await _werkzeug("wlo_list_my_batches", {"limit": max(1, min(20, limit))})
+    roh = daten.get("batches") if isinstance(daten.get("batches"), list) else []
+    return {"ablagen": [a for a in map(_ablage, roh) if a is not None][:limit],
+            "gekappt": bool(daten.get("scanTruncated"))}
 
 
 async def abschliessen(batch_token: str) -> dict[str, Any]:

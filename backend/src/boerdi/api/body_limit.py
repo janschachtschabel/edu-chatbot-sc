@@ -44,6 +44,8 @@ _OEFFENTLICH_BYTES = 2 * _MIB
 #: Unterthemen im Themenbaum (U1-h): öffentlich, drei kurze Felder.
 _ZWEIG = "/api/ui/themenbaum/zweig"
 _ZWEIG_BYTES = 16 * 1024
+#: Der Stand eines Ablauf-Auftrags (K1b): öffentlich, drei kurze Felder (Review 2026-11-07).
+_AUFTRAG_STAND = "/api/ui/auftrag/stand"
 #: Ein Dokument aus dem Auswahlfeld (U3-2a): die harte Obergrenze des Studio-Felds ``max_mb``
 #: plus Platz für die Formularteile; die eingestellte Grenze prüft der Endpunkt (413 ``zu_gross``).
 _DOKUMENT = "/api/ui/dokumente"
@@ -72,7 +74,7 @@ def body_limit_for(path: str) -> int | None:
     if path == "/api/rag/ingest/file":
         max_mb = get_settings().max_ingest_mb
         return (max_mb + 1) * _MIB if max_mb > 0 else None
-    if path in (_ZWEIG, _DOKUMENT_LOESCHEN):
+    if path in (_ZWEIG, _DOKUMENT_LOESCHEN, _AUFTRAG_STAND):
         return _ZWEIG_BYTES
     if path == _DOKUMENT:
         return _DOKUMENT_BYTES

@@ -63,6 +63,45 @@ export interface Ergebnis {
   readonly link?: string | null;
 }
 
+/** Paket M6: eine eigene frühere Ablage (`wlo_list_my_batches`) — nur zur Orientierung neben der
+ *  Vorschau. `zahlen` fehlt, wenn WLO den Stand nicht lesen konnte. */
+export interface LetzteAblage {
+  readonly titel: string;
+  readonly datum: string;
+  /** Wie `zaehlung`: `dropped` zählt als abgelegt, „unklar“ (kann abgelegt sein) steht für sich. */
+  readonly zahlen: {
+    readonly abgelegt: number; readonly unklar: number; readonly gescheitert: number; readonly offen: number;
+  } | null;
+}
+
+export interface LetzteAblagen {
+  readonly ablagen: readonly LetzteAblage[];
+  /** Der eigene Bereich war größer als gelesen — ältere (oder neueste) Ablagen können fehlen. */
+  readonly gekappt: boolean;
+}
+
+/** Die letzten Ablagen aus der Antwort von `vorbereiten` (`letzte`); Unbrauchbares fällt weg. */
+export function letzteAus(roh: Readonly<Record<string, unknown>>): LetzteAblagen {
+  const letzte = (roh['letzte'] ?? {}) as Record<string, unknown>;
+  const liste = letzte['ablagen'];
+  const gekappt = letzte['gekappt'] === true;
+  if (!Array.isArray(liste)) return { ablagen: [], gekappt };
+  const zahl = (x: unknown) => (typeof x === 'number' && x >= 0 ? x : 0);
+  const ablagen = liste.slice(0, 5).flatMap((x) => {
+    const a = (x ?? {}) as Record<string, unknown>;
+    const titel = einZeiler(String(a['titel'] ?? ''));
+    if (!titel) return [];
+    return [{
+      titel, datum: String(a['datum'] ?? ''),
+      zahlen: a['lesbar'] === true
+        ? { abgelegt: zahl(a['stored']) + zahl(a['dropped']), unklar: zahl(a['unverified']),
+          gescheitert: zahl(a['failed']), offen: zahl(a['open']) }
+        : null,
+    }];
+  });
+  return { ablagen, gekappt };
+}
+
 export function artVon(name: string): string | null {
   const punkt = name.lastIndexOf('.');
   if (punkt <= 0) return null;

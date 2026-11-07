@@ -16,7 +16,7 @@ import type { Erfassung } from './upload-erfassen';
 import { fehlerSatz, type UebertragenTexte } from './upload-uebertragen-texte';
 import {
   ansageFaellig,
-  ablageErlaubt, auswahl, codeAblage, type Ergebnis, MAX_STAPEL, maxBytesAblage, nochmalSenden, type Plan, planAus, sha256Hex,
+  ablageErlaubt, auswahl, codeAblage, type Ergebnis, type LetzteAblagen, letzteAus, MAX_STAPEL, maxBytesAblage, nochmalSenden, type Plan, planAus, sha256Hex,
   stapelEnde, standAus, uebertragenAntwort, zaehlung,
 } from './upload-uebertragen';
 
@@ -51,6 +51,11 @@ export interface UebertragenUmgebung {
 export class UebertragenAblauf {
   lauf: UebertragenLauf | null = null;
   ergebnisse: Ergebnis[] = [];
+  /** Paket M6: die eigenen letzten Ablagen, die `vorbereiten` mitbringt. */
+  letzte: LetzteAblagen = { ablagen: [], gekappt: false };
+  /** Aufgeklappt? Das Element zeichnet alles neu — ohne diesen Merker klappte die Liste jedes Mal zu
+   *  (Review M6, Befund 4). */
+  letzteOffen = false;
   ordnerVerweigert = false;
   vorgang: 'offen' | 'abgelegt' | 'fehlt' = 'offen';
   anhalten = false;
@@ -78,6 +83,8 @@ export class UebertragenAblauf {
     this.nummer++;
     this.lauf = null;
     this.ergebnisse = [];
+    this.letzte = { ablagen: [], gekappt: false };
+    this.letzteOffen = false;
     this.dateien = [];
     this.ordnerVerweigert = false;
     this.vorgang = 'offen';
@@ -130,6 +137,7 @@ export class UebertragenAblauf {
       if (!plan) throw Object.assign(new Error('Plan unbrauchbar'), { code: 'fehler' });
       this.dateien = kandidaten.map((k) => k.handle);
       this.ergebnisse = plan.eintraege.map(() => ({ stand: 'wartet' }));
+      this.letzte = letzteAus(roh);
       this.lauf = { phase: 'vorschau', plan };
       this.u.ansagen(plan.layout === 'ordner' ? t.zielOrdner(plan.ordner) : t.zielFlach);
     } catch (fehler) {

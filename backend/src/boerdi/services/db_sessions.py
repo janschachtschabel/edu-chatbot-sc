@@ -115,6 +115,18 @@ async def sitzung_entities(session: AsyncSession, session_id: str) -> dict[str, 
     return obj.entities if isinstance(obj.entities, dict) else {}
 
 
+async def sitzung_entities_frisch(session: AsyncSession,
+                                  session_id: str) -> dict[str, Any] | None:
+    """Wie :func:`sitzung_entities`, aber **aus der Datenbank** (``populate_existing``) und bis zum
+    nächsten Commit gesperrt (``FOR UPDATE``) — für Lesen-Ändern-Schreiben neben einem Zug, der
+    dieselben ``entities`` schreiben kann. Ohne beides lieferte eine noch gehaltene Instanz der
+    Identity-Map den alten Stand (Review 2026-11-07, UI-Backend Befund 1)."""
+    obj = await session.get(ChatSession, session_id, populate_existing=True, with_for_update=True)
+    if obj is None:
+        return None
+    return dict(obj.entities) if isinstance(obj.entities, dict) else {}
+
+
 async def update_session(session: AsyncSession, session_id: str, **kwargs: Any) -> None:
     """Patch the given session columns and bump ``updated_at`` to now. A failure is
     rolled back before it is re-raised (:func:`_zurueckrollen`)."""

@@ -437,4 +437,60 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
     expect(r.wurzel.textContent).toContain('neuer Ordner „Physik“');
   });
+
+  it('zeigt neben der Vorschau die eigenen letzten Ablagen (Paket M6)', async () => {
+    const h = host();
+    h.ablegen.mockImplementation(async (s: { schritt: string }) => s.schritt === 'vorbereiten'
+      ? { ...PLAN, letzte: { ablagen: [{ titel: 'Physik', datum: 'kein Datum', lesbar: true, stored: 2, failed: 0, open: 0 }] } }
+      : { stand: 'stored' });
+    const r = await erzeugt(h);
+    knopf(r.wurzel, 'Übertragen vorbereiten …')!.click();
+    for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
+    const kasten = r.wurzel.querySelector('details.u__letzte');
+    expect(kasten?.querySelector('summary')?.textContent).toBe('Deine letzte Ablage in WLO (1)');
+    expect(kasten?.textContent).toContain('Physik (kein Datum) – 2 abgelegt');
+    expect(kasten?.textContent).not.toContain('gescheitert');            // Nullwerte fallen weg
+    expect(schritte(h).map((x) => x.schritt)).toEqual(['vorbereiten']);   // kein zusätzlicher Aufruf
+  });
+
+  it('die aufgeklappte Liste bleibt beim Neuzeichnen offen (Review M6, Befund 4)', async () => {
+    const h = host();
+    h.ablegen.mockImplementation(async (s: { schritt: string }) => s.schritt === 'vorbereiten'
+      ? { ...PLAN, letzte: { gekappt: true, ablagen: [{ titel: 'Physik', datum: 'x', lesbar: false }] } }
+      : { stand: 'stored' });
+    const r = await erzeugt(h);
+    knopf(r.wurzel, 'Übertragen vorbereiten …')!.click();
+    for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
+    const kasten = r.wurzel.querySelector('details.u__letzte') as HTMLDetailsElement;
+    expect(kasten.textContent).toContain('es können weitere fehlen');
+    kasten.open = true;
+    kasten.dispatchEvent(new Event('toggle'));
+    r.el.beschaeftigt = true;                        // ein Neuzeichnen (Zug beginnt)
+    await warte();
+    expect((r.wurzel.querySelector('details.u__letzte') as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it('der Fokus bleibt in der Ergebnisliste, während Dateien fertig werden (Review 2026-11-07)', async () => {
+    const h = host();
+    let erste: (v: unknown) => void = () => undefined;
+    const { el, wurzel } = await bisVorschau(h);
+    h.ablegen.mockImplementationOnce(() => new Promise((r) => { erste = r; }));
+    knopf(wurzel, 'Jetzt übertragen')!.click();
+    await warte();
+    (wurzel.querySelector('.u__ergebnis') as HTMLElement).focus();
+    erste({ index: 0, stand: 'stored', link: null });
+    for (let i = 0; i < 10 && !knopf(wurzel, 'Im Chat weitermachen'); i++) await warte();
+    expect((wurzel.activeElement as HTMLElement | null)?.classList.contains('u__ergebnis')).toBe(true);
+    expect(el.shadowRoot?.activeElement).not.toBeNull();
+  });
+
+  it('dieselben Werte zeichnen nicht neu (Review 2026-11-07)', async () => {
+    const { el, wurzel } = await erzeugt(host());
+    const vorher = wurzel.querySelector('button');
+    expect(vorher).not.toBeNull();
+    el.beschaeftigt = false;
+    el.kontext = { ...el.kontext };
+    expect(wurzel.querySelector('button')).toBe(vorher);
+  });
 });
+
