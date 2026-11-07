@@ -51,3 +51,16 @@ def test_root_redirects_to_the_studio():
     r = client.get("/", follow_redirects=False)
     assert r.status_code == 307
     assert r.headers["location"] == "/studio/"
+
+
+def test_api_health_nennt_die_einbettenden_seiten(monkeypatch):
+    """Plan 2026-11-07 (R4): die Liste zum Abgleich mit ``TICKET_ALLOWED_ORIGINS`` am MCP-Server —
+    auch die gepflegte, wenn ``CORS_ALLOW_ALL`` sie übersteuert."""
+    monkeypatch.setenv("CORS_ALLOW_ALL", "false")
+    monkeypatch.setenv("CORS_ORIGINS", "https://wirlernenonline.de, https://redaktion.example")
+    get_settings.cache_clear()
+    body = TestClient(create_app()).get("/api/health").json()
+    assert body["einbettung"]["offen"] is False
+    assert body["einbettung"]["herkuenfte"] == ["https://wirlernenonline.de",
+                                                "https://redaktion.example"]
+    assert "muster" in body["einbettung"]

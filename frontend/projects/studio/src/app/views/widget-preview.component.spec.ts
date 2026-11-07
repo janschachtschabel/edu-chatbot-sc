@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WidgetElementLoader } from '../core/widget-element-loader';
+import { OverviewApi } from '../core/overview-api.service';
 import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { WidgetPreviewComponent } from './widget-preview.component';
 
@@ -27,6 +28,8 @@ async function mount(load: () => Promise<void>): Promise<Harness> {
     providers: [
       provideZonelessChangeDetection(),
       { provide: WidgetElementLoader, useValue: { load: spy } },
+      // Plan 2026-11-07 (R4): der Abschnitt „Einbettende Seiten“ liest `/api/health`.
+      { provide: OverviewApi, useValue: { health: async () => ({}) } },
     ],
   });
   const fixture = TestBed.createComponent(WidgetPreviewComponent);
