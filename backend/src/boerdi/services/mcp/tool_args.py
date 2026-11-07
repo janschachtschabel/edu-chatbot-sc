@@ -20,10 +20,13 @@ from pydantic import ValidationError
 from boerdi.api.schemas import (
     AuthStatusArgs,
     CollectionContentsArgs,
+    CollectionOverviewArgs,
     CollectionStatsArgs,
     CollectionTreeArgs,
     CompendiumTextArgs,
+    ContentCountArgs,
     ContentSearchArgs,
+    FindByUrlArgs,
     HealthCheckArgs,
     LookupVocabularyArgs,
     NodeBreadcrumbArgs,
@@ -63,6 +66,10 @@ _TOOL_ARG_MODELS: dict[str, type] = {
     "browse_collection_tree": CollectionTreeArgs,
     "wlo_health_check":       HealthCheckArgs,
     "get_nodes_details":      NodesDetailsArgs,
+    # Paket M3 (MCP-Stand 2026-11-07).
+    "find_content_by_url":    FindByUrlArgs,
+    "get_collection_overview": CollectionOverviewArgs,
+    "count_wlo_content_matches": ContentCountArgs,
     # W9a (2026-08-01), Server-Schemata per ``tools/list`` geholt.
     "get_collection_stats":   CollectionStatsArgs,
     "get_node_breadcrumb":    NodeBreadcrumbArgs,

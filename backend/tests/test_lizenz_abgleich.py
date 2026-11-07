@@ -62,12 +62,14 @@ def test_mehrdeutiges_findet_keinen_schluessel():
 
 
 def test_sammelwerte_bleiben_auch_wenn_das_vokabular_sie_kennte():
-    """Review #5: „OER“ hängt sonst nur daran, dass das Vokabular keinen Alias „oer“ führt."""
+    """Review #5: „OER“ hängt sonst nur daran, dass das Vokabular keinen Alias „oer“ führt.
+    Seit Paket M1 geht jeder Sammelwert als „OER“ hinaus — der Server kennt nur seine eigenen
+    Schreibweisen exakt (Review M1, Befund 6)."""
     from boerdi.services.mcp.lizenz_abgleich import lizenz_filter
 
     mit_oer = {**_LIZENZEN, "oer": "CC_BY"}
     for wert in ("OER", "freie Lizenzen", "offene Lizenz", "OER-Lizenz"):
-        assert lizenz_filter(mit_oer, wert) == wert
+        assert lizenz_filter(mit_oer, wert) == "OER"
 
 
 def test_lizenz_filter_laesst_unbekanntes_weg():
@@ -99,13 +101,14 @@ def test_suche_bekommt_den_lizenzschluessel(monkeypatch):
     assert out["license"] == "CC_BY_NC"
 
 
-def test_oer_bleibt_unbekanntes_faellt_weg_und_kein_llm(monkeypatch):
-    """Review #2: ein unbekannter Wert ging roh an den Server und filterte dort über Teilwörter
-    falsch; weggelassen gilt, was die Werkzeugbeschreibung sagt: er filtert nicht."""
+def test_oer_bleibt_unbekanntes_geht_an_den_server_und_kein_llm(monkeypatch):
+    """Paket M1 (MCP-Stand 2026-11-07): der Server löst Lizenzen nur noch exakt auf und antwortet
+    auf eine unbekannte mit keinen Materialien und Vorschlägen. Weggelassen (Review #2) lieferte
+    die Suche ungefiltert, auch NC-/ND-Material."""
     gefragt: list[str] = []
     _vokabular(monkeypatch, gefragt)
     assert asyncio.run(ar._resolve_filter_uris({"license": "OER"}))["license"] == "OER"
-    assert "license" not in asyncio.run(ar._resolve_filter_uris({"license": "frei", "q": 1}))
+    assert asyncio.run(ar._resolve_filter_uris({"license": "frei", "q": 1}))["license"] == "frei"
     assert gefragt == []
 
 
