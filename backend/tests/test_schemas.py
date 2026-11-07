@@ -79,7 +79,8 @@ def test_chat_response_field_parity_spec_5_1() -> None:
     #
     # ``auth_invalid`` (Paket 10, Kurzaudit A-3): der MCP-Server hat den
     # Zugangsblock des Zuges abgewiesen; das Widget räumt ihn und bietet die
-    # Anmeldung neu an. Vorgabe ``False``.
+    # Anmeldung neu an. Vorgabe ``False``. ``auth_expires_at`` (Plan 2026-11-07, R1): die Frist
+    # des Blocks, Vorgabe ``None``.
     #
     # ``ui`` (Paket 18C/D, Phase 3): der öffentliche Teil des Debug-Blocks
     # (``api/schemas_ui``), zusätzlich — ab Phase 4 liest das Widget nur noch dort.
@@ -88,6 +89,7 @@ def test_chat_response_field_parity_spec_5_1() -> None:
         "page_action", "pagination", "query_metas", "web_links",
         "inline_documents", "topic_page", "display_rules", "tour",
         "prepared_write", "result", "result_stop_reason", "auth_invalid", "ui",
+        "auth_expires_at",
     }
 
 

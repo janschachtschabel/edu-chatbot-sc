@@ -62,6 +62,10 @@ class _ZugStand:
     """
 
     abgewiesen: bool = False
+    #: Plan 2026-11-07 (CB-4): der Server konnte die Anmeldung gerade nicht prüfen.
+    unklar: bool = False
+    #: R1: bis wann der Server den Block annimmt (``expiresAt`` von ``/auth/status``, ISO).
+    ablauf: str | None = None
 
 
 _zug_stand: _ctxvars.ContextVar[_ZugStand | None] = _ctxvars.ContextVar(
@@ -153,6 +157,35 @@ def verwirf_zug_block() -> None:
         _zug_stand.set(stand)
     stand.abgewiesen = True
     _bestaetigung.set(None)
+
+
+def _stand() -> _ZugStand:
+    stand = _zug_stand.get()
+    if stand is None:
+        stand = _ZugStand()
+        _zug_stand.set(stand)
+    return stand
+
+
+def merke_anmeldung_unklar() -> None:
+    """Die Prüfung blieb ohne Ergebnis (Frist, Netz, Auslastung) — für ``write_approval``, das
+    eine Abnahme dann liegen lässt statt sie zu verwerfen."""
+    _stand().unklar = True
+
+
+def zug_anmeldung_unklar() -> bool:
+    stand = _zug_stand.get()
+    return stand is not None and stand.unklar
+
+
+def merke_ablauf(ablauf: str | None) -> None:
+    """``expiresAt`` des Blocks dieses Zuges (R1) — für das Widget."""
+    _stand().ablauf = ablauf
+
+
+def zug_ablauf() -> str | None:
+    stand = _zug_stand.get()
+    return stand.ablauf if stand is not None and not stand.abgewiesen else None
 
 
 def zug_block_abgewiesen() -> bool:

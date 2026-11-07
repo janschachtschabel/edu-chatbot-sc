@@ -48,6 +48,7 @@ from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
 from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.anmeldung import abgelehnt_in_diesem_zug
+from boerdi.services.mcp.auth import zug_ablauf
 from boerdi.services.sitzungssperre import SitzungBeschaeftigt
 from boerdi.services.token_stream import TokenStrom
 from boerdi.services.usage_store import record_turn_usage
@@ -157,6 +158,9 @@ def _anmeldestand(resp: ChatResponse | None) -> ChatResponse | None:
     Knoten (``services/mcp/auth._ZugStand``)."""
     if resp is not None and abgelehnt_in_diesem_zug():
         resp.auth_invalid = True
+    elif resp is not None:
+        # R1 (Plan 2026-11-07): die Frist des Blocks, damit das Widget rechtzeitig neu anmeldet.
+        resp.auth_expires_at = zug_ablauf()
     return resp
 
 
