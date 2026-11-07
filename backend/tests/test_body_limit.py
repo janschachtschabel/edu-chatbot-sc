@@ -28,6 +28,8 @@ def test_oeffentliche_zuege_haben_die_engste_grenze():
 def test_der_zweig_des_themenbaums_braucht_kaum_einen_rumpf():
     # U1-h: öffentlich, drei kurze Felder — die allgemeine Grenze (16 MiB) wäre hier nur Fläche.
     assert body_limit_for("/api/ui/themenbaum/zweig") == 16 * 1024
+    # Review 2026-11-07: auch der Stand eines Auftrags (drei kurze Felder).
+    assert body_limit_for("/api/ui/auftrag/stand") == 16 * 1024
 
 
 def test_uploads_folgen_ihren_fachlichen_deckeln(monkeypatch):

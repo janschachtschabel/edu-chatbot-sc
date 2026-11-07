@@ -1,6 +1,24 @@
 {
   "components": {
     "schemas": {
+      "Abgemeldet": {
+        "properties": {
+          "erreicht": {
+            "title": "Erreicht",
+            "type": "boolean"
+          },
+          "widerrufen": {
+            "title": "Widerrufen",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "widerrufen",
+          "erreicht"
+        ],
+        "title": "Abgemeldet",
+        "type": "object"
+      },
       "Abschluss": {
         "properties": {
           "batch_token": {
@@ -494,6 +512,17 @@
       },
       "ChatResponse": {
         "properties": {
+          "auth_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Expires At"
+          },
           "auth_invalid": {
             "default": false,
             "title": "Auth Invalid",
@@ -3246,6 +3275,27 @@
         "summary": "Agent Stream",
         "tags": [
           "agent"
+        ]
+      }
+    },
+    "/api/auth/abmelden": {
+      "post": {
+        "operationId": "abmelden_api_auth_abmelden_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Abgemeldet"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Abmelden",
+        "tags": [
+          "auth"
         ]
       }
     },

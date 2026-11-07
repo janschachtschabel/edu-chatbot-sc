@@ -114,4 +114,10 @@
     border-inline-start-color: var(--st-danger-dot);
     color: var(--st-danger-text);
   }
+
+  // Ein Hinweis, kein Fehler (Plan 2026-11-07: offene Einbettung) — Farbe nur am Rand, der Text
+  // sagt es selbst (WCAG 1.4.1).
+  &--warn {
+    border-inline-start-color: var(--st-warn-dot);
+  }
 }

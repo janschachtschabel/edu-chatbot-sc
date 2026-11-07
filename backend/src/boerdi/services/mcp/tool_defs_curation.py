@@ -33,6 +33,8 @@ from boerdi.api.schemas import (
     CollectionCreateArgs,
     CollectionMembershipArgs,
     CollectionRenameArgs,
+    CollectionsAddArgs,
+    CollectionTreeCreateArgs,
     CompendiumUpdateArgs,
     ContentCreateArgs,
     ContentSubmitArgs,
@@ -64,6 +66,27 @@ _ZWEISTUFIG = (
     "dann ergaenzt. Erfinde keinen confirmToken und behaupte nie, etwas sei "
     "schon geaendert."
 )
+
+#: Paket M5 (Review 2026-11-07): Pläne löst nur der Chat ein — der Satz „rufe … erneut auf“ aus
+#: :data:`_ZWEISTUFIG` stimmt für sie nicht (ein erneuter Aufruf ergibt nur eine neue Vorschau).
+_ZWEISTUFIG_PLAN = (
+    " ZWEISTUFIG: Dein Aufruf loest NUR eine Vorschau aus — es wird nichts "
+    "geschrieben. Den Vorschautext legt der Chat dem Nutzer selbst vor, "
+    "woertlich und mit Rueckfrage; erzaehle ihn NICHT nach, sondern ordne ihn "
+    "in EINEM Satz ein. Das Ja des Nutzers loest der Chat SELBST ein — rufe das "
+    "Werkzeug danach NICHT erneut auf (das ergaebe nur eine neue Vorschau). "
+    "Behaupte nie, etwas sei schon geaendert."
+)
+
+def _baumknoten(tiefe: int) -> dict:
+    """Ein Knoten von ``wlo_create_collection_tree`` bis ``tiefe`` Ebenen — der Server prüft jede
+    Ebene streng (``.strict()``); ein fremdes Feld tiefer unten kippte den ganzen Baum."""
+    felder: dict = {"title": {"type": "string"}, "description": {"type": "string"}}
+    if tiefe > 1:
+        felder["children"] = {"type": "array", "items": _baumknoten(tiefe - 1)}
+    return {"type": "object", "additionalProperties": False, "properties": felder,
+            "required": ["title"]}
+
 
 _TEXTFELDER = {
     "title": {"type": "string", "description": "Titel des Materials."},
@@ -111,9 +134,20 @@ CURATION_TOOL_DEFINITIONS = [
         "wlo_create_content",
         "Legt ein NEUES Material im WLO-Repositorium an. Nutze das erst, wenn "
         "die Suche belegt hat, dass es das Material noch nicht gibt — WLO ist "
-        "ein kuratierter Bestand, kein Ablageort fuer Duplikate."
+        "ein kuratierter Bestand, kein Ablageort fuer Duplikate. Zu einer Adresse "
+        "zuerst find_content_by_url fragen. Soll das Material in eine Sammlung, "
+        "addToCollectionId mitgeben — dann genuegt EINE Bestaetigung fuer Anlegen "
+        "und Einsortieren (kein wlo_add_to_collection hinterher)."
         + _ZWEISTUFIG,
-        _TEXTFELDER,
+        {
+            **_TEXTFELDER,
+            "addToCollectionId": {
+                "type": "string",
+                "description": "Optional: nodeId der Sammlung, in die das neue Material mit "
+                               "derselben Bestaetigung aufgenommen wird. Gibt es zur url schon "
+                               "einen Datensatz, bietet die Vorschau an, diesen aufzunehmen.",
+            },
+        },
         ["title"],
     ),
     _fn(
@@ -202,6 +236,45 @@ CURATION_TOOL_DEFINITIONS = [
             "nodeId": {"type": "string", "description": "nodeId des Materials."},
         },
         ["collectionId", "nodeId"],
+    ),
+    _fn(
+        "wlo_create_collection_tree",
+        "Legt einen ganzen Baum von Untersammlungen unter einer Sammlung an — mit EINER "
+        "Bestaetigung fuer das Ganze (statt je Sammlung). Gleichnamige vorhandene Untersammlungen "
+        "werden uebernommen (onExisting=merge). Grosse Baeume arbeitet der Server in Abschnitten "
+        "ab; ist danach noch etwas offen, setzt die Person den Plan ueber den Knopf 'Weiter "
+        "anlegen' fort, ohne neue Bestaetigung — du setzt nicht selbst fort."
+        + _ZWEISTUFIG_PLAN,
+        {
+            "parentCollectionId": {"type": "string", "description": "nodeId der Eltern-Sammlung."},
+            "tree": {
+                "type": "array",
+                "items": _baumknoten(4),
+                "description": "Knoten {title, description?, children?} — hoechstens 250, Tiefe 4, "
+                               "15 Kinder je Knoten.",
+            },
+            "onExisting": {
+                "type": "string", "enum": ["merge", "fail"],
+                "description": "merge (Vorgabe) uebernimmt gleichnamige Untersammlungen."},
+        },
+        ["parentCollectionId", "tree"],
+    ),
+    _fn(
+        "wlo_add_to_collections",
+        "Nimmt bis zu 200 Materialien in Sammlungen auf — mit EINER Bestaetigung fuer alle Paare. "
+        "Ein schon vorhandenes Paar zaehlt als erledigt, ein gescheitertes haelt die anderen nicht "
+        "auf. Fortsetzen wie bei wlo_create_collection_tree (Knopf 'Weiter anlegen')."
+        + _ZWEISTUFIG_PLAN,
+        {
+            "pairs": {
+                "type": "array",
+                "items": {"type": "object", "properties": {
+                    "nodeId": {"type": "string"}, "collectionId": {"type": "string"}},
+                    "required": ["nodeId", "collectionId"]},
+                "description": "Paare {nodeId des Materials, collectionId der Sammlung}, max. 200.",
+            },
+        },
+        ["pairs"],
     ),
     _fn(
         "wlo_remove_from_collection",
@@ -328,6 +401,8 @@ CURATION_ARG_MODELS: dict[str, type] = {
     "wlo_rename_collection":      CollectionRenameArgs,
     "wlo_delete_collection":      NodeOnlyArgs,
     "wlo_add_to_collection":      CollectionMembershipArgs,
+    "wlo_create_collection_tree": CollectionTreeCreateArgs,
+    "wlo_add_to_collections":     CollectionsAddArgs,
     "wlo_remove_from_collection": CollectionMembershipArgs,
     "wlo_update_compendium":      CompendiumUpdateArgs,
     "wlo_set_topic_page":         TopicPageSetArgs,

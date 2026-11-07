@@ -58,7 +58,7 @@ from boerdi.graph.nodes import preflight_ablauf
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.quality_events import log_safety_event
-from boerdi.services import abnahme_hinweis, arbeitsstand, vorgang_aktion
+from boerdi.services import abnahme_hinweis, arbeitsstand, plan_fortsetzen, vorgang_aktion
 from boerdi.services.ablauf import auftrag_zug
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.content_text_action import _handle_show_content_text
@@ -99,6 +99,8 @@ _DIRECT_ACTIONS = {
     # Querschnitts-Review 2026-11-06 (M6, Datenschutz): neues Vorhaben, Arbeitsstand löschen.
     vorgang_aktion.AKTION_NEU,
     vorgang_aktion.AKTION_LOESCHEN,
+    # Paket M5: einen bestätigten Plan (Sammlungsbaum, Massen-Aufnahme) fortsetzen.
+    plan_fortsetzen.AKTION,
 }
 
 

@@ -122,6 +122,20 @@ def _kein_master_skill_takt(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _mcp_schutz_frisch(monkeypatch):
+    """Ausfall-Schalter und Budget-Wächter (Plan 2026-11-07, CB-3/CB-5) leben je Prozess. Ohne
+    Rücksetzen öffneten drei Tests mit Transportfehler den Schalter für den vierten, und eine
+    Suite mit mehr als 300 Aufrufen je Minute wartete am Budget. Der Wächter ist hier aus —
+    ``test_mcp_schutz.py`` schaltet ihn ausdrücklich ein."""
+    from boerdi.services.mcp import schutz
+
+    monkeypatch.setenv("MCP_BUDGET_RPM", "0")
+    schutz.zuruecksetzen()
+    yield
+    schutz.zuruecksetzen()
+
+
+@pytest.fixture(autouse=True)
 def _anmeldung_ohne_netz(monkeypatch):
     """Die Echtheitsprüfung des Zugangsblocks ohne Netz (Paket 10, Kurzaudit A-1).
 
@@ -138,6 +152,7 @@ def _anmeldung_ohne_netz(monkeypatch):
 
     monkeypatch.setattr(anmeldung, "_fragen", _als_person)
     anmeldung._cache.clear()
+    anmeldung._pause.clear()
 
 
 @pytest.fixture(autouse=True)

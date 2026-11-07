@@ -177,11 +177,23 @@ fallback" nennt), und eine `console.warn`-Zeile nennt euch den Grund
 | `done` | getauscht, Block liegt — der einzige, der etwas verändert hat |
 | `no-ticket` | kein Attribut gesetzt |
 | `unavailable` | keine Anmelde-Adresse **oder** `/auth/ticket` antwortet 404 (Ausgabe abgeschaltet) |
-| `rejected` | der Server hat entschieden: Ticket abgelaufen, Drossel, unbrauchbare Antwort |
-| `unreachable` | er war nicht zu fragen (Netz) |
+| `rejected` | der Server hat entschieden: Ticket abgelaufen, Drossel, Herkunft nicht freigegeben (403 `origin_not_allowed`), unbrauchbare Antwort |
+| `unreachable` | er war nicht zu fragen: Netz, oder zweimal 503 `upstream_unreachable` (edu-sharing hat die Prüfung nicht beantwortet; nach `retryAfter`, höchstens 15 s, versucht das Widget es einmal erneut) |
 
 `rejected` vs. `unreachable` ist bewusst getrennt — der Unterschied entscheidet,
-wo jemand suchen muss.
+wo jemand suchen muss. In beiden Fällen bleibt ein schon vorhandener Block liegen.
+
+**6. Seit dem MCP-Stand vom 07.11.2026** (Plan
+[`plans/2026-11-07-stabilitaet-mcp-anbindung.md`](plans/2026-11-07-stabilitaet-mcp-anbindung.md)):
+
+- **Frist:** Ein Ticket-Block gilt 12 Stunden. Danach tauscht das Widget dasselbe Ticket still neu
+  (`session/anmelde-frist.ts`). Ein Tausch vor dem Ablauf verlängert nichts.
+- **Abmelden** widerruft den Block am MCP-Server (über `POST /api/auth/abmelden`). Danach tauscht das Widget im
+  selben Tab kein Ticket mehr von selbst. Ein neuer Tab auf einer edu-sharing-Seite, auf der die Person angemeldet
+  ist, meldet sie wieder an — so gewollt.
+- **Herkunftsliste:** Am MCP-Server steht `TICKET_ALLOWED_ORIGINS`; dort müssen die Seiten eingetragen sein, die
+  das Widget mit `ticket` einbetten. Das ist dieselbe Liste wie `CORS_ORIGINS` am Chatbot
+  ([`uebergabe-betrieb.md`](uebergabe-betrieb.md) §11).
 
 ### Was dafür konfiguriert sein muss
 

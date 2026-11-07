@@ -61,7 +61,8 @@ SPERRE_KRISE: Final = (
 #: Persönliche Daten in der Nachricht: keine Volltextsuche damit. Die
 #: Werkzeugliste des Studios nennt sie (ST-8b) und liest sie hier, statt sie
 #: abzuschreiben.
-SPERRE_PERSOENLICH: Final = ("search_wlo_content", "search_wlo_all")
+#: Paket M4 (Review, Befund 6): die Zählung ist eine Volltextsuche (bis 30 Anfragen).
+SPERRE_PERSOENLICH: Final = ("search_wlo_content", "search_wlo_all", "count_wlo_content_matches")
 
 # ── Stage 1: Regex patterns ─────────────────────────────────────────
 # Crisis = Nutzer richtet Gewalt/Suizid gegen SICH SELBST.  Ein reines

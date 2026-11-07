@@ -4,7 +4,14 @@
  * Helfer dort; Fremdtext (Datei- und Ordnernamen) setzt das Element immer als `textContent`.
  */
 import { groesse, mehrzahl, type Sprache, zahl } from './upload-texte';
-import type { Stand } from './upload-uebertragen';
+import type { LetzteAblage, Stand } from './upload-uebertragen';
+
+/** Das Datum einer Ablage in der Sprache der Seite; ein unlesbares bleibt, wie es kam. */
+function datum(sprache: Sprache, iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat(sprache === 'en' ? 'en-GB' : 'de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(d);
+}
 
 const DE = {
   titel: 'In deinen persönlichen Bereich in WLO übertragen',
@@ -68,6 +75,15 @@ const DE = {
   },
   blase: (abgelegt: number, n: number) => `${zahl('de', abgelegt)} von ${zahl('de', n)} ${mehrzahl('de', n, 'Datei', 'Dateien')} in meinen persönlichen Bereich in WLO übertragen.`,
   nurLesen: (abgelegt: number, n: number) => `Übertragen: ${zahl('de', abgelegt)} von ${zahl('de', n)} in WLO abgelegt.`,
+  letzteTitel: (n: number) => n ? `Deine ${mehrzahl('de', n, 'letzte Ablage', 'letzten Ablagen')} in WLO (${zahl('de', n)})` : 'Deine letzten Ablagen in WLO',
+  letzteZeile: (l: LetzteAblage) => `${l.titel} (${datum('de', l.datum)}) – ${l.zahlen ? [
+    `${zahl('de', l.zahlen.abgelegt)} abgelegt`,
+    l.zahlen.unklar ? `${zahl('de', l.zahlen.unklar)} unklar` : '',
+    l.zahlen.gescheitert ? `${zahl('de', l.zahlen.gescheitert)} gescheitert` : '',
+    l.zahlen.offen ? `${zahl('de', l.zahlen.offen)} offen` : '',
+  ].filter(Boolean).join(', ') : 'Stand nicht lesbar'}`,
+  letzteGekappt: 'Nicht alle Ablagen ließen sich lesen – es können weitere fehlen.',
+  letzteHinweis: 'Liegt dieselbe Auswahl schon dort, musst du sie nicht noch einmal übertragen.',
 };
 
 const EN: typeof DE = {
@@ -132,6 +148,15 @@ const EN: typeof DE = {
   },
   blase: (abgelegt: number, n: number) => `Transferred ${zahl('en', abgelegt)} of ${zahl('en', n)} ${mehrzahl('en', n, 'file', 'files')} to my personal area in WLO.`,
   nurLesen: (abgelegt: number, n: number) => `Transferred: ${zahl('en', abgelegt)} of ${zahl('en', n)} stored in WLO.`,
+  letzteTitel: (n: number) => n ? `Your ${mehrzahl('en', n, 'latest transfer', 'latest transfers')} to WLO (${zahl('en', n)})` : 'Your latest transfers to WLO',
+  letzteZeile: (l: LetzteAblage) => `${l.titel} (${datum('en', l.datum)}) – ${l.zahlen ? [
+    `${zahl('en', l.zahlen.abgelegt)} stored`,
+    l.zahlen.unklar ? `${zahl('en', l.zahlen.unklar)} unclear` : '',
+    l.zahlen.gescheitert ? `${zahl('en', l.zahlen.gescheitert)} failed` : '',
+    l.zahlen.offen ? `${zahl('en', l.zahlen.offen)} open` : '',
+  ].filter(Boolean).join(', ') : 'status not readable'}`,
+  letzteGekappt: 'Not all transfers could be read – some may be missing.',
+  letzteHinweis: 'If the same selection is already there, you do not need to transfer it again.',
 };
 
 export type UebertragenTexte = typeof DE;

@@ -22,7 +22,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
-from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD
+from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 
 #: Schlüssel im gespeicherten Debug-Block.
 SCHLUESSEL = "_zugakte"
@@ -44,7 +44,7 @@ def _gekuerzt(text: str) -> str:
 
 
 def _wert(schluessel: str, wert: Any) -> Any:
-    if schluessel == CONFIRM_TOKEN_FIELD:
+    if schluessel in SCHLUESSEL_FELDER:
         return "‹geschwärzt›"
     if schluessel in _NUR_LAENGE and wert is not None:
         laenge = len(wert) if isinstance(wert, str) else len(json.dumps(wert, default=str))

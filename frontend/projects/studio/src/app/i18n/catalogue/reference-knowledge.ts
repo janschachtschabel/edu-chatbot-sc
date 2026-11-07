@@ -38,7 +38,31 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
       + '„Agent & Maschine“ unter „Werkzeuge und Sperren“.',
     'rk.mcp.access':
       '*Zugang:* im Muster-Modus nur, wenn das Pattern `sources: ["mcp"]` führt; die '
-      + 'Agent-Schleife bekommt den ganzen Katalog ohne gesperrte Werkzeuge.',
+      + 'Agent-Schleife bekommt den ganzen Katalog ohne gesperrte Werkzeuge. Kuratierende '
+      + '(schreibende) Werkzeuge nur mit Schreibrecht — im Muster-Modus zudem nur, wenn das '
+      + 'Pattern sie ausdrücklich nennt.',
+    'rk.mcp.contract':
+      '*Antworten:* verbindlich ist der strukturierte Teil (`structuredContent`) — '
+      + 'Fehlercodes, Bestätigungsschlüssel, Stand eines Plans; der Text ist Rückfall. '
+      + 'Vorausgesetzt ist der MCP-Stand vom 07.11.2026.',
+    'rk.mcp.write':
+      '*Schreiben:* immer zweistufig — Vorschau, dann das Ja der Person. Material wird '
+      + 'mit einer Bestätigung angelegt und einsortiert; Sammlungsbäume und viele '
+      + 'Aufnahmen laufen als Plan unter einer Bestätigung, große Pläne setzt der Knopf '
+      + '„Weiter anlegen“ fort.',
+    /** Plan 2026-11-07 (Stabilität der MCP-Anbindung, CB-2…CB-9). */
+    'rk.mcp.stability':
+      '*Überlast und Ausfall:* der Chatbot bleibt unter dem Budget des Servers (eigenes '
+      + 'Budget per Client-Schlüssel, Wächter `MCP_BUDGET_RPM`). „Ausgelastet“ heißt: nichts '
+      + 'lief — eine offene Freigabe bleibt liegen. Antwortet der Server mehrmals nicht, '
+      + 'scheitern Aufrufe 30 s lang sofort, bis `/ready` wieder antwortet. Geht die Antwort '
+      + 'eines bestätigten Schreibaufrufs verloren, holt der Chatbot sie mit demselben '
+      + 'Schlüssel nach, ohne doppelt zu schreiben.',
+    'rk.mcp.login':
+      '*Anmeldung:* geprüft über `/auth/status`. Kann der Server gerade nicht prüfen, gilt die '
+      + 'letzte Bestätigung derselben Person 30 Minuten weiter (`AUTH_GRACE_S`). Ticket- und '
+      + 'Widget-Anmeldungen laufen nach 12 Stunden ab — das Widget tauscht das Ticket dann neu '
+      + 'bzw. bietet die Anmeldung vorher an. „Abmelden“ beendet den Zugang am Server.',
     'rk.mcp.blockable': '*Sperrbar:* Safety oder Policy können einzelne Werkzeuge ausschließen.',
     'rk.mcp.speculative':
       '*Spekulativ (Muster-Modus):* bei passenden Intents startet die Suche parallel '
@@ -110,7 +134,28 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
       + 'engine” under “Tools and locks”.',
     'rk.mcp.access':
       '*Access:* in pattern mode only when the pattern carries `sources: ["mcp"]`; the '
-      + 'agent loop gets the whole catalogue minus blocked tools.',
+      + 'agent loop gets the whole catalogue minus blocked tools. Curation (writing) tools '
+      + 'only with write permission — in pattern mode also only when the pattern names them '
+      + 'explicitly.',
+    'rk.mcp.contract':
+      '*Answers:* the structured part (`structuredContent`) is binding — error codes, '
+      + 'confirmation keys, the state of a plan; the text is the fallback. The MCP state of '
+      + '2026-11-07 is required.',
+    'rk.mcp.write':
+      '*Writing:* always two steps — preview, then the person says yes. Material is created '
+      + 'and filed under one confirmation; collection trees and many additions run as a plan '
+      + 'under one confirmation, and the “Continue” button carries on with large plans.',
+    'rk.mcp.stability':
+      '*Load and outages:* the chatbot stays below the server budget (own budget via a client '
+      + 'key, guard `MCP_BUDGET_RPM`). “Busy” means nothing ran — an open approval stays. If '
+      + 'the server fails to answer several times, calls fail at once for 30 s until `/ready` '
+      + 'answers again. If the answer to a confirmed write is lost, the chatbot fetches it '
+      + 'again with the same key, without writing twice.',
+    'rk.mcp.login':
+      '*Sign-in:* checked via `/auth/status`. If the server cannot check right now, the last '
+      + 'confirmation of the same person stays valid for 30 minutes (`AUTH_GRACE_S`). Ticket '
+      + 'and widget sign-ins expire after 12 hours — the widget then exchanges the ticket '
+      + 'again or offers to sign in beforehand. “Sign out” ends the access at the server.',
     'rk.mcp.blockable': '*Blockable:* safety or policy can exclude individual tools.',
     'rk.mcp.speculative':
       '*Speculative (pattern mode):* for matching intents the search starts in parallel '

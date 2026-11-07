@@ -373,8 +373,8 @@ zwölf echte Typen unter der Überschrift „Didaktisch (13)" standen.
 Ebenfalls am Code geprüft und korrigiert: die „Konfliktregeln" („kürzere Länge
 gewinnt") gibt es nicht — `pattern_engine.py` schreibt die Modulationen
 nacheinander, das **letzte** Signal gewinnt; `reduce_items_signals` **deckelt**
-`max_items` auf 3 statt zu halbieren; der MCP-Server stellt **zwölf** Werkzeuge
-bereit, nicht zehn (`query_knowledge` ist der RAG-Einstieg, kein MCP-Werkzeug);
+`max_items` auf 3 statt zu halbieren; der MCP-Server stellte damals **zwölf** Werkzeuge
+bereit, nicht zehn (heute deutlich mehr — die aktuelle Liste zeigt das Studio unter „Agent & Maschine“) (`query_knowledge` ist der RAG-Einstieg, kein MCP-Werkzeug);
 und RAG liegt in Postgres mit pgvector, nicht in SQLite-Vec.
 
 **`widget-contract-data.ts` ist ein Zwilling, kein Kommentar.** Die 19

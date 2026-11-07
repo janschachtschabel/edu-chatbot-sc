@@ -67,6 +67,13 @@ def narrowing_quick_replies_from_metas(
     ]
 
 
+def lizenz_unaufgeloest(metas: list[dict[str, Any]] | None) -> bool:
+    """Meldet der Server eine Lizenz, die er nicht kennt? Dann darf die gemerkte Lizenz
+    (Entität ``lizenz``) die Folgesuchen nicht weiter leeren (Review M1, Befund 7)."""
+    return any(isinstance(uf, dict) and uf.get("field") == "license"
+               for m in metas or [] for uf in ((m or {}).get("unresolvedFilters") or []))
+
+
 def unresolved_filter_note(
     metas: list[dict[str, Any]] | None,
     *,
@@ -82,17 +89,34 @@ def unresolved_filter_note(
     collections-Meta) und auf ``max_shown`` gekürzt.
     """
     seen: dict[str, str] = {}
+    lizenzen: dict[str, list[str]] = {}
     for m in metas or []:
         for uf in ((m or {}).get("unresolvedFilters") or []):
             if not isinstance(uf, dict):
                 continue
             value = str(uf.get("value") or "").strip()
-            if value and value not in seen:
-                seen[value] = str(uf.get("field") or "").strip()
-    if not seen:
-        return ""
-    quoted = ", ".join(
-        bot_text(lang, "facets.quotedValue", value=v)
-        for v in list(seen.keys())[:max_shown]
-    )
-    return bot_text(lang, "facets.unresolvedFilter", values=quoted)
+            feld = str(uf.get("field") or "").strip()
+            if not value:
+                continue
+            if feld == "license":
+                # Paket M1 (MCP-Stand 2026-11-07): eine unbekannte Lizenz leert die Antwort —
+                # „allgemeiner gesucht“ wäre falsch. Die Vorschläge des Servers nennen.
+                vorschlaege = [str(v) for v in (uf.get("suggestions") or []) if str(v).strip()]
+                lizenzen.setdefault(value, vorschlaege)
+            elif value not in seen:
+                seen[value] = feld
+    saetze: list[str] = []
+    for value, vorschlaege in list(lizenzen.items())[:max_shown]:
+        satz = bot_text(lang, "facets.unresolvedLicense",
+                        value=bot_text(lang, "facets.quotedValue", value=value))
+        if vorschlaege:
+            satz += " " + bot_text(lang, "facets.licenseSuggestion", values=", ".join(
+                bot_text(lang, "facets.quotedValue", value=v) for v in vorschlaege[:3]))
+        saetze.append(satz)
+    if seen:
+        quoted = ", ".join(
+            bot_text(lang, "facets.quotedValue", value=v)
+            for v in list(seen.keys())[:max_shown]
+        )
+        saetze.append(bot_text(lang, "facets.unresolvedFilter", values=quoted))
+    return " ".join(saetze)

@@ -115,7 +115,8 @@ def lage(monkeypatch) -> _Lage:
         lg.teil = wert
         return True
 
-    for name, wert in [("sitzung_entities", entities), ("check_rate_limit", frei),
+    for name, wert in [("sitzung_entities", entities), ("sitzung_entities_frisch", entities),
+                       ("check_rate_limit", frei),
                        ("log_safety_event", nichts), ("verbindung_freigeben", nichts),
                        ("bestaetige_anmeldung", anmeldung), ("update_session", nichts)]:
         monkeypatch.setattr(api, name, wert)

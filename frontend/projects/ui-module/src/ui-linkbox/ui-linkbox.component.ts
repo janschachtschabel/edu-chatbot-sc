@@ -36,11 +36,19 @@ const TEXTE = {
         </div>
         <div class="result-group__items">
           @for (link of eintraege(); track $index) {
-            <a class="result-group__item" [href]="link.href" target="_blank" rel="noopener noreferrer"
-               [attr.title]="link.tooltip">
-              <span class="result-group__item-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
-              <span class="result-group__item-title">{{ link.titel || texte().ohne }}</span>
-            </a>
+            <!-- Ohne http(s)-Adresse kein Link (sonst <a href=""> auf die eigene Seite; Review 2026-11-07). -->
+            @if (link.href) {
+              <a class="result-group__item" [href]="link.href" target="_blank" rel="noopener noreferrer"
+                 [attr.title]="link.tooltip">
+                <span class="result-group__item-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
+                <span class="result-group__item-title">{{ link.titel || texte().ohne }}</span>
+              </a>
+            } @else {
+              <span class="result-group__item" [attr.title]="link.tooltip">
+                <span class="result-group__item-icon" aria-hidden="true" [innerHTML]="symbol | safeSvg"></span>
+                <span class="result-group__item-title">{{ link.titel || texte().ohne }}</span>
+              </span>
+            }
           }
         </div>
       </div>

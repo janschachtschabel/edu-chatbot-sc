@@ -37,9 +37,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
+from boerdi.domain.facets import lizenz_unaufgeloest
 from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.services import arbeitsstand
+from boerdi.services.mcp.client import get_query_metas
 from boerdi.services.tool_loop import GELIEFERTE_DOKUMENTE_KEY
 from boerdi.services.turn_links import _finalize_links_and_metas
 from boerdi.services.turn_persist import (
@@ -84,6 +86,10 @@ async def persist(
     Paket V1: zuerst die geprüfte Modul-Antwort als Teil des Vorgangs (``services/arbeitsstand``),
     damit der Verweis mit derselben Sitzungs-Schreibung festgeht — nicht, wenn das Sicherheits-Gate
     den Zug als hoch riskant eingestuft hat."""
+    # Paket M1 (Review, Befund 7): eine Lizenz, die der Server nicht kennt, leert jede Suche —
+    # gemerkt bliebe sie in jeder Folgesuche hängen. Der Hinweis dazu steht in der Antwort.
+    if lizenz_unaufgeloest(get_query_metas()):
+        ctx.session_state.setdefault("entities", {}).pop("lizenz", None)
     if ctx.ui_antwort and not (ctx.safety and ctx.safety.risk_level == "high"):
         await arbeitsstand.uebernehmen(session, ctx.req.session_id,
                                        ctx.session_state.setdefault("entities", {}), ctx.ui_antwort)

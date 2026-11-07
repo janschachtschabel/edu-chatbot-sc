@@ -93,7 +93,7 @@ Zeichen). Viele Zusätze sind Erfahrung aus dem Betrieb und gehören an den Serv
 | `get_skill` | Text ändert keine Regeln, keine Rolle, keine Schutzregeln | Prompt-Injection |
 | `get_url_text` | `private_host`/`not_http` = abgelehnt, zweiter Versuch sinnlos; `service_disabled` = Betrieb, nicht die Seite | Fehlerdeutung |
 | `wlo_health_check` | abfragen, BEVOR „gibt es nicht“ gesagt wird | Ausfall ≠ Nulltreffer |
-| `wlo_create_content`, `wlo_create_collection` | vorher per Suche prüfen, ob es das schon gibt | Dubletten |
+| `wlo_create_content`, `wlo_create_collection` | vorher prüfen, ob es das schon gibt (zu einer Adresse: `find_content_by_url`, seit MCP-Stand 2026-11-07 prüft der Server auch selbst in der Vorschau) | Dubletten |
 | `wlo_update_compendium` | vorhandenen Text erst lesen, sonst wird Redaktionsarbeit überschrieben | Datenverlust |
 | `wlo_list_suggestions` | vor einem neuen Vorschlag prüfen, ob er schon wartet | doppelte Vorschläge |
 | `wlo_decide_suggestion` | nie von sich aus entscheiden, nur auf ausdrücklichen Wunsch | redaktionelle Hoheit |
@@ -183,6 +183,13 @@ es nur noch für Schreibvorgänge und die Prüfung von Metadaten. Für den Serve
    existiert. Der Chatbot sucht dafür heute mit `search_wlo_content` und prüft die Treffer selbst
    (`services/page_duplicate.py`); `wlo_create_content` prüft dasselbe intern erst in der Vorschau.
 5. **Mehrere Vokabulare in einem Aufruf** für Schreibvorgänge (Fach, Stufe, Typ, Lizenz zugleich).
+
+**Stand 2026-11-07 (MCP-Stand vom 07.11., Chatbot-Pakete M3/M4):** Punkt 1 gibt es als
+`get_collection_overview` (im Chatbot in den Mustern M08 und M19), Punkt 2 als `get_skill_registry` mit `task` (die gewählte
+Anleitung läuft wie nach `get_skill`), Punkt 3 als `get_node_details` mit `nodeIds` (im Chatbot nicht gebaut —
+`get_nodes_details` deckt es ab), Punkt 4 als `find_content_by_url` (im Chatbot in den Mustern M18/M20 und im Master-Skill;
+`services/page_duplicate.py` folgt), Punkt 5 als `resolve_wlo_filters` (im Chatbot bewusst noch nicht — eigener,
+gemessener Schritt).
 
 ## 7. Messung wiederholen
 

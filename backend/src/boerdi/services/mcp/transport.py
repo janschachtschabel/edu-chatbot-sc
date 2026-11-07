@@ -57,7 +57,12 @@ from boerdi.obs import metrics
 from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.log_format import ausnahme_text
 from boerdi.obs.log_inhalt import inhalt
-from boerdi.services.mcp.http_fabrik import McpHttpClientFactory, build_http_client_factory
+from boerdi.services.mcp import schutz
+from boerdi.services.mcp.http_fabrik import (
+    McpHttpClientFactory,
+    build_http_client_factory,
+    mit_verbindungsfrist,
+)
 from boerdi.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -112,7 +117,8 @@ def _ohne_umleitung(headers=None, timeout=None, auth=None):  # noqa: ANN001 — 
     Methode und Rumpf bleiben — auf eine interne Adresse weiterleiten und so die Adressprüfung
     (``assert_public_url``) umgehen; die Antwort käme ins Modell.
     """
-    client = create_mcp_http_client(headers=headers, timeout=timeout, auth=auth)
+    client = create_mcp_http_client(headers=headers, timeout=mit_verbindungsfrist(timeout),
+                                    auth=auth)
     client.follow_redirects = False
     return client
 
@@ -181,15 +187,47 @@ def _abgelehnt_ohne_ausfuehrung(exc: BaseException) -> McpError | None:
 _ABGEWIESEN = frozenset({401, 403})
 
 
-def _abgewiesen(exc: BaseException) -> int | None:
-    """Der HTTP-Status, wenn der Server den Zugang abwies — auch tief in einer
-    ``ExceptionGroup`` des SDK (die ``initialize``-Anfrage läuft dort als Kind-Task)."""
-    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in _ABGEWIESEN:
-        return exc.response.status_code
+def _status_fehler(exc: BaseException) -> httpx.HTTPStatusError | None:
+    """Die HTTP-Antwort mit Fehlerstatus in ``exc`` — auch tief in einer ``ExceptionGroup`` des
+    SDK (die ``initialize``-Anfrage läuft dort als Kind-Task)."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc
     for sub in getattr(exc, "exceptions", None) or ():
-        if (status := _abgewiesen(sub)) is not None:
-            return status
+        if (treffer := _status_fehler(sub)) is not None:
+            return treffer
     return None
+
+
+def _abgewiesen(exc: BaseException) -> int | None:
+    """Der HTTP-Status, wenn der Server den Zugang abwies."""
+    treffer = _status_fehler(exc)
+    status = treffer.response.status_code if treffer is not None else None
+    return status if status in _ABGEWIESEN else None
+
+
+#: Plan 2026-11-07 (CB-2): 429 = Budget des Servers erschöpft, 503 = Server (oder sein
+#: Vorschaltrechner) gerade nicht verfügbar. In beiden Fällen lief kein Werkzeug.
+_AUSGELASTET = frozenset({429, 503})
+#: So lange wartet niemand auf einen Server, der eine absurde Wartezeit nennt.
+_WARTEZEIT_DECKEL_S = 600
+
+
+def _wartezeit(antwort: httpx.Response) -> int | None:
+    """``Retry-After`` in Sekunden (S2: der Rest des Fensters), gedeckelt — ``None`` ohne Angabe."""
+    roh = (antwort.headers.get("retry-after") or "").strip()
+    return min(int(roh), _WARTEZEIT_DECKEL_S) if roh.isdigit() else None
+
+
+def ausgelastet(grund: str, retry_after: int | None = None) -> dict[str, Any]:
+    """Das Fehler-Dict der Art ``busy``: nichts wurde ausgeführt, später noch einmal.
+
+    ``grund``: ``rate_limited`` (429 des Servers), ``unavailable`` (503), ``budget`` (eigener
+    Wächter, nichts gesendet), ``breaker`` (Ausfall-Schalter offen, nichts gesendet)."""
+    fehler: dict[str, Any] = {"message": f"ausgelastet ({grund})", "kind": "busy",
+                              "grund": grund}
+    if retry_after is not None:
+        fehler["retry_after"] = retry_after
+    return {"error": fehler}
 
 
 #: Paket 19 (N-15): Fehler, die der Betrieb kennt — Netz, Gegenstelle, Antwort des Servers.
@@ -222,7 +260,8 @@ def _text_blocks(result: Any) -> list[dict[str, str]]:
 
 
 async def call_tool(
-    tool_name: str, arguments: dict[str, Any] | None = None, *, url: str | None = None
+    tool_name: str, arguments: dict[str, Any] | None = None, *, url: str | None = None,
+    nachholen: bool = False,
 ) -> dict[str, Any]:
     """Rufe ein MCP-Tool über das SDK und liefere das ALT-``_json_rpc``-Result-Dict.
 
@@ -251,7 +290,7 @@ async def call_tool(
     """
     target_url = resolve_mcp_url(url)
     beginn = time.perf_counter()
-    ergebnis = await _call_tool(tool_name, arguments, target_url)
+    ergebnis = await _call_tool(tool_name, arguments, target_url, nachholen=nachholen)
     # Paket 17 (D3): je Server und Art — ``ok`` oder die ``kind`` des Fehlers.
     art = ergebnis["error"].get("kind", "transport") if "error" in ergebnis else "ok"
     metrics.mcp_aufruf(target_url, art, time.perf_counter() - beginn)
@@ -259,6 +298,27 @@ async def call_tool(
 
 
 async def _call_tool(
+    tool_name: str, arguments: dict[str, Any] | None, target_url: str, *, nachholen: bool = False,
+) -> dict[str, Any]:
+    # Plan 2026-11-07 (CB-3/CB-5): vor dem Senden — ein offener Schalter und ein volles Budget
+    # beenden den Aufruf, ohne dass der Server ihn sieht. Außerhalb der Frist unten: Warten auf
+    # einen Platz ist keine Zeitüberschreitung, nach der „vielleicht geschrieben“ gälte.
+    # ``nachholen`` (S3, Review 2026-11-07, Befund 3): die Antwort eines bestätigten
+    # Schreibaufrufs nachholen — auch wenn sein eigener Fehler den Schalter gerade geöffnet hat.
+    if not nachholen and not await schutz.durchlassen(target_url):
+        return ausgelastet("breaker")
+    if target_url == resolve_mcp_url() and not await schutz.budget_platz(target_url):
+        return ausgelastet("budget")
+    ergebnis = await _call_tool_gesendet(tool_name, arguments, target_url)
+    fehler = ergebnis.get("error") or {}
+    if fehler.get("kind") in ("transport", "timeout") or fehler.get("grund") == "unavailable":
+        schutz.melde_fehler(target_url)
+    elif fehler.get("kind") != "busy":
+        schutz.melde_erfolg(target_url)
+    return ergebnis
+
+
+async def _call_tool_gesendet(
     tool_name: str, arguments: dict[str, Any] | None, target_url: str
 ) -> dict[str, Any]:
     frist = _frist_s()
@@ -279,6 +339,15 @@ async def _call_tool(
                        frist)
             return {"error": {"message": f"keine Antwort binnen {frist:g} s",
                               "kind": "timeout"}}
+        status_fehler = _status_fehler(exc)
+        if status_fehler is not None and status_fehler.response.status_code in _AUSGELASTET:
+            # CB-2: kein Werkzeug lief. Nicht sofort wiederholen — ``client`` wartet höchstens
+            # eine kurze ``Retry-After`` ab (S2: der Rest des Fensters, nicht pauschal 60 s).
+            code = status_fehler.response.status_code
+            gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:busy", _ABSTAND_S,
+                       "MCP tool %s @ %s: ausgelastet (%s)", tool_name, target_url, code)
+            return ausgelastet("rate_limited" if code == 429 else "unavailable",
+                               _wartezeit(status_fehler.response))
         status = _abgewiesen(exc)
         if status is not None:
             # Kein Block im Log — nur, dass er abgewiesen wurde (``services/mcp/auth``).
@@ -321,8 +390,9 @@ async def _call_tool(
         gedrosselt(logger, logging.WARNING, f"mcp:{target_url}:tool", _ABSTAND_S,
                    "MCP tool %s error @ %s: %s", tool_name, target_url, inhalt(message))
         fehler: dict[str, Any] = {"message": message, "kind": "tool"}
-        # Paket U3-3a (Review, Befund 2): der Grund eines abgelehnten Stapel-Aufrufs steht im
-        # strukturierten Teil (``reason``) — ohne ihn sähe der Aufrufer nur „abgelehnt“.
+        # Der strukturierte Teil reist mit: seit dem MCP-Stand 2026-11-07 trägt ihn JEDER Fehler
+        # (``error = {code, message, …}``, Paket M1 liest ihn im Client); die Stapel-Ablage dazu
+        # ``status``/``reason`` (Paket U3-3a).
         if getattr(result, "structuredContent", None) is not None:
             fehler["structured"] = result.structuredContent
         return {"error": fehler}

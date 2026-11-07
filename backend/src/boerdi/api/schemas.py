@@ -41,10 +41,13 @@ from boerdi.api.schemas_inline import InlineDocument
 from boerdi.api.schemas_mcp import (
     AuthStatusArgs,
     CollectionContentsArgs,
+    CollectionOverviewArgs,
     CollectionStatsArgs,
     CollectionTreeArgs,
     CompendiumTextArgs,
+    ContentCountArgs,
     ContentSearchArgs,
+    FindByUrlArgs,
     HealthCheckArgs,
     LookupVocabularyArgs,
     NodeBreadcrumbArgs,
@@ -67,6 +70,8 @@ from boerdi.api.schemas_mcp_curation import (
     CollectionCreateArgs,
     CollectionMembershipArgs,
     CollectionRenameArgs,
+    CollectionsAddArgs,
+    CollectionTreeCreateArgs,
     CompendiumUpdateArgs,
     ContentCreateArgs,
     ContentSubmitArgs,
@@ -86,6 +91,7 @@ __all__ = [
     "ChatRequest", "ChatResponse", "ClassificationResult", "CollectionContentsArgs",
     "ContentSearchArgs",
     "CollectionCreateArgs", "CollectionMembershipArgs", "CollectionRenameArgs",
+    "CollectionsAddArgs", "CollectionTreeCreateArgs",
     "CollectionStatsArgs", "CollectionTreeArgs", "CompendiumTextArgs",
     "CompendiumUpdateArgs", "ConfigFile", "ContentCreateArgs", "ContentSubmitArgs",
     "ContentUpdateArgs",
@@ -93,7 +99,9 @@ __all__ = [
     "MetadataSuggestArgs", "MetadataSuggestion", "NodeOnlyArgs",
     "SuggestionDecideArgs", "SuggestionsListArgs", "TopicPageSetArgs",
     "HealthCheckArgs", "InlineDocument", "LookupVocabularyArgs", "MemoryEntry",
-    "NodeBreadcrumbArgs", "NodeCollectionsArgs", "NodeDetailsArgs", "NodesDetailsArgs",
+    "CollectionOverviewArgs", "ContentCountArgs", "FindByUrlArgs", "NodeBreadcrumbArgs",
+    "NodeCollectionsArgs", "NodeDetailsArgs",
+    "NodesDetailsArgs",
     "PageAction",
     "PaginationInfo", "PolicyDecision", "PublishersLookupArgs", "QueryMetaEntry",
     "RagDocument", "RagQuery", "RagResult",
@@ -393,6 +401,10 @@ class ChatResponse(BaseModel):
     # abgewiesen — abgelaufen oder widerrufen. Der Zug lief ohne ihn weiter; das
     # Widget räumt ihn und bietet die Anmeldung neu an.
     auth_invalid: bool = False
+    # Plan 2026-11-07 (R1/CB-9): bis wann der MCP-Server den Block dieses Zuges annimmt (ISO,
+    # ``expiresAt`` von ``/auth/status``) — nur bei Ticket- und Widget-Blöcken. Das Widget bietet
+    # kurz davor die Anmeldung neu an bzw. tauscht das Ticket nach dem Ablauf neu.
+    auth_expires_at: str | None = None
 
 
 # ── Session / Memory ──────────────────────────────────────────────

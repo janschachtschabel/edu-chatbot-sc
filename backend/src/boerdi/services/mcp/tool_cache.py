@@ -70,6 +70,8 @@ _TOOL_CACHE_TTL_PER_TOOL: dict[str, int] = {
     # vorher fielen beide auf den 5-Minuten-Default).
     "get_skill": 180,
     "get_skill_registry": 180,
+    # Paket M4 (Review, Befund 5): die Übersicht trägt Skills — dieselbe Frist wie sie.
+    "get_collection_overview": 180,
     # Suchen: dynamisch, neue Treffer möglich → Default 5 min
     "search_wlo_collections": 300,
     "search_wlo_content": 300,
@@ -87,6 +89,14 @@ def _ttl_for_tool(tool_name: str) -> int:
 #: fehlende Rechte, vorübergehender 5xx) mit demselben Satz; ein Ausfall blieb
 #: sonst 180 s als Treffer stehen, und jeder neue Versuch spielte ihn ab.
 _FEHLTREFFER: dict[str, str] = {"get_skill": "ist nicht abrufbar ("}
+
+
+def cache_gesperrt(tool_name: str, arguments: dict) -> bool:
+    """Diesen Aufruf am Cache vorbei? Ja für die Sperrliste — und für ``get_skill_registry`` mit
+    ``task`` (Paket M4, Review Befund 5): die Wahl des Servers wird aus seiner Antwort gelesen,
+    und ein vorübergehendes „nicht abrufbar" stünde sonst drei Minuten als Treffer."""
+    return tool_name in _TOOL_CACHE_BLOCKLIST or (
+        tool_name == "get_skill_registry" and bool((arguments or {}).get("task")))
 
 
 def darf_cachen(tool_name: str, value: str) -> bool:
@@ -287,5 +297,8 @@ def clear_tool_cache() -> int:
 _TOOL_CACHE_BLOCKLIST = frozenset({
     "wlo_health_check",
     "wlo_auth_status",
+    # Paket M3 (Review): die Dublettenprüfung muss frisch sein — direkt nach dem Anlegen und nach
+    # einem ``upstream_error`` je Adresse, der sonst fünf Minuten im Cache stünde.
+    "find_content_by_url",
     *CURATION_TOOLS,
 })

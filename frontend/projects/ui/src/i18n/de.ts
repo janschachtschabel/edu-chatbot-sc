@@ -292,10 +292,13 @@ export const DE: Catalogue = {
    *  weil daneben ein Neustart-Knopf sitzt: hier endet die Anmeldung, nicht
    *  das Gespräch. */
   'auth.signOut': 'Abmelden — wieder anonym suchen',
-  /** Bestätigung nach dem Abmelden. „aus diesem Tab entfernt" ist genau, nicht
-   *  ungefähr: `clearAccessBlock` räumt den `sessionStorage`, der Zugang selbst
-   *  bleibt gültig, bis er auf der `/auth`-Seite widerrufen wird. */
-  'auth.signedOut': 'Abgemeldet. Ich suche wieder anonym — der Zugang ist aus diesem Tab entfernt.',
+  /** Bestätigung nach dem Abmelden — seit Plan 2026-11-07 (R2) widerruft das Backend den
+   *  Zugang am MCP-Server. „beendet" nur, wenn der Server es bestätigt hat; sonst sagt
+   *  `auth.signedOutLocal` genau, was feststeht. */
+  'auth.signedOut': 'Abgemeldet. Ich suche wieder anonym — der Zugang ist beendet.',
+  'auth.signedOutLocal': 'Abgemeldet. Ich suche wieder anonym — der Zugang ist aus diesem Tab entfernt. Ob er auch bei WLO beendet ist, ließ sich gerade nicht klären.',
+  /** Plan 2026-11-07 (R1): eine Passwort-Anmeldung im Widget gilt 12 Stunden. */
+  'auth.expiresSoon': 'Deine WLO-Anmeldung läuft in wenigen Minuten ab. Melde dich gern neu an, damit ich weiter für dich in WLO ändern kann.',
   /** Der Server wies den Zugang ab (Paket 10, A-3) — der Zug lief ohne ihn weiter. */
   'auth.expired': 'Deine WLO-Anmeldung gilt nicht mehr, vermutlich ist sie abgelaufen. Ich habe ohne sie weitergemacht — zum Ändern in WLO melde dich bitte neu an.',
 

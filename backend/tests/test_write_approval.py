@@ -79,6 +79,17 @@ class _Spy:
         return (self.ret, "")
 
 
+def als_antwort(attrappe):
+    """Paket M2: die Abnahme ruft ``call_mcp_tool_antwort`` — die ``(text, art)``-Attrappen
+    hier liefern daraus eine ``McpAntwort`` (ohne Code: das Verhalten von vorher)."""
+    from boerdi.services.mcp.client import McpAntwort
+
+    async def rufen(*args, **kwargs):
+        text, art = await attrappe(*args, **kwargs)
+        return McpAntwort(text, art)
+    return rufen
+
+
 def _req(message: str = "Ja, so ausführen", action: str | None = None) -> ChatRequest:
     return ChatRequest(
         session_id="bb-1", message=message, action=action,
@@ -107,7 +118,7 @@ def _grenzen(monkeypatch):
     mcp = _Spy(_SERVERTEXT)
     update = _Spy()
     save = _Spy()
-    monkeypatch.setattr(wa_mod, "call_mcp_tool_status", mcp)
+    monkeypatch.setattr(wa_mod, "call_mcp_tool_antwort", als_antwort(mcp))
     monkeypatch.setattr(wa_mod, "update_session", update)
     monkeypatch.setattr(wa_mod, "save_message", save)
     monkeypatch.setattr(wa_mod, "schreiben_erlaubt", lambda: True)
@@ -396,7 +407,7 @@ class TestEinloesung:
 
         monkeypatch.setattr(wa_mod, "update_session", update)
         monkeypatch.setattr(wa_mod, "save_message", _Spy())
-        monkeypatch.setattr(wa_mod, "call_mcp_tool_status", mcp)
+        monkeypatch.setattr(wa_mod, "call_mcp_tool_antwort", als_antwort(mcp))
         monkeypatch.setattr(wa_mod, "schreiben_erlaubt", lambda: True)  # angemeldet
         await redeem_write_approval(_SESSION, _req(), _zustand())
         assert folge[:2] == ["gespeichert", "aufruf"]

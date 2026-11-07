@@ -167,16 +167,20 @@ export class UiModulVorschauComponent {
     this.index.set(index);
   }
 
+  /** Liegt das Ereignis auf der Bühne? Über `composedPath()`: in einem offenen Shadow Root (nachgeladene
+   *  Module) zeigt `event.target` nur noch auf das Custom Element (Review 2026-11-07, Befund 3). */
   private aufDerBuehne(event: Event): Element | null {
-    const ziel = event.target instanceof Element ? event.target : null;
-    return ziel?.closest('.umv-buehne') ? ziel : null;
+    const pfad = event.composedPath().filter((e): e is Element => e instanceof Element);
+    return pfad.some((e) => e.classList.contains('umv-buehne')) ? pfad[0] ?? null : null;
   }
 
   /** Klick (auch Tastatur-Enter, der Browser löst dann `click` aus) und Mittelklick auf einen
    *  Link der Bühne öffnen nichts. Ein Formular schickt nichts ab (`submit` oben). */
   private abfangen(event: MouseEvent): void {
     if (event.type === 'auxclick' && event.button !== 1) return;
-    const link = this.aufDerBuehne(event)?.closest('a[href]') as HTMLAnchorElement | null;
+    const link = this.aufDerBuehne(event)
+      ? event.composedPath().find((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement && !!e.href) ?? null
+      : null;
     if (!link) return;
     event.preventDefault();
     this.melde('uiModule.vorschau.link', { url: link.href });

@@ -54,7 +54,7 @@ _FEHLER_LADEN: Final = ("Fehler: {name} ließ sich nicht laden. Prüfe das Argum
 _FEHLER_UNERREICHBAR: Final = ("Fehler: {name} ist gerade nicht erreichbar. Rufe es nicht noch "
                                "einmal auf; antworte ohne den Baum.")
 #: Arten aus ``call_mcp_tool_status``, bei denen der Server nicht geantwortet hat.
-_UNERREICHBAR: Final = frozenset({"transport", "timeout", "auth"})
+_UNERREICHBAR: Final = frozenset({"transport", "timeout", "auth", "busy"})
 
 #: Review U1-e, Befund 1: die Werkzeug-Nachricht für eine Antwort derselben Runde, wenn ein Modul
 #: mit Datenquelle keinen Block geliefert hat — sonst stünde „hier ist der Baum“ ohne Baum da.

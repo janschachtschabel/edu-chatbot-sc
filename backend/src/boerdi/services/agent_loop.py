@@ -59,7 +59,7 @@ from boerdi.domain.result_delivery import (
     LIEFERE_ERGEBNIS,
     ergebnis_aus_argumenten,
 )
-from boerdi.domain.tool_result_redaction import redigiere_strukturell
+from boerdi.domain.tool_result_redaction import gewaehlte_anleitung, redigiere_strukturell
 from boerdi.domain.ui_bloecke import GENUG_BLOECKE, platz_fuer_anzeige
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.domain.werkzeug_angebot import (
@@ -750,6 +750,11 @@ async def run_agent_loop(
                     "node_id": str(args.get("nodeId") or ""),
                     "titel": skill_titel(beobachtet),
                 })
+            # Paket M4 (Review, Befund 2): die zu ``task`` mitgelieferte Anleitung zählt genauso.
+            elif (name == "get_skill_registry" and args.get("task")
+                  and outcome.status == "success"
+                  and (wahl := gewaehlte_anleitung(beobachtet))):
+                run.anleitungen.append({"node_id": wahl[0], "titel": wahl[1]})
             # P1: der Freigabe-Katalog, den das Ergebnis mitbringt — ausserhalb
             # des Rahmens, weil er unsere Anweisung ist. Auf ``beobachtet``,
             # nicht auf ``text``: was die Schlüssel-Redaktion entfernt hat, darf

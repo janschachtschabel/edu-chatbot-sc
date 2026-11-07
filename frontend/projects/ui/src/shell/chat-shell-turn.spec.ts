@@ -549,4 +549,66 @@ describe('ChatShellComponent — Ticket-Anmeldung', () => {
     expect(sessionStorage.getItem('boerdi.mcp-access')).toBeNull();
     expect(f.componentInstance.authButton()).toBe('signIn'); // Rückfall: Knopf bietet die Anmeldung an
   });
+
+  // Plan 2026-11-07 (R1): Ticket-Blöcke laufen nach 12 h ab; der Server nimmt dann 401.
+  it('tauscht ein Ticket nach einer Abweisung still neu — einmal', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((async () => new Response(
+      JSON.stringify({ ok: true, block: BLOCK, authority: 'lehrerin' }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )) as typeof fetch);
+    const f = makeFixture();
+    f.componentRef.setInput('ticket', TICKET);
+    f.componentRef.setInput('mcpAuthBase', 'https://mcp.example.org');
+    f.detectChanges();
+    await vi.waitFor(() => expect(sessionStorage.getItem('boerdi.mcp-access')).toBe(BLOCK));
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi({ resp: { ...RESP, auth_invalid: true } as unknown as ChatResponse });
+
+    await c.sendMessage('suche Optik');
+    await vi.waitFor(() => expect(sessionStorage.getItem('boerdi.mcp-access')).toBe(BLOCK));
+    expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith('/auth/ticket')))
+      .toHaveLength(2);
+    expect(c.messages().map((m) => m.content)).not.toContain(DE['auth.expired']);
+
+    // Die zweite Abweisung desselben Tickets: kein Kreis, sondern der Satz.
+    await c.sendMessage('noch einmal');
+    await vi.waitFor(() => expect(c.messages().map((m) => m.content))
+      .toContain(DE['auth.expired']));
+    expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith('/auth/ticket')))
+      .toHaveLength(2);
+  });
+
+  // Review 2026-11-07 (Befund 6): wer während eines laufenden Tauschs abmeldet, bleibt abgemeldet.
+  it('verwirft einen Block, der nach dem Abmelden aus einem laufenden Tausch kommt', async () => {
+    let antworten!: (r: Response) => void;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((() => new Promise<Response>((r) => {
+      antworten = r;
+    })) as typeof fetch);
+    const f = makeFixture();
+    f.componentRef.setInput('ticket', TICKET);
+    f.componentRef.setInput('mcpAuthBase', 'https://mcp.example.org');
+    f.detectChanges();
+    await vi.waitFor(() => expect(antworten).toBeDefined());
+
+    sessionStorage.setItem('boerdi.mcp-signed-out', '1');   // „Abmelden“ während des Tauschs
+    antworten(new Response(JSON.stringify({ ok: true, block: BLOCK, authority: 'lehrerin' }),
+      { status: 200, headers: { 'content-type': 'application/json' } }));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(sessionStorage.getItem('boerdi.mcp-access')).toBeNull();
+    expect(f.componentInstance.authButton()).toBe('signIn');
+  });
+
+  // Plan 2026-11-07 (R2): nach „Abmelden“ meldet das Seiten-Ticket nicht von selbst wieder an.
+  it('tauscht nach einem Abmelden im selben Tab kein Ticket', async () => {
+    sessionStorage.setItem('boerdi.mcp-signed-out', '1');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const f = makeFixture();
+    f.componentRef.setInput('ticket', TICKET);
+    f.componentRef.setInput('mcpAuthBase', 'https://mcp.example.org');
+    f.detectChanges();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(f.componentInstance.authButton()).toBe('signIn');
+  });
 });

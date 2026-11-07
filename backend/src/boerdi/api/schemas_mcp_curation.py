@@ -20,9 +20,9 @@ heißt **klemmen**, nicht ablehnen.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 
 # Die schreibbaren Metadatenfelder eines Materials. Einmal deklariert, von
@@ -53,7 +53,13 @@ class _ContentFields(BaseModel):
 
 
 class ContentCreateArgs(_ContentFields):
-    """``wlo_create_content`` — Pflichtfeld ist allein der Titel."""
+    """``wlo_create_content`` — Pflichtfeld ist allein der Titel.
+
+    ``addToCollectionId`` (Paket M3, MCP-Stand 2026-11-07): den neuen Datensatz unter DERSELBEN
+    Bestätigung in eine Sammlung aufnehmen — eine Abnahme statt zwei. Gibt es zur ``url`` schon
+    einen Datensatz, bietet die Vorschau an, diesen aufzunehmen."""
+
+    addToCollectionId: str = Field(default="", max_length=200)
 
 
 class ContentUpdateArgs(_ContentFields):
@@ -90,6 +96,49 @@ class CollectionRenameArgs(BaseModel):
     nodeId: str
     title: str
     description: str = ""
+
+
+class CollectionTreeCreateArgs(BaseModel):
+    """``wlo_create_collection_tree`` (Paket M5): ein Baum von Untersammlungen unter
+    ``parentCollectionId`` — höchstens 250 Knoten, Tiefe 4, 15 Kinder je Knoten (prüft der Server
+    und nennt jeden Grund). ``onExisting``: ``merge`` (Vorgabe: gleichnamige wird übernommen) oder
+    ``fail``. ``continuationToken`` setzt einen bestätigten Plan fort."""
+
+    parentCollectionId: str = Field(max_length=200)
+    tree: list[dict[str, Any]]
+    onExisting: Literal["merge", "fail", ""] = ""
+    continuationToken: str = Field(default="", max_length=200)
+
+    @field_validator("tree", mode="before")
+    @classmethod
+    def _nur_baumfelder(cls, wert):
+        # Review 2026-11-07: der Server prüft jede Ebene streng — ein fremdes Feld (``keywords``,
+        # ``nodeId``) in einem tieferen Knoten kippte den ganzen Aufruf. Nur title/description/
+        # children bleiben; Grenzen (250 Knoten, Tiefe 4, 15 Kinder) prüft und nennt der Server.
+        def knoten(k):
+            if not isinstance(k, dict):
+                return k
+            aus = {f: k[f] for f in ("title", "description") if f in k}
+            if isinstance(k.get("children"), list):
+                aus["children"] = [knoten(c) for c in k["children"]]
+            return aus
+        return [knoten(k) for k in wert] if isinstance(wert, list) else wert
+
+
+class CollectionsAddArgs(BaseModel):
+    """``wlo_add_to_collections`` (Paket M5): bis zu 200 Paare ``{nodeId, collectionId}``."""
+
+    pairs: list[dict[str, str]]
+    continuationToken: str = Field(default="", max_length=200)
+
+    @field_validator("pairs", mode="before")
+    @classmethod
+    def _nur_paarfelder(cls, wert):
+        # Wie beim Baum: nur nodeId/collectionId — der Server lehnt fremde Felder ab.
+        if not isinstance(wert, list):
+            return wert
+        return [{f: p[f] for f in ("nodeId", "collectionId") if f in p} if isinstance(p, dict)
+                else p for p in wert]
 
 
 class CollectionMembershipArgs(BaseModel):

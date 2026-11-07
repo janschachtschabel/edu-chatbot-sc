@@ -28,9 +28,12 @@ beyond field bounds and alias normalisation; the sibling
 
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+import logging
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+_logger = logging.getLogger(__name__)
 
 
 class SearchWloArgs(BaseModel):
@@ -163,7 +166,7 @@ class CollectionTreeArgs(BaseModel):
     """
     nodeId: str = ""
     subject: str = ""
-    depth: int = Field(default=1, ge=1, le=2)
+    depth: int = Field(default=1, ge=1, le=3)  # Paket M4: bis 3 (MCP-Stand 2026-11-07)
     includeContentCounts: bool = False
     maxResults: int = Field(default=50, ge=1, le=100)
 
@@ -171,6 +174,127 @@ class CollectionTreeArgs(BaseModel):
 class HealthCheckArgs(BaseModel):
     """Arguments for wlo_health_check."""
     pass
+
+
+class FindByUrlArgs(BaseModel):
+    """``find_content_by_url`` (Paket M3, MCP-Stand 2026-11-07): gibt es zu diesen Adressen schon
+    Datensätze? Der Server nimmt höchstens 20 — mehr werden gekappt statt abgelehnt."""
+
+    urls: list[str]
+    includeCollections: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _kappen(cls, data):
+        if isinstance(data, dict) and isinstance(data.get("urls"), str):
+            data = {**data, "urls": [data["urls"]]}
+        if isinstance(data, dict) and isinstance(data.get("urls"), list):
+            # Über 2000 Zeichen lehnte der Server den GANZEN Aufruf ab (Review M3, Befund 5).
+            urls = [u.strip() for u in data["urls"]
+                    if isinstance(u, str) and u.strip() and len(u.strip()) <= 2000]
+            data = {**data, "urls": urls[:20]}
+        return data
+
+
+def _kappe(wert, vorgabe: int, unten: int, oben: int) -> int:
+    try:
+        return max(unten, min(oben, int(wert)))
+    except (TypeError, ValueError):
+        return vorgabe
+
+
+_UEBERSICHT_TEILE = ("breadcrumb", "compendium", "stats", "skills", "subcollections", "contents")
+
+
+class CollectionOverviewArgs(BaseModel):
+    """``get_collection_overview`` (Paket M4, MCP-Stand 2026-11-07): eine Sammlung auf einen Blick.
+    Unbekannte Teile fallen weg, Zahlen werden auf die Grenzen des Servers gekappt."""
+
+    collectionId: str = Field(max_length=200)
+    include: list[str] = Field(default_factory=list)
+    maxContents: int = 10
+    maxSubcollections: int = 30
+
+    @model_validator(mode="before")
+    @classmethod
+    def _grenzen(cls, data):
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        # Review M4, Befund 15: die Kennung unter dem Namen der Nachbarwerkzeuge, ein Teil als
+        # Zeichenkette — beides lehnte der Server sonst als Ganzes ab.
+        if not data.get("collectionId") and data.get("nodeId"):
+            data["collectionId"] = data.pop("nodeId")
+        data.pop("nodeId", None)
+        if isinstance(data.get("include"), str):
+            data["include"] = [data["include"]]
+        if isinstance(data.get("include"), list):
+            data["include"] = [t for t in data["include"] if t in _UEBERSICHT_TEILE]
+        if "maxContents" in data:
+            data["maxContents"] = _kappe(data["maxContents"], 10, 0, 50)
+        if "maxSubcollections" in data:
+            data["maxSubcollections"] = _kappe(data["maxSubcollections"], 30, 0, 100)
+        return data
+
+
+#: Die Filter der Zählung (Server ``tools/content-count.ts``) und ihre Altnamen wie bei
+#: :class:`SearchWloArgs`.
+_ZAEHL_FILTER = ("educationalContext", "discipline", "userRole", "learningResourceType")
+_ZAEHL_ALTNAMEN = {"educationalLevel": "educationalContext", "subject": "discipline",
+                   "resourceType": "learningResourceType"}
+
+
+def _zaehl_anfrage(q: object) -> dict[str, Any] | None:
+    """Eine Anfrage in der Form des Servers — oder ``None``, wenn sie nicht gezählt werden darf
+    (Review M4, Befund 3). Der Server lehnt den GANZEN Aufruf ab, wenn eine Anfrage nicht passt;
+    und einen fremden Filterschlüssel verwürfe er still — gezählt würde dann ohne den Filter, die
+    Zahl wäre zu hoch. Beides trifft hier nur die eine Anfrage."""
+    if not isinstance(q, dict):
+        return None
+    kennung = str(q.get("id") if q.get("id") is not None else "").strip()
+    anfrage = str(q.get("query") or "").strip()
+    if not kennung or not anfrage or len(kennung) > 100 or len(anfrage) > 500:
+        return None
+    filter_ = q.get("filters")
+    if filter_ is None:
+        return {"id": kennung, "query": anfrage}
+    if not isinstance(filter_, dict):
+        return None
+    sauber: dict[str, str] = {}
+    for schluessel, wert in filter_.items():
+        schluessel = _ZAEHL_ALTNAMEN.get(schluessel, schluessel)
+        if wert is None or wert == "":
+            continue
+        if schluessel not in _ZAEHL_FILTER or not isinstance(wert, str) or len(wert) > 200:
+            return None
+        sauber[schluessel] = wert
+    return {"id": kennung, "query": anfrage, **({"filters": sauber} if sauber else {})}
+
+
+class ContentCountArgs(BaseModel):
+    """``count_wlo_content_matches`` (Paket M4): Trefferzahlen für bis zu 30 Anfragen
+    ``{id, query, filters?}`` zugleich; ``top`` 0–3 beste Treffer je Anfrage. Eine Anfrage, die
+    der Server nicht annähme, fällt einzeln weg (:func:`_zaehl_anfrage`)."""
+
+    queries: list[dict[str, Any]]
+    top: int = 2
+
+    @model_validator(mode="before")
+    @classmethod
+    def _grenzen(cls, data):
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if isinstance(data.get("queries"), list):
+            sauber = [a for a in map(_zaehl_anfrage, data["queries"]) if a is not None]
+            if len(sauber) < len(data["queries"]):
+                _logger.info("count_wlo_content_matches: %d von %d Anfragen nicht annehmbar — "
+                             "weggelassen", len(data["queries"]) - len(sauber),
+                             len(data["queries"]))
+            data["queries"] = sauber[:30]
+        if "top" in data:
+            data["top"] = _kappe(data["top"], 2, 0, 3)
+        return data
 
 
 class NodesDetailsArgs(BaseModel):
@@ -252,8 +376,10 @@ class WithinCollectionArgs(BaseModel):
     maxResults: int = Field(default=10, ge=1, le=20)
     skillContext: str = ""  # wie CollectionContentsArgs (Server 2026-08-18)
     license: str = ""  # wie ContentSearchArgs (Server 2026-08-20)
-    # Paket 11 (gemessen 2026-10-15): der Server übergeht ``excludeNodeIds`` hier still —
-    # dieselben Treffer kamen wieder. Geblättert wird mit ``skipCount``.
+    # Paket M1 (MCP-Stand 2026-11-07): ``excludeNodeIds`` wirkt hier jetzt — schon Gesehenes
+    # fällt vor dem Blättern weg, auch über das Original einer Verknüpfung. ``skipCount``
+    # bleibt für „die nächsten n“.
+    excludeNodeIds: list[str] = Field(default_factory=list, max_length=200)
     skipCount: int = Field(default=0, ge=0)
 
     @model_validator(mode="before")
@@ -262,11 +388,6 @@ class WithinCollectionArgs(BaseModel):
         if not isinstance(data, dict):
             return data
         data = dict(data)
-        # Alte Gewohnheit des Modells: gezeigte IDs statt einer Zahl. Gezeigt wurden die
-        # ersten Treffer — genau so viele werden übersprungen.
-        gezeigt = data.pop("excludeNodeIds", None)
-        if isinstance(gezeigt, list) and gezeigt and not data.get("skipCount"):
-            data["skipCount"] = len(gezeigt)
         # Dieselben Alt-Namen, die die globale Suche akzeptiert — das Modell
         # unterscheidet die beiden Werkzeuge beim Benennen der Filter nicht.
         if "educationalContext" not in data and "educationalLevel" in data:
@@ -449,4 +570,15 @@ class SkillRegistryArgs(BaseModel):
     """
     collectionId: str = Field(max_length=64)
     context: str = Field(default="", max_length=120)
+    #: Paket M4 (MCP-Stand 2026-11-07): die anstehende Aufgabe — der Server wählt den passenden
+    #: Skill und liefert dessen Anleitung gleich mit (``task.match = found``).
+    task: str = Field(default="", max_length=300)
     outputFormat: Literal["markdown", "json"] = "markdown"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _aufgabe_kuerzen(cls, data):
+        # Review M4, Befund 15: Freitext — gekürzt statt den ganzen Aufruf zu verlieren.
+        if isinstance(data, dict) and isinstance(data.get("task"), str):
+            data = {**data, "task": data["task"].strip()[:300]}
+        return data

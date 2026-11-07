@@ -26,6 +26,16 @@ export interface HealthInfo {
   readonly provider?: string;
   readonly chat_model?: string;
   readonly embed_model?: string;
+  /** Plan 2026-11-07 (R4): welche Seiten das Widget einbetten dürfen (`CORS_*`). */
+  readonly einbettung?: EinbettungInfo;
+}
+
+/** `offen` = `CORS_ALLOW_ALL`; `herkuenfte` = die gepflegte `CORS_ORIGINS` (auch übersteuert);
+ *  `muster` = die Regel für Browser-Erweiterungen. */
+export interface EinbettungInfo {
+  readonly offen: boolean;
+  readonly herkuenfte: readonly string[];
+  readonly muster: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

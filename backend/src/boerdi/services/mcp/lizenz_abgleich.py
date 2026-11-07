@@ -8,8 +8,9 @@ filterte „CC BY NC“ oder „CC BY-NC-SA 3.0 DE“ still auf CC BY. Deshalb h
    Länder- und Fassungszusätze wie ``DE``/``international``), nie über Teilwörter.
 2. **CC-Werte aus ihren Bausteinen** BY/NC/SA/ND, wenn der Wortlaut keinem Eintrag gleicht.
 3. **Sammelwerte des Servers** („OER“, „freie Lizenzen“ …) bleiben, wie sie sind.
-4. Was sich so nicht zuordnen lässt, **filtert nicht** (:func:`lizenz_filter` gibt ``None``) —
-   roh weitergereicht träfe es am Server über ein Teilwort die falsche Lizenz.
+4. Was sich so nicht zuordnen lässt, ergibt ``None`` (:func:`lizenz_filter`) und geht unverändert
+   an den Server (Paket M1, MCP-Stand 2026-11-07): der löst nur exakt auf und antwortet auf eine
+   unbekannte Lizenz mit keinen Materialien und Vorschlägen — kein Teilwort-Treffer mehr.
 
 Kein LLM-Rückfall: eine geratene Lizenz wäre schlimmer als keine.
 """
@@ -76,14 +77,17 @@ def lizenz_schluessel(vokabular: dict[str, str], wert: str) -> str | None:
 
 
 def lizenz_filter(vokabular: dict[str, str], wert: str) -> str | None:
-    """Was als ``license`` an den Server geht: Schlüssel, Sammelwert unverändert — oder ``None``
-    (weglassen: dann filtert die Suche nicht, wie es die Werkzeugbeschreibung sagt).
+    """Was als ``license`` an den Server geht: Schlüssel, ``OER`` für jeden Sammelwert — oder
+    ``None`` (unbekannt: der Aufrufer reicht den Wert dann unverändert weiter, der Server
+    antwortet ehrlich mit keinen Materialien und Vorschlägen; Paket M1).
 
     Ohne Vokabular (MCP beim Laden nicht erreichbar) bleibt der Wert, wie er ist: dann lässt sich
     nichts beurteilen, und Weglassen hieße, jede Lizenzsuche still zu entfiltern.
     """
     if " ".join(re.sub(r"[-_]", " ", (wert or "").lower()).split()) in SAMMELWERTE:
-        return wert
+        # Der Server kennt nur seine eigenen Schreibweisen (``OER_ALIASES``, exakt) — „OER Lizenz“
+        # ergäbe dort keine Materialien (Review M1, Befund 6).
+        return "OER"
     if not vokabular:
         return wert
     return lizenz_schluessel(vokabular, wert)

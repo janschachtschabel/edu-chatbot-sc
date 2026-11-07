@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import json
 import logging as _log
+import re
 
 from boerdi.domain.inline_grouping import _is_einzelinhalt_card
 
@@ -255,6 +256,90 @@ _LANGFORM_UNGEDECKELT = frozenset({
     "get_skill", "get_compendium_text", "get_wlo_content_text",
 })
 
+#: Paket M4 (Review, Befund 4): Übersicht und Zählung sind knappe Server-Texte, mit den Grenzen
+#: des Servers (100 Untersammlungen, 50 Inhalte, 30 Anfragen) aber deutlich über
+#: :data:`_ROH_DECKEL`. Ihre Fehlzeilen („Nicht geladen …", „… nicht gezählt") stehen am Ende und
+#: gingen beim Abschneiden zuerst verloren — M19 verlangt, Ungeprüftes zu nennen.
+_UEBERSICHT_WERKZEUGE = frozenset({"get_collection_overview", "count_wlo_content_matches"})
+#: Bewusst (Review 2026-11-07): die Zählung behält ihre Beispiel-Titel auch im Gruppiermodus —
+#: M19 verlangt jeden Befund mit Titel belegt, und die Titel stehen dort als Beleg für eine Zahl,
+#: nicht als Empfehlung. Die Übersicht hält ihre Inhaltsliste zurück (:func:`_ohne_inhaltsliste`).
+_UEBERSICHT_DECKEL = 12_000
+_FEHLZEILE = re.compile(r"^(Nicht geladen: |[^\n]{1,100}: nicht gezählt \()")
+_INHALTE_KOPF = re.compile(r"^Inhalte \((\d+) von (\d+)\):$")
+
+
+def _ohne_inhaltsliste(zeilen: list[str]) -> list[str]:
+    """Die Inhaltsliste der Übersicht durch ihre Zahl ersetzen (Review M4, Befund 8: im
+    inline_result_grouping-Modus nennt das Modell keine Materialien, die die Oberfläche nicht
+    zeigt — Regel vom 2026-05-21)."""
+    aus: list[str] = []
+    in_liste = False
+    for z in zeilen:
+        kopf = _INHALTE_KOPF.match(z)
+        if kopf:
+            aus.append(f"Inhalte: {kopf.group(2)} — Titel zurückgehalten, die Oberfläche zeigt "
+                       "hier keine Einzelinhalte.")
+            in_liste = True
+            continue
+        if in_liste and z.startswith(("- ", "  ")):
+            continue
+        in_liste = False
+        aus.append(z)
+    return aus
+
+
+def _redigiere_uebersicht(name: str, raw_text: str, *, ohne_einzelinhalte: bool) -> str:
+    """Übersicht und Zählung: Fehlzeilen nach vorn, dann ein weiter Deckel."""
+    zeilen = raw_text.splitlines()
+    if name == "get_collection_overview" and ohne_einzelinhalte:
+        zeilen = _ohne_inhaltsliste(zeilen)
+    fehler = [z for z in zeilen if _FEHLZEILE.match(z)]
+    rest = [z for z in zeilen if not _FEHLZEILE.match(z)]
+    return "\n".join([*fehler, *rest])[:_UEBERSICHT_DECKEL]
+
+
+def teile_skill_wahl(raw_text: str) -> tuple[str, str, bool] | None:
+    """Eine Antwort von ``get_skill_registry`` mit ``task`` (Paket M4): ``(Kopf, Rest, Rest ist
+    die Anleitung)`` — ``None`` ohne Kopf, also für jede Antwort ohne ``task``.
+
+    Die Form ist die des Servers (``tools/skill-registry-task.ts``): seine Zeilen kommen VOR dem
+    Dokument, und das beginnt mit einer H1 — die Anleitung mit ``nodeId:`` darunter
+    (``renderSkill``), der Katalog mit ``Registry-Dokument:`` (``renderRegistry``). Eine Antwort
+    ohne ``task`` beginnt mit dieser H1 oder ist eine einzige Zeile ohne sie."""
+    zeilen = (raw_text or "").split("\n")
+    start = next((i for i, z in enumerate(zeilen) if z.startswith("# ")), None)
+    if not start:
+        return None
+    kopf = "\n".join(zeilen[:start]).strip()
+    if not kopf:
+        return None
+    zweite = zeilen[start + 1] if start + 1 < len(zeilen) else ""
+    return kopf, "\n".join(zeilen[start:]), zweite.startswith("nodeId:")
+
+
+def gewaehlte_anleitung(raw_text: str) -> tuple[str, str] | None:
+    """``(nodeId, Titel)`` der Anleitung, die der Server zu ``task`` mitgeliefert hat."""
+    teile = teile_skill_wahl(raw_text)
+    if not teile or not teile[2]:
+        return None
+    erste, zweite = (teile[1].split("\n") + [""])[:2]
+    node_id = zweite[len("nodeId:"):].strip().split(" ")[0]
+    return (node_id, erste[2:].strip()) if node_id else None
+
+
+def _redigiere_katalog_antwort(raw_text: str, *, deckel: bool) -> str:
+    """``get_skill_registry`` für das Modell (Review M4, Befund 1): die zu ``task`` gewählte
+    Anleitung ungekürzt wie bei ``get_skill``; ein Katalog strukturell gekürzt — mit dem Urteil
+    des Servers davor („keiner passt eindeutig", Kandidaten), das sonst wegfiele."""
+    teile = teile_skill_wahl(raw_text)
+    if teile and teile[2]:
+        return raw_text
+    katalog = _redigiere_skill_registry(teile[1] if teile else raw_text)
+    if katalog is None:
+        return raw_text[:_ROH_DECKEL] if deckel else raw_text
+    return f"{teile[0]}\n\n{katalog}" if teile else katalog
+
 #: Die flache Sammlungs-Suche — eigene Antwortform (EIN ``results``-Topf),
 #: eigene Kürzung. Siehe :func:`_redigiere_sammlungs_suche`.
 _SAMMLUNGS_SUCHE = "search_wlo_collections"
@@ -303,8 +388,7 @@ def redigiere_strukturell(tool_name: str, raw_text: str) -> str:
     und ``skill_registry_note`` lesen weiterhin den Rohtext.
     """
     if tool_name == _KATALOG_WERKZEUG:
-        katalog = _redigiere_skill_registry(raw_text)
-        return katalog if katalog is not None else raw_text
+        return _redigiere_katalog_antwort(raw_text, deckel=False)
     if tool_name == _KOMBI_WERKZEUG:
         kurz = _redigiere_kombi_suche(raw_text, mit_einzelinhalten=True)
         return kurz if kurz is not None else raw_text
@@ -455,8 +539,9 @@ def _redact_search_content_for_llm(
     if name == _KATALOG_WERKZEUG:
         # Vor der Kombi-Suche geprüft, weil der Rückfall derselbe ist: gelingt
         # die strukturelle Kürzung nicht, bleibt der blinde Deckel.
-        katalog = _redigiere_skill_registry(raw_text)
-        return katalog if katalog is not None else raw_text[:_ROH_DECKEL]
+        return _redigiere_katalog_antwort(raw_text, deckel=True)
+    if name in _UEBERSICHT_WERKZEUGE:
+        return _redigiere_uebersicht(name, raw_text, ohne_einzelinhalte=_inline_grouping_mode)
     if name == _SAMMLUNGS_SUCHE:
         kurz = _redigiere_sammlungs_suche(raw_text)
         return kurz if kurz is not None else raw_text[:_ROH_DECKEL]

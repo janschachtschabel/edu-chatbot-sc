@@ -43,6 +43,24 @@ export interface TicketLoginContext {
   mcpAuthBase: () => string;
   /** Nur für den Test. */
   fetchImpl?: typeof fetch;
+  /** Nur für den Test: das Warten vor dem zweiten Versuch. */
+  warten?: (ms: number) => Promise<void>;
+}
+
+/** Längste Wartezeit vor dem zweiten Versuch nach einer 503 — länger wartet der Tausch nicht. */
+export const ZWEITER_VERSUCH_MAX_MS = 15_000;
+
+/** Die Wartezeit einer 503 `upstream_unreachable` (Rumpf `retryAfter`, sonst `Retry-After`), gedeckelt. */
+async function wartezeitMs(res: Response): Promise<number> {
+  let sekunden = Number(res.headers.get('retry-after'));
+  try {
+    const rumpf = (await res.json()) as { retryAfter?: unknown };
+    if (typeof rumpf?.retryAfter === 'number') sekunden = rumpf.retryAfter;
+  } catch {
+    /* kein JSON — dann der Kopf */
+  }
+  const ms = Number.isFinite(sekunden) && sekunden > 0 ? sekunden * 1000 : 10_000;
+  return Math.min(ms, ZWEITER_VERSUCH_MAX_MS);
 }
 
 /**
@@ -60,13 +78,21 @@ export async function runTicketLogin(ctx: TicketLoginContext): Promise<TicketLog
   if (!basis) return 'unavailable';
 
   const doFetch = ctx.fetchImpl ?? fetch;
+  const tauschen = () => doFetch(`${basis}/auth/ticket`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticket }),
+  });
   let data: { ok?: boolean; block?: unknown };
   try {
-    const res = await doFetch(`${basis}/auth/ticket`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticket }),
-    });
+    let res = await tauschen();
+    // MCP-Stand 2026-11-07: 503 `upstream_unreachable` = edu-sharing hat die Prüfung nicht
+    // beantwortet — kein Urteil über das Ticket. Behalten und nach der Wartezeit EINMAL erneut.
+    if (res.status === 503) {
+      await (ctx.warten ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms))))(await wartezeitMs(res));
+      res = await tauschen();
+      if (res.status === 503) return 'unreachable';
+    }
     // 404 = diese Anlage gibt keine Blöcke aus (Betriebsentscheidung, kein
     // Fehler) — dieselbe Bedeutung wie eine leere Anmelde-Adresse.
     if (res.status === 404) return 'unavailable';

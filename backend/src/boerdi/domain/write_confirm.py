@@ -88,6 +88,9 @@ CURATION_TOOLS = frozenset({
     "wlo_suggest_metadata",
     "wlo_list_suggestions",
     "wlo_decide_suggestion",
+    # Paket M5 (MCP-Stand 2026-11-07): Pläne — eine Bestätigung für das Ganze.
+    "wlo_create_collection_tree",
+    "wlo_add_to_collections",
 })
 
 # 13 der 14 führen einen ``confirmToken``. ``wlo_list_suggestions`` nicht — es
@@ -101,6 +104,23 @@ CONFIRMABLE_TOOLS = CURATION_TOOLS - {"wlo_list_suggestions"}
 # keinem Argument-Modell steht). Zwei Schreibweisen desselben Namens wären die
 # nächste Gelegenheit zum Auseinanderlaufen.
 CONFIRM_TOKEN_FIELD = "confirmToken"
+#: Paket M5: der Fortsetzungs-Schlüssel eines Plans. Fortgesetzt wird nur über die Direktaktion
+#: „Weiter anlegen“ (``services/plan_fortsetzen``) — ein Modell setzt ihn nie (Review M5, Befund 5).
+FORTSETZEN_FIELD = "continuationToken"
+#: In ``entities``: der offene Plan (``services/plan_fortsetzen``); hier, weil auch die Anzeige
+#: (``domain/write_anzeige``) seinen Schlüssel kennen muss.
+OFFENER_PLAN_KEY = "_offener_plan"
+#: Felder, deren Wert eine Änderung auslöst — nie in Zugakte oder Protokoll (Review 2026-11-07:
+#: der Fortsetzungs-Schlüssel kann der eingelöste Bestätigungsschlüssel selbst sein).
+SCHLUESSEL_FELDER = frozenset({CONFIRM_TOKEN_FIELD, FORTSETZEN_FIELD, "batchToken"})
+#: Paket M5: Werkzeuge, die der Server als Plan führt. Eingelöst werden sie NUR im Vorlauf
+#: (``services/write_approval`` — er merkt den Plan und bietet „Weiter anlegen“ an); die Werkzeug-
+#: Schleifen setzen für sie nie einen Schlüssel ein (Re-Review M5, Befund 1).
+PLAN_TOOLS = frozenset({"wlo_create_collection_tree", "wlo_add_to_collections"})
+
+
+def is_plan(tool_name: str) -> bool:
+    return tool_name in PLAN_TOOLS
 
 # Wie viel eines Vorhabens wir uns merken (S4, 2026-08-14). Der Merkposten
 # liegt als JSONB in ``session_state["entities"]`` und wird je Zug geschrieben;
@@ -143,9 +163,10 @@ def strip_confirm_token(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     Kurations-Oberfläche werden nicht angefasst — dort ist ``confirmToken`` ein
     gewöhnlicher Name ohne Bedeutung.
     """
-    if not is_confirmable(tool_name) or CONFIRM_TOKEN_FIELD not in args:
+    if not is_confirmable(tool_name) or not (CONFIRM_TOKEN_FIELD in args
+                                              or FORTSETZEN_FIELD in args):
         return args
-    return {k: v for k, v in args.items() if k != CONFIRM_TOKEN_FIELD}
+    return {k: v for k, v in args.items() if k not in (CONFIRM_TOKEN_FIELD, FORTSETZEN_FIELD)}
 
 
 def extract_confirm_token(text: str) -> str | None:

@@ -22,6 +22,7 @@ Navigation EINE Ebene tiefer: Sub-Sammlungen + ggf. enthaltene Inhalte.
 - browse_collection_tree
 - get_collection_contents
 - get_collection_stats
+- get_collection_overview
 - get_node_breadcrumb
 - get_compendium_text
 - search_wlo_within_collection
@@ -79,8 +80,12 @@ Navigation EINE Ebene tiefer: Sub-Sammlungen + ggf. enthaltene Inhalte.
 
 ## Pipeline
 1. Wenn Fach genannt aber UUID unbekannt → `get_subject_portals` für UUID
-2. `browse_collection_tree(nodeId, depth=1)` für Sub-Sammlungen
-3. Optional `get_collection_contents` für Inhalte der gewählten Ebene
+2. Für den ersten Überblick einer Sammlung `get_collection_overview(collectionId)` (Pfad,
+   Gliederung, Zahlen, Skills, Untersammlungen, erste Inhalte in einem Aufruf) — nur zur
+   Orientierung, sie liefert keine Karten
+3. `browse_collection_tree(nodeId, depth=1)` für Sub-Sammlungen — immer, wenn die Untersammlungen
+   gezeigt werden sollen (nur er liefert die Karten)
+4. Optional `get_collection_contents` für Inhalte der gewählten Ebene
 
 ## Verhalten
 - Max. 8 Sub-Cards

@@ -34,6 +34,7 @@ import {
 } from '@angular/core';
 
 import { WidgetElementLoader } from '../core/widget-element-loader';
+import { EinbettungHerkuenfteComponent } from './einbettung-herkuenfte.component';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { PREVIEW_CONTEXT_KINDS, buildPreviewContext } from './preview-embed';
 
@@ -41,6 +42,7 @@ type LoadState = 'laden' | 'bereit' | 'fehler';
 
 @Component({
   selector: 'studio-widget-preview',
+  imports: [EinbettungHerkuenfteComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './widget-preview.component.html',

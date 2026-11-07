@@ -64,7 +64,10 @@ from boerdi.domain.inline_grouping import max_selectable_cards as _max_selectabl
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.domain.skill_precedence import merke_laufende_anleitung
 from boerdi.domain.tool_pflicht import fehlende_pflichtwerkzeuge, gerufene_werkzeuge
-from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
+from boerdi.domain.tool_result_redaction import (
+    _redact_search_content_for_llm,
+    gewaehlte_anleitung,
+)
 from boerdi.domain.untrusted_text import frame_untrusted, frame_wissen
 from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN, angebotene_namen
 from boerdi.domain.write_anzeige import merke_vorschau
@@ -74,6 +77,7 @@ from boerdi.domain.write_confirm import (
     extract_confirm_token,
     is_confirmable,
     is_expired,
+    is_plan,
     redact_confirm_token,
     remember_pending,
     strip_confirm_token,
@@ -93,6 +97,7 @@ from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergeh
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.auth import aufrufer_kennung
+from boerdi.services.mcp.client import is_mcp_error, nimm_bestaetigung
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.services.response_tool_selection import _nameable_tools
 from boerdi.services.tool_loop_module import TEIL_LADER_KEY, nimm_module_an, offene_frage
@@ -850,11 +855,14 @@ async def _run_tool_loop(
                     # wiederholen. Der Fingerabdruck-Weg darunter bleibt für
                     # alles ohne Nutzlast — und als Rückfall, wenn nichts
                     # gemerkt wurde (zu grosse Argumente).
+                    # Paket M5 (Re-Review, Befund 1): einen Plan löst nur der Vorlauf ein — er
+                    # kennt das Fortsetzen; hier bleibt sein Aufruf eine Vorschau.
+                    _selbst = not is_plan(tool_name)
                     _abgenommen = (
                         confirmed_args(_pending_at_turn_start, tool_name, now=_jetzt)
-                        if zugestimmt(session_state, _nutzernachricht) else None
+                        if _selbst and zugestimmt(session_state, _nutzernachricht) else None
                     )
-                    _confirm = None if _abgenommen else token_for(
+                    _confirm = None if (_abgenommen or not _selbst) else token_for(
                         _pending_at_turn_start, tool_name, tool_args, now=_jetzt)
                     if _abgenommen is not None:
                         # Weder Argumente noch Schlüssel ins Protokoll — nur,
@@ -918,13 +926,27 @@ async def _run_tool_loop(
                         session_state.get("turn_count"),
                         titel=skill_titel(result_text),
                     )
+                # Paket M4 (Review, Befund 2): ``get_skill_registry`` mit ``task`` liefert die
+                # gewählte Anleitung gleich mit — sie läuft dann wie nach ``get_skill`` (Faden
+                # für den Folgezug, Ansage „… wird geladen").
+                elif (tool_name == "get_skill_registry" and tool_args.get("task")
+                      and outcome.status == "success"
+                      and (wahl := gewaehlte_anleitung(result_text))):
+                    merke_laufende_anleitung(
+                        session_state.setdefault("entities", {}), wahl[0],
+                        session_state.get("turn_count"), titel=wahl[1])
 
                 # Rückweg des Walls: den frisch geprägten Schlüssel merken und
                 # aus dem Text nehmen, BEVOR er irgendwohin weiterfließt
                 # (Nachrichtenkette, Karten, Protokoll). Sähe das Modell ihn,
                 # könnte es im selben Zug bestätigen.
                 if is_confirmable(tool_name):
-                    _minted = extract_confirm_token(result_text)
+                    # Paket M2: der Schlüssel aus ``structuredContent.confirm``, der Text
+                    # ist Rückfall (ein Server ohne den strukturierten Teil).
+                    # Aus einer Fehlermeldung nie (Review M2, Befund 7: fremder Titel darin).
+                    _minted = nimm_bestaetigung(tool_name, tool_args)
+                    if _minted is None and not is_mcp_error(result_text):
+                        _minted = extract_confirm_token(result_text)
                     # Redigiert wird ZUERST — danach kann kein Pfad mehr den
                     # rohen Text weiterreichen. Seit S1 gibt es einen zweiten
                     # Empfänger (den offenen Vorgang, aus dem die sichtbare

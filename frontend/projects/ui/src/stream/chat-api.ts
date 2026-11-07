@@ -17,6 +17,7 @@ import type { AblageSchritt } from '@boerdi/ui-module';
 
 import { ChatResponse, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { fehlerKurz } from '../obs/fehler-kurz';
+import { MCP_ACCESS_HEADER } from '../session/mcp-access';
 import { ablageSenden } from './ablage-transport';
 import { type DokumentBefund, dokumentHochladen } from './dokument-transport';
 import { verlaufAbrufen } from './history-transport';
@@ -154,6 +155,8 @@ const ZWEIG_FRIST_MS = 75_000;
 /** K1b: eine Standabfrage ist eine kurze b-api-Abfrage — länger wartet das Modul nicht. */
 const AUFTRAG_FRIST_MS = 25_000;
 const AUFTRAG_STAENDE: ReadonlySet<unknown> = new Set(['laeuft', 'fertig', 'fehler']);
+/** Abmelden (R2): der Widerruf am MCP-Server ist eine kurze Anfrage — länger wartet niemand. */
+const ABMELDEN_FRIST_MS = 15_000;
 
 /**
  * Zustandsbehafteter Chat-Client: hält `baseUrl` (+ Runtime-Override) und den
@@ -452,6 +455,26 @@ export class ChatApiClient {
       extraHeaders: this.turnHeaders(),
       ...(fristMs === undefined ? {} : { fristMs }),
     });
+  }
+
+  /** Abmelden (Plan 2026-11-07, R2, `POST /api/auth/abmelden`): das Backend widerruft `block`
+   *  am MCP-Server (dort per Bearer, `/auth*` hat kein CORS). Der Block reist ausdrücklich mit —
+   *  die Shell löscht ihn gleich danach aus dem Speicher. Wirft nie: ob widerrufen wurde, ändert
+   *  am Abmelden im Tab nichts. */
+  async abmelden(block: string): Promise<boolean> {
+    try {
+      const antwort = await postChat<{ widerrufen?: unknown }>({
+        url: `${this.baseUrl}/auth/abmelden`,
+        body: {},
+        fetchImpl: this.fetchImpl,
+        fristMs: ABMELDEN_FRIST_MS,
+        extraHeaders: { [MCP_ACCESS_HEADER]: block },
+      });
+      return antwort?.widerrufen === true;
+    } catch (err) {
+      console.warn('boerdi: Widerruf der Anmeldung nicht gelungen —', fehlerKurz(err));
+      return false;
+    }
   }
 
   /** Unterthemen eines Knotens im Themenbaum (U1-h, `POST /api/ui/themenbaum/zweig`): kein Zug,

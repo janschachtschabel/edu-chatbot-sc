@@ -28,6 +28,11 @@ Die zugehörigen Pläne:
 - **Paket 20 (Aufräumen aus §5):** [`2026-10-31-paket-20-aufraeumen.md`](plans/2026-10-31-paket-20-aufraeumen.md) — A1–A3 und B1–B3 erledigt (in §5 vermerkt); der Rest von §5 bleibt und läuft mit, wenn die Dateien angefasst werden.
 - **Paket U1 (UI-Module):** [`2026-11-02-paket-u1-ui-module.md`](plans/2026-11-02-paket-u1-ui-module.md) — U1-a … U1-f umgesetzt und reviewt (Stand 2026-11-03); U1-g (UI-Module in der Evaluation, §17) umgesetzt und reviewt (14 Befunde behoben, Stand 2026-11-03). U1-h (Unterthemen im selben Themenbaum aufklappen, §18, eigener öffentlicher Endpunkt `POST /api/ui/themenbaum/zweig`) umgesetzt und reviewt (11 Befunde behoben, Stand 2026-11-03). Offen: die Punkte „Paket U1“ in §1, §2 und §5; Einzelheiten im Plan unter „Offen“ von §13, §15 und §16.
 - **Paket U2 (Themenbaum: Bestand und KI-Entwurf):** [`2026-11-04-paket-u2-themenbaum-entwurf.md`](plans/2026-11-04-paket-u2-themenbaum-entwurf.md) — umgesetzt 2026-11-04 (zwei Module `ui_themenbaum` / `ui_strukturentwurf`, gemeinsamer Kern `_baum/`, Dienst `strukturentwurf`, Brücke `edit_collection_as_draft`, Master-Skill-Regeln, Gold-Abläufe GV-UI-8 … 12). **Master-Skill geändert** (`docs/skills/vorgehen-knapp.md`, zuletzt im dritten Review 2026-11-05): muss in den WLO-Knoten übertragen werden. Offen: Plan §7 und §9 D6 (Knopf „Als Entwurf bearbeiten“ je gemeldeter Module — begründet nicht umgesetzt). Dazu erledigt am 2026-11-05: die rechtliche LLM-Stufe scheiterte mit gpt-6-luna still (json-Hinweis; Änderungsnotiz U2, Abschnitt „Fix rechtliche Prüfung“).
+- **MCP-Vertrag (M1–M7, 2026-11-07):** [`2026-11-07-mcp-vertrag.md`](plans/2026-11-07-mcp-vertrag.md) — der Chatbot
+  am MCP-Stand vom 07.11.: Fehler mit Code, Abnahme aus `structuredContent.confirm`, Anlegen mit Sammlung in einer
+  Bestätigung (`addToCollectionId`, `find_content_by_url`), Übersicht/Zählung/Skill-Wahl per `task`, Pläne
+  (Sammlungsbaum, Massen-Aufnahme, „Weiter anlegen“), letzte Ablagen im Upload-Modul. Je Paket eine Notiz
+  `aenderungen/2026-11-07-paket-m{1..7}-*.md`; Offenes unten in §3 (U3-3), §4 und §6.
 - **Paket 4 (externes Audit und Restliste):** [`2026-10-03-paket-4-audit-extern.md`](plans/2026-10-03-paket-4-audit-extern.md).
   - Status: freigegeben und umgesetzt 2026-10-03 (Phasen V, A–E, L, S; Log im Plan). Zurückgestellt an Paket 5 bzw. ins Backlog: siehe Plan §5/§6.
   - Er gleicht das externe Audit [`audits/2026-10-03-audit-extern.md`](audits/2026-10-03-audit-extern.md) (Stand `610abec`) mit `e38006d` ab.
@@ -35,6 +40,17 @@ Die zugehörigen Pläne:
 - **Audit 2026-09-29:** [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md) — behoben dort: der Transport-Retry mit `confirmToken` und das Token im INFO-Log (früher §1.2/§1.3), `pip-audit` (jetzt in der CI), zwei Aufräumpunkte aus §5 und eine der unter Last kippenden Test-Dateien (siehe §5).
 
 ## 1 Befunde mit Wirkung im Betrieb
+
+- **Stabilität der MCP-Anbindung (2026-11-07):** umgesetzt gegen den ausgerollten MCP-Stand S1–S7. Plan
+  [`plans/2026-11-07-stabilitaet-mcp-anbindung.md`](plans/2026-11-07-stabilitaet-mcp-anbindung.md), Rückmeldung
+  an das MCP-Team [`mcp-rueckmeldung-2026-11-07.md`](mcp-rueckmeldung-2026-11-07.md) (3 kleine Befunde dort).
+  - Erledigt damit: der offene Befund „bestätigter Schreibaufruf ohne Antwort → bitte nachsehen“ (früher §1.2),
+    soweit der Server die erste Antwort noch kennt (30 min, kein Neustart).
+  - Noch offen:
+    - der Client-Schlüssel (Tausch mit dem MCP-Team);
+    - der Lasttest mit 30 Personen (startet der Nutzer).
+  - Der Block liegt weiter im `sessionStorage` der Gastseite: R1 begrenzt das auf 12 h. Die Bindung an die
+    Sitzung im Backend ist ein eigenes Paket.
 
 - **Querschnitts-Review 2026-11-06** (Pakete V1 … U3-3b, K1b): alle 7 MAJOR und die MINOR/NIT behoben in den
   Paketen Q1–Q4 (Plan [`plans/2026-11-06-querschnitts-befunde.md`](plans/2026-11-06-querschnitts-befunde.md),
@@ -150,14 +166,42 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   [`aenderungen/2026-11-06-paket-k1b-fortschritt.md`](aenderungen/2026-11-06-paket-k1b-fortschritt.md)). Offen:
   403 `abgewiesen` zeigt das Modul wie „nicht angemeldet“ (der Client reicht nur den Status durch).
 - **Übertragen in den persönlichen Bereich (U3-3a/b, 2026-11-06):** fertig und reviewt, wirkt aber erst,
-  wenn (1) im MCP-Server `registerCurationBatchTools` in `wlo-mcp-server-sc/src/server.ts` verdrahtet ist
-  (Nutzerdatei, bewusst nicht angefasst) und `WLO_BATCH_UPLOAD_ENABLED` an ist, (2) MA-0 (Messung mit dem
+  wenn (1) im MCP `WLO_BATCH_UPLOAD_ENABLED` an ist (die Werkzeuge sind seit dem MCP-Stand 07.11. verdrahtet,
+  inklusive `wlo_list_my_batches`), (2) MA-0 (Messung mit dem
   Testkonto) gelaufen ist und (3) im Studio „Inhalte in WLO ablegen“ eingeschaltet wird (Vorgabe aus).
-  Offen im Paket: T1b („letzte Ablagen“ nach der Anmeldung), „Vorgang herunterladen“, Neu-Vorbereiten nach
-  abgelaufener Freigabe (Gefahr doppelter Ablage). (`ui-upload.element.ts` ist seit Q4 geteilt.) Bewusst
-  angehoben: Budget je nachgeladenem Modul 15 → 20 kB gzip (`ui-upload` 16,2 kB).
+  Offen im Paket: „Vorgang herunterladen“, Neu-Vorbereiten nach
+  abgelaufener Freigabe (Gefahr doppelter Ablage — seit M6 zeigt das Modul neben der Vorschau die letzten
+  eigenen Ablagen). T1b erledigt in M6 (`aenderungen/2026-11-07-paket-m6-letzte-ablagen.md`). (`ui-upload.element.ts` ist seit Q4 geteilt.) Bewusst
+  angehoben: Budget je nachgeladenem Modul 15 → 20 kB gzip (`ui-upload` 17,9 kB seit dem Review vom 07.11.).
 
 ## 4 Beim nächsten Deploy
+
+- **Stabilität der MCP-Anbindung (2026-11-07):**
+  - **Voraussetzung:** der MCP-Server auf dem Stand S1–S7 (ausgerollt am 07.11.). Ein älterer Server geht auch:
+    Ohne `/auth/status` fragt der Chatbot das Werkzeug, ohne Replay bleibt der Ausgang offen wie bisher.
+  - **Neue Variablen** (alle mit Vorgabe):
+    - `MCP_CLIENT_KEY` (Geheimnis), `MCP_BUDGET_RPM`, `MCP_BUDGET_WAIT_S`;
+    - `MCP_BREAKER_FAILURES`, `MCP_BREAKER_WINDOW_S`, `MCP_BREAKER_OPEN_S`;
+    - `MCP_CONNECT_TIMEOUT_S`, `MCP_BUSY_RETRY_MAX_S`, `AUTH_GRACE_S`.
+  - **Ohne Client-Schlüssel `MCP_BUDGET_RPM=280` setzen** (`uebergabe-betrieb.md` §11).
+  - **Dem MCP-Team melden:**
+    - `TICKET_ALLOWED_ORIGINS` = `CORS_ORIGINS`;
+    - `WIDGET_OAUTH_ORIGINS` = die öffentliche Herkunft des Backends.
+  - **Image neu bauen** (Widget: Abmelden widerruft, Ticket-Erneuerung nach 12 h). Danach Hard-Reload im Browser.
+  - Keine Migration. Die neue Route `POST /api/auth/abmelden` steht in `docs/api/bewusste-vertragszusaetze.md`.
+
+- **MCP-Vertrag (M1–M7, 2026-11-07):**
+  - **Reihenfolge:** zuerst der MCP auf dem Stand vom 07.11.2026 — ein älterer kennt `find_content_by_url` und die
+    Plan-Werkzeuge nicht und überginge `addToCollectionId` (dann entstünde ein Datensatz ohne Einsortieren).
+  - **Master-Skill neu einspielen** (`docs/skills/vorgehen*.md` → WLO-Knoten): Dublette per Adresse, Anlegen mit
+    Sammlung, Metadaten belegen, Sammlungsübersicht, Zählung, Pläne.
+  - **Werksabgleich** (`import-config --werksabgleich`): Seeds `03-patterns/m08`, `m18`, `m19`, `m20`,
+    `05-knowledge/mcp-servers.yaml`, `eval/gold-flows.yaml` (GV-RED-1 erwartet jetzt Vokabular statt
+    `wlo_suggest_metadata` und in Zug 3 `wlo_create_content` — den Eval startet der Nutzer).
+  - **Image neu bauen** (das Dockerfile baut Widget und nachgeladene Module selbst), danach Hard-Reload im Browser:
+    `ui-upload` zeigt die letzten Ablagen (neuer Hash). Sichtbar erst mit `WLO_BATCH_UPLOAD_ENABLED` im MCP und dem
+    Studio-Schalter „Inhalte in WLO ablegen“.
+  - Keine Migration, keine neue Umgebungsvariable.
 
 - **Vorgänge, Abläufe, Aufträge (2026-11-05/06):** Migrationen `0018` (`vorgaenge`, `vorgang_ablage`) und
   `0019` (`vorgang_auftraege`) laufen im `migrate`-Dienst. Neuer Bereich `06-ablaeufe/katalog` (Werksfassung:
@@ -313,6 +357,32 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - ~~**Paket U1 — vier Postgres-Tests veraltet**~~ erledigt 2026-11-03 ([`aenderungen/2026-11-03-paket-u1-db-tests.md`](aenderungen/2026-11-03-paket-u1-db-tests.md)): alle vier Tests veraltet, der Code entsprach dem Plan; ganze Suite mit Postgres grün (7786 bestanden, 4 übersprungen).
 
 ## 6 Zurückgestellte Plan-Teile
+
+- **MCP-Vertrag (2026-11-07), bewusst nicht gebaut oder verschoben:**
+  - `resolve_wlo_filters` als interne Filterauflösung: unsere Argumentauflösung macht dasselbe vor jeder Suche; eine
+    Umstellung ändert jede Suche und ihre Zeiten — eigener, gemessener Schritt.
+  - `get_node_details` mit `nodeIds` (deckt `get_nodes_details` ab).
+  - `services/page_duplicate.py` (Dublettenprüfung beim Seitengruß) auf `find_content_by_url` umstellen.
+  - `browse_collection_tree` Tiefe 3 im Muster-Weg strukturell kürzen (heute JSON hinter dem 4 000-Zeichen-Deckel;
+    `truncated` am Ende geht verloren — älter, mit M4 größer).
+  - `search_wlo_collections` und `search_wlo_within_collection` in `SPERRE_PERSOENLICH` aufnehmen (älter).
+  - Pläne: Eingang „In WLO anlegen“ aus dem Strukturentwurf; Fortsetzen einer früheren Stapel-Ablage aus der Liste
+    „letzte Ablagen“; Pläne über `/api/agent` (`write_mode=execute`) nur als Vorschau.
+  - Seltener Randfall: „Weiter anlegen“ vor dem Anlaufen eines langsamen ersten Abschnitts → `plan_expired`, der
+    später anlaufende Plan bleibt bis zu seiner Frist ohne Knopf.
+- **Aus dem Review vom 2026-11-07 (älter als M1–M7, nur eingetragen):**
+  - `services/page_duplicate.py`: die Seitenadresse geht als Volltext-`query` an `search_wlo_content`; der Server
+    nimmt höchstens 200 Zeichen — bei längeren Adressen bleibt die Prüfung „unklar“ und der Seitengruß bietet nie
+    „aufnehmen“ an. Mit der Umstellung auf `find_content_by_url` erledigt.
+  - `SearchWloArgs.query` ohne Längengrenze (Server: 200 → der ganze Aufruf scheitert, Kürzen wäre besser);
+    `search_wlo_all`, `get_topic_page_content`, `get_wlo_content_text` ohne Argument-Modell.
+  - Der Server hängt an `get_collection_contents`/`get_node_details`/`search_wlo_within_collection` die Skill-Liste
+    und die Anweisung der Redaktion an — im Agent-Weg ungerahmt (`get_skill_registry` wird gerahmt).
+  - `SPERRE_PERSOENLICH`: auch `get_wikipedia_summary` (externer Dienst) fehlt.
+  - `services/write_approval.py`: fachliche Ablehnungen (`invalid_input`, `exists`) laufen als `logger.error`.
+  - `services/tool_loop.py`: legt das Modell im Bestätigungszug zuerst eine abweichende Vorschau an und führt danach
+    die abgenommene aus, löscht `pop("_pending_write")` auch den neuen Merkposten (Randfall).
+  - Studio-Vorschau zeigt im Upload-Modul keine Liste der letzten Ablagen (keine Antwort mit `letzte`).
 
 - **B1–B3 (Anrede)** folgen nach der Nachmessung (Runde-2-Plan, Paket B).
 - ST-4c, ST-3d und die Architektur-Referenz sind in Paket 6 gebaut.

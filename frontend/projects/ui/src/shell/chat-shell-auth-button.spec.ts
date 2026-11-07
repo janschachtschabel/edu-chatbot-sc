@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ICONS } from '../icons/icons';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
-import { MCP_ACCESS_STORAGE_KEY, writeAccessBlock } from '../session/mcp-access';
+import { isSignedOut, MCP_ACCESS_STORAGE_KEY, writeAccessBlock } from '../session/mcp-access';
 import { ChatShellComponent } from './chat-shell.component';
 
 /**
@@ -36,6 +36,14 @@ function make(over: { mcpAuthBase?: string; sizeToggleVisible?: string } = {}) {
 }
 
 const knopf = (el: HTMLElement) => el.querySelector('.btn-auth') as HTMLButtonElement | null;
+
+/** Der Widerruf am Backend (Plan 2026-11-07, R2) — ohne Netz. */
+function widerruf(c: ChatShellComponent, ergebnis: boolean) {
+  const api = (c as unknown as { _api: { abmelden: (block: string) => Promise<boolean> } })._api;
+  return vi.spyOn(api, 'abmelden').mockResolvedValue(ergebnis);
+}
+
+const warten = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => sessionStorage.clear());
 afterEach(() => { vi.restoreAllMocks(); sessionStorage.clear(); });
@@ -100,24 +108,43 @@ describe('Anmelde-Knopf — Klick', () => {
     expect(start).toHaveBeenCalledTimes(1);  // KEIN await davor — das ist der Test
   });
 
-  it('räumt beim Abmelden den Speicher, nicht nur die Anzeige', () => {
+  it('räumt beim Abmelden den Speicher und widerruft den Zugang am Server', async () => {
     writeAccessBlock(BLOCK);
     const { c, f, el } = make();
+    const abmelden = widerruf(c, true);
     c.onAuthClick();
+    // Sofort aus dem Tab — nicht erst nach der Antwort des Servers.
+    expect(sessionStorage.getItem(MCP_ACCESS_STORAGE_KEY)).toBeNull();
+    await warten();
     f.detectChanges();
 
-    expect(sessionStorage.getItem(MCP_ACCESS_STORAGE_KEY)).toBeNull();
-    expect(c.messages().at(-1)?.content).toBe(DE['auth.signedOut']);
+    expect(abmelden).toHaveBeenCalledWith(BLOCK);
+    expect(isSignedOut()).toBe(true);
+    expect(c.messages().map((m) => m.content)).toContain(DE['auth.signedOut']);
     expect(knopf(el)!.getAttribute('aria-label')).toBe(DE['auth.signIn']);
   });
 
-  it('beendet beim Abmelden NICHT das Gespräch', () => {
+  it('sagt ehrlich, wenn der Widerruf nicht bestätigt wurde', async () => {
+    writeAccessBlock(BLOCK);
+    const { c } = make();
+    widerruf(c, false);
+    c.onAuthClick();
+    await warten();
+    expect(c.messages().map((m) => m.content)).toContain(DE['auth.signedOutLocal']);
+  });
+
+  it('beendet beim Abmelden NICHT das Gespräch', async () => {
     // Daneben sitzt der Neustart-Knopf, der genau das tut. Abmelden räumt den
     // Zugang, der Verlauf bleibt — sonst wären zwei Knöpfe dasselbe.
     writeAccessBlock(BLOCK);
     const { c } = make();
-    const vorher = c.messages().length;
+    widerruf(c, true);
+    const store = (c as unknown as { _store: { addBotMessage: (t: string) => string } })._store;
+    store.addBotMessage('Bisheriges Gespräch');
     c.onAuthClick();
-    expect(c.messages().length).toBe(vorher + 1);
+    await warten();
+    const inhalte = c.messages().map((m) => m.content);
+    expect(inhalte).toContain('Bisheriges Gespräch');
+    expect(inhalte.filter((t) => t === DE['auth.signedOut'])).toHaveLength(1);
   });
 });

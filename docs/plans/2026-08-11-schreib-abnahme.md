@@ -419,6 +419,13 @@ Damit hat die Abnahme zwei Texte statt einem:
 | Server hat geantwortet und abgelehnt | seine Antwort | `write.executeRejected` — darf „es wurde nichts geändert" sagen |
 | keine Antwort / Art unbekannt | — | `write.executeUnconfirmed` — „bitte nachsehen" |
 
+Nachtrag Paket M2 (2026-11-07, neuer MCP-Vertrag): Die Abnahme verzweigt über `error.code`.
+- Ein ungültiger Schlüssel (`confirm_*`, `plan_*`) wird neu vorgelegt.
+- `login_*` ergibt `write.loginNeeded`.
+- Nach `write.executeRejected` folgt ein fachlicher Grund (`refused`, `invalid_input`, `not_found` …).
+- Ein offener Ausgang (`timeout` mit `outcomeOpen`, `not_visible`, `unverified`) zählt wie „keine Antwort“.
+- Siehe `docs/aenderungen/2026-11-07-paket-m2-abnahme.md`.
+
 Unbekannt zählt wie „keine Antwort": „abgelehnt" ist die stärkere Behauptung
 und braucht einen Beleg.
 

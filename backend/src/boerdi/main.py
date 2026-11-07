@@ -17,6 +17,7 @@ from slowapi.errors import RateLimitExceeded
 
 from boerdi import __version__
 from boerdi.api import (
+    abmelden,
     agent,
     agent_center,
     chat,
@@ -198,6 +199,12 @@ def _warn_insecure_config(settings: Settings) -> None:
                 "CORS_ALLOW_ALL=false setzen und die einbettenden Domains in "
                 "CORS_ORIGINS auflisten."
             )
+    # Plan 2026-11-07 (CB-5): einmal beim Start, damit der Betrieb das Budget mit dem des
+    # MCP-Servers abgleichen kann (mit Client-Schlüssel 360/min, ohne das Adress-Budget). Der
+    # Schlüssel selbst erscheint nie.
+    log.info("MCP-Budget: %s Werkzeugaufrufe je Minute, Client-Schlüssel %s",
+             settings.mcp_budget_rpm or "unbegrenzt",
+             "gesetzt" if settings.mcp_client_key.get_secret_value().strip() else "nicht gesetzt")
 
 
 @asynccontextmanager
@@ -398,6 +405,8 @@ def create_app() -> FastAPI:
     app.include_router(ui_dokumente.public_router)
     app.include_router(ui_ablage.public_router)
     app.include_router(ui_auftrag.public_router)
+    # Plan 2026-11-07 (R2): Abmelden widerruft den Zugangsblock am MCP-Server.
+    app.include_router(abmelden.public_router)
     app.include_router(studio_bff.router)
     # Mount last: SpaFiles owns /studio, the BFF routes above must win.
     from boerdi.api.studio_static import mount_studio_spa

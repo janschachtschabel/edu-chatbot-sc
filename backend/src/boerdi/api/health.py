@@ -17,10 +17,20 @@ from boerdi.services import llm_models
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.auth import auth_mode
 from boerdi.services.rag.rerank import reranker_status
+from boerdi.settings import get_settings
 
 public_router = APIRouter(tags=["health"])
 
 _OK = {"status": "ok"}
+
+
+def _einbettung() -> dict:
+    """``offen``: ``CORS_ALLOW_ALL`` (jede Seite darf einbetten); ``herkuenfte``: die gepflegte
+    ``CORS_ORIGINS`` — auch, wenn ``offen`` sie übersteuert; ``muster``: die Regel für
+    Browser-Erweiterungen oder ``None``."""
+    s = get_settings()
+    return {"offen": s.cors_allow_all, "herkuenfte": s.cors_origin_list,
+            "muster": s.cors_origin_regex}
 
 
 def _health_detail() -> dict:
@@ -47,6 +57,10 @@ def _health_detail() -> dict:
         # Modell fehlt. Ohne dieses Feld merkt man das nur an unauffällig
         # schlechteren Antworten — die teuerste Art, einen Fehler zu finden.
         "reranker": reranker_status(),
+        # Plan 2026-11-07 (R4): welche Seiten das Widget einbetten dürfen. Dieselbe Liste muss am
+        # MCP-Server als ``TICKET_ALLOWED_ORIGINS`` stehen — das Studio zeigt sie zum Abgleich.
+        # Öffentliche Adressen, kein Geheimnis; hinter dem Studio-Schlüssel wie alles hier.
+        "einbettung": _einbettung(),
     }
     if info["gpt5_params_active"]:
         info["verbosity"] = llm_models.get_verbosity()

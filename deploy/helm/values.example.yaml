@@ -132,6 +132,7 @@ secretEnv:
     - B_API_KEY
     - DATABASE_URL
     - MCP_AUTH_TOKEN
+    - MCP_CLIENT_KEY      # Plan 2026-11-07 (S1): eigenes Budget beim MCP-Server
     - OPENAI_API_KEY
     - POSTGRES_PASSWORD
     - STUDIO_API_KEY      # mindestens 12 Zeichen (Paket 19), sonst Verwaltung gesperrt
@@ -216,6 +217,17 @@ env:
   MASTER_SKILL_ENABLED: "true"
   MASTER_SKILL_NODE_ID: "535cabca-47e4-4cbf-9cab-ca47e40cbf4e"
   MCP_CALL_TIMEOUT_S: "60.0"
+  # Plan 2026-11-07 (Stabilität): Verbindungsfrist, Ausfall-Schalter, Budget, Gnadenfrist.
+  # Ohne MCP_CLIENT_KEY gilt das Adress-Budget des Servers — dann MCP_BUDGET_RPM "280".
+  # Bei mehreren Repliken MCP_BUDGET_RPM durch ihre Zahl teilen (der Wächter zählt je Prozess).
+  MCP_CONNECT_TIMEOUT_S: "5.0"
+  MCP_BREAKER_FAILURES: "3"
+  MCP_BREAKER_WINDOW_S: "60.0"
+  MCP_BREAKER_OPEN_S: "30.0"
+  MCP_BUDGET_RPM: "300"
+  MCP_BUDGET_WAIT_S: "5.0"
+  MCP_BUSY_RETRY_MAX_S: "5.0"
+  AUTH_GRACE_S: "1800.0"
   MCP_SERVER_URL: "https://wlo-mcp.87.106.195.152.nip.io/mcp"   # Staging-MCP — Prod-Adresse eintragen, sobald vorhanden
   MCP_TOOL_CACHE_MAX_CHARS: "20000000"
   MCP_TOOL_CACHE_MAX_ENTRY_CHARS: "1000000"

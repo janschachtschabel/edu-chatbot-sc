@@ -633,10 +633,12 @@ async def _resolve_filter_uris(arguments: dict[str, Any]) -> dict[str, Any]:
         await _ensure_label_cache("license")
         wert = lizenz_filter(_label_to_uri_cache.get("license") or {}, lizenz)
         if wert is None:
-            # Review 2026-10-16 (#2): roh weitergereicht träfe der Server über ein Teilwort eine
-            # andere Lizenz — weggelassen filtert die Suche nicht, wie die Beschreibung sagt.
-            logger.info("license=%r passt zu keinem Lizenzwert — Filter weggelassen", lizenz)
-            del out["license"]
+            # Paket M1 (MCP-Stand 2026-11-07): unverändert an den Server. Er löst Lizenzen nur
+            # noch exakt auf und antwortet auf eine unbekannte ehrlich mit keinen Materialien und
+            # Vorschlägen (``unresolvedFilters``). Weggelassen hätte die Suche UNGEFILTERT
+            # geliefert, auch NC-/ND-Material, ohne Hinweis.
+            logger.info("license=%r passt zu keinem Lizenzwert — geht unverändert an den Server",
+                        lizenz)
         else:
             out["license"] = wert
     return out

@@ -44,6 +44,7 @@ Tests patch the two DB boundaries on THIS module.
 from __future__ import annotations
 
 import logging
+import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,7 +52,8 @@ from boerdi.api.schemas import ChatRequest
 from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.hintergrund_zug import ist_automatisches_abholen, ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
-from boerdi.services.db_sessions import get_messages, get_or_create_session
+from boerdi.services import plan_fortsetzen
+from boerdi.services.db_sessions import get_messages, get_or_create_session, update_session
 from boerdi.services.ui_antwort import offene_frage_schliessen
 from boerdi.services.write_approval import discard_stale_approval
 
@@ -120,6 +122,11 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
         session, req, ctx.session_state, hintergrund=frage_offen)
     ctx.ui_antwort = schluss.antwort
     ctx.geschlossene_frage = schluss.frage
+    # Paket M5 (Review, Befund 7): ein abgelaufener Plan fällt hier weg und wird sofort
+    # festgeschrieben — nicht jeder Zug erreicht ``persist`` (Review M6, Befund 7).
+    verfallen = plan_fortsetzen.abgelaufen_weg(ctx.session_state["entities"], time.time())
+    if verfallen and not hintergrund:
+        await update_session(session, req.session_id, entities=ctx.session_state["entities"])
     await discard_stale_approval(session, req, ctx.session_state, hintergrund=hintergrund,
                                  modul_antwort=modul_antwort)
 

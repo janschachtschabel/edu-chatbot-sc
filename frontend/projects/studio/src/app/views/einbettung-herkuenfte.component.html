@@ -1,0 +1,42 @@
+<section class="op-panel" aria-labelledby="eh-title">
+  <h2 class="op-title" id="eh-title">{{ t('preview.origins.title') }}</h2>
+  <p class="op-lead">{{ t('preview.origins.lead') }}</p>
+
+  @if (health.loading() && !einbettung()) {
+    <p role="status">{{ t('preview.origins.loading') }}</p>
+  } @else if (health.error()) {
+    <p class="op-msg op-msg--error" role="alert">⚠ {{ health.error() }}</p>
+    <div class="op-actions">
+      <button type="button" class="op-btn" (click)="health.reload()">{{ t('async.retry') }}</button>
+    </div>
+  } @else if (einbettung(); as e) {
+    @if (e.offen) {
+      <p class="op-msg op-msg--warn">{{ t('preview.origins.open') }}</p>
+    }
+    @if (e.herkuenfte.length) {
+      <p>{{ t(e.offen ? 'preview.origins.listOverridden' : 'preview.origins.list') }}</p>
+      <ul class="eh-liste">
+        @for (h of e.herkuenfte; track $index) {
+          <li><code>{{ h }}</code></li>
+        }
+      </ul>
+      @if (alsListe()) {
+        <p>{{ t('preview.origins.mcpTicket') }}</p>
+        <pre class="eh-wert"><code>TICKET_ALLOWED_ORIGINS={{ alsListe() }}</code></pre>
+      }
+      @if (verworfen().length) {
+        <p class="op-msg op-msg--warn">
+          {{ t('preview.origins.rejected') }}
+          @for (v of verworfen(); track $index) { <code>{{ v }}</code> }
+        </p>
+      }
+    } @else {
+      <p>{{ t('preview.origins.none') }}</p>
+    }
+    @if (e.muster) {
+      <p>{{ t('preview.origins.regex') }} <code>{{ e.muster }}</code></p>
+    }
+    <p>{{ t('preview.origins.mcpOauth') }}</p>
+    <pre class="eh-wert"><code>WIDGET_OAUTH_ORIGINS={{ backendHerkunft() }}</code></pre>
+  }
+</section>

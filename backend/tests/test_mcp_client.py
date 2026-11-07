@@ -54,7 +54,7 @@ def _wire_transport(monkeypatch, script):
     calls: list[dict] = []
     script = list(script)
 
-    async def fake_call_tool(tool_name, arguments=None, *, url=None):
+    async def fake_call_tool(tool_name, arguments=None, *, url=None, **_kw):
         calls.append({"tool": tool_name, "arguments": arguments, "url": url})
         if script:
             return script.pop(0)
@@ -370,14 +370,14 @@ def test_ein_doppelter_ausfall_ist_eine_gedrosselte_warnung(mcp_state, monkeypat
     assert "Retrying" not in caplog.text  # DEBUG, nicht mehr INFO
 
 
-def test_ein_bestaetigter_schreibaufruf_wird_nach_ausfall_nicht_wiederholt(
+def test_ein_bestaetigter_schreibaufruf_bleibt_offen_wenn_der_server_den_schluessel_vergass(
         mcp_state, monkeypatch):
     # Offener Befund 1.2 (2026-09-29): Der erste Aufruf kann angekommen und
-    # ausgeführt sein, nur die Antwort ging verloren. Der Server löscht den
-    # ``confirmToken`` beim ersten Einlöseversuch — eine Wiederholung bekäme
-    # „unbekannt oder bereits benutzt" (``kind == "tool"``), und die Abnahme
-    # meldete „nichts geändert", obwohl geschrieben wurde. Wer dann neu anlegt,
-    # erzeugt eine Dublette. Ohne Wiederholung bleibt es bei ``transport``, und
+    # ausgeführt sein, nur die Antwort ging verloren. Seit S3 (MCP-Stand 2026-11-07)
+    # holt der Client die Antwort mit demselben Schlüssel nach (CB-6). Sagt der Server
+    # dabei nur „unbekannt oder bereits benutzt“ — ohne Code (älterer Stand) oder als
+    # ``confirm_unknown`` (Neustart) —, darf das nicht „nichts geändert“ heißen: wer
+    # dann neu anlegt, erzeugt eine Dublette. Es bleibt bei ``transport``, und
     # ``write_approval`` schickt die Person zum Nachsehen.
     _wire_tool_url(monkeypatch)
     calls = _wire_transport(monkeypatch, [
@@ -387,7 +387,8 @@ def test_ein_bestaetigter_schreibaufruf_wird_nach_ausfall_nicht_wiederholt(
     ])
     text, art = asyncio.run(client.call_mcp_tool_status(
         "unknown_probe_tool", {"title": "Bruchrechnen", "confirmToken": "T" * 24}))
-    assert len(calls) == 1
+    assert len(calls) == 2
+    assert calls[1]["arguments"] == calls[0]["arguments"]
     assert (text, art) == ("MCP error: read timeout", "transport")
 
 

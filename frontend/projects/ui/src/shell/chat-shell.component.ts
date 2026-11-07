@@ -47,7 +47,11 @@ import { SpeechService } from '../speech/speech.service';
 import { CORE_TRUSTED_DOMAINS } from '../session/trusted-host';
 import { runSignIn } from '../session/sign-in-flow';
 import { authButtonState } from '../session/auth-button';
-import { clearAccessBlock, readAccessBlock } from '../session/mcp-access';
+import {
+  clearAccessBlock, clearSignedOut, isSignedOut, markSignedOut, readAccessBlock,
+} from '../session/mcp-access';
+import { AnmeldeFrist } from '../session/anmelde-frist';
+import { AUTH_QR_MARKER } from '../chips/auth-qr';
 import { anmeldeSperre, runTicketLogin } from '../session/ticket-login';
 import { runPreparedWrite } from '../session/prepared-write';
 import {
@@ -686,6 +690,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     // Ereignisse der Gastseite. Ein werfender Rückruf nahm sonst alles danach mit.
     if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
     if (resp.auth_invalid) this._anmeldungAbgewiesen();
+    else this._frist.planen(resp.auth_expires_at);
     if (this._speech.autoSpeak && resp.content) {
       this._speech.autoSpeakText(resp.content);
     }
@@ -836,7 +841,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private readonly _ticketLogin = effect(() => {
     const ticket = this.ticket().trim();
     const basis = this.mcpAuthBase().trim();
-    if (!ticket || this._ticketTried === ticket) return;
+    // Plan 2026-11-07 (R2/CB-9): nach einem ausdrücklichen „Abmelden“ nicht von selbst neu.
+    if (!ticket || this._ticketTried === ticket || isSignedOut()) return;
     // Paket 10 (Kurzaudit S-4): bis der Tausch endet, warten Züge — schon bevor die
     // Anmelde-Adresse da ist. Sonst gingen Kontext-Ping und frühe Aufträge anonym.
     if (!this._ticketSperre) {
@@ -846,18 +852,66 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     }
     if (!basis) return;
     this._ticketTried = ticket;
-    void runTicketLogin({ ticket: () => ticket, mcpAuthBase: () => basis }).then((ausgang) => {
+    void this._tauscheTicket(ticket, basis);
+  });
+
+  /** Ticket gegen Block tauschen; bis zum Ende warten die Züge (S-4). Gibt zurück, ob ein Block
+   *  da ist. Auch nach Ablauf oder Abweisung des Blocks (Plan 2026-11-07, R1). */
+  private _tauscheTicket(ticket: string, basis: string): Promise<boolean> {
+    if (!this._ticketSperre) {
+      const { sperre, freigeben } = anmeldeSperre();
+      this._ticketSperre = freigeben;
+      this._api.warteAufAnmeldung(sperre);
+    }
+    return runTicketLogin({ ticket: () => ticket, mcpAuthBase: () => basis }).then((ausgang) => {
+      if (ausgang === 'done' && isSignedOut()) {
+        // Review 2026-11-07 (Befund 6): während des Tauschs abgemeldet — der neue Block darf
+        // nicht bleiben, sonst wäre die Person nach dem Abmelden wieder angemeldet.
+        clearAccessBlock();
+        this._hasAccessBlock.set(false);
+        return false;
+      }
       if (ausgang === 'done') {
         this._hasAccessBlock.set(readAccessBlock() !== null);
         this._cdr.markForCheck();
-      } else {
-        console.warn('WLO-Anmeldung über das Seiten-Ticket nicht gelungen:', ausgang);
+        return true;
       }
+      console.warn('WLO-Anmeldung über das Seiten-Ticket nicht gelungen:', ausgang);
+      return false;
     }).finally(() => {
       this._ticketSperre?.();
       this._ticketSperre = null;
     });
+  }
+
+  /** Das Seiten-Ticket noch einmal tauschen — wenn es eins gibt und niemand sich abgemeldet hat.
+   *  `false`: kein Tausch möglich. Ein Tausch VOR dem Ablauf verlängert nichts (MCP R1). */
+  private _ticketErneut(): Promise<boolean> {
+    const ticket = this.ticket().trim();
+    const basis = this.mcpAuthBase().trim();
+    if (!ticket || !basis || isSignedOut() || this._zerstoert) return Promise.resolve(false);
+    return this._tauscheTicket(ticket, basis);
+  }
+
+  /** Die Frist des Blocks (Plan 2026-11-07, R1): Ticket nach dem Ablauf neu tauschen, sonst kurz
+   *  davor die Anmeldung anbieten. */
+  private readonly _frist = new AnmeldeFrist({
+    ticketWeg: () => Boolean(this.ticket().trim()) && !isSignedOut(),
+    neuTauschen: () => {
+      // Ein gelungener Tausch nach Ablauf gibt die Erneuerung nach einer Abweisung wieder frei —
+      // sonst endete die zweite 12-h-Frist eines langen Tages im Satz statt im Tausch (Befund 8).
+      void this._ticketErneut().then((neu) => { if (neu) this._ticketNachAbweisung = ''; });
+    },
+    hinweisen: () => {
+      if (readAccessBlock() === null) return;
+      this._store.addBotMessage(this.t('auth.expiresSoon'), false, [], [AUTH_QR_MARKER]);
+      this._cdr.markForCheck();
+    },
   });
+
+  /** Ein Ticket wird nach einer Abweisung höchstens einmal je Wert neu getauscht — sonst liefe
+   *  jeder Zug in denselben Kreis, wenn der Server das Ticket selbst nicht mehr annimmt. */
+  private _ticketNachAbweisung = '';
 
   /** Gibt die Züge frei, die auf den Ticket-Tausch warten (S-4). */
   private _ticketSperre: (() => void) | null = null;
@@ -870,6 +924,20 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private _anmeldungAbgewiesen(): void {
     clearAccessBlock();
     this._hasAccessBlock.set(false);
+    this._frist.vergessen();
+    // Nach einem Abmelden ist eine Abweisung keine Nachricht wert (Review 2026-11-07, Befund 8).
+    if (isSignedOut()) return;
+    // Plan 2026-11-07 (R1): ein Ticket-Block lief nach 12 h ab — still neu tauschen, einmal je
+    // Ticket. Erst wenn das nicht geht, erfährt es die Person.
+    const ticket = this.ticket().trim();
+    if (ticket && ticket !== this._ticketNachAbweisung) {
+      this._ticketNachAbweisung = ticket;
+      void this._ticketErneut().then((neu) => {
+        if (!neu) this._store.addBotMessage(this.t('auth.expired'));
+        this._cdr.markForCheck();
+      });
+      return;
+    }
     this._store.addBotMessage(this.t('auth.expired'));
   }
 
@@ -880,9 +948,17 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Nutzergeste, ohne die der Browser das Anmeldefenster blockt. */
   onAuthClick(): void {
     if (this.authButton() === 'signOut') {
+      // Plan 2026-11-07 (R2): das Backend widerruft den Block am MCP-Server. Hier sofort aus dem
+      // Tab — er reist ausdrücklich mit, also schadet das Löschen dem Widerruf nicht.
+      const block = readAccessBlock();
       clearAccessBlock();
+      markSignedOut();
+      this._frist.vergessen();
       this._hasAccessBlock.set(false);
-      this._store.addBotMessage(this.t('auth.signedOut'));
+      void (block ? this._api.abmelden(block) : Promise.resolve(false)).then((beendet) => {
+        this._store.addBotMessage(this.t(beendet ? 'auth.signedOut' : 'auth.signedOutLocal'));
+        this._cdr.markForCheck();
+      });
       return;
     }
     this._signInAndRefresh();
@@ -892,7 +968,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  und der `__auth__`-Chip — laufen hier durch, sonst stünde der Knopf nach
    *  einer Anmeldung über den Chip weiter auf „Anmelden". */
   private _signInAndRefresh(): void {
-    void this.startSignIn().then(() => this._hasAccessBlock.set(readAccessBlock() !== null));
+    void this.startSignIn().then(() => {
+      const angemeldet = readAccessBlock() !== null;
+      // Eine Anmeldung von Hand hebt das Abmelden auf (R2/CB-9).
+      if (angemeldet) clearSignedOut();
+      this._hasAccessBlock.set(angemeldet);
+    });
   }
 
   /** Klick auf einen Standard-Quick-Reply (Tour-Start | Action-Pill | Text). */
@@ -1134,6 +1215,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  trennen. Verbatim-Teilung aus ALT ngOnDestroy 428-446. */
   ngOnDestroy(): void {
     this._zerstoert = true;
+    this._frist.vergessen();
     for (const steuerung of this._nachfragen) steuerung.abort();
     // Wartende Aufträge gehen mit dem Widget; ihr Promise hängt nicht für immer.
     for (const wartend of this._wartendeAuftraege.splice(0)) wartend.fertig();

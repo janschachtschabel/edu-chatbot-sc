@@ -84,6 +84,9 @@ _TOOL_ORDER = [
     "get_subject_portals",
     "browse_collection_tree",
     "wlo_health_check",
+    "find_content_by_url",
+    "get_collection_overview",
+    "count_wlo_content_matches",
     "get_nodes_details",
     "get_skill_registry",
     "get_url_text",
@@ -390,7 +393,7 @@ def test_zwei_verletzte_grenzen_in_einem_aufruf_werden_beide_geklemmt():
     out = validate_tool_args(
         "browse_collection_tree", {"nodeId": "n", "depth": 9, "maxResults": 999}
     )
-    assert (out["depth"], out["maxResults"]) == (2, 100), out
+    assert (out["depth"], out["maxResults"]) == (3, 100), out   # Tiefe bis 3 seit Paket M4
 
 
 def test_fehlendes_pflichtfeld_faellt_weiter_auf_die_rohargumente_zurueck():
@@ -574,8 +577,6 @@ def test_search_tools_offer_the_license_filter():
 # ── V4 (2026-08-20): excludeNodeIds — der dokumentierte Weg für Folgeseiten ─
 
 def test_search_models_keep_exclude_node_ids():
-    # Ohne ``search_wlo_within_collection``: der Server übergeht das Feld dort (gemessen
-    # 2026-10-15) — dort wird es zu ``skipCount`` (``test_alte_gewohnheit_…``).
     for tool, extra in (("search_wlo_content", {"query": "x"}),
                         ("search_wlo_collections", {"query": "x"})):
         out = validate_tool_args(tool, {**extra, "excludeNodeIds": ["a", "b"]})
@@ -592,9 +593,9 @@ def test_leere_liste_reist_nicht_mit():
 def test_search_tools_offer_exclude_node_ids():
     fuer = {d["function"]["name"]: d["function"]["parameters"]["properties"]
             for d in TOOL_DEFINITIONS}
-    for name in ("search_wlo_content", "search_wlo_all", "search_wlo_collections"):
+    for name in ("search_wlo_content", "search_wlo_all", "search_wlo_collections",
+                 "search_wlo_within_collection"):
         assert "excludeNodeIds" in fuer[name], name
-    assert "skipCount" in fuer["search_wlo_within_collection"]  # Paket 11, gemessen
 
 
 # ── V2 (2026-08-20): Kontext nur auf ausdrücklichen Wunsch ──────────────────
@@ -648,28 +649,27 @@ def test_query_beschreibungen_lehren_den_kernbegriff_nicht_den_satz():
 
 
 # ── Paket 11 (2026-10-15): „mehr davon“ in einer Sammlung ──────────────────────
-def test_sammlungssuche_blaettert_mit_skipcount():
-    """Gemessen am Staging-Server: ``search_wlo_within_collection`` übergeht ``excludeNodeIds``
-    still (gleiche Treffer), ``skipCount`` blättert. Das Modell bekommt deshalb ``skipCount``."""
+def test_sammlungssuche_kennt_exclude_node_ids_und_skipcount():
+    """Paket M1 (MCP-Stand 2026-11-07): ``excludeNodeIds`` wirkt jetzt auch in der Sammlung —
+    das Modell bekommt beides angeboten (vorher gemessen: still übergangen, nur ``skipCount``)."""
     from boerdi.services.mcp.tool_args import validate_tool_args
     from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 
     fn = next(t["function"] for t in TOOL_DEFINITIONS
               if t["function"]["name"] == "search_wlo_within_collection")
-    assert "skipCount" in fn["parameters"]["properties"]
-    assert "excludeNodeIds" not in fn["parameters"]["properties"]
+    assert {"skipCount", "excludeNodeIds"} <= set(fn["parameters"]["properties"])
     args = validate_tool_args("search_wlo_within_collection", {"nodeId": "n", "skipCount": 5})
     assert args.get("skipCount") == 5 and "excludeNodeIds" not in args
 
 
-def test_alte_gewohnheit_excludenodeids_wird_zu_skipcount():
-    """Schickt das Modell trotzdem gezeigte IDs mit, sind das die ersten Treffer — so viele
-    werden übersprungen."""
+def test_gezeigte_ids_werden_nicht_mehr_in_einen_versatz_umgerechnet():
+    """Paket M1: die Umrechnung ``len(excludeNodeIds)`` → ``skipCount`` übersprang beliebige
+    Treffer statt der gezeigten."""
     from boerdi.services.mcp.tool_args import validate_tool_args
 
     args = validate_tool_args("search_wlo_within_collection",
                               {"nodeId": "n", "excludeNodeIds": ["a", "b", "c"]})
-    assert args.get("skipCount") == 3 and "excludeNodeIds" not in args
+    assert args.get("excludeNodeIds") == ["a", "b", "c"] and args.get("skipCount", 0) == 0
 
 
 def test_seltene_filter_nur_auf_wunsch():

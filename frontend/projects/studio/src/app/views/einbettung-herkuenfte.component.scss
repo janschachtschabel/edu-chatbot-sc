@@ -1,0 +1,18 @@
+// „Einbettende Seiten“ (Plan 2026-11-07, R4): Liste und kopierbare Werte für den MCP-Server.
+@use './ops-panel';
+
+.eh-liste {
+  margin: 0;
+  padding-inline-start: var(--st-4);
+}
+
+.eh-wert {
+  margin: 0;
+  padding: var(--st-2) var(--st-3);
+  overflow-x: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

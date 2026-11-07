@@ -222,12 +222,13 @@ flows:
         anwendungsfall: kuratieren
         expect:
           register: sie
-          tools_any: [wlo_suggest_metadata]
+          tools_any: [lookup_wlo_vocabulary, lookup_wlo_publishers]
           must_offer: "Ein konkreter Metadaten-Vorschlag (Titel, Beschreibung, Fach, Bildungsstufe, Lizenz) auf Basis des Seiteninhalts."
       - message: "Gut — legen Sie den Datensatz an, aber zeigen Sie mir vorher, was Sie eintragen würden."
         anwendungsfall: kuratieren
         expect:
           register: sie
+          tools_any: [wlo_create_content]
           must_offer: "Eine Vorschau der anzulegenden Felder und eine ausdrückliche Rückfrage VOR dem Schreiben — noch kein Schreibzugriff."
       - message: "Ja, bitte anlegen."
         anwendungsfall: kuratieren

@@ -123,9 +123,10 @@ TOOL_DEFINITIONS = [
                     "educationalContext": {"type": "string", "description": "Bildungsstufe als Label ODER URI. Klassenangaben IMMER auf eine Stufe mappen (Kl. 1-4=Grundschule, 5-10=Sek I, 11-13=Sek II)."},
                     "userRole": {"type": "string", "description": "Zielgruppe, z.B. 'Lehrende', 'Lernende'. Nur setzen, wenn ausdruecklich verlangt — kaum getaggt, leert sonst die Trefferliste."},
                     "publisher": {"type": "string", "description": "Anbieter. Wert NICHT raten — mit lookup_wlo_publishers holen."},
-                    "license": {"type": "string", "description": "Lizenzfilter: exakte Lizenz wie 'CC BY 4.0' oder 'OER' fuer alle frei nachnutzbaren (CC0/gemeinfrei/CC BY/CC BY-SA). Abgleich ist EXAKT — 'CC BY 4.0' liefert nie NC-/ND-Material. Die Bezeichnung genuegt (auch 'CC BY-SA', 'CC 0', 'Gemeinfrei'), sie wird automatisch abgeglichen; ein unbekannter Wert filtert NICHT. Die Antwort legt offen, wie viele Treffer auf die Lizenz geprueft und behalten wurden. Nur setzen, wenn die Person OER oder eine Lizenz verlangt."},
+                    "license": {"type": "string", "description": "Lizenzfilter: exakte Lizenz wie 'CC BY 4.0' oder 'OER' fuer alle frei nachnutzbaren (CC0/gemeinfrei/CC BY/CC BY-SA). Abgleich ist EXAKT — 'CC BY 4.0' liefert nie NC-/ND-Material. Die Bezeichnung genuegt (auch 'CC BY-SA', 'CC 0', 'Gemeinfrei'), sie wird automatisch abgeglichen; ein unbekannter Wert liefert KEINE Materialien, die Antwort nennt passende Lizenzen zum Nachfragen. Die Antwort legt offen, wie viele Treffer auf die Lizenz geprueft und behalten wurden. Nur setzen, wenn die Person OER oder eine Lizenz verlangt."},
                     "maxResults": {"type": "integer", "description": "Anzahl Treffer (1-20, Default 10)."},
-                    "skipCount": {"type": "integer", "description": "Schon gezeigte Treffer überspringen — der Weg für 'zeig mehr davon' in dieser Sammlung: die Zahl der bisher gezeigten Treffer mitgeben (Vorgabe 0). Gemessen 2026-10-15: dieses Werkzeug kennt kein excludeNodeIds."},
+                    "excludeNodeIds": {"type": "array", "items": {"type": "string"}, "description": "Bereits gezeigte Node-IDs ueberspringen (max. 200), auch ueber das Original einer Verknuepfung. Der Weg fuer 'zeig mehr davon' in dieser Sammlung: gezeigte IDs mitgeben."},
+                    "skipCount": {"type": "integer", "description": "Treffer ueberspringen (Vorgabe 0). Fuer 'zeig mehr davon' lieber excludeNodeIds."},
                     "skillContext": {"type": "string", "description": "Nur setzen, wenn ausdruecklich ein bestimmter Arbeitszusammenhang verlangt ist — vom Nutzer oder von der Einbettung (z.B. 'Browserplugin'); sonst weglassen: Vorgabe ist der volle Katalog. Liefert die freigegebenen Skills GENAU dieses Zusammenhangs samt Anweisung der Redaktion direkt mit der Antwort — der get_skill_registry-Zwischenschritt entfaellt. Ein Name, der nicht trifft, liefert den vollen Katalog samt vorhandener Namen, nie einen Fehler. Kostet ~1s extra."},
                 },
                 "required": ["nodeId"],
@@ -241,7 +242,7 @@ TOOL_DEFINITIONS = [
                     "userRole": {"type": "string", "description": "Zielgruppe als Label ODER URI — z.B. 'Lehrer/in', 'Lerner/in'. Nur setzen, wenn ausdruecklich verlangt — kaum getaggt, leert sonst die Trefferliste."},
                     "learningResourceType": {"type": "string", "description": "Inhaltstyp / Lernressourcentyp (lrt) als Label ODER URI — z.B. 'Video', 'Arbeitsblatt', 'Bild', 'Interaktives medium', 'Unterrichtsplan', 'Quiz', 'Audio', 'Kurs'. PFLICHT wenn der Nutzer einen Inhaltstyp nennt. Die Bezeichnung genuegt, sie wird automatisch abgeglichen. Ohne diesen Filter kommen gemischte Treffer zurueck. Ein Typ je Aufruf; mehrere Typen = je Typ ein eigener Aufruf."},
                     "publisher": {"type": "string", "description": "Anbieter-Filter, z.B. 'Klexikon', 'ZUM', 'Serlo', 'Khan Academy'."},
-                    "license": {"type": "string", "description": "Lizenzfilter: exakte Lizenz wie 'CC BY 4.0' oder 'OER' fuer alle frei nachnutzbaren (CC0/gemeinfrei/CC BY/CC BY-SA). Abgleich ist EXAKT — 'CC BY 4.0' liefert nie NC-/ND-Material. Die Bezeichnung genuegt (auch 'CC BY-SA', 'CC 0', 'Gemeinfrei'), sie wird automatisch abgeglichen; ein unbekannter Wert filtert NICHT. Die Antwort legt offen, wie viele Treffer auf die Lizenz geprueft und behalten wurden. Nur setzen, wenn die Person OER oder eine Lizenz verlangt."},
+                    "license": {"type": "string", "description": "Lizenzfilter: exakte Lizenz wie 'CC BY 4.0' oder 'OER' fuer alle frei nachnutzbaren (CC0/gemeinfrei/CC BY/CC BY-SA). Abgleich ist EXAKT — 'CC BY 4.0' liefert nie NC-/ND-Material. Die Bezeichnung genuegt (auch 'CC BY-SA', 'CC 0', 'Gemeinfrei'), sie wird automatisch abgeglichen; ein unbekannter Wert liefert KEINE Materialien, die Antwort nennt passende Lizenzen zum Nachfragen. Die Antwort legt offen, wie viele Treffer auf die Lizenz geprueft und behalten wurden. Nur setzen, wenn die Person OER oder eine Lizenz verlangt."},
                     "maxResults": {"type": "integer", "description": "Anzahl Treffer (1-20, Default 8)"},
                     "excludeNodeIds": {"type": "array", "items": {"type": "string"}, "description": "Bereits gezeigte Node-IDs ueberspringen (max. 200). Der Weg fuer 'zeig mehr davon': gezeigte IDs mitgeben statt Paging — beim Lizenzfilter ist Paging keine saubere Partition."},
                 },
@@ -280,7 +281,7 @@ TOOL_DEFINITIONS = [
                     "userRole": {"type": "string", "description": "Zielgruppe als Label ODER URI, z.B. 'Lehrer/in', 'Lerner/in'. Nur setzen, wenn ausdruecklich verlangt — kaum getaggt, leert sonst die Trefferliste."},
                     "learningResourceType": {"type": "string", "description": "Inhaltstyp (lrt) als Label ODER URI — nur setzen wenn der Nutzer einen Typ nennt (Video, Arbeitsblatt, ...). Ein Typ je Aufruf; mehrere Typen = je Typ ein eigener Aufruf."},
                     "publisher": {"type": "string", "description": "Anbieter-Filter, z.B. 'Klexikon', 'Serlo'."},
-                    "license": {"type": "string", "description": "Lizenzfilter: exakte Lizenz wie 'CC BY 4.0' oder 'OER' fuer alle frei nachnutzbaren (CC0/gemeinfrei/CC BY/CC BY-SA). Abgleich ist EXAKT — 'CC BY 4.0' liefert nie NC-/ND-Material. Die Bezeichnung genuegt (auch 'CC BY-SA', 'CC 0', 'Gemeinfrei'), sie wird automatisch abgeglichen; ein unbekannter Wert filtert NICHT. Die Antwort legt offen, wie viele Treffer auf die Lizenz geprueft und behalten wurden. Nur setzen, wenn die Person OER oder eine Lizenz verlangt."},
+                    "license": {"type": "string", "description": "Lizenzfilter: exakte Lizenz wie 'CC BY 4.0' oder 'OER' fuer alle frei nachnutzbaren (CC0/gemeinfrei/CC BY/CC BY-SA). Abgleich ist EXAKT — 'CC BY 4.0' liefert nie NC-/ND-Material. Die Bezeichnung genuegt (auch 'CC BY-SA', 'CC 0', 'Gemeinfrei'), sie wird automatisch abgeglichen; ein unbekannter Wert liefert KEINE Materialien, die Antwort nennt passende Lizenzen zum Nachfragen. Die Antwort legt offen, wie viele Treffer auf die Lizenz geprueft und behalten wurden. Nur setzen, wenn die Person OER oder eine Lizenz verlangt."},
                     "maxContent": {"type": "integer", "description": "Max. Einzel-Inhalte (Default 8)."},
                     "maxCollections": {"type": "integer", "description": "Max. je Sammlungen/Themenseiten (Default 5)."},
                     "excludeNodeIds": {"type": "array", "items": {"type": "string"}, "description": "Bereits gezeigte Node-IDs ueberspringen (max. 200). Der Weg fuer 'zeig mehr davon': gezeigte IDs mitgeben statt Paging — beim Lizenzfilter ist Paging keine saubere Partition."},
@@ -415,13 +416,14 @@ TOOL_DEFINITIONS = [
             "name": "browse_collection_tree",
             "description": (
                 "Strukturierter Drilldown unter eine Sammlung. Liefert die direkten Sub-Sammlungen "
-                "(depth=1) oder zwei Ebenen (depth=2), optional mit der Anzahl Files je Sub-Sammlung. "
+                "(depth=1) oder bis zu drei Ebenen (depth=2/3), optional mit der Anzahl Files je "
+                "Sub-Sammlung. "
                 "Nutze für 'Zeig mir Themenbereiche unter Mathematik', NICHT für die Files selbst — "
                 "dafür ist get_collection_contents zuständig. "
                 "Gib ENTWEDER nodeId (beliebige Sammlung) ODER subject (ein Fachportal-Name wie "
                 "'Mathematik') an — den Namen löst der Server selbst auf, get_subject_portals ist "
                 "dafür NICHT nötig. Die Reihenfolge ist deterministisch (alphabetisch). "
-                "WICHTIG für wahrheitsgemäße Antworten: die Übersicht ist auf zwei Ebenen und eine "
+                "WICHTIG für wahrheitsgemäße Antworten: die Übersicht ist auf drei Ebenen und eine "
                 "begrenzte Breite je Knoten gedeckelt. Zweige mit hasMoreChildren enthalten MEHR, als "
                 "hier steht — sag das dem Nutzer und öffne den Zweig bei Bedarf mit einem erneuten "
                 "Aufruf (nodeId des Zweigs), statt die Auswahl als vollständig darzustellen."
@@ -439,7 +441,7 @@ TOOL_DEFINITIONS = [
                     },
                     "depth": {
                         "type": "integer",
-                        "description": "1=direkte Kinder (schnell, Default), 2=auch Enkel (mehr API-Calls)",
+                        "description": "1=direkte Kinder (schnell, Default), 2=auch Enkel, 3=drei Ebenen (hoechstens 300 Knoten; truncatedAt nennt den ersten gekappten Knoten, auf welcher Ebene auch immer).",
                     },
                     "includeContentCounts": {
                         "type": "boolean",
@@ -466,6 +468,111 @@ TOOL_DEFINITIONS = [
                 "zu unterscheiden. Frag das ab, BEVOR du dem Nutzer sagst, es gebe nichts zu seinem Thema."
             ),
             "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_content_by_url",
+            "description": (
+                "Gibt es zu diesen Webadressen schon Datensaetze in WLO? Genauer als eine "
+                "Volltextsuche: vergleicht die Adresse (auch bereinigt). Vor jedem Anlegen zu einer "
+                "URL fragen. Liefert je Adresse die Treffer mit nodeId und Titel, mit "
+                "includeCollections auch, in wie vielen Sammlungen sie liegen. match=exact heisst: "
+                "dieser Datensatz IST es (nicht neu anlegen); match=normalized: wahrscheinlich, die "
+                "Person fragen — nie still als Dublette werten."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "urls": {"type": "array", "items": {"type": "string"},
+                             "description": "Webadressen (max. 20)."},
+                    "includeCollections": {
+                        "type": "boolean",
+                        "description": "Auch zaehlen, in wie vielen Sammlungen ein Treffer liegt.",
+                    },
+                },
+                "required": ["urls"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_collection_overview",
+            "description": (
+                "Eine Sammlung auf einen Blick, in EINEM Aufruf statt fuenf: Titel und Pfad, "
+                "Gliederung des Redaktionstexts, Zahl der Inhalte und Untersammlungen (die "
+                "Aufschluesselung nach Typ/Fach/Stufe liefert get_collection_stats), die "
+                "freigegebenen Skills (Titel, nodeId), Untersammlungen und die ersten Inhalte. "
+                "include engt ein. Fuer die Anzeige der Untersammlungen als Karten braucht es "
+                "browse_collection_tree. "
+                "Teile, die sich nicht laden liessen, stehen in missing — die uebrigen kommen trotzdem. "
+                "NICHT fuer den Redaktionstext selbst (get_compendium_text), alle Inhalte "
+                "(get_collection_contents) oder einen tieferen Baum (browse_collection_tree)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "collectionId": {"type": "string", "description": "nodeId der Sammlung."},
+                    "include": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": list(
+                            ("breadcrumb", "compendium", "stats", "skills", "subcollections",
+                             "contents"))},
+                        "description": "Nur diese Teile (leer = alle).",
+                    },
+                    "maxContents": {"type": "integer", "description": "Inhalte (0-50, Vorgabe 10)."},
+                    "maxSubcollections": {"type": "integer",
+                                          "description": "Untersammlungen (0-100, Vorgabe 30)."},
+                },
+                "required": ["collectionId"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "count_wlo_content_matches",
+            "description": (
+                "Wie viel hat WLO zu vielen Themen? Trefferzahlen fuer bis zu 30 Suchanfragen "
+                "zugleich, je mit den besten Treffern — fuer die Abdeckung eines Lehrplans oder "
+                "Entwurfs. total zaehlt JEDEN Volltexttreffer, auch schwache; ob ein Thema wirklich "
+                "abgedeckt ist, zeigen die Top-Treffer. Eine Anfrage mit unaufloesbarem Filter "
+                "laeuft nicht und steht in missing; ein geratener Filter steht in fuzzyFilters. "
+                "Filter NUR educationalContext, discipline, userRole, learningResourceType — keine "
+                "Lizenz. Eine Anfrage mit anderem Filter oder ueber 500 Zeichen zaehlt der Chat "
+                "gar nicht; nenne sie dann als nicht gezaehlt. "
+                "Zaehlt ueber GANZ WLO, nicht in einer Sammlung — fuer einen Teilbaum "
+                "browse_collection_tree mit includeContentCounts. Nicht zum Lesen der Inhalte "
+                "(search_wlo_content)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "queries": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "query": {"type": "string"},
+                                "filters": {"type": "object", "additionalProperties": False,
+                                            "properties": {
+                                    "educationalContext": {"type": "string"},
+                                    "discipline": {"type": "string"},
+                                    "userRole": {"type": "string"},
+                                    "learningResourceType": {"type": "string"}}},
+                            },
+                            "required": ["id", "query"],
+                        },
+                        "description": "Anfragen mit eigener id (max. 30).",
+                    },
+                    "top": {"type": "integer",
+                            "description": "Beste Treffer je Anfrage (0-3, Vorgabe 2)."},
+                },
+                "required": ["queries"],
+            },
         },
     },
     {
@@ -498,7 +605,8 @@ TOOL_DEFINITIONS = [
                 "Nennt die Anleitungen ('Skills'), die für EINE Inhaltssammlung freigegeben sind — "
                 "die Antwort auf 'welche Skills gelten hier'. Liefert je Skill Titel, nodeId, "
                 "Beschreibung und Stichworte plus den Freigabetext der Redaktion; die Anleitung "
-                "selbst kommt NICHT mit, dafür danach get_skill mit der nodeId. WANN: Sammlungs- und "
+                "selbst kommt NICHT mit, dafür danach get_skill mit der nodeId — AUSSER mit task "
+                "(siehe dort). WANN: Sammlungs- und "
                 "Suchergebnisse führen bereits eine Kurzfassung der Registry mit — steht dort etwas "
                 "Passendes zur anstehenden Aufgabe, hol es dir hier vollständig, BEVOR du die Aufgabe "
                 "auf eigene Faust löst. Dies ist der EINZIGE Weg zu einer Anleitung: freigegeben wird "
@@ -509,6 +617,7 @@ TOOL_DEFINITIONS = [
                 "type": "object",
                 "properties": {
                     "collectionId": {"type": "string", "description": "nodeId der Inhaltssammlung aus einem Sammlungs-Treffer."},
+                    "task": {"type": "string", "description": "Optional: die anstehende Aufgabe in Worten ('Arbeitsblatt erstellen'). Dann waehlt der Server den passenden freigegebenen Skill und liefert dessen Anleitung samt Vorgaben der Redaktion gleich mit — get_skill entfaellt. Ist die Wahl nicht eindeutig, nennt die Antwort Kandidaten; dann einen waehlen und mit get_skill laden."},
                     "context": {"type": "string", "description": "Nur setzen, wenn ausdruecklich ein bestimmter Arbeitszusammenhang verlangt ist — vom Nutzer oder von der Einbettung (z.B. 'Browserplugin'); sonst weglassen: Vorgabe ist der volle Katalog. Dann kommt nur dieser Zusammenhang samt Anweisung der Redaktion, deutlich kuerzer. Ein Name, der nicht trifft, liefert den vollen Katalog samt vorhandener Kontextnamen, nie einen Fehler."},
                 },
                 "required": ["collectionId"],

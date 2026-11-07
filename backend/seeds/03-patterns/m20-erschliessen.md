@@ -15,6 +15,7 @@ tools:
   # ── Schritt 2: Dublette ausschliessen ─────────────────────────────
   # Vor JEDER Neuanlage. Ein zweiter Datensatz zur selben Adresse ist die
   # häufigste vermeidbare Verschmutzung des Bestands.
+  - find_content_by_url
   - search_wlo_content
   - search_wlo_all
   # ── Schritt 3: Metadaten mit echten Vokabularen belegen ───────────
@@ -108,18 +109,25 @@ werden, ob sie das werden sollte.
      Server-Einstellung, kein Problem der Seite — und es wird so gesagt.
    Ohne Text geht es nicht weiter mit dem Anlegen; dann bleibt der Vorschlag,
    die Angaben von Hand zu nennen.
-2. **Dublette ausschliessen** — mit Titel und Adresse in `search_wlo_content`
-   bzw. `search_wlo_all` suchen. Ein Treffer wird gezeigt und die Frage
-   gestellt, ob er gemeint ist, statt ein zweites Mal anzulegen.
+2. **Dublette ausschliessen** — zuerst die Adresse mit `find_content_by_url`
+   prüfen (genau, auch bereinigt), dann mit dem Titel in `search_wlo_content`
+   bzw. `search_wlo_all` suchen. `match: exact` heißt: es gibt ihn schon;
+   `normalized` und Titeltreffer sind Kandidaten — gezeigt und gefragt, ob er
+   gemeint ist. Gibt es ihn schon und soll er in eine Sammlung, wird er mit
+   `wlo_add_to_collection` (seine nodeId) einsortiert, nicht neu angelegt.
 3. **Metadaten ableiten** — Titel, Beschreibung, Schlagworte aus dem gelesenen
    Text. Fach und Bildungsstufe über `lookup_wlo_vocabulary` gegen die echten
    Vokabulare belegen; Anbieter über `lookup_wlo_publishers`. Was sich nicht
    belegen lässt, bleibt leer — mit einem Satz dazu.
-4. **Vorlegen** — der Vorschlag geht als Ganzes an die Person: Adresse, Titel,
-   Beschreibung, Fach, Stufe, Lizenz, geplanter Ablageort. Dann die Frage, ob
-   es so stimmt.
-5. **Nach dem Ja anlegen** — `wlo_create_content`, und wenn ein Ablageort
-   genannt war, `wlo_add_to_collection`. Berichtet wird, was tatsächlich ankam.
+4. **Vorlegen** — `wlo_create_content` mit allen Angaben aufrufen; war ein
+   Ablageort genannt, mit `addToCollectionId`. Der Aufruf schreibt noch nichts:
+   die Vorschau des Servers IST der Vorschlag (Adresse, Titel, Beschreibung,
+   Fach, Stufe, Lizenz, Ablageort) und steht der Person zur Abnahme vor. Ein
+   eigener Fließtext-Vorschlag davor wäre ein zweites „ja“ für dieselbe Sache.
+5. **Nach dem Ja** — der Chat löst die Abnahme selbst ein (dieselben Angaben, eine
+   Bestätigung für Anlegen und Einsortieren). Berichtet wird, was tatsächlich
+   ankam — auch, wenn nur das Einsortieren scheiterte (der Datensatz bleibt dann
+   bestehen).
 
 ## Werkzeuge in der Reihenfolge
 
@@ -127,26 +135,30 @@ Der Ablauf oben als Kette. Jeder Pfeil trägt etwas weiter: der Text liefert die
 Suchbegriffe, die Suche das Dublettenurteil, die Vokabulare die belegten Werte.
 
 ```
-get_url_text  →  search_wlo_content + search_wlo_all  →  lookup_wlo_vocabulary
+get_url_text  →  find_content_by_url + search_wlo_content  →  lookup_wlo_vocabulary
      ↓                     ↓                                    ↓
   Titel/Text          Dublette ja/nein                  Fach · Stufe · Typ
                                                         lookup_wlo_publishers
                                                              ↓
-                                          [Vorschlag vorlegen · Zug endet]
+              wlo_create_content (mit addToCollectionId) → Vorschau des Servers
                                                              ↓
-                              wlo_create_content  →  wlo_add_to_collection
+                              Zug endet · „ja" · der Chat löst die Abnahme ein
 ```
 
 * `get_wikipedia_summary` ist ein Seitenweg, kein Glied der Kette: nützlich, wenn
   der Seitentext einen Begriff voraussetzt, den die Beschreibung erklären soll.
-* `wlo_suggest_metadata` statt `wlo_create_content`, wenn die Person nicht selbst
-  anlegen, sondern der Redaktion etwas vorschlagen will.
-* `browse_collection_tree` vor `wlo_add_to_collection`, wenn der Ablageort nur
-  ungefähr benannt wurde.
+* `wlo_suggest_metadata` nur für einen schon VORHANDENEN Datensatz (seine nodeId aus
+  `find_content_by_url`), wenn die Person dort nicht selbst ändern, sondern der Redaktion
+  etwas vorschlagen will — für eine neue Adresse gibt es nichts, woran ein Vorschlag hinge.
+* `browse_collection_tree` vor dem Anlegen, wenn der Ablageort nur ungefähr
+  benannt wurde — die `addToCollectionId` muss feststehen, bevor die Vorschau
+  entsteht.
 
 ## Ohne Anmeldung
-Schritte 1 bis 4 gehen anonym — Lesen, Prüfen und Vorschlagen brauchen kein
-Konto. Erst Schritt 5 nicht. Das wird früh gesagt, nicht erst am Ende: ein
+Schritte 1 bis 3 gehen anonym — Lesen, Prüfen und Belegen brauchen kein
+Konto. Ab Schritt 4 nicht: `wlo_create_content` steht ohne Anmeldung gar nicht zur
+Verfügung. Dann die belegten Angaben als Text zusammenfassen und auf die Anmeldung
+hinweisen. Das wird früh gesagt, nicht erst am Ende: ein
 fertig ausgearbeiteter Vorschlag, der dann nicht abgelegt werden kann, ist
 verschenkte Arbeit der Person. `wlo_auth_status` beantwortet die Frage, unter
 welchem Namen abgelegt würde.

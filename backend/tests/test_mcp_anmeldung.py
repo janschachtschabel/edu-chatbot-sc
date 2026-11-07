@@ -34,6 +34,13 @@ def _sauber(monkeypatch):
     from boerdi.settings import get_settings
 
     monkeypatch.setattr(anmeldung, "_fragen", _ECHT_FRAGEN)
+    # Seit dem MCP-Stand 2026-11-07 fragt die Prüfung zuerst ``GET /auth/status``. Diese Tests
+    # prüfen den Rückfall über das Werkzeug (ein Server ohne den Endpunkt);
+    # ``test_anmeldung_status.py`` den Endpunkt selbst.
+    async def _kein_endpunkt(_block, _frist):
+        return "kein_endpunkt", {}
+
+    monkeypatch.setattr(anmeldung.anmelde_endpunkte, "status_abfragen", _kein_endpunkt)
     monkeypatch.setattr(get_settings(), "mcp_auth_token", SecretStr(""), raising=False)
     anmeldung._cache.clear()
     auth.set_turn_auth_block(None)
@@ -108,7 +115,7 @@ class TestPruefungJeZug:
     @pytest.mark.parametrize("antwort", [
         {"error": {"message": "401 Unauthorized", "kind": "auth"}},
         {"result": {"content": [], "structuredContent": {
-            "mode": "user", "authenticated": False, "authority": None}}},
+            "mode": "user", "authenticated": False, "authority": "esguest"}}},
     ], ids=["401", "nicht-angemeldet"])
     def test_ein_abgewiesener_block_faellt_weg_und_wird_gemeldet(self, monkeypatch, antwort):
         """A-3: der Zug läuft anonym weiter, statt an jedem Werkzeug zu scheitern —
@@ -117,8 +124,15 @@ class TestPruefungJeZug:
         zug = _zug(_BLOCK)
         assert not zug["person"] and not zug["mit_block"] and zug["abgelehnt"]
 
-    def test_ohne_antwort_keine_person_aber_der_block_bleibt(self, monkeypatch):
-        _server(monkeypatch, {"error": {"message": "connect failed", "kind": "transport"}})
+    @pytest.mark.parametrize("antwort", [
+        {"error": {"message": "connect failed", "kind": "transport"}},
+        # Plan 2026-11-07: ``authority: null`` — das Repository antwortete nicht (oder lehnte
+        # ab; der Server kann es nicht trennen). Kein Grund, den Block wegzuwerfen.
+        {"result": {"content": [], "structuredContent": {
+            "mode": "user", "authenticated": False, "authority": None}}},
+    ], ids=["transport", "repository-stumm"])
+    def test_ohne_antwort_keine_person_aber_der_block_bleibt(self, monkeypatch, antwort):
+        _server(monkeypatch, antwort)
         zug = _zug(_BLOCK)
         assert not zug["person"] and zug["mit_block"] and not zug["abgelehnt"]
 

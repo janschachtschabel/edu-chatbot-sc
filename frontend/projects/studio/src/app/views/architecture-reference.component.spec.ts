@@ -275,7 +275,27 @@ describe("ArchitectureReferenceComponent — zwei Maschinen", () => {
       (th) => th.textContent!.trim());
     expect(zeilen).toEqual(["Einordnung", "Steuerung", "Werkzeuge", "Ablauf", "Schreiben"]);
     expect(tabelle.textContent).toContain("wissen_suchen");
-    expect(tabelle.textContent).toContain("nur mit persönlicher Anmeldung");
+    // Seit dem Review 2026-11-07 genauer: Schreibrecht = persönliche Anmeldung oder Gastkonto.
+    expect(tabelle.textContent).toContain("nur mit Schreibrecht");
+    expect(tabelle.textContent).toContain("Weiter anlegen");
+  });
+
+  it("nennt im MCP-Abschnitt den Antwortvertrag und das Schreiben in Plänen (Stand 2026-11-07)", () => {
+    const el = mount();
+    const wissen = el.querySelector("studio-reference-knowledge")!;
+    expect(wissen.textContent).toContain("structuredContent");
+    expect(wissen.textContent).toContain("07.11.2026");
+    expect(wissen.textContent).toContain("Weiter anlegen");
+  });
+
+  it("nennt Überlast, Ausfall-Schalter und die Anmeldung (Plan 2026-11-07, Stabilität)", () => {
+    const el = mount();
+    const wissen = el.querySelector("studio-reference-knowledge")!.textContent!;
+    expect(wissen).toContain("MCP_BUDGET_RPM");
+    expect(wissen).toContain("/ready");
+    expect(wissen).toContain("/auth/status");
+    expect(wissen).toContain("12 Stunden");
+    expect(wissen).toContain("ohne doppelt zu schreiben");
   });
 
   it("sagt, dass Krise und Bedrohung auch im Agent-Modus die Muster-Maschine beantwortet", () => {

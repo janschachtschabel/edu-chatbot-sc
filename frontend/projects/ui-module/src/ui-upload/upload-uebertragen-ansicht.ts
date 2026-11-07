@@ -6,7 +6,7 @@
  * Hinweis). Fremdtext (Datei-, Ordnernamen) nur als `textContent`.
  */
 import type { ElementHost } from '../_nachladen/element-vertrag';
-import { type Auswahl, type Ergebnis, MAX_STAPEL, nochmalSenden, type Plan, type Stand, wiederholbarAblage, zaehlung } from './upload-uebertragen';
+import { type Auswahl, type Ergebnis, type LetzteAblagen, MAX_STAPEL, nochmalSenden, type Plan, type Stand, wiederholbarAblage, zaehlung } from './upload-uebertragen';
 import type { UebertragenLauf } from './upload-uebertragen-ablauf';
 import { fehlerSatz, type UebertragenTexte } from './upload-uebertragen-texte';
 
@@ -16,6 +16,10 @@ export interface UebertragenAnsicht {
   readonly maxMb: number;
   readonly lauf: UebertragenLauf | null;
   readonly ergebnisse: readonly Ergebnis[];
+  /** Paket M6: eigene frühere Ablagen, neben der Vorschau — aufgeklappt bleibt sie über das Neuzeichnen. */
+  readonly letzte?: LetzteAblagen;
+  readonly letzteOffen?: boolean;
+  letzteUmschalten?(offen: boolean): void;
   readonly anhalten: boolean;
   readonly ordnerVerweigert: boolean;
   readonly vorgangFehlt: boolean;
@@ -57,6 +61,9 @@ function liste(a: UebertragenAnsicht, plan: Plan): HTMLElement {
   bereich.setAttribute('role', 'region');
   bereich.setAttribute('aria-label', a.t.liste);
   bereich.tabIndex = 0;
+  // Beim Senden zeichnet das Element je Datei neu: ohne Schlüssel fiele der Fokus auf `body`
+  // (Review 2026-11-07, Befund 1). Die Rollposition stellt `zeichne()` wieder her.
+  bereich.dataset['fokus'] = 's:liste';
   const ul = a.knoten('ul', 'u__ergebnis-liste');
   for (const e of plan.eintraege) {
     const ergebnis = a.ergebnisse[e.index] ?? { stand: 'wartet' as const };
@@ -69,6 +76,7 @@ function liste(a: UebertragenAnsicht, plan: Plan): HTMLElement {
     const ziel = ergebnis.link ? a.link(ergebnis.link) : null;
     if (ziel?.href) {
       const anker = a.knoten('a', 'u__link', a.t.ansehen(e.name));
+      anker.dataset['fokus'] = `l:${e.index}`;
       anker.href = ziel.href;
       anker.target = '_blank';
       anker.rel = 'noopener noreferrer';
@@ -79,6 +87,27 @@ function liste(a: UebertragenAnsicht, plan: Plan): HTMLElement {
   }
   bereich.append(ul);
   return bereich;
+}
+
+/** Paket M6: die eigenen letzten Ablagen, eingeklappt — damit dieselbe Auswahl nicht zweimal landet. */
+function letzteAblagen(a: UebertragenAnsicht): Node[] {
+  const { ablagen, gekappt } = a.letzte ?? { ablagen: [], gekappt: false };
+  if (!ablagen.length && !gekappt) return [];
+  const kasten = a.knoten('details', 'u__letzte');
+  kasten.open = !!a.letzteOffen;
+  // Nur merken, nicht neu zeichnen: das Ereignis kommt auch für das `open` oben.
+  kasten.addEventListener('toggle', () => a.letzteUmschalten?.(kasten.open));
+  const kopf = a.knoten('summary', '', a.t.letzteTitel(ablagen.length));
+  kopf.dataset['fokus'] = 's:letzte';           // nach dem Neuzeichnen kehrt der Fokus hierher zurück
+  kasten.append(kopf);
+  if (ablagen.length) {
+    const ul = a.knoten('ul', 'u__letzte-liste');
+    for (const l of ablagen) ul.append(a.knoten('li', 'u__hinweis', a.t.letzteZeile(l)));
+    kasten.append(ul);
+  }
+  if (gekappt) kasten.append(a.knoten('p', 'u__hinweis', a.t.letzteGekappt));
+  kasten.append(a.knoten('p', 'u__hinweis', a.t.letzteHinweis));
+  return [kasten];
 }
 
 function angebot(a: UebertragenAnsicht, dateien: (n: number) => string): Node[] {
@@ -131,7 +160,8 @@ export function uebertragenTeile(a: UebertragenAnsicht, dateien: (n: number) => 
       a.knopf(t.jetzt, { uebertragen: 'los' }, true, a.gesperrt),
       a.knopf(t.abbrechen, { uebertragen: 'abbrechen' }, false, false),
     );
-    return [...teile, kopf, a.knoten('p', 'u__hinweis', t.umfang(dateien(plan.eintraege.length), bytes)), liste(a, plan), leiste];
+    return [...teile, kopf, a.knoten('p', 'u__hinweis', t.umfang(dateien(plan.eintraege.length), bytes)), liste(a, plan),
+      ...letzteAblagen(a), leiste];
   }
   if (lauf.phase === 'sendet') {
     const satz = t.sendet(lauf.position, lauf.anzahl, Math.round(lauf.anteil * 100));

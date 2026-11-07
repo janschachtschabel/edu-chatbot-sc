@@ -157,6 +157,24 @@ def test_zu_viele_anmeldungen_ist_kein_voll(mcp, monkeypatch, caplog):
     assert "AUTH_CREDENTIAL_LIMIT" in caplog.text and "Geheimer" not in caplog.text
 
 
+@pytest.mark.parametrize(("antwort", "code"), [
+    # Zweite Antwort des MCP-Teams (2026-11-07): edu-sharing beantwortete die Anmeldeprüfung nicht.
+    (httpx.Response(503, headers={"Retry-After": "10"},
+                    json={"error": "upstream_unreachable", "code": "upstream_unreachable",
+                          "retryAfter": 10}), "nicht_erreichbar"),
+    # Neu: ``code`` neben ``error``.
+    (httpx.Response(429, json={"error": "Zu viele", "code": "too_many_logins", "retryAfter": 60}),
+     "anmeldungen"),
+    (httpx.Response(429, json={"error": "rate_limited", "code": "rate_limited", "retryAfter": 5}),
+     "voll"),
+], ids=["503-unerreichbar", "429-anmeldungen-code", "429-budget"])
+def test_ablehnungen_des_upload_platzes(mcp, monkeypatch, antwort, code):
+    _upload_server(monkeypatch, antwort)
+    with pytest.raises(mcp_ablage.AblageFehler) as fehler:
+        asyncio.run(mcp_ablage.datei_hochladen(_strom(b"x"), 1, "a.pdf"))
+    assert fehler.value.code == code
+
+
 def test_eine_zeitueberschreitung_beim_hochladen(mcp, monkeypatch):
     def langsam(request):
         raise httpx.ReadTimeout("zu langsam", request=request)
@@ -172,3 +190,27 @@ def test_die_wurzel_folgt_dem_werkzeug_weg(monkeypatch):
     """Befund 7: dieselbe Adresse wie die Werkzeug-Aufrufe (auch mit leerer Einstellung)."""
     monkeypatch.setattr(mcp_ablage.transport, "resolve_mcp_url", lambda: "https://mcp.example/mcp")
     assert mcp_ablage._mcp_wurzel() == "https://mcp.example"
+
+
+@pytest.mark.parametrize(("code", "erwartet"), [
+    ("login_rejected", "kein_recht"), ("login_required", "nur_angemeldet"),
+    ("timeout", "zu_langsam"), ("invalid_input", "abgewiesen"), ("upstream_error", "abgewiesen"),
+])
+def test_der_neue_fehlervertrag_wird_ein_code(mcp, code, erwartet):
+    """Paket M1, Review Befund 2: seit 2026-11-07 trägt JEDER Fehler ``structured.error`` — nur
+    die Stapel-Ablehnungen (``status``/``reason``) sind ein Ergebnis, der Rest ein Code."""
+    mcp["antworten"]["wlo_prepare_file_batch"] = {"error": {
+        "message": "x", "kind": "tool", "structured": {"error": {"code": code, "message": "x"}}}}
+    with pytest.raises(mcp_ablage.AblageFehler) as fehler:
+        asyncio.run(mcp_ablage.vorbereiten("X", [{"titel": "a", "sha256": "a" * 64, "groesse": 1,
+                                                    "art": "pdf"}]))
+    assert fehler.value.code == erwartet
+
+
+def test_eine_stapel_ablehnung_bleibt_ein_ergebnis(mcp):
+    mcp["antworten"]["wlo_store_batch_file"] = {"error": {
+        "message": "x", "kind": "tool", "structured": {
+            "status": "failed", "reason": "batch_expired",
+            "error": {"code": "batch_expired", "message": "x"}}}}
+    ergebnis = asyncio.run(mcp_ablage.datei_ablegen("tok-1234567890", 0, "r" * 24))
+    assert mcp_ablage.grund(ergebnis) == "neu_vorbereiten"

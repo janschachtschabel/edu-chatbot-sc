@@ -199,7 +199,9 @@ export const EN: Catalogue = {
   'auth.cancelled': 'Sign-in cancelled — the sign-in window was closed. You can try again at any time.',
   'auth.failed': 'The sign-in did not work. Please try again.',
   'auth.signOut': 'Sign out — search anonymously again',
-  'auth.signedOut': 'Signed out. I am searching anonymously again — the access is gone from this tab.',
+  'auth.signedOut': 'Signed out. I am searching anonymously again — the access has ended.',
+  'auth.signedOutLocal': 'Signed out. I am searching anonymously again — the access is gone from this tab. Whether it has also ended at WLO could not be confirmed just now.',
+  'auth.expiresSoon': 'Your WLO sign-in expires in a few minutes. Feel free to sign in again so I can keep changing things in WLO for you.',
   'auth.expired': 'Your WLO sign-in is no longer valid, probably it expired. I continued without it — to change things in WLO, please sign in again.',
 
   // ── Prepared change in the repository (E4) ─────────────────────────

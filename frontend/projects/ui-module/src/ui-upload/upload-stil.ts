@@ -76,6 +76,10 @@ select {
 .u__ergebnis { max-height: 18em; overflow-y: auto; border-radius: var(--mat-sys-corner-extra-small); }
 .u__ergebnis:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
 .u__ergebnis-liste { list-style: none; margin: 0; padding: 0; }
+.u__letzte { margin-block: 0.5em; }
+.u__letzte > summary { cursor: pointer; }
+.u__letzte > summary:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
+.u__letzte-liste { margin: 0.25em 0; padding-inline-start: 1.25em; }
 .u__eintrag {
   display: grid; grid-template-columns: 1.4em minmax(0, 1fr) auto; align-items: baseline;
   column-gap: 8px; row-gap: 2px; padding-block: 3px;

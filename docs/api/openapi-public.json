@@ -216,6 +216,17 @@
       },
       "ChatResponse": {
         "properties": {
+          "auth_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Expires At"
+          },
           "auth_invalid": {
             "default": false,
             "title": "Auth Invalid",
