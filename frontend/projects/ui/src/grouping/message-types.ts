@@ -248,6 +248,9 @@ export interface ChatResponse {
    *  widerrufen (Paket 10, Kurzaudit A-3). Der Zug lief ohne ihn weiter; das Widget
    *  räumt ihn und bietet die Anmeldung neu an. */
   auth_invalid?: boolean;
+  /** Bis wann der MCP-Server den Block annimmt (ISO; Plan 2026-11-07, R1) — nur Ticket- und
+   *  Widget-Blöcke. Das Widget meldet kurz davor neu an (`session/anmelde-frist`). */
+  auth_expires_at?: string | null;
 }
 
 export interface ChatMessage {

@@ -83,6 +83,36 @@ describe('runTicketLogin', () => {
     expect(await runTicketLogin(ctx({ fetchImpl: ohneOk.impl }))).toBe('rejected');
   });
 
+  // MCP-Stand 2026-11-07 (zweite Antwort): 503 `upstream_unreachable` ist kein Urteil über das
+  // Ticket — behalten, nach der Wartezeit einmal erneut.
+  it('versucht es nach einer 503 einmal erneut und wartet die genannte Zeit', async () => {
+    const antworten = [
+      new Response(JSON.stringify({ code: 'upstream_unreachable', retryAfter: 10 }), { status: 503 }),
+      new Response(JSON.stringify({ ok: true, block: BLOCK }), { status: 200 }),
+    ];
+    const gewartet: number[] = [];
+    const ausgang = await runTicketLogin(ctx({
+      fetchImpl: (async () => antworten.shift()!) as typeof fetch,
+      warten: async (ms) => { gewartet.push(ms); },
+    }));
+    expect(ausgang).toBe('done');
+    expect(gewartet).toEqual([10_000]);
+    expect(readAccessBlock()).toBe(BLOCK);
+  });
+
+  it('zweimal 503 heisst „nicht zu fragen", nicht „abgelehnt" — der alte Block bleibt', async () => {
+    writeAccessBlock(BLOCK);
+    const stub = fetchStub({ status: 503, body: { code: 'upstream_unreachable', retryAfter: 600 } });
+    const gewartet: number[] = [];
+    const ausgang = await runTicketLogin(ctx({
+      fetchImpl: stub.impl, warten: async (ms) => { gewartet.push(ms); },
+    }));
+    expect(ausgang).toBe('unreachable');
+    expect(stub.calls).toHaveLength(2);
+    expect(gewartet).toEqual([15_000]);          // gedeckelt
+    expect(readAccessBlock()).toBe(BLOCK);
+  });
+
   it('die Basis darf mit Schrägstrichen enden, der Pfad bleibt derselbe', async () => {
     const stub = fetchStub({ body: { ok: true, block: BLOCK } });
     await runTicketLogin(ctx({ mcpAuthBase: () => `${BASE}//`, fetchImpl: stub.impl }));

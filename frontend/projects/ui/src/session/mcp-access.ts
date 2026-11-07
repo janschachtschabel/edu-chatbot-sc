@@ -12,7 +12,9 @@
  *
  * 1. **`sessionStorage`, nicht `localStorage`.** Der Block verschlüsselt ein
  *    WLO-Passwort (AUTH.md §1: edu-sharing hat kein Token zu vergeben) und hat
- *    **kein Ablaufdatum** (§5b: kein `refresh_token`, kein `expires_in`). Er
+ *    **kein Ablaufdatum im Token** (§5b: kein `refresh_token`, kein `expires_in`;
+ *    seit 07.11.2026 laufen Widget- und Ticket-Blöcke nur in der Erlaubnisliste
+ *    des Servers nach 12 h ab — `session/anmelde-frist.ts`). Er
  *    darf deshalb nicht neben der Sitzungskennung liegen, die absichtlich
  *    langlebig ist und über `?bsid=` durch URLs wandert. Mit dem Tab zu sterben
  *    ist hier ein Merkmal, kein Mangel.
@@ -73,7 +75,40 @@ export function writeAccessBlock(block: string): boolean {
   }
 }
 
-/** Abmelden im Widget. Beendet den Zugang NICHT — das tut `/auth/revoke-all`. */
+/**
+ * Nach einem ausdrücklichen „Abmelden“ (Plan 2026-11-07, R2/CB-9) tauscht das Widget in diesem
+ * Tab kein Seiten-Ticket mehr von selbst — sonst wäre die Person nach dem nächsten Laden wieder
+ * angemeldet. Eine Anmeldung von Hand hebt den Merker auf. `sessionStorage` wie der Block: er
+ * stirbt mit dem Tab.
+ */
+export const MCP_SIGNED_OUT_STORAGE_KEY = 'boerdi.mcp-signed-out';
+
+export function markSignedOut(): void {
+  try {
+    sessionStorage.setItem(MCP_SIGNED_OUT_STORAGE_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearSignedOut(): void {
+  try {
+    sessionStorage.removeItem(MCP_SIGNED_OUT_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isSignedOut(): boolean {
+  try {
+    return sessionStorage.getItem(MCP_SIGNED_OUT_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Den Block aus dem Tab entfernen. Den Zugang am Server beendet erst der Widerruf über das
+ *  Backend (`ChatApiService.abmelden`, Plan 2026-11-07, R2). */
 export function clearAccessBlock(): void {
   try {
     sessionStorage.removeItem(MCP_ACCESS_STORAGE_KEY);
