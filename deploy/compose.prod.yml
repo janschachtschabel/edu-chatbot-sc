@@ -236,6 +236,16 @@ services:
       # Geheimnis (C2): Zugangsblock des MCP-Servers, aus der .env auf dem
       # Server. Leer = anonym lesend. Siehe deploy/README.md.
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      # Geheimnis (Plan 2026-11-07, S1): Client-Schlüssel beim MCP-Server — eigenes Budget.
+      MCP_CLIENT_KEY: ${MCP_CLIENT_KEY:-}
+      MCP_CONNECT_TIMEOUT_S: ${MCP_CONNECT_TIMEOUT_S:-}
+      MCP_BREAKER_FAILURES: ${MCP_BREAKER_FAILURES:-}
+      MCP_BREAKER_WINDOW_S: ${MCP_BREAKER_WINDOW_S:-}
+      MCP_BREAKER_OPEN_S: ${MCP_BREAKER_OPEN_S:-}
+      MCP_BUDGET_RPM: ${MCP_BUDGET_RPM:-}
+      MCP_BUDGET_WAIT_S: ${MCP_BUDGET_WAIT_S:-}
+      MCP_BUSY_RETRY_MAX_S: ${MCP_BUSY_RETRY_MAX_S:-}
+      AUTH_GRACE_S: ${AUTH_GRACE_S:-}
       REPO_BASE_URL: ${REPO_BASE_URL:-}
       GUIDE_TRUSTED_DOMAINS: ${GUIDE_TRUSTED_DOMAINS:-}
       BOERDI_MAX_INGEST_MB: ${BOERDI_MAX_INGEST_MB:-}

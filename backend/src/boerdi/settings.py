@@ -273,6 +273,31 @@ class Settings(BaseSettings):
             "antwortet dann weiter mit 200 und der vollen Werkzeugliste."
         ),
     )
+    # Plan 2026-11-07 (Stabilität der MCP-Anbindung), Gegenstück zu S1 des MCP-Servers:
+    # mit diesem Schlüssel zählt der Server den Chatbot in einem eigenen Budget statt
+    # im Budget seiner Adresse. Nur an den primären Server, nie ins Log.
+    mcp_client_key: SecretStr = Field(
+        SecretStr(""),
+        validation_alias=_env("MCP_CLIENT_KEY"),
+        description="CB-7: X-WLO-Client-Key for the primary MCP server (S1). Empty = by address.",
+    )
+    # CB-3: Verbindungsfrist (die Gesamtfrist bleibt ``MCP_CALL_TIMEOUT_S``) und der
+    # Ausfall-Schalter: so viele Transportfehler im Fenster → so lange offen.
+    mcp_connect_timeout_s: float = Field(5.0, validation_alias=_env("MCP_CONNECT_TIMEOUT_S"))
+    mcp_breaker_failures: int = Field(3, validation_alias=_env("MCP_BREAKER_FAILURES"))
+    mcp_breaker_window_s: float = Field(60.0, validation_alias=_env("MCP_BREAKER_WINDOW_S"))
+    mcp_breaker_open_s: float = Field(30.0, validation_alias=_env("MCP_BREAKER_OPEN_S"))
+    # CB-5: Werkzeugaufrufe je Minute am primären Server (Nutzer 2026-11-07: 300; der Server
+    # gesteht mit Client-Schlüssel 360 zu). 0 = kein Wächter. Ist das Budget erschöpft,
+    # wartet ein Aufruf höchstens ``MCP_BUDGET_WAIT_S`` und endet sonst als „ausgelastet“.
+    mcp_budget_rpm: int = Field(300, validation_alias=_env("MCP_BUDGET_RPM"))
+    mcp_budget_wait_s: float = Field(5.0, validation_alias=_env("MCP_BUDGET_WAIT_S"))
+    # CB-2: eine Wartezeit des Servers (``Retry-After``), die so kurz ist, wird einmal
+    # abgewartet und der Aufruf wiederholt; eine längere beendet ihn als „ausgelastet“.
+    mcp_busy_retry_max_s: float = Field(5.0, validation_alias=_env("MCP_BUSY_RETRY_MAX_S"))
+    # CB-4: so lange gilt die letzte Bestätigung einer Person weiter, wenn der Server die
+    # Anmeldung gerade nicht prüfen kann (Nutzer 2026-11-07: 30 min).
+    auth_grace_s: float = Field(1800.0, validation_alias=_env("AUTH_GRACE_S"))
     # Befund 2026-08-19 (Nutzer: "es darf nur auf staging zeigen"): die Vorgabe
     # stand auf Produktion, waehrend der MCP-Server nachweislich Staging
     # befragt (gemessen mit ``wlo_health_check``). Weil ``rewrite_repo_host_v2``
@@ -632,6 +657,22 @@ class Settings(BaseSettings):
     def _floor_mcp_timeout(cls, v: float) -> float:
         # Unter 5 s endete schon ein gewöhnlicher Handshake in der Frist.
         return max(5.0, v)
+
+    @field_validator("mcp_connect_timeout_s")
+    @classmethod
+    def _floor_mcp_connect(cls, v: float) -> float:
+        return max(1.0, v)
+
+    @field_validator("mcp_breaker_failures")
+    @classmethod
+    def _floor_breaker(cls, v: int) -> int:
+        # 0 öffnete den Schalter ohne jeden Fehler — ``1`` ist das Mindeste.
+        return max(1, v)
+
+    @field_validator("mcp_budget_rpm")
+    @classmethod
+    def _floor_budget(cls, v: int) -> int:
+        return max(0, v)
 
     @field_validator("bg_llm_max_concurrency")
     @classmethod

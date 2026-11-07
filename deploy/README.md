@@ -136,6 +136,23 @@ voller `import-config` überschreibt seit Paket 12 jede redaktionelle Arbeit. Zw
 Ergebnis: die Registry muss `TOOL_DEFINITIONS` abdecken, und die beiden
 Default-URLs müssen gleichziehen.
 
+#### `MCP_CLIENT_KEY` und Schutz der MCP-Anbindung (Plan 2026-11-07)
+
+Seit dem MCP-Stand vom 07.11.2026 zählt der MCP-Server je Minute nur Werkzeugaufrufe (`tools/call`).
+Mit `X-WLO-Client-Key` bekommt ein vertrauter Client ein eigenes Budget statt des Budgets seiner Adresse.
+
+```bash
+MCP_CLIENT_KEY=…        # Geheimnis, ≥ 32 Zeichen, mit dem MCP-Team getauscht (boerdi:360:<schlüssel>)
+MCP_BUDGET_RPM=300      # ohne Client-Schlüssel 280 (Adress-Budget des Servers: 300)
+```
+
+Der Chatbot hält das Budget selbst ein: Ein voller Topf wartet höchstens `MCP_BUDGET_WAIT_S` und endet dann als
+„ausgelastet“. Dazu gibt es den Ausfall-Schalter (`MCP_BREAKER_*`, Probe über `GET /ready`) und die kurze
+Verbindungsfrist (`MCP_CONNECT_TIMEOUT_S`). Kann der Server die Anmeldung gerade nicht prüfen, gilt die letzte
+Bestätigung einer Person `AUTH_GRACE_S` (30 min) weiter.
+
+Alle Werte stehen in `.env.example`; die Herkunftslisten am MCP-Server in `docs/uebergabe-betrieb.md` §11.
+
 #### `MCP_AUTH_TOKEN` — Zugangsblock, optional (C2, 2026-08-10)
 
 ```

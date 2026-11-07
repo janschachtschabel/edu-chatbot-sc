@@ -50,7 +50,10 @@ LLM_DAUER = Histogram(
     ["phase"], buckets=_SEKUNDEN)
 MCP_AUFRUFE = Counter(
     "boerdi_mcp_calls_total", "MCP-Aufrufe je Server und Ausgang (ok, tool, transport, "
-    "timeout, auth)", ["server", "outcome"])
+    "timeout, auth, busy)", ["server", "outcome"])
+# Plan 2026-11-07 (CB-3): 1 = der Ausfall-Schalter des Servers ist offen.
+MCP_SCHALTER = Gauge(
+    "boerdi_mcp_breaker_open", "Ausfall-Schalter je MCP-Server (1 = offen)", ["server"])
 MCP_DAUER = Histogram(
     "boerdi_mcp_call_duration_seconds", "Dauer je MCP-Aufruf", ["server"], buckets=_SEKUNDEN)
 SICHERHEITSSTUFEN = Counter(
@@ -127,6 +130,10 @@ def mcp_aufruf(url: str, outcome: str, sekunden: float) -> None:
     server = urlsplit(url).hostname or "unbekannt"
     MCP_AUFRUFE.labels(server, outcome).inc()
     MCP_DAUER.labels(server).observe(sekunden)
+
+
+def mcp_schalter(url: str, offen: bool) -> None:
+    MCP_SCHALTER.labels(urlsplit(url).hostname or "unbekannt").set(1 if offen else 0)
 
 
 def zug(engine: str | None) -> None:
