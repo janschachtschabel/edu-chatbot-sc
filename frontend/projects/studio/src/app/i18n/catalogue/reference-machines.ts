@@ -88,8 +88,13 @@ export const REFERENCE_MACHINES: CataloguePart = {
       'Eine Schleife bis zur Antwort oder bis zu einem Deckel: Runden, Frist, '
       + 'Token-Budget, Stillstand.',
     'rm.row.write': 'Schreiben',
-    'rm.row.write.pattern': 'Vorschau, dann die Abnahme durch die Person.',
-    'rm.row.write.agent': 'Vorschau, dann die Abnahme — nur mit persönlicher Anmeldung.',
+    'rm.row.write.pattern':
+      'Vorschau, dann die Abnahme durch die Person — nur mit Schreibrecht. Pläne '
+      + '(Sammlungsbaum, viele Aufnahmen): eine Abnahme für alles, weiter mit „Weiter anlegen“.',
+    'rm.row.write.agent':
+      'Vorschau, dann die Abnahme — nur mit Schreibrecht (persönliche Anmeldung oder das im '
+      + 'Studio freigegebene Gastkonto). Pläne löst der Chat ein; über '
+      + '`/api/agent` nur als Vorschlag.',
 
     'rm.crisis':
       '*Krise und Bedrohung:* Erzwingt die Sicherheitsprüfung das Krisen- oder '
@@ -171,8 +176,13 @@ export const REFERENCE_MACHINES: CataloguePart = {
     'rm.row.flow.agent':
       'A loop until the answer or a cap: rounds, deadline, token budget, stagnation.',
     'rm.row.write': 'Writing',
-    'rm.row.write.pattern': 'Preview, then approval by the person.',
-    'rm.row.write.agent': 'Preview, then approval — only with a personal login.',
+    'rm.row.write.pattern':
+      'Preview, then approval by the person — only with write permission. Plans (collection '
+      + 'tree, many additions): one approval for everything, then “Continue”.',
+    'rm.row.write.agent':
+      'Preview, then approval — only with write permission (a personal login or the guest '
+      + 'account enabled in the studio). Plans are redeemed by the chat; '
+      + 'through `/api/agent` only as a proposal.',
 
     'rm.crisis':
       '*Crisis and threat:* if the safety check forces the crisis or threat pattern '

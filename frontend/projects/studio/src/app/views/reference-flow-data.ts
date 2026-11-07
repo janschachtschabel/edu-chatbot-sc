@@ -7,8 +7,7 @@
  * describe one RUN through it. Every identifier below was checked against NEU:
  * `M05` = `03-patterns/m05-material-suche-gefiltert.md`, `P-LEH` =
  * `04-personas/leh.md`, `I03` and `S3` exist in `intents.yaml` / `states.yaml`,
- * and `search_wlo_content` is one of the twelve MCP tools in
- * `services/mcp/tool_defs.py`.
+ * and `search_wlo_content` is one of the MCP tools in `services/mcp/tool_defs.py`.
  *
  * **Seit C1-d5c1 stehen hier nur noch Struktur und Katalog-Schlüssel.** Die
  * geprüften Bezeichner selbst stehen jetzt IN den Texten
