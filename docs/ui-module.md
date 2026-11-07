@@ -116,7 +116,7 @@ export class UiBeispiel {
 | `vormerken(daten \| null)` (U2) | `antworten` | die nächste **getippte** Nachricht nimmt `daten` als `ui_antwort` mit, solange der Block offen ist (Block wird `beantwortet` statt `veraltet`) |
 | `zweig(nodeId)` | `nachladen` | Daten ohne Zug nachladen (heute nur Themenbaum); ohne Fähigkeit Ablehnung mit `status: 403` |
 | `hochladen(datei, onFortschritt?)` | `hochladen` | Ein Dokument ohne Zug lesen lassen (U3-2c, `POST /api/ui/dokumente`); löst mit dem Befund auf, lehnt mit `status` und `code` ab |
-| `ablegen(schritt)` | `hochladen` | Ein Schritt der Ablage im persönlichen Bereich (U3-3b, `POST /api/ui/ablage/*`), ohne Zug |
+| `ablegen(schritt)` | `hochladen` | Ein Schritt der Ablage im persönlichen Bereich (U3-3b, `POST /api/ui/ablage/*`), ohne Zug; `vorbereiten` bringt seit M6 die eigenen letzten Ablagen mit (`letzte`) |
 | `auftrag(schritt)` | `auftrag` | K1b: `stand` fragt den Stand eines Ablauf-Auftrags ohne Zug (`POST /api/ui/auftrag/stand`, `{stand}`; 409 = kein wartender Auftrag); `abholen` lässt die Shell das Ergebnis im Zug holen (Direktaktion `ablauf_auftrag_pruefen`, ohne Nutzerblase) → `{gesendet}` |
 | `markdown(text)`, `treffer()`, `beschaeftigt()` | immer | Darstellung; ohne `oeffnen` baut der Kontext von `treffer()` keine Adressen (`withBsid`/`externalLinkWarning` leer) |
 

@@ -17,6 +17,10 @@ tools:
   - get_collection_contents
   - get_collection_stats
   - browse_collection_tree
+  # Paket M4 (MCP-Stand 2026-11-07): Abdeckung vieler Themen in einem Aufruf (Trefferzahlen und
+  # beste Treffer je Thema) und die Sammlung auf einen Blick.
+  - count_wlo_content_matches
+  - get_collection_overview
   # ── Der Gegenstand selbst ─────────────────────────────────────────
   - get_node_details
   - get_nodes_details
@@ -47,6 +51,10 @@ core_rule: |
 
   Was NICHT geprüft werden konnte, wird genannt. Ein Prüfbericht, der
   Nichtgeprüftes verschweigt, liest sich wie ein Freispruch.
+
+  Zahlen aus `count_wlo_content_matches` gelten für GANZ WLO, nicht für die
+  geprüfte Sammlung — so werden sie auch benannt; ob ein Thema wirklich
+  abgedeckt ist, zeigen die Top-Treffer.
 
   Es wird nichts geändert. Wer aus einem Befund eine Änderung machen will,
   wechselt zu M18.

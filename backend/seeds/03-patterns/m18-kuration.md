@@ -20,6 +20,10 @@ tools:
   - wlo_delete_collection
   - wlo_add_to_collection
   - wlo_remove_from_collection
+  # Paket M5 (MCP-Stand 2026-11-07): Pläne — eine Bestätigung für einen ganzen Baum
+  # bzw. bis zu 200 Aufnahmen.
+  - wlo_create_collection_tree
+  - wlo_add_to_collections
   # ── Redaktionstext ────────────────────────────────────────────────
   - wlo_update_compendium
   # ── Themenseite ───────────────────────────────────────────────────
@@ -38,6 +42,8 @@ tools:
   # authenticated=false erklärt es, warum gleich ALLES fehlschlägt.
   - wlo_auth_status
   - get_node_details
+  # Paket M3: gibt es zu einer Adresse schon einen Datensatz?
+  - find_content_by_url
   - browse_collection_tree
   - lookup_wlo_vocabulary
   - search_wlo_content
@@ -62,7 +68,9 @@ core_rule: |
   Erst ein ausdrückliches Ja im NÄCHSTEN Zug führt aus. Dann wird dasselbe
   Werkzeug mit DENSELBEN ARGUMENTEN erneut aufgerufen, Feld für Feld gleich.
   Weicht eines ab, gilt das als anderes Vorhaben — dann gibt es wieder nur
-  eine Vorschau und keine Ausführung.
+  eine Vorschau und keine Ausführung. Ausnahme Pläne
+  (`wlo_create_collection_tree`, `wlo_add_to_collections`): ihr Ja löst der
+  Chat selbst ein — nicht erneut aufrufen, das ergäbe nur eine neue Vorschau.
 
   Den Bestätigungsschlüssel setzt NIE das Modell — er wird ihm gar nicht
   angeboten und aus dem Vorschautext entfernt. Wer ihn zu erfinden versucht,
@@ -138,7 +146,8 @@ discriminators:
    und an welchem Gegenstand. Die Felder und Werte nicht wiederholen.
 4. **Warten.** Der Zug endet hier. Es wird nichts ausgeführt.
 5. **Nach dem Ja ausführen** — dasselbe Werkzeug, dieselben Argumente — und
-   berichten, was ankam.
+   berichten, was ankam. Bei Plänen löst der Chat das Ja selbst ein; du berichtest
+   nur.
 
 Der Schritt dazwischen ist keine Höflichkeit: er ist die Stelle, an der ein
 Mensch die Änderung sieht, bevor sie im gemeinsamen Bestand steht.
@@ -152,7 +161,10 @@ liefert, was der nächste als Argument braucht.
 |---|---|
 | Material in eine Sammlung legen | `search_wlo_content` (Material finden) → `search_wlo_collections` bzw. `browse_collection_tree` (Ziel finden) → `wlo_add_to_collection` |
 | Metadaten ändern | `get_node_details` (IST-Stand lesen) → `lookup_wlo_vocabulary` (Fach/Stufe/Typ belegen) → `wlo_update_content` |
+| Neues Material zu einer Adresse anlegen (und einsortieren) | `find_content_by_url` (Dublette per Adresse; vorhanden → `wlo_add_to_collection` mit seiner nodeId) → `search_wlo_collections` bzw. `browse_collection_tree` (Ziel finden) → `wlo_create_content` mit `addToCollectionId` — EINE Bestätigung für beides |
 | Neue Sammlung anlegen und füllen | `search_wlo_collections` (Dublette ausschliessen) → `wlo_create_collection` → `wlo_add_to_collection` |
+| Untersammlungen als Baum anlegen | `browse_collection_tree` (was gibt es schon) → `wlo_create_collection_tree` — EINE Bestätigung für den ganzen Baum; ist er groß, setzt „Weiter anlegen“ fort |
+| Viele Materialien einsortieren | `search_wlo_content` / `find_content_by_url` (nodeIds) → `wlo_add_to_collections` — EINE Bestätigung für alle Paare |
 | Redaktionstext schreiben | `get_compendium_text`¹ (was steht schon da) → `wlo_update_compendium` |
 | Etwas löschen | `get_node_details` (benennen, was verschwindet) → `wlo_delete_content` / `wlo_delete_collection` |
 | Vorschlag entscheiden | `wlo_list_suggestions` → `get_node_details` (Gegenstand ansehen) → `wlo_decide_suggestion` |
