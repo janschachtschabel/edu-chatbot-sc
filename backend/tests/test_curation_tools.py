@@ -45,6 +45,10 @@ def _beispielwert(feld: str):
         return "accept"
     if feld == "suggestions":
         return [{"field": "title", "value": "Neu", "reason": "praeziser"}]
+    if feld == "tree":  # Paket M5: Pläne tragen Listen
+        return [{"title": "Optik"}]
+    if feld == "pairs":
+        return [{"nodeId": "m-1", "collectionId": "c-1"}]
     return f"probe-{feld}"
 
 
