@@ -21,6 +21,7 @@ import {
   untracked,
 } from '@angular/core';
 
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { FORM_EPOCHE } from './form-epoche';
 
 @Component({
@@ -51,6 +52,7 @@ export class JsonValueComponent {
   /** `''` = parseable. The form blocks a save while any field reports an error. */
   readonly errorChange = output<string>();
 
+  private readonly t = inject(StudioLanguageService).t;
   /** Non-null while the text differs from the committed value. */
   private readonly draft = signal<string | null>(null);
   readonly error = signal('');
@@ -109,9 +111,10 @@ export class JsonValueComponent {
       this.draft.set(null);
       this.clearError();
       this.valueChange.emit(parsed);
-    } catch (err) {
-      // keep the draft: discarding what was typed would be worse than the error
-      this.error.set(`Kein gültiges JSON: ${(err as Error).message}`);
+    } catch {
+      // keep the draft: discarding what was typed would be worse than the error. Review K2c-3 (2),
+      // Befund 7: in the studio's language, without the engine's English message.
+      this.error.set(this.t('jsonValue.ungueltig'));
       this.errorChange.emit(this.error());
     }
   }
