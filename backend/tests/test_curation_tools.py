@@ -49,6 +49,10 @@ def _beispielwert(feld: str):
         return [{"title": "Optik"}]
     if feld == "pairs":
         return [{"nodeId": "m-1", "collectionId": "c-1"}]
+    if feld == "source":  # Paket K2d-3: W1
+        return "binary"
+    if feld == "items":   # Paket K2d-3: W2/W3 (W3 behält davon nur nodeId)
+        return [{"nodeId": "m-1", "markdown": "# T", "source": "binary"}]
     return f"probe-{feld}"
 
 

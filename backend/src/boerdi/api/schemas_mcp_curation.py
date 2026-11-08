@@ -141,6 +141,76 @@ class CollectionsAddArgs(BaseModel):
                 else p for p in wert]
 
 
+#: Paket K2d-3: woher ein Volltext kommt (``wlo_attach_fulltext(s)``, Schema des Servers).
+VolltextQuelle = Literal["binary", "website", "manual"]
+_VOLLTEXT_FELDER = ("nodeId", "markdown", "source", "sourceUrl", "language")
+#: Die Felder eines Eintrags von ``wlo_update_contents`` — die Metadatenfelder von
+#: :class:`_ContentFields` ohne Inhalt und Datei (dafür bleibt ``wlo_update_content``), dazu
+#: ``reason`` (Begründung der Vorschläge, die der Server statt eines Schreibens hinterlegt).
+_METADATEN_FELDER = ("nodeId", "reason", *(f for f in _ContentFields.model_fields
+                                          if f not in ("content", "contentFormat", "fileBase64")))
+
+
+def _nur(felder: tuple[str, ...], wert: Any) -> Any:
+    """Jeder Eintrag nur mit diesen Feldern und ohne leere Werte. Unbekannte Felder entfernt der
+    Server still; ein leeres Feld dagegen („kein Wert angegeben“) weist bei ``wlo_update_contents``
+    den GANZEN Aufruf ab (Review K2d-3, Befund 1) — ``_export_non_empty`` räumt nur die oberste
+    Ebene auf."""
+    if not isinstance(wert, list):
+        return wert
+    return [{f: v for f in felder if f in e and not _leer(v := _ohne_leere(e[f]))}
+            if isinstance(e, dict) else e for e in wert]
+
+
+def _ohne_leere(wert: Any) -> Any:
+    """Zweites Review K2d-3, Befund 3: aus einer Liste fallen leere Einträge (``""``, ``"  "``)."""
+    return [x for x in wert if not _leer(x)] if isinstance(wert, list) else wert
+
+
+def _leer(wert: Any) -> bool:
+    """Leer wie beim Server (er kürzt Leerzeichen): ``None``, ``""``, nur Leerzeichen, ``[]``."""
+    return wert is None or wert == [] or (isinstance(wert, str) and not wert.strip())
+
+
+class FulltextAttachArgs(BaseModel):
+    """``wlo_attach_fulltext`` (Paket K2d-3, W1): ein Volltext (Markdown) in den ``textContent``
+    eines vorhandenen Datensatzes. ``replace`` ersetzt einen vorhandenen. Ein Datensatz mit Datei
+    lehnt der Server bis zur Messung des MCP-Teams ab (``would_replace_file``)."""
+
+    nodeId: str = Field(max_length=200)
+    markdown: str
+    source: VolltextQuelle
+    sourceUrl: str = Field(default="", max_length=2000)
+    language: str = Field(default="", max_length=10)
+    replace: bool = False
+
+
+class FulltextsAttachArgs(BaseModel):
+    """``wlo_attach_fulltexts`` (Paket K2d-3, W2): bis zu 200 Volltexte als Plan."""
+
+    items: list[dict[str, Any]]
+    replace: bool = False
+    continuationToken: str = Field(default="", max_length=200)
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _nur_volltextfelder(cls, wert):
+        return _nur(_VOLLTEXT_FELDER, wert)
+
+
+class ContentsUpdateArgs(BaseModel):
+    """``wlo_update_contents`` (Paket K2d-3, W3): Metadaten für bis zu 200 Datensätze als Plan.
+    Der Server entscheidet je Feld, ob er schreibt oder einen Vorschlag hinterlegt."""
+
+    items: list[dict[str, Any]]
+    continuationToken: str = Field(default="", max_length=200)
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _nur_metadatenfelder(cls, wert):
+        return _nur(_METADATEN_FELDER, wert)
+
+
 class CollectionMembershipArgs(BaseModel):
     """``wlo_add_to_collection`` / ``wlo_remove_from_collection``.
 

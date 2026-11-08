@@ -34,7 +34,9 @@ MAX_FEHLER_DARUEBER = 10
 #: Kennungen. Der Rest steht als ``‹N weitere›``.
 MAX_EINTRAEGE = 20
 #: Nutzlasten, deren Wert nie abgelegt wird — nur ihre Länge (Datei, ganzer Dokumenttext).
-_NUR_LAENGE = frozenset({"fileBase64", "content"})
+_NUR_LAENGE = frozenset({"fileBase64", "content",
+                         # Paket K2d-3 (Review, Befund 4): der Volltext von W1/W2
+                         "markdown"})
 
 _akte: contextvars.ContextVar[Zugakte | None] = contextvars.ContextVar("_zugakte", default=None)
 
