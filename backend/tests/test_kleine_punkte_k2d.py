@@ -101,7 +101,8 @@ def _plan_antwort(complete: bool) -> McpAntwort:
           "items": [{"nodeId": "n-1", "status": "updated"}]}
     text = "1 von 2 erledigt." if not complete else "2 von 2 erledigt."
     if not complete:
-        sc |= {"continuationToken": _PLAN, "expiresAt": "2026-11-08T23:00:00Z"}
+        # eine Frist in der Zukunft: ein festes Datum von heute lief nach Mitternacht ab (CI rot)
+        sc |= {"continuationToken": _PLAN, "expiresAt": "2099-01-01T00:00:00Z"}
         text += f"\n\nNoch nicht fertig. Derselbe Aufruf mit continuationToken: {_PLAN} setzt fort."
     return McpAntwort(text, strukturiert=sc)
 
