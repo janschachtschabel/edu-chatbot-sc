@@ -1,8 +1,9 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DE } from '../i18n/de';
+import { MCP_ACCESS_STORAGE_KEY } from '../session/mcp-access';
 import { createTranslator } from '../i18n/dictionary';
 import { ChatShellComponent } from './chat-shell.component';
 import type { OffenerVorgang } from './fortsetzen';
@@ -45,7 +46,14 @@ async function ruhe(): Promise<void> {
 }
 
 describe('ChatShellComponent — Gespräch fortsetzen (K2a)', () => {
-  afterEach(() => vi.restoreAllMocks());
+  // Mit `isolate: false` teilen sich die Testdateien den sessionStorage: ein Zugangsblock, den eine
+  // andere Datei liegen ließ, machte das direkt gesetzte Angebot (ohne Block) „fremd“ — CI rot je
+  // nach Reihenfolge der Dateien. Diese Datei hält den Speicher selbst leer.
+  beforeEach(() => sessionStorage.removeItem(MCP_ACCESS_STORAGE_KEY));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    sessionStorage.removeItem(MCP_ACCESS_STORAGE_KEY);
+  });
 
   it('fragt nur mit Anmeldung und zeigt dann den Hinweis', async () => {
     const { f, c } = make();
