@@ -122,7 +122,7 @@ export class UebertragenAblauf {
       for (const [i, k] of kandidaten.entries()) {
         const sha256 = await (this.u.hashen ?? ((d: File) => sha256Hex(d)))(k.handle);
         if (ueberholt()) return this.verwerfen(nr);
-        eintraege.push({ titel: k.titel, sha256, groesse: k.groesse, art: k.art });
+        eintraege.push({ titel: k.titel, sha256, groesse: k.groesse, art: k.art, rolle: k.rolle });
         this.lauf = { phase: 'pruefen', fertig: i + 1, gesamt: kandidaten.length };
         this.anOrt(t.prueft(i + 1, kandidaten.length), (i + 1) / kandidaten.length);
       }

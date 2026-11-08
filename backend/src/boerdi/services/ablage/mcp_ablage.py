@@ -110,13 +110,19 @@ async def _werkzeug(name: str, args: dict[str, Any]) -> dict[str, Any]:
     return daten
 
 
+#: W4 (MCP-Stand 2026-11-08): die Rolle je Eintrag im Wortschatz des Servers. Ein Server vor W4
+#: verwirft das unbekannte Feld still (zod ohne ``strict``).
+_ROLLEN: Final = {"struktur": "structure", "inhalt": "content"}
+
+
 async def vorbereiten(ordner: str, eintraege: list[dict[str, Any]]) -> dict[str, Any]:
-    """Plan an das MCP (``eintraege``: ``titel``, ``sha256``, ``groesse``, ``art``) → Vorschau +
-    ``batchToken``."""
+    """Plan an das MCP (``eintraege``: ``titel``, ``sha256``, ``groesse``, ``art``, ``rolle``
+    (``inhalt`` | ``struktur``, Vorgabe ``inhalt``)) → Vorschau + ``batchToken``."""
     daten = await _werkzeug("wlo_prepare_file_batch", {
         "target": "home", "folderName": ordner,
         "entries": [{"title": e["titel"], "sha256": e["sha256"], "size": e["groesse"],
-                     "ext": e["art"]} for e in eintraege]})
+                     "ext": e["art"], "role": _ROLLEN.get(e.get("rolle", "inhalt"), "content")}
+                    for e in eintraege]})
     liste = daten.get("entries")
     # Je Eintrag ein ganzzahliger Index 0…n−1 in Reihenfolge — sonst kippte
     # ``vorgang_teil.aus_plan`` mit einer 500, oder ein Index wäre über ``/datei`` nie einlösbar

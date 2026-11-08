@@ -38,7 +38,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import get_session
@@ -87,6 +87,12 @@ class Eintrag(BaseModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     groesse: int = Field(gt=0)
     art: str = Field(pattern=_ART)
+    #: W4-Anbindung (MCP-Stand 2026-11-08): Strukturdokument oder Inhalt — Teil der Freigabe.
+    rolle: str = Field(default="inhalt", pattern=r"^(inhalt|struktur)$")
+
+
+#: Review W4, Befund 4: die Regel des Moduls (``upload-rollen.ts``), am öffentlichen Endpunkt.
+_STRUKTUR_ARTEN = frozenset({"pdf", "docx", "txt", "md"})
 
 
 class Vorbereiten(BaseModel):
@@ -94,6 +100,13 @@ class Vorbereiten(BaseModel):
     block_id: str = Field(pattern=_BLOCK)
     ordner: str = Field(min_length=1, max_length=120)
     eintraege: list[Eintrag] = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def _ein_strukturdokument(self) -> Vorbereiten:
+        struktur = [e for e in self.eintraege if e.rolle == "struktur"]
+        if len(struktur) > 1 or any(e.art not in _STRUKTUR_ARTEN for e in struktur):
+            raise ValueError("höchstens ein Strukturdokument (pdf, docx, txt, md)")
+        return self
 
 
 class Abschluss(BaseModel):
@@ -197,7 +210,8 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
         raise
     letzte = await _letzte_abwarten(liste)
     token = str(plan["batchToken"])
-    teil = vorgang_teil.aus_plan(plan, token, anfrage.block_id, vorher)
+    rollen = [e.rolle for e in anfrage.eintraege]
+    teil = vorgang_teil.aus_plan(plan, token, anfrage.block_id, vorher, rollen=rollen)
 
     dazwischen = False
 
@@ -209,7 +223,8 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
         if vorgang_teil.haelt_noch(frisch):
             dazwischen = True
             return None
-        return vorgang_teil.aus_plan(plan, token, anfrage.block_id, frisch)
+        # Review W4, Befund 1: der GESPEICHERTE Teil (die erbetene Rolle kam nur in die Antwort).
+        return vorgang_teil.aus_plan(plan, token, anfrage.block_id, frisch, rollen=rollen)
 
     if not await vorgang_teil.speichern(session, anfrage.session_id, entities, teil, neu=neu):
         # Der wahre Grund statt „noch einmal versuchen“ (Review 2026-11-07, UI-Backend Befund 6).
@@ -220,7 +235,7 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
     await _verweis_zurueckschreiben(session, anfrage.session_id, entities)
     return {"batch_token": token, "layout": teil["layout"], "ordner": teil["ordner"],
             "gesamt": int(plan.get("totalBytes") or 0),
-            "eintraege": [{k: e[k] for k in ("index", "titel", "art", "groesse", "name")}
+            "eintraege": [{k: e[k] for k in ("index", "titel", "art", "groesse", "name", "rolle")}
                           for e in teil["inhalte"]],
             "letzte": letzte}
 

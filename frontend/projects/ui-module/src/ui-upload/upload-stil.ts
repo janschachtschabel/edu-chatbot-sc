@@ -62,6 +62,7 @@ select {
   align-items: center; column-gap: 10px; row-gap: 2px; min-height: 32px; padding-block: 1px;
 }
 .u__name { min-width: 0; overflow-wrap: anywhere; }
+.u__rolle { color: var(--mat-sys-on-surface-variant); font-size: 0.875em; }
 .u__zahl, .u__hinweis { color: var(--mat-sys-on-surface-variant); }
 .u__datei > .u__zahl { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: end; }
 .u__datei--ignoriert .u__name { color: var(--mat-sys-on-surface-variant); text-decoration: line-through; }

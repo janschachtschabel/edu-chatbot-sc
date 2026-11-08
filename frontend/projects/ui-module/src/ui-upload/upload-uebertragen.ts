@@ -3,12 +3,13 @@
  *
  * Erlaubt nur, wenn das System es im Block sagt (`schalter.ablage_in_wlo`: Studio UND bestätigte
  * Anmeldung). Übertragen werden die nicht ignorierten Dateien einer Art, die das MCP kennt, bis zur
- * Größe der Ablage (`grenzen.max_mb_ablage`). Die Freigabe trägt je Datei nur Titel, sha256, Größe und
- * Art — keinen Pfad, keinen Inhalt. Die Antwort an den Chat zählt nur (`aktion: "uebertragen"`):
+ * Größe der Ablage (`grenzen.max_mb_ablage`). Die Freigabe trägt je Datei nur Titel, sha256, Größe, Art
+ * und Rolle (Inhalt oder Strukturdokument, W4) — keinen Pfad, keinen Inhalt. Die Antwort an den Chat zählt nur (`aktion: "uebertragen"`):
  * keine Kennungen, keine Dateinamen. Die Links je Datei bleiben im Modul.
  */
 import { antwortDaten, einZeiler, type UploadAntwort } from './upload-antwort';
 import { codeVon } from './upload-dokument';
+import type { AblageRolle } from '../_vertrag/modul-host';
 import type { Erfassung } from './upload-erfassen';
 
 /** Höchstzahl je Freigabe (Backend `Vorbereiten.eintraege`). */
@@ -34,6 +35,8 @@ export interface Kandidat<T> {
   readonly titel: string;
   readonly art: string;
   readonly groesse: number;
+  /** W4: die Rolle der Datei — Teil der Freigabe. */
+  readonly rolle: AblageRolle;
   readonly handle: T;
 }
 
@@ -50,7 +53,7 @@ export interface Plan {
   readonly ordner: string;
   readonly gesamt: number;
   readonly eintraege: readonly { readonly index: number; readonly titel: string; readonly art: string;
-    readonly groesse: number; readonly name: string }[];
+    readonly groesse: number; readonly name: string; readonly rolle: AblageRolle }[];
 }
 
 export type Stand = 'wartet' | 'sendet' | 'stored' | 'dropped' | 'unverified' | 'failed' | 'abgebrochen';
@@ -136,7 +139,10 @@ export function auswahl<T>(e: Erfassung<T>, maxBytes: number): Auswahl<T> {
     const art = artVon(d.name);
     if (!art) ohneArt++;
     else if (d.groesse > maxBytes) zuGross++;
-    else kandidaten.push({ datei: i, titel: titelVon(d.name), art, groesse: d.groesse, handle: d.handle });
+    else kandidaten.push({
+      datei: i, titel: titelVon(d.name), art, groesse: d.groesse,
+      rolle: d.rolle === 'struktur' ? 'struktur' : 'inhalt', handle: d.handle,
+    });
   });
   return { kandidaten, ohneArt, zuGross };
 }
@@ -167,6 +173,7 @@ export function planAus(roh: Readonly<Record<string, unknown>>, anzahl: number):
     eintraege.push({
       index: i, titel: einZeiler(String(e['titel'] ?? '')), art: String(e['art'] ?? ''),
       groesse: typeof e['groesse'] === 'number' ? e['groesse'] : 0, name: einZeiler(String(e['name'] ?? e['titel'] ?? '')),
+      rolle: e['rolle'] === 'struktur' ? 'struktur' : 'inhalt',
     });
   }
   return {

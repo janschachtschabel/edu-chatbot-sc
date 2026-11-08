@@ -1,6 +1,6 @@
 /**
  * Die drei Schritte der Ablage im persönlichen Bereich (Paket U3-3b, T6) an `POST /api/ui/ablage/*`:
- * `vorbereiten` (JSON: Ordnername und je Datei Titel, sha256, Größe, Art → Vorschau und Schlüssel),
+ * `vorbereiten` (JSON: Ordnername und je Datei Titel, sha256, Größe, Art, Rolle → Vorschau und Schlüssel),
  * `datei` (multipart, eine Datei zur Zeit, mit Fortschritt) und `abschluss` (JSON → `vorgang.json`).
  *
  * Über `xhr-senden.ts` wie das Dokument: Zugangsblock im Kopf, Fehler als `status` + `code` aus

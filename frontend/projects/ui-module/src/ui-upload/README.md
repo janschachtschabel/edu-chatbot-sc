@@ -27,8 +27,9 @@ eigenen Bündel (siehe `docs/ui-module.md` §2.5).
   `upload-uebertragen-ablauf.ts` Zustand, `upload-uebertragen-ansicht.ts` Darstellung): nur wenn das System
   es erlaubt (`schalter.ablage_in_wlo` — Studio **und** bestätigte Anmeldung). Übertragen werden nicht
   ignorierte Dateien bekannter Art bis `grenzen.max_mb_ablage`, höchstens 200 je Freigabe. Ablauf: prüfen
-  (sha256 im Browser, k von n) → `host.ablegen({schritt: 'vorbereiten'})` → **Vorschau** (Ziel, Ordner oder
-  flach, Namen des Servers; daneben eingeklappt die eigenen **letzten Ablagen**, Paket M6 — `letzte` aus
+  (sha256 im Browser, k von n) → `host.ablegen({schritt: 'vorbereiten'})` (je Eintrag die **Rolle**,
+  `inhalt` | `struktur` — seit W4 Teil der Freigabe) → **Vorschau** (Ziel, Ordner oder flach, Namen des
+  Servers, das Strukturdokument als solches benannt; daneben eingeklappt die eigenen **letzten Ablagen**, Paket M6 — `letzte` aus
   derselben Antwort, `letzteAus`) mit „Jetzt übertragen“/„Abbrechen“ → je Datei **nacheinander**
   (`schritt: 'datei'`, Fortschritt) → Ergebnisliste (Stand als Text und Symbol, Link je Knoten über
   `host.link`) → `vorgang.json` (`schritt: 'abschluss'`) → „Im Chat weitermachen“ (Antwort

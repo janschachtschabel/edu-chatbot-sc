@@ -68,14 +68,16 @@ export interface ModulHost {
    *  `{ stand: 'laeuft' | 'fertig' | 'fehler' }` auf, lehnt ab mit `status` — 409: kein wartender
    *  Auftrag mehr, 403: nicht angemeldet, 503: gerade nicht abrufbar); `abholen` lässt die Shell das
    *  Ergebnis im Zug der Person holen (Direktaktion „Stand prüfen“) und löst mit `{ gesendet }` auf —
-   *  `false`, solange ein anderer Zug läuft. */
+   *  `false`, solange ein anderer Zug läuft. `abbrechen` (K2b) schickt die Direktaktion „Auftrag
+   *  abbrechen“; das Backend fragt erst nach, gleiche Auflösung wie `abholen`. */
   auftrag(schritt: AuftragSchritt): Promise<Record<string, unknown>>;
 }
 
 /** K1b: Ablauf und Kürzel des Auftrags stehen in den Block-Daten von `ui_fortschritt` (nie die Job-ID). */
 export type AuftragSchritt =
   | { readonly schritt: 'stand'; readonly ablauf: string; readonly kuerzel: string }
-  | { readonly schritt: 'abholen'; readonly ablauf: string };
+  | { readonly schritt: 'abholen'; readonly ablauf: string }
+  | { readonly schritt: 'abbrechen'; readonly ablauf: string };
 
 /** U3-3b: ein Eintrag der Freigabe — nur, was das MCP dafür braucht (keine Pfade, kein Inhalt). */
 export interface AblageEintrag {
@@ -83,7 +85,11 @@ export interface AblageEintrag {
   readonly sha256: string;
   readonly groesse: number;
   readonly art: string;
+  /** W4 (MCP-Stand 2026-11-08): Strukturdokument oder Inhalt — Teil der Freigabe; Vorgabe `inhalt`. */
+  readonly rolle?: AblageRolle;
 }
+
+export type AblageRolle = 'inhalt' | 'struktur';
 
 /** U3-3b: die drei Schritte der Ablage — Freigabe vorbereiten, eine Datei, Abschluss (`vorgang.json`). */
 export type AblageSchritt =

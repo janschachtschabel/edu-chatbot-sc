@@ -398,7 +398,7 @@ def test_nach_ablauf_der_freigabe_bleiben_die_abgelegten_als_frueher(client, lag
     lage.plan = {**_PLAN, "batchToken": "tok-zweiter-stapel.0123456789"}
     r = _vorbereiten(client)
     assert r.status_code == 200, r.text
-    assert lage.teil["frueher"] == [{"titel": "Mechanik", "node_id": "n-0"}]
+    assert lage.teil["frueher"] == [{"titel": "Mechanik", "node_id": "n-0", "rolle": "inhalt"}]
     assert [e["stand"] for e in lage.teil["inhalte"]] == ["offen", "offen"]
 
 
@@ -449,7 +449,7 @@ def test_wechselt_der_stapel_mitten_in_einer_datei_geht_ihr_ergebnis_nach_fruehe
     _datei(client, 0)
     assert lage.teil["token_kuerzel"] == vorgang_teil.kuerzel("tok-zweiter-stapel.0123456789")
     assert lage.teil["inhalte"][0]["stand"] == "offen"
-    assert lage.teil["frueher"] == [{"titel": "Mechanik", "node_id": "n-0"}]
+    assert lage.teil["frueher"] == [{"titel": "Mechanik", "node_id": "n-0", "rolle": "inhalt"}]
 
 
 def test_ein_abschluss_schreibt_keinen_fremden_stapel_ab(client, lage, monkeypatch):

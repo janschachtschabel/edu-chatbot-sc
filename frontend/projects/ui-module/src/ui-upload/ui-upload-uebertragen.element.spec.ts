@@ -61,10 +61,10 @@ async function erzeugt(h = host(), daten: Record<string, unknown> = DATEN, konte
 }
 
 /** Antworten des Backends je Schritt; `datei` der Reihe nach. */
-function backend(h: Host, dateien: Array<Record<string, unknown> | Error | DOMException> = []) {
+function backend(h: Host, dateien: Array<Record<string, unknown> | Error | DOMException> = [], plan: Record<string, unknown> = PLAN) {
   const reihe = [...dateien];
   h.ablegen.mockImplementation(async (s: { schritt: string; index?: number }) => {
-    if (s.schritt === 'vorbereiten') return PLAN;
+    if (s.schritt === 'vorbereiten') return plan;
     if (s.schritt === 'abschluss') return { stand: 'stored', bereits: false };
     const naechste = reihe.shift() ?? { stand: 'stored', link: `https://repo.test/render/n-${s.index}` };
     // unter jsdom ist eine DOMException kein Error
@@ -73,8 +73,9 @@ function backend(h: Host, dateien: Array<Record<string, unknown> | Error | DOMEx
   });
 }
 
-async function bisVorschau(h = host(), dateien: Array<Record<string, unknown> | Error | DOMException> = []) {
-  backend(h, dateien);
+async function bisVorschau(h = host(), dateien: Array<Record<string, unknown> | Error | DOMException> = [],
+  plan: Record<string, unknown> = PLAN) {
+  backend(h, dateien, plan);
   const r = await erzeugt(h);
   knopf(r.wurzel, 'Übertragen vorbereiten …')!.click();
   for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
@@ -113,7 +114,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     expect(vorbereiten.schritt).toBe('vorbereiten');
     expect(vorbereiten.ordner).toBe('Physik');
     expect(vorbereiten.eintraege.map((e: { titel: string }) => e.titel)).toEqual(['Hebel', 'Linse']);
-    expect(vorbereiten.eintraege[0]).toMatchObject({ groesse: 100, art: 'pdf' });
+    expect(vorbereiten.eintraege[0]).toMatchObject({ groesse: 100, art: 'pdf', rolle: 'inhalt' });
     expect(vorbereiten.eintraege[0].sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(vorbereiten)).not.toContain('Physik/');      // keine Pfade
     expect(wurzel.textContent).toContain('neuer Ordner „Physik“');
@@ -491,6 +492,30 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     el.beschaeftigt = false;
     el.kontext = { ...el.kontext };
     expect(wurzel.querySelector('button')).toBe(vorher);
+  });
+
+  // W4-Anbindung: die Rolle ist Teil der Freigabe — die Vorschau nennt das Strukturdokument.
+  it('die Vorschau nennt das Strukturdokument', async () => {
+    const plan = { ...PLAN, eintraege: [{ ...PLAN.eintraege[0], rolle: 'struktur' }, PLAN.eintraege[1]] };
+    const { wurzel } = await bisVorschau(host(), [], plan);
+    const zeilen = [...wurzel.querySelectorAll('.u__eintrag')];
+    expect(zeilen[0].querySelector('.u__rolle')?.textContent).toBe('Strukturdokument');
+    expect(zeilen[1].querySelector('.u__rolle')).toBeNull();
+  });
+
+  // Review W4, Befund 7: eine in der Oberfläche gesetzte Rolle kommt als `struktur` in der Freigabe an.
+  it('die gewählte Rolle reist mit der Freigabe', async () => {
+    const h = host();
+    backend(h);
+    const { wurzel } = await erzeugt(h);
+    const wahl = wurzel.querySelector('select[aria-label="Rolle von Hebel.pdf"]') as HTMLSelectElement;
+    wahl.value = 'struktur';
+    wahl.dispatchEvent(new Event('change', { bubbles: true }));
+    await warte();
+    knopf(wurzel, 'Übertragen vorbereiten …')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'Jetzt übertragen'); i++) await warte();
+    const vorbereiten = h.ablegen.mock.calls[0][0];
+    expect(vorbereiten.eintraege.map((e: { rolle: string }) => e.rolle)).toEqual(['struktur', 'inhalt']);
   });
 });
 
