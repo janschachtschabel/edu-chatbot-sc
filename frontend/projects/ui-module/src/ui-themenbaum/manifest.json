@@ -15,7 +15,8 @@
     "eine NEUE Gliederung, die es so noch nicht gibt (entwerfen, gliedern, Unterrichtsreihe) — dafuer ui_strukturentwurf",
     "du wertest die Unterthemen selbst aus (pruefen, Luecken finden, Lernpfad bauen) — dafuer browse_collection_tree; zum Zeigen immer dieses Werkzeug",
     "die Materialien einer Sammlung (dafuer get_collection_contents)",
-    "eine Suche nach Inhalten"
+    "eine Suche nach Inhalten",
+    "einen Entwurf mit einer Sammlung vergleichen oder Luecken eines Entwurfs finden (dafuer ui_strukturabgleich)"
   ],
   "agent": true,
   "eingabe": {

@@ -658,7 +658,8 @@ async def run_agent_loop(
                     continue
                 run.tools_called.append(name)
                 umgebung = ModulUmgebung(usage_acc=acc, frist_ende=ende, vorlage=modul_vorlage,
-                                         dokument=modul_dokument, teile=modul_teile)
+                                         dokument=modul_dokument, teile=modul_teile,
+                                         verfuegbar=frozenset(angeboten))
                 try:
                     with schritt("respond.werkzeuge"):
                         ergebnis = await innerhalb(ende, modul_asynchron(name, args, umgebung))

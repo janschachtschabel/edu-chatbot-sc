@@ -34,6 +34,9 @@ class Umgebung:
     dokument: DokumentLader | None = None
     #: Paket V1: liest einen Teil des aktiven Vorgangs per Name (``services/arbeitsstand``).
     teile: TeilLader | None = None
+    #: Paket U5 (Review, Befund 5): die in diesem Zug angebotenen Werkzeuge — ein Dienst ruft ein
+    #: MCP-Werkzeug, das er nur nebenbei nutzt, nur, wenn es darin steht (``None``: nie).
+    verfuegbar: frozenset[str] | None = None
 
 
 async def asynchron(name: str, args: Any, umgebung: Umgebung | None = None) -> Ergebnis:

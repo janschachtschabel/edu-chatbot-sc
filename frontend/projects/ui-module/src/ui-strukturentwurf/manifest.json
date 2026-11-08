@@ -17,7 +17,8 @@
     "zeigen, was es in WLO schon gibt — Themen eines Fachportals oder einer Sammlung (dafuer ui_themenbaum)",
     "'Themenbaum fuer <Fachportal oder Sammlung>' ohne Wunsch nach etwas Neuem (ui_themenbaum, danach Entwurf anbieten)",
     "Material suchen oder einen Lernpfad aus vorhandenem Material bauen",
-    "ein fertiges Dokument (ui_inhaltsrahmen)"
+    "ein fertiges Dokument (ui_inhaltsrahmen)",
+    "die Person bringt eigene Dateien, einen Ordner oder einen Lehrplan ein (dafuer zuerst ui_upload)"
   ],
   "agent": true,
   "dienst": {

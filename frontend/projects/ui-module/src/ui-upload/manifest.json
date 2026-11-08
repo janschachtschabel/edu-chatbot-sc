@@ -10,7 +10,8 @@
   "wann": [
     "die Person hat Materialien in Ordnern und will daraus eine Sammlungsstruktur oder einen Themenbaum machen",
     "die Person will einen Ordner mit Dateien einbringen, sichten oder ordnen",
-    "die Person fragt, ob sie Dateien oder einen Ordner hochladen kann"
+    "die Person fragt, ob sie Dateien oder einen Ordner hochladen kann",
+    "die Person will aus ihrem Lehrplan oder Strukturdokument eine Struktur machen (Lehrplan einbringen)"
   ],
   "nicht_wann": [
     "ein Thema ohne eigene Dateien gliedern (dafuer ui_strukturentwurf)",
