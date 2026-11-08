@@ -132,9 +132,12 @@ def modul_werkzeug_titel() -> dict[str, str]:
 def _anbietbar(manifest: Manifest, verfuegbar: Collection[str] | None) -> bool:
     """Ein Modul mit Datenquelle nur, wenn sein Werkzeug im Lauf verfügbar ist (Sperren der
     Sicherheit, Studio-Schalter, Modus der Einbettung — Plan §15, E-3) und das Backend es kennt;
-    ein Modul mit Dienst, wenn das Backend den Dienst kennt (U2)."""
+    ein Modul mit Dienst, wenn das Backend den Dienst kennt (U2) und die MCP-Werkzeuge verfügbar
+    sind, die er ruft (``dienst.braucht``, U4 — sonst umginge er eine Sperre)."""
     if dienst.name(manifest):
-        return dienst.parameter(manifest) is not None
+        braucht = manifest["dienst"].get("braucht") or []
+        return dienst.parameter(manifest) is not None and (not braucht or (
+            verfuegbar is not None and all(w in verfuegbar for w in braucht)))
     quelle = datenquelle.werkzeug(manifest)
     return quelle is None or (verfuegbar is not None and quelle in verfuegbar
                               and datenquelle.parameter(manifest) is not None)

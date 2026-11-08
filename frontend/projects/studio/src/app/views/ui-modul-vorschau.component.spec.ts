@@ -11,6 +11,7 @@ import strukturentwurf from '@boerdi/ui-module/ui-strukturentwurf/manifest.json'
 import themenbaum from '@boerdi/ui-module/ui-themenbaum/manifest.json';
 import trefferliste from '@boerdi/ui-module/ui-trefferliste/manifest.json';
 import fortschritt from '@boerdi/ui-module/ui-fortschritt/manifest.json';
+import strukturabgleich from '@boerdi/ui-module/ui-strukturabgleich/manifest.json';
 import upload from '@boerdi/ui-module/ui-upload/manifest.json';
 import { MODUL_REGISTER } from '@boerdi/ui-module/register.generated';
 
@@ -23,7 +24,7 @@ import { UiModulVorschauComponent } from './ui-modul-vorschau.component';
  * Register — und nichts davon verlässt die Seite: Herunterladen, Drucken, Aktionen und Antworten
  * werden angesagt, Links öffnen nicht.
  */
-const MANIFESTE = [entscheidung, fortschritt, inhaltsrahmen, linkbox, strukturentwurf, themenbaum, trefferliste, upload] as unknown as UiModulManifest[];
+const MANIFESTE = [entscheidung, fortschritt, inhaltsrahmen, linkbox, strukturabgleich, strukturentwurf, themenbaum, trefferliste, upload] as unknown as UiModulManifest[];
 
 /** Text der Bühne samt Shadow Roots (nachgeladene Module zeichnen in ihren Shadow Root, U3-1a). */
 function text(e: Element | null): string {

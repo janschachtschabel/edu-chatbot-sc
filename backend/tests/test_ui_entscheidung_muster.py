@@ -351,5 +351,7 @@ def test_der_werkzeug_katalog_nennt_die_modul_werkzeuge(monkeypatch):
     monkeypatch.setattr(fremdwerkzeuge, "definitionen", lambda: [])
     eintraege = {e["value"]: e for e in tools_katalog()}
     # U1-e: auch der Themenbaum; U2: der Strukturentwurf.
-    assert set(eintraege) == {ENTSCHEIDUNG, "ui_themenbaum", "ui_strukturentwurf", "ui_upload"}
+    assert set(eintraege) == {ENTSCHEIDUNG, "ui_themenbaum", "ui_strukturabgleich",
+        "ui_strukturentwurf",
+                              "ui_upload"}
     assert "Entscheidung" in eintraege[ENTSCHEIDUNG]["label"]

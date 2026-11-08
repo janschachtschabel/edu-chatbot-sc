@@ -28,6 +28,7 @@ from boerdi.ui_module import strukturentwurf as se
 from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
 from boerdi.ui_module import strukturentwurf_text as st
 from boerdi.ui_module.datenquelle import Ergebnis
+from boerdi.ui_module.dienst_strukturabgleich import strukturabgleich
 from boerdi.ui_module.dienst_upload import upload_angebot
 from boerdi.ui_module.katalog import Manifest
 
@@ -168,6 +169,8 @@ _DIENSTE: Final[dict[str, _Dienst]] = {
     "strukturentwurf": _strukturentwurf,
     # Paket U3-1b: das Auswahlfeld von ui_upload (Grenzen und Schalter setzt das Backend).
     "upload_angebot": upload_angebot,
+    # Paket U4: der Entwurf gegen eine WLO-Sammlung (ohne LLM).
+    "strukturabgleich": strukturabgleich,
 }
 
 

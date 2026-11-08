@@ -1,0 +1,521 @@
+{
+  "name": "ui_strukturabgleich",
+  "version": 1,
+  "art": "anzeigen",
+  "titel": {
+    "de": "Abgleich mit WLO",
+    "en": "Comparison with WLO"
+  },
+  "beschreibung": "Gleicht den Strukturentwurf der Person (aus dem Arbeitsstand) mit einer bestehenden WLO-Sammlung ab und zeigt je Gliederungspunkt, ob es ihn dort schon gibt (vorhanden), etwas Aehnliches gibt (aehnlich) oder nicht (neu) - mit der Zahl der Inhalte direkt darin. Darunter die Sammlungen, die es nur in WLO gibt. Ohne KI, nur Bestand und Entwurf; es wird nichts geaendert.",
+  "wann": [
+    "die Person hat einen Strukturentwurf und will wissen, was davon es in einer WLO-Sammlung schon gibt",
+    "die Person fragt, welche Punkte ihres Themenbaums in einer Sammlung noch fehlen",
+    "die Person fragt, zu welchen Punkten ihres Entwurfs es in WLO noch kaum Material gibt (mit abdeckung: true)"
+  ],
+  "nicht_wann": [
+    "es gibt noch keinen Entwurf (erst ui_strukturentwurf)",
+    "nur den Bestand einer Sammlung zeigen (dafuer ui_themenbaum)",
+    "den Entwurf bearbeiten (dafuer ui_strukturentwurf)"
+  ],
+  "agent": true,
+  "laden": "bei_bedarf",
+  "dienst": {
+    "name": "strukturabgleich",
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sammlung"
+      ],
+      "properties": {
+        "sammlung": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "description": "nodeId der WLO-Sammlung, mit der verglichen wird (aus search_wlo_collections oder dem Themenbaum)."
+        },
+        "titel": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Titel der Sammlung, wie ihn die Suche nannte (nur zur Anzeige)."
+        },
+        "abdeckung": {
+          "type": "boolean",
+          "description": "true: zusaetzlich je Gliederungspunkt zaehlen, wie viele Inhalte es in ganz WLO dazu gibt, und Punkte mit hoechstens 2 Treffern als Luecken zeigen (dauert etwas laenger; nur, wenn count_wlo_content_matches in diesem Zug angeboten ist)."
+        }
+      }
+    },
+    "braucht": [
+      "browse_collection_tree"
+    ]
+  },
+  "eingabe": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "titel",
+      "sammlung",
+      "zeilen",
+      "nur_in_wlo",
+      "zahlen"
+    ],
+    "properties": {
+      "titel": {
+        "type": "string",
+        "maxLength": 120,
+        "description": "Titel des Entwurfs."
+      },
+      "sammlung": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "nodeId",
+          "titel"
+        ],
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "titel": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "pattern": "^https://"
+          }
+        },
+        "description": "Die WLO-Sammlung, mit der verglichen wurde."
+      },
+      "zeilen": {
+        "type": "array",
+        "maxItems": 250,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "titel",
+            "ebene",
+            "art"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "titel": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "ebene": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2
+            },
+            "art": {
+              "enum": [
+                "vorhanden",
+                "aehnlich",
+                "neu"
+              ]
+            },
+            "wlo": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "nodeId",
+                "titel"
+              ],
+              "properties": {
+                "nodeId": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "titel": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "anzahl": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 500,
+                  "pattern": "^https?://"
+                }
+              }
+            },
+            "ungewiss": {
+              "type": "boolean",
+              "description": "Nur bei art neu: die Sammlung ist dort gekuerzt - nicht gefunden heisst nicht sicher neu."
+            },
+            "abdeckung": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "total",
+                "luecke"
+              ],
+              "properties": {
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "luecke": {
+                  "type": "boolean"
+                },
+                "top": {
+                  "type": "array",
+                  "maxItems": 3,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "nodeId",
+                      "titel"
+                    ],
+                    "properties": {
+                      "nodeId": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "titel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 300,
+                        "pattern": "^https?://"
+                      }
+                    }
+                  }
+                },
+                "geraten": {
+                  "type": "array",
+                  "maxItems": 4,
+                  "items": {
+                    "enum": [
+                      "educationalContext",
+                      "discipline",
+                      "userRole",
+                      "learningResourceType"
+                    ]
+                  }
+                }
+              },
+              "description": "Paket U5: Treffer in ganz WLO zu diesem Punkt."
+            },
+            "abdeckung_fehlt": {
+              "type": "string",
+              "maxLength": 40,
+              "description": "Paket U5: warum nicht gezaehlt wurde (Code)."
+            }
+          }
+        },
+        "description": "Je Punkt des Entwurfs (Ebene 1 und 2) die Art und die zugeordnete Sammlung."
+      },
+      "nur_in_wlo": {
+        "type": "array",
+        "maxItems": 100,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nodeId",
+            "titel",
+            "ebene"
+          ],
+          "properties": {
+            "nodeId": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "titel": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "ebene": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2
+            },
+            "anzahl": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 500,
+              "pattern": "^https?://"
+            },
+            "eltern_titel": {
+              "type": "string",
+              "maxLength": 120,
+              "description": "Nur Ebene 2: unter welcher Sammlung."
+            }
+          }
+        },
+        "description": "Sammlungen, denen kein Punkt des Entwurfs entspricht."
+      },
+      "zahlen": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vorhanden",
+          "aehnlich",
+          "neu",
+          "nur_in_wlo"
+        ],
+        "properties": {
+          "vorhanden": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "aehnlich": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "neu": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nur_in_wlo": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "gekuerzt": {
+        "type": "boolean",
+        "description": "Die Sammlung ist groesser als gezeigt."
+      },
+      "abdeckung": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gezaehlt",
+          "luecken"
+        ],
+        "properties": {
+          "gezaehlt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "luecken": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "filter_unaufgeloest": {
+            "type": "boolean"
+          },
+          "ungezaehlt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gesperrt": {
+            "type": "boolean",
+            "description": "Zaehlen war in diesem Zug nicht erlaubt."
+          },
+          "luecke_bis": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          }
+        },
+        "description": "Paket U5: die Abdeckung insgesamt (nur mit abdeckung: true)."
+      }
+    }
+  },
+  "datenquelle": null,
+  "vorgang": {
+    "liest": [
+      "draft"
+    ]
+  },
+  "faehigkeiten": [
+    "oeffnen"
+  ],
+  "textfassung": {
+    "vorlage": "markdown"
+  },
+  "darstellung": {
+    "breit": true,
+    "platz": "oben"
+  },
+  "beispiele": [
+    {
+      "titel": "Optik gegen eine Physik-Sammlung",
+      "daten": {
+        "titel": "Optik",
+        "sammlung": {
+          "nodeId": "5e40e372-735c-4b17-bbf7-e827a5702b57",
+          "titel": "Physik",
+          "url": "https://redaktion.openeduhub.net/edu-sharing/components/collections?id=5e40e372-735c-4b17-bbf7-e827a5702b57"
+        },
+        "zeilen": [
+          {
+            "id": "k1",
+            "titel": "Licht und Schatten",
+            "ebene": 1,
+            "art": "vorhanden",
+            "wlo": {
+              "nodeId": "a1",
+              "titel": "Licht und Schatten",
+              "anzahl": 42
+            }
+          },
+          {
+            "id": "k1-1",
+            "titel": "Schattenbildung",
+            "ebene": 2,
+            "art": "aehnlich",
+            "wlo": {
+              "nodeId": "a2",
+              "titel": "Schatten und Halbschatten",
+              "anzahl": 7
+            }
+          },
+          {
+            "id": "k2",
+            "titel": "Linsen",
+            "ebene": 1,
+            "art": "neu"
+          },
+          {
+            "id": "k2-1",
+            "titel": "Brennweite",
+            "ebene": 2,
+            "art": "neu",
+            "ungewiss": true
+          }
+        ],
+        "nur_in_wlo": [
+          {
+            "nodeId": "a3",
+            "titel": "Mechanik",
+            "ebene": 1,
+            "anzahl": 120
+          },
+          {
+            "nodeId": "a4",
+            "titel": "Farben",
+            "ebene": 2,
+            "eltern_titel": "Licht und Schatten",
+            "anzahl": 3
+          }
+        ],
+        "zahlen": {
+          "vorhanden": 1,
+          "aehnlich": 1,
+          "neu": 2,
+          "nur_in_wlo": 2
+        },
+        "gekuerzt": false
+      }
+    },
+    {
+      "titel": "Mit Abdeckung und Luecken",
+      "daten": {
+        "titel": "Optik",
+        "sammlung": {
+          "nodeId": "5e40e372-735c-4b17-bbf7-e827a5702b57",
+          "titel": "Physik",
+          "url": "https://redaktion.openeduhub.net/edu-sharing/components/collections?id=5e40e372-735c-4b17-bbf7-e827a5702b57"
+        },
+        "zeilen": [
+          {
+            "id": "k1",
+            "titel": "Licht und Schatten",
+            "ebene": 1,
+            "art": "vorhanden",
+            "wlo": {
+              "nodeId": "a1",
+              "titel": "Licht und Schatten",
+              "anzahl": 42
+            },
+            "abdeckung": {
+              "total": 85,
+              "luecke": false
+            }
+          },
+          {
+            "id": "k1-1",
+            "titel": "Schattenbildung",
+            "ebene": 2,
+            "art": "aehnlich",
+            "wlo": {
+              "nodeId": "a2",
+              "titel": "Schatten und Halbschatten",
+              "anzahl": 7
+            },
+            "abdeckung": {
+              "total": 12,
+              "luecke": false,
+              "geraten": [
+                "discipline"
+              ]
+            }
+          },
+          {
+            "id": "k2",
+            "titel": "Linsen",
+            "ebene": 1,
+            "art": "neu",
+            "abdeckung": {
+              "total": 1,
+              "luecke": true,
+              "top": [
+                {
+                  "nodeId": "t1",
+                  "titel": "Linsen im Alltag",
+                  "url": "https://wirlernenonline.de/x"
+                }
+              ]
+            }
+          },
+          {
+            "id": "k2-1",
+            "titel": "Brennweite",
+            "ebene": 2,
+            "art": "neu",
+            "ungewiss": true,
+            "abdeckung_fehlt": "timeout"
+          }
+        ],
+        "nur_in_wlo": [
+          {
+            "nodeId": "a3",
+            "titel": "Mechanik",
+            "ebene": 1,
+            "anzahl": 120
+          },
+          {
+            "nodeId": "a4",
+            "titel": "Farben",
+            "ebene": 2,
+            "eltern_titel": "Licht und Schatten",
+            "anzahl": 3
+          }
+        ],
+        "zahlen": {
+          "vorhanden": 1,
+          "aehnlich": 1,
+          "neu": 2,
+          "nur_in_wlo": 2
+        },
+        "gekuerzt": false,
+        "abdeckung": {
+          "gezaehlt": 3,
+          "luecken": 1,
+          "ungezaehlt": 1,
+          "filter_unaufgeloest": false,
+          "luecke_bis": 2
+        }
+      }
+    }
+  ]
+}
