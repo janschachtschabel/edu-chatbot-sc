@@ -75,4 +75,7 @@ export interface JsonSchema {
   readonly 'x-primary'?: boolean;
   /** Paket 4c, B2 (`Vorgabe()`): bei dieser Liste heißt `null` „es gilt die Vorgabe“. */
   readonly 'x-vorgabe'?: boolean;
+  /** Paket K2c-1 (`NurBei()`): das Feld gilt nur, wenn das Nachbarfeld `feld` einen der `werte`
+   *  trägt (ein Schritt zeigt die Felder seines Typs). Das Ausblenden folgt in K2c-2. */
+  readonly 'x-nur-bei'?: { readonly feld: string; readonly werte: readonly string[] };
 }

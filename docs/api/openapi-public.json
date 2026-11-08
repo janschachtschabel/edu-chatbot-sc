@@ -258,6 +258,11 @@
             "title": "Display Rules",
             "type": "object"
           },
+          "eingabe_gesperrt": {
+            "default": false,
+            "title": "Eingabe Gesperrt",
+            "type": "boolean"
+          },
           "follow_up": {
             "default": "none",
             "title": "Follow Up",
