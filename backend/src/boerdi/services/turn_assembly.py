@@ -50,7 +50,7 @@ from boerdi.domain.guide_markers import _strip_guide_markers_from_text
 from boerdi.domain.quick_reply_policy import _qr_default_count
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.tasks import _retrieve_task_exception
-from boerdi.services.ablauf import auftrag_zug, ki_schritt
+from boerdi.services.ablauf import auftrag_zug, freigabe_zug, ki_schritt
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.guide_markers import _attach_guide_qr
@@ -404,11 +404,19 @@ async def _assemble_cards_and_qrs(
             quick_replies, ablauf_vorschlag.schnellantworten(_ablauf_ids, _qr_lang),
             hoechstens=_host_qr_max)
     # Paket A2b: „Weiter im Ablauf“, solange ein Lauf am agent-Schritt wartet — dieselben Grenzen.
-    _weiter = ((ki_schritt.weiter_knopf(req.session_id, session_state, _qr_lang)
-                or auftrag_zug.pruefen_knopf(req.session_id, session_state, _qr_lang))
-               if isinstance(session_state, dict) else None)
+    # Paket K1a: am Auftragsschritt „Stand prüfen“ — nur dieser eine (zweites Review K2b,
+    # Befund 4: zwei Knöpfe verdrängten unter dem Deckel jeden Vorschlag). „Auftrag abbrechen“
+    # steht unter der Antwort von „Stand prüfen“ und im Fortschritt-Modul.
+    _ki_weiter = (ki_schritt.weiter_knopf(req.session_id, session_state, _qr_lang)
+                  if isinstance(session_state, dict) else None)
+    # Paket S: am Freigabe-Schritt ohne bereitliegende Abnahme „Vorschau erneut zeigen“.
+    _ki_weiter = _ki_weiter or (freigabe_zug.weiter_knopf(req.session_id, session_state, _qr_lang)
+                                if isinstance(session_state, dict) else None)
+    _weiter = ([_ki_weiter] if _ki_weiter
+               else auftrag_zug.pruefen_knoepfe(req.session_id, session_state, _qr_lang)[:1]
+               if isinstance(session_state, dict) else [])
     if _weiter and _qr_mode != "none" and not _canvas_forced_quick_replies:
-        quick_replies = ablauf_vorschlag.anhaengen(quick_replies, [_weiter],
+        quick_replies = ablauf_vorschlag.anhaengen(quick_replies, _weiter,
                                                    hoechstens=_host_qr_max)
     quick_replies = inject_auth_qr(
         quick_replies,

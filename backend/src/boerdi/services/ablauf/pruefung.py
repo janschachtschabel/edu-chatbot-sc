@@ -10,7 +10,8 @@ Abgewiesen wird, was der lokale Treiber nicht so ausführen kann, wie es dasteht
   Schritt, höchstens :data:`RECHENSCHRITTE` Schritte bis zum nächsten Halt (so viele rechnet der
   Treiber je Zug).
 - Inhalt: bekannte Module (feste Daten passend zum Vertrag, außer das Modul baut seinen Block ohne
-  Modell selbst), keine schreibenden oder unbekannten Werkzeuge, Teile nur an Dienste (nicht an
+  Modell selbst), keine unbekannten Werkzeuge, schreibende nur mit Freigabe (Paket S), keine
+  fest eingetragenen Schlüssel, Teile nur an Dienste (nicht an
   lesende WLO-Werkzeuge — Review A1, Befund 9), gültige Teilnamen, bekannte Voraussetzungen und
   Auslöser.
 
@@ -22,9 +23,10 @@ from __future__ import annotations
 from typing import Any, Final
 
 from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
+from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 from boerdi.services.ablauf import werkzeuge
 from boerdi.services.ablauf.pruefung_texte import t as _t
-from boerdi.services.teil_verweise import NAME, SCHLUESSEL
+from boerdi.services.teil_verweise import NAME, PFAD, TIEFE, verweis
 from boerdi.ui_module import katalog
 
 MAX_SCHRITTE: Final = 40
@@ -39,23 +41,50 @@ MAX_AGENT_HINWEIS: Final = 200
 _MODI: Final = frozenset({"vorschlagen"})
 
 
-def _verweise(wert: Any) -> list[str]:
+#: Review K2c-1, Befund 8 (älter): tiefer sucht die Prüfung keine Verweise — eine sehr tief
+#: geschachtelte ``daten``/``argumente`` brach sonst mit ``RecursionError`` (500).
+_VERWEIS_TIEFE: Final = 32
+
+
+def _verweise_mit_tiefe(wert: Any, tiefe: int = 0) -> list[tuple[str, str | None, int]]:
+    """Name, Pfad und Tiefe jedes Verweises (die oberste Ebene hat Tiefe 0, wie im Treiber)."""
+    if tiefe > _VERWEIS_TIEFE:
+        return []
+    if (v := verweis(wert)) is not None:
+        return [(*v, tiefe)]
     if isinstance(wert, dict):
-        if len(wert) == 1 and isinstance(wert.get(SCHLUESSEL), str):
-            return [wert[SCHLUESSEL]]
-        return [n for v in wert.values() for n in _verweise(v)]
+        return [n for x in wert.values() for n in _verweise_mit_tiefe(x, tiefe + 1)]
     if isinstance(wert, list):
-        return [n for v in wert for n in _verweise(v)]
+        return [n for x in wert for n in _verweise_mit_tiefe(x, tiefe + 1)]
     return []
 
 
+def _verweise_mit_pfad(wert: Any) -> list[tuple[str, str | None]]:
+    return [(name, pfad) for name, pfad, _tiefe in _verweise_mit_tiefe(wert)]
+
+
+def _verweise(wert: Any) -> list[str]:
+    """Die Namen der Teile, auf die ``wert`` verweist (K2d-1: auch mit ``pfad``)."""
+    return [name for name, _pfad in _verweise_mit_pfad(wert)]
+
+
+#: Die Schrittarten, an denen der Treiber ``bei_fehler`` nimmt (``nachricht`` und
+#: ``verzweigung`` scheitern nie, ``ende`` hat keinen Nachfolger) — Review K2c-1 (älter).
+MIT_BEI_FEHLER: Final = frozenset({"modul", "werkzeug", "agent", "auftrag"})
+
+
 def _normal(ablauf: AblaufArea, i: int) -> list[str]:
-    """Die regulären nächsten Schritte (ohne ``bei_fehler``; ``""`` = läuft ohne ``ende`` aus)."""
+    """Die regulären nächsten Schritte (ohne ``bei_fehler``; ``""`` = läuft ohne ``ende`` aus).
+    Eine Liste in ``weiter`` sind Regeln nur an einer Verzweigung; an jedem anderen Schritt (die
+    Prüfung meldet sie) gilt sie wie kein ``weiter`` — sonst nähme der Treiber bei ``weiter: []``
+    im Erfolgsfall ``bei_fehler`` (Review K2c-4, älter)."""
     s = ablauf.schritte[i]
     if s.typ == "ende":
         return []
-    if isinstance(s.weiter, list):
+    if isinstance(s.weiter, list) and s.typ == "verzweigung":
         return [r.dann or r.sonst or "" for r in s.weiter]
+    if isinstance(s.weiter, list):
+        return [ablauf.schritte[i + 1].id if i + 1 < len(ablauf.schritte) else ""]
     folgender = ablauf.schritte[i + 1].id if i + 1 < len(ablauf.schritte) else ""
     return [s.weiter or folgender]
 
@@ -65,13 +94,13 @@ def nachfolger(ablauf: AblaufArea, i: int) -> list[str]:
     ``bei_fehler``."""
     ziele = _normal(ablauf, i)
     s = ablauf.schritte[i]
-    if s.bei_fehler and s.typ != "ende":
+    if s.bei_fehler and s.typ in MIT_BEI_FEHLER:
         ziele.append(s.bei_fehler)
     return ziele
 
 
 def _wartet(s: Schritt) -> bool:
-    if s.typ in ("agent", "auftrag"):
+    if s.typ in ("agent", "auftrag") or schreibt_mit_freigabe(s):
         return True
     if s.typ != "modul" or not s.modul:
         return False
@@ -116,7 +145,9 @@ def _schritt(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
     if s.typ == "werkzeug":
         name = s.werkzeug or ""
         if werkzeuge.schreibend(name):
-            b.append(_t(lang, "schreibend", s=s.id, w=name))
+            b += _schreibend(s, name, lang)
+        elif s.freigabe is not None and werkzeuge.bekannt(name):
+            b.append(_t(lang, "freigabe_lesend", s=s.id, w=name))
         elif not werkzeuge.bekannt(name):
             b.append(_t(lang, "werkzeug", s=s.id, w=name))
         elif name in werkzeuge.LESENDE_MCP and _verweise(s.argumente):
@@ -125,13 +156,61 @@ def _schritt(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
         b += _agent(s, module, lang)
     if s.typ == "auftrag":
         b += _auftrag(s, lang)
+    elif s.warten == "gesperrt":
+        b.append(_t(lang, "warten", s=s.id))
+    if s.bei_fehler and s.typ not in MIT_BEI_FEHLER:
+        b.append(_t(lang, "bei_fehler_typ", s=s.id, typ=s.typ))
+    if s.typ != "auftrag" and s.dateien_holen:
+        b.append(_t(lang, "dateien_holen", s=s.id))
+    if s.typ != "werkzeug" and s.freigabe is not None:
+        b.append(_t(lang, "freigabe_typ", s=s.id))
+    if s.typ in ("werkzeug", "auftrag") and (fest := sorted(
+            set(s.argumente or {}) & SCHLUESSEL_FELDER)):
+        # Paket S (Review S1, Befund 1): ein fest eingetragener Schlüssel schriebe ohne Vorschau —
+        # und über ``$teil`` setzte ihn womöglich ein Modell (die Ausgabe eines agent-Schritts).
+        b.append(_t(lang, "schluessel_fest", s=s.id, f=", ".join(fest)))
     b += _regeln(s, lang)
     teile = _verweise(s.daten) + _verweise(s.argumente)
     teile += [n for n in (s.schreibt, s.agent.ausgabe if s.agent else None) if n is not None]
     if isinstance(s.weiter, list):
         teile += [r.wenn_teil for r in s.weiter if r.wenn_teil is not None]
-    b += [_t(lang, "teil", s=s.id, t=n) for n in teile if not NAME.match(n)]
+    # Review K2d-1 (2), Befund 4: gekürzt — ein langer Name ginge sonst ganz in die 422-Antwort
+    b += [_t(lang, "teil", s=s.id, t=n[:40]) for n in teile if not NAME.match(n)]
+    # K2d-1: ob die Stelle im Teil entsteht, weiß erst der Lauf — geprüft wird ihre Form
+    b += [_t(lang, "pfad", s=s.id, t=n[:40], p=p[:80])
+          for n, p in _verweise_mit_pfad(s.daten) + _verweise_mit_pfad(s.argumente)
+          if p is not None and not PFAD.match(p)]
+    b += _nicht_eingesetzt(s, lang)
     return b
+
+
+def _nicht_eingesetzt(s: Schritt, lang: str) -> list[str]:
+    """Review K2d-1 (2), Befunde 1–2: Verweise, die der Treiber stehen ließe — der Schritt bekäme
+    sonst das wörtliche ``{"$teil": …}``. ``argumente`` als Ganzes setzt er nie ein (nur ``daten``,
+    ``treiber._daten``), tiefer als ``teil_verweise.TIEFE`` sucht er nicht."""
+    b: list[str] = []
+    if verweis(s.argumente) is not None:
+        b.append(_t(lang, "argumente_ganz", s=s.id))
+    tief = {n for n, _p, t in _verweise_mit_tiefe(s.daten) + _verweise_mit_tiefe(s.argumente)
+            if t > TIEFE}
+    b += [_t(lang, "zu_tief", s=s.id, t=n[:40], max=TIEFE) for n in sorted(tief)]
+    return b
+
+
+def _schreibend(s: Schritt, name: str, lang: str) -> list[str]:
+    """Paket S: ein schreibendes Werkzeug nur, wenn es freigebbar ist und der Schritt den Satz über
+    der Vorschau trägt (``freigabe.de``)."""
+    if not werkzeuge.freigebbar(name):
+        return [_t(lang, "schreibend", s=s.id, w=name)]
+    if not (s.freigabe or {}).get("de", "").strip():
+        return [_t(lang, "freigabe_fehlt", s=s.id, w=name)]
+    return []
+
+
+def schreibt_mit_freigabe(s: Schritt) -> bool:
+    """Ein ``werkzeug``-Schritt, der eine Änderung vorlegt und auf die Freigabe wartet."""
+    return (s.typ == "werkzeug" and s.freigabe is not None
+            and werkzeuge.freigebbar(s.werkzeug or ""))
 
 
 def _auftrag(s: Schritt, lang: str) -> list[str]:
@@ -149,7 +228,8 @@ def _auftrag(s: Schritt, lang: str) -> list[str]:
 
 def agent_werkzeug(name: str, module: dict[str, Any]) -> bool:
     """Darf ein ``agent``-Schritt der KI dieses Werkzeug lassen? Lesende WLO-Werkzeuge und UI-Module
-    mit Agent-Freigabe im Manifest — nie schreibende (die kämen erst mit Freigabe, Paket S)."""
+    mit Agent-Freigabe im Manifest — nie schreibende (die gibt es nur im werkzeug-Schritt mit
+    Freigabe, Paket S)."""
     if werkzeuge.schreibend(name):
         return False
     return name in werkzeuge.LESENDE_MCP or bool((module.get(name) or {}).get("agent"))
@@ -193,7 +273,13 @@ def _schleife_ohne_halt(ablauf: AblaufArea) -> bool:
     return any(farbe.get(i) is None and besuche(i) for i in nachbarn)
 
 
-def _laeufe(ablauf: AblaufArea, lang: str) -> list[str]:
+#: Ein Befund und der Index des Schritts, an dem er steht (``None``: der ganze Ablauf) — für das
+#: Studio. Der Index, nicht die Kennung: doppelte Kennungen meldet die Prüfung selbst (Review K2c-1,
+#: Befund 4).
+Befund = tuple[int | None, str]
+
+
+def _laeufe(ablauf: AblaufArea, lang: str) -> list[Befund]:
     """Erreichbarkeit, Auslaufen ohne ``ende`` und die Länge bis zum nächsten Halt."""
     index = {s.id: i for i, s in enumerate(ablauf.schritte)}
     erreicht, offen = {0}, [0]
@@ -202,10 +288,10 @@ def _laeufe(ablauf: AblaufArea, lang: str) -> list[str]:
             if z in index and index[z] not in erreicht:
                 erreicht.add(index[z])
                 offen.append(index[z])
-    b = [_t(lang, "unerreichbar", s=s.id) for i, s in enumerate(ablauf.schritte)
-         if i not in erreicht]
-    b += [_t(lang, "auslaufen", s=ablauf.schritte[i].id) for i in sorted(erreicht)
-          if "" in _normal(ablauf, i)]
+    b: list[Befund] = [(i, _t(lang, "unerreichbar", s=s.id))
+                       for i, s in enumerate(ablauf.schritte) if i not in erreicht]
+    b += [(i, _t(lang, "auslaufen", s=ablauf.schritte[i].id))
+          for i in sorted(erreicht) if "" in _normal(ablauf, i)]
     lang_bis_halt: dict[int, int] = {}
 
     def laenge(i: int, weg: frozenset[int]) -> int:
@@ -220,38 +306,53 @@ def _laeufe(ablauf: AblaufArea, lang: str) -> list[str]:
             lang_bis_halt[i] = 1 + max(weiter, default=0)
         return lang_bis_halt[i]
 
-    if zu_lang := [s.id for i, s in enumerate(ablauf.schritte)
+    if zu_lang := [i for i in range(len(ablauf.schritte))
                    if laenge(i, frozenset()) > RECHENSCHRITTE]:
-        b.append(_t(lang, "zu_lang", s=zu_lang[0], max=RECHENSCHRITTE))
+        b.append((zu_lang[0], _t(lang, "zu_lang", s=ablauf.schritte[zu_lang[0]].id,
+                                 max=RECHENSCHRITTE)))
     return b
 
 
 def pruefe(ablauf: AblaufArea, lang: str = "de") -> list[str]:
+    """Die Befunde als Liste — beim Speichern (``config_guards``)."""
+    return [text for _schritt_id, text in pruefe_gegliedert(ablauf, lang)]
+
+
+def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
+    """Paket K2c-1: dieselben Befunde in derselben Reihenfolge, je mit dem Index des Schritts, an
+    dem sie stehen (``None``: der ganze Ablauf) — für „Prüfen“ im Studio."""
     if not 1 <= len(ablauf.schritte) <= MAX_SCHRITTE:
-        return [_t(lang, "anzahl", max=MAX_SCHRITTE, n=len(ablauf.schritte))]
-    befunde: list[str] = []
+        return [(None, _t(lang, "anzahl", max=MAX_SCHRITTE, n=len(ablauf.schritte)))]
+    befunde: list[Befund] = []
     ids = [s.id for s in ablauf.schritte]
     if doppelt := sorted({i for i in ids if ids.count(i) > 1}):
-        befunde.append(_t(lang, "doppelt", ids=", ".join(doppelt)))
+        befunde.append((None, _t(lang, "doppelt", ids=", ".join(doppelt))))
     bekannt = set(ids)
     module = katalog.katalog()
     for i, s in enumerate(ablauf.schritte):
-        befunde += _schritt(s, module, lang)
-        befunde += [_t(lang, "ziel", s=s.id, z=z) for z in nachfolger(ablauf, i)
+        befunde += [(i, text) for text in _schritt(s, module, lang)]
+        ziele = nachfolger(ablauf, i)
+        if s.bei_fehler and s.typ not in MIT_BEI_FEHLER and s.typ != "ende":
+            ziele.append(s.bei_fehler)   # wirkt nicht (eigener Befund), ein Tippfehler zeigt sich
+        befunde += [(i, _t(lang, "ziel", s=s.id, z=z)) for z in dict.fromkeys(ziele)
                     if z and z not in bekannt]
     if not any(s.typ == "ende" for s in ablauf.schritte):
-        befunde.append(_t(lang, "ende"))
+        befunde.append((None, _t(lang, "ende")))
     if _schleife_ohne_halt(ablauf):
-        befunde.append(_t(lang, "schleife"))
+        befunde.append((None, _t(lang, "schleife")))
     elif not doppelt:
         befunde += _laeufe(ablauf, lang)
-    befunde += [_t(lang, "voraussetzung", v=v) for v in ablauf.voraussetzungen
+    befunde += [(None, _t(lang, "voraussetzung", v=v)) for v in ablauf.voraussetzungen
                 if v not in VORAUSSETZUNGEN]
     if (any(s.typ == "auftrag" for s in ablauf.schritte)
             and "anmeldung" not in ablauf.voraussetzungen):
-        befunde.append(_t(lang, "auftrag_anmeldung"))
+        befunde.append((None, _t(lang, "auftrag_anmeldung")))
+    if (any(s.typ == "werkzeug" and werkzeuge.schreibend(s.werkzeug or "")
+            for s in ablauf.schritte) and "anmeldung" not in ablauf.voraussetzungen):
+        # Paket S (FS-5): geschrieben wird nur unter der eigenen Anmeldung
+        befunde.append((None, _t(lang, "freigabe_anmeldung")))
     for a in ablauf.ausloeser:
-        befunde += _ausloeser(ablauf, a, module, lang)
+        befunde += [(None, text) for text in _ausloeser(ablauf, a, module, lang)]
     return befunde
 
 

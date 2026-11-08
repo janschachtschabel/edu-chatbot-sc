@@ -99,7 +99,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "titel"
         ],
         "title": "AblaufArea",
-        "type": "object"
+        "type": "object",
+        "x-widget": "ablauf"
       },
       "AgentSchritt": {
         "additionalProperties": true,
@@ -245,7 +246,17 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Text"
+            "title": "Text",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "agent",
+                "auftrag",
+                "ende",
+                "modul",
+                "nachricht"
+              ]
+            }
           },
           "modul": {
             "anyOf": [
@@ -257,20 +268,33 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Modul"
+            "title": "Modul",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "modul"
+              ]
+            }
           },
           "daten": {
             "anyOf": [
               {
                 "additionalProperties": true,
-                "type": "object"
+                "type": "object",
+                "x-widget": "teil-werte"
               },
               {
                 "type": "null"
               }
             ],
             "default": null,
-            "title": "Daten"
+            "title": "Daten",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "modul"
+              ]
+            }
           },
           "werkzeug": {
             "anyOf": [
@@ -282,32 +306,76 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Werkzeug"
+            "title": "Werkzeug",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "werkzeug"
+              ]
+            }
           },
           "flow": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "x-catalog": "ablauf_flows"
               },
               {
                 "type": "null"
               }
             ],
             "default": null,
-            "title": "Flow"
+            "title": "Flow",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
           },
           "argumente": {
             "anyOf": [
               {
                 "additionalProperties": true,
-                "type": "object"
+                "type": "object",
+                "x-widget": "teil-werte"
               },
               {
                 "type": "null"
               }
             ],
             "default": null,
-            "title": "Argumente"
+            "title": "Argumente",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag",
+                "werkzeug"
+              ]
+            }
+          },
+          "warten": {
+            "anyOf": [
+              {
+                "pattern": "^(frei|gesperrt)$",
+                "type": "string",
+                "x-choices": [
+                  "frei",
+                  "gesperrt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Warten",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
           },
           "schreibt": {
             "anyOf": [
@@ -319,7 +387,58 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Schreibt"
+            "title": "Schreibt",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag",
+                "werkzeug"
+              ]
+            }
+          },
+          "freigabe": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Freigabe",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "werkzeug"
+              ]
+            }
+          },
+          "dateien_holen": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Dateien Holen",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
           },
           "weiter": {
             "anyOf": [
@@ -337,7 +456,18 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Weiter"
+            "title": "Weiter",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "agent",
+                "auftrag",
+                "modul",
+                "nachricht",
+                "verzweigung",
+                "werkzeug"
+              ]
+            }
           },
           "bei_fehler": {
             "anyOf": [
@@ -349,7 +479,16 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Bei Fehler"
+            "title": "Bei Fehler",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "agent",
+                "auftrag",
+                "modul",
+                "werkzeug"
+              ]
+            }
           },
           "agent": {
             "anyOf": [
@@ -360,7 +499,13 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
                 "type": "null"
               }
             ],
-            "default": null
+            "default": null,
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "agent"
+              ]
+            }
           }
         },
         "required": [

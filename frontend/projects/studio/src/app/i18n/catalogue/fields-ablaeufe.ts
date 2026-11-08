@@ -59,6 +59,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.flow.hint':
       'Bei „Auftrag“: der Kestra-Flow hinter der b-api — nur Flows, die der Betrieb freischaltet '
       + '(B_API_JOBS_FLOWS). Braucht die Voraussetzung Anmeldung; „Stand prüfen“ holt das Ergebnis.',
+    'feld.Schritt.warten.label': 'Während der Auftrag läuft',
+    'feld.Schritt.warten.hint':
+      'Nur bei „Auftrag“. „Frei“: das Gespräch geht weiter. „Gesperrt“: bis der Auftrag fertig ist, '
+      + 'nimmt das Widget nur „Stand prüfen“ und „Auftrag abbrechen“ an.',
+    'feld.Schritt.warten.wahl.frei': 'Frei',
+    'feld.Schritt.warten.wahl.gesperrt': 'Gesperrt',
     'feld.Schritt.typ.wahl.agent': 'KI-Abschnitt',
     'feld.Schritt.agent.label': 'KI-Abschnitt',
     'feld.Schritt.agent.hint':
@@ -92,6 +98,13 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} setzt einen Teil des Vorgangs ein.',
     'feld.Schritt.schreibt.label': 'Ergebnis als Teil',
     'feld.Schritt.schreibt.hint': 'Name des Teils, unter dem das Ergebnis des Werkzeugs gespeichert wird.',
+    'feld.Schritt.freigabe.label': 'Freigabe (Satz über der Vorschau)',
+    'feld.Schritt.freigabe.hint':
+      'Nur bei einem schreibenden WLO-Werkzeug: der Schritt zeigt diesen Satz und die Vorschau des Servers und wartet, bis die Person zustimmt. Mindestens auf Deutsch.',
+    'feld.Schritt.dateien_holen.label': 'Dateien holen',
+    'feld.Schritt.dateien_holen.hint':
+      'Bis zu drei Dateien des Ergebnisses (ihre outputId), die beim Abholen geholt und wie ein Upload '
+      + 'geprüft werden. Ihr Text steht im Teil unter texte.<outputId> — etwa volltext.texte.report.',
     'feld.Schritt.weiter.label': 'Weiter',
     'feld.Schritt.weiter.hint': 'Nächster Schritt — oder bei einer Verzweigung Regeln (wenn_teil/wenn_gewaehlt → dann, zuletzt sonst).',
     'feld.Schritt.bei_fehler.label': 'Bei Fehler',
@@ -147,6 +160,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.flow.hint':
       'For “job”: the Kestra flow behind the b-api — only flows enabled by operations '
       + '(B_API_JOBS_FLOWS). Needs the sign-in requirement; “Check status” fetches the result.',
+    'feld.Schritt.warten.label': 'While the job runs',
+    'feld.Schritt.warten.hint':
+      'Only for “job”. “Open”: the conversation goes on. “Locked”: until the job is done, the widget '
+      + 'only accepts “Check status” and “Cancel job”.',
+    'feld.Schritt.warten.wahl.frei': 'Open',
+    'feld.Schritt.warten.wahl.gesperrt': 'Locked',
     'feld.Schritt.typ.wahl.agent': 'AI section',
     'feld.Schritt.agent.label': 'AI section',
     'feld.Schritt.agent.hint':
@@ -180,6 +199,13 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} inserts a part of the work item.',
     'feld.Schritt.schreibt.label': 'Result as part',
     'feld.Schritt.schreibt.hint': 'Name of the part the tool result is stored under.',
+    'feld.Schritt.freigabe.label': 'Approval (sentence above the preview)',
+    'feld.Schritt.freigabe.hint':
+      'Only for a writing WLO tool: the step shows this sentence and the server preview and waits until the person agrees. At least in German.',
+    'feld.Schritt.dateien_holen.label': 'Fetch files',
+    'feld.Schritt.dateien_holen.hint':
+      'Up to three files of the result (their outputId), fetched on pick-up and checked like an upload. '
+      + 'Their text is in the part under texte.<outputId> — e.g. volltext.texte.report.',
     'feld.Schritt.weiter.label': 'Next',
     'feld.Schritt.weiter.hint': 'Next step — or for a branch, rules (wenn_teil/wenn_gewaehlt → dann, finally sonst).',
     'feld.Schritt.bei_fehler.label': 'On error',

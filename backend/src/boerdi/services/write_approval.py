@@ -241,7 +241,7 @@ def merke_abnahme(session_state: dict, merkposten: dict, vorschau: str) -> None:
     session_state["_write_preview"] = vorschau
 
 
-def _nicht_einloesbar(tool: str, req: ChatRequest) -> str:
+def nicht_einloesbar(tool: str, req: ChatRequest) -> str:
     """Warum ein offener Vorgang nicht mehr eingelöst werden darf — ``""``, wenn er darf."""
     if not schreiben_erlaubt():
         return "ohne Schreibrecht"
@@ -300,7 +300,7 @@ async def redeem_write_approval(
         # jeden Weg, der den Vorlauf ohne ``setup`` erreicht (Paket 4, A1).
         logger.warning("offener Vorgang eines anderen Aufrufers — nicht eingelöst")
         return None
-    grund = _nicht_einloesbar(tool, req)
+    grund = nicht_einloesbar(tool, req)
     if grund:
         # Paket 7 (S4): etwa das Gastkonto zwischen Vorschau und „ja“ im Studio
         # wieder abgeschaltet; seit Paket 9 auch ein dort verborgenes Werkzeug oder
@@ -373,7 +373,8 @@ async def redeem_write_approval(
             # Plan 2026-11-07 (CB-2): ausgelastet — kein Werkzeug lief, der Schlüssel ist nicht
             # eingelöst. Die Abnahme kommt zurück; der Chip löst sie gleich noch einmal ein.
             return await _liegen_lassen(session, req, session_state, pending, lang, debug,
-                                        "write.busy", "busy")
+                                        "write.busy", "busy",
+                                        warte_s=antwort_mcp.warte_s)
         if is_mcp_error(antwort_mcp.text) and _neu_vorlegen(antwort_mcp):
             # Paket M2: der Schlüssel galt nicht mehr (abgelaufen, schon benutzt, andere
             # Änderung, Plan weg) — geschrieben wurde nichts. Dieselben Angaben ohne Schlüssel
@@ -418,7 +419,7 @@ async def redeem_write_approval(
 
     if is_mcp_error(rohtext) and antwort_mcp.code == "too_many_plans":
         # Paket M5: nichts geschrieben. Der Merkposten bleibt verbraucht (Review M5, Befund 2):
-        # jeder Folgezug, auch „Weiter anlegen“, verwürfe ihn ohnehin — der Text sagt deshalb, dass
+        # jeder Folgezug, auch „Plan fortsetzen“, verwürfe ihn ohnehin — der Text sagt deshalb, dass
         # danach eine neue Vorschau kommt. Liegt ein eigener Plan offen, steht sein Knopf da.
         debug.entities["reason"] = "too_many_plans"
         antwort = ChatResponse(
@@ -455,7 +456,7 @@ async def redeem_write_approval(
         debug.entities["reason"] = "rejected"
         antwort = ChatResponse(
             session_id=req.session_id,
-            content=_abgelehnt_text(lang, antwort_mcp),
+            content=abgelehnt_text(lang, antwort_mcp),
             debug=debug,
         )
         await _persist(session, req, session_state, antwort.content, debug)
@@ -480,6 +481,11 @@ async def redeem_write_approval(
     # Tiefenstaffelung, wie auf dem Rückweg im Tool-Loop: nennt der Server in
     # seiner Erfolgsmeldung einen Schlüssel, geht er hier nicht weiter.
     text = redact_confirm_token(rohtext)
+    # Paket S: gehört die Abnahme zu einem Ablauf, wird der strukturierte Teil der Antwort dessen
+    # Ergebnis (``ablauf/freigabe_zug.nach_einloesen`` nimmt ihn im selben Zug wieder heraus).
+    session_state["_eingeloest_ergebnis"] = antwort_mcp.strukturiert
+    # Review S2/S3, Befund 7: Erfolg ausdrücklich — der Nachlauf eines Ablaufs zählt nur ihn.
+    debug.entities["reason"] = "eingeloest"
     knoepfe: list[str] = []
     if plan_fortsetzen.ist_plan(tool):
         # Paket M5: ein Plan, der noch nicht fertig ist, wird gemerkt und per Knopf fortgesetzt —
@@ -488,6 +494,7 @@ async def redeem_write_approval(
                                       caller=aufrufer_kennung(), now=time.time())
         text = plan_fortsetzen.anzeige(rohtext, lang, offen=offen)
         knoepfe = [plan_fortsetzen.knopf(lang)] if offen else []
+        debug.entities["plan_offen"] = offen          # Paket S4: für den Nachlauf eines Ablaufs
     logger.info(
         "Abnahme für %s (Sitzung %s) eingelöst — es galten die gezeigten Argumente",
         tool, kennung(req.session_id))
@@ -549,12 +556,16 @@ def _neu_vorlegen(antwort: McpAntwort) -> bool:
 
 async def _liegen_lassen(session: AsyncSession | None, req: ChatRequest, session_state: dict,
                          pending: dict, lang: Locale, debug: DebugInfo, schluessel: str,
-                         grund: str) -> ChatResponse:
+                         grund: str, *, warte_s: int | None = None) -> ChatResponse:
     """Die Abnahme wurde nicht ausgeführt und bleibt liegen (Plan 2026-11-07, CB-2/CB-4): zurück
-    in die Sitzung, ein Satz dazu und der Bestätigungs-Chip — der Folgezug löst ohne Modell ein."""
+    in die Sitzung, ein Satz dazu und der Bestätigungs-Chip — der Folgezug löst ohne Modell ein.
+    ``warte_s``: die Wartezeit, die der Server nennt — sie steht im Satz."""
     session_state.setdefault("entities", {})["_pending_write"] = pending
     debug.entities["reason"] = grund
-    antwort = ChatResponse(session_id=req.session_id, content=bot_text(lang, schluessel),
+    text = bot_text(lang, schluessel)
+    if warte_s is not None:
+        text += " " + bot_text(lang, "write.busyWait", s=warte_s)
+    antwort = ChatResponse(session_id=req.session_id, content=text,
                            quick_replies=[bot_text(lang, "action.write.confirmChip")],
                            debug=debug)
     await _persist(session, req, session_state, antwort.content, debug)
@@ -569,11 +580,13 @@ _ANMELDUNG = frozenset({"login_required", "login_rejected"})
 #: Nur fachliche Gründe erreichen die Person (Review M2, Befund 1): ``upstream_error`` und
 #: ``forbidden`` tragen Text des Repositoriums — der gehört ins Protokoll.
 _GRUND_ZEIGEN = frozenset({"refused", "invalid_input", "not_found", "not_a_collection",
-                           "not_checked"})
+                           "not_checked",
+                           # Paket K2d-3 (Review, Befund 6): Volltexte — der Grund sagt, warum
+                           "would_replace_file", "link_record", "exists"})
 _GRUND_ZEICHEN = 300
 
 
-def _abgelehnt_text(lang: Locale, antwort: McpAntwort) -> str:
+def abgelehnt_text(lang: Locale, antwort: McpAntwort) -> str:
     """Die Ablehnung — mit dem Grund des Servers (``error.message``), bei fehlender Anmeldung
     der Hinweis dazu, bei einer Dublette der vorhandene Datensatz (Paket M2)."""
     if antwort.code in _ANMELDUNG:
