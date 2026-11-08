@@ -15,7 +15,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
-from boerdi.db.models import VorgangAuftrag
+from boerdi.db.models import Vorgang, VorgangAuftrag
 
 LAEUFT: Final = "laeuft"
 ENDSTAENDE: Final = frozenset({"fertig", "fehler", "abgebrochen"})
@@ -42,6 +42,15 @@ async def offen(s: AsyncSession, vorgang_id: str) -> VorgangAuftrag | None:
             .order_by(VorgangAuftrag.erstellt.desc()).limit(1)
             .execution_options(populate_existing=True))
     return (await s.execute(stmt)).scalar_one_or_none()
+
+
+async def offene_job_ids(s: AsyncSession, aufrufer: list[str]) -> list[str]:
+    """Die Job-IDs der laufenden Aufträge aller Vorgänge dieser Besitzerinnen — für „Arbeitsstand
+    löschen“, damit sie auch bei der b-api enden (Job-Vertrag 2026-11-07)."""
+    stmt = (select(VorgangAuftrag.job_id)
+            .join(Vorgang, Vorgang.id == VorgangAuftrag.vorgang_id)
+            .where(Vorgang.aufrufer.in_(aufrufer), VorgangAuftrag.status == LAEUFT))
+    return list((await s.execute(stmt)).scalars())
 
 
 async def abschliessen(s: AsyncSession, a: VorgangAuftrag, status: str) -> bool:

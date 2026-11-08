@@ -2,12 +2,14 @@
 
 - ``vorgang_neu`` („neues Vorhaben“): schließt den aktiven Vorgang (Status ``fertig``; ein wartender
   Lauf wird ``abgebrochen``, sein Auftrag ebenso). Neue Teile landen danach in einem neuen Vorgang.
+  Wartet ein Lauf auf einen Auftrag, fragt es erst nach — wie „Auftrag abbrechen“ (K2b); die
+  Bestätigung gilt nur für diesen Auftrag (Kürzel).
 - ``vorgang_loeschen`` („Arbeitsstand löschen“): fragt erst nach; mit ``{"bestaetigt": true}``
   löscht er **alle** Vorgänge der Person samt Ablage und Aufträgen (Kaskade), auch abgeschlossene,
   dazu die anonymen Vorgänge dieser Sitzung und ihr hochgeladenes Dokument — der Löschweg für eine
-  angemeldete Person, deren Vorgänge sonst erst mit der Frist gehen. Einen laufenden Auftrag bei
-  der b-api bricht er nicht ab (keine Schnittstelle, K21); dessen Ergebnis liegt dort bis zu 30
-  Tage, abgeholt wird es nicht mehr.
+  angemeldete Person, deren Vorgänge sonst erst mit der Frist gehen. Laufende Aufträge enden nach
+  dem Festschreiben auch bei der b-api (``DELETE``, Job-Vertrag 2026-11-07) — nur mit dem
+  Schlüssel der Person; ihre Ein- und Ausgaben liegen dort weiter bis zu 30 Tage.
 
 Beide räumen auch den gemerkten Entwurf der Sitzung (``strukturentwurf_merken``) ab. Nur für die
 eigenen Vorgänge (``aufrufer``), ohne Modell, hinter der Sicherheitsprüfung des Preflights wie jede
@@ -25,7 +27,10 @@ from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.domain.write_confirm import OFFENER_PLAN_KEY
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.services import arbeitsstand, vorgaenge
+from boerdi.services.ablauf import treiber
 from boerdi.services.ablauf import zug_basis as basis
+from boerdi.services.auftraege import ablage as auftraege_ablage
+from boerdi.services.auftraege import client as auftraege_client
 from boerdi.services.dokumente import ablage as dokumente
 from boerdi.ui_module import strukturentwurf_merken
 
@@ -53,15 +58,36 @@ async def neu(session: Any, req: ChatRequest, session_state: dict) -> ChatRespon
         arbeitsstand.verweis_weg(entities, aufrufer)
         entities.pop(strukturentwurf_merken.KEY, None)
         return await basis.nur_text(session, req, "action.vorgang.keiner", entities)
+    if (frage := await _neu_rueckfrage(session, req, v, entities)) is not None:
+        return frage
     try:
-        await basis.schliessen(session, v)
+        alter_job = await basis.schliessen(session, v)
         await session.commit()
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
+    basis.bei_der_b_api_abbrechen(alter_job)
     arbeitsstand.verweis_weg(entities, aufrufer)
     entities.pop(strukturentwurf_merken.KEY, None)
     return await basis.nur_text(session, req, "action.vorgang.neu", entities)
+
+
+async def _neu_rueckfrage(session: Any, req: ChatRequest, v: Any,
+                          entities: dict[str, Any]) -> ChatResponse | None:
+    """Zweites Review K2b, Befund 5: ein alter „Neues Vorhaben“-Knopf im Verlauf beendete sonst
+    still einen laufenden Auftrag — die Rückfrage, die „Auftrag abbrechen“ stellt, fehlte hier."""
+    lauf = (v.akte or {}).get("lauf")
+    if not isinstance(lauf, dict) or lauf.get("status") != treiber.WARTET_AUFTRAG:
+        return None
+    offen = await auftraege_ablage.offen(session, v.id)
+    jetzt = auftraege_client.kuerzel(offen.job_id) if offen is not None else ""
+    params = req.action_params or {}
+    if params.get("bestaetigt") is True and params.get("kuerzel") == jetzt:
+        return None
+    antwort = await basis.nur_text(session, req, "action.vorgang.neuFrage", entities)
+    antwort.quick_replies = [_knopf(resolve_locale(req.environment.locale), "action.vorgang.neuJa",
+                                    AKTION_NEU, {"bestaetigt": True, "kuerzel": jetzt})]
+    return antwort
 
 
 async def loeschen(session: Any, req: ChatRequest, session_state: dict) -> ChatResponse:
@@ -75,12 +101,17 @@ async def loeschen(session: Any, req: ChatRequest, session_state: dict) -> ChatR
         return antwort
     aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
     hatte = arbeitsstand.verweis(entities, aufrufer) is not None
+    # Job-Vertrag 2026-11-07: offene Aufträge gingen per Kaskade mit, liefen bei der b-api aber
+    # weiter (Grenze von 20 je Schlüssel) — die Job-IDs vorher lesen, nach dem Festschreiben enden.
+    offene = await auftraege_ablage.offene_job_ids(
+        session, [aufrufer, f"sitzung:{req.session_id}"])
     zahl = await vorgaenge.alle_loeschen(session, aufrufer)
     # Nachprüfung, Befund 11: auch die anonymen Vorgänge dieser Sitzung (vor der Anmeldung) und ihr
     # hochgeladenes Dokument — die Rückfrage nennt beides.
     zahl += await vorgaenge.anonyme_der_sitzung_loeschen(session, req.session_id)
     zahl += await dokumente.der_sitzung_loeschen(session, req.session_id)
     await session.commit()
+    basis.bei_der_b_api_abbrechen(*offene)
     arbeitsstand.verweis_weg(entities, aufrufer)
     entities.pop(strukturentwurf_merken.KEY, None)
     entities.pop(OFFENER_PLAN_KEY, None)  # Paket M5 (Review, Befund 7)

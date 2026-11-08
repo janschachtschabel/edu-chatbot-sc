@@ -124,3 +124,23 @@ def test_abschliessen_eines_inzwischen_geloeschten_auftrags_wirft_nicht(db_url):
             return a.status
 
     assert _lauf(db_url, ablauf) == "fertig"
+
+
+def test_offene_job_ids_der_besitzerinnen(db_url):
+    """Job-Vertrag 2026-11-07: für „Arbeitsstand löschen“ — nur laufende, nur eigene Vorgänge."""
+    from boerdi.services import vorgaenge
+    from boerdi.services.auftraege import ablage
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            v = await _vorgang(s)
+            fremd = await vorgaenge.anlegen(s, aufrufer="person-b", session_id="sitzung-k1-0001",
+                                            titel="Fremd", zweck="probe", tage=3)
+            fertig = await ablage.anlegen(s, v.id, job_id="job-alt", flow="f", schritt="a")
+            await ablage.abschliessen(s, fertig, "fertig")
+            await ablage.anlegen(s, v.id, job_id="job-offen", flow="f", schritt="a")
+            await ablage.anlegen(s, fremd.id, job_id="job-fremd", flow="f", schritt="a")
+            await s.commit()
+            return await ablage.offene_job_ids(s, ["person-a", "sitzung:sitzung-k1-0001"])
+
+    assert _lauf(db_url, ablauf) == ["job-offen"]
