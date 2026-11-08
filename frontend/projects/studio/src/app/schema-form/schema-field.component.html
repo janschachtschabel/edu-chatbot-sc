@@ -12,7 +12,7 @@
     <studio-json-value
       [fieldId]="fieldId()"
       [value]="wert()"
-      [describedByBase]="fieldId() + '-shape'"
+      [describedByBase]="(zusatzId() ? zusatzId() + ' ' : '') + fieldId() + '-shape'"
       (valueChange)="setValue($event)"
       (errorChange)="onJsonError($event)"
     />
@@ -40,18 +40,34 @@
         <p class="sf-error" [id]="errId()">{{ meldung }}</p>
       }
       @for (child of field().children; track child.key) {
-        @if (!child.markerZiel) {
-        <studio-schema-field
-          [field]="child"
-          [path]="childPath(child.key)"
-          [value]="childValue(child.key)"
-          [idPrefix]="idPrefix()"
-          [problems]="problems()"
-          [markerValue]="child.marker ? childValue(child.marker) : undefined"
-          [geerbt]="nichtGespeichert()"
-          (edit)="weiter($event)"
-        />
+        <!-- Paket K2c-2: ein Feld, das beim Wert seines Nachbarfelds (`typ`) nicht wirkt, ist
+             ausgeblendet — außer es trägt noch einen Wert: dann steht es da, mit Hinweis. -->
+        @if (!child.markerZiel && gilt(child) !== 'aus') {
+        <div [class.sf-nur-bei-feld]="gilt(child) === 'rest'">
+          @if (gilt(child) === 'rest') {
+            <p class="sf-desc sf-nur-bei">
+              <span [id]="nurBeiId(child)">{{ nurBeiText(child) }}</span>
+              <button type="button" class="sf-nur-bei-weg" (click)="entfernen(child)">
+                {{ t('schemaField.nurBeiEntfernen') }}
+              </button>
+            </p>
+          }
+          <studio-schema-field
+            [field]="child"
+            [path]="childPath(child.key)"
+            [value]="childValue(child.key)"
+            [idPrefix]="idPrefix()"
+            [problems]="problems()"
+            [markerValue]="child.marker ? childValue(child.marker) : undefined"
+            [geerbt]="nichtGespeichert()"
+            [zusatzId]="gilt(child) === 'rest' ? nurBeiId(child) : null"
+            (edit)="weiter($event)"
+          />
+        </div>
         }
+      }
+      @if (field().widget === 'ablauf') {
+        <studio-ablauf-pruefen [wert]="wert()" [pfad]="path()" [idBasis]="fieldId() + '-ap'" />
       }
     </fieldset>
   }
@@ -361,7 +377,7 @@
 
   @default {
     <div class="sf-row" [class.sf-row--check]="field().kind === 'boolean'">
-      <label class="sf-label" [for]="fieldId()">
+      <label class="sf-label" [for]="fieldId()" [id]="fieldId() + '-label'">
         {{ label() }}
         @if (rawKey(); as key) {
           <span class="sf-key">{{ key }}</span>
@@ -385,6 +401,7 @@
         [describedBy]="describedWith()"
         [invalid]="problem() !== null"
         [idPrefix]="idPrefix()"
+        [pfad]="path()"
         (valueChange)="setValue($event)"
         (errorChange)="onJsonError($event)"
       />

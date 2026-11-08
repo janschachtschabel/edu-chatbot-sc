@@ -11,18 +11,23 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   forwardRef,
   inject,
   input,
   output,
+  signal,
+  untracked,
 } from '@angular/core';
 
 import { pathKey } from '../core/field-problems';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { safeIdPart } from './field-ids';
 import type { ValuePath } from './form-value';
+import { AblaufPruefenComponent } from './ablauf-pruefen.component';
 import { FieldControlComponent } from './field-control.component';
 import { FORM_WIRKUNG } from './form-wirkung';
+import { gesetzt } from './field-hints';
 import { JsonValueComponent } from './json-value.component';
 import { ListItems } from './list-items';
 import { MapEntries } from './map-entries';
@@ -43,7 +48,12 @@ export type FormEdit =
   | DocumentEdit
   /** Not a document change: a field reporting that its input cannot be parsed,
    *  so the form can stop a save that would silently drop it. `''` clears. */
-  | { readonly kind: 'field-error'; readonly path: ValuePath; readonly message: string };
+  | {
+    readonly kind: 'field-error'; readonly path: ValuePath; readonly message: string;
+    /** Paket K2c-2 (Re-Review, Befund 2): mit `''` auch die Meldungen unter diesem Pfad — ein
+     *  ausgeblendetes Feld nimmt die seiner JSON-Boxen mit. */
+    readonly mitUnterpfaden?: boolean;
+  };
 
 const NO_PROBLEMS: ReadonlyMap<string, string> = new Map();
 
@@ -53,7 +63,7 @@ const NO_PROBLEMS: ReadonlyMap<string, string> = new Map();
   // self-reference would read the binding before the class exists. The object
   // list (ST-3) renders its editor with this component in turn — same reason.
   imports: [
-    FieldControlComponent, JsonValueComponent,
+    FieldControlComponent, JsonValueComponent, AblaufPruefenComponent,
     forwardRef(() => SchemaFieldComponent), forwardRef(() => ObjectListComponent),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -79,6 +89,9 @@ export class SchemaFieldComponent {
   /** Paket 15 (Review-Runde 2): ein Vorfahr fehlt im Dokument — dieser Wert stammt aus seiner
    *  Vorgabe, gespeichert ist er nicht. */
   readonly geerbt = input(false);
+  /** Paket K2c-2: die Kennung eines Hinweises der Elterngruppe („wirkt bei diesem typ nicht“) —
+   *  kommt mit ins `aria-describedby`, damit ein Screenreader ihn am Feld vorliest. */
+  readonly zusatzId = input<string | null>(null);
   /** Oberste Gruppe eines Formular-Abschnitts: der Abschnitt ist ihr Rahmen, sie bekommt
    *  Abstand rundum statt Einzug und Strich. Als Eingabe, weil eine Regel über beide
    *  Komponenten an der Kapselung scheiterte (Studio-Rundgang 2026-10-18). */
@@ -171,7 +184,7 @@ export class SchemaFieldComponent {
 
   /** Hilfetext und Meldung zusammen — `aria-describedby` nimmt mehrere Kennungen. */
   readonly describedWith = computed(
-    () => [this.descId(), this.errId()].filter(Boolean).join(' ') || null,
+    () => [this.zusatzId(), this.descId(), this.errId()].filter(Boolean).join(' ') || null,
   );
 
   /**
@@ -217,6 +230,116 @@ export class SchemaFieldComponent {
 
   childPath(key: string | number): ValuePath {
     return [...this.path(), key];
+  }
+
+  /** Paket K2c-2: Felder, die schon `rest` waren, und der Wert des Nachbarfelds dabei. Review K2c-2,
+   *  Befund 1: wer einen Restwert leert, tippt gerade darin — das Feld bleibt stehen, bis sich das
+   *  Nachbarfeld ändert oder „Wert entfernen“ es ausdrücklich nimmt. */
+  private readonly restBei = new Map<string, string>();
+  /** Re-Review K2c-2, Befund 1: eine Instanz zeigt nacheinander mehrere Schritte (Liste mit
+   *  Auswahl) — der klebende Zustand gilt nur für den Pfad, für den er entstand. */
+  private restPfad = '';
+  /** „Wert entfernen“ zeichnet neu, auch wenn das Dokument gleich bleibt (Schlüssel fehlte schon). */
+  private readonly restNeu = signal(0);
+  /** Der letzte Stand je Kind — um ein Ausblenden (→ `aus`) zu bemerken. */
+  private vorher: Record<string, 'ja' | 'rest' | 'aus'> = {};
+  private vorherPfad = '';
+
+  /** Paket K2c-2: wirkt jedes Kind beim aktuellen Wert seines Nachbarfelds? `ja` (oder ohne
+   *  Auszeichnung, oder das Nachbarfeld ist noch leer), `rest` — wirkt nicht, trägt aber einen
+   *  Wert, eine Meldung oder war eben noch `rest` (sichtbar mit Hinweis), `aus` — wirkt nicht und
+   *  ist leer (ausgeblendet). Einmal je Änderung für alle Kinder (Review K2c-2, Befund 8). */
+  private readonly giltJe = computed(() => {
+    this.restNeu();
+    const kinder = this.field().children ?? [];
+    if (!kinder.some((c) => c.nurBei)) return {};          // Re-Review, Befund 6
+    const pfad = pathKey(this.path());
+    if (pfad !== this.restPfad) {
+      this.restBei.clear();
+      this.restPfad = pfad;
+    }
+    const probleme = [...this.problems().keys()];
+    const aus: Record<string, 'ja' | 'rest' | 'aus'> = {};
+    for (const child of kinder) aus[child.key] = this.bewerte(child, probleme);
+    return aus;
+  });
+
+  /** Re-Review K2c-2, Befund 2: blendet der Typ ein Feld aus, gehen die Meldungen seiner JSON-Boxen
+   *  mit — sonst sperrten sie das Speichern unsichtbar. Nur hier, nicht beim Abbau einer Box: ein
+   *  Reiterwechsel muss die Sperre behalten (A7, `feld-reiter.ts`). */
+  private readonly ausgeblendetMelden = effect(() => {
+    const jetzt = this.giltJe();
+    const pfad = pathKey(this.path());
+    untracked(() => {
+      // Zeigt die Instanz einen anderen Schritt, ist der alte Stand kein Vorher.
+      if (pfad !== this.vorherPfad) {
+        this.vorher = {};
+        this.vorherPfad = pfad;
+      }
+      for (const [key, stand] of Object.entries(jetzt)) {
+        if (stand === 'aus' && this.vorher[key] && this.vorher[key] !== 'aus') {
+          this.edit.emit({ kind: 'field-error', path: this.childPath(key), message: '',
+                           mitUnterpfaden: true });
+        }
+      }
+      this.vorher = jetzt;
+    });
+  });
+
+  gilt(child: SchemaField): 'ja' | 'rest' | 'aus' {
+    return this.giltJe()[child.key] ?? 'ja';
+  }
+
+  private bewerte(child: SchemaField, probleme: readonly string[]): 'ja' | 'rest' | 'aus' {
+    const marke = child.nurBei;
+    if (!marke) return 'ja';
+    const nachbar = this.childValue(marke.feld);
+    if (!gesetzt(nachbar) || marke.werte.includes(String(nachbar))) {
+      this.restBei.delete(pathKey(this.childPath(child.key)));
+      return 'ja';
+    }
+    const pfad = pathKey(this.childPath(child.key));
+    // Review K2c-2, Befund 2: eine Meldung an einem ausgeblendeten Feld stünde nirgends.
+    const meldung = probleme.some((k) => k === pfad || k.startsWith(`${pfad}.`));
+    if (gesetzt(this.childValue(child.key)) || meldung
+        || this.restBei.get(pfad) === String(nachbar)) {
+      this.restBei.set(pfad, String(nachbar));
+      return 'rest';
+    }
+    return 'aus';
+  }
+
+  /** Der Hinweis mit den Beschriftungen aus dem Katalog, nicht den Rohschlüsseln (Befund 6). */
+  nurBeiText(child: SchemaField): string {
+    const nachbar = (this.field().children ?? []).find((c) => c.key === child.nurBei?.feld);
+    const schluessel = gesetzt(this.childValue(child.key)) ? 'schemaField.nurBei'
+      : 'schemaField.nurBeiLeer';
+    return this.t(schluessel, {
+      feld: this.textOf(child) ?? child.key,
+      nachbar: (nachbar && this.textOf(nachbar)) ?? child.nurBei?.feld ?? '',
+    });
+  }
+
+  private textOf(f: SchemaField): string | null {
+    return f.textKey && this.lang.has(`${f.textKey}.label`) ? this.lang.t(`${f.textKey}.label`) : null;
+  }
+
+  /** „Wert entfernen“ am Restwert (Befund 1/4): nimmt den Schlüssel heraus — auch eine Gruppe oder
+   *  Map, die das Formular sonst nicht ganz leeren kann — und gibt den Fokus an das Nachbarfeld. */
+  entfernen(child: SchemaField): void {
+    this.restBei.delete(pathKey(this.childPath(child.key)));
+    this.edit.emit({ kind: 'field-error', path: this.childPath(child.key), message: '',
+                     mitUnterpfaden: true });
+    this.weiter({ kind: 'remove', path: this.childPath(child.key) });
+    this.restNeu.update((n) => n + 1);
+    const ziel = child.nurBei ? `${this.idPrefix()}-${this.childPath(child.nurBei.feld)
+      .map(safeIdPart).join('.')}` : null;
+    if (ziel) setTimeout(() => document.getElementById(ziel)?.focus(), 0);
+  }
+
+  /** Kennung des Hinweises am Kind — aus dessen Pfad, also eindeutig je Eintrag einer Liste. */
+  nurBeiId(child: SchemaField): string {
+    return `${this.idPrefix()}-${this.childPath(child.key).map(safeIdPart).join('.')}-nur-bei`;
   }
 
   childValue(key: string): unknown {
@@ -283,13 +406,17 @@ export class SchemaFieldComponent {
   /** Eine Liste oder Map von OBJEKTEN (ST-3): als Liste│Editor statt Wand. */
   readonly objectItems = computed(() => this.field().item?.kind === 'group');
 
+  /** Wo die JSON-Box ihre Meldung setzte (Re-Review K2c-2, älterer Befund P1): eine Instanz kann
+   *  danach einen anderen Eintrag zeigen — die Rücknahme gilt dem alten Pfad. */
+  private jsonFehlerPfad: ValuePath | null = null;
+
   onJsonError(message: string): void {
-    this.edit.emit({ kind: 'field-error', path: this.path(), message });
+    const path = message ? this.path() : (this.jsonFehlerPfad ?? this.path());
+    this.jsonFehlerPfad = message ? this.path() : null;
+    this.edit.emit({ kind: 'field-error', path, message });
   }
 }
 
 function leer(wert: unknown): boolean {
-  if (wert === undefined || wert === null || wert === '') return true;
-  if (Array.isArray(wert)) return wert.length === 0;
-  return typeof wert === 'object' && Object.keys(wert as object).length === 0;
+  return !gesetzt(wert);
 }

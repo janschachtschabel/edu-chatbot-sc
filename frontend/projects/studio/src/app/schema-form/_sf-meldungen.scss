@@ -58,7 +58,8 @@
 
 .sf-add,
 .sf-remove,
-.sf-zurueck {
+.sf-zurueck,
+.sf-nur-bei-weg {
   min-block-size: 2rem;
   padding: var(--st-1) var(--st-3);
   border: 1px solid var(--st-text-muted);
@@ -72,13 +73,15 @@
 
 .sf-add:hover,
 .sf-remove:hover,
-.sf-zurueck:hover {
+.sf-zurueck:hover,
+.sf-nur-bei-weg:hover {
   background: var(--st-accent-soft);
 }
 
 .sf-add:focus-visible,
 .sf-remove:focus-visible,
-.sf-zurueck:focus-visible {
+.sf-zurueck:focus-visible,
+.sf-nur-bei-weg:focus-visible {
   outline: 2px solid var(--st-accent);
   outline-offset: 1px;
 }
@@ -93,4 +96,103 @@
   // volle Breite; `justify-self` wirkte nur im Grid.
   align-self: flex-start;
   justify-self: start;
+}
+
+// Paket K2c-2: „Wert entfernen“ im Hinweis an einem Feld, das beim gewählten Typ nicht wirkt.
+.sf-nur-bei-weg {
+  margin-inline-start: var(--st-2);
+}
+
+// Paket K2c-3: Tabelle Name → Text | Teil | JSON. Auf schmalen Flächen bricht jede Zeile um.
+.tw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-2);
+  // Review K2c-3, Befund 9: die Tabelle steht neben der Liste — es zählt ihre Breite, nicht die
+  // des Fensters.
+  container-type: inline-size;
+}
+
+.tw-zeile,
+.tw-kopf {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(6rem, auto) minmax(10rem, 2fr) auto;
+  gap: var(--st-2);
+  align-items: start;
+}
+
+// Review K2c-3 (2), Befund 4: die Spaltenköpfe stehen im selben Raster wie die Zeilen.
+.tw-kopf {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--st-text-muted);
+}
+
+@container (max-width: 34rem) {
+  .tw-zeile, .tw-kopf { grid-template-columns: 1fr 1fr; }
+  .tw-wert, .tw-kopf-wert { grid-column: 1 / -1; }
+}
+
+.tw-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+}
+
+// Paket K2c-4: „Ablauf prüfen“ und die Schrittfolge unter einem Ablauf.
+.ap {
+  margin-block-start: var(--st-4);
+  padding-block-start: var(--st-3);
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.ap-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-3);
+}
+
+.ap-status {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.ap-befunde,
+.ap-pfeile {
+  margin: var(--st-1) 0 0;
+  padding-inline-start: var(--st-4);
+}
+
+.ap-folge {
+  margin: var(--st-2) 0 0;
+  padding-inline-start: var(--st-5);
+}
+
+.ap-zeile {
+  padding-block: var(--st-1);
+}
+
+// Ein Schritt mit Befund: ein Strich am Rand, nicht nur Farbe (der Befund steht als Text darunter).
+.ap-mit-befund {
+  border-inline-start: 3px solid var(--st-warn-dot);
+  padding-inline-start: var(--st-2);
+}
+
+.ap-typ {
+  margin-inline-start: var(--st-2);
+  color: var(--st-text-muted);
+  font-size: 0.8125rem;
+}
+
+.ap-pfeil {
+  font-size: 0.875rem;
+}
+
+.ap-unbekannt {
+  font-weight: 600;
+}
+
+.ap-befund {
+  margin: var(--st-1) 0 0;
 }
