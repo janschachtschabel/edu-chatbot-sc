@@ -145,6 +145,9 @@ _CODE_K1B = ("Code, kein Text: nur ui_fortschritt ruft den Endpunkt (K1b) und we
              "aus; den Satz zeigt das Modul in der Sprache der Person")
 _CODE_U33 = ("Code, kein Text: nur das Modul ui_upload ruft die Ablage (U3-3a) und zeigt "
              "je Code einen eigenen Satz in der Sprache des Widgets")
+_CODE_K2A = ("Paket K2a: ein Code für das Widget, kein Text — `POST /api/ui/vorgaenge/offen` "
+             "antwortet ohne Anmeldung mit 403 `nur_angemeldet`; das Widget zeigt dann einfach "
+             "keinen Hinweis.")
 
 # ── Wächter: keine Meldung am Katalog vorbei ───────────────────────────────
 #: Jede ``HTTPException``-Meldung in ``api/``, die NICHT durch ``msg()`` geht,
@@ -223,6 +226,9 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'nicht_abrufbar'": _CODE_K1B,
         "'nur_angemeldet'": _CODE_K1B,
         "'sitzung_unbekannt'": _CODE_K1B,
+    },
+    "ui_vorgaenge.py": {
+        "'nur_angemeldet'": _CODE_K2A,
     },
     "ui_dokumente.py": {
         "'aus'": _CODE_U32,
