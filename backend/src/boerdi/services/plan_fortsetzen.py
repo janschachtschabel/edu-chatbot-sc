@@ -10,7 +10,7 @@ Fortsetzungs-Schlüssel — so übersteht ein Plan eine verlorene erste Antwort.
 
 Hier: den offenen Plan merken (:data:`KEY` in ``entities`` — Werkzeug, Angaben ohne Schlüssel,
 Fortsetzungs-Schlüssel, Aufrufer, Frist), den Stand für die Person aufbereiten (ohne den Schlüssel)
-und die Direktaktion :data:`AKTION` („Weiter anlegen“) — nur für dieselbe Person, nur mit
+und die Direktaktion :data:`AKTION` („Plan fortsetzen“) — nur für dieselbe Person, nur mit
 Schreibrecht und nur, solange das Werkzeug hier freigegeben ist (dieselben Prüfungen wie beim
 Einlösen), höchstens bis zur Frist des Plans. Ohne Modell, hinter der Sicherheitsprüfung des
 Preflights wie jede Direktaktion. Das Modell setzt nie selbst fort
@@ -48,6 +48,8 @@ KEY: Final = OFFENER_PLAN_KEY
 #: Ein Plan gilt 30 min ab Bestätigung (Server); ohne ``expiresAt`` gilt diese Frist ab jetzt.
 PLAN_TTL_SECONDS: Final = 30 * 60
 _PATTERN_ID: Final = "DIRECT: plan_weiter"
+#: Paket S4: der strukturierte Teil der Antwort, mit der ein Plan fertig wurde (ein Zug lang).
+FERTIG: Final = "_plan_fertig"
 
 
 def ist_plan(tool_name: str) -> bool:
@@ -59,7 +61,7 @@ __all__ = ["AKTION", "KEY", "PLAN_TOOLS", "PLAN_TTL_SECONDS", "abgelaufen_weg", 
 
 
 def knopf(lang: Locale | str) -> str:
-    """Die Schnellantwort „Weiter anlegen“."""
+    """Die Schnellantwort „Plan fortsetzen“."""
     label = bot_text(lang, "action.plan.weiterKnopf").replace("|", "/")
     return f"__action__|{label}|{AKTION}|{{}}"
 
@@ -91,10 +93,17 @@ def _gleicher_plan(entities: dict[str, Any], tool: str, args: dict[str, Any]) ->
             and gemerkt.get("args") == ohne_schluessel(args))
 
 
+#: Paket S4: die Marke eines Ablaufs (``ablauf/freigabe_zug.MARKE``) — sie reist mit dem Plan
+#: von Abschnitt zu Abschnitt, damit der Lauf weitergeht, wenn er fertig ist.
+_MARKE: Final = "ablauf"
+
+
 def _merke(entities: dict[str, Any], tool: str, args: dict[str, Any], schluessel: str, *,
            caller: str, now: float, frist: float) -> None:
+    marke = (entities[KEY].get(_MARKE) if _gleicher_plan(entities, tool, args) else None)
     entities[KEY] = {"tool": tool, "args": ohne_schluessel(args), "token": schluessel,
-                     "caller": caller, "minted_at": now, "expires_at": frist}
+                     "caller": caller, "minted_at": now, "expires_at": frist,
+                     **({_MARKE: marke} if isinstance(marke, dict) else {})}
 
 
 def merke(entities: dict[str, Any], tool: str, args: dict[str, Any], antwort: McpAntwort, *,
@@ -150,7 +159,7 @@ def abgelaufen_weg(entities: object, now: float) -> bool:
 
 def anzeige(text: str, lang: Locale | str, *, offen: bool) -> str:
     """Der Stand des Servers für die Person: ohne die Zeile mit dem Fortsetzungs-Schlüssel (sie
-    richtet sich an ein Programm), bei einem offenen Plan mit dem Hinweis auf „Weiter anlegen“."""
+    richtet sich an ein Programm), bei einem offenen Plan mit dem Hinweis auf „Plan fortsetzen“."""
     zeilen = [z for z in redact_confirm_token(text or "").splitlines()
               if FORTSETZEN_FIELD not in z]
     sauber = "\n".join(zeilen).strip()
@@ -159,7 +168,7 @@ def anzeige(text: str, lang: Locale | str, *, offen: bool) -> str:
 
 async def weiter(session: Any, req: ChatRequest, session_state: dict, *,
                  blocked_tools: list[str] | None = None) -> ChatResponse:
-    """Direktaktion „Weiter anlegen“: den gemerkten Plan mit seinem Schlüssel fortsetzen. Die
+    """Direktaktion „Plan fortsetzen“: den gemerkten Plan mit seinem Schlüssel fortsetzen. Die
     Sperren der Sicherheitsprüfung (``blocked_tools``) gelten wie für jede Direktaktion."""
     # Zyklenfrei erst zur Laufzeit: ``write_approval`` bindet dieses Modul beim Import.
     from boerdi.services import write_approval
@@ -180,10 +189,11 @@ async def weiter(session: Any, req: ChatRequest, session_state: dict, *,
     if tool in (blocked_tools or []):
         logger.warning("Plan %s nicht fortgesetzt (gesperrt durch die Sicherheitsprüfung)", tool)
         return await _antwort(session, req, entities, bot_text(lang, "write.planBlocked"), debug)
-    if grund := write_approval._nicht_einloesbar(tool, req):
+    if grund := write_approval.nicht_einloesbar(tool, req):
         logger.warning("Plan %s nicht fortgesetzt (%s)", tool, grund)
         if tool in write_approval.verborgene_werkzeuge():
             entities.pop(KEY, None)
+            debug.entities["plan_aus"] = "fehler"    # S4 (Review, Befund 2)
         return await _antwort(session, req, entities, bot_text(lang, "write.planBlocked"), debug)
     debug.tools_called.append(tool)
     antwort = await call_mcp_tool_antwort(tool, {**plan["args"], FORTSETZEN_FIELD: plan["token"]})
@@ -191,6 +201,10 @@ async def weiter(session: Any, req: ChatRequest, session_state: dict, *,
         return await _fehler(session, req, entities, lang, antwort, debug)
     offen = merke(entities, tool, plan["args"], antwort, caller=plan["caller"],
                   now=float(plan.get("minted_at") or time.time()))
+    if not offen and (antwort.strukturiert or {}).get("complete") is True:
+        # Paket S4: fertig — gehörte der Plan zu einem Ablauf, nimmt dessen Nachlauf das Ergebnis
+        # (Review S4, NIT: nur bei ausdrücklichem ``complete``)
+        session_state[FERTIG] = antwort.strukturiert or {}
     logger.info("Plan %s (Sitzung %s) fortgesetzt — %s", tool, kennung(req.session_id),
                 "offen" if offen else "fertig")
     return await _antwort(session, req, entities, anzeige(antwort.text, lang, offen=offen), debug,
@@ -201,21 +215,25 @@ async def _fehler(session: Any, req: ChatRequest, entities: dict[str, Any], lang
                   antwort: McpAntwort, debug: DebugInfo) -> ChatResponse:
     if antwort.code in ("plan_expired", "plan_mismatch"):
         entities.pop(KEY, None)
+        debug.entities["plan_aus"] = "neu"           # S4: eine neue Vorschau zeigt den Stand
         return await _antwort(session, req, entities, bot_text(lang, "write.planExpired"), debug)
     if antwort.art == "auth":
         return await _antwort(session, req, entities, bot_text(lang, "write.loginNeeded"), debug)
     if antwort.art == "busy":
         # Plan 2026-11-07 (CB-2): ausgelastet, nichts lief — der Plan bleibt samt Schlüssel.
-        return await _antwort(session, req, entities, bot_text(lang, "write.planBusy"), debug,
-                              knoepfe=[knopf(lang)])
+        text = bot_text(lang, "write.planBusy")
+        if antwort.warte_s is not None:
+            text += " " + bot_text(lang, "write.busyWait", s=antwort.warte_s)
+        return await _antwort(session, req, entities, text, debug, knoepfe=[knopf(lang)])
     if antwort.art in ("timeout", "transport"):
         # Denselben Schlüssel erneut vorzulegen ist sicher — der Plan bleibt gemerkt.
         return await _antwort(session, req, entities, bot_text(lang, "write.planUnclear"), debug,
                               knoepfe=[knopf(lang)])
-    from boerdi.services.write_approval import _abgelehnt_text  # zyklenfrei erst zur Laufzeit
+    from boerdi.services.write_approval import abgelehnt_text  # zyklenfrei erst zur Laufzeit
 
     entities.pop(KEY, None)
-    return await _antwort(session, req, entities, _abgelehnt_text(lang, antwort), debug)
+    debug.entities["plan_aus"] = "fehler"            # S4: ein Lauf geht zu ``bei_fehler``
+    return await _antwort(session, req, entities, abgelehnt_text(lang, antwort), debug)
 
 
 async def _antwort(session: Any, req: ChatRequest, entities: dict[str, Any], text: str,

@@ -13,11 +13,19 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatResponse
+from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
 from boerdi.services import plan_fortsetzen, vorgang_aktion
-from boerdi.services.ablauf import auftrag_zug
+from boerdi.services.ablauf import auftrag_zug, freigabe_zug
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.ordner_aktion import ist_ordner_als_entwurf
+
+#: Was ein gesperrter Lauf (K2b, ``warten: gesperrt``) durchlässt — alles andere bekommt den
+#: Hinweis.
+_IM_GESPERRTEN_LAUF: frozenset[str] = frozenset({
+    auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN,
+    vorgang_aktion.AKTION_NEU, vorgang_aktion.AKTION_LOESCHEN,
+})
 
 
 @dataclass(frozen=True)
@@ -26,10 +34,19 @@ class Ausloeser:
     per_modul: Any
     ordner: bool
     per_text: Any
+    #: K2b: die Kennung des Ablaufs, dessen wartender Auftragsschritt die Eingabe sperrt.
+    gesperrt: str | None = None
 
     @property
     def irgendeiner(self) -> bool:
-        return bool(self.ordner or self.im_lauf or self.per_modul or self.per_text)
+        return bool(self.ordner or self.im_lauf or self.per_modul or self.per_text
+                    or self.gesperrt)
+
+
+def abgewiesen(aktion: str | None, gesperrt: str | None) -> bool:
+    """Bekommt dieser Zug im gesperrten Lauf nur den Hinweis? (getippt, Modul-Antwort, andere
+    Knöpfe — nicht die Auftrags- und Vorgangs-Aktionen)."""
+    return gesperrt is not None and aktion not in _IM_GESPERRTEN_LAUF
 
 
 @dataclass(frozen=True)
@@ -63,7 +80,12 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     per_text = (ablauf_zug.text_ausloeser(req.message)
                 if not req.action and ctx.ui_antwort is None
                 and not ablauf_zug.lauf_wartet(req.session_id, ctx.session_state) else None)
-    return Ausloeser(bool(im_lauf), per_modul, bool(ordner), per_text)
+    # Paket K2b: ein Zug der Person (kein Kontext-Ping, kein Tour-Tick) im gesperrten Lauf.
+    gesperrt = None
+    if not ist_hintergrund_anfrage(req.environment):
+        auftrag_zug.sperre_aufraeumen(req.session_id, ctx.session_state)
+        gesperrt = auftrag_zug.gesperrt(req.session_id, ctx.session_state)
+    return Ausloeser(bool(im_lauf), per_modul, bool(ordner), per_text, gesperrt)
 
 
 async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
@@ -72,6 +94,10 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
     ist. Die Sperren der Sicherheitsprüfung gelten auch für die Schritte (Review A1, Befund 2)."""
     req, state = ctx.req, ctx.session_state
     gesperrt = list(gesperrt)
+    if abgewiesen(req.action, a.gesperrt):
+        return Antwort(await auftrag_zug.gesperrt_antwort(session, req, a.gesperrt or ""))
+    if req.action == auftrag_zug.AKTION_ABBRECHEN:
+        return Antwort(await auftrag_zug.abbrechen(session, req, state))
     if req.action == ablauf_zug.AKTION:
         return Antwort(await ablauf_zug.starten(session, req, state, blocked_tools=gesperrt))
     if req.action == auftrag_zug.AKTION:
@@ -80,8 +106,16 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
         return Antwort(await vorgang_aktion.neu(session, req, state))
     if req.action == vorgang_aktion.AKTION_LOESCHEN:
         return Antwort(await vorgang_aktion.loeschen(session, req, state))
+    if req.action == freigabe_zug.AKTION_ERNEUT:
+        return Antwort(await freigabe_zug.erneut(session, req, state, blocked_tools=gesperrt))
+    if req.action == freigabe_zug.AKTION_ABBRECHEN:
+        return Antwort(await freigabe_zug.abbrechen(session, req, state))
     if req.action == plan_fortsetzen.AKTION:
-        return Antwort(await plan_fortsetzen.weiter(session, req, state, blocked_tools=gesperrt))
+        # Paket S4: gehörte der Plan zu einem Lauf, geht der weiter, wenn der Plan fertig ist
+        vorher = (state.get("entities") or {}).get(plan_fortsetzen.KEY)
+        antwort_plan = await plan_fortsetzen.weiter(session, req, state, blocked_tools=gesperrt)
+        return Antwort(await freigabe_zug.nach_plan(session, req, state, vorher, antwort_plan,
+                                                    blocked_tools=gesperrt))
     if req.action == ablauf_zug.AKTION_WEITER:
         return Antwort(await ablauf_zug.weiter_nach_ki(session, req, state,
                                                        blocked_tools=gesperrt))
