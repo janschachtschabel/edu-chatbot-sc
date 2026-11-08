@@ -470,13 +470,27 @@ Seit dem MCP-Stand S1–S7:
 - Ist WLO ausgelastet (`busy`), bleibt die Freigabe liegen. Werkzeuge (`tool_defs_curation.py`): Inhalt anlegen/ändern/einreichen —
 anlegen und einsortieren in **einer** Bestätigung (`addToCollectionId`) —, in Sammlungen
 einsortieren, Sammlungen anlegen/umbenennen, Metadaten-Vorschläge erzeugen und
-entscheiden. **Pläne** (`wlo_create_collection_tree`, `wlo_add_to_collections`): ein Baum
-bzw. bis zu 200 Aufnahmen unter einer Bestätigung; der Server arbeitet in Abschnitten, große
-Pläne setzt die Person über den Knopf „Weiter anlegen“ fort (`services/plan_fortsetzen.py`).
+entscheiden; Volltext an einen Datensatz (`wlo_attach_fulltext`, Paket K2d-3). **Pläne**
+(`wlo_create_collection_tree`, `wlo_add_to_collections`, `wlo_attach_fulltexts`, `wlo_update_contents`): ein
+Baum, bis zu 200 Aufnahmen, Volltexte bzw. Metadaten unter einer Bestätigung; der Server arbeitet in Abschnitten, große
+Pläne setzt die Person über den Knopf „Plan fortsetzen“ fort (`services/plan_fortsetzen.py`).
 Die Ablage von Dateien im persönlichen Bereich läuft über das Upload-Modul und eigene
 Stapel-Werkzeuge, nie über das Modell. Was eine Einbettung davon darf, begrenzt `tool_mode`
 (`read-only` · `curate` · `full`) — die Grenze steht zusätzlich im Systemprompt,
 damit das Modell nichts verspricht, was es nicht ausführen kann.
+
+**Der Weg der Bytes** (Pakete U3-1 … U3-3, Abschluss U3-5):
+
+- Einen Ordner erfasst `ui_upload` **im Browser**. Es geht nichts hinaus außer den Ordnernamen und Zahlen der
+  Antwort.
+- Ein markiertes Strukturdokument geht einzeln an `POST /api/ui/dokumente`. Die Umwandlung läuft im
+  Kindprozess mit Moderation; im Chat bleibt nur der Text, bis 24 Stunden nach der letzten Nutzung (`dokument_uploads`).
+- Übertragen nach WLO nur per Klick im Modul, nach einer Vorschau und mit bestätigter Anmeldung:
+  `POST /api/ui/ablage/*`, dann der MCP mit Stapel-Freigabe, dann der persönliche Bereich (Vorgangs-Ordner).
+  Das Modell sieht dabei weder Dateien noch Schlüssel.
+- Den Abgleich eines Entwurfs mit einer WLO-Sammlung (`ui_strukturabgleich`, U4/U5) rechnet der Dienst ohne
+  LLM aus `browse_collection_tree` und `count_wlo_content_matches`. Er liest nur; Gliederungspunkte, die nach
+  persönlichen Daten aussehen (E-Mail, Telefon, IBAN), gehen nicht in die Suche.
 
 ### 5.5 Identität — anonym oder als Person
 

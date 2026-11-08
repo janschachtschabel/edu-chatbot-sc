@@ -30,7 +30,7 @@ def _flow(flow_id: str) -> dict:
 def test_die_ablaeufe_laden_mit_dem_katalog_und_tragen_nur_bekannte_felder() -> None:
     flows = _flows()
     ids = [f["id"] for f in flows]
-    assert ids == [f"GV-UI-{i}" for i in range(1, 13)]      # U2: 8 … 12
+    assert ids == [f"GV-UI-{i}" for i in range(1, 17)]      # U2: 8 … 12, U3-5/U4/U5: 13 … 16
     for flow in flows:
         assert set(flow) <= _FLOW_FELDER, flow["id"]
         assert flow["zielgruppe"] in {"P-LEH", "P-LER", "P-AND"}

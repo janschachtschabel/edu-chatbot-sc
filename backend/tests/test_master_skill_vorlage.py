@@ -463,3 +463,23 @@ def test_knapp_entwurf_endet_den_zug_und_arbeitet_mit_dem_stand_der_person(knapp
     assert "`vorlage` und `vertiefen`" in oberflaeche and "Nie für den Bestand." in oberflaeche
     assert "Fehlt der Entwurf" in oberflaeche
     assert "neue Gliederung → Entwurf" in _abschnitt(knapp, "Immer gültig")
+
+
+# ── Paket U3-5 (2026-11-08): Ordner/Lehrplan → ui_upload, Abgleich → ui_strukturabgleich ──
+
+
+def test_knapp_ordner_oder_lehrplan_und_abgleich(knapp: str) -> None:
+    """Plan 2026-11-04 §9 U3-5 und Plan 2026-11-08 E-9: die Beschreibung allein reichte bei
+    ui_entscheidung nicht (Golden-Lauf 2026-11-03) — eine Regel im Master-Skill."""
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "→ `ui_upload` mit `zweck: sammlungsstruktur`" in oberflaeche
+    assert "nur per Klick im Modul — nie selbst anstoßen" in oberflaeche
+    assert "ohne Anmeldung sagen, dass Übertragen eine" in oberflaeche
+    assert "→ `ui_strukturabgleich` mit der `nodeId` der Sammlung" in oberflaeche
+    assert "`abdeckung: true`, wenn nach fehlendem Material" in oberflaeche
+    assert "Ohne Entwurf erst `ui_strukturentwurf`." in oberflaeche
+    assert "Fehlt der Abgleich: Lücken mit M19 belegen" in oberflaeche
+    # Gesamt-Review, Befunde 3 und 4: M08 und M19 verweisen auf die Module
+    assert "zuerst `ui_upload`" in _unterabschnitt(knapp, "M08")
+    assert "zeigt es `ui_strukturabgleich`" in _unterabschnitt(knapp, "M19")
+

@@ -236,6 +236,15 @@ def _fremde_dienste() -> list[str]:
         return []
 
 
+def enthaelt_persoenliches(text: str) -> bool:
+    """Gesamt-Review U3/U4/U5, Befund 6: dieselbe PII-Prüfung wie für die Nachricht, für Texte, die
+    das Backend selbst als Suche hinausschickt (Gliederungspunkte der Abdeckung)."""
+    msg = normalize_for_matching(text)
+    _krise, pii_zusatz = zusatz_muster(normalize_for_matching)
+    return any(_gap_search(head, tail, msg) for head, tail in _PII_PATTERNS) or (
+        pii_zusatz is not None and bool(pii_zusatz.search(msg)))
+
+
 def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
     """Stage 1: fast regex assessment.
 
