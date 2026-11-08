@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security
 from fastapi.responses import StreamingResponse
@@ -43,6 +43,7 @@ from boerdi.obs import metrics
 from boerdi.obs.log_inhalt import kennung
 from boerdi.obs.progress import TurnProgress
 from boerdi.services import betriebsschalter, prompt_ablage
+from boerdi.services.ablauf import auftrag_zug
 from boerdi.services.db_sessions import save_message
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
 from boerdi.services.fehlertext import antwort_fehlertext
@@ -123,7 +124,8 @@ async def chat(
                 )
                 result = await run_turn(graph, TurnContext(req=req))
                 await _record_usage(session, req.session_id, result)
-                resp = _anmeldestand(result.get("early_response") or result.get("response"))
+                resp = _anmeldestand(result.get("early_response") or result.get("response"),
+                                     req, result)
                 return antwort_fuer(await _postprocess_response_for_widget_modes(req, resp),
                                     intern)
             except LlmAusgelastet as last:
@@ -152,16 +154,44 @@ async def chat(
         return antwort_fuer(await _fehlerblase(session, req, sperr_err), intern)
 
 
-def _anmeldestand(resp: ChatResponse | None) -> ChatResponse | None:
+def _anmeldestand(resp: ChatResponse | None, req: ChatRequest | None = None,
+                  zustand: dict[str, Any] | None = None) -> ChatResponse | None:
     """Wies der MCP-Server den Block dieses Zuges ab (Paket 10, Kurzaudit A-3)? Dann
     erfährt es das Widget. Im Task des Zuges gelesen — der Stand gilt über alle
-    Knoten (``services/mcp/auth._ZugStand``)."""
+    Knoten (``services/mcp/auth._ZugStand``). Dazu (Paket K2b) die Sperre eines wartenden
+    Auftragsschritts — aus dem Verweis nach dem Zug, für beide Wege gleich."""
+    if resp is not None and req is not None and zustand is not None:
+        _eingabe_sperre(resp, req, zustand)
     if resp is not None and abgelehnt_in_diesem_zug():
         resp.auth_invalid = True
     elif resp is not None:
         # R1 (Plan 2026-11-07): die Frist des Blocks, damit das Widget rechtzeitig neu anmeldet.
         resp.auth_expires_at = zug_ablauf()
     return resp
+
+
+def _eingabe_sperre(resp: ChatResponse, req: ChatRequest, zustand: dict[str, Any]) -> None:
+    """Paket K2b: ``eingabe_gesperrt`` aus dem Verweis nach dem Zug. Eine gesperrte Antwort ohne
+    Knöpfe (Konflikt, Drosselung, Sicherheits-Block) bekommt „Stand prüfen“/„Abbrechen“ — sonst
+    stünde die Person vor einem gesperrten Feld ohne Weg weiter (Review K2b, Befund 3). Wirft nie:
+    der Zug ist schon gespeichert (Befund 4).
+
+    Zweites Review K2b: keine Knöpfe an die stummen Antworten von Kontext-Ping und Tour-Tick
+    (Befund 1 — das Widget zeigte sonst eine leere Blase mit zwei Knöpfen), und keine Sperre nach
+    einer Nachricht mit hohem Risiko (Befund 2 — die Krisenantwort will eine Antwort)."""
+    try:
+        stand = zustand.get("session_state")
+        sicherheit = zustand.get("safety")
+        krise = getattr(sicherheit, "risk_level", None) == "high"
+        resp.eingabe_gesperrt = (not krise and isinstance(stand, dict)
+                                 and auftrag_zug.gesperrt(req.session_id, stand) is not None)
+        if (resp.eingabe_gesperrt and not resp.quick_replies
+                and not ist_hintergrund_anfrage(req.environment)):
+            resp.quick_replies = auftrag_zug.pruefen_knoepfe(
+                req.session_id, stand, resolve_locale(getattr(req.environment, "locale", None)))
+    except Exception as fehler:  # noqa: BLE001 — die Sperre ist eine Bedienhilfe
+        logger.warning("Eingabesperre nicht bestimmbar (%s)", type(fehler).__name__)
+        resp.eingabe_gesperrt = False
 
 
 async def _fehlerblase(
@@ -259,7 +289,8 @@ async def _stream_turn(
                 )
                 state = await run_turn(graph, TurnContext(req=req))
                 await _record_usage(session, req.session_id, state)
-                return _anmeldestand(state.get("early_response") or state.get("response"))
+                return _anmeldestand(state.get("early_response") or state.get("response"),
+                                     req, state)
             except LlmAusgelastet:
                 # Paket 19 (Audit N-22): Last, kein Fehler. Der Strom zeigt, was im Verlauf
                 # steht — die „ausgelastet“-Blase samt „Nochmal versuchen“ als ``result``,

@@ -69,6 +69,19 @@ _LLM_DELIVERY_CLAIM_RE = _re.compile(
 )
 
 
+def _auftrags_knoepfe_behalten(vorher: list[str], nachher: list[str]) -> list[str]:
+    """Zweites Review K2b, Befund 3: im gesperrten Lauf sind „Stand prüfen“ und „Auftrag
+    abbrechen“ der einzige Weg weiter — kein Deckel (``max_count`` bis 0, Muster, Gastgeber) darf
+    sie streichen. Sie stehen vorn; der Rest füllt bis zur alten Länge auf."""
+    from boerdi.services.ablauf.auftrag_zug import ist_knopf
+
+    fest = [q for q in vorher if isinstance(q, str) and ist_knopf(q)]
+    if all(q in nachher for q in fest):
+        return nachher
+    rest = [q for q in nachher if q not in fest]
+    return fest + rest[:max(0, len(nachher) - len(fest))]
+
+
 async def _postprocess_response_for_widget_modes(
     req: ChatRequest, resp: ChatResponse,
     classification_entities: dict | None = None,
@@ -792,6 +805,8 @@ async def _postprocess_response_for_widget_modes(
                     qrs = qrs[:_qr_max]
         except Exception:
             logger.debug("quick-reply cap enforcement failed", exc_info=True)
+        if getattr(resp, "eingabe_gesperrt", False):
+            qrs = _auftrags_knoepfe_behalten(list(resp.quick_replies or []), qrs)
 
         # ChatResponse rekonstruieren — Pydantic-Modell aufgrund von
         # Validierungsregeln kopieren wir per model_copy(update=...).

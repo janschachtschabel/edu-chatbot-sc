@@ -41,6 +41,7 @@ export class UiFortschrittElement extends HTMLElement implements NachladeElement
   private readonly zeit: HTMLParagraphElement;
   private readonly jetzt: HTMLButtonElement;
   private readonly abholen: HTMLButtonElement;
+  private readonly abbruch: HTMLButtonElement;
   private readonly status: HTMLParagraphElement;
   private angesagt = '';
   private readonly beiSichtbarkeit = () => this.ablauf.sichtbarGeworden();
@@ -64,7 +65,9 @@ export class UiFortschrittElement extends HTMLElement implements NachladeElement
     this.jetzt.type = 'button';
     this.abholen = this.knoten('button');
     this.abholen.type = 'button';
-    knoepfe.append(this.jetzt, this.abholen);
+    this.abbruch = this.knoten('button', 'f__abbruch');
+    this.abbruch.type = 'button';
+    knoepfe.append(this.jetzt, this.abholen, this.abbruch);
     this.rahmen.append(this.titel, this.balken, this.stand, this.zeit, knoepfe);
     // Bleibt über alle Zeichnungen stehen, sonst sagt ein Screenreader die Änderung nicht an.
     this.status = this.knoten('p', 'f__unsichtbar');
@@ -74,6 +77,7 @@ export class UiFortschrittElement extends HTMLElement implements NachladeElement
       if (this.jetzt.getAttribute('aria-disabled') !== 'true') void this.ablauf.pruefen();
     });
     this.abholen.addEventListener('click', () => void this.ablauf.nachpruefen());
+    this.abbruch.addEventListener('click', () => void this.ablauf.abbrechen());
   }
 
   connectedCallback(): void {
@@ -116,9 +120,11 @@ export class UiFortschrittElement extends HTMLElement implements NachladeElement
     this.zeit.textContent = a.zuletzt === null ? '' : t.zuletzt(uhrzeit(this.sprache, a.zuletzt));
     this.jetzt.textContent = t.jetzt;
     this.abholen.textContent = t.abholen;
+    this.abbruch.textContent = t.abbrechen;
     this.sichtbar(this.jetzt, !nurLesen && (a.phase === 'wartet' || a.phase === 'prueft' || a.phase === 'manuell'));
     this.jetzt.setAttribute('aria-disabled', String(a.phase === 'prueft'));
     this.sichtbar(this.abholen, !nurLesen && a.abholenAngeboten() && !this._beschaeftigt);
+    this.sichtbar(this.abbruch, !nurLesen && a.abbrechenAngeboten() && !this._beschaeftigt);
     const schluessel = `${a.phase}:${a.stoerung}`;
     if ((ANSAGEN.has(a.phase) || a.stoerung) && a.phase !== 'prueft' && this.angesagt !== schluessel) {
       this.angesagt = schluessel;

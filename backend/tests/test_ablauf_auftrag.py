@@ -157,14 +157,20 @@ class _Ablage:
     async def abschliessen(self, s, a, status):
         a.status = status
 
+    async def offene_job_ids(self, s, aufrufer):
+        return [a.job_id for a in self.auftraege if a.status == "laeuft"
+                and getattr(self.speicher.v.get(a.vorgang_id), "aufrufer", None) in aufrufer]
+
 
 @pytest.fixture
 def im_zug(monkeypatch, freigeschaltet):
     sp, ab = _Speicher(), _Ablage()
+    ab.speicher = sp
     for name in ("lesen", "juengster", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
-                 "beruehren"):
+                 "beruehren", "alle_loeschen", "anonyme_der_sitzung_loeschen",
+                 "sitzung_setzen"):
         monkeypatch.setattr(vorgaenge, name, getattr(sp, name))
-    for name in ("anlegen", "offen", "abschliessen"):
+    for name in ("anlegen", "offen", "abschliessen", "offene_job_ids"):
         monkeypatch.setattr(ablage, name, getattr(ab, name))
     for modul in (arbeitsstand, ausloeser, auftrag_zug):
         monkeypatch.setattr(modul, "has_personal_auth", lambda: True)
@@ -319,9 +325,183 @@ def test_ein_ausgeschalteter_ablauf_bricht_lauf_und_auftrag_ab(im_zug, monkeypat
     _starte(state)
     katalog = {"ablaeufe": [_roh(aktiv=False)]}
     monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
-    assert auftrag_zug.pruefen_knopf("sitzung-0123456789", state, "de") is None
+    assert auftrag_zug.pruefen_knoepfe("sitzung-0123456789", state, "de") == []
     antwort = _pruefe(state)
     assert antwort.content == bot_text("de", "action.ablauf.unbekannt")
     assert im_zug.ablage.auftraege[0].status == "abgebrochen"
     [v] = im_zug.speicher.v.values()
     assert v.akte["lauf"]["status"] == "abgebrochen"
+
+
+# ── Job-Vertrag 2026-11-07: Warnungen und Abbrechen bei der B-API ───────────────────────────
+
+@pytest.fixture
+def abbrueche(monkeypatch):
+    from boerdi.services import llm_auth
+
+    gesehen: list[str] = []
+    monkeypatch.setattr(client, "abbrechen_im_hintergrund", gesehen.append)
+    monkeypatch.setattr(llm_auth, "hat_zug_schluessel", lambda: True)
+    return gesehen
+
+
+def test_ein_teilerfolg_reist_im_teil_mit(im_zug):
+    state: dict = {"entities": {}}
+    _starte(state)
+    im_zug.staende.append(client.Stand("fertig", {"n": 3}, [], warnungen=True))
+    _pruefe(state)
+    [v] = im_zug.speicher.v.values()
+    assert v.akte["teile"]["volltext"]["wert"] == {"outputs": {"n": 3}, "dateien": [],
+                                                   "warnungen": True}
+
+
+def test_ein_abgebrochener_lauf_beendet_den_auftrag_auch_bei_der_b_api(im_zug, monkeypatch,
+                                                                       abbrueche):
+    state: dict = {"entities": {}}
+    _starte(state)
+    katalog = {"ablaeufe": [_roh(aktiv=False)]}
+    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    _pruefe(state)
+    assert abbrueche == ["job-1"]
+
+
+def test_ohne_schluessel_der_person_kein_abbruch_bei_der_b_api(im_zug, monkeypatch, abbrueche):
+    from boerdi.services import llm_auth
+
+    monkeypatch.setattr(llm_auth, "hat_zug_schluessel", lambda: False)
+    state: dict = {"entities": {}}
+    _starte(state)
+    katalog = {"ablaeufe": [_roh(aktiv=False)]}
+    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    _pruefe(state)
+    assert abbrueche == []
+
+
+def test_ein_ersetzter_lauf_beendet_seinen_auftrag_bei_der_b_api(im_zug, abbrueche):
+    state: dict = {"entities": {}}
+    _starte(state)
+    _starte(state)                  # derselbe Ablauf neu: der wartende Lauf wird ersetzt
+    assert abbrueche == ["job-1"]
+    assert [a.status for a in im_zug.ablage.auftraege] == ["abgebrochen", "laeuft"]
+
+
+def _ersetzbar(im_zug, monkeypatch):
+    """Jeder Start bekommt eine eigene Job-ID (job-1, job-2, …)."""
+    async def starten(flow, eingaben):
+        im_zug.gestartet.append((flow, eingaben))
+        return f"job-{len(im_zug.gestartet)}"
+
+    monkeypatch.setattr(client, "starten", starten)
+
+
+def test_ein_konflikt_beim_ersetzen_bricht_den_alten_auftrag_nicht_ab(im_zug, monkeypatch,
+                                                                      abbrueche):
+    """Review Job-Vertrag, Befund 1: der Abbruch geht erst nach dem Festschreiben raus — sonst
+    endete bei einem Rollback ein Auftrag, auf den der Lauf noch wartet. Der eben gestartete, nicht
+    festgehaltene endet dagegen (Befund 3)."""
+    _ersetzbar(im_zug, monkeypatch)
+    state: dict = {"entities": {}}
+    _starte(state)
+
+    async def konflikt(*_a, **_k):
+        raise vorgaenge.VorgangKonflikt("v-1")
+
+    monkeypatch.setattr(vorgaenge, "lauf_setzen", konflikt)
+    antwort = _starte(state)
+    assert antwort.content == bot_text("de", "action.ablauf.konflikt")
+    assert abbrueche == ["job-2"]
+
+
+def test_neues_vorhaben_beendet_den_wartenden_auftrag_bei_der_b_api(im_zug, abbrueche):
+    """Review Job-Vertrag, Befund 2."""
+    state: dict = {"entities": {}}
+    _starte(state)
+    # Zweites Review K2b, Befund 5: bei einem wartenden Auftrag erst die Rückfrage, dann das Ja.
+    asyncio.run(vorgang_aktion.neu(_S(), _req(action=vorgang_aktion.AKTION_NEU), state))
+    assert abbrueche == []
+    ja = {"bestaetigt": True, "kuerzel": client.kuerzel("job-1")}
+    asyncio.run(vorgang_aktion.neu(_S(), _req(action=vorgang_aktion.AKTION_NEU,
+                                              action_params=ja), state))
+    assert abbrueche == ["job-1"]
+    assert im_zug.ablage.auftraege[0].status == "abgebrochen"
+
+
+def test_arbeitsstand_loeschen_beendet_offene_auftraege_bei_der_b_api(im_zug, monkeypatch,
+                                                                      abbrueche):
+    """Review Job-Vertrag, Befund 2: die Kaskade nimmt die Zeilen mit, der Job lief weiter."""
+    from boerdi.services.dokumente import ablage as dokumente
+
+    async def kein_dokument(*_a, **_k):
+        return 0
+
+    monkeypatch.setattr(dokumente, "der_sitzung_loeschen", kein_dokument)
+    state: dict = {"entities": {}}
+    _starte(state)
+    asyncio.run(vorgang_aktion.loeschen(
+        _S(), _req(action=vorgang_aktion.AKTION_LOESCHEN, action_params={"bestaetigt": True}),
+        state))
+    assert abbrueche == ["job-1"]
+
+
+def test_ein_abgewiesener_schluessel_bricht_nicht_bei_der_b_api_ab(im_zug, monkeypatch,
+                                                                   abbrueche):
+    """Review Job-Vertrag, Befund 5: kein DELETE mit dem Schlüssel, den die b-api eben abwies."""
+    state: dict = {"entities": {}}
+    _starte(state)
+
+    async def abgewiesen(job_id):
+        raise client.AuftragFehler("abgewiesen")
+
+    monkeypatch.setattr(client, "stand", abgewiesen)
+    antwort = _pruefe(state)
+    assert antwort.content == bot_text("de", "action.ablauf.auftragAbgewiesen")
+    assert abbrueche == [] and im_zug.ablage.auftraege[0].status == "abgebrochen"
+
+
+def test_der_start_eines_anderen_ablaufs_beendet_den_wartenden_auftrag(im_zug, monkeypatch,
+                                                                       abbrueche):
+    """Review Job-Vertrag (Nachprüfung): ``_ziel_vorbereiten`` schließt den Vorgang mit dem
+    wartenden Lauf — sein Auftrag endet nach dem Festschreiben auch bei der b-api."""
+    state: dict = {"entities": {}}
+    _starte(state)
+    gruss = {"id": "gruss", "titel": {"de": "Gruß"}, "aktiv": True,
+             "ausloeser": [{"art": "knopf"}],
+             "schritte": [{"id": "ende", "typ": "ende", "text": {"de": "Hallo."}}]}
+    katalog = {"ablaeufe": [_roh(), gruss]}
+    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    asyncio.run(zug.starten(_S(), _req(action=zug.AKTION, action_params={"ablauf": "gruss"}),
+                            state))
+    assert abbrueche == ["job-1"]
+    assert im_zug.ablage.auftraege[0].status == "abgebrochen"
+
+
+def test_ein_konflikt_beim_abbrechen_sendet_kein_delete(im_zug, monkeypatch, abbrueche):
+    """Review Job-Vertrag, Befund 1 für ``zug_basis.abbrechen``: Rollback → kein Abbruch."""
+    state: dict = {"entities": {}}
+    _starte(state)
+    katalog = {"ablaeufe": [_roh(aktiv=False)]}
+    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+
+    async def konflikt(*_a, **_k):
+        raise vorgaenge.VorgangKonflikt("v-1")
+
+    monkeypatch.setattr(vorgaenge, "lauf_setzen", konflikt)
+    _pruefe(state)
+    assert abbrueche == []
+
+
+def test_ein_wartender_lauf_merkt_sein_gespraech(im_zug):
+    """Paket K2a (Review, Befund 1): „fortsetzen“ führt in das Gespräch, in dem der Lauf zuletzt zu
+    warten begann — auf einen Auftrag oder auf die Person; ein beendeter Lauf ändert es nicht."""
+    state: dict = {"entities": {}}
+    _starte(state)
+    [v] = im_zug.speicher.v.values()
+    assert v.session_id == "sitzung-0123456789"
+    lauf = {**v.akte["lauf"]}
+    fertig = treiber.Ausgabe(lauf={**lauf, "status": "fertig"})
+    asyncio.run(zug_basis.festhalten(_S(), v, fertig, session_id="gespraech-b"))
+    assert im_zug.speicher.v[v.id].session_id == "sitzung-0123456789"
+    wartet = treiber.Ausgabe(lauf={**lauf, "status": treiber.WARTET})
+    asyncio.run(zug_basis.festhalten(_S(), im_zug.speicher.v[v.id], wartet,
+                                     session_id="gespraech-b"))
+    assert im_zug.speicher.v[v.id].session_id == "gespraech-b"

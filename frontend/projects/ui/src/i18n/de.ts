@@ -75,6 +75,11 @@ export const DE: Catalogue = {
   'chat.input.label': 'Nachricht an BOERDi',
   'chat.input.placeholder': 'Nachricht eingeben…',
   'chat.input.thinking': 'Boerdi denkt nach…',
+  'chat.input.gesperrt': 'Ein Auftrag läuft – weiter geht es mit den Knöpfen.',
+  'fortsetzen.hinweis': 'In einem früheren Gespräch wartet noch „{titel}“ (zuletzt {datum}).',
+  'fortsetzen.knopf': 'Fortsetzen',
+  'fortsetzen.schliessen': 'Hinweis schließen',
+  'fortsetzen.pruefen': 'Stand prüfen',
   'chat.input.recording': 'Aufnahme läuft… Klicke Stop zum Beenden',
 
   'chat.print.learningPathTitle': 'Lernpfad als PDF drucken',
@@ -204,6 +209,7 @@ export const DE: Catalogue = {
   'error.learningPath': 'Den Lernpfad für "{title}" konnte ich leider nicht erstellen. Versuch es nochmal!',
   'error.draftFromCollection': 'Die Gliederung von "{title}" konnte ich leider nicht als Entwurf öffnen. Versuch es nochmal!',
   'error.auftragAbholen': 'Das Ergebnis des Auftrags konnte ich gerade nicht abholen. Tippe gleich noch einmal auf „Stand prüfen“.',
+  'error.auftragAbbrechen': 'Den Auftrag konnte ich gerade nicht abbrechen. Versuch es gleich noch einmal.',
   'error.tourStart': 'Entschuldigung, die Tour konnte gerade nicht gestartet werden. Bitte versuch es nochmal.',
   'error.transcription': 'Spracheingabe konnte nicht verarbeitet werden. Bitte tippe deine Nachricht.',
   /** Paket 19 (N-38): Mikrofon verweigert oder nicht vorhanden — vorher endete

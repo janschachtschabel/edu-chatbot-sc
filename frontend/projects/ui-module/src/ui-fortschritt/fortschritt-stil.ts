@@ -23,6 +23,8 @@ button {
   color: var(--mat-sys-primary); cursor: pointer;
 }
 button[aria-disabled="true"] { cursor: not-allowed; opacity: .6; }
+/* K2b: der Abbruch ist die Nebenhandlung — rechts, ohne Akzentfarbe. */
+.f__abbruch { color: var(--mat-sys-on-surface-variant); margin-inline-start: auto; }
 button:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
 .f__unsichtbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 [hidden] { display: none !important; }

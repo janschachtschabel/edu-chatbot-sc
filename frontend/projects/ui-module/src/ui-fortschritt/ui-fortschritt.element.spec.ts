@@ -20,7 +20,7 @@ function host(staende: Array<Record<string, unknown> | Error> = []): Host {
     beschaeftigt: vi.fn(() => false), antworten: vi.fn(), vormerken: vi.fn(), zweig: vi.fn(), hochladen: vi.fn(),
     ablegen: vi.fn(),
     auftrag: vi.fn(async (s: { schritt: string }) => {
-      if (s.schritt === 'abholen') return { gesendet: true };
+      if (s.schritt === 'abholen' || s.schritt === 'abbrechen') return { gesendet: true };
       const a = staende.shift() ?? { stand: 'laeuft' };
       if (a instanceof Error) throw a;
       return a;
@@ -202,5 +202,24 @@ describe('<boerdi-ui-fortschritt> (K1b)', () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(h.auftrag).not.toHaveBeenCalled();
     expect(stand(wurzel)).toBe('Dieser Auftrag ist abgeschlossen.');
+  });
+
+  it('K2b: „Auftrag abbrechen“ schickt den Abbruch (das Backend fragt nach) und fragt weiter', async () => {
+    const { h, wurzel } = erzeuge();
+    knopf(wurzel, 'Auftrag abbrechen')?.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.auftrag).toHaveBeenCalledWith({ schritt: 'abbrechen', ablauf: 'lesen' });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(schritte(h)).toEqual(['abbrechen', 'stand']);
+  });
+
+  it('K2b: kein Abbruch im Verlauf (nur lesen), während eines Zugs und nach dem Ende', async () => {
+    expect(knopf(erzeuge(host(), { nurLesen: true }).wurzel, 'Auftrag abbrechen')).toBeUndefined();
+    const beschaeftigt = erzeuge();
+    beschaeftigt.el.beschaeftigt = true;
+    expect(knopf(beschaeftigt.wurzel, 'Auftrag abbrechen')).toBeUndefined();
+    const ende = erzeuge(host([Object.assign(new Error('x'), { status: 409 })]));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(knopf(ende.wurzel, 'Auftrag abbrechen')).toBeUndefined();
   });
 });

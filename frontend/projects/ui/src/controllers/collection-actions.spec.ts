@@ -6,6 +6,7 @@ import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import {
   ablageSchritt,
+  auftragAbbrechen,
   auftragAbholen,
   auftragStand,
   CollectionActionsContext,
@@ -672,5 +673,34 @@ describe('auftragStand / auftragAbholen (K1b, Fortschritt eines Ablauf-Auftrags)
     const { ctx, calls } = makeCtx({ isLoading: () => true });
     await expect(auftragAbholen('lesen', ctx)).resolves.toEqual({ gesendet: false });
     expect(calls.sent).toEqual([]);
+  });
+});
+
+describe('auftragAbbrechen (K2b) und die Eingabesperre', () => {
+  it('abbrechen = die Direktaktion „Auftrag abbrechen“ als Zug ohne Nutzerblase', async () => {
+    const { ctx, calls } = makeCtx({ respond: () => makeResp({ content: 'Wirklich abbrechen?' }) });
+    await expect(auftragAbbrechen('lesen', ctx)).resolves.toEqual({ gesendet: true });
+    expect(calls.sent).toEqual([{
+      message: 'Auftrag abbrechen', env: undefined, action: 'ablauf_auftrag_abbrechen',
+      actionParams: { ablauf: 'lesen' },
+    }]);
+    expect(calls.bot.map((b) => b.content)).toContain('Wirklich abbrechen?');
+  });
+
+  it('während eines Zugs geht kein Abbruch', async () => {
+    const { ctx, calls } = makeCtx({ isLoading: () => true });
+    await expect(auftragAbbrechen('lesen', ctx)).resolves.toEqual({ gesendet: false });
+    expect(calls.sent).toEqual([]);
+  });
+
+  it('eine Karten-Aktion gibt die Sperre der Antwort an die Shell weiter', async () => {
+    const gesperrt: boolean[] = [];
+    const gesperrtCtx = makeCtx({ respond: () => makeResp({ content: 'läuft', eingabe_gesperrt: true }) }).ctx;
+    gesperrtCtx.setEingabeGesperrt = (g) => gesperrt.push(g);
+    await auftragAbholen('lesen', gesperrtCtx);
+    const freiCtx = makeCtx({ respond: () => makeResp({ content: 'Gelesen.' }) }).ctx;
+    freiCtx.setEingabeGesperrt = (g) => gesperrt.push(g);
+    await auftragAbholen('lesen', freiCtx);
+    expect(gesperrt).toEqual([true, false]);
   });
 });

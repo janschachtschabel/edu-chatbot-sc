@@ -58,6 +58,11 @@ export const EN: Catalogue = {
   'chat.input.label': 'Message to BOERDi',
   'chat.input.placeholder': 'Type a message…',
   'chat.input.thinking': 'Boerdi is thinking…',
+  'chat.input.gesperrt': 'A job is running – continue with the buttons.',
+  'fortsetzen.hinweis': '“{titel}” is still waiting in an earlier conversation (last activity {datum}).',
+  'fortsetzen.knopf': 'Continue',
+  'fortsetzen.schliessen': 'Close notice',
+  'fortsetzen.pruefen': 'Check status',
   'chat.input.recording': 'Recording… click Stop to finish',
 
   'chat.print.learningPathTitle': 'Print learning path as PDF',
@@ -144,6 +149,7 @@ export const EN: Catalogue = {
   'error.learningPath': 'Sorry, I could not create the learning path for “{title}”. Please try again!',
   'error.draftFromCollection': 'Sorry, I could not open the structure of “{title}” as a draft. Please try again!',
   'error.auftragAbholen': 'I could not fetch the result of the job just now. Tap “Check status” again in a moment.',
+  'error.auftragAbbrechen': 'I could not cancel the job just now. Please try again in a moment.',
   'error.tourStart': 'Sorry, the tour could not be started just now. Please try again.',
   'error.transcription': 'Voice input could not be processed. Please type your message.',
   'error.micDenied': 'I cannot reach your microphone. Allow access in your browser '
