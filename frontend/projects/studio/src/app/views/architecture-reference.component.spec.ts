@@ -277,7 +277,7 @@ describe("ArchitectureReferenceComponent — zwei Maschinen", () => {
     expect(tabelle.textContent).toContain("wissen_suchen");
     // Seit dem Review 2026-11-07 genauer: Schreibrecht = persönliche Anmeldung oder Gastkonto.
     expect(tabelle.textContent).toContain("nur mit Schreibrecht");
-    expect(tabelle.textContent).toContain("Weiter anlegen");
+    expect(tabelle.textContent).toContain("Plan fortsetzen");
   });
 
   it("nennt im MCP-Abschnitt den Antwortvertrag und das Schreiben in Plänen (Stand 2026-11-07)", () => {
@@ -285,7 +285,7 @@ describe("ArchitectureReferenceComponent — zwei Maschinen", () => {
     const wissen = el.querySelector("studio-reference-knowledge")!;
     expect(wissen.textContent).toContain("structuredContent");
     expect(wissen.textContent).toContain("07.11.2026");
-    expect(wissen.textContent).toContain("Weiter anlegen");
+    expect(wissen.textContent).toContain("Plan fortsetzen");
   });
 
   it("nennt Überlast, Ausfall-Schalter und die Anmeldung (Plan 2026-11-07, Stabilität)", () => {

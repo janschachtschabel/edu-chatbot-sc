@@ -137,9 +137,10 @@ Offen: 2 (Bindung an Scope/Herkunft) und 7. Entscheidungsvorlage und Rückmeldun
   (Paket M1).
 - Verzweigt wird über `structuredContent` (`error.code`, `confirm`, `continuationToken`), nie über deutschen
   Text; der Text ist nur Rückfall (Pakete M1/M2).
-- Pläne (`wlo_create_collection_tree`, `wlo_add_to_collections`): eingelöst nur im Vorlauf; den
+- Pläne (`wlo_create_collection_tree`, `wlo_add_to_collections`, seit K2d-3 auch `wlo_attach_fulltexts` und
+  `wlo_update_contents`): eingelöst nur im Vorlauf; den
   Fortsetzungs-Schlüssel sieht weder die Person noch das Modell, fortsetzen darf nur dieselbe Person mit
-  Schreibrecht über „Weiter anlegen“ (Paket M5).
+  Schreibrecht über „Plan fortsetzen“ (Paket M5).
 
 ## 6. Beobachtungen aus dem Betrieb
 

@@ -466,7 +466,7 @@ Danach berichtest du, was **tatsächlich** ankam, samt abweichend übernommener 
 verworfener Felder.
 Viele Untersammlungen auf einmal legt `wlo_create_collection_tree` an, viele Materialien
 sortiert `wlo_add_to_collections` ein — je **eine** Vorschau und **ein** Ja für alles. Wird ein
-großer Plan nicht in einem Zug fertig, bietet der Chat selbst „Weiter anlegen“ an; du setzt
+großer Plan nicht in einem Zug fertig, bietet der Chat selbst „Plan fortsetzen“ an; du setzt
 nicht fort. Das Ja zu einem solchen Plan löst der Chat selbst ein — ruf das Werkzeug nicht erneut
 auf, das ergäbe nur eine neue Vorschau.
 **Nicht:** Vorschau und Ausführung nie in einem Zug; eine Vorschau nie als vollzogen
