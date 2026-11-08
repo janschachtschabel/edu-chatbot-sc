@@ -246,6 +246,22 @@
     [debug]="latestDebug()" [ui]="latestUi()" [translate]="translate()" [show]="showDebug()"
   />
 
+  <!-- Paket K2a: ein Ablauf der angemeldeten Person wartet in einem anderen Gespräch. Die Live-Region
+       steht immer im DOM (Review K2a, Befund 5): eine schon gefüllt eingefügte sagen Screenreader oft
+       nicht an; nur ihr Inhalt wechselt. -->
+  <div class="fortsetzen-ort" role="status">
+    @if (fortsetzen.angebot(); as angebot) {
+      <div class="fortsetzen-hinweis">
+        <span class="fortsetzen-hinweis__text">{{ t('fortsetzen.hinweis', { titel: angebot.titel, datum: fortsetzenDatum(angebot) }) }}</span>
+        <button type="button" class="fortsetzen-hinweis__los" (click)="onFortsetzen()" [disabled]="isLoading()">
+          {{ t('fortsetzen.knopf') }}
+        </button>
+        <button type="button" class="fortsetzen-hinweis__zu" (click)="onFortsetzenSchliessen()"
+                [title]="t('fortsetzen.schliessen')" [attr.aria-label]="t('fortsetzen.schliessen')">×</button>
+      </div>
+    }
+  </div>
+
   <!-- Eingabe-Footer (ALT 609-632) -->
   <div class="chat-footer">
     @if (languageButtonsVisible) {
@@ -284,7 +300,8 @@
       (keydown)="onKeydown($event)"
       [placeholder]="isRecording
         ? t('chat.input.recording')
-        : (isLoading() ? t('chat.input.thinking') : t('chat.input.placeholder'))"
+        : (isLoading() ? t('chat.input.thinking')
+          : (eingabeGesperrt() ? t('chat.input.gesperrt') : t('chat.input.placeholder')))"
       [disabled]="isLoading() || isRecording"
     />
     <!-- Bleibt handgeschrieben: `matIconButton` kennt in Material 21 keine

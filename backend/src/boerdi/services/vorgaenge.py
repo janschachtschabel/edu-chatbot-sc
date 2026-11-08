@@ -7,9 +7,12 @@ und frühere Fassungen liegen in ``vorgang_ablage``; die Akte bleibt klein.
 
 Regeln: Lesen und Schreiben nur mit derselben ``aufrufer``-Kennung (bestätigte Person oder
 ``sitzung:<id>``, nie aus Eingaben); abgelaufen ist sofort unlesbar; höchstens
-:data:`MAX_JE_PERSON` je Besitzerin (abgeschlossene weichen zuerst, sonst der älteste); jede
-Änderung prüft ``akte_version`` (:class:`VorgangKonflikt` statt still zu überschreiben). Der
-Aufrufer schreibt die Transaktion fest.
+:data:`MAX_JE_PERSON` je Besitzerin (abgeschlossene weichen zuerst, sonst der älteste; ein Vorgang,
+dessen Lauf auf einen Auftrag wartet, nie — Paket K2a); jede Änderung prüft ``akte_version``
+(:class:`VorgangKonflikt` statt still zu überschreiben). Der Aufrufer schreibt die Transaktion fest.
+
+Frist (Paket K2a, Plan 2026-11-08, V-4): sonst ``tage`` nach der letzten Nutzung; wartet der Lauf
+auf einen Auftrag, mindestens :data:`WARTET_AUFTRAG_TAGE`, höchstens :data:`HOECHSTENS_TAGE`.
 """
 
 from __future__ import annotations
@@ -37,6 +40,16 @@ HISTORIE: Final = 5
 #: (Review Q3, Befund 12); sie gehen mit dem Vorgang.
 MIT_HISTORIE: Final = frozenset({"draft"})
 ABGESCHLOSSEN: Final = ("fertig", "abgebrochen")
+#: Status eines Vorgangs, dessen Lauf auf einen b-api-Auftrag wartet (``zug_basis.STATUS``).
+WARTET_AUFTRAG: Final = "wartet_auftrag"
+#: Läuft — so findet die Person ihn über :func:`offene` wieder (auf einen Auftrag oder auf sie).
+WARTEND: Final = (WARTET_AUFTRAG, "wartet_person")
+#: Paket K2a (V-4): der Job läuft bei der b-api bis zu 24 h (``deadlineAt``, Job-Vertrag
+#: 2026-11-07), seine Ein- und Ausgaben liegen dort danach 7 Tage — so lange bleibt der Vorgang
+#: mindestens. simplify: ein fester Wert statt ``deadlineAt`` je Job (die b-api setzt bisher immer
+#: Start + 24 h); hält sie Flows einmal länger, ``deadlineAt`` in ``vorgang_auftraege`` merken.
+WARTET_AUFTRAG_TAGE: Final = 8
+HOECHSTENS_TAGE: Final = 30
 
 
 class VorgangKonflikt(Exception):
@@ -47,6 +60,20 @@ def _jetzt() -> datetime:
     return datetime.now(UTC)
 
 
+def _tage_fuer(status: str, tage: float) -> float:
+    if status != WARTET_AUFTRAG:
+        return tage
+    return min(HOECHSTENS_TAGE, max(tage, WARTET_AUFTRAG_TAGE))
+
+
+def _frist(tage: float) -> Any:
+    """Die neue Frist als SQL, nach dem Status der Zeile (Lesen und Teile ändern ihn nicht)."""
+    jetzt = _jetzt()
+    return case((Vorgang.status == WARTET_AUFTRAG,
+                 jetzt + timedelta(days=_tage_fuer(WARTET_AUFTRAG, tage))),
+                else_=jetzt + timedelta(days=tage))
+
+
 def leere_akte() -> dict[str, Any]:
     return {"format": FORMAT, "teile": {}, "historie": {}, "lauf": None}
 
@@ -54,14 +81,19 @@ def leere_akte() -> dict[str, Any]:
 async def anlegen(s: AsyncSession, *, aufrufer: str, session_id: str | None, titel: str,
                   zweck: str, tage: float) -> Vorgang:
     """Einen neuen Vorgang anlegen; über der Grenze weicht der älteste (abgeschlossene zuerst).
-    Zählen und Verdrängen laufen unter einer Sperre je Besitzerin (Review V1, Befund 8)."""
+    Zählen und Verdrängen laufen unter einer Sperre je Besitzerin (Review V1, Befund 8).
+
+    Ein Vorgang, dessen Lauf auf einen Auftrag wartet, weicht nie (Paket K2a): sein Job liefe bei
+    der b-api ohne Besitzer weiter, und die Person fände ihn nicht wieder. Warten mehr als
+    :data:`MAX_JE_PERSON`, liegt die Zahl darüber — die b-api begrenzt die offenen Jobs selbst."""
     await s.execute(text("SELECT pg_advisory_xact_lock(hashtext(:a))"), {"a": aufrufer})
     vorhanden = (await s.execute(
-        select(Vorgang.id).where(Vorgang.aufrufer == aufrufer).order_by(
+        select(Vorgang.id, Vorgang.status).where(Vorgang.aufrufer == aufrufer).order_by(
             case((Vorgang.status.in_(ABGESCHLOSSEN), 0), else_=1), Vorgang.geaendert)
-    )).scalars().all()
-    if (zu_viel := len(vorhanden) - MAX_JE_PERSON + 1) > 0:
-        await s.execute(delete(Vorgang).where(Vorgang.id.in_(vorhanden[:zu_viel])))
+    )).all()
+    weichen = [z.id for z in vorhanden if z.status != WARTET_AUFTRAG]
+    if (zu_viel := len(vorhanden) - MAX_JE_PERSON + 1) > 0 and weichen:
+        await s.execute(delete(Vorgang).where(Vorgang.id.in_(weichen[:zu_viel])))
     jetzt = _jetzt()
     v = Vorgang(id=str(uuid.uuid4()), aufrufer=aufrufer, session_id=session_id,
                 titel=titel[:120], zweck=zweck, status="aktiv", akte=leere_akte(), akte_version=0,
@@ -99,10 +131,30 @@ async def juengster(s: AsyncSession, aufrufer: str) -> Vorgang | None:
     return (await s.execute(stmt)).scalar_one_or_none()
 
 
+async def offene(s: AsyncSession, aufrufer: str, *, ohne: str | None = None) -> list[Vorgang]:
+    """Paket K2a: die Vorgänge der Besitzerin, deren Lauf wartet (auf einen Auftrag oder auf sie),
+    mit dem Gespräch, in dem das geschah — außer ``ohne`` (dem aktuellen). Jüngste zuerst."""
+    stmt = (select(Vorgang)
+            .where(Vorgang.aufrufer == aufrufer, Vorgang.verfaellt_am > _jetzt(),
+                   Vorgang.status.in_(WARTEND), Vorgang.session_id.is_not(None))
+            .order_by(Vorgang.geaendert.desc())
+            .execution_options(populate_existing=True))
+    if ohne is not None:
+        stmt = stmt.where(Vorgang.session_id != ohne)
+    return list((await s.execute(stmt)).scalars())
+
+
+async def sitzung_setzen(s: AsyncSession, vorgang_id: str, session_id: str) -> None:
+    """Paket K2a: das Gespräch, in dem der Auftrag startete — dorthin führt „fortsetzen“."""
+    await s.execute(update(Vorgang).where(Vorgang.id == vorgang_id)
+                    .values(session_id=session_id)
+                    .execution_options(synchronize_session=False))
+
+
 async def beruehren(s: AsyncSession, vorgang_id: str, *, tage: float) -> None:
     """Nutzung vermerken (auch beim Lesen): die Frist beginnt neu (Review V1, Befund 14)."""
     await s.execute(update(Vorgang).where(Vorgang.id == vorgang_id)
-                    .values(verfaellt_am=_jetzt() + timedelta(days=tage))
+                    .values(verfaellt_am=_frist(tage))
                     .execution_options(synchronize_session=False))
 
 
@@ -158,7 +210,7 @@ async def teil_setzen(s: AsyncSession, v: Vorgang, name: str, *, typ: str, wert:
     teile[name] = eintrag
     ergebnis = await s.execute(
         update(Vorgang).where(Vorgang.id == v.id)
-        .values(akte=akte, geaendert=jetzt, verfaellt_am=jetzt + timedelta(days=tage))
+        .values(akte=akte, geaendert=jetzt, verfaellt_am=_frist(tage))
         .returning(Vorgang)
         .execution_options(synchronize_session=False, populate_existing=True))
     return ergebnis.scalar_one()
@@ -290,7 +342,7 @@ async def lauf_setzen(s: AsyncSession, v: Vorgang, lauf: dict[str, Any] | None, 
     ergebnis = await s.execute(
         update(Vorgang).where(Vorgang.id == v.id, Vorgang.akte_version == v.akte_version)
         .values(akte=akte, akte_version=v.akte_version + 1, status=status, geaendert=jetzt,
-                verfaellt_am=jetzt + timedelta(days=tage))
+                verfaellt_am=jetzt + timedelta(days=_tage_fuer(status, tage)))
         .returning(Vorgang)
         .execution_options(synchronize_session=False, populate_existing=True))
     neu = ergebnis.scalar_one_or_none()

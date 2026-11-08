@@ -36,6 +36,7 @@ import { formatPhaseLabel } from '../stream/phase-label';
 import {
   browseCollection, editCollectionAsDraft, generateLearningPath, loadMore, showContentText, showMoreCards,
   ablageSchritt,
+  auftragAbbrechen,
   auftragAbholen,
   auftragStand,
   dokumentLesen,
@@ -47,6 +48,7 @@ import { SpeechService } from '../speech/speech.service';
 import { CORE_TRUSTED_DOMAINS } from '../session/trusted-host';
 import { runSignIn } from '../session/sign-in-flow';
 import { authButtonState } from '../session/auth-button';
+import { FortsetzenController, type OffenerVorgang, fortsetzenDatum } from './fortsetzen';
 import {
   clearAccessBlock, clearSignedOut, isSignedOut, markSignedOut, readAccessBlock,
 } from '../session/mcp-access';
@@ -123,6 +125,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly latestDebug = signal<DebugInfo | null>(null);
   /** `ui` der jüngsten Antwort: was das Debug-Panel ohne Debug-Block zeigt. */
   readonly latestUi = signal<UiInfo | null>(null);
+  /** K2b: ein Auftragsschritt mit `warten: gesperrt` wartet — das Eingabefeld zeigt den Hinweis als
+   *  Platzhalter, bis eine Antwort ohne die Marke kommt. Bewusst eine WEICHE Sperre (zweites Review
+   *  K2b): das Feld bleibt bedienbar, damit eine Krisennachricht immer getippt werden kann; anderes
+   *  Getippte beantwortet das Backend mit dem Hinweis samt Knöpfen. Nach dem Neuladen zunächst ohne
+   *  Hinweis — die nächste Antwort setzt ihn wieder. */
+  readonly eingabeGesperrt = signal(false);
 
   // ── Turn-/Integrations-Zustand (8-4S-d2a) ───────────────────────
   /** Session-ID des Chats (aufgelöst in `ngOnInit`, 8-4S-e; Tests setzen direkt). */
@@ -340,7 +348,9 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       (signal) => ablageSchritt(blockId, schritt, this._contexts.collectionActions, signal)),
     auftrag: (schritt) => schritt.schritt === 'abholen'
       ? auftragAbholen(schritt.ablauf, this._contexts.collectionActions)
-      : this._mitAbbruch((signal) => auftragStand(schritt.ablauf, schritt.kuerzel, this._contexts.collectionActions, signal)),
+      : schritt.schritt === 'abbrechen'
+        ? auftragAbbrechen(schritt.ablauf, this._contexts.collectionActions)
+        : this._mitAbbruch((signal) => auftragStand(schritt.ablauf, schritt.kuerzel, this._contexts.collectionActions, signal)),
     mehrLaden: (nachrichtId) => void this.loadMoreCards(nachrichtId),
   };
 
@@ -447,6 +457,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     removeMessage: (id) => this._store.removeMessage(id),
     setScrollTarget: (id) => { this._scroll.setScrollTarget(id); },
     setLatestDebug: (debug, ui) => this._setzeLetzte(debug, ui),
+    setEingabeGesperrt: (gesperrt) => this.eingabeGesperrt.set(gesperrt),
     dispatchPageAction: (pa) => this.dispatchPageAction(pa),
     messagesContainer: () => this._messagesContainer()?.nativeElement,
     emitGuideSuggestion: () => this.emitGuideSuggestion(),
@@ -688,6 +699,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     // Paket 19 (Audit 2026-10-31 N-33): erst, was der Zug selbst verlangt —
     // Schreibvorgang, abgewiesene Anmeldung, Vorlesen —, dann die Rückrufe und
     // Ereignisse der Gastseite. Ein werfender Rückruf nahm sonst alles danach mit.
+    this.eingabeGesperrt.set(resp.eingabe_gesperrt === true);
     if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
     if (resp.auth_invalid) this._anmeldungAbgewiesen();
     else this._frist.planen(resp.auth_expires_at);
@@ -826,6 +838,57 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Neuladen des Tabs) und nach jedem An-/Abmelden. */
   private readonly _hasAccessBlock = signal(readAccessBlock() !== null);
 
+  /** Paket K2a: „Gespräch fortsetzen“ — ein Ablauf der angemeldeten Person wartet in einem anderen
+   *  Gespräch. Gefragt wird, sobald ein Block da ist und kein Zug läuft (einmal je Gespräch). */
+  readonly fortsetzen = new FortsetzenController({
+    abrufen: (sid) => this._api.offeneVorgaenge(sid),
+    sessionId: () => this.sessionId,
+    block: () => readAccessBlock(),
+  });
+  /** Zählt Anlässe, neu zu fragen, die kein anderes Signal trägt: ein neuer Block (Ticket-Tausch,
+   *  Anmeldung — Review K2a, Befund 2/3), ein Neustart (Befund 8). */
+  private readonly _fortsetzenAnlass = signal(0);
+  private readonly _fortsetzenFragen = effect(() => {
+    this._fortsetzenAnlass();
+    if (!this._hasAccessBlock() || this.isLoading()) return;
+    untracked(() => { void this.fortsetzen.pruefen().then(() => this._cdr.markForCheck()); });
+  });
+
+  /** Ein neuer Block oder ein neues Gespräch: altes Angebot weg, neu fragen. */
+  private _fortsetzenNeu(): void {
+    this.fortsetzen.vergessen();
+    this._fortsetzenAnlass.update((n) => n + 1);
+  }
+
+  /** Datum des Angebots in der Sprache des Widgets. */
+  fortsetzenDatum(v: OffenerVorgang): string {
+    return fortsetzenDatum(v.geaendert, this.locale());
+  }
+
+  /** Klick auf „Fortsetzen“: auf das Gespräch des Vorgangs wechseln und seinen Verlauf laden. Wartet
+   *  dort ein Auftrag, fragt „Stand prüfen“ gleich nach ihm — fertig heißt dann: das Ergebnis wird
+   *  abgeholt und der Ablauf geht weiter; sonst kommen „läuft noch“ und die Knöpfe. */
+  async onFortsetzen(): Promise<void> {
+    const v = this.fortsetzen.gueltiges();
+    if (!v || this.isLoading()) return;
+    this.fortsetzen.verwerfen();
+    this.eingabeGesperrt.set(false);
+    // Review K2a, Befund 4: `wechseln` hält das Laden, bis der Verlauf da ist — sonst landete eine
+    // getippte Nachricht vor ihm, und „Stand prüfen“ fiele danach still aus.
+    const gewechselt = await this._lifecycle.wechseln(v.session_id);
+    if (gewechselt && v.status === 'wartet_auftrag' && v.ablauf) {
+      this.sendMessage(this.t('fortsetzen.pruefen'), 'ablauf_auftrag_pruefen', { ablauf: v.ablauf });
+    }
+    this._cdr.markForCheck();
+    this.focusInput();   // Befund 5: der geklickte Knopf ist weg — der Fokus nicht ins Leere
+  }
+
+  /** × am Hinweis: schließen, Fokus zurück in die Eingabe (Review K2a, Befund 5). */
+  onFortsetzenSchliessen(): void {
+    this.fortsetzen.verwerfen();
+    this.focusInput();
+  }
+
   /** Welches Ticket schon getauscht wurde — der Effect unten feuert bei jedem
    *  Signal-Lauf, der Tausch soll je Wert genau einmal laufen. */
   private _ticketTried = '';
@@ -873,6 +936,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       }
       if (ausgang === 'done') {
         this._hasAccessBlock.set(readAccessBlock() !== null);
+        this._fortsetzenNeu();   // K2a: ein neuer Block kann einer anderen Person gehören
         this._cdr.markForCheck();
         return true;
       }
@@ -925,6 +989,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     clearAccessBlock();
     this._hasAccessBlock.set(false);
     this._frist.vergessen();
+    this.fortsetzen.vergessen();
     // Nach einem Abmelden ist eine Abweisung keine Nachricht wert (Review 2026-11-07, Befund 8).
     if (isSignedOut()) return;
     // Plan 2026-11-07 (R1): ein Ticket-Block lief nach 12 h ab — still neu tauschen, einmal je
@@ -954,6 +1019,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       clearAccessBlock();
       markSignedOut();
       this._frist.vergessen();
+      this.fortsetzen.vergessen();
       this._hasAccessBlock.set(false);
       void (block ? this._api.abmelden(block) : Promise.resolve(false)).then((beendet) => {
         this._store.addBotMessage(this.t(beendet ? 'auth.signedOut' : 'auth.signedOutLocal'));
@@ -973,6 +1039,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       // Eine Anmeldung von Hand hebt das Abmelden auf (R2/CB-9).
       if (angemeldet) clearSignedOut();
       this._hasAccessBlock.set(angemeldet);
+      this._fortsetzenNeu();     // K2a: nach der Anmeldung fragen, mit diesem Block
     });
   }
 
@@ -1225,12 +1292,16 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
 
   /** Public API: frische Session + Begrüßung (Header-Restart). */
   restart(): void {
+    this.eingabeGesperrt.set(false);
     this._lifecycle.restart();
+    this._fortsetzenNeu();
   }
 
   /** Public API: Session leeren und frisch starten (Host-Seite). */
   resetSession(): void {
+    this.eingabeGesperrt.set(false);
     this._lifecycle.resetSession();
+    this._fortsetzenNeu();
   }
 
   /** Public API: Seitenkontext zur Laufzeit ergänzen (SPA ohne Reload). */

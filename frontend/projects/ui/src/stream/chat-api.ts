@@ -21,6 +21,7 @@ import { MCP_ACCESS_HEADER } from '../session/mcp-access';
 import { ablageSenden } from './ablage-transport';
 import { type DokumentBefund, dokumentHochladen } from './dokument-transport';
 import { verlaufAbrufen } from './history-transport';
+import { type OffenerVorgang, offeneVorgaengeLesen } from './offene-vorgaenge';
 import { ChatStreamEvent, postChat, streamChat } from './stream-client';
 
 /** Antwort auf einen abfragenden UI-Block (Paket U1-d1, `ChatRequest.ui_antwort`). `message`
@@ -528,6 +529,21 @@ export class ChatApiClient {
     });
     if (!AUFTRAG_STAENDE.has(antwort?.stand)) throw new Error('Auftrag: unbekannter Stand');
     return { stand: antwort.stand as string };
+  }
+
+  /** Wartende Vorgänge der angemeldeten Person in anderen Gesprächen (K2a,
+   *  `POST /api/ui/vorgaenge/offen`): kein Zug; der Zugangsblock reist mit. Wirft bei jedem Fehler
+   *  und bei einer Antwort ohne Liste; unbrauchbare Einträge fallen still weg. */
+  async offeneVorgaenge(sessionId: string, signal?: AbortSignal): Promise<OffenerVorgang[]> {
+    await this.anmeldung;
+    const antwort = await postChat<unknown>({
+      url: `${this.baseUrl}/ui/vorgaenge/offen`,
+      body: { session_id: sessionId },
+      fetchImpl: this.fetchImpl,
+      fristMs: AUFTRAG_FRIST_MS,
+      signal,
+    });
+    return offeneVorgaengeLesen(antwort);
   }
 
   // ── Sprach-Transport (STT/TTS) ──────────────────────────────────
