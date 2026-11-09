@@ -70,7 +70,7 @@
       },
       "freitext": {
         "type": "boolean",
-        "description": "true: zusaetzlich ein Feld fuer eine eigene Ergaenzung (hoechstens 1000 Zeichen); Vorgabe aus."
+        "description": "true: zusaetzlich die Moeglichkeit 'Eigene Antwort' mit einem Freitextfeld (hoechstens 1000 Zeichen); Vorgabe aus. Bei Einzelwahl ist sie eine Alternative zu den festen Moeglichkeiten, bei Mehrfachwahl kommt sie dazu."
       }
     }
   },
@@ -83,10 +83,10 @@
     "properties": {
       "gewaehlt": {
         "type": "array",
-        "minItems": 1,
+        "minItems": 0,
         "maxItems": 8,
         "uniqueItems": true,
-        "description": "Die Kennungen (id) der gewaehlten Moeglichkeiten.",
+        "description": "Die Kennungen (id) der gewaehlten Moeglichkeiten; leer, wenn die Person nur eine eigene Antwort gab.",
         "items": {
           "type": "string",
           "pattern": "^[a-z0-9_-]{1,40}$"
@@ -95,7 +95,7 @@
       "freitext": {
         "type": "string",
         "maxLength": 1000,
-        "description": "Die eigene Ergaenzung der Person, nur wenn das Modul ein Freitextfeld zeigte."
+        "description": "Die eigene Antwort der Person, nur wenn das Modul sie anbot und die Person sie waehlte."
       }
     }
   },

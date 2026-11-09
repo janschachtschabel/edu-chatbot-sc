@@ -24,11 +24,15 @@ const FREITEXT_MAX = 1000;
 
 const TEXTE = {
   de: {
-    antworten: 'Antworten', freitext: 'Eigene Ergänzung (optional)', mehrfach: 'Mehrere Antworten möglich.',
+    antworten: 'Antworten', eigen: 'Eigene Antwort', mehrfach: 'Mehrere Antworten möglich.',
+    eigenHinweisEinzel: 'Schreiben wählt „Eigene Antwort“ statt der Möglichkeiten oben.',
+    eigenHinweisMehrfach: 'Schreiben wählt „Eigene Antwort“ mit aus.',
     beantwortet: 'Deine Antwort', veraltet: 'Diese Frage ist nicht mehr offen.',
   },
   en: {
-    antworten: 'Answer', freitext: 'Your own addition (optional)', mehrfach: 'You can choose more than one.',
+    antworten: 'Answer', eigen: 'Your own answer', mehrfach: 'You can choose more than one.',
+    eigenHinweisEinzel: 'Typing selects “Your own answer” instead of the options above.',
+    eigenHinweisMehrfach: 'Typing also selects “Your own answer”.',
     beantwortet: 'Your answer', veraltet: 'This question is no longer open.',
   },
 } as const;
@@ -45,6 +49,13 @@ const TEXTE = {
  * Radio bzw. Checkbox bringen Tastatur (Pfeile, Leertaste) und Zustand für Screenreader mit,
  * Enter sendet das Formular. Nur lesend (`kontext().nurLesen`): beantwortet mit der gegebenen
  * Antwort, sonst ehrlich als nicht mehr offen.
+ *
+ * Mit `freitext` ist die eigene Antwort ein Punkt der Gruppe („Eigene Antwort“, Rückmeldung
+ * 2026-11-09): bei Einzelwahl ein Radio wie die anderen — wer schreibt, wählt ihn, und die Wahl oben
+ * springt heraus; wer wieder oben wählt, schickt den Text nicht mit. Bei Mehrfachwahl eine Checkbox:
+ * abgehakt geht der Text nicht mit. Vorher schickte, wer oben wählte und dann schrieb, beides.
+ * Ins Feld springt der Fokus nur nach einem Klick mit Maus oder Finger (Review, Befund 1, WCAG
+ * 3.2.2): Pfeiltasten wählen in der Radio-Gruppe ebenfalls, und dort muss die Gruppe bleiben.
  */
 @Component({
   selector: 'ui-entscheidung',
@@ -71,17 +82,30 @@ const TEXTE = {
               </span>
             </label>
           }
+          @if (daten().freitext) {
+            <label class="ui-entscheidung__option" (pointerdown)="zeiger = true">
+              <input data-eigen [type]="mehrfach() ? 'checkbox' : 'radio'" [name]="gruppe()" value=""
+                     [checked]="eigenAngehakt()" (change)="eigenUmschalten($event)" (click)="eigenKlick($event)"
+                     [attr.aria-controls]="kontext().nurLesen ? null : kennung('eingabe-freitext')" />
+              <span class="ui-entscheidung__text">
+                <span class="ui-entscheidung__label" [id]="kennung('eingabe-eigen')">{{ texte().eigen }}</span>
+              </span>
+            </label>
+            @if (!kontext().nurLesen) {
+              <textarea #freitextFeld class="ui-entscheidung__freitext" [id]="kennung('eingabe-freitext')" rows="2"
+                        [maxLength]="freitextMax" [attr.aria-labelledby]="kennung('eingabe-eigen')"
+                        [attr.aria-describedby]="kennung('eingabe-eigen-hinweis')"
+                        [value]="freitext()" (input)="freitextEingabe($event)"></textarea>
+              <span class="ui-entscheidung__nur-vorlesen" [id]="kennung('eingabe-eigen-hinweis')">{{
+                mehrfach() ? texte().eigenHinweisMehrfach : texte().eigenHinweisEinzel }}</span>
+            }
+          }
         </div>
-        @if (daten().freitext && !kontext().nurLesen) {
-          <label class="ui-entscheidung__freitext-label" [for]="kennung('eingabe-freitext')">{{ texte().freitext }}</label>
-          <textarea class="ui-entscheidung__freitext" [id]="kennung('eingabe-freitext')" rows="2" [maxLength]="freitextMax"
-                    [value]="freitext()" (input)="freitext.set(wert($event))"></textarea>
-        }
       </fieldset>
       @if (kontext().nurLesen) {
         <p #statusZeile class="ui-entscheidung__status" tabindex="-1">{{ status() }}</p>
       } @else {
-        <button type="submit" class="ui-entscheidung__senden" [disabled]="!auswahl().length"
+        <button type="submit" class="ui-entscheidung__senden" [disabled]="!bereit()"
                 [attr.aria-disabled]="beschaeftigt() ? 'true' : null">{{ texte().antworten }}</button>
       }
     </form>
@@ -94,6 +118,7 @@ export class UiEntscheidung {
   private readonly host = inject(MODUL_HOST);
   private readonly injector = inject(Injector);
   private readonly statusZeile = viewChild<ElementRef<HTMLElement>>('statusZeile');
+  private readonly freitextFeld = viewChild<ElementRef<HTMLTextAreaElement>>('freitextFeld');
 
   protected readonly freitextMax = FREITEXT_MAX;
   protected readonly texte = computed(() => TEXTE[this.kontext().sprache]);
@@ -102,6 +127,14 @@ export class UiEntscheidung {
 
   protected readonly auswahl = signal<readonly string[]>([]);
   protected readonly freitext = signal('');
+  /** Der Punkt „Eigene Antwort“ ist gewählt — nur dann geht der Text mit. */
+  protected readonly eigen = signal(false);
+  /** Was mit der Antwort mitgeht: der Text, wenn „Eigene Antwort“ gewählt und er nicht leer ist. */
+  private readonly eigeneAntwort = computed(() =>
+    this.daten().freitext && this.eigen() ? this.freitext().trim().slice(0, FREITEXT_MAX) : '');
+  protected readonly bereit = computed(() => this.auswahl().length > 0 || this.eigeneAntwort() !== '');
+  /** Review, Befund 1: der letzte Druck auf „Eigene Antwort“ kam von Maus oder Finger. */
+  protected zeiger = false;
 
   /** Die gegebene Antwort, solange nur gelesen wird — sonst die eigene Wahl. */
   private readonly gegeben = computed<UiEntscheidungAntwort | null>(() => {
@@ -112,14 +145,18 @@ export class UiEntscheidung {
   protected readonly gewaehlt = computed<readonly string[]>(() =>
     this.kontext().nurLesen ? (this.gegeben()?.gewaehlt ?? []) : this.auswahl());
 
+  /** Review, Befund 3: nur lesend ist „Eigene Antwort“ angehakt, wenn die Antwort einen Text trug. */
+  protected readonly eigenAngehakt = computed(() =>
+    this.kontext().nurLesen ? !!this.gegeben()?.freitext?.trim() : this.eigen());
+
   protected readonly beschaeftigt = computed(() => this.host.beschaeftigt());
-  protected readonly gesperrt = computed(() => !this.auswahl().length || this.beschaeftigt());
+  protected readonly gesperrt = computed(() => !this.bereit() || this.beschaeftigt());
 
   protected readonly status = computed(() => {
     const a = this.gegeben();
     if (!a) return this.texte().veraltet;
-    const zusatz = a.freitext?.trim() ? ` — ${a.freitext.trim()}` : '';
-    return `${this.texte().beantwortet}: ${this.labels(a.gewaehlt).join(', ')}${zusatz}`;
+    const teile = [this.labels(a.gewaehlt).join(', '), a.freitext?.trim() ?? ''].filter(Boolean);
+    return `${this.texte().beantwortet}: ${teile.join(' — ')}`;
   });
 
   /** Eine id im Block. Getrennte Namensräume (Review U1-d1): `opt-<id>` für Möglichkeiten,
@@ -129,13 +166,36 @@ export class UiEntscheidung {
     return `${this.gruppe()}-${teil}`;
   }
 
-  protected wert(ereignis: Event): string {
-    return (ereignis.target as HTMLTextAreaElement).value;
+  /** Schreiben wählt „Eigene Antwort“ (bei Einzelwahl springt die Wahl oben heraus). */
+  protected freitextEingabe(ereignis: Event): void {
+    const text = (ereignis.target as HTMLTextAreaElement).value;
+    this.freitext.set(text);
+    if (text.trim() && !this.eigen()) this.eigenWaehlen(true);
+  }
+
+  /** „Eigene Antwort“ gewählt oder abgehakt — mit Maus, Finger oder Tastatur. Der Zustand kommt
+   *  aus dem Element selbst (Radio: immer an, Checkbox: wie angehakt). */
+  protected eigenUmschalten(ereignis: Event): void {
+    this.eigenWaehlen((ereignis.target as HTMLInputElement).checked);
+  }
+
+  /** Nach einem Klick mit Maus oder Finger ins Textfeld — nicht nach Pfeil- oder Leertaste
+   *  (Review, Befund 1): die feuern ebenfalls `click`, aber ohne `pointerdown` davor. */
+  protected eigenKlick(ereignis: Event): void {
+    const mitZeiger = this.zeiger;
+    this.zeiger = false;
+    if (mitZeiger && (ereignis.target as HTMLInputElement).checked) this.freitextFeld()?.nativeElement.focus();
+  }
+
+  private eigenWaehlen(an: boolean): void {
+    this.eigen.set(an);
+    if (an && !this.mehrfach()) this.auswahl.set([]);
   }
 
   protected umschalten(id: string): void {
     if (!this.mehrfach()) {
       this.auswahl.set([id]);
+      this.eigen.set(false);
       return;
     }
     this.auswahl.update((liste) => (liste.includes(id) ? liste.filter((k) => k !== id) : [...liste, id]));
@@ -150,7 +210,7 @@ export class UiEntscheidung {
     ereignis.preventDefault();
     if (this.kontext().nurLesen || this.gesperrt()) return;
     const gewaehlt = this.daten().optionen.map((o) => o.id).filter((id) => this.auswahl().includes(id));
-    const zusatz = this.daten().freitext ? this.freitext().trim().slice(0, FREITEXT_MAX) : '';
+    const zusatz = this.eigeneAntwort();
     const daten: Record<string, unknown> = zusatz ? { gewaehlt, freitext: zusatz } : { gewaehlt };
     this.host.antworten(daten, [this.labels(gewaehlt).join(', '), zusatz].filter(Boolean).join('\n'));
     // Die Shell vermerkt die Antwort sofort: der Knopf verschwindet, die Statuszeile erscheint.

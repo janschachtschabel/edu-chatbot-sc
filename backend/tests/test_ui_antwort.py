@@ -110,7 +110,8 @@ def test_mehrfachwahl_mit_freitext_wenn_das_modul_es_anbot(monkeypatch):
     ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": ["z"]}}, None),            # gefälschte Option
     ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": ["a", "b"]}}, None),       # Einzelwahl, zwei
     ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": ["a"], "freitext": "x"}}, None),  # kein Feld
-    ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": []}}, None),               # gegen ``antwort``
+    ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": []}}, None),               # weder Wahl noch Text
+    ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": [], "freitext": "x"}}, None),  # kein Feld
     ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": ["a"], "mehr": 1}}, None),
     ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": ["a"]}}, False),           # alte Frage
     ({"block_id": _BLOCK_ID, "daten": {"gewaehlt": ["a"]}},
@@ -122,6 +123,35 @@ def test_eine_ungueltige_antwort_faellt_weg_und_zaehlt_wie_getippt(monkeypatch, 
     assert ctx.req.ui_antwort is None
     assert ctx.req.message == "Klasse 6"
     assert OFFENE_FRAGE not in ctx.session_state["entities"]
+
+
+# Rückmeldung 2026-11-09: „Eigene Antwort“ ist ein Punkt der Gruppe — wer sie wählt, schickt
+# nur den Text (``gewaehlt`` leer). Leer bleibt nur gültig, wenn ein Text mitkommt.
+def test_nur_eine_eigene_antwort_gilt_wenn_das_modul_sie_anbot(monkeypatch):
+    ctx, _ = _zug(monkeypatch, offen=_offen(freitext=True), ui_antwort={
+        "block_id": _BLOCK_ID, "daten": {"gewaehlt": [], "freitext": "Klasse 11"}})
+    assert ctx.ui_antwort is not None
+    assert ctx.ui_antwort["labels"] == [] and ctx.ui_antwort["daten"]["freitext"] == "Klasse 11"
+
+
+@pytest.mark.parametrize("daten", [
+    {"gewaehlt": []},                               # weder Wahl noch Text
+    {"gewaehlt": [], "freitext": "   "},            # nur Leerzeichen
+    {"gewaehlt": [], "freitext": ""},
+])
+def test_ohne_wahl_und_ohne_text_ist_keine_antwort(monkeypatch, daten):
+    ctx, _ = _zug(monkeypatch, offen=_offen(freitext=True),
+                  ui_antwort={"block_id": _BLOCK_ID, "daten": daten})
+    assert ctx.ui_antwort is None
+
+
+def test_der_block_nennt_die_eigene_antwort_ohne_wahl():
+    from boerdi.ui_module.antwort import antwort_block
+
+    block = antwort_block({"block_id": _BLOCK_ID, "modul": ENTSCHEIDUNG, "frage": "Welche Klasse?",
+                           "daten": {"gewaehlt": [], "freitext": "Klasse 11"}, "labels": []})
+    assert "Gewählt: keine der Möglichkeiten" in block
+    assert "Eigene Antwort der Person: Klasse 11" in block
 
 
 def test_der_freitext_ist_gedeckelt(monkeypatch):
