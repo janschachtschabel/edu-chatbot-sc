@@ -273,3 +273,63 @@ flows:
           ui_any: [ui_strukturentwurf]
           ui_none: [ui_themenbaum]
           must_offer: "Ein bearbeitbarer Entwurf für die neue Sammlung (Planung, Rätseltypen, Materialien, Durchführung …) mit einem kurzen Begleitsatz."
+  # ── Paket U3-5 / U4 / U5 (2026-11-08): Ordner, Lehrplan, Abgleich ──────────────
+  - id: GV-UI-13
+    zielgruppe: P-LEH
+    title: "(nur Agent) Ordner mit Materialien → Auswahlfeld für den Ordner"
+    erwartung: "Eine Lehrkraft hat einen Ordner mit Materialien und will daraus eine Sammlung machen: der Bot zeigt das Auswahlfeld für den Ordner, statt nach Dateinamen zu fragen."
+    turns:
+      - message: "Ich habe einen Ordner mit Materialien zu Optik. Kann ich daraus eine Sammlung machen?"
+        anwendungsfall: erzeugen
+        expect:
+          register: sie
+          ui_any: [ui_upload]
+          must_offer: "Ein Auswahlfeld, in dem die Lehrkraft den Ordner wählen kann, mit einem Satz, was sie tun soll; nichts wird hochgeladen."
+  - id: GV-UI-14
+    zielgruppe: P-LEH
+    title: "(nur Agent) Lehrplan als Grundlage → Auswahlfeld"
+    erwartung: "Eine Lehrkraft will aus ihrem Lehrplan eine Struktur machen: der Bot bietet das Auswahlfeld an, statt selbst eine Gliederung zu erfinden."
+    turns:
+      - message: "Mach mir aus meinem Lehrplan eine Struktur für eine Sammlung."
+        anwendungsfall: erzeugen
+        expect:
+          register: sie
+          ui_any: [ui_upload]
+          must_offer: "Das Auswahlfeld, um den Lehrplan (oder den Ordner) einzubringen."
+  - id: GV-UI-15
+    zielgruppe: P-LEH
+    title: "(nur Agent) Gegenprobe: Gliederung ohne eigene Dateien → Entwurf, kein Auswahlfeld"
+    erwartung: "Ohne eigene Dateien entwirft der Bot die Gliederung; das Auswahlfeld für Ordner erscheint nicht."
+    turns:
+      - message: "Entwirf eine Gliederung zu Optik für Klasse 8."
+        anwendungsfall: erzeugen
+        expect:
+          register: sie
+          ui_any: [ui_strukturentwurf]
+          ui_none: [ui_upload]
+          must_offer: "Ein bearbeitbarer Entwurf zu Optik mit einem kurzen Begleitsatz."
+  - id: GV-UI-16
+    zielgruppe: P-LEH
+    title: "(nur Agent) Entwurf übernehmen, dann mit einer WLO-Sammlung abgleichen und Lücken zeigen"
+    erwartung: "Nach dem übernommenen Entwurf fragt die Lehrkraft, was davon es in WLO schon gibt und wo Material fehlt: der Bot zeigt den Abgleich mit Abdeckung, ohne Titel abzutippen."
+    turns:
+      - message: "Entwirf eine Gliederung zu Optik für die Sekundarstufe I."
+        anwendungsfall: erzeugen
+        expect:
+          register: sie
+          ui_any: [ui_strukturentwurf]
+          must_offer: "Ein bearbeitbarer Entwurf zu Optik mit einem kurzen Begleitsatz."
+      - message: "Übernehmen"
+        ui_antwort: {uebernehmen: true}
+        anwendungsfall: erzeugen
+        expect:
+          register: sie
+          ui_none: [ui_strukturabgleich]
+          must_offer: "Eine kurze Bestätigung, dass der Entwurf übernommen ist, und was als Nächstes geht."
+      - message: "Was davon gibt es schon in der WLO-Sammlung zu Optik, und wo fehlt noch Material?"
+        anwendungsfall: zeigen
+        expect:
+          register: sie
+          ui_any: [ui_strukturabgleich]
+          ui_none: [ui_strukturentwurf]
+          must_offer: "Der Abgleich des Entwurfs mit der Optik-Sammlung (vorhanden, ähnlich, neu) und die Lücken in ganz WLO, mit einem kurzen Begleitsatz."

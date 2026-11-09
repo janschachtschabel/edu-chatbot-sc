@@ -72,11 +72,15 @@ class _Speicher:
 
     async def anlegen(self, s, *, aufrufer, session_id, titel, zweck, tage):
         v = SimpleNamespace(id=f"v-{len(self.v) + 1}", aufrufer=aufrufer, titel=titel,
-                            status="aktiv",
+                            status="aktiv", session_id=session_id,
                             verfaellt_am=datetime.now(UTC) + timedelta(days=3),
                             akte={"teile": {}, "historie": {}, "lauf": None}, akte_version=0)
         self.v[v.id] = v
         return copy.deepcopy(v)
+
+    async def sitzung_setzen(self, s, vid, session_id):
+        if vid in self.v:
+            self.v[vid].session_id = session_id
 
     async def teil_setzen(self, s, v, name, *, typ, wert, zusammenfassung, tage):
         gespeichert = self.v[v.id]
@@ -122,7 +126,7 @@ def umgebung(monkeypatch):
     sp = _Speicher()
     for name in ("lesen", "juengster", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
                  "beruehren", "loeschen", "alle_loeschen", "sperren",
-                 "anonyme_der_sitzung_loeschen"):
+                 "anonyme_der_sitzung_loeschen", "sitzung_setzen"):
         monkeypatch.setattr(vorgaenge, name, getattr(sp, name))
     from boerdi.services.dokumente import ablage as dokumente
 
@@ -130,6 +134,12 @@ def umgebung(monkeypatch):
         return 0
 
     monkeypatch.setattr(dokumente, "der_sitzung_loeschen", kein_dokument)
+    from boerdi.services.auftraege import ablage as auftraege_ablage
+
+    async def keine_auftraege(*_a, **_k):
+        return []
+
+    monkeypatch.setattr(auftraege_ablage, "offene_job_ids", keine_auftraege)
     for modul in (arbeitsstand, ausloeser):
         monkeypatch.setattr(modul, "has_personal_auth", lambda: True)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")

@@ -91,9 +91,14 @@ CURATION_TOOLS = frozenset({
     # Paket M5 (MCP-Stand 2026-11-07): Pläne — eine Bestätigung für das Ganze.
     "wlo_create_collection_tree",
     "wlo_add_to_collections",
+    # Paket K2d-3 (MCP-Stand 2026-11-08): Volltexte (W1, W2) und Metadaten vieler Datensätze (W3).
+    "wlo_attach_fulltext",
+    "wlo_attach_fulltexts",
+    "wlo_update_contents",
 })
 
-# 13 der 14 führen einen ``confirmToken``. ``wlo_list_suggestions`` nicht — es
+# Alle bis auf einen führen einen ``confirmToken`` (Stand K2d-3: 18 von 19).
+# ``wlo_list_suggestions`` nicht — es
 # listet vorhandene Vorschläge auf und ändert nichts; live am Eingabeschema
 # geprüft, nicht angenommen.
 CONFIRMABLE_TOOLS = CURATION_TOOLS - {"wlo_list_suggestions"}
@@ -105,7 +110,8 @@ CONFIRMABLE_TOOLS = CURATION_TOOLS - {"wlo_list_suggestions"}
 # nächste Gelegenheit zum Auseinanderlaufen.
 CONFIRM_TOKEN_FIELD = "confirmToken"
 #: Paket M5: der Fortsetzungs-Schlüssel eines Plans. Fortgesetzt wird nur über die Direktaktion
-#: „Weiter anlegen“ (``services/plan_fortsetzen``) — ein Modell setzt ihn nie (Review M5, Befund 5).
+#: „Plan fortsetzen“ (``services/plan_fortsetzen``) — ein Modell setzt ihn nie (Review M5,
+#: Befund 5).
 FORTSETZEN_FIELD = "continuationToken"
 #: In ``entities``: der offene Plan (``services/plan_fortsetzen``); hier, weil auch die Anzeige
 #: (``domain/write_anzeige``) seinen Schlüssel kennen muss.
@@ -114,13 +120,35 @@ OFFENER_PLAN_KEY = "_offener_plan"
 #: der Fortsetzungs-Schlüssel kann der eingelöste Bestätigungsschlüssel selbst sein).
 SCHLUESSEL_FELDER = frozenset({CONFIRM_TOKEN_FIELD, FORTSETZEN_FIELD, "batchToken"})
 #: Paket M5: Werkzeuge, die der Server als Plan führt. Eingelöst werden sie NUR im Vorlauf
-#: (``services/write_approval`` — er merkt den Plan und bietet „Weiter anlegen“ an); die Werkzeug-
+#: (``services/write_approval`` — er merkt den Plan und bietet „Plan fortsetzen“ an); die Werkzeug-
 #: Schleifen setzen für sie nie einen Schlüssel ein (Re-Review M5, Befund 1).
-PLAN_TOOLS = frozenset({"wlo_create_collection_tree", "wlo_add_to_collections"})
+PLAN_TOOLS = frozenset({"wlo_create_collection_tree", "wlo_add_to_collections",
+                        # Paket K2d-3: W2 und W3 laufen auf demselben Plan-Mechanismus des Servers.
+                        "wlo_attach_fulltexts", "wlo_update_contents"})
 
 
 def is_plan(tool_name: str) -> bool:
     return tool_name in PLAN_TOOLS
+
+
+#: Paket K2d-3 (Review, Befund 2): was das Modell statt der Vorschau eines Plans liest, dessen
+#: Angaben zu groß zum Merken sind — erst nach dem „ja“ zu erfahren, dass es nicht geht, wäre
+#: der schlechtere Weg (``write.planTooLarge`` bleibt als Rückfall im Vorlauf).
+#: Zweites Review K2d-3, Befund 1: NUR den ersten Teil vorlegen — die letzte Vorschau eines Zuges
+#: ersetzt die früheren, mehrere Teile in einem Zug verfielen bis auf den letzten still.
+PLAN_ZU_GROSS_TEXT = (
+    "Dieser Plan ist zu gross, um ihn im Chat zu bestaetigen (die Angaben sind laenger als "
+    "rund 256 000 Zeichen) — es wurde nichts vorgelegt und nichts geaendert. "
+    "Teile ihn in kleinere Teile auf (weniger Eintraege oder kuerzere Texte), lege jetzt NUR den "
+    "ersten Teil vor (ein Aufruf) und den naechsten erst, wenn dieser bestaetigt und fertig ist. "
+    "Sag der Person, dass es in Teilen geht."
+)
+
+
+def plan_zu_gross(pending: dict[str, Any]) -> bool:
+    """Ein Plan, dessen Angaben :func:`remember_pending` nicht gemerkt hat — im Chat nie
+    bestätigbar (Pläne löst nur der Vorlauf mit den gemerkten Angaben ein)."""
+    return is_plan(str(pending.get("tool") or "")) and "args" not in pending
 
 # Wie viel eines Vorhabens wir uns merken (S4, 2026-08-14). Der Merkposten
 # liegt als JSONB in ``session_state["entities"]`` und wird je Zug geschrieben;

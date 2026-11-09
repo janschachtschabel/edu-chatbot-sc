@@ -1,4 +1,4 @@
-"""Katalog der kuratierenden MCP-Werkzeuge (E2) — 14 Definitionen.
+"""Katalog der kuratierenden MCP-Werkzeuge (E2) — 19 Definitionen (Stand K2d-3).
 
 Eigenes Modul und nicht in ``tool_defs.py``, aus einem Grund, der über die
 Dateigröße hinausgeht: dieser Katalog hat einen **anderen Änderungsgrund** und
@@ -38,7 +38,10 @@ from boerdi.api.schemas import (
     CompendiumUpdateArgs,
     ContentCreateArgs,
     ContentSubmitArgs,
+    ContentsUpdateArgs,
     ContentUpdateArgs,
+    FulltextAttachArgs,
+    FulltextsAttachArgs,
     MetadataSuggestArgs,
     NodeOnlyArgs,
     SuggestionDecideArgs,
@@ -111,6 +114,30 @@ _TEXTFELDER = {
         "description": "Format von content.",
     },
     "fileBase64": {"type": "string", "description": "Datei-Inhalt base64-kodiert."},
+}
+
+
+#: Paket K2d-3: ``would_replace_file`` ist kein Fehler (Nutzer-Entscheid 2026-11-08) — bis das
+#: MCP-Team gemessen hat, dass eine Datei erhalten bleibt, schreibt der Server an Datensätze mit
+#: Datei keinen Volltext.
+_VORGEMERKT = (
+    " Lehnt der Server einen Datensatz mit Code would_replace_file ab, ist das KEIN Fehler: der "
+    "Datensatz traegt schon Inhalt (eine Datei oder einen Text), und daran schreibt der Server "
+    "vorerst nichts — das MCP-Team hebt die Sperre nach seiner Messung auf (vorgemerkt). Sag der "
+    "Person, dass das Anhaengen hier noch nicht moeglich ist und spaeter erneut versucht werden "
+    "kann; es ist nichts verloren und nichts geaendert. Gemerkt wird der Text dabei NICHT — "
+    "versprich kein Nachtragen. link_record heisst: ein verlinkter Datensatz, dessen Text das "
+    "Repository von der Webseite liest — dort gibt es keinen eigenen Volltext."
+)
+
+_VOLLTEXT_FELDER = {
+    "nodeId": {"type": "string", "description": "nodeId des Datensatzes."},
+    "markdown": {"type": "string", "description": "Der Volltext als Markdown."},
+    "source": {"type": "string", "enum": ["binary", "website", "manual"],
+               "description": "binary = aus der Datei, website = von einer Webseite, "
+                              "manual = von Hand."},
+    "sourceUrl": {"type": "string", "description": "Quelle des Texts (http/https), bei website."},
+    "language": {"type": "string", "description": "Sprachcode, z.B. 'de'."},
 }
 
 
@@ -263,7 +290,7 @@ CURATION_TOOL_DEFINITIONS = [
         "wlo_add_to_collections",
         "Nimmt bis zu 200 Materialien in Sammlungen auf — mit EINER Bestaetigung fuer alle Paare. "
         "Ein schon vorhandenes Paar zaehlt als erledigt, ein gescheitertes haelt die anderen nicht "
-        "auf. Fortsetzen wie bei wlo_create_collection_tree (Knopf 'Weiter anlegen')."
+        "auf. Fortsetzen wie bei wlo_create_collection_tree (Knopf 'Plan fortsetzen')."
         + _ZWEISTUFIG_PLAN,
         {
             "pairs": {
@@ -275,6 +302,60 @@ CURATION_TOOL_DEFINITIONS = [
             },
         },
         ["pairs"],
+    ),
+    _fn(
+        "wlo_attach_fulltext",
+        "Legt einen Volltext (Markdown) im textContent eines vorhandenen Datensatzes ab — dort, "
+        "wo get_wlo_content_text ihn liest. Fuer Texte aus einer Datei, einer Webseite oder von "
+        "Hand (source). replace=true ersetzt einen vorhandenen Volltext (vorerst lehnt der Server "
+        "das ab, siehe would_replace_file); steht derselbe Text schon da, gibt es nichts zu "
+        "bestaetigen. Fuer viele Datensaetze: "
+        "wlo_attach_fulltexts." + _VORGEMERKT + _ZWEISTUFIG,
+        {**_VOLLTEXT_FELDER,
+         "replace": {"type": "boolean", "description": "Einen vorhandenen Volltext ersetzen."}},
+        ["nodeId", "markdown", "source"],
+    ),
+    _fn(
+        "wlo_attach_fulltexts",
+        "Legt Volltexte fuer bis zu 200 Datensaetze mit EINER Bestaetigung ab — je Datensatz "
+        "dieselben Regeln wie wlo_attach_fulltext. Die Vorschau zaehlt neu, ersetzt, unveraendert "
+        "und abgelehnt. Grosse Mengen arbeitet der Server in Abschnitten ab; die Person setzt "
+        "ueber den Knopf 'Plan fortsetzen' fort, ohne neue Bestaetigung — du setzt nicht selbst "
+        "fort."
+        + _VORGEMERKT + _ZWEISTUFIG_PLAN,
+        {
+            "items": {"type": "array",
+                      "items": {"type": "object", "properties": _VOLLTEXT_FELDER,
+                                "required": ["nodeId", "markdown", "source"]},
+                      "description": "Eintraege {nodeId, markdown, source, sourceUrl?, language?}, "
+                                     "max. 200 (sourceUrl bis 2000, language bis 10 Zeichen)."},
+            "replace": {"type": "boolean", "description": "Vorhandene Volltexte ersetzen."},
+        },
+        ["items"],
+    ),
+    _fn(
+        "wlo_update_contents",
+        "Aendert die Metadaten von bis zu 200 vorhandenen Datensaetzen mit EINER Bestaetigung — je "
+        "Eintrag nodeId und Felder wie bei wlo_update_content (ohne Inhalt und Datei). Der Server "
+        "entscheidet je Feld: manches schreibt er direkt, was redaktionell bestaetigt werden muss "
+        "(Lizenz, Urheber, Herausgeber, Quell-URL, Sprache, Zielgruppe), hinterlegt er als "
+        "Vorschlag — reason ist dessen Begruendung. Fortsetzen wie bei wlo_add_to_collections "
+        "(Knopf 'Plan fortsetzen'). Fuer einen einzelnen Datensatz: wlo_update_content."
+        + _ZWEISTUFIG_PLAN,
+        {
+            "items": {"type": "array",
+                      "items": {"type": "object", "properties": {
+                          "nodeId": {"type": "string", "description": "nodeId des Datensatzes."},
+                          "reason": {"type": "string",
+                                     "description": "Begruendung fuer die Vorschlaege, "
+                                                    "hoechstens 500 Zeichen — laenger weist der "
+                                                    "Server den ganzen Aufruf ab."},
+                          **{k: v for k, v in _TEXTFELDER.items()
+                             if k not in ("content", "contentFormat", "fileBase64")}},
+                          "required": ["nodeId"]},
+                      "description": "Eintraege {nodeId, reason?, Felder}, max. 200."},
+        },
+        ["items"],
     ),
     _fn(
         "wlo_remove_from_collection",
@@ -403,6 +484,9 @@ CURATION_ARG_MODELS: dict[str, type] = {
     "wlo_add_to_collection":      CollectionMembershipArgs,
     "wlo_create_collection_tree": CollectionTreeCreateArgs,
     "wlo_add_to_collections":     CollectionsAddArgs,
+    "wlo_attach_fulltext":        FulltextAttachArgs,
+    "wlo_attach_fulltexts":       FulltextsAttachArgs,
+    "wlo_update_contents":        ContentsUpdateArgs,
     "wlo_remove_from_collection": CollectionMembershipArgs,
     "wlo_update_compendium":      CompendiumUpdateArgs,
     "wlo_set_topic_page":         TopicPageSetArgs,

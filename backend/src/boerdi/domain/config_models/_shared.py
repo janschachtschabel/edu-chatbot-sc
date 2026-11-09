@@ -51,6 +51,31 @@ def Catalog(name: str) -> Any:  # noqa: N802 — s.o.
     return Field(json_schema_extra={"x-catalog": name})
 
 
+def NurBei(feld: str, *werte: str) -> Any:  # noqa: N802 — s.o.
+    """Das Feld gilt nur, wenn das Nachbarfeld ``feld`` einen der ``werte`` trägt (Paket K2c-1).
+
+    Das Studio blendet es sonst aus — ein Schritt zeigt nur die Felder seines Typs. Nur eine
+    Bedienhilfe im Schema: Daten und Prüfung bleiben, wie sie sind (ein gesetzter Wert an einem
+    ausgeblendeten Feld bleibt erhalten, und die Prüfung meldet ihn, wo er stört). Die Auszeichnung
+    gehört an die Eigenschaft (außen um ``… | None``)::
+
+        flow: Annotated[Annotated[str, Catalog("ablauf_flows")] | None,
+                        NurBei("typ", "auftrag")] = None
+    """
+    return Field(json_schema_extra={"x-nur-bei": {"feld": feld, "werte": sorted(werte)}})
+
+
+def TeilWerte() -> Any:  # noqa: N802 — s.o.
+    """Ein Objekt Name → Wert, dessen Werte ein fester Text, ein Teil des Vorgangs
+    (``{"$teil": "<name>"}``, K2d-1 auch mit ``"pfad"``) oder JSON sind (Paket K2c-3) — das
+    Studio zeigt eine Tabelle statt rohem JSON. Die Auszeichnung gehört an das OBJEKT (innen in
+    ``… | None``)::
+
+        argumente: Annotated[Annotated[dict[str, Any], TeilWerte()] | None, …] = None
+    """
+    return Field(json_schema_extra={"x-widget": "teil-werte"})
+
+
 def Textarea() -> Any:  # noqa: N802 — s.o.
     """Fließtext: das Studio zeigt eine Textfläche statt einer Zeile (ST-2f).
 

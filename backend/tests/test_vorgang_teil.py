@@ -42,7 +42,7 @@ def test_frueher_erbt_auch_ueber_einen_abgeschlossenen_stapel():
 
 def test_frueher_nimmt_die_abgelegten_eines_offenen_stapels():
     neu = vt.aus_plan({"entries": []}, "tok-0123456789", "b1", _teil())
-    assert neu["frueher"] == [{"titel": "A", "node_id": "n-0"}]
+    assert neu["frueher"] == [{"titel": "A", "node_id": "n-0", "rolle": "inhalt"}]
 
 
 def test_frueher_ist_gedeckelt():

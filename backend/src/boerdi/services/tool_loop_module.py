@@ -14,7 +14,7 @@ kennt kein ``ctx``, wie bei ``_gelieferte_dokumente``. ``graph/nodes/respond`` h
 Seit U1-e asynchron: ein Modul mit Datenquelle (``ui_themenbaum``) holt seine Daten über das
 MCP-Werkzeug; die KI bekommt nur die Quittung (``ui_module/datenquelle``). Seit U2 ebenso ein
 Modul mit Dienst (``ui_strukturentwurf``, über ``ui_module/aufruf``) — mit dem Token-Zähler des
-Zugs, ohne Vorlage (die Schleife kennt die Antwort des Zugs nicht). Dieser Aufruf steht wie
+Zugs und dem gemerkten Entwurf als Vorlage (seit dem dritten Review U2). Dieser Aufruf steht wie
 jeder MCP-Aufruf in ``tools_called``, ``outcomes`` und der Werkzeugzeit (Review U1-e, Befund 6);
 seine Frist ist die des Transports (``MCP_CALL_TIMEOUT_S``) wie für die übrigen Werkzeuge der
 Schleife. Liefert er keinen Block, meldet die Vorrunde das (:attr:`Vorrunde.ohne_block`): eine
@@ -107,7 +107,7 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
             ergebnis = await asynchron(name, args, Umgebung(
                 usage_acc=usage_acc, vorlage=entwurf_vorlage(session_state.get("entities") or {}),
                 dokument=session_state.get(DOKUMENT_LADER_KEY),
-                teile=session_state.get(TEIL_LADER_KEY)))
+                teile=session_state.get(TEIL_LADER_KEY), verfuegbar=frozenset(angeboten)))
         outcomes.append(ergebnis.outcome)
         if ergebnis.block is not None:
             session_state.setdefault(MODUL_BLOECKE_KEY, []).append(ergebnis.block)

@@ -57,4 +57,18 @@ async def upload_angebot(manifest: Manifest, args: dict[str, Any], umgebung: Umg
     if katalog.daten_fehler(manifest, daten):
         return Ergebnis(None, FEHLER, ToolOutcome(tool=modul, status="error", error="abweichung"))
     block = neuer_block(modul, manifest["version"], manifest["art"], daten, TEXTFASSUNG)
-    return Ergebnis(block, QUITTUNG, ToolOutcome(tool=modul, status="success", item_count=1))
+    return Ergebnis(block, QUITTUNG + _was_geht(daten["schalter"]),
+                    ToolOutcome(tool=modul, status="success", item_count=1))
+
+
+def _was_geht(schalter: dict[str, bool]) -> str:
+    """Gesamt-Review U3/U4/U5, Befund 5: die KI erfährt, was im Auswahlfeld geht — sonst
+    verspräche sie anonym, einen Lehrplan zu lesen oder nach WLO zu übertragen."""
+    saetze = []
+    if not schalter.get("dokument_im_chat"):
+        saetze.append("Ein Dokument (z. B. einen Lehrplan) lesen lassen geht hier nicht"
+                      + ("" if has_personal_auth() else " ohne WLO-Anmeldung"))
+    if not schalter.get("ablage_in_wlo"):
+        saetze.append("Übertragen nach WLO geht hier nicht"
+                      + ("" if has_personal_auth() else " ohne WLO-Anmeldung"))
+    return (" " + "; ".join(saetze) + " — sag das, wenn es danach fragt.") if saetze else ""

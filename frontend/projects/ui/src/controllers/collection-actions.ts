@@ -69,6 +69,8 @@ export interface CollectionActionsContext {
   /** Setzt ``latestDebug`` (Debug-Panel). */
   /** Debug-Panel: Debug-Block (nur mit Freigabe, sonst `null`) und `ui` der Antwort. */
   setLatestDebug: (debug: DebugInfo | null | undefined, ui?: UiInfo) => void;
+  /** K2b: die Sperre eines wartenden Auftragsschritts (`eingabe_gesperrt` der Antwort). */
+  setEingabeGesperrt?: (gesperrt: boolean) => void;
   /** Komponenten-``dispatchPageAction`` (host callback + Output + window-Event). */
   dispatchPageAction: (pa: { action: string; payload: any } | null | undefined) => void;
   /** ``messagesContainer?.nativeElement`` — LIVE (ViewChild füllt sich
@@ -124,6 +126,7 @@ async function runCardAction(
     const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.ui, resp.pagination, undefined, resp.web_links, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug, resp.ui);
+    ctx.setEingabeGesperrt?.(resp.eingabe_gesperrt === true);
     ctx.dispatchPageAction(resp.page_action);
   } catch (err) {
     if (veraltet()) return false;
@@ -251,6 +254,18 @@ export async function auftragAbholen(
     // offen (M1). Eine Schreib-Abnahme verfällt dagegen wie nach jedem sichtbaren Zug (Review Q1, 1).
     nachricht: 'Stand prüfen', aktion: 'ablauf_auftrag_pruefen', parameter: { ablauf, automatisch: true },
     fehlerSchluessel: 'error.auftragAbholen', protokoll: 'Auftrag nicht abgeholt', fragenOffen: true,
+  }, '', ctx);
+  return { gesendet };
+}
+
+/** K2b: „Auftrag abbrechen“ aus `ui_fortschritt` — die Direktaktion ohne Nutzerblase; das Backend
+ *  fragt erst nach („Ja, abbrechen“ als Schnellantwort). Läuft schon ein Zug: `gesendet: false`. */
+export async function auftragAbbrechen(
+  ablauf: string, ctx: CollectionActionsContext,
+): Promise<{ gesendet: boolean }> {
+  const gesendet = await runCardAction({
+    nachricht: 'Auftrag abbrechen', aktion: 'ablauf_auftrag_abbrechen', parameter: { ablauf },
+    fehlerSchluessel: 'error.auftragAbbrechen', protokoll: 'Auftrag nicht abgebrochen',
   }, '', ctx);
   return { gesendet };
 }

@@ -102,6 +102,22 @@ export function vorgabe(raw: JsonSchema): Pick<SchemaField, 'vorgabe'> {
   return raw['x-vorgabe'] ? { vorgabe: true } : {};
 }
 
+/** Paket K2c-2: `x-nur-bei` steht an der EIGENSCHAFT (außen um `… | None`), also am rohen Knoten.
+ *  Eine unvollständige Auszeichnung zählt nicht — dann bleibt das Feld immer sichtbar. */
+export function nurBei(raw: JsonSchema): Pick<SchemaField, 'nurBei'> {
+  const marke = raw['x-nur-bei'];
+  if (!marke || typeof marke.feld !== 'string' || !Array.isArray(marke.werte)) return {};
+  return { nurBei: { feld: marke.feld, werte: [...marke.werte] } };
+}
+
+/** Ob ein Wert „gesetzt“ ist: nicht leer, keine leere Liste, kein leeres Objekt. */
+export function gesetzt(wert: unknown): boolean {
+  if (wert === undefined || wert === null || wert === '') return false;
+  if (Array.isArray(wert)) return wert.length > 0;
+  if (typeof wert === 'object') return Object.keys(wert as object).length > 0;
+  return true;
+}
+
 /** The bounds of a number, read from the RESOLVED node like `stringKind`. */
 export function bounds(node: JsonSchema): Pick<SchemaField, 'minimum' | 'maximum'> {
   return {

@@ -23,6 +23,7 @@ import { ChoicesApi } from '../core/choices-api.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { JsonValueComponent } from './json-value.component';
+import { TeilWerteComponent } from './teil-werte.component';
 import type { SchemaField } from './schema-to-fields';
 
 /** Grobe Zeichen je Zeile bei 46rem Feldbreite und Schriftgrad 0.8125rem. */
@@ -34,7 +35,7 @@ const MAX_ROWS = 20;
 
 @Component({
   selector: 'studio-field-control',
-  imports: [JsonValueComponent, RouterLink],
+  imports: [JsonValueComponent, RouterLink, TeilWerteComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './field-control.component.html',
   styleUrl: './schema-form.scss',
@@ -55,6 +56,8 @@ export class FieldControlComponent {
   readonly idPrefix = input('sf');
   /** Der Server hat den Wert abgelehnt (ST-2e) — `aria-invalid`, roter Rand. */
   readonly invalid = input(false);
+  /** Paket K2c-3: der Pfad im Dokument — die Tabelle „Argumente“ liest damit die Schritte davor. */
+  readonly pfad = input<readonly (string | number)[]>([]);
 
   readonly valueChange = output<unknown>();
   /** Eine JSON-Eingabe ist nicht lesbar; `''` hebt die Meldung auf. */

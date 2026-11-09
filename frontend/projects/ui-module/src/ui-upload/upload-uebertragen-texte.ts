@@ -17,6 +17,7 @@ const DE = {
   titel: 'In deinen persönlichen Bereich in WLO übertragen',
   auswahl: 'Auswahl',
   liste: 'Dateien der Übertragung',
+  strukturdokument: 'Strukturdokument',
   angebot: (dateien: string) => `${dateien} kannst du in deinen persönlichen Bereich in WLO übertragen. Erst nach deiner Bestätigung wird etwas hochgeladen.`,
   ausgelassen: (ohneArt: number, zuGross: number, mb: number) => [
     ohneArt ? `${zahl('de', ohneArt)} ${mehrzahl('de', ohneArt, 'Datei hat', 'Dateien haben')} eine Art, die WLO hier nicht annimmt.` : '',
@@ -90,6 +91,7 @@ const EN: typeof DE = {
   titel: 'Transfer to your personal area in WLO',
   auswahl: 'Selection',
   liste: 'Files in the transfer',
+  strukturdokument: 'Structure document',
   angebot: (dateien: string) => `You can transfer ${dateien} to your personal area in WLO. Nothing is uploaded until you confirm.`,
   ausgelassen: (ohneArt: number, zuGross: number, mb: number) => [
     ohneArt ? `${zahl('en', ohneArt)} ${mehrzahl('en', ohneArt, 'file has', 'files have')} a type WLO does not accept here.` : '',

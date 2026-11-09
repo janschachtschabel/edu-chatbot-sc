@@ -59,7 +59,7 @@ from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.quality_events import log_safety_event
 from boerdi.services import abnahme_hinweis, arbeitsstand, plan_fortsetzen, vorgang_aktion
-from boerdi.services.ablauf import auftrag_zug
+from boerdi.services.ablauf import auftrag_zug, freigabe_zug
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.content_text_action import _handle_show_content_text
 from boerdi.services.db_sessions import save_message, update_session
@@ -96,11 +96,16 @@ _DIRECT_ACTIONS = {
     ablauf_zug.AKTION_WEITER,
     # Paket K1a: „Stand prüfen“ am auftrag-Schritt (b-api-Auftrag).
     auftrag_zug.AKTION,
+    # Paket K2b: „Auftrag abbrechen“ (mit Rückfrage).
+    auftrag_zug.AKTION_ABBRECHEN,
     # Querschnitts-Review 2026-11-06 (M6, Datenschutz): neues Vorhaben, Arbeitsstand löschen.
     vorgang_aktion.AKTION_NEU,
     vorgang_aktion.AKTION_LOESCHEN,
     # Paket M5: einen bestätigten Plan (Sammlungsbaum, Massen-Aufnahme) fortsetzen.
     plan_fortsetzen.AKTION,
+    # Paket S: am Freigabe-Schritt „Vorschau erneut zeigen“ und „Ablauf abbrechen“.
+    freigabe_zug.AKTION_ERNEUT,
+    freigabe_zug.AKTION_ABBRECHEN,
 }
 
 
@@ -163,7 +168,20 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             ctx.early_response = hinweis
             await _log_early_quality(ctx, session)
             return ctx
+        # Paket S: die Abnahme eines Laufs, abgelaufen oder ohne wartenden Lauf
+        nicht_mehr = await freigabe_zug.vor_einloesen(session, req, ctx.session_state)
+        if nicht_mehr is not None:
+            ctx.early_response = nicht_mehr
+            await _log_early_quality(ctx, session)
+            return ctx
+        vorher = (ctx.session_state.get("entities") or {}).get("_pending_write")
         eingeloest = await redeem_write_approval(session, req, ctx.session_state)
+        if eingeloest is not None:
+            # Paket S: gehörte die Abnahme zu einem Lauf, geht er weiter (oder wartet).
+            eingeloest = await freigabe_zug.nach_einloesen(session, req, ctx.session_state,
+                                                           vorher, eingeloest)
+        else:
+            ctx.session_state.pop(freigabe_zug.ERGEBNIS, None)
         if eingeloest is not None:
             ctx.early_response = eingeloest
             await _log_early_quality(ctx, session)
@@ -177,6 +195,8 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
 
     # Querschnitts-Review 2026-11-06, M4: eine Wendung beantwortet die Nachricht — die ganze, nicht
     # nur 500 Zeichen wie bei einer Direktaktion (eine Krise dahinter bliebe sonst ungesehen).
+    # K2b: im gesperrten Lauf gilt das auch für die erlaubten Knöpfe — ihre Parameter sind nur
+    # Kennungen und Wahrheitswerte, die Nachricht ist die Beschriftung.
     safety_text = (sicherheits_text(req.message, ctx.ui_antwort) if a.irgendeiner
                    else _direct_action_safety_text(req))
     signals = ctx.session_state.get("signal_history", [])
@@ -196,8 +216,13 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     # Review A2a, Befund 2: eine getippte Nachricht, die nur zufällig eine Wendung trägt, geht bei
     # hohem Risiko (Krise) oder ohne Prüfung den gewöhnlichen Weg — samt Krisenantwort M01 — statt
     # die Abweisung einer Direktaktion zu bekommen.
-    if a.per_text is not None and not req.action and (decision.risk_level == "high"
-                                                      or ohne_pruefung):
+    # Ebenso eine getippte Nachricht im gesperrten Lauf (K2b): eine Krise bekommt ihre Antwort.
+    if ((a.per_text is not None or a.gesperrt) and not req.action
+            and (decision.risk_level == "high" or ohne_pruefung)):
+        if a.gesperrt and decision.risk_level == "high":
+            # Zweites Review K2b, Befund 2: danach ruht die Sperre dieses Wartens — sonst bekäme
+            # die Antwort auf die Krisenantwort nur den Auftrags-Hinweis.
+            auftrag_zug.sperre_aussetzen(req.session_id, ctx.session_state)
         return ctx
     if decision.risk_level == "high" or ohne_pruefung:
         if not ohne_pruefung:
@@ -235,7 +260,11 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             await _log_early_quality(ctx, session)
         return ctx
 
-    if req.action == "browse_collection":
+    if preflight_ablauf.abgewiesen(req.action, a.gesperrt):
+        # Paket K2b: im gesperrten Lauf auch kein anderer Knopf (``preflight_ablauf.antwort``).
+        gesperrt_antwort = await preflight_ablauf.antwort(ctx, session, a, decision.blocked_tools)
+        ctx.early_response = gesperrt_antwort.antwort if gesperrt_antwort else None
+    elif req.action == "browse_collection":
         ctx.early_response = await _handle_browse_collection(
             session, req, ctx.session_state, usage_acc=ctx.usage)
     elif req.action == "generate_learning_path":

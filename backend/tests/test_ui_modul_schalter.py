@@ -283,9 +283,11 @@ async def test_die_prompt_vorschau_nennt_nur_module_fuer_den_agenten(bind, monke
 
     module = (await pv.prompt_vorschau("de"))["tools"]["ui_module"]
 
-    assert module["names"] == ["ui_strukturentwurf", THEMENBAUM, "ui_upload"]  # U2, U3-1
+    # U2, U3-1, U4/U5 (der Abgleich braucht browse_collection_tree und count_wlo_content_matches)
+    assert module["names"] == ["ui_strukturabgleich", "ui_strukturentwurf", THEMENBAUM, "ui_upload"]
     assert module["chars"] == len(json.dumps(modul_werkzeuge(
-        ["ui_strukturentwurf", THEMENBAUM, "ui_upload"], verfuegbar={"browse_collection_tree"},
+        ["ui_strukturabgleich", "ui_strukturentwurf", THEMENBAUM, "ui_upload"],
+        verfuegbar={"browse_collection_tree", "count_wlo_content_matches"},
         fuer="agent"),
         ensure_ascii=False))
 

@@ -107,6 +107,10 @@ class McpAntwort:
     code: str | None = None
     fehler: dict[str, Any] | None = None
     strukturiert: dict[str, Any] | None = None
+    #: Nur ``art == "busy"``: die Wartezeit, die der Server nennt (Sekunden) — aus
+    #: ``upstream_busy.retryAfter`` oder dem ``Retry-After`` eines 429/503 (Review kleine Punkte
+    #: nach K2d, Befund 3).
+    warte_s: int | None = None
 
 
 #: Ausgang offen: es KANN geschrieben sein (Review M1, Befund 4) — für jeden Aufrufer wie
@@ -124,6 +128,17 @@ _AUSGELASTET_TEXT: Final = {
 _AUSGELASTET_STANDARD: Final = ("WLO ist gerade ausgelastet. Es wurde nichts ausgeführt. Rufe "
                                 "das Werkzeug in diesem Zug nicht noch einmal auf; sag der Person, "
                                 "sie möge es gleich noch einmal versuchen.")
+
+
+def ausgelastet_ohne_aufruf(text: str | None) -> bool:
+    """Eine „ausgelastet“-Antwort OHNE Code: nichts wurde ausgeführt (eigener Wächter,
+    Ausfall-Schalter, 429/503 des Servers) — ein mitgeschickter Schlüssel gilt weiter. Mit Code
+    (``upstream_busy``) nicht: ob er eingelöst ist, sagt erst ``requiresNewPreview``, und das steht
+    nicht im Text (``agent_write``, Review der kleinen Punkte nach K2d)."""
+    if not is_mcp_error(text) or fehlercode(text):
+        return False
+    rest = str(text).split(": ", 1)[-1]
+    return any(rest.startswith(t) for t in (*_AUSGELASTET_TEXT.values(), _AUSGELASTET_STANDARD))
 
 
 def fehlercode(text: str | None) -> str | None:
@@ -156,16 +171,16 @@ _LOG_VALUE_MAX_CHARS = 500
 def _args_for_log(arguments: Any) -> Any:
     """``arguments`` mit Werten fürs Protokoll — nur mit ``LOG_CONTENT`` und auf DEBUG:
     Schlüssel geschwärzt, lange Werte gekürzt."""
+    if isinstance(arguments, list):
+        # Paket K2d-3 (Review, Befund 4): auch in Einträgen (``items`` von W2 tragen Volltexte)
+        return [_args_for_log(a) for a in arguments]
+    if isinstance(arguments, str) and len(arguments) > _LOG_VALUE_MAX_CHARS:
+        return f"‹{len(arguments)} Zeichen›"
     if not isinstance(arguments, dict):
         return arguments
     zeile: dict[str, Any] = {}
     for key, value in arguments.items():
-        if key in SCHLUESSEL_FELDER:
-            zeile[key] = "‹geschwärzt›"
-        elif isinstance(value, str) and len(value) > _LOG_VALUE_MAX_CHARS:
-            zeile[key] = f"‹{len(value)} Zeichen›"
-        else:
-            zeile[key] = value
+        zeile[key] = "‹geschwärzt›" if key in SCHLUESSEL_FELDER else _args_for_log(value)
     return zeile
 
 
@@ -624,10 +639,18 @@ async def _einzelaufruf(
         _meldung = result["error"].get("message", "Unknown error")
         if _art == "busy" and not code:
             _meldung = _AUSGELASTET_TEXT.get(result["error"].get("grund"), _AUSGELASTET_STANDARD)
+        _warte = None
+        if _art == "busy":
+            _warte = wiederholung.genannte_wartezeit(
+                fehler if fehler is not None
+                else {"retryAfter": result["error"].get("retry_after")})
+            if _warte is not None:
+                # Befund 4: auch das Modell (Werkzeug- und Agent-Schleife) erfährt sie
+                _meldung = f"{_meldung} (WLO bittet, etwa {_warte} Sekunden zu warten.)"
         return McpAntwort(
             f"{_vorsatz}: {_meldung}",
             _art if _art in _ARTEN else "transport",
-            code, fehler,
+            code, fehler, warte_s=_warte,
         ), False
 
     # Extract text content from result, separating _queryMeta blocks.

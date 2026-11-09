@@ -50,8 +50,12 @@ bereitstellen, keine Anwendung registrieren, keinen Reverse-Proxy einrichten.
 
 ## 2. Einbetten
 
-Ein **Custom Element** in einer einzigen Datei — kein Nachladen von Teilstücken
-zur Laufzeit, keine externen Schriften, keine Dritt-Dienste (DSGVO).
+Ein **Custom Element** in einer Datei — keine externen Schriften, keine Dritt-Dienste (DSGVO). Selten
+gebrauchte Module (Upload, Abgleich, Fortschritt) lädt das Widget erst beim ersten Block nach, vom
+**selben Ursprung** (`/widget/module/<name>.<hash>.js`, mit SRI). Eine strenge CSP muss diesen Ursprung
+unter `script-src` erlauben wie für das Widget selbst; Seiten, die nur Nonces oder Hashes zulassen,
+sehen an der Stelle die Textfassung (`ui-module.md` §2.5). Verlangt die Seite Trusted Types mit einer Liste
+erlaubter Richtlinien, muss `boerdi-ui-module` darin stehen.
 
 | | |
 |---|---|

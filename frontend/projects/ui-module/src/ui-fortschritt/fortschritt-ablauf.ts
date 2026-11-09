@@ -14,6 +14,8 @@
  * - Fehler nach Status: 409/404/400/422 → abgeschlossen (kein wartender Auftrag mehr — etwa ein alter
  *   Block im Verlauf); 401/403 → Halt; AbortError → still Schluss; alles andere → Störung, weiter.
  * - `trennen()` (Element entfernt) beendet alles; eine späte Antwort ändert nichts (Lauf-Nummer).
+ * - `abbrechen()` (K2b) schickt „Auftrag abbrechen“ als Zug; das Backend fragt erst nach. Das Nachfragen
+ *   läuft weiter: nach dem bestätigten Abbruch antwortet `stand` mit 409 → abgeschlossen.
  */
 import type { ElementHost } from '../_nachladen/element-vertrag';
 
@@ -138,6 +140,22 @@ export class FortschrittAblauf {
     this.phase = 'wartet';
     this.nichtGesendet = false;
     await this.pruefen();
+  }
+
+  /** K2b: solange der Auftrag läuft (nicht fertig, nicht beendet) und die Seite verbunden ist. */
+  abbrechenAngeboten(): boolean {
+    return this.verbunden && (this.phase === 'wartet' || this.phase === 'prueft' || this.phase === 'manuell');
+  }
+
+  /** K2b: „Auftrag abbrechen“ — `true`, wenn der Zug ging (die Shell war frei). */
+  async abbrechen(): Promise<boolean> {
+    const daten = this.u.daten();
+    if (!daten || !this.abbrechenAngeboten() || this.u.beschaeftigt()) return false;
+    try {
+      return (await this.u.host().auftrag({ schritt: 'abbrechen', ablauf: daten.ablauf }))['gesendet'] === true;
+    } catch {
+      return false;
+    }
   }
 
   sichtbarGeworden(): void {

@@ -53,6 +53,11 @@
               "type": "object", "required": ["type", "properties"],
               "properties": { "type": { "const": "object" } },
               "description": "JSON Schema des Auftrags: die Werkzeug-Parameter für die KI; jedes Feld trägt eine description."
+            },
+            "braucht": {
+              "type": "array", "uniqueItems": true, "maxItems": 5,
+              "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,60}$" },
+              "description": "Paket U4: MCP-Werkzeuge, die der Dienst ruft. Ist eines im Lauf nicht verfügbar (Sperre, Studio-Schalter, Einbettung), wird das Modul nicht angeboten."
             }
           }
         }

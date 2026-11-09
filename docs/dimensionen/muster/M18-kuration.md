@@ -156,7 +156,7 @@ liefert, was der nächste als Argument braucht.
 | Metadaten ändern | `get_node_details` (IST-Stand lesen) → `lookup_wlo_vocabulary` (Fach/Stufe/Typ belegen) → `wlo_update_content` |
 | Neues Material zu einer Adresse anlegen (und einsortieren) | `find_content_by_url` (Dublette per Adresse; vorhanden → `wlo_add_to_collection` mit seiner nodeId) → `search_wlo_collections` bzw. `browse_collection_tree` (Ziel finden) → `wlo_create_content` mit `addToCollectionId` — EINE Bestätigung für beides |
 | Neue Sammlung anlegen und füllen | `search_wlo_collections` (Dublette ausschliessen) → `wlo_create_collection` → `wlo_add_to_collection` |
-| Untersammlungen als Baum anlegen | `browse_collection_tree` (was gibt es schon) → `wlo_create_collection_tree` — EINE Bestätigung für den ganzen Baum; ist er groß, setzt „Weiter anlegen“ fort |
+| Untersammlungen als Baum anlegen | `browse_collection_tree` (was gibt es schon) → `wlo_create_collection_tree` — EINE Bestätigung für den ganzen Baum; ist er groß, setzt „Plan fortsetzen“ fort |
 | Viele Materialien einsortieren | `search_wlo_content` / `find_content_by_url` (nodeIds) → `wlo_add_to_collections` — EINE Bestätigung für alle Paare |
 | Redaktionstext schreiben | `get_compendium_text`¹ (was steht schon da) → `wlo_update_compendium` |
 | Etwas löschen | `get_node_details` (benennen, was verschwindet) → `wlo_delete_content` / `wlo_delete_collection` |

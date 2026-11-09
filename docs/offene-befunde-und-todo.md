@@ -31,7 +31,7 @@ Die zugehörigen Pläne:
 - **MCP-Vertrag (M1–M7, 2026-11-07):** [`2026-11-07-mcp-vertrag.md`](plans/2026-11-07-mcp-vertrag.md) — der Chatbot
   am MCP-Stand vom 07.11.: Fehler mit Code, Abnahme aus `structuredContent.confirm`, Anlegen mit Sammlung in einer
   Bestätigung (`addToCollectionId`, `find_content_by_url`), Übersicht/Zählung/Skill-Wahl per `task`, Pläne
-  (Sammlungsbaum, Massen-Aufnahme, „Weiter anlegen“), letzte Ablagen im Upload-Modul. Je Paket eine Notiz
+  (Sammlungsbaum, Massen-Aufnahme, „Plan fortsetzen“, bis 08.11. „Weiter anlegen“), letzte Ablagen im Upload-Modul. Je Paket eine Notiz
   `aenderungen/2026-11-07-paket-m{1..7}-*.md`; Offenes unten in §3 (U3-3), §4 und §6.
 - **Paket 4 (externes Audit und Restliste):** [`2026-10-03-paket-4-audit-extern.md`](plans/2026-10-03-paket-4-audit-extern.md).
   - Status: freigegeben und umgesetzt 2026-10-03 (Phasen V, A–E, L, S; Log im Plan). Zurückgestellt an Paket 5 bzw. ins Backlog: siehe Plan §5/§6.
@@ -40,6 +40,26 @@ Die zugehörigen Pläne:
 - **Audit 2026-09-29:** [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md) — behoben dort: der Transport-Retry mit `confirmToken` und das Token im INFO-Log (früher §1.2/§1.3), `pip-audit` (jetzt in der CI), zwei Aufräumpunkte aus §5 und eine der unter Last kippenden Test-Dateien (siehe §5).
 
 ## 1 Befunde mit Wirkung im Betrieb
+
+- **Upload → Volltext → Metadaten (Anwendungsfall „Strukturdokument + Inhalte“, 2026-11-07):** Auftrag an das
+  MCP-Team [`mcp-auftrag-volltext-metadaten.md`](mcp-auftrag-volltext-metadaten.md) (W1 Volltext an Knoten, W2/W3 als
+  Plan, W4 Rolle im Stapel). Entscheid: der Chatbot steuert auch die Kestra-Flows. Die B-API erlaubt Flows derzeit nur
+  Lesen; geschrieben wird über den MCP. **Später klären:** Benachrichtigung über das edu-sharing-Frontend, wenn ein
+  Flow fertig ist.
+  - **MCP-Stand 2026-11-08: W1–W4 geliefert** (live erst nach dem MCP-Deploy). W4 ist angebunden
+    ([`aenderungen/2026-11-08-w4-rolle-im-stapel.md`](aenderungen/2026-11-08-w4-rolle-im-stapel.md)).
+    W1–W3 (`wlo_attach_fulltext(s)`, `wlo_update_contents`) sind seit K2d-3 als Werkzeuge des Agent-Modus und
+    von M18 angebunden, W2/W3 als Pläne
+    ([`aenderungen/2026-11-08-paket-k2d3-volltexte-und-metadaten.md`](aenderungen/2026-11-08-paket-k2d3-volltexte-und-metadaten.md));
+    als Ablaufschritt seit Paket S nur W1 (W2/W3 sind Pläne und bleiben vorerst dem Chat). Knopf
+    „Plan fortsetzen“, Wartezeit bei „ausgelastet“ und der
+    Durchlauf-Test W2/W3 sind erledigt ([`aenderungen/2026-11-08-kleine-punkte-nach-k2d.md`](aenderungen/2026-11-08-kleine-punkte-nach-k2d.md)).
+    Offen: `would_replace_file` merkt den Text nicht vor — ein echtes Vormerken im Vorgang wäre ein eigenes Paket.
+    `WriteGate.prepare` (Agent-Modus `execute`) gibt die Freigabe bei „ausgelastet“ ohne Code zurück (erledigt
+    08.11.); bei `upstream_busy` bleibt sie verbraucht (Ausgang aus dem Text nicht ablesbar).
+    Zu beachten: Datensätze mit Datei lehnt W1/W2 vorerst mit `would_replace_file` ab (bis zur Messung des
+    MCP-Teams) — beim Upload-Fall also immer; das ist „vorgemerkt“, kein Fehler. Staging nimmt seit 06.11. keinen
+    Inhalt an (500 `InvalidTypeException`). Neue Codes `changed_since_preview`, `file_replaced`, `upstream_busy`.
 
 - **Stabilität der MCP-Anbindung (2026-11-07):** umgesetzt gegen den ausgerollten MCP-Stand S1–S7. Plan
   [`plans/2026-11-07-stabilitaet-mcp-anbindung.md`](plans/2026-11-07-stabilitaet-mcp-anbindung.md), Rückmeldung
@@ -85,6 +105,43 @@ Die zugehörigen Pläne:
   - Dritte Runde (gleicher Tag), Beobachtungen gelöst: Vorabsuche übernimmt die Entität `lizenz` (Programmfehler, `prefetch`); Beispiel `Alle OER` → `OER` in `04-entities` (Server ignoriert „Alle OER“: 3 616 Treffer wie ungefiltert, „OER“ 941); Domänenregeln (`02-domain/domain-rules.md`, Muster-Modus): `query` nur Kernbegriff auch in Folge- und Rettungssuchen, Filter sparsam, verlangte Lizenz bleibt gesetzt; Master-Skill: Stufe und Fach nie aus dem Thema erschließen, Anleitungen/Kompendium/Seitentext geben keine Anrede vor, Rettung lockert zuerst Inhaltstyp und Stufe, eine verlangte Lizenz nur mit Hinweis. `quick_replies.max_count` bleibt 2 (Studio-Einstellung); der Master-Skill verlangt keine drei Vorschläge mehr.
   - Vierte Runde (Master-Skill 22/22 im Knoten): keine erfundene Stufe mehr (Bruchrechnen für Eltern); verlangte OER-Lizenz bleibt im Muster-Modus gesetzt, der Agent lockert sie nur mit Hinweis; Anrede bei unklarer Zielgruppe in allen Rückfragen „Sie“; Platzhalter auf der Sammlung 3/4 erst Rückfrage (zusammen mit Runde 2: 8/9); Quiz verteilt die richtige Antwort, die Begründung fehlte in 1 von 2 Läufen — Kandidat: Format-Beispiel „1. B – weil …“ in M10.
 - **Paket U1 — Direktaktion „Inhalte anzeigen“ ohne Angebotsprüfung** (Plan §15 „Offen (U1-e)“): `_handle_browse_collection` ruft `get_collection_contents`, ohne zu prüfen, ob das Werkzeug angeboten ist (Studio-Schalter, Sperren, Modus der Einbettung). `themenbaum_aktion` prüft seit Review U1-e #3 über `agent_tools.angebotene_mcp_werkzeuge`; hier fehlt das Gegenstück. Bestand vor U1-e.
+- **Zweites Review K2b (2026-11-08), älter als K2b:**
+  - Der Deckel der Schnellantworten (`widget_postprocess`, `max_count`, Muster, Gastgeber) streicht auch
+    System-Knöpfe (`__action__`: „Weiter im Ablauf“, „Stand prüfen“, „Neues Vorhaben“ …), sobald er kleiner ist als
+    ihre Zahl. Im gesperrten Lauf behält er seit K2b die beiden Auftrags-Knöpfe; allgemein offen.
+  - Mit `MODERATION_FAILURE_MODE=closed` ist jede Direktaktion gesperrt, solange die Moderation ausfällt — auch
+    „Stand prüfen“ und „Abbrechen“, deren Parameter keinen Text der Person tragen.
+  - Die Seitenwege `/api/ui/*` (Ablage, Upload, Themenbaum) sind keine Chat-Züge und kennen die Sperre nicht —
+    vermutlich gewollt, zu bestätigen.
+- **Pakete M1, U4, U5, U3-5 (2026-11-08), offen:** Plan
+  [`plans/2026-11-08-pakete-m1-u4-u5-u3-5.md`](plans/2026-11-08-pakete-m1-u4-u5-u3-5.md), Notizen
+  `aenderungen/2026-11-08-paket-{m1,u4,u5,u3-5}-*.md`.
+  - Master-Skill (`docs/skills/vorgehen-knapp.md`) in den WLO-Knoten übertragen (Nutzer), dann Golden-Lauf
+    GV-UI-13 … 16 (Nutzer).
+  - Messen: Kostet `includeContentCounts` bei Tiefe 2 zu viel (ein Aufruf je Sammlung)? Reicht `contentsCount`?
+  - Der Lücken-Abschnitt nennt bei Ebene 2 den Elternpunkt nicht; die Blockgröße steigt mit Abdeckung um
+    höchstens etwa 60 kB.
+  - M2 (`browse_collection_tree` Tiefe 3) bewusst nicht umgesetzt (E-10); O-13 („reicht Tiefe 2?“) bleibt bis
+    zur Messung offen.
+  - Browser-Abnahme der Module `ui_strukturabgleich` (mit und ohne Abdeckung) offen.
+- **Paket S (2026-11-08), offen:**
+  [`aenderungen/2026-11-08-paket-s-schreibende-schritte.md`](aenderungen/2026-11-08-paket-s-schreibende-schritte.md)
+  - Ein Ablauf löscht nicht (`wlo_delete_content`, `wlo_delete_collection` ausgeschlossen, eigener Entscheid —
+    bei Bedarf umstellbar in `werkzeuge._NICHT_IM_ABLAUF`).
+  - Pläne als Ablaufschritt: erledigt mit S4
+    ([`aenderungen/2026-11-08-paket-s4-plaene-als-schritt.md`](aenderungen/2026-11-08-paket-s4-plaene-als-schritt.md)).
+  - Ein „ja“ zu einer Freigabe, deren Lauf nicht mehr wartet, schreibt nicht (eigener Entscheid, Gesamt-Review).
+  - `freigabe` an `auftrag`, sobald die B-API schreibende Flows kennt.
+  - Der Nachlauf nach dem „ja“ läuft vor der Sicherheitsprüfung mit leeren Sperren. Vertretbar, weil die
+    Nachricht ein kurzes, geprüftes Ja ist.
+  - Ein „ja“ speichert zwei Assistenten-Nachrichten (Einlösen und Ablauf); live ist es eine Blase.
+  - Unter gewöhnlichen Antworten steht nur „Vorschau erneut zeigen“, ohne „Ablauf abbrechen“ (Deckel der
+    Schnellantworten).
+  - Browser-Abnahme (Studio-Formular, Widget-Box) offen.
+- **Review K2c-1/K2c-4 (2026-11-08), älter:** erledigt — `bei_fehler` nur bei `modul`, `werkzeug`, `agent`,
+  `auftrag` (Befund sonst), `weiter` als Liste außerhalb einer Verzweigung gilt im Treiber wie kein `weiter`
+  ([`aenderungen/2026-11-08-kleine-punkte-nach-k2d.md`](aenderungen/2026-11-08-kleine-punkte-nach-k2d.md)).
+
 ## 2 Entscheidungen des Nutzers
 
 - ~~**Preis für `gpt-6-luna` fehlt in der Preistafel des Seeds**~~ — erledigt 2026-10-18: die Werksfassung `01-base/pricing` trägt die OpenAI-Listenpreise (Standard, kurzer Kontext) in **USD** (Nutzer-Entscheid; hebt „Seed ohne Preise“ auf). Nicht abgebildet: Cache-Schreibpreise, langer Kontext, abweichende Abrechnung über b-api/AcademicCloud. Achtung Präfix-Suche: eine ungelistete Variante (etwa `gpt-5.4-nano`) bekäme still den Preis von `gpt-5.4`. Eine Anlage, deren Preistafel unberührt ist, übernimmt die Preise beim nächsten Werksabgleich (`migrate`).
@@ -100,7 +157,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Paket 19 (Review 19-1) — Titel fremder Seiten im Metadaten-Cache:** Für eine nicht auflösbare Seite cacht `services/page_context.resolve_page_context` den Tab-Titel als `entities._page_metadata.title` (Gruß und Prompt der Folgezüge lesen ihn) — bei fremden Seiten ein Stück Browserverlauf, 30 Tage. Titel und Suchbegriff als eigene Entities fallen seit Paket 19 weg; ob auch der Cache bei `external` ohne Titel auskommt (der Gruß nennt dort den Host), ist zu prüfen. **Nutzer-Entscheid 2026-10-31: bleibt so.** Der Titel ist Kontext für Seitenerkennung und Aktionen; der Chatbot ist nicht für fremde Seiten gedacht. Eine Lösung „im Zug nutzen, vor dem Speichern entfernen“ erst nach gründlicher Folgenprüfung (nachgelagerte Aktionen, Auswertungen).
 
 - **Paket U1 — offene Entscheide** (Plan [`2026-11-02-paket-u1-ui-module.md`](plans/2026-11-02-paket-u1-ui-module.md)):
-  - `ui_upload` (§13, „Konzept `ui_upload`“): wer darf hochladen (nur Angemeldete?) und mit welchen Grenzen; Aufbewahrung samt Datenschutz-Hinweis; Ziel (nur Kontext im Chat, edu-sharing, Kestra); Virenprüfung; Formate über MarkItDown hinaus (OCR). Die übrigen vorgeschlagenen Module (`ui_freigabe`, `ui_fortschritt`, `ui_befund`, `ui_themenbaum_auswahl`) sind nicht freigegeben.
+  - `ui_upload` (§13, „Konzept `ui_upload`“): wer darf hochladen (nur Angemeldete?) und mit welchen Grenzen; Aufbewahrung samt Datenschutz-Hinweis; Ziel (nur Kontext im Chat, edu-sharing, Kestra); Virenprüfung; Formate über MarkItDown hinaus (OCR). Die übrigen vorgeschlagenen Module (`ui_freigabe`, `ui_fortschritt`, `ui_befund`, `ui_themenbaum_auswahl`) sind nicht freigegeben. `ui_freigabe` entfällt seit Paket S: ein schreibender Ablaufschritt zeigt die Vorschau-Box und den Chip des Chats.
   - Themenbaum statt `browse_collection_tree`: die Master-Skill-Kurzfassung (`docs/skills/vorgehen-knapp.md`, live) ist seit 2026-11-03 auf `ui_themenbaum` umgestellt. Offen: `docs/skills/vorgehen.md`, `docs/skills/vorgehen-kompakt.md`, `services/response_prompt_tools_text.py` und die Muster, die `browse_collection_tree` nennen — umstellen oder so lassen (§15 „Offen (U1-e)“).
   - Textfassung im Verlauf für abgeschaltete Module (§16, F-2 und „Offen (U1-f)“): heute bleiben gespeicherte Blöcke, wie sie gezeigt wurden; rückwirkend verschwinden bräuchte eine Widget-Regel „leere Daten → Textfassung“.
   - Themenbaum: Nachgeladenes (U1-h, §18 H-8) gilt nur bis zum Neuladen der Seite; der Verlauf zeigt den ursprünglichen Baum. In die gespeicherte Nachricht schreiben hieße einen Schreibweg ohne Zug (und `eingabe` kennt nur eine Ebene Kinder) — ja oder nein?
@@ -158,10 +215,19 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   einen Auftrag wartet, mindestens bis zum Abholen, höchstens 30 Tage (Aufbewahrung und `beruehren` müssen
   den Stand kennen). Entscheid steht aus; bis dahin geht ein nicht abgeholter Auftrag mit dem Vorgang
   verloren (bei der b-api bleibt er abrufbar).
-- **K22 (neu, an das b-api-Team):** Darf `B_API_KEY` einen mit dem Schlüssel einer Person gestarteten Auftrag
-  lesen? Nur dann ginge ein Wächter im Hintergrund; bis dahin fragt nur ein Zug der Person ab („Stand
-  prüfen“ bzw. seit K1b das Modul `ui_fortschritt` über `POST /api/ui/auftrag/stand`). Dazu weiter offen: K16
-  (Start-Pfad), K18 (`X-Edu-User-Id`), K21 (Abbruch).
+- **K22 (geklärt 2026-11-07, B-API-Handbuch):** Nein. Ein fremder Schlüssel bekommt 404, einen Rückruf gibt es
+  nicht. Es bleibt dabei: Nur ein Zug der Person fragt ab („Stand prüfen“ bzw. `ui_fortschritt`).
+  - Ebenfalls geklärt: K16 (Start-Pfad `/api/v1/jobs/flows/{flow}`) und K21 (Abbruch per `DELETE`; der
+    Chatbot bricht seit dem Job-Paket 2026-11-08 ersetzte und abgebrochene Aufträge auch bei der B-API ab).
+  - Offen bleibt K18, `X-Edu-User-Id`. Am Staging gemessen ist die Kennung der Benutzername (`authority`).
+    Ob die B-API sie gegen den Schlüssel prüft, ist offen; bis dahin nur Flows ohne Repository-Scopes.
+  - Ohne Abbruch bei der B-API (Nachprüfung Job-Paket 2026-11-08; der Job läuft dort zu Ende und zählt bis
+    dahin auf die Grenze von 20 je Schlüssel):
+    - ~~Verdrängen in `vorgaenge.anlegen` nimmt einen wartenden Lauf per Kaskade mit.~~ Erledigt in K2a:
+      ein Vorgang mit wartendem Auftrag weicht nie.
+    - „Arbeitsstand löschen“ liest die Job-IDs vor der Kaskade; ein Auftrag, den ein zweiter Tab genau
+      dazwischen festschreibt, fehlt darin.
+    - Aufbewahrung und `purge_all` laufen ohne Schlüssel der Person; ein `DELETE` bekäme dort 404.
 - **K1b `ui_fortschritt` (2026-11-06):** fertig und reviewt (Notiz
   [`aenderungen/2026-11-06-paket-k1b-fortschritt.md`](aenderungen/2026-11-06-paket-k1b-fortschritt.md)). Offen:
   403 `abgewiesen` zeigt das Modul wie „nicht angemeldet“ (der Client reicht nur den Status durch).
@@ -176,6 +242,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Kestra-Abläufe K2b/K2a (2026-11-08):** keine Migration, keine neue Variable; Widget-Bündel neu bauen.
+  Solange b-api-Aufträge freigeschaltet sind, die Aufbewahrung der Gesprächsverläufe auf **mindestens 8 Tage**
+  stellen — sonst kann „Gespräch fortsetzen“ in einen leeren Verlauf führen (Notiz
+  [`aenderungen/2026-11-08-paket-k2a-fortsetzen.md`](aenderungen/2026-11-08-paket-k2a-fortsetzen.md)).
 - **Stabilität der MCP-Anbindung (2026-11-07):**
   - **Voraussetzung:** der MCP-Server auf dem Stand S1–S7 (ausgerollt am 07.11.). Ein älterer Server geht auch:
     Ohne `/auth/status` fragt der Chatbot das Werkzeug, ohne Replay bleibt der Ausgang offen wie bisher.
@@ -368,7 +438,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - `search_wlo_collections` und `search_wlo_within_collection` in `SPERRE_PERSOENLICH` aufnehmen (älter).
   - Pläne: Eingang „In WLO anlegen“ aus dem Strukturentwurf; Fortsetzen einer früheren Stapel-Ablage aus der Liste
     „letzte Ablagen“; Pläne über `/api/agent` (`write_mode=execute`) nur als Vorschau.
-  - Seltener Randfall: „Weiter anlegen“ vor dem Anlaufen eines langsamen ersten Abschnitts → `plan_expired`, der
+  - Seltener Randfall: „Plan fortsetzen“ vor dem Anlaufen eines langsamen ersten Abschnitts → `plan_expired`, der
     später anlaufende Plan bleibt bis zu seiner Frist ohne Knopf.
 - **Aus dem Review vom 2026-11-07 (älter als M1–M7, nur eingetragen):**
   - `services/page_duplicate.py`: die Seitenadresse geht als Volltext-`query` an `search_wlo_content`; der Server

@@ -26,6 +26,8 @@ import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { fieldAt } from './field-at';
+import { FORM_BEFUNDE, type FormBefund, type FormBefunde } from './form-befunde';
+import { FORM_DOKUMENT } from './form-dokument';
 import { FORM_EPOCHE } from './form-epoche';
 import { FORM_WIRKUNG } from './form-wirkung';
 import { type FeldGruppe, type FormSection, formSections, gruppenSections } from './form-sections';
@@ -41,6 +43,8 @@ import { rootField, type SchemaField } from './schema-to-fields';
   providers: [
     { provide: FORM_EPOCHE, useFactory: () => inject(SchemaFormComponent).epoche },
     { provide: FORM_WIRKUNG, useFactory: () => inject(SchemaFormComponent).plakette },
+    { provide: FORM_DOKUMENT, useFactory: () => inject(SchemaFormComponent).value },
+    { provide: FORM_BEFUNDE, useFactory: () => inject(SchemaFormComponent).befunde },
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -173,12 +177,40 @@ export class SchemaFormComponent {
     return this.visiblePaths() ? [] : formSections(this.field());
   });
 
-  /** Die Meldungen, die an einem Feld stehen können: Pfad → Satz (ST-2e). */
-  readonly problemTexts = computed<ReadonlyMap<string, string>>(() => new Map(
-    this.problems()
+  /** Paket K2c-4: Befunde einer Prüfung ohne Speichern, je Quelle (`FORM_BEFUNDE`). */
+  private readonly pruefBefunde = signal<ReadonlyMap<string, readonly FormBefund[]>>(new Map());
+  readonly befunde: FormBefunde = {
+    setzen: (quelle, befunde) => this.pruefBefunde.update((alt) => new Map(alt).set(quelle, befunde)),
+    entfernen: (quelle) => this.pruefBefunde.update((alt) => {
+      if (!alt.has(quelle)) return alt;
+      const neu = new Map(alt);
+      neu.delete(quelle);
+      return neu;
+    }),
+  };
+
+  /**
+   * Die Meldungen, die an einem Feld stehen können: Pfad → Satz (ST-2e). Dazu die Befunde einer
+   * Prüfung (K2c-4) — an derselben Stelle wie eine Meldung des Servers dahinter, nicht statt ihrer.
+   */
+  readonly problemTexts = computed<ReadonlyMap<string, string>>(() => {
+    const aus = new Map(this.problems()
       .filter((problem) => fieldAt(this.field(), problem.path))
-      .map((problem) => [pathKey(problem.path), this.describe(problem)]),
-  ));
+      .map((problem) => [pathKey(problem.path), this.describe(problem)]));
+    for (const befunde of this.pruefBefunde().values()) {
+      for (const befund of befunde) {
+        // Review K2c-4, Befund 1: ohne Feld an der Stelle das nächste darüber
+        let pfad = befund.pfad;
+        while (pfad.length > 0 && !fieldAt(this.field(), pfad)) pfad = pfad.slice(0, -1);
+        const ort = pathKey(pfad);
+        const da = aus.get(ort);
+        // Befund 7: dieselbe Meldung (Server und Prüfung) steht nur einmal da
+        if (da?.includes(befund.text)) continue;
+        aus.set(ort, da ? `${da} ${befund.text}` : befund.text);
+      }
+    }
+    return aus;
+  });
   /** … und die ohne ein Feld, das sie tragen könnte — über dem Formular. */
   readonly problemsElsewhere = computed<readonly string[]>(() => this.problems()
     .filter((problem) => !fieldAt(this.field(), problem.path))
@@ -246,21 +278,26 @@ export class SchemaFormComponent {
     this.epoche();
     untracked(() => {
       if (Object.keys(this.fieldErrors()).length > 0) this.fieldErrors.set({});
+      if (this.pruefBefunde().size > 0) this.pruefBefunde.set(new Map());
     });
   });
 
   apply(edit: FormEdit): void {
     if (edit.kind === 'field-error') {
-      this.setFieldError(edit.path.join('.') || this.lang.t('schemaForm.root'), edit.message);
+      this.setFieldError(edit.path.join('.') || this.lang.t('schemaForm.root'), edit.message,
+                         edit.mitUnterpfaden === true);
       return;
     }
     this.valueChange.emit(applyEdit(this.value(), edit));
   }
 
-  private setFieldError(where: string, message: string): void {
+  private setFieldError(where: string, message: string, mitUnterpfaden = false): void {
     const next = { ...this.fieldErrors() };
     if (message) next[where] = message;
     else delete next[where];
+    if (!message && mitUnterpfaden) {
+      for (const key of Object.keys(next)) if (key.startsWith(`${where}.`)) delete next[key];
+    }
     this.fieldErrors.set(next);
     this.errorsChange.emit(Object.keys(next));
   }

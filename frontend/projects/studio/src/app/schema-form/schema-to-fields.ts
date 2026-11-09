@@ -14,7 +14,7 @@
  * Free-form config stays editable; it just gets no typed controls.
  */
 import {
-  bounds, fixed, primary, slider, stringKind, vorgabe, withTextKey,
+  bounds, fixed, nurBei, primary, slider, stringKind, vorgabe, withTextKey,
 } from './field-hints';
 import type { JsonSchema } from './json-schema';
 
@@ -80,7 +80,7 @@ export interface SchemaField {
   /** `number` only (ST-2h): drawn as a slider — only with both bounds. `step`
    *  is its step; `thresholds` are where the value changes what it does (the
    *  slider names the zone the value is in). */
-  readonly widget?: 'slider';
+  readonly widget?: 'slider' | 'teil-werte' | 'ablauf';
   readonly step?: number;
   readonly thresholds?: readonly number[];
   /** `integer`/`number` only (ST-2c): the schema's bounds, shown at the field and
@@ -95,6 +95,9 @@ export interface SchemaField {
   readonly defaultValue?: unknown;
   /** Paket 15: a sibling list's marker writes this field — it is not rendered on its own. */
   readonly markerZiel?: boolean;
+  /** Paket K2c-2 (`x-nur-bei`): the field applies only while the sibling `feld` holds one of
+   *  `werte` (a workflow step shows the fields of its type). Hidden only while empty. */
+  readonly nurBei?: { readonly feld: string; readonly werte: readonly string[] };
   /** `group` only (Paket 15): the section heading already names it — no second legend. */
   readonly ohneLegende?: boolean;
   /** `group` only (Paket 15, Review-Runde 2): the defaults of ALL its children, by key —
@@ -137,6 +140,7 @@ function fieldFor(
     description: raw.description ?? node?.description,
     ...primary(raw, node),
     ...vorgabe(raw),
+    ...nurBei(raw),
     ...explicitDefault(raw, node),
   };
   const blank = (fallback: unknown): unknown => {
@@ -175,6 +179,7 @@ function fieldFor(
 
 type FieldBase = Pick<
   SchemaField, 'key' | 'label' | 'required' | 'nullable' | 'description' | 'primary' | 'vorgabe'
+  | 'nurBei'
 >;
 
 function objectField(
@@ -199,13 +204,20 @@ function objectField(
     const fromChildren = Object.fromEntries(children.map((c) => [c.key, c.blank]));
     const kinderVorgaben = Object.fromEntries(
       children.filter((c) => c.defaultValue !== undefined).map((c) => [c.key, c.defaultValue]));
-    return { ...base, kind: 'group', children, kinderVorgaben, blank: blank(fromChildren) };
+    // Paket K2c-4: ein Ablauf (`x-widget: ablauf`) bekommt „Prüfen“ und die Schrittfolge.
+    const widget = node['x-widget'] === 'ablauf' ? { widget: 'ablauf' as const } : {};
+    return { ...base, kind: 'group', children, kinderVorgaben, ...widget, blank: blank(fromChildren) };
   }
   // `additionalProperties` as a *schema* is a typed map (RootModel[dict[str, X]]);
   // as `true` it is a free-form bag with nothing to render.
   const extra = node.additionalProperties;
   if (extra && typeof extra === 'object') {
     return { ...base, kind: 'map', item: fieldFor('', extra, root, false), blank: blank({}) };
+  }
+  // Paket K2c-3: ein Objekt Name → Text | Teil | JSON (`x-widget: teil-werte`) zeigt die Tabelle;
+  // der Katalog der Teile wird damit wie jeder andere einmal je Formular geholt.
+  if (node['x-widget'] === 'teil-werte') {
+    return { ...base, kind: 'raw', widget: 'teil-werte', catalog: 'vorgang_teile', blank: blank(null) };
   }
   return { ...base, kind: 'raw', blank: blank(null) };
 }

@@ -48,6 +48,14 @@ def _sekunden(wert: Any) -> float | None:
     return float(wert)
 
 
+def genannte_wartezeit(fehler: dict[str, Any] | None) -> int | None:
+    """Die Wartezeit, die der Server bei ``upstream_busy`` nennt (``retryAfter``, Sekunden) — für
+    den Satz an die Person (Review K2d-3: bei W2 mit vollem Speicher 60 s); ``None`` ohne Angabe
+    oder bei Unsinn (über eine Stunde)."""
+    warte = _sekunden((fehler or {}).get("retryAfter"))
+    return None if warte is None or warte <= 0 or warte > 3600 else max(1, round(warte))
+
+
 def kurze_wartezeit(result: dict[str, Any]) -> float | None:
     """Die Wartezeit, nach der ``result`` einmal wiederholt wird — ``None``: nicht wiederholen."""
     fehler = result.get("error")

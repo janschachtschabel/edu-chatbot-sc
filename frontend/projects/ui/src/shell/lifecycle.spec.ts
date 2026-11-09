@@ -147,6 +147,33 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     expect(rec.messages).toEqual([[], []]);   // geleert wird trotzdem
   });
 
+  // Paket K2a: „Gespräch fortsetzen“ wechselt auf die Kennung eines anderen Gesprächs.
+  it('wechseln: übernimmt die Kennung, leert und lädt deren Verlauf', async () => {
+    const { ctx, rec, api } = makeCtx({ persistSession: () => true });
+    const lc = new ShellLifecycle(ctx);
+    expect(await lc.wechseln(VALID_SID)).toBe(true);
+    expect(rec.sessionIds).toEqual([VALID_SID]);
+    expect(rec.messages).toEqual([[]]);
+    // Review K2a, Befund 4: das Laden hält, bis der Verlauf da ist.
+    expect(rec.loading).toEqual([true, false]);
+    expect(api.loadHistory).toHaveBeenCalledWith(VALID_SID, 20);
+    expect(localStorage.getItem(KEY)).toBe(VALID_SID);
+  });
+
+  it('wechseln: ohne persist-session bleibt die Kennung nur im Speicher', async () => {
+    const { ctx, rec } = makeCtx({ persistSession: () => false });
+    expect(await new ShellLifecycle(ctx).wechseln(VALID_SID)).toBe(true);
+    expect(rec.sessionIds).toEqual([VALID_SID]);
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('wechseln: eine unbrauchbare Kennung ändert nichts', async () => {
+    const { ctx, rec, api } = makeCtx();
+    expect(await new ShellLifecycle(ctx).wechseln('evil-tracking-id')).toBe(false);
+    expect(rec.sessionIds).toEqual([]);
+    expect(api.loadHistory).not.toHaveBeenCalled();
+  });
+
   it('restart und resetSession geben das Laden frei (Befundliste §1.4)', () => {
     // Ein Neustart mitten im Zug: der alte Zug verwirft sein Ergebnis selbst
     // (`send-message.ts`). Ohne die Freigabe bliebe die Eingabe bis zu dessen

@@ -49,7 +49,7 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
       '*Schreiben:* immer zweistufig — Vorschau, dann das Ja der Person. Material wird '
       + 'mit einer Bestätigung angelegt und einsortiert; Sammlungsbäume und viele '
       + 'Aufnahmen laufen als Plan unter einer Bestätigung, große Pläne setzt der Knopf '
-      + '„Weiter anlegen“ fort.',
+      + '„Plan fortsetzen“ fort.',
     /** Plan 2026-11-07 (Stabilität der MCP-Anbindung, CB-2…CB-9). */
     'rk.mcp.stability':
       '*Überlast und Ausfall:* der Chatbot bleibt unter dem Budget des Servers (eigenes '

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { erfasse, type Quelle } from './upload-erfassen';
+import { setzeRolle } from './upload-rollen';
 import {
   ansageFaellig,
   ablageErlaubt, artVon, auswahl, codeAblage, type Ergebnis, letzteAus, maxBytesAblage, nochmalSenden, planAus, sha256Hex,
@@ -166,5 +167,24 @@ describe('Letzte Ablagen (Paket M6)', () => {
     ] });
     expect(letzteAus({})).toEqual({ ablagen: [], gekappt: false });
     expect(letzteAus({ letzte: { ablagen: 'kaputt' } })).toEqual({ ablagen: [], gekappt: false });
+  });
+});
+
+// W4-Anbindung (MCP-Stand 2026-11-08): die Rolle je Datei reist mit — Teil der Freigabe.
+describe('Rolle im Stapel (W4)', () => {
+  it('ein Strukturdokument geht als „struktur“, alles andere als „inhalt“', () => {
+    const i = E.dateien.findIndex((d) => d.name === '01 Mechanik.pdf');
+    const a = auswahl(setzeRolle(E, i, 'struktur'), 10_000_000);
+    expect(a.kandidaten.map((k) => k.rolle)).toEqual(['struktur', 'inhalt', 'inhalt']);
+    expect(auswahl(E, 10_000_000).kandidaten.every((k) => k.rolle === 'inhalt')).toBe(true);
+  });
+
+  it('der Plan trägt die Rolle zurück; eine unbekannte gilt als Inhalt', () => {
+    const roh = {
+      batch_token: 'tok-1234567890', layout: 'folder', ordner: 'Physik', gesamt: 30,
+      eintraege: [{ index: 0, titel: 'A', art: 'pdf', groesse: 10, name: 'A.pdf', rolle: 'struktur' },
+        { index: 1, titel: 'B', art: 'jpg', groesse: 20, name: 'B.jpg', rolle: 'quatsch' }],
+    };
+    expect(planAus(roh, 2)?.eintraege.map((e) => e.rolle)).toEqual(['struktur', 'inhalt']);
   });
 });

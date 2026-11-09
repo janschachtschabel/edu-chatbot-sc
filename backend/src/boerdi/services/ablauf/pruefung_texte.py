@@ -15,14 +15,49 @@ _T: Final[dict[str, dict[str, str]]] = {
               "en": "Step {s}: module {m!r} does not exist"},
     "daten": {"de": "Schritt {s}: Daten passen nicht zum Modul {m} ({f})",
               "en": "Step {s}: data do not fit module {m} ({f})"},
-    "schreibend": {"de": "Schritt {s}: Werkzeug {w} ist schreibend (erst mit Freigabe, Paket S)",
-                   "en": "Step {s}: tool {w} writes (only with approval, package S)"},
+    "schreibend": {"de": "Schritt {s}: Werkzeug {w} ist schreibend — das geht nur in einem "
+                         "werkzeug-Schritt mit Freigabe, mit einem bestätigbaren WLO-Werkzeug, das "
+                         "nicht löscht",
+                   "en": "Step {s}: tool {w} writes — only possible in a werkzeug step with "
+                         "approval, with a confirmable WLO tool that does not delete"},
+    "schluessel_fest": {"de": "Schritt {s}: argumente dürfen keinen Schlüssel tragen ({f}) — den "
+                              "setzt nur die Freigabe der Person",
+                        "en": "Step {s}: arguments must not carry a key ({f}) — only the person's "
+                              "approval sets it"},
+    "freigabe_typ": {"de": "Schritt {s}: freigabe gibt es nur an einem werkzeug-Schritt",
+                     "en": "Step {s}: freigabe only exists on a werkzeug step"},
+    "freigabe_fehlt": {"de": "Schritt {s}: das schreibende Werkzeug {w} braucht eine Freigabe (der "
+                             "Satz über der Vorschau, mindestens auf Deutsch)",
+                       "en": "Step {s}: the writing tool {w} needs an approval (the sentence above "
+                             "the preview, at least in German)"},
+    "freigabe_lesend": {"de": "Schritt {s}: eine Freigabe gibt es nur an einem schreibenden "
+                              "Werkzeug ({w} schreibt nicht)",
+                        "en": "Step {s}: an approval only exists on a writing tool ({w} does not "
+                              "write)"},
+    "freigabe_anmeldung": {"de": "Schreibende Schritte brauchen die Voraussetzung Anmeldung",
+                           "en": "Writing steps need the requirement sign-in"},
     "werkzeug": {"de": "Schritt {s}: Werkzeug {w!r} ist unbekannt",
                  "en": "Step {s}: tool {w!r} is unknown"},
     "mcp_teil": {"de": "Schritt {s}: lesende WLO-Werkzeuge bekommen keine Teile des Vorgangs",
                  "en": "Step {s}: read-only WLO tools get no parts of the work item"},
     "teil": {"de": "Schritt {s}: Teil {t!r} hat keine gültige Form",
              "en": "Step {s}: part {t!r} has no valid form"},
+    "dateien_holen": {"de": "Schritt {s}: dateien_holen gibt es nur an einem Auftragsschritt",
+                      "en": "Step {s}: dateien_holen only exists on a job step"},
+    "pfad": {"de": "Schritt {s}: Pfad {p!r} in Teil {t!r} hat keine gültige Form "
+                   "(höchstens acht Glieder mit Punkt getrennt, je 1 bis 64 Zeichen aus A–Z, "
+                   "a–z, 0–9, _ und -)",
+             "en": "Step {s}: path {p!r} in part {t!r} has no valid form "
+                   "(at most eight segments separated by dots, each 1 to 64 characters from "
+                   "A–Z, a–z, 0–9, _ and -)"},
+    "argumente_ganz": {"de": "Schritt {s}: argumente können kein ganzer Verweis sein — nur die "
+                             "einzelnen Werte (ein ganzer Verweis geht nur bei daten)",
+                       "en": "Step {s}: arguments cannot be a whole reference — only the single "
+                             "values (a whole reference only works for data)"},
+    "zu_tief": {"de": "Schritt {s}: Verweis auf Teil {t!r} liegt tiefer als {max} Ebenen — der "
+                      "Lauf setzt ihn nicht ein",
+                "en": "Step {s}: reference to part {t!r} is nested deeper than {max} levels — "
+                      "the run does not fill it in"},
     "regeln_fehlen": {"de": "Schritt {s}: Verzweigung braucht Regeln (Liste unter weiter)",
                       "en": "Step {s}: branch needs rules (a list under next)"},
     "regeln_falsch": {"de": "Schritt {s}: Regeln unter weiter gibt es nur bei einer Verzweigung",
@@ -60,6 +95,12 @@ _T: Final[dict[str, dict[str, str]]] = {
                      "en": "Step {s}: flow {f!r} is not enabled by operations (B_API_JOBS_FLOWS)"},
     "auftrag_schreibt": {"de": "Schritt {s}: Ergebnis-Teil (schreibt) fehlt",
                          "en": "Step {s}: result part (schreibt) missing"},
+    "bei_fehler_typ": {"de": "Schritt {s}: bei_fehler wirkt bei der Art {typ} nicht (nur bei "
+                             "modul, werkzeug, agent und auftrag)",
+                       "en": "Step {s}: bei_fehler has no effect on kind {typ} (only on modul, "
+                             "werkzeug, agent and auftrag)"},
+    "warten": {"de": "Schritt {s}: warten gilt nur an Schritten der Art auftrag",
+               "en": "Step {s}: warten only applies to steps of kind auftrag"},
     "auftrag_anmeldung": {"de": "Aufträge brauchen die Voraussetzung Anmeldung",
                           "en": "Jobs need the requirement sign-in"},
     "agent_fehlt": {"de": "Schritt {s}: Art agent braucht den Block agent",

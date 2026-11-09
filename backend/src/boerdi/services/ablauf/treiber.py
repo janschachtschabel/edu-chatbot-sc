@@ -23,15 +23,17 @@ import copy
 import hashlib
 import json
 import logging
+import secrets
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from typing import Any, Final
 
 from boerdi.api.schemas_ui import UiBlock
 from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
+from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 from boerdi.services import teil_verweise
 from boerdi.services.ablauf import werkzeuge
-from boerdi.services.ablauf.pruefung import RECHENSCHRITTE, nachfolger
+from boerdi.services.ablauf.pruefung import RECHENSCHRITTE, nachfolger, schreibt_mit_freigabe
 from boerdi.services.ablauf.treiber_bloecke import fortschritt as _fortschritt
 from boerdi.services.ablauf.treiber_bloecke import modul_block as _modul_block
 
@@ -44,8 +46,24 @@ WARTET: Final = "wartet_person"
 WARTET_KI: Final = "wartet_ki"
 #: Paket K1a: ein ``auftrag``-Schritt — ein b-api-Auftrag läuft, „Stand prüfen“ holt ihn ab.
 WARTET_AUFTRAG: Final = "wartet_auftrag"
+#: Paket S: ein schreibender ``werkzeug``-Schritt hat seine Änderung vorgelegt — er wartet auf die
+#: Freigabe der Person (das „ja“ löst der Vorlauf ein wie im Chat, ``ablauf/freigabe_zug``).
+WARTET_FREIGABE: Final = "wartet_freigabe"
 
 Teil = tuple[str, str, Any, str]
+
+
+@dataclass(frozen=True)
+class Vorlage:
+    """Paket S: die Vorschau eines schreibenden Werkzeugs — der Text (ohne Schlüssel) und der
+    Schlüssel, mit dem die Freigabe einlöst; ``schluessel`` ``None``: es gibt nichts zu ändern.
+    ``ausfall`` (Review S2/S3, Befunde 8/9): ``voruebergehend`` — WLO ausgelastet, keine Antwort,
+    Anmeldung abgewiesen: der Lauf wartet, ``text`` sagt es; ``abgelehnt`` — der Server lehnt die
+    Änderung ab: ``text`` nennt den Grund, dann ``bei_fehler``."""
+
+    text: str
+    schluessel: str | None
+    ausfall: str | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +77,9 @@ class Umgebung:
     #: Paket K1a: einen Auftrag starten (Flow, Eingaben) → Job-ID oder ``None``; ``None`` als Naht =
     #: Aufträge hier nicht möglich (nicht eingerichtet oder ohne Anmeldung).
     auftrag_starten: Callable[[str, dict[str, Any]], Awaitable[str | None]] | None = None
+    #: Paket S: ein schreibendes Werkzeug OHNE Schlüssel rufen (Vorschau) → :class:`Vorlage` oder
+    #: ``None`` (Fehler, keine Antwort, ohne Schreibrecht); ``None`` als Naht = hier nicht möglich.
+    vorlegen: Callable[[str, dict[str, Any]], Awaitable[Vorlage | None]] | None = None
 
 
 @dataclass
@@ -73,6 +94,9 @@ class Ausgabe:
     fehlt_teil: str | None = None
     #: Paket K1a: gestarteter Auftrag ``{flow, job_id, schritt}`` — der Aufrufer hält ihn fest.
     auftrag: dict[str, str] | None = None
+    #: Paket S: die vorgelegte Änderung ``{werkzeug, args, schluessel, vorschau, schritt}`` — der
+    #: Aufrufer merkt sie als offene Abnahme und zeigt die Vorschau (nie dem Modell).
+    freigabe: dict[str, Any] | None = None
 
 
 def fassung(ablauf: AblaufArea) -> str:
@@ -90,6 +114,11 @@ def _text(s: Schritt, sprache: str) -> str:
     return (texte.get(sprache) or texte.get("de") or "").strip()
 
 
+def _freigabe_satz(s: Schritt, sprache: str) -> str:
+    texte = s.freigabe or {}
+    return (texte.get(sprache) or texte.get("de") or "").strip()
+
+
 class _Teile:
     """Die neuen Teile dieses Aufrufs vor dem Lader des Vorgangs."""
 
@@ -102,17 +131,20 @@ class _Teile:
 
 async def _daten(roh: dict[str, Any] | None, teile: _Teile) -> tuple[dict[str, Any], list[str]]:
     """Die Daten eines Modul-Schritts. Anders als bei der KI darf hier die oberste Ebene ein Verweis
-    sein (``daten: {"$teil": "draft"}``) — die Definition ist beim Speichern geprüft."""
-    name = roh.get(teil_verweise.SCHLUESSEL) if isinstance(roh, dict) and len(roh) == 1 else None
-    if isinstance(name, str):
-        wert = await teile(name)
-        return (copy.deepcopy(wert), []) if isinstance(wert, dict) else ({}, [str(roh)])
+    sein (``daten: {"$teil": "draft"}``, K2d-1 auch mit ``pfad``) — die Definition ist beim
+    Speichern geprüft."""
+    if (v := teil_verweise.verweis(roh)) is not None:
+        name, pfad = v
+        gefunden = await teile(name) if teil_verweise.NAME.match(name) else None
+        wert = teil_verweise.stelle(gefunden, pfad) if gefunden is not None else None
+        return ((copy.deepcopy(wert), []) if isinstance(wert, dict)
+                else ({}, [teil_verweise.bezeichnung(name, pfad)]))
     return await teil_verweise.einsetzen(dict(roh or {}), teile)
 
 
 async def _werkzeug(s: Schritt, args: dict[str, Any], umgebung: Umgebung) -> Any:
     name = s.werkzeug or ""
-    if name in umgebung.gesperrt:
+    if name in umgebung.gesperrt or werkzeuge.DIENST_MCP.get(name, frozenset()) & umgebung.gesperrt:
         logger.info("Ablauf: Werkzeug %s von der Sicherheitsprüfung gesperrt", name)
         return None
     if name in werkzeuge.DIENSTE:
@@ -171,6 +203,40 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                 if block.art == "abfragen":
                     lauf.update(status=WARTET, offener_block=block.block_id)
                     return aus
+        elif s.typ == "werkzeug" and schreibt_mit_freigabe(s):
+            # Paket S: vorlegen, nie schreiben — der Schlüssel geht an die Abnahme, nicht zurück an
+            # den Server. Teile wie für ein bestätigbares Werkzeug (``darf``, ``MAX_BYTES``).
+            name = s.werkzeug or ""
+            args, fehlt = await teil_verweise.einsetzen(dict(s.argumente or {}), teile, name)
+            # nie mit Schlüssel (Review S1, Befund 1 — die Prüfung meldet ihn schon)
+            args = {k: v for k, v in args.items() if k not in SCHLUESSEL_FELDER}
+            vorlage = (None if fehlt or umgebung.vorlegen is None or name in umgebung.gesperrt
+                       else await umgebung.vorlegen(name, args))
+            if vorlage is None:
+                fehler = True
+            elif vorlage.ausfall == "voruebergehend":
+                aus.texte.append(vorlage.text)
+                lauf.update(status=WARTET_FREIGABE, freigabe_id=None)
+                return aus
+            elif vorlage.ausfall is not None:
+                aus.texte.append(vorlage.text)
+                fehler = True
+            elif vorlage.schluessel is None:
+                # nichts zu ändern — der gewünschte Stand gilt schon (FS-9)
+                if s.schreibt:
+                    teile.neu[s.schreibt] = {"unveraendert": True}
+                    aus.neue_teile.append((s.schreibt, f"{name}@1", {"unveraendert": True},
+                                           "unverändert"))
+            else:
+                if text := _freigabe_satz(s, umgebung.sprache):
+                    aus.texte.append(text)
+                # Review S2/S3, Befund 6: jede Vorlage hat eine Kennung — ein „ja“ zu einer alten
+                # setzt keinen neu gestarteten Lauf fort
+                kennung = secrets.token_hex(6)
+                aus.freigabe = {"werkzeug": name, "args": args, "schluessel": vorlage.schluessel,
+                                "vorschau": vorlage.text, "schritt": s.id, "id": kennung}
+                lauf.update(status=WARTET_FREIGABE, freigabe_id=kennung)
+                return aus
         elif s.typ == "werkzeug":
             # Dienste bekommen Teile (geprüfte Definition), lesende WLO-Werkzeuge nicht (``darf``).
             ziel = None if s.werkzeug in werkzeuge.DIENSTE else s.werkzeug
@@ -304,6 +370,65 @@ async def weiter_auftrag(ablauf: AblaufArea, lauf: dict[str, Any], ergebnis: dic
             return ergebnis if name == s.schreibt else await lader(name)
 
         umgebung = replace(umgebung, teile=mit_ergebnis)
+    if ziel not in index:
+        neu["status"] = "fertig"
+        aus = Ausgabe(lauf=neu)
+    else:
+        aus = await _rechne(ablauf, neu, index[ziel], umgebung)
+    if teil is not None:
+        aus.neue_teile.insert(0, teil)
+    return aus
+
+
+def _am_freigabe_schritt(ablauf: AblaufArea, lauf: dict[str, Any]) -> int | None:
+    """Die Stelle des Schritts, an dem der Lauf auf eine Freigabe wartet — ``None``, wenn er dort
+    nicht wartet oder sich die Schritte geändert haben."""
+    if lauf.get("status") != WARTET_FREIGABE or lauf.get("fassung") != fassung(ablauf):
+        return None
+    index = {s.id: i for i, s in enumerate(ablauf.schritte)}
+    i = index.get(str(lauf.get("schritt")))
+    if i is None or not schreibt_mit_freigabe(ablauf.schritte[i]):
+        return None
+    return i
+
+
+async def erneut_vorlegen(ablauf: AblaufArea, lauf: dict[str, Any], umgebung: Umgebung
+                          ) -> Ausgabe | None:
+    """Paket S (FS-6): die Vorschau des wartenden Freigabe-Schritts neu holen — mit den Teilen von
+    jetzt (eine Änderung seitdem gilt). ``None``, wenn der Lauf dort nicht wartet."""
+    i = _am_freigabe_schritt(ablauf, lauf)
+    if i is None:
+        return None
+    return await _rechne(ablauf, {**lauf, "status": "laeuft"}, i, umgebung)
+
+
+async def weiter_freigabe(ablauf: AblaufArea, lauf: dict[str, Any], ergebnis: dict[str, Any] | None,
+                          umgebung: Umgebung) -> Ausgabe | None:
+    """Paket S: die Freigabe ist eingelöst (``ergebnis``, der strukturierte Teil der Antwort) oder
+    vom Server abgelehnt (``None``: ``bei_fehler``, sonst Ende mit Fehler, FS-8). ``None``, wenn der
+    Lauf dort nicht wartet. Das Ergebnis wird Teil ``schreibt``."""
+    i = _am_freigabe_schritt(ablauf, lauf)
+    if i is None:
+        return None
+    s = ablauf.schritte[i]
+    index = {x.id: n for n, x in enumerate(ablauf.schritte)}
+    neu = {**lauf, "status": "laeuft", "freigabe_id": None, "plan_angelaufen": None}
+    teil: Teil | None = None
+    if ergebnis is None:
+        if not s.bei_fehler:
+            neu["status"] = "fehler"
+            return Ausgabe(lauf=neu, fehler=s.id)
+        ziel = s.bei_fehler
+    else:
+        ziel = (nachfolger(ablauf, i) or [""])[0]
+        if s.schreibt:
+            teil = (s.schreibt, f"{s.werkzeug}@1", ergebnis, f"Ergebnis von {s.werkzeug}"[:80])
+            lader = umgebung.teile
+
+            async def mit_ergebnis(name: str) -> Any:
+                return ergebnis if name == s.schreibt else await lader(name)
+
+            umgebung = replace(umgebung, teile=mit_ergebnis)
     if ziel not in index:
         neu["status"] = "fertig"
         aus = Ausgabe(lauf=neu)

@@ -131,6 +131,33 @@ def _ui_module() -> list[Choice]:
                             ""))]
 
 
+def _ablauf_flows() -> list[Choice]:
+    """Paket K2c-1: die Flows, die der Betrieb für Abläufe freischaltet (``B_API_JOBS_FLOWS``).
+    Ohne Abruf bei der b-api — dieser Endpunkt lädt alle Kataloge in einem Zug und ruft keinen
+    Fremddienst."""
+    from boerdi.services.auftraege import client
+
+    # Kein Sprungziel: ein Flow wird in Kestra gepflegt, nicht im Studio.
+    return _sorted([_entry(f, f, "") for f in client.freigeschaltete_flows()])
+
+
+def _vorgang_teile() -> list[Choice]:
+    """Paket K2c-3: die Teile, die Module in den Vorgang schreiben (``vorgang.schreibt`` im
+    Manifest), dazu ``ablage`` (Übertragung in WLO, ``services/ablage/vorgang_teil``) — für die
+    Auswahl „Teil“ in den Argumenten eines Ablaufschritts. Die Teile der vorigen Schritte
+    (``schreibt``, ``agent.ausgabe``) kennt nur das Formular."""
+    from boerdi.services.ablage.vorgang_teil import TEIL
+    from boerdi.ui_module import katalog
+
+    quellen: dict[str, list[str]] = {TEIL: ["ui_upload"]}
+    for name, manifest in katalog.katalog().items():
+        for teil in (manifest.get("vorgang") or {}).get("schreibt") or []:
+            if isinstance(teil, str):
+                quellen.setdefault(teil, []).append(name)
+    return _sorted([_entry(t, f"{t} ({', '.join(sorted(set(m)))})", "")
+                    for t, m in quellen.items()])
+
+
 #: Katalogname -> woher seine Einträge kommen. Die einzige Stelle, an der ein
 #: Katalog benannt wird: ``CATALOG_NAMES`` und die Antwort des Endpunkts leiten
 #: sich beide hieraus ab und können deshalb nicht auseinanderlaufen.
@@ -144,6 +171,8 @@ _SOURCES: dict[str, Callable[[], list[Choice]]] = {
     "tools": _tools,
     "mcp_tools": _mcp_tools,
     "ui_module": _ui_module,
+    "ablauf_flows": _ablauf_flows,
+    "vorgang_teile": _vorgang_teile,
     "guardrails": _guardrails,
 }
 

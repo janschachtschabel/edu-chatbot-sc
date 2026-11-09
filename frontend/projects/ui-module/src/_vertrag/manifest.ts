@@ -32,6 +32,8 @@ export interface UiModulManifest {
   readonly dienst?: {
     readonly name: string;
     readonly parameter: Record<string, unknown>;
+    /** Paket U4: MCP-Werkzeuge, die der Dienst ruft — ohne sie wird das Modul nicht angeboten. */
+    readonly braucht?: readonly string[];
   } | null;
   readonly faehigkeiten?: readonly ModulFaehigkeit[];
   /** Paket V2: welchen Teil des Vorgangs eine Antwort setzt, welche Teile der Dienst liest. */

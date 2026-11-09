@@ -677,3 +677,17 @@ async def test_am_agent_schritt_steht_weiter_im_ablauf_darunter(monkeypatch):
     assert qrs[0] == "__action__|Weiter im Ablauf|ablauf_weiter|{}"
     _cards, qrs, *_ = await _call(_qr_mode="none")
     assert not any(q.startswith("__action__") for q in qrs)
+
+
+async def test_am_auftragsschritt_steht_nur_stand_pruefen_darunter(monkeypatch):
+    """Zweites Review K2b, Befund 4: unter einer Modell-Antwort nur „Stand prüfen“ — zwei Knöpfe
+    verdrängten unter dem Deckel jeden Vorschlag; „Auftrag abbrechen“ steht unter der Antwort von
+    „Stand prüfen“."""
+    from boerdi.services.ablauf import auftrag_zug
+
+    pruefen = "__action__|Stand prüfen|ablauf_auftrag_pruefen|{}"
+    abbrechen = "__action__|Auftrag abbrechen|ablauf_auftrag_abbrechen|{}"
+    monkeypatch.setattr(auftrag_zug, "pruefen_knoepfe",
+                        lambda sid, state, lang: [pruefen, abbrechen])
+    _cards, qrs, *_ = await _call()
+    assert qrs[0] == pruefen and abbrechen not in qrs

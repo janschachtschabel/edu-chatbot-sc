@@ -19,6 +19,140 @@
         "title": "Abgemeldet",
         "type": "object"
       },
+      "AblaufArea": {
+        "additionalProperties": true,
+        "properties": {
+          "aktiv": {
+            "default": false,
+            "title": "Aktiv",
+            "type": "boolean"
+          },
+          "ausloeser": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Ausloeser"
+            },
+            "title": "Ausloeser",
+            "type": "array"
+          },
+          "beschreibung": {
+            "default": "",
+            "maxLength": 600,
+            "title": "Beschreibung",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "nicht_wann": {
+            "items": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Nicht Wann",
+            "type": "array"
+          },
+          "schritte": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Schritt"
+            },
+            "title": "Schritte",
+            "type": "array"
+          },
+          "titel": {
+            "additionalProperties": {
+              "maxLength": 120,
+              "type": "string"
+            },
+            "title": "Titel",
+            "type": "object"
+          },
+          "voraussetzungen": {
+            "default": [],
+            "items": {
+              "type": "string",
+              "x-choices": [
+                "anmeldung"
+              ]
+            },
+            "title": "Voraussetzungen",
+            "type": "array"
+          },
+          "wann": {
+            "items": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Wann",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "titel"
+        ],
+        "title": "AblaufArea",
+        "type": "object",
+        "x-widget": "ablauf"
+      },
+      "AblaufBefund": {
+        "properties": {
+          "nr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nr"
+          },
+          "schritt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schritt"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schritt",
+          "nr",
+          "text"
+        ],
+        "title": "AblaufBefund",
+        "type": "object"
+      },
+      "AblaufPruefung": {
+        "properties": {
+          "befunde": {
+            "items": {
+              "$ref": "#/components/schemas/AblaufBefund"
+            },
+            "title": "Befunde",
+            "type": "array"
+          }
+        },
+        "required": [
+          "befunde"
+        ],
+        "title": "AblaufPruefung",
+        "type": "object"
+      },
       "Abschluss": {
         "properties": {
           "batch_token": {
@@ -156,6 +290,52 @@
         "title": "AgentResponse",
         "type": "object"
       },
+      "AgentSchritt": {
+        "additionalProperties": true,
+        "description": "Paket A2b: was die KI in einem ``agent``-Schritt darf — Grenzen prüft ``pruefung``.",
+        "properties": {
+          "ausgabe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ausgabe"
+          },
+          "hinweis": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hinweis"
+          },
+          "werkzeuge": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Werkzeuge",
+            "type": "array"
+          },
+          "zuege": {
+            "default": 5,
+            "title": "Zuege",
+            "type": "integer"
+          }
+        },
+        "title": "AgentSchritt",
+        "type": "object"
+      },
       "AreaData": {
         "properties": {
           "create": {
@@ -184,6 +364,65 @@
           "data"
         ],
         "title": "AreaData",
+        "type": "object"
+      },
+      "Ausloeser": {
+        "additionalProperties": true,
+        "properties": {
+          "art": {
+            "pattern": "^(knopf|agent|text|modul)$",
+            "title": "Art",
+            "type": "string",
+            "x-choices": [
+              "knopf",
+              "agent",
+              "text",
+              "modul"
+            ]
+          },
+          "modul": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modul"
+          },
+          "modus": {
+            "default": "vorschlagen",
+            "title": "Modus",
+            "type": "string",
+            "x-choices": [
+              "vorschlagen"
+            ]
+          },
+          "wendungen": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Wendungen",
+            "type": "array"
+          },
+          "wenn_teil": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wenn Teil"
+          }
+        },
+        "required": [
+          "art"
+        ],
+        "title": "Ausloeser",
         "type": "object"
       },
       "Body_datei_api_ui_ablage_datei_post": {
@@ -553,6 +792,11 @@
             "additionalProperties": true,
             "title": "Display Rules",
             "type": "object"
+          },
+          "eingabe_gesperrt": {
+            "default": false,
+            "title": "Eingabe Gesperrt",
+            "type": "boolean"
           },
           "follow_up": {
             "default": "none",
@@ -1185,6 +1429,12 @@
             "title": "Groesse",
             "type": "integer"
           },
+          "rolle": {
+            "default": "inhalt",
+            "pattern": "^(inhalt|struktur)$",
+            "title": "Rolle",
+            "type": "string"
+          },
           "sha256": {
             "pattern": "^[0-9a-f]{64}$",
             "title": "Sha256",
@@ -1756,6 +2006,77 @@
         "title": "McpServerUpdate",
         "type": "object"
       },
+      "OffenAnfrage": {
+        "properties": {
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "OffenAnfrage",
+        "type": "object"
+      },
+      "OffeneVorgaenge": {
+        "properties": {
+          "vorgaenge": {
+            "items": {
+              "$ref": "#/components/schemas/OffenerVorgang"
+            },
+            "title": "Vorgaenge",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vorgaenge"
+        ],
+        "title": "OffeneVorgaenge",
+        "type": "object"
+      },
+      "OffenerVorgang": {
+        "properties": {
+          "ablauf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ablauf"
+          },
+          "geaendert": {
+            "format": "date-time",
+            "title": "Geaendert",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "titel": {
+            "title": "Titel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "titel",
+          "ablauf",
+          "status",
+          "session_id",
+          "geaendert"
+        ],
+        "title": "OffenerVorgang",
+        "type": "object"
+      },
       "PaginationInfo": {
         "description": "Pagination metadata for card results.",
         "properties": {
@@ -2080,6 +2401,297 @@
           }
         },
         "title": "SafetyDecision",
+        "type": "object"
+      },
+      "Schritt": {
+        "additionalProperties": true,
+        "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentSchritt"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "agent"
+              ]
+            }
+          },
+          "argumente": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "x-widget": "teil-werte"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Argumente",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag",
+                "werkzeug"
+              ]
+            }
+          },
+          "bei_fehler": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bei Fehler",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "agent",
+                "auftrag",
+                "modul",
+                "werkzeug"
+              ]
+            }
+          },
+          "dateien_holen": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dateien Holen",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
+          },
+          "daten": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "x-widget": "teil-werte"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daten",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "modul"
+              ]
+            }
+          },
+          "flow": {
+            "anyOf": [
+              {
+                "type": "string",
+                "x-catalog": "ablauf_flows"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flow",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
+          },
+          "freigabe": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freigabe",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "werkzeug"
+              ]
+            }
+          },
+          "id": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "modul": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modul",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "modul"
+              ]
+            }
+          },
+          "schreibt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schreibt",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag",
+                "werkzeug"
+              ]
+            }
+          },
+          "text": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "agent",
+                "auftrag",
+                "ende",
+                "modul",
+                "nachricht"
+              ]
+            }
+          },
+          "typ": {
+            "pattern": "^(nachricht|modul|werkzeug|verzweigung|agent|auftrag|ende)$",
+            "title": "Typ",
+            "type": "string",
+            "x-choices": [
+              "nachricht",
+              "modul",
+              "werkzeug",
+              "verzweigung",
+              "agent",
+              "auftrag",
+              "ende"
+            ]
+          },
+          "warten": {
+            "anyOf": [
+              {
+                "pattern": "^(frei|gesperrt)$",
+                "type": "string",
+                "x-choices": [
+                  "frei",
+                  "gesperrt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warten",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
+          },
+          "weiter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Weiter"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weiter",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "agent",
+                "auftrag",
+                "modul",
+                "nachricht",
+                "verzweigung",
+                "werkzeug"
+              ]
+            }
+          },
+          "werkzeug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Werkzeug",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "werkzeug"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "typ"
+        ],
+        "title": "Schritt",
         "type": "object"
       },
       "SeedApply": {
@@ -2752,6 +3364,58 @@
         "title": "WebLink",
         "type": "object"
       },
+      "Weiter": {
+        "additionalProperties": true,
+        "description": "Eine Regel der Verzweigung — die erste passende gilt; ``sonst`` zuletzt.",
+        "properties": {
+          "dann": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dann"
+          },
+          "sonst": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sonst"
+          },
+          "wenn_gewaehlt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wenn Gewaehlt"
+          },
+          "wenn_teil": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wenn Teil"
+          }
+        },
+        "title": "Weiter",
+        "type": "object"
+      },
       "WelcomeConfig": {
         "properties": {
           "greeting": {
@@ -3378,6 +4042,52 @@
         "summary": "Chat Stream",
         "tags": [
           "chat"
+        ]
+      }
+    },
+    "/api/config/ablauf-pruefen": {
+      "post": {
+        "operationId": "ablauf_pruefen_api_config_ablauf_pruefen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AblaufArea"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AblaufPruefung"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Ablauf Pruefen",
+        "tags": [
+          "config"
         ]
       }
     },
@@ -9424,6 +10134,47 @@
           }
         },
         "summary": "Themenbaum Zweig",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
+    "/api/ui/vorgaenge/offen": {
+      "post": {
+        "operationId": "offen_api_ui_vorgaenge_offen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OffenAnfrage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OffeneVorgaenge"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Offen",
         "tags": [
           "ui"
         ]

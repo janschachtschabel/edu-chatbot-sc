@@ -14,7 +14,8 @@ import { TourController } from '../controllers/tour.controller';
 import { ChatMessage, DebugInfo, PaginationInfo, QueryMetaEntry, UiInfo, WebLink } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import {
-  OWL_HINT_KEY, deleteSessionCookie, generateSessionId, sitzungsWache, writeSessionEverywhere,
+  OWL_HINT_KEY, deleteSessionCookie, generateSessionId, isValidSessionId, sitzungsWache,
+  writeSessionEverywhere,
 } from '../session/session-id';
 import { ChatApiClient } from '../stream/chat-api';
 import { restoreHistory } from './history-restore';
@@ -212,6 +213,26 @@ export class ShellLifecycle {
     this.ctx.setLatestDebug(null);
     this.ctx.setLoading(false);
     this.showGreeting();
+  }
+
+  /** Paket K2a: auf ein anderes Gespräch derselben Person wechseln („Gespräch fortsetzen“) — wie
+   *  `restart()`, aber mit dessen Kennung und seinem Verlauf statt einer Begrüßung. Die Kennung
+   *  kommt nur aus der geprüften Antwort für die angemeldete Person (`shell/fortsetzen.ts`).
+   *  `false`, wenn die Kennung unbrauchbar ist oder der Verlauf nach einem weiteren Wechsel kam. */
+  async wechseln(id: string): Promise<boolean> {
+    if (!isValidSessionId(id)) return false;
+    this._neugrussOffen = false;
+    this.ctx.setSessionId(id);
+    if (this._persist()) writeSessionEverywhere(id, this._cookieCfg());
+    this.ctx.setMessages([]);
+    this.ctx.setLatestDebug(null);
+    // Review K2a, Befund 4: bis der Verlauf da ist, nimmt die Eingabe nichts an.
+    this.ctx.setLoading(true);
+    try {
+      return await this._restoreHistory();
+    } finally {
+      this.ctx.setLoading(false);
+    }
   }
 
   /** Public API: Session leeren und frisch starten. Verbatim aus ALT 402-410,

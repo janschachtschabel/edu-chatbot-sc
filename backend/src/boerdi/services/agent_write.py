@@ -41,16 +41,19 @@ from typing import Any
 
 from boerdi.domain.config_models.engine import AgentLimits
 from boerdi.domain.write_confirm import (
+    CONFIRM_TOKEN_FIELD,
+    PLAN_ZU_GROSS_TEXT,
     extract_confirm_token,
     is_confirmable,
     is_plan,
+    plan_zu_gross,
     redact_confirm_token,
     remember_pending,
     strip_confirm_token,
     token_for,
 )
 from boerdi.services.mcp.auth import aufrufer_kennung, has_personal_auth
-from boerdi.services.mcp.client import is_mcp_error, nimm_bestaetigung
+from boerdi.services.mcp.client import ausgelastet_ohne_aufruf, is_mcp_error, nimm_bestaetigung
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +94,9 @@ class WriteGate:
         self._pending: dict[str, Any] | None = None
         #: Die redigierte Vorschau zum offenen Vorgang — für die Box im Chat-Zug.
         self._vorschau = ""
+        #: Der eben eingelöste Merkposten — kommt zurück, wenn der Aufruf nie hinausging
+        #: (ausgelastet ohne Code; :meth:`observe`).
+        self._eingeloest: tuple[dict[str, Any], str] | None = None
 
     def prepare(self, tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         """Die Argumente, wie sie abgesetzt werden dürfen.
@@ -108,6 +114,7 @@ class WriteGate:
         if not schluessel:
             return sauber
         # Ein Schlüssel gilt genau einmal; der Merkposten ist damit verbraucht.
+        self._eingeloest = (self._pending, self._vorschau) if self._pending else None
         self._pending = None
         self._vorschau = ""
         logger.info("Agent-Schleife: bestätige %s im selben Lauf (write_mode=execute)",
@@ -126,6 +133,15 @@ class WriteGate:
         """
         if not is_confirmable(tool_name):
             return result_text
+        eingeloest, self._eingeloest = self._eingeloest, None
+        if (eingeloest is not None and CONFIRM_TOKEN_FIELD in args
+                and ausgelastet_ohne_aufruf(result_text)):
+            # Der Aufruf ging nie hinaus — die Freigabe gilt weiter (im Chat liegt sie ebenso
+            # wieder bereit, ``write_approval._liegen_lassen``). Ein zweiter gleicher Aufruf im
+            # selben Lauf endet am Stillstands-Wächter der Schleife.
+            self._pending, self._vorschau = eingeloest
+            logger.info("Agent-Schleife: %s ausgelastet — Freigabe bleibt", tool_name)
+            return redact_confirm_token(result_text)
         # Paket M2: der Schlüssel aus ``structuredContent.confirm``, der Text ist Rückfall.
         # Aus einer Fehlermeldung nie (Review M2, Befund 7: fremder Titel darin).
         gepraegt = nimm_bestaetigung(tool_name, args)
@@ -133,9 +149,13 @@ class WriteGate:
             gepraegt = extract_confirm_token(result_text)
         text = redact_confirm_token(result_text)
         if gepraegt:
-            # Die letzte Vorschau gewinnt: ein neuer Schlüssel ersetzt den alten.
-            self._pending = remember_pending(
+            merk = remember_pending(
                 tool_name, args, gepraegt, now=self._now(), caller=aufrufer_kennung())
+            if plan_zu_gross(merk):
+                # Paket K2d-3 (Review, Befund 2): nie bestätigbar — das Modell teilt auf.
+                return PLAN_ZU_GROSS_TEXT
+            # Die letzte Vorschau gewinnt: ein neuer Schlüssel ersetzt den alten.
+            self._pending = merk
             self._vorschau = text
         elif "confirmToken:" in text:
             # Der Server kündigt einen Schlüssel an, wir lesen keinen heraus:

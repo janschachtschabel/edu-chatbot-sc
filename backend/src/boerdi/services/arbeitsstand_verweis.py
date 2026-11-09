@@ -71,7 +71,7 @@ def kennzeile(entities: dict[str, Any], aufrufer: str) -> str:
     lauf = vw.get("lauf") if isinstance(vw.get("lauf"), dict) else None
     ablauf = (f" Ablauf {lauf.get('ablauf')}: Schritt {lauf.get('schritt')} ({lauf.get('status')})."
               if lauf and lauf.get("status") in ("wartet_person", "wartet_ki", "wartet_auftrag",
-                                                  "laeuft") else "")
+                                                  "wartet_freigabe", "laeuft") else "")
     inhalt = entschaerfe_endmarken(
         f"Vorgang „{zeile(vw.get('titel'), TITEL_ZEICHEN)}“; Teile: {liste}.{ablauf}")
     # Review V1, Befund 6: eine Klammer im Fremdtext schlösse die Zeile vorzeitig.

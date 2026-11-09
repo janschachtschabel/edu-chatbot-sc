@@ -90,7 +90,7 @@ export const REFERENCE_MACHINES: CataloguePart = {
     'rm.row.write': 'Schreiben',
     'rm.row.write.pattern':
       'Vorschau, dann die Abnahme durch die Person — nur mit Schreibrecht. Pläne '
-      + '(Sammlungsbaum, viele Aufnahmen): eine Abnahme für alles, weiter mit „Weiter anlegen“.',
+      + '(Sammlungsbaum, viele Aufnahmen): eine Abnahme für alles, weiter mit „Plan fortsetzen“.',
     'rm.row.write.agent':
       'Vorschau, dann die Abnahme — nur mit Schreibrecht (persönliche Anmeldung oder das im '
       + 'Studio freigegebene Gastkonto). Pläne löst der Chat ein; über '

@@ -155,7 +155,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 | `boerdi_llm_call_duration_seconds` | phase |
 | `boerdi_mcp_calls_total` | server, outcome (ok/tool/transport/timeout/auth) |
 | `boerdi_mcp_call_duration_seconds` | server |
-| `boerdi_safety_stage_total` | stage (`openai_moderation` = Chat-Züge, `llm_legal`, `dokument_aufnahme` = Moderation beim Hochladen eines Dokuments, `strukturentwurf_auszug` = Auszüge für Ebene 2 eines Entwurfs — die beiden letzten sieht der Alarm auf `openai_moderation` nicht), outcome (ok/fehler/keine_zugangsdaten/teilweise/ausgelastet) |
+| `boerdi_safety_stage_total` | stage (`openai_moderation` = Chat-Züge, `llm_legal`, `dokument_aufnahme` = Moderation beim Hochladen eines Dokuments, `strukturentwurf_auszug` = Auszüge für Ebene 2 eines Entwurfs, `auftrag_datei` = Moderation einer geholten Datei eines Auftrags (K2d-2) — die drei letzten sieht der Alarm auf `openai_moderation` nicht), outcome (ok/fehler/keine_zugangsdaten/teilweise/ausgelastet) |
 | `boerdi_llm_schluessel_abgelehnt_total` | anbieter, quelle (`b_api_key`/`openai_api_key`/`weitergereicht`) — der Anbieter weist den Schlüssel ab (401), Paket 18F |
 | `boerdi_llm_platz_frist_total` | – Chat-Aufrufe ohne LLM-Platz binnen `LLM_SLOT_WAIT_S` („ausgelastet“), Paket 18F |
 | `boerdi_build_info` | version |

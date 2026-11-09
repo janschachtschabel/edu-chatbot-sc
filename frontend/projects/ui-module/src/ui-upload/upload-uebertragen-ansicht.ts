@@ -72,7 +72,10 @@ function liste(a: UebertragenAnsicht, plan: Plan): HTMLElement {
     symbol.setAttribute('aria-hidden', 'true');
     const stand = ergebnis.code && ergebnis.stand === 'failed'
       ? `${a.t.stand.failed}: ${fehlerSatz(a.t, ergebnis.code)}` : a.t.stand[ergebnis.stand];
-    li.append(symbol, a.knoten('span', 'u__name', e.name), a.knoten('span', 'u__zahl', stand));
+    const name = a.knoten('span', 'u__name', e.name);
+    // W4: die Rolle ist Teil der Freigabe — das Strukturdokument steht in der Vorschau dabei.
+    if (e.rolle === 'struktur') name.append(' – ', a.knoten('span', 'u__rolle', a.t.strukturdokument));
+    li.append(symbol, name, a.knoten('span', 'u__zahl', stand));
     const ziel = ergebnis.link ? a.link(ergebnis.link) : null;
     if (ziel?.href) {
       const anker = a.knoten('a', 'u__link', a.t.ansehen(e.name));

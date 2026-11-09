@@ -7,7 +7,7 @@ export type { ModulFaehigkeit, UiModulManifest } from './_vertrag/manifest';
 export { MODUL_HOST } from './_vertrag/modul-host';
 export { INHALTSRAHMEN, LINKBOX, TREFFERLISTE } from './_vertrag/modul-namen';
 export type {
-  AblageEintrag, AblageSchritt, AuftragSchritt, KartenAktion, ModulHost, TrefferUmgebung,
+  AblageEintrag, AblageRolle, AblageSchritt, AuftragSchritt, KartenAktion, ModulHost, TrefferUmgebung,
 } from './_vertrag/modul-host';
 export { UI_MODUL_REGISTER } from './_vertrag/register';
 export type { ModulRegister, RegisterEintrag, RegisterManifest } from './_vertrag/register';

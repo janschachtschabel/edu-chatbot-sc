@@ -55,6 +55,12 @@ describe('STUDIO_EN', () => {
       // „Name" und „Text". Eine Abweichung wäre hier eine Erfindung.
       'mcp.field.name',
       'rag.ingest.source.text',
+      // Paket K2c-3: dieselben Wörter in der Tabelle „Argumente“ („Name {n}“, „Text“, „JSON“).
+      'teilWerte.name',
+      'teilWerte.spalte.name',
+      'ablaufPruefen.weiter',
+      'teilWerte.art.text',
+      'teilWerte.art.json',
       // Zwei Fachwörter, die das deutsche Studio ohnehin englisch führt —
       // dieselbe Lage wie `view.patterns.label`.
       'curated.dimensionen.personas.label',

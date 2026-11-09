@@ -194,3 +194,49 @@ $border:     var(--mat-sys-outline-variant);
   &:hover { background: color-mix(in srgb, var(--mat-sys-primary) 88%, black); }
   &:disabled { opacity: .4; cursor: default; }
 }
+
+// Paket K2a: „Gespräch fortsetzen“ über dem Eingabe-Footer — derselbe getönte Grund wie der Footer,
+// damit der Hinweis zur Eingabe gehört und nicht wie eine Bot-Nachricht aussieht.
+.fortsetzen-hinweis {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--mat-sys-primary) 16%, var(--mat-sys-surface));
+  border-top: 1px solid $border;
+  color: $text;
+  font-size: 0.875rem;
+}
+
+.fortsetzen-hinweis__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fortsetzen-hinweis__los {
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  border: 0;
+  border-radius: var(--mat-sys-corner-full);
+  min-height: 32px;
+  padding: 0 14px;
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled { opacity: 0.6; cursor: default; }
+}
+
+.fortsetzen-hinweis__zu {
+  background: none;
+  border: 0;
+  color: $text-muted;
+  min-width: 32px;
+  min-height: 32px;
+  font-size: 1.125rem;
+  cursor: pointer;
+}
+
+.fortsetzen-hinweis__los,
+.fortsetzen-hinweis__zu {
+  &:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
+}

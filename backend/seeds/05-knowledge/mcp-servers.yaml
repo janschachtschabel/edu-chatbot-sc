@@ -89,6 +89,10 @@ servers:
   - wlo_remove_from_collection
   - wlo_create_collection_tree
   - wlo_add_to_collections
+  # Paket K2d-3 (MCP-Stand 2026-11-08): Volltexte und Metadaten vieler Datensätze
+  - wlo_attach_fulltext
+  - wlo_attach_fulltexts
+  - wlo_update_contents
   - wlo_update_compendium
   - wlo_set_topic_page
   - wlo_suggest_metadata

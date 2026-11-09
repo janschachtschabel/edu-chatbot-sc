@@ -230,12 +230,15 @@ async def test_nennt_die_modul_werkzeuge_getrennt(quellen):
     module = werkzeuge["ui_module"]
     # U2: der Strukturentwurf (Dienst, ohne MCP-Werkzeug) zählt immer mit.
     # U3-1: ui_upload (Dienst, ohne MCP-Werkzeug) zählt immer mit.
+    # U4/U5: der Abgleich, weil browse_collection_tree und count_wlo_content_matches angeboten sind.
     assert module["names"] == [
-        "ui_entscheidung", "ui_strukturentwurf", "ui_themenbaum", "ui_upload"]
+        "ui_entscheidung", "ui_strukturabgleich", "ui_strukturentwurf", "ui_themenbaum",
+        "ui_upload"]
     # Der Themenbaum (U1-e) zählt mit, weil sein Werkzeug browse_collection_tree angeboten ist.
     assert module["chars"] == len(json.dumps(modul_werkzeuge(
-        ["ui_entscheidung", "ui_strukturentwurf", "ui_themenbaum", "ui_upload"],
-        verfuegbar={"browse_collection_tree"},
+        ["ui_entscheidung", "ui_strukturabgleich", "ui_strukturentwurf", "ui_themenbaum",
+         "ui_upload"],
+        verfuegbar={"browse_collection_tree", "count_wlo_content_matches"},
         fuer="agent"),
         ensure_ascii=False))
     im_zug = agent_tools.build_agent_tools(
@@ -252,6 +255,8 @@ async def test_namen_und_umfang_zaehlen_dieselben_module(quellen, monkeypatch):
     monkeypatch.setattr(agent_tools, "verborgene_werkzeuge",
                         lambda: frozenset({"browse_collection_tree"}))
     module = (await pv.prompt_vorschau("de"))["tools"]["ui_module"]
+    # U4: der Abgleich braucht browse_collection_tree (``dienst.braucht``) — fehlt wie der
+    # Themenbaum
     assert module["names"] == ["ui_entscheidung", "ui_strukturentwurf", "ui_upload"]
     assert module["chars"] == len(json.dumps(modul_werkzeuge(
         ["ui_entscheidung", "ui_strukturentwurf", "ui_upload"], verfuegbar=set(), fuer="agent"),

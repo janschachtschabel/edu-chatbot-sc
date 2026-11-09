@@ -75,7 +75,10 @@ from boerdi.api.schemas_mcp_curation import (
     CompendiumUpdateArgs,
     ContentCreateArgs,
     ContentSubmitArgs,
+    ContentsUpdateArgs,
     ContentUpdateArgs,
+    FulltextAttachArgs,
+    FulltextsAttachArgs,
     MetadataSuggestArgs,
     MetadataSuggestion,
     NodeOnlyArgs,
@@ -94,7 +97,7 @@ __all__ = [
     "CollectionsAddArgs", "CollectionTreeCreateArgs",
     "CollectionStatsArgs", "CollectionTreeArgs", "CompendiumTextArgs",
     "CompendiumUpdateArgs", "ConfigFile", "ContentCreateArgs", "ContentSubmitArgs",
-    "ContentUpdateArgs",
+    "ContentUpdateArgs", "ContentsUpdateArgs", "FulltextAttachArgs", "FulltextsAttachArgs",
     "ContextSnapshot", "DebugInfo", "Environment", "MAX_RESULT_SCHEMA_CHARS",
     "MetadataSuggestArgs", "MetadataSuggestion", "NodeOnlyArgs",
     "SuggestionDecideArgs", "SuggestionsListArgs", "TopicPageSetArgs",
@@ -405,6 +408,9 @@ class ChatResponse(BaseModel):
     # ``expiresAt`` von ``/auth/status``) — nur bei Ticket- und Widget-Blöcken. Das Widget bietet
     # kurz davor die Anmeldung neu an bzw. tauscht das Ticket nach dem Ablauf neu.
     auth_expires_at: str | None = None
+    # Paket K2b: ein Auftragsschritt mit ``warten: gesperrt`` wartet — das Widget nimmt bis zur
+    # nächsten Antwort ohne diese Marke nur die Knöpfe an (das Backend weist anderes ohnehin ab).
+    eingabe_gesperrt: bool = False
 
 
 # ── Session / Memory ──────────────────────────────────────────────

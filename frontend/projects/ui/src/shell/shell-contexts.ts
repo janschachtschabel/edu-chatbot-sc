@@ -59,6 +59,8 @@ export interface ShellHost {
   setScrollTarget: (id: string) => void;
   /** Debug-Panel: Debug-Block (nur mit Freigabe, sonst `null`) und `ui` der Antwort. */
   setLatestDebug: (debug: DebugInfo | null | undefined, ui?: UiInfo) => void;
+  /** K2b: die Sperre eines wartenden Auftragsschritts (`eingabe_gesperrt`). */
+  setEingabeGesperrt?: (gesperrt: boolean) => void;
   dispatchPageAction: (pa: { action: string; payload: any } | null | undefined) => void;
   messagesContainer: () => HTMLElement | undefined;
   /** `@Input() emitGuideSuggestion` — LIVE (kann nach Konstruktion gesetzt werden). */
@@ -137,6 +139,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     removeMessage: (id) => host.removeMessage(id),
     setScrollTarget: (id) => host.setScrollTarget(id),
     setLatestDebug: (debug, ui) => host.setLatestDebug(debug, ui),
+    setEingabeGesperrt: (gesperrt) => host.setEingabeGesperrt?.(gesperrt),
     dispatchPageAction: (pa) => host.dispatchPageAction(pa),
     messagesContainer: () => host.messagesContainer(),
     t: (key, params) => host.t(key, params),

@@ -246,6 +246,8 @@ _STRUKTURIERT_GEPARST = {
             "wlo_remove_from_collection", "wlo_update_compendium",
             "wlo_set_topic_page", "wlo_suggest_metadata", "wlo_list_suggestions",
             "wlo_decide_suggestion", "wlo_create_collection_tree", "wlo_add_to_collections",
+            # Paket K2d-3: Volltexte und Metadaten — Vorschau bzw. Stand eines Plans
+            "wlo_attach_fulltext", "wlo_attach_fulltexts", "wlo_update_contents",
         ],
         "Aenderungs-Vorschau: Feld-Diff, je Wert geflacht und gekappt (600/120)",
     ),

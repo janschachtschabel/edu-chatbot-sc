@@ -147,12 +147,24 @@
     }
   }
   @default {
-    <studio-json-value
-      [fieldId]="controlId()"
-      [value]="value()"
-      [describedByBase]="describedBy()"
-      (valueChange)="valueChange.emit($event)"
-      (errorChange)="errorChange.emit($event)"
-    />
+    @if (field().widget === 'teil-werte') {
+      <studio-teil-werte
+        [controlId]="controlId()"
+        [value]="value()"
+        [describedBy]="describedBy()"
+        [beschriftetVon]="controlId() + '-label'"
+        [pfad]="pfad()"
+        (valueChange)="valueChange.emit($event)"
+        (errorChange)="errorChange.emit($event)"
+      />
+    } @else {
+      <studio-json-value
+        [fieldId]="controlId()"
+        [value]="value()"
+        [describedByBase]="describedBy()"
+        (valueChange)="valueChange.emit($event)"
+        (errorChange)="errorChange.emit($event)"
+      />
+    }
   }
 }

@@ -154,6 +154,49 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.fertig": "Der Ablauf ist abgeschlossen.",
         "action.ablauf.weiterKnopf": "Weiter im Ablauf",
         "action.ablauf.auftragKnopf": "Stand prüfen",
+        "action.ablauf.freigabeErneutKnopf": "Vorschau erneut zeigen",
+        "action.ablauf.freigabeAbbrechenKnopf": "Ablauf abbrechen",
+        "action.ablauf.freigabeAbgebrochen": (
+            "Der Ablauf ist abgebrochen — in WLO wurde nichts geändert."),
+        "action.ablauf.freigabeAbgebrochenPlan": (
+            "Der Ablauf ist abgebrochen. Was der Plan schon erledigt hat, bleibt in WLO; "
+            "fortgesetzt wird er nicht."),
+        "action.ablauf.freigabeOhneAnmeldung": (
+            "Zum Ändern in WLO brauche ich deine Anmeldung — geändert wurde nichts."),
+        "action.ablauf.freigabeSpaeter": (
+            "Die Vorschau ließ sich gerade nicht holen (WLO ausgelastet, keine Antwort oder die "
+            "Anmeldung abgewiesen) — geändert wurde nichts. Versuche es gleich mit „Vorschau "
+            "erneut zeigen“."),
+        "action.ablauf.freigabeAbgelaufen": (
+            "Die Vorschau ist abgelaufen — geändert wurde nichts. Hol sie dir mit „Vorschau "
+            "erneut zeigen“ neu."),
+        "action.ablauf.freigabeKonflikt": (
+            "Die Änderung ist in WLO gespeichert, aber der Ablauf ließ sich gerade nicht "
+            "fortschreiben — er endet hier. Starte ihn neu, falls noch Schritte fehlen."),
+        "action.ablauf.freigabeNichtMehrOffen": (
+            "Diese Vorschau gehört zu einem Ablauf, der nicht mehr darauf wartet (abgebrochen oder "
+            "neu vorgelegt) — geändert wurde nichts."),
+        "action.ablauf.freigabeVorbereitet": (
+            "Die Änderung ist vorbereitet, die Seite führt sie aus. Der Ablauf endet hier — starte "
+            "ihn danach neu, falls noch Schritte fehlen."),
+        "action.ablauf.auftragAbbrechenKnopf": "Auftrag abbrechen",
+        "action.ablauf.auftragAbbrechenJa": "Ja, abbrechen",
+        "action.ablauf.auftragAbbrechenFrage": (
+            "Soll ich den laufenden Auftrag wirklich abbrechen? Sein Ergebnis kommt dann nicht "
+            "mehr, und der Ablauf endet hier."),
+        "action.ablauf.auftragAbgebrochen": "Der Auftrag ist abgebrochen, der Ablauf endet hier.",
+        "action.ablauf.auftragSchonBeendet": "Dieser Auftrag läuft nicht mehr.",
+        "action.ablauf.auftragNurHierAbgebrochen": (
+            "Der Ablauf endet hier. Den Auftrag selbst konnte ich ohne deine Anmeldung nicht "
+            "beenden — er läuft bis zu seinem Ende weiter, sein Ergebnis holt hier aber niemand "
+            "mehr ab."),
+        "action.vorgang.neuFrage": (
+            "Gerade läuft noch ein Auftrag. Fängst du neu an, breche ich ihn ab, und sein Ergebnis "
+            "kommt nicht mehr. Trotzdem neu beginnen?"),
+        "action.vorgang.neuJa": "Ja, neu beginnen",
+        "action.ablauf.auftragGesperrt": (
+            "Während dieser Auftrag läuft, geht es hier erst weiter, wenn er fertig ist. Tippe auf "
+            "„Stand prüfen“ — oder brich ihn ab."),
         "action.ablauf.auftragGestartet": "Ein Auftrag läuft im Hintergrund.",
         "action.vorgang.neu": (
             "Gut, wir fangen neu an. Dein bisheriger Arbeitsstand ist abgeschlossen."),
@@ -175,6 +218,9 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragNichtAbrufbar": (
             "Den Stand des Auftrags kann ich gerade nicht abrufen. Versuch es bitte gleich noch "
             "einmal."),
+        "action.ablauf.dateienSpaeter": (
+            "Der Auftrag ist fertig, aber seine Dateien konnte ich gerade nicht holen. Tippe bitte "
+            "gleich noch einmal auf „Stand prüfen“."),
         "action.ablauf.fehltNoch": (
             "Für den nächsten Schritt fehlt noch etwas. Arbeite gern noch an diesem Schritt weiter "
             "und tippe dann wieder auf „Weiter im Ablauf“."),
@@ -407,45 +453,46 @@ BOT_TEXT: Final[Catalogue] = {
             "noch einmal darum, dann lege ich dir die Änderung neu vor."),
         "write.nothingToChange": "Da gibt es nichts zu ändern — in WLO steht es schon so.",
         "write.planOpen": (
-            "Noch nicht alles fertig — mit „Weiter anlegen“ geht es ohne neue Bestätigung weiter "
+            "Noch nicht alles fertig — mit „Plan fortsetzen“ geht es ohne neue Bestätigung weiter "
             "(bis zu 30 Minuten nach der Freigabe)."),
         "write.planExpired": (
             "Der Plan ist abgelaufen oder nicht mehr bekannt — weiter geändert wurde nichts; was "
-            "schon angelegt ist, bleibt. Stoße ihn neu an, vorhandene Sammlungen werden "
-            "übernommen."),
+            "schon erledigt ist, bleibt. Stoße ihn neu an — die neue Vorschau zeigt, was schon "
+            "da ist."),
         "write.planNone": "Gerade gibt es keinen offenen Plan, den ich fortsetzen könnte.",
         "write.timeoutNothingDone": (
             "WLO hat nicht rechtzeitig geantwortet — geändert wurde nichts. Bitte mich einfach "
             "noch einmal darum, dann lege ich dir die Vorschau neu vor."),
         "write.planStillOpen": (
             "Ein früherer Plan ist noch nicht fertig — es wurde nichts geändert. Führe ihn zuerst "
-            "mit „Weiter anlegen“ zu Ende; danach lege ich dir die neue Vorschau gern vor."),
+            "mit „Plan fortsetzen“ zu Ende; danach lege ich dir die neue Vorschau gern vor."),
         "write.planTooLarge": (
             "Dieser Plan ist zu groß, um ihn hier zu bestätigen — es wurde nichts geändert. Lass "
-            "ihn uns in kleineren Teilen anlegen."),
+            "ihn uns in kleineren Teilen angehen."),
         "write.planUnclearStart": (
-            "Von WLO kam keine Antwort — ob der Plan angelaufen ist, ist offen. „Weiter anlegen“ "
+            "Von WLO kam keine Antwort — ob der Plan angelaufen ist, ist offen. „Plan fortsetzen“ "
             "setzt ihn fort, falls ja; sonst sage ich es dir."),
         "write.planUnclear": (
-            "Vom Server kam keine Antwort. Der Plan bleibt bestehen; „Weiter anlegen“ setzt ihn "
+            "Vom Server kam keine Antwort. Der Plan bleibt bestehen; „Plan fortsetzen“ setzt ihn "
             "gefahrlos fort."),
         # Plan 2026-11-07 (CB-2/CB-4): nichts lief — die Abnahme bleibt liegen.
         "write.busy": (
             "WLO ist gerade ausgelastet — ausgeführt wurde noch nichts. Deine Freigabe gilt "
             "weiter: tippe gleich noch einmal auf „Ja, so ausführen“."),
+        "write.busyWait": "WLO bittet, etwa {s} Sekunden zu warten.",
         "write.authUnclear": (
             "Deine Anmeldung ließ sich gerade nicht prüfen — ausgeführt wurde noch nichts. Deine "
             "Freigabe gilt weiter: tippe gleich noch einmal auf „Ja, so ausführen“."),
         "write.planBusy": (
-            "WLO ist gerade ausgelastet — weiter angelegt wurde noch nichts. Der Plan bleibt "
-            "bestehen; „Weiter anlegen“ setzt ihn gleich fort."),
+            "WLO ist gerade ausgelastet — weiter geändert wurde noch nichts. Der Plan bleibt "
+            "bestehen; „Plan fortsetzen“ setzt ihn gleich fort."),
         "write.tooManyPlans": (
             "Unter deiner Anmeldung laufen schon fünf unfertige Pläne — es wurde nichts geändert. "
             "Führe zuerst einen davon zu Ende; danach lege ich dir die Vorschau gern neu vor."),
         "write.planBlocked": (
             "Fortsetzen geht hier gerade nicht — das Werkzeug ist in diesem Zusammenhang nicht "
             "freigegeben. Weiter geändert wurde nichts."),
-        "action.plan.weiterKnopf": "Weiter anlegen",
+        "action.plan.weiterKnopf": "Plan fortsetzen",
         "write.executeUnconfirmed": (
             "Die Änderung ist nicht bestätigt zurückgekommen — ob sie "
             "angekommen ist, kann ich von hier aus nicht sagen. Sieh bitte in "
@@ -632,6 +679,47 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.fertig": "The workflow is complete.",
         "action.ablauf.weiterKnopf": "Continue workflow",
         "action.ablauf.auftragKnopf": "Check status",
+        "action.ablauf.freigabeErneutKnopf": "Show the preview again",
+        "action.ablauf.freigabeAbbrechenKnopf": "Cancel workflow",
+        "action.ablauf.freigabeAbgebrochen": (
+            "The workflow is cancelled — nothing was changed in WLO."),
+        "action.ablauf.freigabeAbgebrochenPlan": (
+            "The workflow is cancelled. What the plan has already done stays in WLO; it will "
+            "not be continued."),
+        "action.ablauf.freigabeOhneAnmeldung": (
+            "To change anything in WLO I need you to be signed in — nothing was changed."),
+        "action.ablauf.freigabeSpaeter": (
+            "The preview could not be fetched just now (WLO busy, no answer, or the sign-in was "
+            "rejected) — nothing was changed. Try again shortly with “Show the preview again”."),
+        "action.ablauf.freigabeAbgelaufen": (
+            "The preview has expired — nothing was changed. Get a fresh one with “Show the "
+            "preview again”."),
+        "action.ablauf.freigabeKonflikt": (
+            "The change is saved in WLO, but the workflow could not be updated just now — it "
+            "ends here. Start it again if steps are still missing."),
+        "action.ablauf.freigabeNichtMehrOffen": (
+            "This preview belongs to a workflow that no longer waits for it (cancelled or shown "
+            "again) — nothing was changed."),
+        "action.ablauf.freigabeVorbereitet": (
+            "The change is prepared and the page carries it out. The workflow ends here — start "
+            "it again afterwards if steps are still missing."),
+        "action.ablauf.auftragAbbrechenKnopf": "Cancel job",
+        "action.ablauf.auftragAbbrechenJa": "Yes, cancel",
+        "action.ablauf.auftragAbbrechenFrage": (
+            "Do you really want me to cancel the running job? Its result will not arrive, and the "
+            "workflow ends here."),
+        "action.ablauf.auftragAbgebrochen": "The job is cancelled, the workflow ends here.",
+        "action.ablauf.auftragSchonBeendet": "This job is no longer running.",
+        "action.ablauf.auftragNurHierAbgebrochen": (
+            "The workflow ends here. Without your sign-in I could not stop the job itself — it "
+            "keeps running until it finishes, but nobody collects its result here."),
+        "action.vorgang.neuFrage": (
+            "A job is still running. If you start afresh, I will cancel it and its result will not "
+            "arrive. Start afresh anyway?"),
+        "action.vorgang.neuJa": "Yes, start afresh",
+        "action.ablauf.auftragGesperrt": (
+            "While this job is running, we can only continue once it is done. Tap “Check "
+            "status” — or cancel it."),
         "action.ablauf.auftragGestartet": "A job is running in the background.",
         "action.vorgang.neu": "Fine, let's start afresh. Your previous work is closed.",
         "action.vorgang.geloescht": "Your work in progress has been deleted.",
@@ -650,6 +738,9 @@ BOT_TEXT: Final[Catalogue] = {
             "The job is still running. Feel free to check back later — then tap “Check status”."),
         "action.ablauf.auftragNichtAbrufbar": (
             "I can't fetch the status of the job right now. Please try again in a moment."),
+        "action.ablauf.dateienSpaeter": (
+            "The job is done, but I couldn't fetch its files just now. Please tap “Check status” "
+            "again in a moment."),
         "action.ablauf.fehltNoch": (
             "Something is still missing for the next step. Keep working on this step, then tap "
             "“Continue workflow” again."),
@@ -815,7 +906,7 @@ BOT_TEXT: Final[Catalogue] = {
             "minutes after the approval)."),
         "write.planExpired": (
             "The plan has expired or is no longer known — nothing further was changed; what was "
-            "already created stays. Start it again; existing collections will be reused."),
+            "already done stays. Start it again — the new preview shows what is already there."),
         "write.planNone": "There is no open plan I could continue right now.",
         "write.timeoutNothingDone": (
             "WLO did not answer in time — nothing was changed. Just ask me again and I will show "
@@ -824,7 +915,7 @@ BOT_TEXT: Final[Catalogue] = {
             "An earlier plan is not finished yet — nothing was changed. Finish it with “Continue” "
             "first; then I will gladly show you the new preview."),
         "write.planTooLarge": (
-            "This plan is too large to confirm here — nothing was changed. Let us create it in "
+            "This plan is too large to confirm here — nothing was changed. Let us do it in "
             "smaller parts."),
         "write.planUnclearStart": (
             "WLO did not answer — whether the plan started is unclear. “Continue” resumes it if "
@@ -834,11 +925,12 @@ BOT_TEXT: Final[Catalogue] = {
         "write.busy": (
             "WLO is busy right now — nothing has been carried out yet. Your approval still "
             "stands: tap “Yes, go ahead” again in a moment."),
+        "write.busyWait": "WLO suggests waiting about {s} seconds.",
         "write.authUnclear": (
             "Your sign-in could not be checked just now — nothing has been carried out yet. Your "
             "approval still stands: tap “Yes, go ahead” again in a moment."),
         "write.planBusy": (
-            "WLO is busy right now — nothing more has been created yet. The plan remains; "
+            "WLO is busy right now — nothing further has been changed yet. The plan remains; "
             "“Continue” resumes it in a moment."),
         "write.tooManyPlans": (
             "Five unfinished plans are already running under your sign-in — nothing was changed. "

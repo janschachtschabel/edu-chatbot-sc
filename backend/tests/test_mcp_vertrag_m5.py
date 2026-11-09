@@ -4,7 +4,7 @@
 Plan vor; nach dem „ja“ arbeitet der Server in Abschnitten von etwa 40 s und antwortet mit
 ``complete``, ``progress`` und — solange etwas offen ist — ``continuationToken``. Fortgesetzt wird
 OHNE neue Bestätigung (der Plan ist an die Freigabe gebunden), aber nur von derselben Person und
-mit denselben Angaben: über den Knopf „Weiter anlegen“ (Direktaktion ``plan_weiter``).
+mit denselben Angaben: über den Knopf „Plan fortsetzen“ (Direktaktion ``plan_weiter``).
 """
 
 from __future__ import annotations
@@ -286,7 +286,7 @@ def test_ein_abgelaufener_plan_faellt_zu_zugbeginn_weg():
 
 def test_einen_plan_loest_nur_der_vorlauf_ein():
     """Re-Review, Befund 1: die Agent-Schleife (``execute``) setzt für einen Plan keinen Schlüssel
-    ein — sonst liefe er ohne Merkposten und ohne „Weiter anlegen“."""
+    ein — sonst liefe er ohne Merkposten und ohne „Plan fortsetzen“."""
     from boerdi.services.agent_write import WriteGate
 
     gate = WriteGate("execute")

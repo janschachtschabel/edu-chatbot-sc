@@ -282,6 +282,33 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     sessionStorage.clear();
   });
 
+  // K2b: ein Auftragsschritt mit `warten: gesperrt` — das Feld zeigt den Hinweis, bis eine Antwort
+  // ohne die Marke kommt; ein Neustart nimmt ihn weg. Weiche Sperre (zweites Review K2b): das Feld
+  // bleibt bedienbar — eine Krisennachricht muss sich immer tippen lassen.
+  it('eingabe_gesperrt zeigt den Hinweis im bedienbaren Feld, die nächste Antwort ohne Marke nimmt ihn weg (K2b)', async () => {
+    const f = TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).createComponent(ChatShellComponent);
+    f.componentRef.setInput('translate', createTranslator(DE, DE));
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi({ resp: { ...RESP, eingabe_gesperrt: true } as unknown as ChatResponse });
+    await c.sendMessage('starte');
+    f.detectChanges();
+    const feld = f.nativeElement.querySelector('.chat-input') as HTMLInputElement;
+    expect(c.eingabeGesperrt()).toBe(true);
+    expect(feld.disabled).toBe(false);
+    expect(feld.placeholder).toBe(DE['chat.input.gesperrt']);
+    (c as any)._api = fakeApi({ resp: RESP });
+    await c.sendMessage('Stand prüfen', 'ablauf_auftrag_pruefen', { ablauf: 'lesen' });
+    f.detectChanges();
+    expect(c.eingabeGesperrt()).toBe(false);
+    expect(feld.placeholder).toBe(DE['chat.input.placeholder']);
+    c.eingabeGesperrt.set(true);
+    c.restart();
+    expect(c.eingabeGesperrt()).toBe(false);
+  });
+
   // ── Das maschinenlesbare Ergebnis (Nutzer-Entscheid 2026-08-14) ──────
   // Der Gastgeber erklärt ein Schema; kommt ein Ergebnis, muss es ihn
   // erreichen. Ohne diesen Weg produzierte das Backend ein `result`, das

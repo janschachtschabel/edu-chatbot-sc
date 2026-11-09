@@ -22,6 +22,7 @@ from boerdi.api import (
     agent_center,
     chat,
     config,
+    config_ablauf,
     config_areas,
     config_choices,
     config_documents,
@@ -44,6 +45,7 @@ from boerdi.api import (
     ui_auftrag,
     ui_dokumente,
     ui_themenbaum,
+    ui_vorgaenge,
     usage,
     widget,
 )
@@ -384,6 +386,7 @@ def create_app() -> FastAPI:
     app.include_router(config.public_router)
     app.include_router(config_areas.router)
     app.include_router(config_choices.router)
+    app.include_router(config_ablauf.router)
     app.include_router(config_ui_module.router)
     app.include_router(config_documents.router)
     app.include_router(config_effects.router)
@@ -405,6 +408,7 @@ def create_app() -> FastAPI:
     app.include_router(ui_dokumente.public_router)
     app.include_router(ui_ablage.public_router)
     app.include_router(ui_auftrag.public_router)
+    app.include_router(ui_vorgaenge.public_router)
     # Plan 2026-11-07 (R2): Abmelden widerruft den Zugangsblock am MCP-Server.
     app.include_router(abmelden.public_router)
     app.include_router(studio_bff.router)

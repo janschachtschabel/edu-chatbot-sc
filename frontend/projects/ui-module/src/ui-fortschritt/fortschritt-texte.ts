@@ -20,6 +20,7 @@ const DE = {
   zuletzt: (zeit: string) => `Zuletzt geprüft um ${zeit} Uhr.`,
   jetzt: 'Jetzt prüfen',
   abholen: 'Ergebnis abholen',
+  abbrechen: 'Auftrag abbrechen',
   balken: 'Auftrag läuft',
 };
 
@@ -41,6 +42,7 @@ const EN: FortschrittTexte = {
   zuletzt: (zeit: string) => `Last checked at ${zeit}.`,
   jetzt: 'Check now',
   abholen: 'Fetch result',
+  abbrechen: 'Cancel job',
   balken: 'Job running',
 };
 

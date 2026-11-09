@@ -49,7 +49,7 @@ def test_vorbereiten_gibt_den_plan_des_servers_zurueck(mcp):
     [(name, args)] = mcp["gerufen"]
     assert name == "wlo_prepare_file_batch"
     assert args == {"target": "home", "folderName": "Physik 7", "entries": [
-        {"title": "Mechanik", "sha256": "a" * 64, "size": 5, "ext": "pdf"}]}
+        {"title": "Mechanik", "sha256": "a" * 64, "size": 5, "ext": "pdf", "role": "content"}]}
 
 
 @pytest.mark.parametrize(("antwort", "code"), [

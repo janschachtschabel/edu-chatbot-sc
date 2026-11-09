@@ -64,7 +64,7 @@ def lauf_wartet(session_id: str, session_state: dict) -> bool:
                               arbeitsstand.aufrufer_fuer(session_id))
     lauf = (vw or {}).get("lauf")
     return isinstance(lauf, dict) and lauf.get("status") in (
-        treiber.WARTET, treiber.WARTET_KI, treiber.WARTET_AUFTRAG)
+        treiber.WARTET, treiber.WARTET_KI, treiber.WARTET_AUFTRAG, treiber.WARTET_FREIGABE)
 
 
 def text_ausloeser(nachricht: str | None) -> AblaufArea | None:
@@ -123,15 +123,16 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
         basis.verweis_auffrischen(entities, None, aufrufer)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     try:
-        await _alten_auftrag_schliessen(session, v, aus)
+        alter_job = await _alten_auftrag_schliessen(session, v, aus)
         if v is None:
             v = await _anlegen(session, req, aufrufer, ablauf)
-        v = await basis.festhalten(session, v, aus)
+        v = await basis.festhalten(session, v, aus, session_id=req.session_id)
         await session.commit()
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
         basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
+    basis.bei_der_b_api_abbrechen(alter_job)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
     # Ein neuer Lauf zählt seine KI-Züge neu (Review A2b, Befund 4) — erst nach dem Festhalten:
     # ein gescheiterter Neustart ließe sonst den alten Lauf mit leerem Budget weiterlaufen (Review
@@ -168,9 +169,10 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
         return True
     if v is None and not anlegen:
         return True
+    alter_job = None
     try:
         if v is not None:
-            await basis.schliessen(session, v)
+            alter_job = await basis.schliessen(session, v)
             # Ein neues Vorhaben: der gemerkte Entwurf des alten ist kein Gegenstand mehr.
             entities.pop(strukturentwurf_merken.KEY, None)
         neu = await _anlegen(session, req, aufrufer, ablauf)
@@ -178,21 +180,26 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
         return False
+    basis.bei_der_b_api_abbrechen(alter_job)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(neu, aufrufer)
     return True
 
 
-async def _alten_auftrag_schliessen(session: Any, v: Any, aus: treiber.Ausgabe) -> None:
+async def _alten_auftrag_schliessen(session: Any, v: Any, aus: treiber.Ausgabe) -> str | None:
     """Ein neuer Lauf ersetzt einen, der auf einen Auftrag wartete — dessen Zeile gilt nicht mehr
     als offen (Querschnitts-Review). Startet der neue selbst einen, ersetzt ``ablage.anlegen``
-    sie."""
+    sie. Gibt die Job-ID des ersetzten Auftrags zurück: er endet auch bei der B-API — erst nach
+    dem Festschreiben (Job-Vertrag 2026-11-07; Review, Befund 1)."""
     lauf = (v.akte or {}).get("lauf") if v is not None else None
-    if aus.auftrag or not isinstance(lauf, dict) or lauf.get("status") != treiber.WARTET_AUFTRAG:
-        return
+    if not isinstance(lauf, dict) or lauf.get("status") != treiber.WARTET_AUFTRAG:
+        return None
     from boerdi.services.auftraege import ablage
 
-    if (offen := await ablage.offen(session, v.id)) is not None:
+    if (offen := await ablage.offen(session, v.id)) is None:
+        return None
+    if not aus.auftrag:
         await ablage.abschliessen(session, offen, "abgebrochen")
+    return offen.job_id
 
 
 def _offener_lauf(v: Any, geprueft: dict[str, Any]) -> dict[str, Any] | None:
@@ -265,7 +272,7 @@ async def fortsetzen(session: Any, req: ChatRequest, session_state: dict,
     if aus is None:
         return await basis.nur_text(session, req, "action.ablauf.fehler", entities)
     try:
-        v = await basis.festhalten(session, v, aus)
+        v = await basis.festhalten(session, v, aus, session_id=req.session_id)
         await session.commit()
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
@@ -306,7 +313,7 @@ async def weiter_nach_ki(session: Any, req: ChatRequest, session_state: dict, *,
                                                   resolve_locale(req.environment.locale))]
         return antwort
     try:
-        v = await basis.festhalten(session, v, aus)
+        v = await basis.festhalten(session, v, aus, session_id=req.session_id)
         await session.commit()
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
