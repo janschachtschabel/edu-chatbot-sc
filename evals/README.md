@@ -107,7 +107,11 @@ besten Treffer, in der Reihenfolge des Blocks. Wendungen deshalb nach Absicht or
 aufnehmen, die eine andere Möglichkeit treffen könnte. `freitext` geht nur mit, wenn der Block ihn
 anbietet, gekürzt auf 1000 Zeichen wie im Widget (`maxLength` des Manifests; der Bericht vermerkt
 `freitext_gekuerzt` mit der ursprünglichen Länge, die Konsole warnt). Die Nachricht ist dann die
-lesbare Fassung wie im Widget (Beschriftungen mit „, “, die Ergänzung auf eigener Zeile). Ohne
+lesbare Fassung wie im Widget (Beschriftungen mit „, “, der Text auf eigener Zeile). Seit
+2026-11-09 ist der Text im Widget der Punkt „Eigene Antwort“: bei Mehrfachwahl kommt er dazu, bei
+Einzelwahl ist er eine Alternative — eine passende Möglichkeit gewinnt, der Text fällt weg
+(`observed.ui_antwort.freitext_verworfen`); passt keine, ist der Text allein die Antwort
+(`gewaehlt: []`, `eigene_antwort`). `waehle` darf dafür leer sein, wenn `freitext` gesetzt ist. Ohne
 offene Frage oder ohne passende Möglichkeit geht `message` getippt — der Server rahmt die Frage
 für das Modell. Was geschah, steht in `observed.ui_antwort.status` (`gesendet` / `keine_frage` /
 `keine_passende_option`; im Studio im geöffneten Zug). **`gesendet` heißt nicht angenommen:** ob

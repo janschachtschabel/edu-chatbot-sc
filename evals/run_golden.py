@@ -288,7 +288,8 @@ def _ui_namen(expect: dict[str, Any], feld: str, module: Collection[str] | None)
 
 def _ui_antwort_spec(turn: dict[str, Any]) -> dict[str, Any] | None:
     """``ui_antwort`` eines Zugs (U1-g, G-4): ``{waehle: [Wendung …], freitext?: str}``; ein
-    leeres Dict zählt als „keine“ (wie ein Studio-Feld ohne Eintrag)."""
+    leeres Dict zählt als „keine“ (wie ein Studio-Feld ohne Eintrag). ``waehle`` darf leer sein,
+    wenn ein Text dabei ist — dann antwortet die Person nur mit „Eigene Antwort“ (2026-11-09)."""
     spec = turn.get("ui_antwort")
     if spec is None or spec == {}:
         return None
@@ -298,8 +299,10 @@ def _ui_antwort_spec(turn: dict[str, Any]) -> dict[str, Any] | None:
             raise ValueError(f"ui_antwort must be {{uebernehmen: true}} for a draft, got {spec!r}")
         return spec
     waehle = spec.get("waehle") if isinstance(spec, dict) else None
+    text = spec.get("freitext", "") if isinstance(spec, dict) else ""
     if (not isinstance(spec, dict) or set(spec) - {"waehle", "freitext"}
-            or not isinstance(waehle, list) or not waehle
+            or not isinstance(waehle, list)
+            or not (waehle or (isinstance(text, str) and text.strip()))
             or not all(isinstance(w, str) and w.strip() for w in waehle)
             or not isinstance(spec.get("freitext", ""), str)):
         raise ValueError(f"ui_antwort must be {{waehle: [Wendung …], freitext?: Text}}, "
