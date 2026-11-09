@@ -33,7 +33,14 @@ async function render(daten: UiEntscheidungDaten, kontext: Partial<ModulKontext>
   const knopf = () => el.querySelector<HTMLButtonElement>('button[type="submit"]');
   const option = (id: string) => el.querySelector<HTMLInputElement>(`input[value="${id}"]`)!;
   const waehle = async (id: string) => { option(id).click(); await f.whenStable(); };
-  return { f, el, h, knopf, option, waehle };
+  const eigen = () => el.querySelector<HTMLInputElement>('input[data-eigen]')!;
+  const feld = () => el.querySelector<HTMLTextAreaElement>('textarea')!;
+  const tippe = async (text: string) => {
+    feld().value = text;
+    feld().dispatchEvent(new Event('input'));
+    await f.whenStable();
+  };
+  return { f, el, h, knopf, option, waehle, eigen, feld, tippe };
 }
 
 afterEach(() => TestBed.resetTestingModule());
@@ -45,7 +52,7 @@ describe('UiEntscheidung', () => {
       const { el } = await render(daten);
       expect(el.querySelector('fieldset legend')?.textContent?.trim()).toBe(daten.frage);
       const typ = daten.mehrfach ? 'checkbox' : 'radio';
-      expect(el.querySelectorAll(`input[type="${typ}"]`).length).toBe(daten.optionen.length);
+      expect(el.querySelectorAll(`input[type="${typ}"]`).length).toBe(daten.optionen.length + (daten.freitext ? 1 : 0));
       expect(!!el.querySelector('textarea')).toBe(!!daten.freitext);
     });
   }
@@ -57,9 +64,9 @@ describe('UiEntscheidung', () => {
     const hinweis = el.querySelector(`#${video.getAttribute('aria-describedby')}`);
     expect(hinweis?.textContent?.trim()).toBe('kurze Erklärfilme bis 10 Minuten');
     expect(option('interaktiv').hasAttribute('aria-describedby')).toBe(false);
-    // Freitext mit eigenem Label und Deckel.
+    // Freitext: benannt durch den Punkt „Eigene Antwort“, mit Deckel.
     const feld = el.querySelector('textarea')!;
-    expect(el.querySelector(`label[for="${feld.id}"]`)?.textContent).toContain('Eigene Ergänzung');
+    expect(el.querySelector(`#${feld.getAttribute('aria-labelledby')}`)?.textContent).toContain('Eigene Antwort');
     expect(feld.maxLength).toBe(1000);
   });
 
@@ -73,9 +80,7 @@ describe('UiEntscheidung', () => {
     const hinweis = el.querySelector(`#${option('freitext').getAttribute('aria-describedby')}`);
     expect(hinweis?.textContent?.trim()).toBe('ein eigener Satz');
     const feld = el.querySelector('textarea')!;
-    const label = el.querySelector(`label[for="${feld.id}"]`);
-    expect(label?.textContent).toContain('Eigene Ergänzung');
-    expect(label?.querySelector('input')).toBeNull();
+    expect(el.querySelector(`#${feld.getAttribute('aria-labelledby')}`)?.textContent).toContain('Eigene Antwort');
   });
 
   it('Einzelwahl: eine Gruppe (gleicher Name), „Antworten“ erst mit Wahl', async () => {
@@ -106,6 +111,7 @@ describe('UiEntscheidung', () => {
     feld.value = '  ohne Anmeldung  ';
     feld.dispatchEvent(new Event('input'));
     await f.whenStable();
+    expect(el.querySelector<HTMLInputElement>('input[data-eigen]')!.checked).toBe(true);
     knopf()!.click();
     expect(h.antworten).toHaveBeenCalledWith(
       { gewaehlt: ['video', 'interaktiv'], freitext: 'ohne Anmeldung' }, 'Video, Interaktive Übung\nohne Anmeldung');
@@ -182,9 +188,115 @@ describe('UiEntscheidung', () => {
     expect(el.querySelector('.ui-entscheidung__status')?.textContent?.trim()).toBe('Diese Frage ist nicht mehr offen.');
   });
 
+  // Rückmeldung 2026-11-09: wer erst oben wählt und dann unten schreibt, bekam die Wahl nicht mehr
+  // weg und schickte beides. Die eigene Antwort ist jetzt ein Punkt der Gruppe.
+  describe('Eigene Antwort als eigener Punkt', () => {
+    const EINZEL_FREI: UiEntscheidungDaten = { ...EINZEL, freitext: true };
+
+    it('Einzelwahl: Tippen wählt „Eigene Antwort“ und nimmt die Wahl oben heraus', async () => {
+      const { h, knopf, option, waehle, eigen, tippe } = await render(EINZEL_FREI);
+      expect(eigen().type).toBe('radio');
+      expect(eigen().name).toBe(option('klasse_5_6').name);
+      await waehle('klasse_5_6');
+      await tippe('Klasse 11');
+      expect(option('klasse_5_6').checked).toBe(false);
+      expect(eigen().checked).toBe(true);
+      knopf()!.click();
+      expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: [], freitext: 'Klasse 11' }, 'Klasse 11');
+    });
+
+    it('Einzelwahl: wer danach wieder oben wählt, schickt nur diese Wahl — der Text bleibt stehen', async () => {
+      const { h, knopf, option, waehle, eigen, feld, tippe } = await render(EINZEL_FREI);
+      await tippe('Klasse 11');
+      await waehle('klasse_7_8');
+      expect(eigen().checked).toBe(false);
+      expect(option('klasse_7_8').checked).toBe(true);
+      expect(feld().value).toBe('Klasse 11');
+      knopf()!.click();
+      expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: ['klasse_7_8'] }, 'Klasse 7–8');
+    });
+
+    it('„Eigene Antwort“ anklicken: ohne Text noch kein Antworten, mit Text schon', async () => {
+      const { f, el, knopf, eigen, tippe } = await render(EINZEL_FREI);
+      document.body.appendChild(el);
+      try {
+        eigen().dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        eigen().click();
+        await f.whenStable();
+        expect(eigen().checked).toBe(true);
+        expect(document.activeElement).toBe(el.querySelector('textarea'));
+        expect(knopf()?.disabled).toBe(true);
+        await tippe('   ');
+        expect(knopf()?.disabled).toBe(true);
+        await tippe('Klasse 11');
+        expect(knopf()?.disabled).toBe(false);
+      } finally {
+        el.remove();
+      }
+    });
+
+    // Review, Befund 1 (WCAG 3.2.2): Pfeiltasten wählen in der Radio-Gruppe (change, Klick ohne
+    // Zeiger) — der Fokus bleibt dann in der Gruppe, sonst kämen Tastatur und Screenreader nicht weiter.
+    it('ohne Zeiger (Tastatur) bleibt der Fokus auf „Eigene Antwort“', async () => {
+      const { f, el, eigen } = await render(EINZEL_FREI);
+      document.body.appendChild(el);
+      try {
+        eigen().focus();
+        eigen().click();                                 // wie Pfeiltaste/Leertaste: kein pointerdown
+        await f.whenStable();
+        expect(eigen().checked).toBe(true);
+        expect(document.activeElement).toBe(eigen());
+      } finally {
+        el.remove();
+      }
+    });
+
+    it('das Textfeld sagt, dass Schreiben „Eigene Antwort“ wählt (aria-describedby)', async () => {
+      const { el, feld } = await render(EINZEL_FREI);
+      const hinweis = el.querySelector(`#${feld().getAttribute('aria-describedby')}`);
+      expect(hinweis?.textContent).toContain('Schreiben wählt „Eigene Antwort“');
+    });
+
+    it('Mehrfachwahl: abgehakt und dann geschrieben — der Text zählt wieder', async () => {
+      const { f, h, knopf, waehle, eigen, tippe } = await render(MEHRFACH);
+      await waehle('video');
+      await tippe('ohne');
+      eigen().click();
+      await f.whenStable();                              // wie im Browser: gerendert vor dem Weiterschreiben
+      expect(eigen().checked).toBe(false);
+      await tippe('ohne Anmeldung');
+      expect(eigen().checked).toBe(true);
+      knopf()!.click();
+      expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: ['video'], freitext: 'ohne Anmeldung' },
+        'Video\nohne Anmeldung');
+    });
+
+    it('Mehrfachwahl: „Eigene Antwort“ abhaken schickt den Text nicht mit', async () => {
+      const { h, knopf, waehle, eigen, tippe } = await render(MEHRFACH);
+      expect(eigen().type).toBe('checkbox');
+      await waehle('video');
+      await tippe('ohne Anmeldung');
+      eigen().click();
+      await waehle('interaktiv');
+      knopf()!.click();
+      expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: ['video', 'interaktiv'] }, 'Video, Interaktive Übung');
+    });
+
+    it('beantwortet nur mit eigener Antwort: die Statuszeile nennt den Text', async () => {
+      const { el, eigen, option } = await render(EINZEL_FREI, {
+        nurLesen: true, antwort: { gewaehlt: [], freitext: 'Klasse 11' } });
+      expect(el.querySelector('.ui-entscheidung__status')?.textContent?.trim()).toBe('Deine Antwort: Klasse 11');
+      // Review, Befund 3: der Punkt steht angehakt da, ohne Textfeld
+      expect(eigen().checked).toBe(true);
+      expect(option('klasse_5_6').checked).toBe(false);
+      expect(el.querySelector('textarea')).toBeNull();
+    });
+  });
+
   it('spricht Englisch, wenn das Widget es tut', async () => {
     const { el, knopf } = await render(MEHRFACH, { sprache: 'en' });
     expect(knopf()?.textContent?.trim()).toBe('Answer');
     expect(el.textContent).toContain('You can choose more than one.');
+    expect(el.textContent).toContain('Your own answer');
   });
 });

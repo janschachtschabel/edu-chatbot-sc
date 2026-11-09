@@ -121,10 +121,14 @@ def baue_ui_antwort(
     phrases on it the first (the author's preference), its first option in block order.
     Multiple choice: per phrase its best-tier options, in block order. ``freitext`` only if the
     block offers it, cut to ``FREITEXT_MAX`` like the widget (``observed.freitext_gekuerzt``
-    holds the original length).
-    ``message`` is the readable form the widget sends (labels joined by ", ", the addition on
-    its own line). No open question or no matching option → ``getippt`` goes as typed text, as
-    a person would answer; the server frames the closed question for the model.
+    holds the original length). Since 2026-11-09 the widget offers the text as a group item
+    ("Eigene Antwort"): with multiple choice it comes on top; with single choice it is an
+    alternative — a matching option wins and the text is dropped (``observed.freitext_verworfen``),
+    without a matching option the text alone is the answer (``gewaehlt: []``,
+    ``observed.eigene_antwort``).
+    ``message`` is the readable form the widget sends (labels joined by ", ", the text on its own
+    line). No open question, or neither a matching option nor an own answer → ``getippt`` goes as
+    typed text, as a person would answer; the server frames the closed question for the model.
     ``observed.status`` ``gesendet`` says the answer went out — whether the server took it, the
     response does not show (a mismatching one is dropped with a log line only, review U1-g #3).
     """
@@ -140,16 +144,31 @@ def baue_ui_antwort(
         if treffer := [s for s in stufen if s is not None]:
             stufe = min(treffer)
             beste.append((stufe, [i for i, s in enumerate(stufen) if s == stufe]))
+    zusatz = str(spec.get("freitext") or "").strip() if daten.get("freitext") is True else ""
+    mehrfach = daten.get("mehrfach") is True
     if not beste:
-        return None, getippt, {"status": "keine_passende_option", "gewaehlt": []}
-    if daten.get("mehrfach") is True:
+        if not zusatz:
+            return None, getippt, {"status": "keine_passende_option", "gewaehlt": []}
+        beobachtet: dict[str, Any] = {"status": "gesendet", "gewaehlt": [], "eigene_antwort": True}
+        return _mit_text({"gewaehlt": []}, [], zusatz, frage, beobachtet)
+    if mehrfach:
         gewaehlt = [optionen[i] for i in sorted({i for _, liste in beste for i in liste})]
     else:  # Einzelwahl: beste Stufe, dann die Reihenfolge des Autors (``min`` ist stabil)
         gewaehlt = [optionen[min(beste, key=lambda b: b[0])[1][0]]]
-    antwort_daten: dict[str, Any] = {"gewaehlt": [str(o["id"]) for o in gewaehlt]}
     labels = [str(o.get("label") or "") for o in gewaehlt]
-    beobachtet: dict[str, Any] = {"status": "gesendet", "gewaehlt": labels}
-    zusatz = str(spec.get("freitext") or "").strip() if daten.get("freitext") is True else ""
+    beobachtet = {"status": "gesendet", "gewaehlt": labels}
+    if zusatz and not mehrfach:
+        # Einzelwahl: Wahl ODER eigene Antwort — wer oben wählt, schickt den Text nicht mit.
+        beobachtet["freitext_verworfen"] = True
+        zusatz = ""
+    return _mit_text({"gewaehlt": [str(o["id"]) for o in gewaehlt]}, labels, zusatz, frage,
+                     beobachtet)
+
+
+def _mit_text(antwort_daten: dict[str, Any], labels: list[str], zusatz: str,
+              frage: dict[str, Any], beobachtet: dict[str, Any],
+              ) -> tuple[dict[str, Any], str, dict[str, Any]]:
+    """The answer with the own text, cut to ``FREITEXT_MAX`` like the widget."""
     if len(zusatz) > FREITEXT_MAX:
         beobachtet["freitext_gekuerzt"] = len(zusatz)
         zusatz = zusatz[:FREITEXT_MAX]

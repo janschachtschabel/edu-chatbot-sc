@@ -82,6 +82,23 @@ test('per Tastatur: Pfeiltaste wählt, Enter antwortet', async ({ page }) => {
 });
 
 // Review U1 gesamt, Befund 7: die Frage aus dem gespeicherten Verlauf (Muster `linkbox.spec.ts`).
+// Review „Eigene Antwort“, Befund 1 (WCAG 3.2.2): mit den Pfeiltasten auf „Eigene Antwort“ bleibt der
+// Fokus in der Gruppe — nur ein Klick mit Maus oder Finger setzt ihn ins Textfeld.
+test('per Tastatur: Pfeiltasten wählen „Eigene Antwort“, der Fokus bleibt in der Gruppe', async ({ page }) => {
+  await frageStellen(page, { ...FRAGE, freitext: true });
+  const box = page.locator('ui-entscheidung');
+  await box.locator('input[value="klasse_5_6"]').focus();
+  await page.keyboard.press('ArrowUp');                  // läuft herum auf den letzten Punkt
+  const eigen = box.locator('input[data-eigen]');
+  await expect(eigen).toBeChecked();
+  await expect(eigen).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(box.locator('input[value="klasse_5_6"]')).toBeFocused();
+  await expect(eigen).not.toBeChecked();
+  await box.locator('.ui-entscheidung__option', { hasText: 'Eigene Antwort' }).click();
+  await expect(box.locator('textarea')).toBeFocused();
+});
+
 test('nach dem Neuladen: eine offene Frage lässt sich beantworten', async ({ page }) => {
   const w = await mount(page, {
     session: 'bb-11111111-2222-3333-4444-555555555555',
@@ -181,7 +198,8 @@ for (const breite of [1280, 320]) {
     const anleitung = await textkante(box.locator('.ui-entscheidung__anleitung'));
     const texte = box.locator('.ui-entscheidung__text');
     const [o1, o2, o3] = [await textkante(texte.nth(0)), await textkante(texte.nth(1)), await textkante(texte.nth(2))];
-    const freitextLabel = await textkante(box.locator('.ui-entscheidung__freitext-label'));
+    // Seit 2026-11-09 ist „Eigene Antwort“ ein vierter Punkt der Gruppe, das Textfeld gehört zu ihm.
+    const eigen = await textkante(texte.nth(3));
     const feld = await boxkante(box.locator('.ui-entscheidung__freitext'));
     const knopf = await boxkante(box.locator('.ui-entscheidung__senden'));
     const m = {
@@ -189,8 +207,8 @@ for (const breite of [1280, 320]) {
       anleitungZuOption: luecke(anleitung, o1),
       option1zu2: luecke(o1, o2),
       option2zu3: luecke(o2, o3),
-      optionZuFreitext: luecke(o3, freitextLabel),
-      labelZuFeld: luecke(freitextLabel, feld),
+      option3zuEigen: luecke(o3, eigen),
+      eigenZuFeld: luecke(eigen, feld),
       feldZuKnopf: luecke(feld, knopf),
     };
     test.info().annotations.push({ type: 'abstaende', description: JSON.stringify(m) });
@@ -202,9 +220,9 @@ for (const breite of [1280, 320]) {
     expect(Math.abs(m.anleitungZuOption - m.option1zu2), zeig).toBeLessThanOrEqual(TOLERANZ_PX);
     // die Anleitung gehört zur Frage (nicht weiter weg als die Möglichkeiten voneinander),
     expect(m.frageZuAnleitung, zeig).toBeLessThanOrEqual(m.option1zu2);
-    // die Ergänzung beginnt im selben Takt nach der letzten Möglichkeit,
-    expect(Math.abs(m.optionZuFreitext - m.option1zu2), zeig).toBeLessThanOrEqual(TOLERANZ_PX);
-    // ihr Label sitzt dichter am Feld als an den Möglichkeiten — es gehört zum Feld.
-    expect(m.labelZuFeld, zeig).toBeLessThan(m.optionZuFreitext);
+    // „Eigene Antwort“ steht im selben Takt wie die anderen Möglichkeiten,
+    expect(Math.abs(m.option3zuEigen - m.option1zu2), zeig).toBeLessThanOrEqual(TOLERANZ_PX);
+    // und das Feld sitzt dichter an ihr als die Möglichkeiten aneinander — es gehört zu ihr.
+    expect(m.eigenZuFeld, zeig).toBeLessThan(m.option3zuEigen);
   });
 }

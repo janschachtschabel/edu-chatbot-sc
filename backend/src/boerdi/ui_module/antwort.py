@@ -7,8 +7,8 @@ gemerkte Frage und das Antwort-Schema des Moduls. Nur die geprüfte Antwort geht
 gerahmter Block vor der Nachricht an die KI (:func:`antwort_block`), im Debug-Block der
 Nutzernachricht (``_ui_antwort``) und daraus im Verlauf als Status des Blocks
 (:func:`status_ableiten`). Kommt keine geprüfte Antwort, steht die geschlossene Frage selbst
-gerahmt vor der Nachricht (:func:`frage_block`, Review U1-d1); die Ergänzung einer geprüften
-Antwort liest die Sicherheitsprüfung mit (:func:`sicherheits_text`).
+gerahmt vor der Nachricht (:func:`frage_block`, Review U1-d1); den Freitext („Eigene Antwort“)
+einer geprüften Antwort liest die Sicherheitsprüfung mit (:func:`sicherheits_text`).
 
 Werkzeugaufrufe werden nicht gespeichert, der nächste Zug sieht nur Text — deshalb trägt der
 Block Frage und Beschriftungen selbst, nicht nur Kennungen.
@@ -84,6 +84,10 @@ def _grund(offen: Any, antwort: UiAntwort) -> str | None:
         return "mehrere gewählt bei Einzelwahl"
     if "freitext" in antwort.daten and offen.get("freitext") is not True:
         return "Freitext, den die Frage nicht anbot"
+    # Rückmeldung 2026-11-09: „Eigene Antwort“ ist ein Punkt der Gruppe — ``gewaehlt`` darf leer
+    # sein, dann trägt der Text die Antwort. Weder Wahl noch Text ist keine Antwort.
+    if not gewaehlt and not _freitext(antwort.daten):
+        return "weder Wahl noch eigene Antwort"
     return None
 
 
@@ -117,9 +121,9 @@ def antwort_block(geprueft: dict[str, Any]) -> str:
                 for label, kennung in zip(geprueft.get("labels") or [],
                                           daten.get("gewaehlt") or [], strict=False)]
     zeilen = [f"Frage: „{_zeile(geprueft.get('frage'))}“",
-              f"Gewählt: {'; '.join(gewaehlt)}"]
+              f"Gewählt: {'; '.join(gewaehlt) or 'keine der Möglichkeiten'}"]
     if ergaenzung := _freitext(daten):
-        zeilen.append(f"Ergänzung der Person: {_zeile(ergaenzung, 1000)}")
+        zeilen.append(f"Eigene Antwort der Person: {_zeile(ergaenzung, 1000)}")
     return _gerahmt(ANTWORT_FRAME_START, zeilen, ANTWORT_FRAME_END)
 
 
@@ -134,7 +138,7 @@ def frage_block(offen: dict[str, Any]) -> str:
     if offen.get("mehrfach") is True:
         zeilen.append("Mehrere Möglichkeiten waren erlaubt.")
     if offen.get("freitext") is True:
-        zeilen.append("Eine eigene Ergänzung im Freitext war erlaubt.")
+        zeilen.append("Eine eigene Antwort im Freitext war erlaubt.")
     return _gerahmt(FRAGE_FRAME_START, zeilen, FRAGE_FRAME_END)
 
 
@@ -161,11 +165,11 @@ def vorsatz(geprueft: dict[str, Any] | None, geschlossen: dict[str, Any] | None,
 
 
 def sicherheits_text(message: str, geprueft: dict[str, Any] | None) -> str:
-    """Was die Sicherheitsprüfung liest: die Nachricht und die Ergänzung einer geprüften Antwort.
+    """Was die Sicherheitsprüfung liest: die Nachricht und den Freitext einer geprüften Antwort.
 
-    Review U1-d1, Befund 1: Die Ergänzung (≤ 1000 Zeichen, vom Client) steht gerahmt im Prompt
-    (:func:`antwort_block`) — sie muss durch dieselbe Prüfung wie die Nachricht. Ohne Ergänzung
-    bleibt es die Nachricht, Zeichen für Zeichen.
+    Review U1-d1, Befund 1: Der Freitext („Eigene Antwort“, ≤ 1000 Zeichen, vom Client) steht
+    gerahmt im Prompt (:func:`antwort_block`) — er muss durch dieselbe Prüfung wie die Nachricht.
+    Ohne Freitext bleibt es die Nachricht, Zeichen für Zeichen.
     """
     daten = (geprueft or {}).get("daten") or {}
     if f := form((geprueft or {}).get("modul")):

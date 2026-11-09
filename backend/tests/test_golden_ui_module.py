@@ -134,7 +134,10 @@ def test_validate_ui_antwort_form() -> None:
     rg.validate_flows(_flows({}, gut))
     with pytest.raises(ValueError, match="erste"):
         rg.validate_flows(_flows(gut))
-    for falsch in ({"waehle": []}, {"waehle": "Biologie"}, {"waehle": ["x"], "freitext": 3},
+    # Nur eine eigene Antwort (Auswahlfeld 2026-11-09): ``waehle`` darf leer sein, mit Text.
+    rg.validate_flows(_flows({}, {"ui_antwort": {"waehle": [], "freitext": "Klasse 11"}}))
+    for falsch in ({"waehle": []}, {"waehle": [], "freitext": "  "}, {"waehle": "Biologie"},
+                   {"waehle": ["x"], "freitext": 3},
                    {"waehle": ["x"], "unbekannt": 1}):
         with pytest.raises(ValueError, match="ui_antwort"):
             rg.validate_flows(_flows({}, {"ui_antwort": falsch}))
@@ -215,7 +218,7 @@ def test_freitext_wird_wie_im_widget_gekuerzt() -> None:
     """Review U1-g #3: das Widget kürzt auf ``maxLength`` des Manifests (1000 Zeichen); der
     Runner tut dasselbe und vermerkt es, statt eine Antwort zu schicken, die der Server
     verwirft."""
-    frage = _frage("Physik", freitext=True)
+    frage = _frage("Physik", "Chemie", mehrfach=True, freitext=True)
     lang = "  " + "x" * 1200 + "  "
     antwort, text, beob = rg.baue_ui_antwort({"waehle": ["Physik"], "freitext": lang},
                                              frage, "getippt")
@@ -224,6 +227,28 @@ def test_freitext_wird_wie_im_widget_gekuerzt() -> None:
     assert beob == {"status": "gesendet", "gewaehlt": ["Physik"], "freitext_gekuerzt": 1200}
     _, _, kurz = rg.baue_ui_antwort({"waehle": ["Physik"], "freitext": "x"}, frage, "g")
     assert "freitext_gekuerzt" not in kurz
+
+
+# Auswahlfeld 2026-11-09: bei Einzelwahl ist „Eigene Antwort“ ein Punkt der Gruppe — das Widget
+# schickt die Wahl ODER den Text. Der Runner macht es ebenso.
+def test_einzelwahl_mit_passender_moeglichkeit_verwirft_den_text() -> None:
+    frage = _frage("Physik", "Chemie", freitext=True)
+    antwort, text, beob = rg.baue_ui_antwort({"waehle": ["Physik"], "freitext": "auch Optik"},
+                                             frage, "getippt")
+    assert antwort["daten"] == {"gewaehlt": ["o1"]} and text == "Physik"
+    assert beob == {"status": "gesendet", "gewaehlt": ["Physik"], "freitext_verworfen": True}
+
+
+def test_einzelwahl_ohne_passende_moeglichkeit_ist_eine_eigene_antwort() -> None:
+    frage = _frage("Physik", "Chemie", freitext=True)
+    for spec in ({"waehle": [], "freitext": "  Klasse 11 "},
+                 {"waehle": ["Biologie"], "freitext": "Klasse 11"}):
+        antwort, text, beob = rg.baue_ui_antwort(spec, frage, "getippt")
+        assert antwort["daten"] == {"gewaehlt": [], "freitext": "Klasse 11"} and text == "Klasse 11"
+        assert beob == {"status": "gesendet", "gewaehlt": [], "eigene_antwort": True}
+    # ohne Freitext-Feld bleibt es getippt
+    assert rg.baue_ui_antwort({"waehle": [], "freitext": "Klasse 11"}, _frage("Physik", "Chemie"),
+                              "getippt")[0] is None
 
 
 def test_freitext_max_ist_die_grenze_des_manifests() -> None:

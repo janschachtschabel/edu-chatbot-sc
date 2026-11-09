@@ -220,7 +220,7 @@ async def test_die_gepruefte_antwort_steht_gerahmt_vor_der_nachricht(monkeypatch
     assert "„Welche Klasse?“" in block
     assert "Gewählt: Klasse 6 (b)" in block
     # Freitext in einer Zeile: kein Umbruch beginnt im Block einen eigenen Abschnitt.
-    assert "Ergänzung der Person: eher schwach" in block
+    assert "Eigene Antwort der Person: eher schwach" in block
     assert block.rstrip().endswith("[ENDE ANTWORT]")
 
 
