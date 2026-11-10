@@ -192,6 +192,19 @@
   // and put the gap on adjacent paragraphs only.
   p { margin: 0; }
   p + p { margin-top: 6px; }
+
+  // TB-E4: Formeln als MathML (`markdown/formel.ts`). Eine lange abgesetzte Formel scrollt quer,
+  // statt die Blase zu sprengen (Reflow bei 320 px); inline etwas größer als der Fließtext.
+  // `block math`, nicht `block`: sonst stapelt der Browser die Teile untereinander (im Browser
+  // gemessen). `overflow-y: hidden`, sonst zeigt Chromium einen leeren senkrechten Rollbalken.
+  math { font-size: 1.05em; }
+  math[display="block"] {
+    display: block math;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin: 4px 0;
+  }
 }
 
 // ── Typing dots ──────────────────────────────────────────────────────────────

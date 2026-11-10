@@ -7,12 +7,12 @@
  *      Anything else in the output directory (a lazy chunk from a dynamic
  *      `import()`, an extracted stylesheet, a copied asset) breaks that embed
  *      silently, because nothing on the host page loads it.
- *   2. Size — ≤ 690 kB raw and ≤ 200 kB gzip, kB decimal (1000 bytes); warning above 190 kB gzip.
+ *   2. Size — ≤ 700 kB raw and ≤ 210 kB gzip, kB decimal (1000 bytes); warning above 200 kB gzip.
  *
  * On raw size this gate is a *duplicate* of the build-time budget, not a
  * stricter one: `@angular/build` defines `BYTES_IN_KILOBYTE = 1000`
- * (utils/bundle-calculator.js), so `maximumError: "690kb"` in angular.json is
- * the same 690 000 bytes as RAW_MAX here and the build already fails first.
+ * (utils/bundle-calculator.js), so `maximumError: "700kb"` in angular.json is
+ * the same 700 000 bytes as RAW_MAX here and the build already fails first.
  * What this gate adds is the **gzip** limit and the **single-file** check —
  * neither of which Angular's budgets can express.
  *
@@ -25,6 +25,8 @@
  * updated. If the limit moves again, all three move together:
  * `angular.json` (build-widget budgets) · this file · spec §5.5 "Bundle-Budget".
  *
+ * **Raised 2026-11-10 to 700 kB / 210 kB (warning from 200 kB gzip)** for the formula
+ * rendering (Plan 2026-11-10, TB-E4); before: 690 / 200 / 190 (2026-11-02).
  * **Raised 2026-11-02 to 690 kB / 200 kB (warning from 190 kB gzip)** for the UI modules
  * (Paket U1, user decision U-F2): small, frequent modules ship in the bundle; anything larger
  * or rarely used is lazy-loaded instead of raising the limit again.
@@ -41,10 +43,11 @@ import { gzipSync } from 'node:zlib';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-const RAW_MAX = 690_000;
-const GZIP_MAX = 200_000;
+// Plan 2026-11-10, TB-E4 (Nutzer-Entscheid N5): +10 kB für die Formel-Darstellung.
+const RAW_MAX = 700_000;
+const GZIP_MAX = 210_000;
 /** Above this the gate stays green but warns: lazy-load instead of growing further. */
-const GZIP_WARN = 190_000;
+const GZIP_WARN = 200_000;
 const DEFAULT_BUNDLE = 'dist/widget/browser/main.js';
 
 const bundle = resolve(process.argv[2] ?? DEFAULT_BUNDLE);

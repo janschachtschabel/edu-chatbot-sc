@@ -15,12 +15,14 @@ const _UNI_FRAC: Record<string, string> = {
   '1/9': '⅑', '1/10': '⅒',
 };
 
-export function stripLatex(text: string): string {
+/** `dollar: false` (Review TB-E4, Befund 6): der Renderer hat die Formeln schon herausgenommen —
+ *  was dann noch zwischen `$` steht, sind Geldbeträge und bleiben so. */
+export function stripLatex(text: string, { dollar = true }: { dollar?: boolean } = {}): string {
   const fr = (n: string, d: string): string =>
     _UNI_FRAC[`${n}/${d}`] || `${n}⁄${d}`;
   return text
     .replace(/\\frac\s*\{\s*(\d+)\s*\}\s*\{\s*(\d+)\s*\}/g, (_m, n, d) => fr(n, d))
     .replace(/\\frac\s*(\d)\s*(\d)/g, (_m, n, d) => fr(n, d))
     .replace(/\\sqrt\s*\{\s*([^}]+?)\s*\}/g, (_m, x) => `√${x}`)
-    .replace(/\$([^$\n]+?)\$/g, '$1');
+    .replace(/\$([^$\n]+?)\$/g, (ganz, inhalt: string) => (dollar ? inhalt : ganz));
 }

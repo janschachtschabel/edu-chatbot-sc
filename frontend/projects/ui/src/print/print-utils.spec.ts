@@ -180,3 +180,18 @@ describe('Druckfenster: Oberflächentexte, Sprache, Datumsformat (C1-b4)', () =>
     expect(lernpfad.alerts).toEqual(['Allow pop-ups for the path.']);
   });
 });
+
+describe('printMdToHtml — Formeln (Querschnitts-Review Gruppe E, Befund 5)', () => {
+  it('zeichnet LaTeX wie das Widget als MathML statt roh', () => {
+    const html = printMdToHtml('Bruch: \\(\\frac{1+2}{4}\\cdot 2\\)');
+    expect(html).toContain('<mfrac>');
+    expect(html).not.toContain('\\frac');
+    expect(html).not.toContain('\\(');
+  });
+
+  it('bleibt sicher: kein Ausbruch aus dem Link, kein Skript', () => {
+    const html = printMdToHtml('[\\(x\\)](https://x.de) \\(\\text{<script>x</script>}\\)');
+    expect(html).not.toContain('<script');
+    expect(html).toContain('href="https://x.de"');
+  });
+});

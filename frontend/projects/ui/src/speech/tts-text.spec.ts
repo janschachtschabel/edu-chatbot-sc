@@ -51,3 +51,19 @@ describe('ohneMarkdownEscapes (AS-3b)', () => {
     expect(stripMarkdown('Notiert\\: **Optik\\.**')).toBe('Notiert: Optik.');
   });
 });
+
+describe('ohneMarkdownEscapes — Entitäten (Querschnitts-Review Gruppe E)', () => {
+  it('löst auch die Klammer- und Dollar-Entitäten eingesetzter Werte auf', () => {
+    expect(ohneMarkdownEscapes('Brüche &#40;Klasse 6&#41; &#91;a\\.b&#93; &#36;5'))
+      .toBe('Brüche (Klasse 6) [a.b] $5');
+    expect(ohneMarkdownEscapes('&#60;script&#62;')).toBe('&#60;script&#62;');   // nur diese fünf
+  });
+});
+
+describe('stripMarkdown — Formeln (Querschnitts-Review Gruppe E, Befund 5)', () => {
+  it('liest Formeln ohne Begrenzer und ohne LaTeX-Befehle', () => {
+    expect(stripMarkdown('Rechne \\(\\frac{1}{2}\\cdot x\\).')).toBe('Rechne 1/2 · x.');
+    expect(stripMarkdown('\\[\\sqrt{2} \\approx 1,41\\]')).toBe('√2 ≈ 1,41');
+    expect(stripMarkdown('\\(\\alpha + \\beta\\)')).toBe('α + β');
+  });
+});
