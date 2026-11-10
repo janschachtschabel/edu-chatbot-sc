@@ -11,7 +11,8 @@ export const UI_MODULE: CataloguePart = {
     'curated.uiModule.intro':
       'UI-Module sind die Bausteine, die der Chat unter einer Antwort zeigt — Dokumente, Treffer, '
       + 'Webseiten, Auswahlfragen, Themenbäume. Hier siehst du, was jedes Modul erwartet, wie es '
-      + 'aussieht, und schaltest es für beide Modi an oder aus.',
+      + 'aussieht, und schaltest es für beide Modi an oder aus. Abläufe aus diesen Modulen baust '
+      + 'du auf der Seite „Abläufe“.',
     'curated.uiModule.panel.label': 'Module',
     'curated.uiModule.panel.hint':
       'Alle Module aus dem Katalog mit ihren Beispielen. Schalter gelten ab der nächsten Antwort.',

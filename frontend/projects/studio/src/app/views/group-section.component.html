@@ -31,7 +31,7 @@
           [query]="query()"
           [label]="t(section().labelKey)"
           [baseId]="idPrefix()"
-          [emptyText]="query() ? t('objectList.noMatch') : t('groupSection.empty')"
+          [emptyText]="query() ? t('objectList.noMatch') : leerText()"
           (queryChange)="query.set($event)"
           (pick)="select($event)"
         >

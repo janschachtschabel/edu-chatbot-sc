@@ -124,3 +124,50 @@ def test_einfacher_import_gilt_nur_aus_dem_seed_als_werk(db, tmp_path):
     assert zeilen["01-base/extra"]["updated_by"] == "import-cli"
     assert zeilen["01-base/extra"]["werk_hash"] is None
     assert zeilen["01-base/welcome-config"]["werk_hash"] is not None
+
+
+# ── Querschnitts-Review AS-0…AS-2, Befund 2: Bäume von vor AS-0 ──────────────
+_ALT = {"id": "alt", "titel": {"de": "Alt"},
+        "schritte": [{"id": "ende", "typ": "ende", "text": {"de": "Fertig."}}]}
+
+
+def _katalog_baum(ziel: Path, *, mit_seed: bool) -> Path:
+    """Ein ``export-config``-Baum von vor AS-0: die Abläufe als Liste in ``katalog.yaml``."""
+    import json
+    import shutil
+
+    import yaml
+
+    if mit_seed:
+        shutil.copytree(_SEEDS, ziel)
+    ordner = ziel / "06-ablaeufe"
+    ordner.mkdir(parents=True, exist_ok=True)
+    ablaeufe = [_ALT]
+    werk = ordner / "sammlungsstruktur.yaml"
+    if werk.exists():
+        ablaeufe.insert(0, yaml.safe_load(werk.read_text(encoding="utf-8")))
+        werk.unlink()
+    (ordner / "katalog.yaml").write_text(json.dumps({"ablaeufe": ablaeufe}), encoding="utf-8")
+    return ziel
+
+
+def _bereiche() -> set[str]:
+    async def lesen(store):
+        return set(await store.all_data())
+
+    return _mit_store(lesen)
+
+
+def test_ein_alter_baum_teilt_den_katalog_beim_einfachen_import(db, tmp_path):
+    assert _cli("--from", str(_katalog_baum(tmp_path / "alt", mit_seed=False))) == 0
+    bereiche = _bereiche()
+    assert "06-ablaeufe/alt" in bereiche
+    assert "06-ablaeufe/katalog" not in bereiche
+
+
+def test_ein_alter_baum_loescht_mit_exact_keine_ablaeufe(db, tmp_path):
+    assert _cli("--from", str(_SEEDS)) == 0
+    assert _cli("--from", str(_katalog_baum(tmp_path / "alt", mit_seed=True)), "--exact") == 0
+    bereiche = _bereiche()
+    assert {"06-ablaeufe/sammlungsstruktur", "06-ablaeufe/alt"} <= bereiche
+    assert "06-ablaeufe/katalog" not in bereiche

@@ -103,6 +103,27 @@
                 <dt>{{ t('uiModule.angabe.platz') }}</dt><dd>{{ platz(e) }}</dd>
               </dl>
 
+              <h5 class="um-h" [id]="'um-ablaeufe-' + e.name" tabindex="-1">{{ t('uiModule.ablaeufe') }}</h5>
+              <!-- Review AS-2, Befund 9: die Region steht, bevor die Meldung kommt -->
+              <p class="um-switch-hint" role="status">{{ ablaeufeFehler() ? t('uiModule.ablaeufe.fehler') : '' }}</p>
+              @if (ablaeufeFehler()) {
+                <button type="button" class="cs-btn" (click)="ablaeufeErneut(e.name)">{{ t('async.retry') }}</button>
+              } @else if (ablaeufe() === null) {
+                <p class="um-switch-hint">{{ t('uiModule.ablaeufe.laedt') }}</p>
+              } @else if (ablaeufeDesModuls().length) {
+                <ul class="um-punkte um-ablaeufe" [attr.aria-labelledby]="'um-ablaeufe-' + e.name">
+                  @for (z of ablaeufeDesModuls(); track z.key) {
+                    <li>
+                      <a routerLink="/ablaeufe" [queryParams]="{ ablauf: z.id }">{{ ablaufTitel(z) }}</a>
+                      <code class="um-name">{{ z.id }}</code>
+                      @if (!z.aktiv) { <span>{{ ' · ' + t('ablaeufe.notiz.aus') }}</span> }
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="um-switch-hint">{{ t('uiModule.ablaeufe.keine') }}</p>
+              }
+
               @if (e.manifest.wann?.length) {
                 <h5 class="um-h">{{ t('uiModule.wann') }}</h5>
                 <ul class="um-punkte" lang="de">
