@@ -108,8 +108,8 @@ async def lesen(ablage: Any) -> dict[str, Any] | None:
         return None
     antwort = await client.call_mcp_tool_antwort(WERKZEUG, {"nodeIds": list(kennungen)},
                                                  use_cache=False)
-    if antwort.art:
-        logger.info("Metadaten lesen: %s gescheitert (%s)", WERKZEUG, antwort.art)
+    if fehlerart := antwort.art:   # nur die Art des Fehlers ins Log, nie die Antwort
+        logger.info("Metadaten lesen: %s gescheitert (%s)", WERKZEUG, fehlerart)
         return None
     try:
         daten = json.loads(antwort.text)

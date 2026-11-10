@@ -64,6 +64,7 @@ _REGELN = {
     "test_quiz_verteilt_die_richtige_antwort",
     "test_stufe_nur_aus_einer_angabe",
     "test_anrede_nicht_aus_anleitungen",
+    "test_formeln_stehen_als_latex_in_den_begrenzern",
 }
 
 

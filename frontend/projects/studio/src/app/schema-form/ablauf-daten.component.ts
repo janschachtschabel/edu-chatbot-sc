@@ -32,6 +32,7 @@ export const TYP_NAMEN: Readonly<Record<string, string>> = {
   'wlo.auftrag@1': 'auftrag',
   'wlo.strukturabgleich@1': 'abgleich',
   'wlo.abdeckung@1': 'abdeckung',
+  'wlo.metadaten@1': 'metadaten',
   'wlo_create_collection_tree@1': 'angelegt',
   'baum_aus_entwurf@1': 'baum',
 };
