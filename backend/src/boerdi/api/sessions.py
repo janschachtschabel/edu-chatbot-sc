@@ -334,6 +334,9 @@ async def _ablauf_stand(session: AsyncSession, session_id: str,
     Anfrage gilt."""
     try:
         entities = await sitzung_entities(session, session_id) or {}
+        # Review PR #51 (R2): ohne Verweis keine Leiste — dann auch kein Warten auf die Bestätigung
+        if arbeitsstand.VERWEIS not in entities:
+            return None
         adopt_turn_auth_block(request)
         if request.headers.get(ACCESS_BLOCK_HEADER):
             await verbindung_freigeben(session)   # die Bestätigung kann ein MCP-Rundlauf sein

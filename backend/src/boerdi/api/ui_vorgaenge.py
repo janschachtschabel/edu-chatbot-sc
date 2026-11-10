@@ -157,6 +157,8 @@ class WiederkehrAnfrage(BaseModel):
     session_id: str = Field(pattern=f"^{SITZUNGSKENNUNG}$")
     vorgang: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{8,64}$")
     auftrag: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
+    #: Review PR #51 (R3): der Titel eines Ablaufs in der Sprache des Widgets, wie bei ``/offen``
+    sprache: Sprache = "de"
 
     @model_validator(mode="after")
     def _genau_eine(self) -> WiederkehrAnfrage:
@@ -188,7 +190,7 @@ async def wiederkehr(anfrage: WiederkehrAnfrage, request: Request, response: Res
     if v is None or v.status in vorgaenge.ABGESCHLOSSEN or not v.session_id:
         raise _unbekannt()
     response.headers["Cache-Control"] = "private, no-store"
-    return _als_offener(v)
+    return _als_offener(v, anfrage.sprache)
 
 
 class ListenAnfrage(BaseModel):

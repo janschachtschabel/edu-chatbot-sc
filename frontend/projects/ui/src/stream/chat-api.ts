@@ -570,7 +570,8 @@ export class ChatApiClient {
     await this.anmeldung;
     const antwort = await postChat<unknown>({
       url: `${this.baseUrl}/ui/vorgaenge/wiederkehr`,
-      body: { session_id: sessionId, ...kennung },
+      // Review PR #51 (R3): der Titel eines Ablaufs wie im Hinweis und in der Liste
+      body: { session_id: sessionId, ...kennung, sprache: this.sprache() },
       fetchImpl: this.fetchImpl,
       fristMs: AUFTRAG_FRIST_MS,
       signal,

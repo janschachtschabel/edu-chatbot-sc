@@ -136,7 +136,10 @@ def test_q1_der_verlauf_einer_angemeldeten_person_zeigt_ihren_lauf(client, monke
                 {"id": 2, "role": "assistant", "content": "Weiter?", "debug": {}}]
 
     async def sitzung(*_a, **_k):
-        return {}
+        return {arbeitsstand.VERWEIS: {"id": "v-1"}}
+
+    async def frei(*_a, **_k):
+        return None
 
     bestaetigt: list = []
 
@@ -149,7 +152,7 @@ def test_q1_der_verlauf_einer_angemeldeten_person_zeigt_ihren_lauf(client, monke
     monkeypatch.setattr(sessions_api, "bestaetige_anmeldung", bestaetige)
     # angemeldet gilt nur nach der Bestätigung — und die gibt es nur mit Zugangsblock
     monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: bool(bestaetigt))
-    monkeypatch.setattr(sessions_api, "verbindung_freigeben", sitzung)
+    monkeypatch.setattr(sessions_api, "verbindung_freigeben", frei)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
     ohne = client.get(f"/api/sessions/{_SID}/messages")
     mit = client.get(f"/api/sessions/{_SID}/messages", headers={"WLO-Access-Block": "wloTestBlock"})
@@ -199,6 +202,8 @@ def test_z6_eine_langsame_bestaetigung_haelt_den_verlauf_nicht_auf(
     import asyncio
     import time
 
+    from boerdi.services import arbeitsstand
+
     async def langsam():
         await asyncio.sleep(3)
 
@@ -206,12 +211,37 @@ def test_z6_eine_langsame_bestaetigung_haelt_den_verlauf_nicht_auf(
         return [{"id": 2, "role": "assistant", "content": "Weiter?", "debug": {}}]
 
     async def sitzung(*_a, **_k):
-        return {}
+        return {arbeitsstand.VERWEIS: {"id": "v-1"}}
+
+    async def frei(*_a, **_k):
+        return None
 
     monkeypatch.setattr(sessions_api, "bestaetige_anmeldung", langsam)
     monkeypatch.setattr(sessions_api, "get_messages", nachrichten)
     monkeypatch.setattr(sessions_api, "sitzung_entities", sitzung)
-    monkeypatch.setattr(sessions_api, "verbindung_freigeben", sitzung)
+    monkeypatch.setattr(sessions_api, "verbindung_freigeben", frei)
     anfang = time.monotonic()
     r = client.get(f"/api/sessions/{_SID}/messages", headers={"WLO-Access-Block": "wloTestBlock"})
     assert r.status_code == 200 and time.monotonic() - anfang < 2.5
+
+
+def test_pr51_ohne_verweis_keine_bestaetigung_und_kein_stand(client, monkeypatch, mit_stand):  # noqa: F811
+    """Review PR #51 (Backend, R2): ohne Verweis in der Sitzung gibt es keine Leiste — dann wartet
+    der Verlauf auch nicht (bis zu 1 s) auf die Bestätigung der Anmeldung."""
+    bestaetigt: list = []
+
+    async def bestaetige():
+        bestaetigt.append(True)
+
+    async def nachrichten(*_a, **_k):
+        return [{"id": 2, "role": "assistant", "content": "Weiter?", "debug": {}}]
+
+    async def sitzung(*_a, **_k):
+        return {"thema": "Optik"}
+
+    monkeypatch.setattr(sessions_api, "bestaetige_anmeldung", bestaetige)
+    monkeypatch.setattr(sessions_api, "get_messages", nachrichten)
+    monkeypatch.setattr(sessions_api, "sitzung_entities", sitzung)
+    r = client.get(f"/api/sessions/{_SID}/messages", headers={"WLO-Access-Block": "wloTestBlock"})
+    assert r.status_code == 200 and "ablauf" not in r.json()[0]["ui"]
+    assert bestaetigt == [] and mit_stand == []

@@ -73,3 +73,13 @@ describe('ChatApiClient.offeneVorgaenge — Sprache (zweites Review, Z-2)', () =
     expect(JSON.parse(String(gesehen[0].init.body))).toEqual({ session_id: SID, sprache: 'en' });
   });
 });
+
+describe('ChatApiClient.wiederkehr — Sprache (Review PR #51, R3)', () => {
+  it('fragt den Titel in der Sprache des Widgets', async () => {
+    const gesehen: Gesehen[] = [];
+    const api = new ChatApiClient({ fetchImpl: antwortFetch(gesehen, { ok: true, status: 200, json: {} }) });
+    api.setUiLocale('en');
+    await api.wiederkehr(SID, { auftrag: 'job-42' });
+    expect(JSON.parse(String(gesehen[0].init.body))).toEqual({ session_id: SID, auftrag: 'job-42', sprache: 'en' });
+  });
+});

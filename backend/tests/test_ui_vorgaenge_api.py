@@ -182,6 +182,19 @@ def test_wiederkehr_ueber_den_auftrag(web, eigene):
     assert eigene.gefragt == [("job", "job-42", "person-a"), ("lesen", _VORGANG, "person-a")]
 
 
+def test_pr51_wiederkehr_nennt_den_titel_in_der_sprache_des_widgets(web, eigene, monkeypatch):
+    """Review PR #51 (Backend, R3): wie ``/offen`` und ``/liste`` — sonst stünde der Titel des
+    Ablaufs nach einer Wiederkehr immer deutsch da."""
+    monkeypatch.setattr(api.ausloeser, "laden", lambda aid: SimpleNamespace(
+        id=aid, titel={"de": "Lesen", "en": "Read"}) if aid == "lesen" else None)
+    eigene.bestand[_VORGANG].zweck = "lesen"
+    en = web.post("/api/ui/vorgaenge/wiederkehr",
+                  json={"session_id": _HIER, "vorgang": _VORGANG, "sprache": "en"})
+    assert en.status_code == 200, en.text
+    assert en.json()["titel"] == "Read"
+    assert _wiederkehr(web, vorgang=_VORGANG).json()["titel"] == "Lesen"
+
+
 @pytest.mark.parametrize("fall", ["unbekannt", "abgeschlossen", "ohne_gespraech", "fremder_job"])
 def test_wiederkehr_ohne_treffer_sieht_immer_gleich_aus(web, eigene, fall):
     if fall == "abgeschlossen":

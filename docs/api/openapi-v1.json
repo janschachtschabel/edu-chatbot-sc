@@ -4520,6 +4520,15 @@
             "title": "Session Id",
             "type": "string"
           },
+          "sprache": {
+            "default": "de",
+            "enum": [
+              "de",
+              "en"
+            ],
+            "title": "Sprache",
+            "type": "string"
+          },
           "vorgang": {
             "anyOf": [
               {
