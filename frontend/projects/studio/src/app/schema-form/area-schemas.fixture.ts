@@ -139,7 +139,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "type": "string",
+                  "x-widget": "textarea"
                 },
                 "type": "object"
               },

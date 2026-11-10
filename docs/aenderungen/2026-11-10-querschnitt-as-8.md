@@ -26,6 +26,10 @@ und behoben.
 | 8 | klein | `probe` fehlte in der Tabelle „was zur Laufzeit noch wirkt“. | Eingetragen, mit dem Hinweis, dass die Sitzung im Backend Probe bleibt. |
 | 9 | klein | Plan P-3 nannte einen alten Text; der Stand sagte „Review folgt“. | Nachgezogen. |
 
+**Nachtrag aus der vollen Suite vor dem Upload:** `test_config_textarea_hints` meldete den langen
+Hinweis des KI-Schritts im neuen Beispiel ohne Textfläche im Studio. `AgentSchritt.hinweis` ist
+jetzt `dict[str, Annotated[str, Textarea()]]`; Bereichs-Schemas und OpenAPI sind neu erzeugt.
+
 **Hinweis (vorbestehend, nicht behoben):** Sitzungen der Vorschau, auch Probe-Sitzungen, zählen in
 `services/session_origin` als `production` (Kosten, Nutzung, Qualität). Das galt schon für die
 gewöhnliche Vorschau; eingetragen in `offene-befunde-und-todo.md`.

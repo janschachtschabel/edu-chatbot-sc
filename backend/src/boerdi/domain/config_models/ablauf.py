@@ -92,7 +92,7 @@ class AgentSchritt(AreaModel):
     #: Lesende WLO-Werkzeuge und UI-Module (mit Agent-Freigabe), 1 bis 10.
     werkzeuge: list[str] = []
     #: Hinweis an die KI je Sprache (steht in der Zeile ``[ABLAUFSCHRITT — …]``).
-    hinweis: dict[str, str] | None = None
+    hinweis: dict[str, Annotated[str, Textarea()]] | None = None
     #: Der Teil, den der Schritt hervorbringen soll; fehlt er bei „Weiter“: ``bei_fehler``, sonst
     #: wartet der Lauf weiter.
     ausgabe: str | None = None

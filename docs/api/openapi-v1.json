@@ -688,7 +688,8 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "type": "string",
+                  "x-widget": "textarea"
                 },
                 "type": "object"
               },
