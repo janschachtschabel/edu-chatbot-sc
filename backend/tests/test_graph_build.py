@@ -158,7 +158,8 @@ def test_jeder_knoten_bucht_seine_dauer_in_den_zug(monkeypatch):
     result, _calls, _, _ = _run(monkeypatch)
     zeiten = result["usage"]["zeiten_ms"]
     assert list(zeiten) == [
-        "setup", "tour", "page_context_enrich", "context_greeting", "persist_user",
+        # AS-7a: ``ablauf_seite`` (Seiten-Ping) nach der Tour
+        "setup", "tour", "ablauf_seite", "page_context_enrich", "context_greeting", "persist_user",
         "preflight", "assess", "safety_log", "pruefung_fehlt", "merge", "route", "respond",
         "assemble", "persist",
     ]

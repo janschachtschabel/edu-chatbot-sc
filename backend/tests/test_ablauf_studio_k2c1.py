@@ -26,7 +26,7 @@ _AUTH = {"X-Studio-Key": "k-studio-k2c1"}
 
 #: Felder je Schritttyp — aus ``treiber`` und ``pruefung`` gelesen (Plan, Zuschnitt K2c).
 ERWARTET = {
-    "text": {"nachricht", "modul", "agent", "auftrag", "ende"},
+    "text": {"nachricht", "modul", "agent", "auftrag", "seite", "ende"},  # AS-7a: seite
     "modul": {"modul"},
     "daten": {"modul"},
     "werkzeug": {"werkzeug"},
@@ -36,9 +36,13 @@ ERWARTET = {
     "dateien_holen": {"auftrag"},  # K2d-2
     "schreibt": {"werkzeug", "auftrag"},
     "freigabe": {"werkzeug"},  # Paket S
-    "weiter": {"nachricht", "modul", "werkzeug", "verzweigung", "agent", "auftrag"},
+    "weiter": {"nachricht", "modul", "werkzeug", "verzweigung", "agent", "auftrag", "seite"},
     "bei_fehler": {"modul", "werkzeug", "agent", "auftrag"},
     "agent": {"agent"},
+    # AS-7a (Plan 2026-11-09 §5m): Führungen
+    "url": {"seite"},
+    "label": {"seite"},
+    "ankunft": {"seite"},
 }
 
 
@@ -101,7 +105,9 @@ def test_pruefen_braucht_den_studio_schluessel(studio):
 def test_ein_stimmiger_ablauf_hat_keine_befunde(studio):
     r = studio.post("/api/config/ablauf-pruefen", json=_roh(), headers=_AUTH)
     assert r.status_code == 200, r.text
-    assert r.json() == {"befunde": []}
+    # AS-Db: ``document`` kommt aus dem Gespräch (``ui_upload``) — ein Hinweis, kein Befund
+    assert r.json()["befunde"] == []
+    assert [w for w in r.json()["warnungen"] if "document" in w and "Gespräch" in w]
 
 
 def test_befunde_stehen_am_schritt(studio):
@@ -219,6 +225,6 @@ def test_tief_geschachtelte_daten_brechen_die_pruefung_nicht():
     wert: dict = {"$teil": "ganz_unten"}
     for _ in range(5000):
         wert = {"x": wert}
-    assert pruefung._verweise(wert) == []
-    assert pruefung._verweise({"a": {"$teil": "oben"}}) == ["oben"]
+    assert pruefung._alle_verweis_namen(wert) == []
+    assert pruefung._alle_verweis_namen({"a": {"$teil": "oben"}}) == ["oben"]
 

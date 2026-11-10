@@ -38,8 +38,13 @@ def verweis_fuer(v: Vorgang, aufrufer: str) -> dict[str, Any]:
                   for n, t in teile.items()}}
     if isinstance(lauf := akte.get("lauf"), dict):
         # ``fassung`` (A2b): ein Agent-Schritt engt nur ein, solange seine Schritte gelten.
+        # ``freigabe_id`` (zweites Review, Z-3): ein offener Plan gilt nur seinem eigenen Lauf.
         vw["lauf"] = {k: zeile(lauf.get(k), 40)
-                      for k in ("ablauf", "schritt", "status", "fassung")}
+                      for k in ("ablauf", "schritt", "status", "fassung", "start", "freigabe_id")}
+        # AS-8a (zweites Review, Befund 1): die Marke der Probe als Wahrheitswert — ``gilt`` liest
+        # sie auch aus dem Verweis (Leiste, wartende Schritte); ``zeile`` machte daraus Text.
+        if lauf.get("probe") is True:
+            vw["lauf"]["probe"] = True
     return vw
 
 
@@ -68,10 +73,12 @@ def kennzeile(entities: dict[str, Any], aufrufer: str) -> str:
     teile = vw.get("teile") if isinstance(vw.get("teile"), dict) else {}
     liste = "; ".join(f"{zeile(n, 30)} v{t.get('v')} ({zeile(t.get('z'), 50)})"
                       for n, t in teile.items() if isinstance(t, dict)) or "noch keine"
+    from boerdi.services.ablauf.treiber import WARTEND  # spät: treiber lädt den Arbeitsstand
+
     lauf = vw.get("lauf") if isinstance(vw.get("lauf"), dict) else None
+    # Review AS-7a, Befund 8: die gemeinsame Liste — ein neuer Wartestatus fehlte hier
     ablauf = (f" Ablauf {lauf.get('ablauf')}: Schritt {lauf.get('schritt')} ({lauf.get('status')})."
-              if lauf and lauf.get("status") in ("wartet_person", "wartet_ki", "wartet_auftrag",
-                                                  "wartet_freigabe", "laeuft") else "")
+              if lauf and lauf.get("status") in (*WARTEND, "laeuft") else "")
     inhalt = entschaerfe_endmarken(
         f"Vorgang „{zeile(vw.get('titel'), TITEL_ZEICHEN)}“; Teile: {liste}.{ablauf}")
     # Review V1, Befund 6: eine Klammer im Fremdtext schlösse die Zeile vorzeitig.
