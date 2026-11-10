@@ -50,7 +50,9 @@ MAX_DATEIEN: Final = 3
 #: So viel Text einer Datei kommt in den Teil (die Akte legt große Teile in die Ablage). Ein
 #: Werkzeug der KI bekommt davon höchstens ``teil_verweise.MAX_BYTES`` (Review K2d-2, Befund 2).
 MAX_ZEICHEN: Final = 200_000
-#: Frist der Umwandlung einer Datei — wie beim Upload.
+#: Frist der Umwandlung einer Datei. Kürzer als beim Upload (60 s, ``ui_dokumente.FRIST_S``): alle
+#: Dateien eines Auftrags teilen sich :data:`GESAMT_FRIST_S` (Review 2 zu P1: der Kommentar sagte
+#: fälschlich „wie beim Upload“).
 FRIST_S: Final = 30.0
 #: Frist eines Downloads.
 DOWNLOAD_FRIST_S: Final = 30.0
