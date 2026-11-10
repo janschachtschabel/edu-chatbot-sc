@@ -47,9 +47,12 @@ describe('AblaufSchrittfolgeComponent (AS-2c)', () => {
 });
 
 describe('AblaufSchrittfolgeComponent — wenn_wert (Review AS-3c, Befund 5)', () => {
-  it('zeigt den Vergleich übersetzt, den Wert in Anführungszeichen', () => {
+  it.each([
+    ['de', 'teil.zahlen.n ist größer als „10“'],
+    ['en', 'teil.zahlen.n is greater than “10”'],   // Review PR #51, S4: auch die Zeichen der Sprache
+  ])('zeigt den Vergleich übersetzt, den Wert in Anführungszeichen (%s)', (sprache, erwartet) => {
     TestBed.resetTestingModule();
-    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, sprache);
     TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
     const fixture = TestBed.createComponent(AblaufSchrittfolgeComponent);
     fixture.componentRef.setInput('folge', schrittFolge({ schritte: [
@@ -58,6 +61,6 @@ describe('AblaufSchrittfolgeComponent — wenn_wert (Review AS-3c, Befund 5)', (
       { id: 'e', typ: 'ende' }] }));
     fixture.componentRef.setInput('pfad', []);
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('teil.zahlen.n ist größer als „10“');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(erwartet);
   });
 });

@@ -12,12 +12,19 @@
   <div class="cs-body gs">
     @if (docs.loading() && docs.entries().length === 0) {
       <p class="cs-state" aria-busy="true">{{ t('groupSection.listLoading') }}</p>
-    } @else if (listError()) {
+    } @else if (listError() && docs.entries().length === 0) {
       <div class="cs-state cs-state--error" role="alert">
         <p>{{ listError() }}</p>
         <button type="button" class="cs-btn" (click)="loadList()">{{ t('async.retry') }}</button>
       </div>
     } @else {
+      <!-- Review PR #51, S1: scheitert ein Neuladen, bleiben Liste und Editor (samt Entwurf) stehen -->
+      @if (listError()) {
+        <div class="cs-state cs-state--error" role="alert">
+          <p>{{ listError() }}</p>
+          <button type="button" class="cs-btn" (click)="loadList()">{{ t('async.retry') }}</button>
+        </div>
+      }
       <div class="gs-list">
         <!-- tabindex -1: nach dem Löschen landet der Fokus hier (der Knopf ist weg) -->
         <h4 class="gs-list-title" [id]="idPrefix() + '-list'" tabindex="-1" #listTitel>

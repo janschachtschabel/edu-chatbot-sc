@@ -109,7 +109,9 @@ export class AblaufSchrittfolgeComponent {
   protected vergleichText(w: { quelle: string; vergleich: string; wert: string }): string {
     const key = `weiter.vergleich.${w.vergleich}`;
     const vergleich = this.lang.has(key) ? this.t(key) : w.vergleich;
-    return [w.quelle, vergleich, w.wert ? `„${w.wert}“` : ''].filter(Boolean).join(' ');
+    // Review PR #51, S4: die Anführungszeichen der Sprache
+    const wert = w.wert ? this.t('weiter.wert', { wert: w.wert }) : '';
+    return [w.quelle, vergleich, wert].filter(Boolean).join(' ');
   }
 
   protected typText(typ: string): string {
