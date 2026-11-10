@@ -1,6 +1,6 @@
 # Abläufe im Studio — Arbeitsbereich, Schritte, Auslöser, Tests (Entwurf 2026-11-09)
 
-Stand: **Entscheide E1–E5 gefallen (09.11.), alle wie empfohlen.** Querschnitt AS-U+BU und zweites Review (§5k, §5l) behoben, Browser-Abnahme AS-U bestanden (10.11.); AS-7a/b/c umgesetzt und reviewt, Querschnitts-Review behoben, Browser-Abnahme bestanden (§5m). AS-8a/b/c umgesetzt, AS-8a zweimal reviewt, AS-8b im Browser abgenommen (§5n). AS-0 fertig, reviewt und im Browser abgenommen; AS-1 fertig und reviewt (09.11.); AS-2 (Regel-Editor, Ablaufbild, Querverweise) fertig und reviewt; Querschnitts-Review über AS-0…AS-2 behoben (09.11.); AS-3a/3b/3c fertig, je reviewt, Querschnitts-Review AS-3 behoben (09.11.); AS-Da/Db/Dc/Dd fertig und je reviewt (`ablage_zuordnen` offen, T1); Querschnitts-Review AS-D behoben (09.11.); P1 gemessen (09.11., Notiz `2026-11-09-p1-chatbot-umwandlung.md`); AS-T wartet auf Entscheide aus P1; AS-4a/4b/4c fertig, je reviewt, Querschnitts-Review AS-4 behoben (09.11.); Entscheid AS-4a Befund 10 = Option 2; Restbefunde RB-1…RB-3 fertig, je reviewt, Querschnitts-Review behoben (09.11.); Browser-Abnahme AS-4 + RB-3 bestanden (09.11.); AS-5a/5b umgesetzt (10.11., §5g); AS-5c (`direkt`) offen; AS-Ua/Ub fertig, je zweimal reviewt (10.11., §5h); Zwischenpaket BU (Widget-Bündel 199,9 → 187,4 kB gzip) umgesetzt (10.11., §5i); als Nächstes AS-Ud.
+Stand: **Entscheide E1–E5 gefallen (09.11.), alle wie empfohlen.** Querschnitt AS-U+BU und zweites Review (§5k, §5l) behoben, Browser-Abnahme AS-U bestanden (10.11.); AS-7a/b/c umgesetzt und reviewt, Querschnitts-Review behoben, Browser-Abnahme bestanden (§5m). AS-8a/b/c umgesetzt, AS-8a zweimal reviewt, AS-8b im Browser abgenommen (§5n). AS-0 fertig, reviewt und im Browser abgenommen; AS-1 fertig und reviewt (09.11.); AS-2 (Regel-Editor, Ablaufbild, Querverweise) fertig und reviewt; Querschnitts-Review über AS-0…AS-2 behoben (09.11.); AS-3a/3b/3c fertig, je reviewt, Querschnitts-Review AS-3 behoben (09.11.); AS-Da/Db/Dc/Dd fertig und je reviewt (`ablage_zuordnen` offen, T1); Querschnitts-Review AS-D behoben (09.11.); P1 gemessen (09.11., Notiz `2026-11-09-p1-chatbot-umwandlung.md`); AS-T wartet auf Entscheide aus P1; AS-4a/4b/4c fertig, je reviewt, Querschnitts-Review AS-4 behoben (09.11.); Entscheid AS-4a Befund 10 = Option 2; Restbefunde RB-1…RB-3 fertig, je reviewt, Querschnitts-Review behoben (09.11.); Browser-Abnahme AS-4 + RB-3 bestanden (09.11.); AS-5a/5b umgesetzt (10.11., §5g); AS-5c (`direkt`) offen; AS-Ua/Ub fertig, je zweimal reviewt (10.11., §5h); Zwischenpaket BU (Widget-Bündel 199,9 → 187,4 kB gzip) umgesetzt (10.11., §5i); AS-Ud fertig (§5j). AS-0…AS-8 liegen in PR #51; dessen Review ist behoben (10.11., §5p). Offen: AS-5c (`direkt`), AS-6 (Teamfragen T1–T5), AS-T (Entscheide aus P1), `ablage_zuordnen` (T1); Formeln im Widget für den nächsten Plan (§5o).
 
 | Entscheid | Ergebnis |
 |---|---|
@@ -813,7 +813,8 @@ Element. Nachgeladen werden bisher nur UI-Module (Ordner `ui-module/src/ui-*` mi
 Nachlade-Bau bekommt deshalb eine zweite Quelle für **Widget-Teile ohne Manifest**: Diese sind kein
 KI-Werkzeug und nicht im Register; sie haben denselben Index, dasselbe SRI und denselben Pfad
 `/widget/module/`. Die bisherige Spec des Panels (17 Fälle) wird auf das Element übertragen.
-Ziel: wieder unter 190 kB gzip. **Umgesetzt 10.11.:** 186,9 kB gzip.
+Ziel: wieder unter 190 kB gzip. **Umgesetzt 10.11.:** 186,9 kB gzip (nach AS-7, AS-8 und den
+Review-Fixes zu PR #51: 189,3 kB, siehe `offene-befunde-und-todo.md` §1).
 Je ein Review mit Befundbehebung. Die Browser-Abnahme des Entwurfs folgt mit der AS-U-Abnahme.
 
 ## 5j. Aufgaben AS-Ud — Meine Vorgänge (D10, U-8)
@@ -998,6 +999,14 @@ Je ein Review mit Befundbehebung, danach ein Querschnitts-Review über AS-8.
   umsetzen. Eintrag in `offene-befunde-und-todo.md` §1.
 - **Lokale Tests ohne b-api:** Chat-Smokes und Browser-Abnahmen laufen mit nativer
   OpenAI-Anbindung (`gpt-6-luna`), weil die b-api ausfallen kann.
+- **Budget für den Formel-Renderer:** Das Widget-Bündel steht bei 189,3 kB gzip (Warnschwelle 190).
+  Ein Renderer kommt also nur nachgeladen in Frage (wie die UI-Module, §5i).
+
+## 5p. Review PR #51 (10.11.) — Befunde und Behebung
+
+Vier Reviews vor dem Upload: Widget, Studio und Doku, Konfiguration und Deploy, Backend zur Laufzeit.
+Alle Befunde sind behoben, Code-Befunde mit einem Test, der zuerst rot war. Notiz
+`aenderungen/2026-11-10-review-pr51.md`.
 
 ## 6. Nicht im Umfang
 

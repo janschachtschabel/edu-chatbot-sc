@@ -32,7 +32,8 @@ dem Manifest zulässt. Große Daten (Baum, Trefferliste) laufen nicht durch das 
 nennt nur Kennungen, das Backend holt die Daten über eine **Datenquelle**. Die meisten Module liegen
 im einen Widget-Bündel; große oder seltene laden nach (§2.5: `ui_upload`, `ui_strukturabgleich`,
 `ui_fortschritt`, `ui_strukturentwurf`, dazu das Debug-Panel als Widget-Teil). Die Grenze ist
-**200 kB gzip** (Warnung ab 190 kB; Stand 2026-11-10: 187,5 kB).
+**200 kB gzip** (Warnung ab 190 kB; Stand 2026-11-10 nach AS-8: 189,3 kB, gemessen mit
+`node scripts/check-widget-budget.mjs`).
 
 ---
 

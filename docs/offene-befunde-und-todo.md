@@ -52,17 +52,19 @@ Die zugehörigen Pläne:
 - ~~**Widget-Bündel am Budget (2026-11-10):** Haupt-Bündel 199,93 kB gzip bei harter Grenze 200 kB.~~
   **Erledigt mit Paket BU (10.11., Plan `2026-11-09-ablaeufe-im-studio.md` §5i):** BU-1 (Debug-Panel
   ohne Pipes, Logo gerundet), BU-2 (`ui_strukturentwurf` nachgeladen) und BU-3 (Debug-Panel
-  nachgeladen) bringen das Widget mit AS-Ud auf **186,9 kB gzip / 644,8 kB roh** (Stand 10.11.), also
-  unter die Warnschwelle von 190. Notizen `aenderungen/2026-11-10-paket-bu-*.md`.
+  nachgeladen) brachten das Widget mit AS-Ud auf 186,9 kB gzip, also unter die Warnschwelle von 190.
+  Notizen `aenderungen/2026-11-10-paket-bu-*.md`. **Stand 10.11. nach AS-7, AS-8 und den Review-Fixes zu
+  PR #51: 189,3 kB gzip / 653,0 kB roh** (`node scripts/check-widget-budget.mjs`; Grenzen 200 / 690 kB).
+  Angular warnt beim Roh-Budget 650 kB um 3 kB (nur Warnung). Bis zur Warnschwelle 190 kB bleiben 0,7 kB.
   **Weiter gilt:** Neue, selten gebrauchte Widget-Oberfläche wird nachgeladen, sobald sie mehr als
   2 kB gzip kostet oder das Bündel über 190 kB triebe (Plan §5j, Ud-5). Nächster Kandidat mit
   Messung: `ui_themenbaum` (18 kB roh).
 
 - ~~**Wahl mit ≥ 4 Chips schneidet den Ablauf-Knopf ab (offen seit AS-5b, verschoben aus §4):**~~
-  **Erledigt 10.11.** (`wahl_zug.platz_fuer_vorschlag`, Notiz `aenderungen/2026-11-10-befunde-nach-pr51.md`): Wartet
-  ein Lauf an einer Wahl mit vier oder mehr Chips, schneidet `anhaengen(alle=True)` den Knopf eines
-  Ablauf-Werkzeugs ab, obwohl das Werkzeug angeboten wird. In AS-U nicht behoben. Vorschlag: in
-  diesem Fall kein Ablauf-Werkzeug anbieten (wie bei Gastgeber-Chips) — eigenes kleines Paket.
+  **Erledigt 10.11.** (`wahl_zug.platz_fuer_vorschlag`, Notiz `aenderungen/2026-11-10-befunde-nach-pr51.md`): Wartete
+  ein Lauf an einer Wahl mit vier oder mehr Chips, schnitt `anhaengen(alle=True)` den Knopf eines
+  Ablauf-Werkzeugs ab. Jetzt bietet der Zug in diesem Fall kein Ablauf-Werkzeug an (wie bei
+  Gastgeber-Chips).
 
 - **Lehrplan-PDF → Themenbaum: Probe vom 10.11.** (Notiz `aenderungen/2026-11-10-probe-lehrplan-upload.md`).
   Der Weg funktioniert: das Hochladen, markitdown und `ui_strukturentwurf` mit `aus_dokument` laufen durch
@@ -91,8 +93,8 @@ Die zugehörigen Pläne:
 - **Führungen (AS-7, 10.11.):** ~~E2E für Führungs-Chip, Seiten-Ping und Begrüßungs-Chip fehlt noch.~~
   **Erledigt 10.11.:** Browser-Abnahme (`aenderungen/2026-11-10-browser-abnahme-as-7.md`) und E2E für den
   Kernweg (`frontend/e2e/fuehrung.spec.ts`, Notiz `aenderungen/2026-11-10-e2e-fuehrung.md`). Offen bleibt
-  ein E2E für das Angebot unter der Begrüßung (Auslöser `seite`), durch Specs abgedeckt. Angular meldet für das Widget-Roh-Budget 650 kB eine Überschreitung um wenige Byte (Warnung);
-  gzip 188,6 kB < 190.
+  ein E2E für das Angebot unter der Begrüßung (Auslöser `seite`), durch Specs abgedeckt. Bündelgröße
+  siehe oben („Widget-Bündel am Budget“).
 
 - **Upload → Volltext → Metadaten (Anwendungsfall „Strukturdokument + Inhalte“, 2026-11-07):** Auftrag an das
   MCP-Team [`mcp-auftrag-volltext-metadaten.md`](mcp-auftrag-volltext-metadaten.md) (W1 Volltext an Knoten, W2/W3 als
@@ -354,6 +356,13 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   anderen Gespräch löschen. Läuft dort ein Auftrag, endet er bei der b-api (ohne den Schlüssel der
   Person sagt das Widget, dass er weiterläuft). Nach dem Querschnitts-Review (Plan §5k): auch der
   Verlaufsabruf trägt den Zugangsblock (Leiste nach dem Neuladen).
+- **PR #51 (AS-0…AS-8, Upload 2026-11-10) — Dokumente ohne Anmeldung:** Seit dem Nutzer-Entscheid
+  vom 10.11. steht `dokument_ohne_anmeldung` in `upload-config` auf **an** (Vorgabe im Modell
+  `UploadConfig`; der Seed setzt den Schalter nicht). Nach dem Deploy dürfen also auch **anonyme** Personen ein Dokument in den Chat lesen lassen
+  (Text liegt bis zur Frist im Vorgang, Ablage in WLO weiter nur angemeldet). Wer das nicht will,
+  stellt es im Studio unter „Hochladen“ aus. Den Datenschutz-Hinweis im Widget prüfen: Er sollte
+  anonymes Lesen nennen (Review PR #51, C1). Migration 0021 nennt beim Lauf Katalog-Einträge, die
+  kein Dokument werden (Kennung `katalog`, ungültig, doppelt); sie stehen in `config_history`.
 - **Abläufe als Dokumente, AS-0 (2026-11-09):** Migration **`0021`** im `migrate`-Dienst. Sie teilt
   `06-ablaeufe/katalog` in ein Dokument je Ablauf (`06-ablaeufe/<id>`), samt Werksbasis, stillgelegter
   eigener Fassung und Löschvermerk. Danach `boerdi import-config --werksabgleich`, Studio- und
