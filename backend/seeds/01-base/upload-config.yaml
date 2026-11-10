@@ -4,7 +4,7 @@
 #
 # Leer gilt die Vorgabe des Codes:
 #   dokument_im_chat: true          ein Dokument im Chat umwandeln und verwerten
-#   dokument_ohne_anmeldung: false  dasselbe ohne WLO-Anmeldung
+#   dokument_ohne_anmeldung: true   dasselbe ohne WLO-Anmeldung (Repositorium nicht beteiligt)
 #   ablage_in_wlo: false            Inhalte im persönlichen Bereich anlegen (kommt mit U3-3)
 #   max_mb: 10 (1–25) · max_seiten: 300 (1–1000) · aufbewahrung_h: 24 (1–72)
 upload: {}

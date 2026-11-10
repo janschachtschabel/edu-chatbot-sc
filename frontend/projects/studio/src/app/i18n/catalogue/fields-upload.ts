@@ -13,13 +13,6 @@ export const FIELDS_UPLOAD: CataloguePart = {
     'curated.uiModule.upload.hint':
       'Was das Auswahlfeld „Ordner oder Dateien“ (ui_upload) mit einem Dokument tun darf. Es wird '
       + 'im Chat gelesen, nicht im Repositorium abgelegt; die Datei selbst wird nicht gespeichert.',
-    'curated.uiModule.ablaeufe.label': 'Abläufe',
-    'curated.uiModule.ablaeufe.hint':
-      'Feste Abfolgen aus Nachrichten, Modulen und lesenden Werkzeugen, gestartet per Knopf '
-      + '(Direktaktion ablauf_starten), auf Vorschlag der KI, durch eine Wendung oder die Antwort '
-      + 'eines Moduls. Daten gehen als Teile des Vorgangs weiter ({"$teil": "name"}). '
-      + 'Ein neuer Ablauf ist aus, bis er eingeschaltet wird; beim Speichern wird geprüft, ob er '
-      + 'sicher läuft.',
     'feld.UploadConfigArea.upload.label': 'Dokumente im Chat',
     'feld.UploadConfigArea.upload.hint':
       'Gilt in beiden Maschinen ab dem nächsten Auswahlfeld.',
@@ -30,8 +23,9 @@ export const FIELDS_UPLOAD: CataloguePart = {
       + 'Ordner und Dateinamen.',
     'feld.UploadSettings.dokument_ohne_anmeldung.label': 'Auch ohne WLO-Anmeldung',
     'feld.UploadSettings.dokument_ohne_anmeldung.hint':
-      'Aus = nur angemeldete Personen dürfen ein Dokument lesen lassen. An erlaubt es allen — '
-      + 'jede Umwandlung kostet Rechenzeit auf dem Server.',
+      'An (Vorgabe) = jede Person kann ein Dokument lesen lassen und daraus einen Entwurf machen; '
+      + 'das Repositorium ist dabei nicht beteiligt. Aus = nur angemeldete Personen — jede '
+      + 'Umwandlung kostet Rechenzeit auf dem Server.',
     'feld.UploadSettings.ablage_in_wlo.label': 'Inhalte in WLO ablegen',
     'feld.UploadSettings.ablage_in_wlo.hint':
       'An = eine angemeldete Person kann die erfassten Dateien per Klick in ihren persönlichen '
@@ -52,11 +46,6 @@ export const FIELDS_UPLOAD: CataloguePart = {
     'curated.uiModule.upload.hint':
       'What the “folder or files” picker (ui_upload) may do with a document. It is read in the '
       + 'chat, not stored in the repository; the file itself is not kept.',
-    'curated.uiModule.ablaeufe.label': 'Workflows',
-    'curated.uiModule.ablaeufe.hint':
-      'Fixed sequences of messages, modules and read-only tools, started by a button '
-      + '(direct action ablauf_starten), on the AI’s suggestion, by a phrase or by a module answer. Data passes on as parts of the work item ({"$teil": "name"}). '
-      + 'A new workflow is off until switched on; saving checks that it runs safely.',
     'feld.UploadConfigArea.upload.label': 'Documents in the chat',
     'feld.UploadConfigArea.upload.hint': 'Applies in both engines from the next picker.',
     'feld.UploadSettings.dokument_im_chat.label': 'Read a document in the chat',
@@ -65,8 +54,8 @@ export const FIELDS_UPLOAD: CataloguePart = {
       + 'draft a topic tree from it. Off = the picker only captures folders and file names.',
     'feld.UploadSettings.dokument_ohne_anmeldung.label': 'Also without WLO sign-in',
     'feld.UploadSettings.dokument_ohne_anmeldung.hint':
-      'Off = only signed-in people may have a document read. On allows everyone — every '
-      + 'conversion costs server time.',
+      'On (default) = anyone can have a document read and draft from it; the repository is not '
+      + 'involved. Off = signed-in people only — every conversion costs server time.',
     'feld.UploadSettings.ablage_in_wlo.label': 'Store contents in WLO',
     'feld.UploadSettings.ablage_in_wlo.hint':
       'On = a signed-in person can transfer the captured files to their personal area in WLO '
