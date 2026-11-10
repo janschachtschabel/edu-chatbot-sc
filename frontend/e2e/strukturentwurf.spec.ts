@@ -53,7 +53,14 @@ test('bearbeiten per Tastatur, dann übernehmen: der Stand geht als ui_antwort m
   await page.keyboard.press('F2');
   const titelFeld = page.getByRole('textbox', { name: 'Titel' });
   await expect(titelFeld).toBeFocused();
-  await titelFeld.fill('Licht und Schatten');
+  // Review BU-2, Befund 5: Taste für Taste mit dem Cursor in der Mitte — das Element zeichnet bei jeder
+  // Eingabe neu; Feld, Wert und Cursor müssen stehen bleiben.
+  await titelFeld.fill('Licht Schatten');
+  await page.keyboard.press('Home');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+  await titelFeld.pressSequentially(' und');
+  await expect(titelFeld).toHaveValue('Licht und Schatten');
+  await expect(baum.getByRole('treeitem', { name: 'Licht und Schatten' })).toHaveCount(1);
   await page.keyboard.press('Enter');
   await expect(baum.getByRole('treeitem', { name: 'Licht und Schatten' })).toBeFocused();
 
@@ -69,6 +76,9 @@ test('bearbeiten per Tastatur, dann übernehmen: der Stand geht als ui_antwort m
 
   await expect(page.locator('.ui-strukturentwurf__status')).toHaveText('Übernommen.');
   await expect(page.getByRole('button', { name: 'Übernehmen' })).toHaveCount(0);
+  // Review U2, Befund 4, im echten Browser (Review BU-2, Befund 5): der Knopf verschwindet, die
+  // Statuszeile hat den Fokus.
+  await expect(page.locator('.ui-strukturentwurf__status')).toBeFocused();
 });
 
 test('Esc im Titelfeld führt in den Baum und schließt das Chat-Fenster nicht (Review U2, Befund 2)', async ({ page }) => {

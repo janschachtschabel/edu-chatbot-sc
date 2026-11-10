@@ -1,72 +1,86 @@
 // @vitest-environment jsdom
-import { provideZonelessChangeDetection, signal } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MODUL_HOST, type ModulHost } from '../_vertrag/modul-host';
+import { ICONS } from '@boerdi/ui/icons/icons';
+
 import type { ModulKontext } from '../_vertrag/ui-block';
+import { PFEIL, SYMBOL } from './entwurf-symbole';
+import type { EntwurfDaten } from './entwurf-export';
 import manifest from './manifest.json';
-import { type EntwurfDaten, UiStrukturentwurf } from './ui-strukturentwurf.component';
+import { definiere, ELEMENT, UiStrukturentwurfElement } from './ui-strukturentwurf.element';
 
 /**
  * Paket U2-e (Plan 2026-11-04, T-10 … T-12): der Strukturentwurf — Baum nach APG wie der Bestand,
  * dazu Bearbeiten (Leiste, Tasten, Detailfeld, Rückgängig), Übernehmen, Vormerken und Herunterladen.
+ *
+ * Seit Paket BU-2 ein nachgeladenes Custom Element (Shadow Root): dieselben Fälle wie zuvor an der
+ * Komponente, nur über `shadowRoot` gefragt. `f.whenStable()` bleibt als Name — das Element zeichnet
+ * sofort.
  */
-const beschaeftigt = signal(false);
+let beschaeftigt = false;
 
 function host() {
   return {
-    antworten: vi.fn(), vormerken: vi.fn(), herunterladen: vi.fn(), beschaeftigt: vi.fn(() => beschaeftigt()),
+    antworten: vi.fn(), vormerken: vi.fn(), herunterladen: vi.fn(), beschaeftigt: vi.fn(() => beschaeftigt),
+    drucken: vi.fn(), link: vi.fn(), aktion: vi.fn(), zweig: vi.fn(), hochladen: vi.fn(), ablegen: vi.fn(), auftrag: vi.fn(),
   };
 }
 
 let h = host();
 
+const KONTEXT: ModulKontext = {
+  blockId: 'b0000001', sprache: 'de', nurLesen: false, antwort: null, schriftSkala: 0.85, anzeigeRegeln: null,
+};
+
 async function render(daten: EntwurfDaten, kontext: Partial<ModulKontext> = {}) {
   h = host();
-  TestBed.resetTestingModule();
-  TestBed.configureTestingModule({
-    providers: [provideZonelessChangeDetection(), { provide: MODUL_HOST, useValue: h as unknown as ModulHost }],
-  });
-  const f = TestBed.createComponent(UiStrukturentwurf);
-  f.componentRef.setInput('daten', daten);
-  f.componentRef.setInput('kontext', {
-    blockId: 'b0000001', sprache: 'de', nurLesen: false, antwort: null, schriftSkala: 0.85, anzeigeRegeln: null,
-    ...kontext,
-  } satisfies ModulKontext);
-  await f.whenStable();
-  const el = f.nativeElement as HTMLElement;
-  document.body.appendChild(el);
+  definiere();
+  const knoten = document.createElement(ELEMENT) as UiStrukturentwurfElement;
+  knoten.host = h as never;
+  knoten.daten = daten as unknown as Record<string, unknown>;
+  knoten.kontext = { ...KONTEXT, ...kontext };
+  knoten.beschaeftigt = beschaeftigt;
+  document.body.appendChild(knoten);
+  const el = knoten.shadowRoot as ShadowRoot;
+  const f = {
+    knoten,
+    whenStable: async () => undefined,
+    setzeKontext: (k: ModulKontext) => { knoten.kontext = k; },
+    destroy: () => knoten.remove(),
+  };
   return { f, el };
 }
 
 const BEISPIEL = manifest.beispiele[0].daten as unknown as EntwurfDaten;
 
-const items = (el: HTMLElement) => [...el.querySelectorAll<HTMLElement>('[role="treeitem"]')];
-const name = (el: HTMLElement, item: HTMLElement) =>
+const items = (el: ShadowRoot) => [...el.querySelectorAll<HTMLElement>('[role="treeitem"]')];
+const name = (el: ShadowRoot, item: HTMLElement) =>
   el.querySelector(`#${item.getAttribute('aria-labelledby')}`)?.textContent?.trim();
-const titel = (el: HTMLElement) => items(el).map((i) => name(el, i));
-const knopf = (el: HTMLElement, text: string) =>
+const titel = (el: ShadowRoot) => items(el).map((i) => name(el, i));
+const knopf = (el: ShadowRoot, text: string) =>
   [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text) as HTMLButtonElement;
-const ansage = (el: HTMLElement) => el.querySelector('[role="status"]')?.textContent?.trim();
+const ansage = (el: ShadowRoot) => el.querySelector('[role="status"]')?.textContent?.trim();
 
 async function taste(f: { whenStable(): Promise<unknown> }, item: HTMLElement, key: string, mehr: KeyboardEventInit = {}) {
-  item.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...mehr }));
+  item.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true, ...mehr }));
   await f.whenStable();
 }
 
+/** Der sichtbare Text des Moduls (ohne das Stilblatt im Shadow Root). */
+const text = (el: ShadowRoot) => el.querySelector('section')?.textContent ?? '';
+
 afterEach(() => {
   document.body.innerHTML = '';
-  beschaeftigt.set(false);
+  beschaeftigt = false;
 });
 
-describe('UiStrukturentwurf', () => {
+describe('ui_strukturentwurf (Element)', () => {
   for (const beispiel of manifest.beispiele) {
     it(`rendert das Beispiel „${beispiel.titel}“`, async () => {
       const daten = beispiel.daten as unknown as EntwurfDaten;
       const { el } = await render(daten);
       expect(items(el).length).toBe(daten.knoten.length);            // zugeklappt: erste Ebene
-      expect(el.textContent).toContain(daten.titel);
+      expect(text(el)).toContain(daten.titel);
     });
   }
 
@@ -75,14 +89,14 @@ describe('UiStrukturentwurf', () => {
     expect(el.querySelector('.ui-strukturentwurf__marke')?.textContent).toBe('Entwurf (KI)');
     const wlo = await render(manifest.beispiele[1].daten as unknown as EntwurfDaten);
     expect(wlo.el.querySelector('.ui-strukturentwurf__marke')?.textContent).toBe('Entwurf (aus WLO)');
-    expect(wlo.el.textContent).toContain('mehr Punkte, als der Entwurf übernommen hat');
+    expect(text(wlo.el)).toContain('mehr Punkte, als der Entwurf übernommen hat');
   });
 
   it('Review U3-1, Befund 5: ein Entwurf aus Ordnern sagt seine Herkunft und kürzt ohne WLO-Satz', async () => {
     const { el } = await render({ ...BEISPIEL, quelle: 'ordner', gekuerzt: true } as EntwurfDaten);
     expect(el.querySelector('.ui-strukturentwurf__marke')?.textContent).toBe('Entwurf (aus Ordnern)');
-    expect(el.textContent).toContain('Der Ordner hat mehr Ebenen oder Unterordner');
-    expect(el.textContent).not.toContain('Sammlung in WLO');
+    expect(text(el)).toContain('Der Ordner hat mehr Ebenen oder Unterordner');
+    expect(text(el)).not.toContain('Sammlung in WLO');
   });
 
   it('Baum mit Ebene, Position, Zustand; ausstehende Punkte sagen es am Eintrag', async () => {
@@ -104,7 +118,7 @@ describe('UiStrukturentwurf', () => {
     await taste(f, licht, 'ArrowRight');
     expect(licht.getAttribute('aria-expanded')).toBe('true');
     await taste(f, licht, 'ArrowDown');
-    expect(document.activeElement?.id).toBe('se-b0000001-k-k1-1');
+    expect(el.activeElement?.id).toBe('se-b0000001-k-k1-1');
   });
 
   it('Unterpunkt und Punkt danach; das Titelfeld bekommt den Fokus', async () => {
@@ -112,9 +126,9 @@ describe('UiStrukturentwurf', () => {
     knopf(el, 'Punkt danach').click();
     await f.whenStable();
     expect(titel(el)).toEqual(['Ausbreitung des Lichts', 'Neuer Punkt', 'Reflexion', 'Brechung']);
-    expect(document.activeElement?.id).toBe('se-b0000001-titel');
+    expect(el.activeElement?.id).toBe('se-b0000001-titel');
     expect(ansage(el)).toBe('Neuer Punkt. Titel eingeben.');
-    const feld = document.activeElement as HTMLInputElement;
+    const feld = el.activeElement as HTMLInputElement;
     feld.value = 'Linsen';
     feld.dispatchEvent(new Event('input'));
     await f.whenStable();
@@ -132,13 +146,13 @@ describe('UiStrukturentwurf', () => {
     await taste(f, licht, 'ArrowDown', { altKey: true, shiftKey: true });
     expect(titel(el)).toEqual(['Reflexion', 'Ausbreitung des Lichts', 'Brechung']);
     expect(ansage(el)).toBe('„Ausbreitung des Lichts“ nach unten verschoben.');
-    expect(document.activeElement?.id).toBe('se-b0000001-k-k1');
+    expect(el.activeElement?.id).toBe('se-b0000001-k-k1');
     [, licht] = items(el);
     await taste(f, licht, 'Delete');
     expect(titel(el)).toEqual(['Reflexion', 'Brechung']);
     expect(ansage(el)).toBe('„Ausbreitung des Lichts“ gelöscht. Rückgängig mit Strg+Z.');
-    expect(document.activeElement?.id).toBe('se-b0000001-k-k3');         // der nächste Punkt
-    await taste(f, document.activeElement as HTMLElement, 'z', { ctrlKey: true });
+    expect(el.activeElement?.id).toBe('se-b0000001-k-k3');         // der nächste Punkt
+    await taste(f, el.activeElement as HTMLElement, 'z', { ctrlKey: true });
     expect(titel(el)).toEqual(['Reflexion', 'Ausbreitung des Lichts', 'Brechung']);
   });
 
@@ -195,7 +209,7 @@ describe('UiStrukturentwurf', () => {
   });
 
   it('während eines Zugs geht nichts hinaus', async () => {
-    beschaeftigt.set(true);
+    beschaeftigt = true;
     const { el } = await render(BEISPIEL);
     knopf(el, 'Übernehmen').click();
     expect(h.antworten).not.toHaveBeenCalled();
@@ -226,7 +240,7 @@ describe('UiStrukturentwurf', () => {
     const antwort = manifest.beispiele[0].antwort as Record<string, unknown>;
     const { el } = await render(BEISPIEL, { nurLesen: true, antwort });
     expect(titel(el)).toEqual(['Licht und Schatten', 'Linsen']);
-    expect(el.textContent).toContain('Übernommen.');
+    expect(text(el)).toContain('Übernommen.');
     expect(knopf(el, 'Übernehmen')).toBeUndefined();
     expect(knopf(el, 'Löschen')).toBeUndefined();
     expect(knopf(el, 'Als JSON herunterladen')).toBeDefined();
@@ -236,7 +250,7 @@ describe('UiStrukturentwurf', () => {
 
   it('veraltet ohne Antwort: der ursprüngliche Entwurf, nur lesend', async () => {
     const { f, el } = await render(BEISPIEL, { nurLesen: true });
-    expect(el.textContent).toContain('Dieser Entwurf ist nicht mehr offen.');
+    expect(text(el)).toContain('Dieser Entwurf ist nicht mehr offen.');
     await taste(f, items(el)[0], 'Delete');
     expect(items(el)).toHaveLength(3);
   });
@@ -245,7 +259,7 @@ describe('UiStrukturentwurf', () => {
     const { f, el } = await render({ titel: 'Leer', quelle: 'ki', knoten: [{ id: 'k1', titel: 'Nur' }] });
     knopf(el, 'Löschen').click();
     await f.whenStable();
-    expect(el.textContent).toContain('Der Entwurf ist leer.');
+    expect(text(el)).toContain('Der Entwurf ist leer.');
     knopf(el, 'Punkt hinzufügen').click();
     await f.whenStable();
     expect(titel(el)).toEqual(['Neuer Punkt']);
@@ -255,11 +269,11 @@ describe('UiStrukturentwurf', () => {
     const { el } = await render(BEISPIEL, { sprache: 'en' });
     expect(el.querySelector('.ui-strukturentwurf__marke')?.textContent).toBe('Draft (AI)');
     expect(knopf(el, 'Accept')).toBeDefined();
-    expect(el.textContent).toContain('6 items');
+    expect(text(el)).toContain('6 items');
   });
 });
 
-describe('UiStrukturentwurf — Review U2 (Frontend)', () => {
+describe('ui_strukturentwurf (Element) — Review U2 (Frontend)', () => {
   const kontext = (mehr: Partial<ModulKontext> = {}): ModulKontext => ({
     blockId: 'b0000001', sprache: 'de', nurLesen: false, antwort: null, schriftSkala: 0.85, anzeigeRegeln: null, ...mehr,
   });
@@ -270,9 +284,9 @@ describe('UiStrukturentwurf — Review U2 (Frontend)', () => {
     await f.whenStable();
     knopf(el, 'Übernehmen').click();
     const [gesendet] = h.antworten.mock.calls[0];
-    f.componentRef.setInput('kontext', kontext({ nurLesen: true, antwort: gesendet }));
+    f.setzeKontext(kontext({ nurLesen: true, antwort: gesendet }));
     await f.whenStable();
-    f.componentRef.setInput('kontext', kontext());           // `wiederOffen`: antwort null
+    f.setzeKontext(kontext());           // `wiederOffen`: antwort null
     await f.whenStable();
     expect(titel(el)).toEqual(['Reflexion', 'Brechung']);
     expect(h.vormerken).toHaveBeenLastCalledWith(expect.objectContaining({ bearbeitet: true }));
@@ -281,13 +295,13 @@ describe('UiStrukturentwurf — Review U2 (Frontend)', () => {
   it('Befund 2: Esc im Titelfeld bleibt im Modul und führt in den Baum', async () => {
     const { f, el } = await render(BEISPIEL);
     const aussen = vi.fn();
-    el.addEventListener('keydown', aussen);
+    f.knoten.addEventListener('keydown', aussen);
     const feld = el.querySelector<HTMLInputElement>('#se-b0000001-titel')!;
     feld.focus();
-    feld.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    feld.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
     await f.whenStable();
     expect(aussen).not.toHaveBeenCalled();
-    expect(document.activeElement?.id).toBe('se-b0000001-k-k1');
+    expect(el.activeElement?.id).toBe('se-b0000001-k-k1');
   });
 
   it('Befund 3: Strg+Z nach dem Einrücken und nach dem Hinzufügen lässt den Fokus im Baum', async () => {
@@ -297,7 +311,7 @@ describe('UiStrukturentwurf — Review U2 (Frontend)', () => {
     await taste(f, brechung(), 'ArrowRight', { altKey: true, shiftKey: true });
     await taste(f, brechung(), 'z', { ctrlKey: true });
     await f.whenStable();
-    expect(document.activeElement?.id).toBe('se-b0000001-k-k3');
+    expect(el.activeElement?.id).toBe('se-b0000001-k-k3');
     expect(brechung().getAttribute('aria-level')).toBe('1');
     knopf(el, 'Punkt danach').click();
     await f.whenStable();
@@ -305,16 +319,16 @@ describe('UiStrukturentwurf — Review U2 (Frontend)', () => {
     neu.focus();
     await taste(f, neu, 'z', { ctrlKey: true });
     await f.whenStable();
-    expect(document.activeElement?.getAttribute('role')).toBe('treeitem');
+    expect(el.activeElement?.getAttribute('role')).toBe('treeitem');
     expect(titel(el)).not.toContain('Neuer Punkt');
   });
 
   it('Befund 4: nach „Übernehmen“ steht der Fokus auf der Statuszeile', async () => {
     const { f, el } = await render(BEISPIEL);
     knopf(el, 'Übernehmen').click();
-    f.componentRef.setInput('kontext', kontext({ nurLesen: true, antwort: h.antworten.mock.calls[0][0] }));
+    f.setzeKontext(kontext({ nurLesen: true, antwort: h.antworten.mock.calls[0][0] }));
     await f.whenStable();
-    expect(document.activeElement?.textContent?.trim()).toBe('Übernommen.');
+    expect(el.activeElement?.textContent?.trim()).toBe('Übernommen.');
   });
 
   it('Befund 8: zu viele Schlagworte werden angesagt, der Hinweis hängt am Feld', async () => {
@@ -334,7 +348,7 @@ describe('UiStrukturentwurf — Review U2 (Frontend)', () => {
     runter.focus();
     runter.click();
     await f.whenStable();
-    expect(document.activeElement).toBe(knopf(el, 'Runter'));
+    expect(el.activeElement).toBe(knopf(el, 'Runter'));
   });
 
   it('Befund 12: nur lesend nimmt die Vormerkung zurück, ebenso beim Zerstören', async () => {
@@ -353,7 +367,7 @@ describe('UiStrukturentwurf — Review U2 (Frontend)', () => {
     licht.focus();
     await taste(f, licht, 'Backspace');
     expect(titel(el)).toEqual(['Reflexion', 'Brechung']);
-    await taste(f, document.activeElement as HTMLElement, 'Z', { ctrlKey: true, shiftKey: true });
+    await taste(f, el.activeElement as HTMLElement, 'Z', { ctrlKey: true, shiftKey: true });
     expect(titel(el)).toEqual(['Reflexion', 'Brechung']);
   });
 
@@ -363,20 +377,20 @@ describe('UiStrukturentwurf — Review U2 (Frontend)', () => {
     nur.focus();
     await taste(f, nur, 'Delete');
     await f.whenStable();
-    expect(document.activeElement).toBe(knopf(el, 'Punkt hinzufügen'));
+    expect(el.activeElement).toBe(knopf(el, 'Punkt hinzufügen'));
   });
 });
 
-describe('UiStrukturentwurf — Gegenreview U2 (Befund 2)', () => {
+describe('ui_strukturentwurf (Element) — Gegenreview U2 (Befund 2)', () => {
   const kontext = (mehr: Partial<ModulKontext> = {}): ModulKontext => ({
     blockId: 'b0000001', sprache: 'de', nurLesen: false, antwort: null, schriftSkala: 0.85, anzeigeRegeln: null, ...mehr,
   });
 
   it('ohne Bearbeitung bleibt „bearbeitet“ auch nach beantwortet → wieder offen falsch', async () => {
     const { f } = await render(BEISPIEL);
-    f.componentRef.setInput('kontext', kontext({ nurLesen: true, antwort: { ...structuredClone(BEISPIEL), uebernommen: true, bearbeitet: false } }));
+    f.setzeKontext(kontext({ nurLesen: true, antwort: { ...structuredClone(BEISPIEL), uebernommen: true, bearbeitet: false } }));
     await f.whenStable();
-    f.componentRef.setInput('kontext', kontext());
+    f.setzeKontext(kontext());
     await f.whenStable();
     expect(h.vormerken).toHaveBeenLastCalledWith(expect.objectContaining({ bearbeitet: false }));
   });
@@ -392,7 +406,7 @@ describe('UiStrukturentwurf — Gegenreview U2 (Befund 2)', () => {
   });
 });
 
-describe('UiStrukturentwurf — drittes Review U2 (Befund 4)', () => {
+describe('ui_strukturentwurf (Element) — drittes Review U2 (Befund 4)', () => {
   it('nach „Alles zuklappen“ gilt die Leiste dem nächsten sichtbaren Vorfahren, nicht dem ersten Punkt', async () => {
     const { f, el } = await render(BEISPIEL);
     const reflexion = el.querySelector<HTMLElement>('#se-b0000001-k-k2')!;
@@ -408,5 +422,139 @@ describe('UiStrukturentwurf — drittes Review U2 (Befund 4)', () => {
     knopf(el, 'Löschen').click();
     await f.whenStable();
     expect(titel(el)).toEqual(['Ausbreitung des Lichts', 'Brechung']);
+  });
+});
+
+describe('ui_strukturentwurf (Element) — Paket BU-2', () => {
+  it('die Symbole sind dieselben wie im Widget (ICONS): gleiche viewBox, gleicher Pfad', () => {
+    const teile = (svg: string) => ({ viewBox: /viewBox="([^"]+)"/.exec(svg)![1], d: /<path d="([^"]+)"/.exec(svg)![1] });
+    expect(SYMBOL).toEqual(teile(ICONS.edit_note));
+    expect(PFEIL).toEqual(teile(ICONS.chevron_right));
+  });
+
+  it('Querschnitts-Review Q-3: auf einer Seite mit Trusted Types (String an innerHTML wirft) zeichnet das Element', async () => {
+    const tt = vi.spyOn(Element.prototype, 'innerHTML', 'set').mockImplementation(() => {
+      throw new TypeError('This document requires TrustedHTML assignment');
+    });
+    try {
+      const { el } = await render(manifest.beispiele[2].daten as unknown as EntwurfDaten);
+      expect(items(el).length).toBeGreaterThan(0);
+      expect(el.querySelector('.ui-strukturentwurf__kopf svg path')?.getAttribute('d')).toBe(SYMBOL.d);
+      expect(el.querySelector('.ui-strukturentwurf__pfeil svg')?.getAttribute('viewBox')).toBe(PFEIL.viewBox);
+    } finally {
+      tt.mockRestore();
+    }
+  });
+
+  it('ein zweites Laden des Bündels definiert nicht noch einmal (Element-Vertrag)', () => {
+    definiere();
+    expect(() => definiere()).not.toThrow();
+    expect(customElements.get(ELEMENT)).toBe(UiStrukturentwurfElement);
+  });
+
+  it('die Statuszeile bleibt dasselbe Element (sonst sagen Vorleser nichts an)', async () => {
+    const { f, el } = await render(BEISPIEL);
+    const zeile = el.querySelector('[role="status"]');
+    knopf(el, 'Hoch').click();
+    await f.whenStable();
+    expect(el.querySelector('[role="status"]')).toBe(zeile);
+    expect(ansage(el)).toBe('Schon ganz oben.');
+  });
+
+  it('ein Mausklick auf einen Eintrag: der Fokus ersetzt den Eintrag nicht, der Klick klappt auf', async () => {
+    const { f, el } = await render(BEISPIEL);
+    const reflexion = el.querySelector<HTMLElement>('#se-b0000001-k-k2')!;
+    reflexion.focus();                                     // Maus: erst Fokus, dann Klick
+    expect(el.querySelector('#se-b0000001-k-k2')).toBe(reflexion);
+    reflexion.click();
+    await f.whenStable();
+    expect(el.querySelector('#se-b0000001-k-k2')?.getAttribute('aria-expanded')).toBe('true');
+    expect(el.querySelector('.ui-strukturentwurf__aktionen .ui-strukturentwurf__ziel')?.textContent?.trim()).toBe('Reflexion');
+  });
+
+  it('beim Tippen bleibt das Feld dasselbe; der Baum zeigt den neuen Titel', async () => {
+    const { f, el } = await render(BEISPIEL);
+    const feld = el.querySelector<HTMLInputElement>('#se-b0000001-titel')!;
+    feld.focus();
+    feld.value = 'Licht';
+    feld.dispatchEvent(new Event('input'));
+    await f.whenStable();
+    expect(el.querySelector('#se-b0000001-titel')).toBe(feld);
+    expect(el.activeElement).toBe(feld);
+    expect(titel(el)[0]).toBe('Licht');
+    expect(el.querySelector('.ui-strukturentwurf__aktionen')?.getAttribute('aria-label')).toBe('Bearbeiten: Licht');
+  });
+
+  it('„beschäftigt“ schaltet nur den Übernehmen-Knopf, ein Feld bleibt beim Tippen stehen', async () => {
+    const { f, el } = await render(BEISPIEL);
+    const feld = el.querySelector<HTMLInputElement>('#se-b0000001-titel')!;
+    feld.focus();
+    f.knoten.beschaeftigt = true;
+    expect(el.querySelector('#se-b0000001-titel')).toBe(feld);
+    expect(knopf(el, 'Übernehmen').getAttribute('aria-disabled')).toBe('true');
+    f.knoten.beschaeftigt = false;
+    expect(knopf(el, 'Übernehmen').hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  it('das Schlagwort-Feld zeigt nach dem Verlassen die bereinigte Liste', async () => {
+    const { f, el } = await render(BEISPIEL);
+    const kw = el.querySelectorAll<HTMLInputElement>('.ui-strukturentwurf__feld input')[1];
+    kw.focus();
+    kw.value = 'Licht, , licht, Schatten';
+    kw.dispatchEvent(new Event('input'));
+    kw.blur();
+    await f.whenStable();
+    expect(el.querySelectorAll<HTMLInputElement>('.ui-strukturentwurf__feld input')[1].value).toBe('Licht, Schatten');
+  });
+});
+
+describe('ui_strukturentwurf (Element) — Review BU-2', () => {
+  it('Befund 1: Rückgängig bei fokussiertem Feld zeigt im Feld den zurückgenommenen Stand', async () => {
+    const { f, el } = await render(BEISPIEL);
+    const feld = el.querySelector<HTMLInputElement>('#se-b0000001-titel')!;
+    feld.focus();
+    feld.value = 'Licht';
+    feld.dispatchEvent(new Event('input'));
+    knopf(el, 'Rückgängig').click();                       // Klick ohne Fokuswechsel (Tippen auf iOS, jsdom)
+    await f.whenStable();
+    expect(titel(el)[0]).toBe('Ausbreitung des Lichts');
+    expect(el.querySelector<HTMLInputElement>('#se-b0000001-titel')!.value).toBe('Ausbreitung des Lichts');
+  });
+
+  it('Befund 5: neue Daten/neuer Kontext mit gleichem Stand lassen das Feld beim Tippen stehen (Cursor bleibt)', async () => {
+    const { f, el } = await render(BEISPIEL);
+    const feld = el.querySelector<HTMLInputElement>('#se-b0000001-titel')!;
+    feld.focus();
+    feld.value = 'Licht und Farbe';
+    feld.dispatchEvent(new Event('input'));
+    feld.setSelectionRange(5, 5);
+    f.setzeKontext({ ...KONTEXT });                         // der Platzhalter setzt neu (neues Objekt)
+    f.knoten.daten = { ...(BEISPIEL as unknown as Record<string, unknown>) };
+    expect(el.querySelector('#se-b0000001-titel')).toBe(feld);
+    expect(el.activeElement).toBe(feld);
+    expect([feld.value, feld.selectionStart]).toEqual(['Licht und Farbe', 5]);
+  });
+
+  it('Befund 2: lehnt die Shell die Antwort ab, holt eine spätere Statuszeile den Fokus nicht', async () => {
+    const { f, el } = await render(BEISPIEL);
+    knopf(el, 'Übernehmen').click();
+    f.setzeKontext({ ...KONTEXT });                         // nicht angenommen: weiter offen
+    const eingabe = document.createElement('input');
+    document.body.appendChild(eingabe);
+    eingabe.focus();
+    f.setzeKontext({ ...KONTEXT, nurLesen: true });         // später veraltet (z. B. getippte Nachricht)
+    expect(document.activeElement).toBe(eingabe);
+  });
+
+  it('Befund 2: während eines Zugs (live am Host) geht nichts hinaus, auch bevor der Spiegel ankommt', async () => {
+    const { el } = await render(BEISPIEL);
+    beschaeftigt = true;                                    // Host weiß es schon, das Element noch nicht
+    knopf(el, 'Übernehmen').click();
+    expect(h.antworten).not.toHaveBeenCalled();
+  });
+
+  it('Befund 6: eine unbekannte Herkunft zeigt keine falsche Marke', async () => {
+    const { el } = await render({ ...BEISPIEL, quelle: 'unbekannt' } as unknown as EntwurfDaten);
+    expect(el.querySelector('.ui-strukturentwurf__marke')?.textContent).toBe('');
   });
 });

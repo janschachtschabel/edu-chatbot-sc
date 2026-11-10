@@ -1,10 +1,24 @@
 // Strukturentwurf (Paket U2) — derselbe Baum wie der Bestand (`_baum/_baum.scss`), nur Theme-Token.
 // Dazu Bearbeitungsleiste, Detailfeld und Abschluss. Felder mindestens 32 px hoch (WCAG 2.5.8),
 // Beschriftung über dem Feld (bei 320 px kein Nebeneinander).
+// Seit Paket BU-2 der Stil des nachgeladenen Elements: `npm run module:register` übersetzt ihn nach
+// `ui-strukturentwurf.stil.generated.ts` (Shadow Root).
 @use '../_baum/baum';
 
 :host {
   display: block;
+}
+
+// Die Bereiche des Elements (`ui-strukturentwurf.element.ts`) sind kein eigenes Kästchen: ihre
+// Kinder bleiben Glieder der Spalte (Abstand `gap`) wie im Template der Komponente.
+.se-teil {
+  display: contents;
+}
+
+// Der leere Baum bleibt im DOM (abgeglichen, nicht neu gebaut) — versteckt auch gegen `display`
+// aus den Klassen.
+[hidden] {
+  display: none !important;
 }
 
 @include baum.baum('ui-strukturentwurf');
