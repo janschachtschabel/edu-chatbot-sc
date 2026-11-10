@@ -46,6 +46,10 @@ export const FORWARDED_METHODS = [
   'updateContext',
   'replaceContext',
   'startTask',
+  // AS-4b (Plan 2026-11-09 E2 A): einen Ablauf mit Startdaten starten.
+  'startAblauf',
+  // AS-4c (R3): mit einer Vorgang- oder Auftragskennung zur Arbeit zurückkehren.
+  'vorgangFortsetzen',
   // G1 (2026-08-17): der unsichtbare Rahmen der Gastanwendung. Gehört hierher
   // und nicht an ein Attribut — er soll je Zug neu gesetzt werden können, und
   // Attribute werden nach dem Start nicht mehr gelesen.

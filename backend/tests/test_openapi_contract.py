@@ -41,6 +41,8 @@ GET    /api/config/canvas/material-types
 PUT    /api/config/canvas/material-types
 GET    /api/config/choices
 POST   /api/config/ablauf-pruefen
+POST   /api/config/ablauf-testen
+GET    /api/config/ablaeufe
 GET    /api/config/context-actions
 PUT    /api/config/context-actions
 GET    /api/config/effects
@@ -171,6 +173,9 @@ POST   /api/ui/ablage/datei
 POST   /api/ui/ablage/abschluss
 POST   /api/ui/auftrag/stand
 POST   /api/ui/vorgaenge/offen
+POST   /api/ui/vorgaenge/wiederkehr
+POST   /api/ui/vorgaenge/liste
+POST   /api/ui/vorgaenge/loeschen
 POST   /api/auth/abmelden
 GET    /api/usage/period
 GET    /api/usage/session/{session_id}
@@ -208,6 +213,10 @@ PUBLIC_ROUTES = {
     "POST /api/ui/auftrag/stand",
     # Paket K2a: wartende Vorgänge der angemeldeten Person (Widget, ohne Zug, schreibt nichts).
     "POST /api/ui/vorgaenge/offen",
+    "POST /api/ui/vorgaenge/wiederkehr",
+    # AS-Ud: „Meine Vorgänge“ — Liste und Löschen der eigenen (Widget, ohne Zug, Anmeldung).
+    "POST /api/ui/vorgaenge/liste",
+    "POST /api/ui/vorgaenge/loeschen",
     "POST /api/auth/abmelden",  # Plan 2026-11-07, R2: Abmelden widerruft am MCP
     "GET /widget/classic", "GET /widget/frameless", "GET /widget/inline",
     "GET /widget/{asset_name}",

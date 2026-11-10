@@ -37,6 +37,14 @@ describe('element-api', () => {
     expect(FORWARDED_METHODS).toContain('startTask');
   });
 
+  it('reicht den Start eines Ablaufs mit Startdaten durch (AS-4b)', () => {
+    expect(FORWARDED_METHODS).toContain('startAblauf');
+  });
+
+  it('reicht die Wiederkehr mit einer Vorgang- oder Auftragskennung durch (AS-4c)', () => {
+    expect(FORWARDED_METHODS).toContain('vorgangFortsetzen');
+  });
+
   it('reicht alle §5.5-Methoden an die Komponenten-Instanz durch', () => {
     patchElementApi(FakeElement.prototype);
     const calls: string[] = [];
