@@ -1,0 +1,119 @@
+// Paket AS-Ud: „Meine Vorgänge“ über dem Eingabefeld — derselbe getönte Grund wie die Ablauf-Leiste
+// und der Hinweis „Gespräch fortsetzen“, damit es zur Eingabe gehört. Nur M3-Systemtoken, logische
+// Abstände (RTL), Ziele mindestens 32 px hoch (WCAG 2.5.8 verlangt 24), sichtbarer Fokus; lange
+// Titel brechen um (320 px, WCAG 1.4.10), die Liste schiebt den Chat nicht weg.
+
+:host {
+  display: block;
+}
+
+.meine-vorgaenge {
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+  color: var(--mat-sys-on-surface);
+  font-size: 0.875rem;
+}
+
+.meine-vorgaenge__kopf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.meine-vorgaenge__titel {
+  flex: 1 1 auto;
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+}
+
+.meine-vorgaenge__meldung,
+.meine-vorgaenge__frage {
+  margin-block: 6px;
+  overflow-wrap: anywhere;
+}
+
+.meine-vorgaenge__liste {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meine-vorgaenge__eintrag {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 6px;
+
+  & + & {
+    border-block-start: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.meine-vorgaenge__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.meine-vorgaenge__stand {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.meine-vorgaenge__knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 4px;
+}
+
+.meine-vorgaenge__knopf,
+.meine-vorgaenge__zu {
+  min-block-size: 32px;
+  padding-inline: 14px;
+  border-radius: var(--mat-sys-corner-full);
+  font: inherit;
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--mat-sys-outline);
+  color: var(--mat-sys-on-surface);
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  // nicht nur über die Farbe erkennbar (wie die Leiste)
+  &:disabled,
+  &[aria-disabled='true'] {
+    cursor: default;
+    opacity: 0.6;
+    border-style: dashed;
+  }
+}
+
+.meine-vorgaenge__zu {
+  min-inline-size: 32px;
+  padding-inline: 0;
+  border: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.meine-vorgaenge__los {
+  border-color: var(--mat-sys-primary);
+  color: var(--mat-sys-primary);
+}
+
+// Die Statuszeile (Laden, Fehler, leer, gelöscht) steht immer im DOM; leer nimmt sie keinen Platz.
+// Nicht `display: none` — das nähme sie aus dem Zugänglichkeitsbaum, und ihre erste Meldung
+// wäre dann wieder eine „gefüllt eingefügte“ (Nachtrag zum Review AS-Ud, Befund 4).
+.meine-vorgaenge__meldung:empty {
+  margin-block: 0;
+}
