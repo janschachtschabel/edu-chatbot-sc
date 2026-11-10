@@ -107,3 +107,80 @@ def test_ein_datenbankfehler_ergibt_kein_dokument_statt_einer_ausnahme(monkeypat
     s = _S()
     assert asyncio.run(stand.lader(s, "sitzung-0123456789")()) is None
     assert s.commits == -100                  # zurückgerollt
+
+
+def test_tb_e1_angemeldet_ohne_eigenes_dokument_uebernimmt_das_anonyme(monkeypatch):
+    """Plan 2026-11-10, TB-E1: findet die angemeldete Person kein eigenes Dokument, übernimmt der
+    Lader das anonyme derselben Sitzung (``ablage.zuschreiben``) und schreibt das fest."""
+    gefragt = []
+
+    async def aktuelles(s, session_id, aufrufer):
+        gefragt.append(("aktuelles", aufrufer))
+        return None
+
+    async def zuschreiben(s, session_id, aufrufer):
+        gefragt.append(("zuschreiben", aufrufer))
+        return _zeile()
+
+    async def beruehren(s, upload_id, *, ttl_h):
+        return None
+
+    monkeypatch.setattr(stand.ablage, "aktuelles", aktuelles)
+    monkeypatch.setattr(stand.ablage, "zuschreiben", zuschreiben)
+    monkeypatch.setattr(stand.ablage, "beruehren", beruehren)
+    monkeypatch.setattr(stand, "has_personal_auth", lambda: True)
+    monkeypatch.setattr(stand, "aufrufer_kennung", lambda: "person-a")
+    s = _S()
+    erg = asyncio.run(stand.laden(s, "sitzung-0123456789"))
+    assert erg is not None and erg.upload_id == "u-1"
+    assert gefragt == [("aktuelles", "person-a"), ("zuschreiben", "person-a")]
+    assert s.commits == 1
+
+
+def test_tb_e1_anonym_wird_nichts_zugeschrieben(monkeypatch):
+    async def aktuelles(s, session_id, aufrufer):
+        return None
+
+    async def zuschreiben(s, session_id, aufrufer):  # pragma: no cover — darf nicht laufen
+        raise AssertionError("anonym darf nichts übernehmen")
+
+    monkeypatch.setattr(stand.ablage, "aktuelles", aktuelles)
+    monkeypatch.setattr(stand.ablage, "zuschreiben", zuschreiben)
+    monkeypatch.setattr(stand, "has_personal_auth", lambda: False)
+    assert asyncio.run(stand.laden(_S(), "sitzung-0123456789")) is None
+
+
+def test_tb_e1_review_2_zwei_zuege_derselben_person_finden_beide_das_dokument(monkeypatch):
+    """Review TB-E1, Befund 2: zwei Züge derselben Person zugleich — der zweite findet nach der
+    Übernahme des ersten nichts mehr ohne Besitzerin; dann liest er noch einmal unter ihrer Kennung,
+    statt ``kein_dokument`` zu melden."""
+    from boerdi.services.dokumente import ablage
+
+    antworten = iter([None, _zeile()])
+
+    async def aktuelles(s, session_id, aufrufer):
+        return next(antworten)
+
+    async def zuschreiben(s, session_id, aufrufer):
+        return None                                  # der andere Zug war schneller
+
+    monkeypatch.setattr(ablage, "aktuelles", aktuelles)
+    monkeypatch.setattr(ablage, "zuschreiben", zuschreiben)
+    erg = asyncio.run(ablage.fuer_aufrufer(_S(), "sitzung-0123456789", "person-a"))
+    assert erg is not None and erg.id == "u-1"
+
+
+def test_tb_e1_review_anonym_liest_fuer_aufrufer_nur_das_anonyme(monkeypatch):
+    from boerdi.services.dokumente import ablage
+
+    async def aktuelles(s, session_id, aufrufer):
+        assert aufrufer is None
+        return None
+
+    async def zuschreiben(s, session_id, aufrufer):  # pragma: no cover — darf nicht laufen
+        raise AssertionError("anonym wird nichts übernommen")
+
+    monkeypatch.setattr(ablage, "aktuelles", aktuelles)
+    monkeypatch.setattr(ablage, "zuschreiben", zuschreiben)
+    assert asyncio.run(ablage.fuer_aufrufer(_S(), "sitzung-0123456789", None)) is None
+

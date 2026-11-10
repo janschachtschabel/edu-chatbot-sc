@@ -253,3 +253,77 @@ def test_der_aufbewahrungslauf_raeumt_verwaiste_dokument_teile(db_url):
     klein, gross, reste = _lauf(db_url, ablauf)
     assert "document" not in klein and "draft" in klein
     assert "document" not in gross and reste == 0
+
+
+def test_tb_e1_ein_anonymes_dokument_geht_an_die_person_die_sich_anmeldet(db_url):
+    """Plan 2026-11-10, TB-E1 (Nutzer-Entscheid N2): ein anonym gelesenes Dokument liegt im
+    Zwischenspeicher des Chatbots und gehört der Person, die sich in DERSELBEN Sitzung anmeldet und
+    damit arbeitet — nie einer anderen Person, und nach dem Abmelden nicht wieder anonym."""
+    from boerdi.services.dokumente import ablage
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            await ablage.der_sitzung_loeschen(s, "sitzung-eins-0001")   # Reste früherer Tests
+            kennung = await _neu(s, sid="sitzung-zwei-0002", aufrufer=None)
+            await s.commit()
+        async with sitzungen() as s:
+            fremde_sitzung = await ablage.zuschreiben(s, "sitzung-eins-0001", "person-a")
+            uebernommen = await ablage.zuschreiben(s, "sitzung-zwei-0002", "person-a")
+            await s.commit()
+        async with sitzungen() as s:
+            nochmal = await ablage.zuschreiben(s, "sitzung-zwei-0002", "person-b")
+            fuer_a = await ablage.aktuelles(s, "sitzung-zwei-0002", "person-a")
+            fuer_b = await ablage.aktuelles(s, "sitzung-zwei-0002", "person-b")
+            anonym = await ablage.aktuelles(s, "sitzung-zwei-0002", None)
+        return kennung, fremde_sitzung, uebernommen, nochmal, fuer_a, fuer_b, anonym
+
+    kennung, fremde_sitzung, uebernommen, nochmal, fuer_a, fuer_b, anonym = _lauf(db_url, ablauf)
+    assert fremde_sitzung is None
+    assert uebernommen is not None and uebernommen.id == kennung
+    assert uebernommen.aufrufer == "person-a"
+    assert nochmal is None                       # gehört schon person-a — nie umgeschrieben
+    assert fuer_a is not None and fuer_a.id == kennung
+    assert fuer_b is None and anonym is None     # abmelden gibt es nicht wieder frei
+
+
+def test_tb_e1_ein_abgelaufenes_anonymes_dokument_wird_nicht_uebernommen(db_url):
+    from sqlalchemy import update
+
+    from boerdi.db.models import DokumentUpload
+    from boerdi.services.dokumente import ablage
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            kennung = await _neu(s, sid="sitzung-eins-0001", aufrufer=None)
+            await s.execute(update(DokumentUpload).where(DokumentUpload.id == kennung)
+                            .values(verfaellt_am=datetime.now(UTC) - timedelta(minutes=1)))
+            await s.commit()
+        async with sitzungen() as s:
+            return await ablage.zuschreiben(s, "sitzung-eins-0001", "person-a")
+
+    assert _lauf(db_url, ablauf) is None
+
+
+def test_tb_e1_review_3_fuer_aufrufer_gegen_postgres(db_url):
+    """Review TB-E1, Befund 3: der eine Leseweg des Zuges gegen das echte Postgres — anonym
+    gelesen, angemeldet übernommen, danach weiter ihrs; eine andere Person und anonym sehen
+    nichts."""
+    from boerdi.services.dokumente import ablage
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            kennung = await _neu(s, sid="sitzung-eins-0001", aufrufer=None)
+            await s.commit()
+        async with sitzungen() as s:
+            erst = await ablage.fuer_aufrufer(s, "sitzung-eins-0001", "person-a")
+            await s.commit()
+        async with sitzungen() as s:
+            nochmal = await ablage.fuer_aufrufer(s, "sitzung-eins-0001", "person-a")
+            andere = await ablage.fuer_aufrufer(s, "sitzung-eins-0001", "person-b")
+            anonym = await ablage.fuer_aufrufer(s, "sitzung-eins-0001", None)
+        return kennung, erst, nochmal, andere, anonym
+
+    kennung, erst, nochmal, andere, anonym = _lauf(db_url, ablauf)
+    assert erst is not None and erst.id == kennung and erst.aufrufer == "person-a"
+    assert nochmal is not None and nochmal.id == kennung
+    assert andere is None and anonym is None

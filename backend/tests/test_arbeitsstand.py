@@ -292,6 +292,35 @@ def test_das_dokument_gilt_nur_wenn_es_zur_sitzung_passt(ablage, monkeypatch):
     assert v.akte["teile"]["document"]["version"] == 1      # nicht überschrieben
 
 
+def test_tb_e1_review_1_anonym_hochgeladen_gilt_nach_der_anmeldung(ablage, monkeypatch):
+    """Review TB-E1, Befund 1: anonym hochgeladen, dann angemeldet, dann das Auswahlfeld
+    abgeschickt — der Teil ``document`` übernimmt das Dokument (``ablage.fuer_aufrufer``), statt es
+    still zu verwerfen."""
+    from boerdi.services.dokumente import ablage as dokumente
+
+    zeile = SimpleNamespace(id="u-1", name="Lehrplan.pdf", format="pdf", befund={"abschnitte": 4})
+    gefragt: list = []
+
+    async def aktuelles(s, session_id, aufrufer):
+        gefragt.append(("aktuelles", aufrufer))
+        return None                                  # die Person hat noch kein eigenes
+
+    async def zuschreiben(s, session_id, aufrufer):
+        gefragt.append(("zuschreiben", aufrufer))
+        return zeile
+
+    monkeypatch.setattr(dokumente, "aktuelles", aktuelles)
+    monkeypatch.setattr(dokumente, "zuschreiben", zuschreiben)
+    monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: True)
+    monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
+    dok = {"upload_id": "u-1", "name": "Lehrplan.pdf", "format": "pdf", "ziel": "themenbaum",
+           "befund": {"abschnitte": 4}, "vorschau": []}
+    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-1", {}, _upload("dokument", dokument=dok)))
+    [v] = ablage.vorgaenge.values()
+    assert v.akte["teile"]["document"]["wert"]["ref"] == "dokument:u-1"
+    assert ("zuschreiben", "person-a") in gefragt
+
+
 def test_lesen_verlaengert_die_frist(ablage):
     entities: dict = {}
     asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-1", entities, _entwurf()))

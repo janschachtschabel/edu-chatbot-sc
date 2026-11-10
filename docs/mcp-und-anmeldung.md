@@ -151,3 +151,5 @@ Offen: 2 (Bindung an Scope/Herkunft) und 7. Entscheidungsvorlage und Rückmeldun
   prüfen, ob sich die erste Anfrage nach Ruhezeit am Server so verhält; der Lasttest des Studios hat seit
   Paket 15 eine Aufwärm-Anfrage (zählt nicht mit) und zeigt je Anfrage die Werkzeugzeit, damit sich solche
   Ausreißer ohne die Nachrichten-Tabelle zuordnen lassen.
+
+- **Vermerkt 2026-11-10 (Nutzer, N12):** Werkzeug für die Bytes einer privaten Datei (heute `eduservlet/download` 403, `…/content` 405) — Voraussetzung für Weg F der P1-Notiz; Erklärung folgt später.

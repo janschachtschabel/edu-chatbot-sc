@@ -129,8 +129,9 @@ async def _dokument_bestaetigt(s: Any, session_id: str, wert: dict[str, Any]
     Kennung zum gespeicherten Dokument passt, als ``dokument:<id>`` mit Befund des Servers."""
     from boerdi.services.dokumente import ablage as dokumente
 
-    zeile_db = await dokumente.aktuelles(s, session_id,
-                                         aufrufer_kennung() if has_personal_auth() else None)
+    # Review TB-E1, Befund 1: derselbe Leseweg wie der Lader — mit Übernahme nach der Anmeldung
+    zeile_db = await dokumente.fuer_aufrufer(s, session_id,
+                                             aufrufer_kennung() if has_personal_auth() else None)
     if zeile_db is None or zeile_db.id != wert.get("upload_id"):
         return None
     befund = dict(zeile_db.befund or {})

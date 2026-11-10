@@ -2,9 +2,10 @@
 
 Tabelle ``dokument_uploads``, ein Dokument je Sitzung: ein neues ersetzt das alte (eine
 Transaktion). Gelesen wird nur in derselben Sitzung und — bei angemeldeten Personen — unter
-demselben Kennzeichen. Eine abgelaufene Zeile (``verfaellt_am`` vorbei) ist sofort unlesbar;
-physisch weg ist sie nach dem Aufbewahrungslauf (:func:`verfallene_loeschen`) oder dem
-nächsten Hochladen derselben Sitzung. Kennungen uuid4.
+demselben Kennzeichen; ein anonym gelesenes Dokument übernimmt die Person, die sich in derselben
+Sitzung anmeldet (:func:`zuschreiben`, TB-E1). Eine abgelaufene Zeile (``verfaellt_am`` vorbei)
+ist sofort unlesbar; physisch weg ist sie nach dem Aufbewahrungslauf
+(:func:`verfallene_loeschen`) oder dem nächsten Hochladen derselben Sitzung. Kennungen uuid4.
 """
 
 from __future__ import annotations
@@ -64,6 +65,33 @@ async def aktuelles(s: AsyncSession, session_id: str, aufrufer: str | None
                     ) -> DokumentUpload | None:
     return (await s.execute(select(DokumentUpload).where(_lesbar(session_id, aufrufer)))
             ).scalar_one_or_none()
+
+
+async def zuschreiben(s: AsyncSession, session_id: str, aufrufer: str
+                      ) -> DokumentUpload | None:
+    """Plan 2026-11-10, TB-E1 (Nutzer-Entscheid N2): Das anonym gelesene Dokument dieser Sitzung
+    gehört ab jetzt der angemeldeten Person, die damit arbeitet. Nur ein noch lesbares Dokument
+    **ohne** Besitzerin derselben Sitzung — eines, das schon einer Person gehört, bleibt bei ihr.
+    Abmelden gibt es nicht wieder frei (anonym liest nur ``aufrufer IS NULL``). Der Aufrufer
+    schreibt fest."""
+    ergebnis = await s.execute(
+        update(DokumentUpload).where(_lesbar(session_id, None))
+        .values(aufrufer=aufrufer).returning(DokumentUpload))
+    return ergebnis.scalar_one_or_none()
+
+
+async def fuer_aufrufer(s: AsyncSession, session_id: str, aufrufer: str | None
+                       ) -> DokumentUpload | None:
+    """Das Dokument der Sitzung für diesen Aufrufer — einziger Leseweg für den Zug (Lader und
+    Teil ``document``; Review TB-E1, Befund 1). Eine angemeldete Person ohne eigenes Dokument
+    übernimmt das anonyme (:func:`zuschreiben`). Findet sie keins mehr ohne Besitzerin, hat es ein
+    paralleler Zug derselben Person gerade übernommen — dann liest sie noch einmal (Befund 2).
+    Der Aufrufer schreibt fest."""
+    zeile = await aktuelles(s, session_id, aufrufer)
+    if zeile is not None or aufrufer is None:
+        return zeile
+    return (await zuschreiben(s, session_id, aufrufer)
+            or await aktuelles(s, session_id, aufrufer))
 
 
 async def beruehren(s: AsyncSession, upload_id: str, *, ttl_h: float) -> None:
