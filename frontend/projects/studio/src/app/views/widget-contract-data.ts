@@ -182,6 +182,11 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
     descKey: 'rw.attr.probe',
   },
   {
+    // Plan 2026-11-10, TB-E2: Gespräch der Studio-Vorschau — zählt nicht als Betrieb.
+    groupKey: 'rw.group.integration', attr: 'vorschau', fallback: 'false',
+    descKey: 'rw.attr.vorschau',
+  },
+  {
     // AS-4c (Plan 2026-11-09 R3): zurück zur Arbeit aus einer Benachrichtigung.
     groupKey: 'rw.group.integration', attr: 'fortsetzen-vorgang', fallback: '—',
     descKey: 'rw.attr.fortsetzenVorgang',

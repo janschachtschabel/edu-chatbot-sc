@@ -70,3 +70,19 @@ def test_production_schliesst_auch_den_studio_probelauf_aus() -> None:
     # „Evaluation“ bleibt, was sie war: nur die Läufe der Evaluation.
     assert STUDIO_PREFIX not in scope_sql("eval")
 
+
+
+def test_tb_e2_produktion_ohne_proben_probe_nur_proben() -> None:
+    """Plan 2026-11-10, TB-E2 (Nutzer-Entscheid N3): Sitzungen der Studio-Vorschau mit Probe
+    (``entities._probe``, Paket AS-8a) tragen das Widget-Präfix ``bb-`` — der Betrieb schließt sie
+    über die Marke an der Sitzung aus; der Umfang ``probe`` zeigt nur sie."""
+    from boerdi.services.session_origin import PROBE_SITZUNGEN_SQL
+
+    assert f"session_id NOT IN ({PROBE_SITZUNGEN_SQL})" in scope_sql("production")
+    assert scope_sql("probe") == f"session_id IN ({PROBE_SITZUNGEN_SQL})"
+    assert "probe_s.vorschau" in PROBE_SITZUNGEN_SQL   # Spalte (Migration 0022), nicht entities
+    produktion = _sql(scope_clause("production", column("session_id")))
+    assert "probe_s.vorschau" in produktion and "NOT IN" in produktion
+    probe = _sql(scope_clause("probe", column("session_id")))
+    assert "probe_s.vorschau" in probe and "NOT IN" not in probe
+    assert "vorschau" not in scope_sql("eval") and scope_sql("all") == ""

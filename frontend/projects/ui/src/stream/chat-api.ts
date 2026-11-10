@@ -182,6 +182,8 @@ export class ChatApiClient {
   /** Paket AS-8b: Probe der Studio-Vorschau (Attribut `probe`) — das Backend nimmt sie nur mit
    *  Studio-Cookie an, sonst weist es den Zug ab (403). */
   private probe = false;
+  /** Plan 2026-11-10, TB-E2: ein Gespräch der Studio-Vorschau — zählt nicht als Betrieb. */
+  private vorschau = false;
   private forcedQuickReplies: string[] = [];
   private forcedQuickRepliesMax: number | null = null;
   private uiModule: string[] = [];
@@ -297,6 +299,12 @@ export class ChatApiClient {
   /** Paket AS-8b: jeder Zug dieser Einbettung als Probe (Trockenlauf). */
   setProbe(an: boolean): void {
     this.probe = an;
+  }
+
+  /** Plan 2026-11-10, TB-E2: jeder Zug dieser Einbettung als Gespräch der Studio-Vorschau. Gilt
+   *  nur mit Studio-Anmeldung; ohne sie bleibt das Feld wirkungslos (kein Fehler). */
+  setVorschau(an: boolean): void {
+    this.vorschau = an;
   }
 
   /**
@@ -427,6 +435,7 @@ export class ChatApiClient {
     // Paket RB-3: nur Anzeige (Auftrags-Blase nach dem Neuladen), kein Recht
     if (fromHost) body['from_host'] = true;
     if (this.probe) body['probe'] = true;
+    if (this.vorschau) body['vorschau'] = true;
     return body;
   }
 

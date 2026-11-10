@@ -19,6 +19,7 @@ const SCOPES: readonly { readonly id: OriginScope; readonly key: string }[] = [
   { id: 'all', key: 'origin.all' },
   { id: 'production', key: 'origin.production' },
   { id: 'eval', key: 'origin.eval' },
+  { id: 'probe', key: 'origin.probe' },
 ];
 
 @Component({

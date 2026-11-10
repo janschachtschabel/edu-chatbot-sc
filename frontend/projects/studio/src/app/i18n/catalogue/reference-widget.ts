@@ -136,6 +136,10 @@ export const REFERENCE_WIDGET: CataloguePart = {
       'Nur die Studio-Vorschau: jeder Zug als Trockenlauf (nichts wird geschrieben, kein Auftrag, '
       + 'keine Ablage), Etikett im Widget. Gilt nur mit Studio-Anmeldung — sonst weist das Backend '
       + 'den Zug ab (403)',
+    'rw.attr.vorschau':
+      'Nur die Studio-Vorschau: die Sitzung zählt in Auswertung, Kosten und Sitzungsliste nicht als '
+      + 'Betrieb (Datenbasis „Nur Studio-Vorschau“). Schränkt nichts ein; ohne Studio-Anmeldung '
+      + 'wirkungslos, ohne Fehler',
 
     'rw.eventsTitle': 'Events',
     'rw.col.event': 'Event',
@@ -258,6 +262,10 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.attr.probe':
       'Studio preview only: every turn as a dry run (nothing written, no job, no storage), label '
       + 'in the widget. Needs the Studio sign-in — otherwise the backend rejects the turn (403)',
+    'rw.attr.vorschau':
+      'Studio preview only: the session does not count as production in analysis, costs and the '
+      + 'session list (data basis “Studio preview only”). Restricts nothing; without the Studio '
+      + 'sign-in it has no effect, no error',
 
     'rw.eventsTitle': 'Events',
     'rw.col.event': 'Event',

@@ -172,6 +172,26 @@ def test_logs_scope_prefix_and_newest_first(test_db) -> None:
     assert allrows[0]["id"] > allrows[-1]["id"]  # newest id first
 
 
+def test_tb_e2_quality_produktion_ohne_proben(test_db) -> None:
+    """Plan 2026-11-10, TB-E2: der rohe SQL-Weg (``_scope_clause``) schließt Probe-Sitzungen aus."""
+    from boerdi.services.quality_analytics import get_quality_logs
+
+    async def scenario(session):
+        await session.execute(text(
+            "INSERT INTO sessions (session_id, vorschau) VALUES "
+            "('bb-probe-q', true), ('bb-echt-q', false) "
+            "ON CONFLICT (session_id) DO UPDATE SET vorschau = EXCLUDED.vorschau"))
+        await session.commit()
+        await _seed(session, session_id="bb-echt-q")
+        await _seed(session, session_id="bb-probe-q")
+        return (await get_quality_logs(session, scope="production"),
+                await get_quality_logs(session, scope="probe"))
+
+    prod, probe = _run(scenario)
+    assert [r["session_id"] for r in prod] == ["bb-echt-q"]
+    assert [r["session_id"] for r in probe] == ["bb-probe-q"]
+
+
 # ── state transitions ────────────────────────────────────────────────────
 def test_state_transitions_counts_pairs_and_min_count(test_db) -> None:
     from boerdi.services.quality_analytics import get_state_transitions

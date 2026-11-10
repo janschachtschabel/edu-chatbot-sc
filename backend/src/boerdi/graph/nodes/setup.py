@@ -57,7 +57,12 @@ from boerdi.domain.hintergrund_zug import (
 )
 from boerdi.graph.state import TurnContext
 from boerdi.services import plan_fortsetzen, probe
-from boerdi.services.db_sessions import get_messages, get_or_create_session, update_session
+from boerdi.services.db_sessions import (
+    get_messages,
+    get_or_create_session,
+    update_session,
+    vorschau_markieren,
+)
 from boerdi.services.ui_antwort import offene_frage_schliessen
 from boerdi.services.write_approval import discard_stale_approval
 
@@ -112,6 +117,9 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
     # damit auch die Ablage-Endpunkte (außerhalb des Graphen) sie sehen.
     if probe.uebernehmen(ctx.session_state["entities"]):
         await update_session(session, req.session_id, entities=ctx.session_state["entities"])
+        # TB-E2 (Review, Befund 1): die Herkunft als Spalte — ``entities`` leert die Aufbewahrung
+        if ctx.session_state["entities"].get(probe.VORSCHAU_KEY) is True:
+            await vorschau_markieren(session, req.session_id)
     # Paket 19 (Audit 2026-10-31, H-5): die beiden Lesezugriffe abschließen — die
     # Zustimmungs-Prüfung darunter fragt bei offenem Vorgang ein LLM.
     await verbindung_freigeben(session)

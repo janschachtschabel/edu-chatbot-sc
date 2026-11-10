@@ -51,7 +51,7 @@ async def list_quality_logs(
     session_id: str = "",
     pattern_id: str = "",
     intent_id: str = "",
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
 ) -> dict:
     """Recent quality-log entries. ``pattern_id``/``intent_id`` are prefix
@@ -85,7 +85,7 @@ async def clear_quality_logs(
     session_id: str = "",
     pattern_id: str = "",
     intent_id: str = "",
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
     confirm: bool = False,
 ) -> dict:
@@ -126,7 +126,7 @@ async def clear_quality_logs(
 @router.get("/stats")
 async def quality_stats(
     session: Annotated[AsyncSession, Depends(get_session)],
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
 ) -> dict:
     """Aggregate quality metrics (distributions, confidence, degradation …)."""
@@ -136,7 +136,7 @@ async def quality_stats(
 @router.get("/matrix")
 async def quality_matrix(
     session: Annotated[AsyncSession, Depends(get_session)],
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
     min_count: int = Query(1, ge=1, le=1000, description="Min samples per cell"),
 ) -> dict:
@@ -149,7 +149,7 @@ async def quality_matrix(
 @router.get("/state-transitions")
 async def state_transitions(
     session: Annotated[AsyncSession, Depends(get_session)],
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
     days: int = Query(30, ge=1, le=365, description="Time window in days"),
     min_count: int = Query(1, ge=1, le=1000, description="Min count per transition"),
@@ -163,7 +163,7 @@ async def state_transitions(
 @router.get("/tight-races")
 async def tight_races(
     session: Annotated[AsyncSession, Depends(get_session)],
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
     threshold: float = Query(0.02, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=500),
@@ -177,7 +177,7 @@ async def tight_races(
 @router.get("/degradations")
 async def degradations(
     session: Annotated[AsyncSession, Depends(get_session)],
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
     limit: int = Query(50, ge=1, le=500),
 ) -> dict:
@@ -188,7 +188,7 @@ async def degradations(
 @router.get("/empty-entities")
 async def empty_entities(
     session: Annotated[AsyncSession, Depends(get_session)],
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
     limit: int = Query(50, ge=1, le=500),
 ) -> dict:
@@ -201,7 +201,7 @@ async def empty_entities(
 @router.get("/low-confidence")
 async def low_confidence(
     session: Annotated[AsyncSession, Depends(get_session)],
-    scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    scope: str = Query("all", description="'all' | 'production' | 'eval' | 'probe'"),
     engine: _Engine = None,
     max_confidence: float = Query(0.60, ge=0.0, le=1.0),
     limit: int = Query(30, ge=1, le=200),

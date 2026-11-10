@@ -34,3 +34,19 @@ describe('Probe der Studio-Vorschau auf dem Draht (AS-8b)', () => {
     expect('probe' in gesehen[2]).toBe(false);
   });
 });
+
+describe('Gespräch der Studio-Vorschau auf dem Draht (Plan 2026-11-10, TB-E2)', () => {
+  it('ohne Vorschau kein Feld; mit Vorschau in jedem Zug, und wieder aus', async () => {
+    const gesehen: Record<string, unknown>[] = [];
+    const api = new ChatApiClient({ fetchImpl: rumpfFetch(gesehen) });
+    await api.post('s1', 'hallo');
+    expect('vorschau' in gesehen[0]).toBe(false);
+    api.setVorschau(true);
+    await api.post('s1', 'in der Vorschau');
+    expect(gesehen[1]['vorschau']).toBe(true);
+    expect('probe' in gesehen[1]).toBe(false);   // die Vorschau ist kein Trockenlauf
+    api.setVorschau(false);
+    await api.post('s1', 'ohne');
+    expect('vorschau' in gesehen[2]).toBe(false);
+  });
+});

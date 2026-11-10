@@ -12,13 +12,19 @@ the studio's agent page ``studio-<uuid>`` (ST-8e; the id is made in the browser,
 ST-9 the quality filter only excluded ``eval-`` and counted load-test traffic as
 real conversations — the studio labels that choice "real conversations only".
 
+Plan 2026-11-10, TB-E2 (user decision N3): the studio preview's chats and trial runs (widget
+attributes ``vorschau``/``probe``) keep the widget prefix ``bb-``; their mark is the column
+``sessions.vorschau`` (migration 0022 — not ``entities``, which retention empties). ``production``
+therefore also leaves out every such session, and the scope ``probe`` shows only them. The filter
+is an uncorrelated ``NOT IN (SELECT …)`` on a partial index — still static SQL.
+
 Both helpers emit STATIC SQL: the only inputs are the scope keyword (matched
-against three literals) and, for the Core variant, a column object from code.
+against fixed literals) and, for the Core variant, a column object from code.
 """
 
 from typing import Final, Literal
 
-from sqlalchemy import ColumnElement, and_, or_
+from sqlalchemy import ColumnElement, and_, literal_column, or_, select, text
 
 EVAL_PREFIX: Final = "eval-"
 LOADTEST_PREFIX: Final = "loadtest-"
@@ -37,8 +43,19 @@ STUDIO_QUELLE: Final = "studio-probe"
 #: ``eval-judge`` / ``eval-simulator`` / ``eval-szenario`` — Auswertung, kein Betrieb.
 EVAL_QUELLE_PREFIX: Final = "eval-"
 
+#: TB-E2: the sessions of the studio preview (column ``sessions.vorschau``, migration 0022). Static
+#: SQL — no input reaches it. ``session_id`` is the primary key, so ``NOT IN`` meets no NULL.
+PROBE_SITZUNGEN_SQL: Final = (
+    "SELECT probe_s.session_id FROM sessions AS probe_s WHERE probe_s.vorschau")
+
 #: The vocabulary of every ``scope`` parameter (quality, usage, sessions).
-Scope = Literal["all", "production", "eval"]
+Scope = Literal["all", "production", "eval", "probe"]
+
+
+def _probe_sitzungen():  # noqa: ANN202 — ein SQLAlchemy-Ausdruck (Unterabfrage)
+    return select(literal_column("probe_s.session_id")).select_from(
+        text("sessions AS probe_s")).where(
+        text("probe_s.vorschau"))
 
 
 def scope_sql(scope: str) -> str:
@@ -51,9 +68,12 @@ def scope_sql(scope: str) -> str:
     if s == "production":
         return (f"session_id NOT LIKE '{EVAL_PREFIX}%' "
                 f"AND session_id NOT LIKE '{LOADTEST_PREFIX}%' "
-                f"AND session_id NOT LIKE '{STUDIO_PREFIX}%'")
+                f"AND session_id NOT LIKE '{STUDIO_PREFIX}%' "
+                f"AND session_id NOT IN ({PROBE_SITZUNGEN_SQL})")
     if s == "eval":
         return f"session_id LIKE '{EVAL_PREFIX}%'"
+    if s == "probe":
+        return f"session_id IN ({PROBE_SITZUNGEN_SQL})"
     return ""
 
 
@@ -78,7 +98,10 @@ def scope_clause(
         return or_(ohne_sitzung,
                    and_(column.not_like(f"{EVAL_PREFIX}%"),
                         column.not_like(f"{LOADTEST_PREFIX}%"),
-                        column.not_like(f"{STUDIO_PREFIX}%")))
+                        column.not_like(f"{STUDIO_PREFIX}%"),
+                        column.not_in(_probe_sitzungen())))
+    if s == "probe":
+        return column.in_(_probe_sitzungen())
     if s == "eval":
         if quelle is None:
             return column.like(f"{EVAL_PREFIX}%")

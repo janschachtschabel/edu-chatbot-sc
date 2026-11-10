@@ -27,10 +27,13 @@ export const SHARED: CataloguePart = {
     'origin.all.hint': 'Echte Gespräche, Eval-Läufe, Lasttests und Probeläufe zusammen',
     'origin.production': 'Produktion',
     'origin.production.hint':
-      'Ohne Eval-Läufe, Lasttests und die Probeläufe des Studios (die Widget-Vorschau dort '
-      + 'zählt mit)',
+      'Ohne Eval-Läufe, Lasttests und die Probeläufe des Studios, auch ohne die Gespräche der '
+      + 'Widget-Vorschau',
     'origin.eval': 'Nur Eval',
     'origin.eval.hint': 'Nur die Sitzungen der Eval-Läufe',
+    'origin.probe': 'Nur Studio-Vorschau',
+    'origin.probe.hint': 'Nur die Gespräche und Ablauf-Proben der Widget-Vorschau im Studio '
+      + '(nicht der Chat-Probelauf der Agent-Seite und nicht „Auftrag testen“)',
     /** Zugänglicher Name desselben Knopfs. Mehrere Streifen auf einer Seite
      *  tragen denselben sichtbaren Text; ohne das Ziel sind ihre Knöpfe für
      *  einen Screenreader nicht unterscheidbar. Beginnt mit dem sichtbaren
@@ -128,10 +131,13 @@ export const SHARED: CataloguePart = {
     'origin.all.hint': 'Real conversations, eval runs, load tests and trial runs together',
     'origin.production': 'Production',
     'origin.production.hint':
-      'Without eval runs, load tests and the studio’s trial runs (its widget preview '
-      + 'counts)',
+      'Without eval runs, load tests and the studio’s trial runs, and without the chats of '
+      + 'its widget preview',
     'origin.eval': 'Eval only',
     'origin.eval.hint': 'Only the sessions of eval runs',
+    'origin.probe': 'Studio preview only',
+    'origin.probe.hint': 'Only the chats and workflow trials of the studio’s widget preview '
+      + '(not the agent page’s chat trial and not “test a task”)',
     'async.retryFor': 'Try again — {label}',
     'async.empty': 'Nothing here yet.',
 

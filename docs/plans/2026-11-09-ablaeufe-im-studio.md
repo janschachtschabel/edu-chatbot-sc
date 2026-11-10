@@ -733,7 +733,7 @@ Schritt 0: `/better-coding-workflow` laden.
 bietet sie an, wenn das Muster sie nennt; Werkzeugschleife des Musters merkt den Vorschlag;
 `turn_assembly` wie im Agent-Weg.
 
-**AS-5c (`direkt`):** offen; erst nach AS-5a/b und mit eigener Bremse.
+**AS-5c (`direkt`):** umgesetzt als TB-E3 im Plan `2026-11-10-themenbaum-aus-inhalten.md` (Nutzer-Entscheid N4, 10.11.).
 
 ## 5h. Aufgaben AS-U — Oberfläche für die Person im Widget (D10, E5)
 

@@ -31,6 +31,16 @@ def probe_erlaubt(request: HTTPConnection, req: ChatRequest) -> bool:
     return False
 
 
+def vorschau_erlaubt(request: HTTPConnection, req: ChatRequest) -> bool:
+    """Plan 2026-11-10, TB-E2: ein Gespräch der Studio-Vorschau — ``True`` nur für
+    ``req.vorschau`` mit Studio-Recht. Ohne gültiges Cookie bleibt das Flag wirkungslos, aber
+    **ohne** 403: es ändert am Zug nichts, nur ob die Sitzung als Betrieb zählt. Ohne Flag wird das
+    Cookie nicht gelesen (ein falsches Cookie zählt sonst als Fehlversuch)."""
+    if not req.vorschau:
+        return False
+    return authorize_request(request, request.cookies.get(COOKIE_NAME)) is None
+
+
 def pruefe_probe(request: HTTPConnection, req: ChatRequest) -> bool:
     """Vorspann beider Chat-Endpunkte (Review AS-8a, Befund 3): eine Probe ohne Studio-Recht läuft
     nie still als echter Zug — die Person hielte ihn für einen Trockenlauf. 403
