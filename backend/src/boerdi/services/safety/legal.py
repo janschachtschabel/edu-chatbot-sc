@@ -53,6 +53,15 @@ WICHTIG: Aussagen wie "ich hasse [Organisation/Plattform/Person]" sind
 Persönlichkeitsrechte mit risk >= 0.6 — auch ohne explizite Beleidigung."""
 
 
+#: So viel Text sieht die Rechtsstufe. Mehr als 2000: der Prüftext einer Direktaktion trägt bis etwa
+#: 7400 Zeichen (10 Startfelder zu höchstens 538 mit Namen und Trenner, dazu 2000 für den Rest;
+#: ``direct_actions._direct_action_safety_text``) — sonst erreichte die Rechtsstufe deren hintere
+#: Felder nicht (Nachprüfung Querschnitt AS-4). Entscheid RB-1: die Grenze gilt für jede Nachricht;
+#: auch ein langer Auftrag der Gastseite wird so weiter hinten geprüft. Die Kosten wachsen nur mit
+#: langen Texten (höchstens rund 2000 Token mehr je Zug).
+_ZEICHEN = 8000
+
+
 async def classify_legal(
     message: str, usage_acc: dict | None = None,
 ) -> dict[str, dict]:
@@ -72,7 +81,7 @@ async def classify_legal(
                 {"role": "system", "content": _LEGAL_SYSTEM},
                 # Fix 2026-11-05: auf dem Responses-Weg muss „json“ in einer Eingabe-Nachricht
                 # stehen, nicht nur im Systemteil — sonst scheitert jeder Aufruf still.
-                {"role": "user", "content": _NACHRICHT_KOPF + message[:2000]},
+                {"role": "user", "content": _NACHRICHT_KOPF + message[:_ZEICHEN]},
             ],
             temperature=0.0,
             max_tokens=300,

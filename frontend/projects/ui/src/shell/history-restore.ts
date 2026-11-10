@@ -20,7 +20,7 @@ export interface HistoryRestoreContext {
   sessionId: () => string;
   showGreeting: () => void;
   updateMessages: (updater: (msgs: ChatMessage[]) => ChatMessage[]) => void;
-  addUserMessage: (content: string) => void;
+  addUserMessage: (content: string, fromHost?: boolean) => void;
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: WloCard[], quickReplies?: string[],
     ui?: UiInfo, pagination?: PaginationInfo | null,
@@ -93,7 +93,9 @@ export async function restoreHistory(ctx: HistoryRestoreContext): Promise<boolea
     // Eine Antwort nur aus UI-Blöcken (etwa eine Frage ohne Begleittext) hat keinen Text, ist aber da.
     if (!content && !m.ui?.ui_bloecke?.length) continue;
     if (m.role === 'user') {
-      ctx.addUserMessage(content);
+      // Paket RB-3: eine Blase der Gastseite bleibt nach dem Neuladen eine Auftrags-Blase.
+      if (m.ui?.from_host === true) ctx.addUserMessage(content, true);
+      else ctx.addUserMessage(content);
     } else if (m.role === 'assistant') {
       // Cards / Web-Links / Query-Metas aus dem persistierten Backend-State
       // mitrestoren, damit Bot-Antworten nach Refresh nicht als nackter Text

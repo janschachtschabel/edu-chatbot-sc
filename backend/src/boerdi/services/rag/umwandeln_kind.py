@@ -71,7 +71,8 @@ def _einer() -> asyncio.Semaphore:
 
 
 async def im_kindprozess(funktion: Callable[..., str], *args: Any, frist_s: float | None = None,
-                         platz_frist_s: float | None = None) -> str:
+                         platz_frist_s: float | None = None,
+                         abgesagt: asyncio.Event | None = None) -> str:
     """``funktion(*args)`` in einem eigenen Prozess — das Ergebnis oder ein
     :class:`Umwandlungsfehler`. ``funktion`` muss auf Modulebene stehen (``spawn``
     importiert sie über ihren Namen). Wirft nur, wenn kein Kindprozess startet: das
@@ -79,7 +80,10 @@ async def im_kindprozess(funktion: Callable[..., str], *args: Any, frist_s: floa
 
     ``frist_s`` (U3-2, Review Befund 4): eigene Frist statt ``RAG_CONVERSION_TIMEOUT_S`` — der
     Kindprozess wird dann beendet und gibt den Platz frei. ``platz_frist_s``: so lange höchstens
-    auf den Platz warten, danach ``ausgelastet``; die Frist der Umwandlung beginnt erst mit ihm."""
+    auf den Platz warten, danach ``ausgelastet``; die Frist der Umwandlung beginnt erst mit ihm.
+
+    ``abgesagt`` (Review RB-1, Befund 1): will niemand mehr das Ergebnis, während der Lauf noch auf
+    den Platz wartet, startet er keinen Kindprozess — der Platz gehört gleich der nächsten Datei."""
     s = get_settings()
     platz = _einer()
     if platz_frist_s is None:
@@ -89,6 +93,9 @@ async def im_kindprozess(funktion: Callable[..., str], *args: Any, frist_s: floa
             await asyncio.wait_for(platz.acquire(), platz_frist_s)
         except TimeoutError:
             return Umwandlungsfehler("Fehler: Umwandlung ausgelastet", art="ausgelastet")
+    if abgesagt is not None and abgesagt.is_set():
+        platz.release()
+        return Umwandlungsfehler("Fehler: Umwandlung abgesagt", art="ausgelastet")
     try:
         lauf = asyncio.ensure_future(asyncio.to_thread(
             _ausfuehren, funktion, args, frist_s or s.rag_conversion_timeout_s,

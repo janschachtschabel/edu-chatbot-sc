@@ -45,6 +45,7 @@ describe('EN-Katalog', () => {
       'chat.print.canvasFallback', // Material
       'contentType.video', 'contentType.audio', 'contentType.quiz', 'contentType.material',
       'print.docTitle', 'print.meta', // nur Produktname + Platzhalter
+      'ablauf.leiste.stand',       // nur Platzhalter und Komma (AS-Ub)
     ]);
     const kopien = Object.keys(DE).filter(k => !gleichErlaubt.has(k) && EN[k] === DE[k]);
     expect(kopien, 'unübersetzt aus DE kopiert').toEqual([]);
