@@ -25,7 +25,7 @@ from typing import Any, Final
 
 from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.i18n import bot_text, resolve_locale
-from boerdi.services import arbeitsstand, vorgaenge
+from boerdi.services import arbeitsstand, probe, vorgaenge
 from boerdi.services.ablauf import treiber
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden
@@ -53,7 +53,11 @@ DATEI_VERSUCHE_KEY: Final = "_auftrag_dateien_versuche"
 def starter() -> Callable[[str, dict[str, Any]], Awaitable[str | None]] | None:
     """Die Start-Naht für den Treiber — ``None`` ohne Einrichtung, ohne Anmeldung oder ohne den
     durchgereichten Schlüssel der Person: sonst teilten alle Angemeldeten die 20 Aufträge von
-    ``B_API_KEY`` (Plan V-3, Review K1a, Befund 1)."""
+    ``B_API_KEY`` (Plan V-3, Review K1a, Befund 1). In der Probe der Studio-Vorschau (AS-8a, P-5)
+    startet nichts: eine Trocken-Kennung, ohne b-api und Schlüssel — die Anmeldung gilt aber wie im
+    Betrieb (P-8, Querschnitts-Review AS-8, Befund 3: die Probe zeigt, was die Person sieht)."""
+    if probe.aktiv():
+        return _trocken_starten if has_personal_auth() else None
     if not client.freigeschaltet() or not has_personal_auth() or not hat_zug_schluessel():
         return None
 
@@ -65,6 +69,16 @@ def starter() -> Callable[[str, dict[str, Any]], Awaitable[str | None]] | None:
             return None
 
     return starte
+
+
+async def _trocken_starten(flow: str, _eingaben: dict[str, Any]) -> str | None:
+    # Review AS-8a, Befund 5: ist die b-api eingerichtet, scheitert ein nicht freigeschalteter Flow
+    # wie im Betrieb (``bei_fehler``) — ohne Einrichtung bleibt die Probe trotzdem möglich.
+    if client.freigeschaltet() and not client.erlaubt(flow):
+        logger.info("Trockenlauf: Flow %s ist nicht freigeschaltet", flow)
+        return None
+    logger.info("Trockenlauf: Auftrag %s nicht gestartet", flow)
+    return client.trocken_kennung()
 
 
 def _knopf(lang: str, schluessel: str, aktion: str, params: dict[str, Any]) -> str:
@@ -93,7 +107,7 @@ def _wartend(session_id: str, session_state: dict[str, Any]) -> tuple[dict[str, 
         return None
     # Review K1a, Befund 11: wie ``ki_schritt.aktueller`` — nur, solange der Ablauf gilt.
     ablauf = laden(lauf.get("ablauf"))
-    if ablauf is None or not ablauf.aktiv or lauf.get("fassung") != treiber.fassung(ablauf):
+    if not treiber.gilt(ablauf, lauf):
         return None
     return lauf, ablauf
 
@@ -203,7 +217,9 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
 
     # Zweites Review K2b, Befund 8: ohne den Schlüssel der Person (Anmeldung abgelaufen) endet der
     # Auftrag nur hier — bei der b-api läuft er weiter. Das sagt die Antwort.
-    schluessel = ("action.ablauf.auftragAbgebrochen" if hat_zug_schluessel()
+    # Review AS-8a, Befund 6: einen Trocken-Auftrag gibt es bei der b-api gar nicht.
+    trocken = offen is not None and client.ist_trocken(offen.job_id)
+    schluessel = ("action.ablauf.auftragAbgebrochen" if hat_zug_schluessel() or trocken
                   else "action.ablauf.auftragNurHierAbgebrochen")
     antwort = await basis.nur_text(session, req, schluessel, entities)
     antwort.quick_replies = vorgang_aktion.knoepfe(lang)
@@ -225,11 +241,12 @@ async def pruefen(session: Any, req: ChatRequest, session_state: dict, *,
         return await basis.nur_text(session, req, "action.ablauf.unbekannt", entities)
     ablauf = laden(gewollt)
     auftrag = await ablage.offen(session, v.id)
-    if (ablauf is None or not ablauf.aktiv or lauf.get("fassung") != treiber.fassung(ablauf)
+    if (not treiber.gilt(ablauf, lauf)
             or auftrag is None or auftrag.schritt != lauf.get("schritt")):
         await basis.abbrechen(session, v, lauf, entities, aufrufer)
         return await basis.nur_text(session, req, "action.ablauf.unbekannt", entities)
-    if not hat_zug_schluessel():
+    # Review AS-8a, Befund 2: einen Trocken-Auftrag beantwortet der Client selbst, ohne Schlüssel.
+    if not hat_zug_schluessel() and not client.ist_trocken(auftrag.job_id):
         # Mit ``B_API_KEY`` sähe der Chatbot den Auftrag der Person nicht (K22) — und fragte nicht.
         return await _mit_knopf(session, req, "action.ablauf.auftragNichtAbrufbar", ablauf.id)
     await basis.frei(session)             # M7: die b-api-Abfrage hält keine DB-Verbindung
@@ -284,7 +301,7 @@ async def pruefen(session: Any, req: ChatRequest, session_state: dict, *,
         await ablage.abschliessen(session, auftrag, stand.status)
         v = await basis.festhalten(session, v, aus, session_id=req.session_id)
         await session.commit()
-    except vorgaenge.VorgangKonflikt:
+    except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
         basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)

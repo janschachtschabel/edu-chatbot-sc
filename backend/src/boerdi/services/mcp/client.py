@@ -52,6 +52,7 @@ from boerdi.domain.write_confirm import (
 )
 from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.log_inhalt import ereignis, filterwerte
+from boerdi.services import probe
 from boerdi.services.mcp import anmeldung, auth, fremdwerkzeuge, transport, wiederholung
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
 from boerdi.services.mcp.listen_argumente import braucht_umformung, mit_listen
@@ -388,6 +389,15 @@ async def call_mcp_tool_antwort(
     zurück — Backward-Compat für Tools, die im Code registriert sind aber
     (noch) nicht in der YAML.
     """
+    # Paket AS-8a: in der Probe der Studio-Vorschau läuft kein schreibendes Werkzeug — hier, weil
+    # Einlösen, Werkzeug-Schleifen, Agent-Schreiben und Plan-Fortsetzen alle hier durchgehen. Ohne
+    # Aufruf entsteht auch kein ``preparedRequest`` (eingebetteter Modus). ``complete``: ein Plan
+    # gilt als fertig, sonst böte ``plan_fortsetzen`` das Fortsetzen an.
+    if probe.aktiv() and probe.trocken_noetig(tool_name, arguments):
+        logger.info("Trockenlauf: %s nicht ausgeführt", tool_name)
+        return McpAntwort(text=probe.trocken_text(tool_name),
+                          strukturiert={"trockenlauf": True, "werkzeug": tool_name,
+                                        "complete": True})
     # Paket 11 (E): ein Werkzeug eines fremden Servers geht seinen eigenen Weg —
     # nichts von dem, was unten an WLO-Namen hängt, gilt für ihn.
     if ist_fremd(tool_name):

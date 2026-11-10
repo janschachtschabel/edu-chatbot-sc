@@ -131,3 +131,105 @@ def test_nicht_der_vorgang_des_aktuellen_gespraechs(web, lage):
                            verfaellt_am=datetime.now(UTC) + timedelta(days=3))
     lage.entities = {arbeitsstand.VERWEIS: arbeitsstand.verweis_fuer(hier, "person-a")}
     assert [v["titel"] for v in _offen(web).json()["vorgaenge"]] == ["Woanders"]
+
+
+# ── AS-4c (Plan 2026-11-09 §5f, R3): Wiederkehr mit Vorgang- oder Auftragskennung ──────────────
+# Ein Einstieg von außen (Benachrichtigung, Link der Gastseite) nennt den Vorgang oder den Auftrag.
+# Die Kennung ist nie ein Recht: nur die angemeldete Besitzerin bekommt das Gespräch; fremd,
+# unbekannt, abgeschlossen und abgelaufen sehen gleich aus (kein Orakel).
+
+_VORGANG = "0a1b2c3d-0000-4000-8000-000000000009"
+
+
+@pytest.fixture
+def eigene(monkeypatch, lage):
+    gefragt: list = []
+    bestand = {_VORGANG: SimpleNamespace(
+        id=_VORGANG, titel="Lesen", status="wartet_auftrag", session_id=_DORT, geaendert=_ZEIT,
+        akte={"lauf": {"ablauf": "lesen", "status": "wartet_auftrag"}})}
+
+    async def lesen(s, vid, aufrufer):
+        gefragt.append(("lesen", vid, aufrufer))
+        return bestand.get(vid) if aufrufer == "person-a" else None
+
+    async def zum_job(s, job_id, aufrufer):
+        gefragt.append(("job", job_id, aufrufer))
+        return _VORGANG if job_id == "job-42" and aufrufer == "person-a" else None
+
+    from boerdi.services.auftraege import ablage as auftraege_ablage
+
+    monkeypatch.setattr(vorgaenge, "lesen", lesen)
+    monkeypatch.setattr(auftraege_ablage, "vorgang_zum_job", zum_job)
+    return SimpleNamespace(gefragt=gefragt, bestand=bestand)
+
+
+def _wiederkehr(web, **kennung):
+    return web.post("/api/ui/vorgaenge/wiederkehr", json={"session_id": _HIER, **kennung})
+
+
+def test_wiederkehr_zum_eigenen_vorgang(web, eigene):
+    r = _wiederkehr(web, vorgang=_VORGANG)
+    assert r.status_code == 200, r.text
+    assert r.json() == {"titel": "Lesen", "ablauf": "lesen", "status": "wartet_auftrag",
+                        "session_id": _DORT, "geaendert": "2026-11-07T09:30:00Z"}
+    assert eigene.gefragt == [("lesen", _VORGANG, "person-a")]
+    assert "no-store" in r.headers["cache-control"]
+
+
+def test_wiederkehr_ueber_den_auftrag(web, eigene):
+    r = _wiederkehr(web, auftrag="job-42")
+    assert r.status_code == 200 and r.json()["session_id"] == _DORT
+    assert eigene.gefragt == [("job", "job-42", "person-a"), ("lesen", _VORGANG, "person-a")]
+
+
+@pytest.mark.parametrize("fall", ["unbekannt", "abgeschlossen", "ohne_gespraech", "fremder_job"])
+def test_wiederkehr_ohne_treffer_sieht_immer_gleich_aus(web, eigene, fall):
+    if fall == "abgeschlossen":
+        eigene.bestand[_VORGANG].status = "fertig"
+    if fall == "ohne_gespraech":
+        eigene.bestand[_VORGANG].session_id = None
+    kennung = {"auftrag": "job-99"} if fall == "fremder_job" else {
+        "vorgang": "0a1b2c3d-0000-4000-8000-00000000ffff" if fall == "unbekannt" else _VORGANG}
+    r = _wiederkehr(web, **kennung)
+    assert r.status_code == 404 and r.json() == {"detail": "unbekannt"}
+    assert "no-store" in r.headers["cache-control"]
+
+
+def test_wiederkehr_ohne_anmeldung_fragt_nichts(web, lage, eigene):
+    lage.person = False
+    r = _wiederkehr(web, vorgang=_VORGANG)
+    assert r.status_code == 403 and r.json()["detail"] == "nur_angemeldet"
+    assert eigene.gefragt == []
+
+
+@pytest.mark.parametrize("kennung", [
+    {}, {"vorgang": _VORGANG, "auftrag": "job-42"}, {"vorgang": "a b"}, {"auftrag": "x" * 200},
+    {"auftrag": "job/../42"}])
+def test_wiederkehr_braucht_genau_eine_brauchbare_kennung(web, eigene, kennung):
+    assert _wiederkehr(web, **kennung).status_code == 422
+    assert eigene.gefragt == []
+
+
+def test_wiederkehr_auch_die_403_ohne_zwischenspeicher(web, lage, eigene):
+    lage.person = False
+    r = _wiederkehr(web, vorgang=_VORGANG)
+    assert r.status_code == 403 and "no-store" in r.headers["cache-control"]
+
+
+def test_wiederkehr_die_404_haelt_keine_frames_fest(web, eigene):
+    """Review AS-4c, Befund 1: eine Instanz auf Modulebene sammelte bei jedem Wurf die Frames
+    (samt Zugangsblock) — jede 404 ist eine neue Ausnahme."""
+    assert api._unbekannt() is not api._unbekannt()
+    for _ in range(3):
+        assert _wiederkehr(web, vorgang="0a1b2c3d-0000-4000-8000-00000000ffff").status_code == 404
+
+
+# ── Review AS-8a, Befund 1: eine Probe-Sitzung führt nie in echte Vorgänge ──────────────────────
+
+def test_review_as8a_1_in_einer_probe_sitzung_keine_vorgaenge(web, lage):
+    lage.entities = {"_probe": True}
+    for pfad, rumpf in [("offen", {}), ("liste", {}), ("wiederkehr", {"vorgang": "a" * 8}),
+                        ("loeschen", {"vorgang": "a" * 8})]:
+        r = web.post(f"/api/ui/vorgaenge/{pfad}", json={"session_id": _HIER, **rumpf})
+        assert (r.status_code, r.json()["detail"]) == (409, "trockenlauf"), pfad
+    assert lage.gefragt == []

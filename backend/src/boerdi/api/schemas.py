@@ -325,6 +325,12 @@ class ChatRequest(BaseModel):
     # Paket U1-d1: Antwort auf einen abfragenden UI-Block (``ui_entscheidung``). ``message`` trägt
     # dazu die lesbare Fassung. Geprüft in ``graph/nodes/setup``; ungültig → verworfen.
     ui_antwort: UiAntwort | None = None
+    # Paket RB-3: der Zug kam von der Gastseite (``startTask``/``startAblauf``) — nur Anzeige, kein
+    # Recht: das Widget zeigt die Blase auch nach dem Neuladen als „Auftrag der Seite“.
+    from_host: bool = False
+    # Paket AS-8a: aus der Studio-Vorschau (Attribut ``probe``) — gilt nur mit Studio-Cookie
+    # (``api/probe_anfrage``); dann Trockenlauf: nichts wird geschrieben, kein Auftrag startet.
+    probe: bool = False
 
 
 class PreparedWriteOut(BaseModel):

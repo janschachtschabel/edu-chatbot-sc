@@ -7,7 +7,8 @@ services and the request-scoped seams. ALT ran the turn as a linear ``_chat_impl
 same two early exits — as a graph:
 
     START → setup → tour ──early?──▶ END
-                     └─▶ page_context_enrich → context_greeting ──early?──▶ END
+                     └─▶ ablauf_seite ──early?──▶ END
+                            └─▶ page_context_enrich → context_greeting ──early?──▶ END
                             └─▶ persist_user → preflight ──early?──▶ END
                                    └─▶ assess → safety_log → pruefung_fehlt ──early?──▶ END
                                           └─▶ merge → route
@@ -15,8 +16,9 @@ same two early exits — as a graph:
 
 ``page_context_enrich`` (inject page IDs + best-effort MCP metadata resolve) runs
 AFTER tour — so a tour tick skips the resolve latency (ALT returns before the resolve
-block) — and never short-circuits. Only ``tour``, ``context_greeting``,
-``preflight`` and ``pruefung_fehlt`` short-circuit (they set ``ctx.early_response``);
+block) — and never short-circuits. Only ``tour``, ``ablauf_seite`` (AS-7a: the page ping,
+always), ``context_greeting``, ``preflight`` and ``pruefung_fehlt`` short-circuit (they set
+``ctx.early_response``);
 the last one only with ``MODERATION_FAILURE_MODE=closed`` (Paket 18A). The LP-/Canvas-fast-paths
 do NOT: ``route`` records ``fp_*`` markers that
 ``respond`` consumes, so the normal chain still flows through respond→assemble→
@@ -66,6 +68,7 @@ from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.verbindung import verbindung_freigeben
+from boerdi.graph.nodes.ablauf_seite import ablauf_seite
 from boerdi.graph.nodes.assemble import assemble
 from boerdi.graph.nodes.assess import assess
 from boerdi.graph.nodes.context_greeting import context_greeting
@@ -79,13 +82,15 @@ from boerdi.graph.nodes.route import route
 from boerdi.graph.nodes.setup import setup
 from boerdi.graph.nodes.tour import tour
 from boerdi.graph.state import TurnContext
+from boerdi.i18n.locale import resolve_locale
 from boerdi.obs.progress import TurnProgress
 from boerdi.obs.quality_events import log_safety_event
 from boerdi.obs.tasks import binde_zug_aufgaben, raeume_zug_aufgaben
 from boerdi.obs.usage import bind_turn_usage
 from boerdi.obs.zeiten import messe_knoten
+from boerdi.services import probe
 from boerdi.services.config_loader import load_safety_config
-from boerdi.services.db_sessions import get_memory, save_message
+from boerdi.services.db_sessions import get_memory, nutzer_debug, save_message
 from boerdi.services.llm_parallel import binde_zug as binde_llm_zug
 from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
 from boerdi.services.zugakte import binde_zugakte
@@ -99,10 +104,11 @@ async def _persist_user_message(ctx: TurnContext, session: AsyncSession) -> Turn
     preflight. Bare await like ALT — a DB failure propagates to the endpoint.
 
     Paket U1-d1: eine in ``setup`` geprüfte Modul-Antwort steht im Debug-Block der Nachricht
-    (``_ui_antwort``) — daraus leitet der Verlauf den Status des Blocks ab."""
-    if ctx.ui_antwort:
-        await save_message(session, ctx.req.session_id, "user", ctx.req.message,
-                           debug={UI_ANTWORT_KEY: ctx.ui_antwort})
+    (``_ui_antwort``) — daraus leitet der Verlauf den Status des Blocks ab. Paket RB-3: ebenso der
+    Merker eines Zugs der Gastseite (``from_host``)."""
+    debug = nutzer_debug(ctx.req.from_host, **{UI_ANTWORT_KEY: ctx.ui_antwort})
+    if debug:
+        await save_message(session, ctx.req.session_id, "user", ctx.req.message, debug=debug)
     else:
         await save_message(session, ctx.req.session_id, "user", ctx.req.message)
     return ctx
@@ -169,7 +175,12 @@ async def _log_turn_safety(ctx: TurnContext, session: AsyncSession) -> TurnConte
 
 
 def _after_tour(ctx: TurnContext) -> str:
-    """Tour set an answer ⇒ end the turn; otherwise resolve page context, then greet."""
+    """Tour set an answer ⇒ end the turn; otherwise the page ping of a flow (AS-7a)."""
+    return END if ctx.early_response is not None else "ablauf_seite"
+
+
+def _after_ablauf_seite(ctx: TurnContext) -> str:
+    """AS-7a: the page ping always answered ⇒ end; otherwise resolve page context, then greet."""
     return END if ctx.early_response is not None else "page_context_enrich"
 
 
@@ -225,6 +236,7 @@ def build_turn_graph(
 
     knoten("setup", functools.partial(setup, session=session, peer_ip=peer_ip))
     knoten("tour", functools.partial(tour, session=session))
+    knoten("ablauf_seite", functools.partial(ablauf_seite, session=session))
     knoten("page_context_enrich", page_context_enrich)
     knoten("context_greeting", functools.partial(context_greeting, session=session))
     knoten("persist_user", functools.partial(_persist_user_message, session=session))
@@ -244,8 +256,10 @@ def build_turn_graph(
 
     g.add_edge(START, "setup")
     g.add_edge("setup", "tour")
+    g.add_conditional_edges("tour", _after_tour, {"ablauf_seite": "ablauf_seite", END: END})
     g.add_conditional_edges(
-        "tour", _after_tour, {"page_context_enrich": "page_context_enrich", END: END}
+        "ablauf_seite", _after_ablauf_seite,
+        {"page_context_enrich": "page_context_enrich", END: END},
     )
     g.add_edge("page_context_enrich", "context_greeting")
     g.add_conditional_edges(
@@ -293,6 +307,8 @@ def begin_turn(ctx: TurnContext) -> None:
     binde_zugakte()
     binde_llm_zug()
     binde_zug_aufgaben()
+    # Paket AS-8a: der Trockenlauf-Merker — ``setup`` gleicht ihn mit der Sitzung ab.
+    probe.binde(ctx.probe, resolve_locale(ctx.req.environment.locale))
 
 
 async def run_turn(graph: CompiledStateGraph, ctx: TurnContext) -> dict[str, Any]:

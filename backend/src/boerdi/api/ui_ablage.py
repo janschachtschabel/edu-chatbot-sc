@@ -49,7 +49,7 @@ from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.repo_links import render_url
 from boerdi.i18n import resolve_locale
 from boerdi.obs.quality_events import log_safety_event
-from boerdi.services import arbeitsstand
+from boerdi.services import arbeitsstand, probe
 from boerdi.services.ablage import mcp_ablage, vorgang_teil
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.config_loader.upload import load_upload_config
@@ -123,6 +123,9 @@ async def _sitzung(request: Request, session: AsyncSession, session_id: str, blo
     entities = await sitzung_entities(session, session_id)
     if entities is None:
         raise HTTPException(status_code=404, detail="sitzung_unbekannt")
+    if probe.in_sitzung(entities):
+        # Paket AS-8a (P-4): die Probe der Studio-Vorschau legt nichts in WLO ab — vor jedem Aufruf
+        raise HTTPException(status_code=409, detail="trockenlauf")
     offen = entities.get(OFFENE_FRAGE)
     if frage and not (isinstance(offen, dict) and offen.get("modul") == UPLOAD
                       and offen.get("block_id") == block_id):

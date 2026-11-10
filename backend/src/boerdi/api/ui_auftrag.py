@@ -34,7 +34,7 @@ from boerdi.api.turn_auth import (
 )
 from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.config_models.ablauf import ID_FORM
-from boerdi.services import arbeitsstand, vorgaenge
+from boerdi.services import arbeitsstand, probe, vorgaenge
 from boerdi.services.ablauf import treiber
 from boerdi.services.ablauf.ausloeser import laden
 from boerdi.services.auftraege import ablage, client
@@ -69,7 +69,7 @@ async def _wartender_auftrag(session: AsyncSession, anfrage: StandAnfrage,
                              entities: dict[str, Any]) -> Any:
     """Der offene Auftrag, auf den der Lauf dieser Person wartet — sonst 409. Prüft dasselbe wie
     ``auftrag_zug.pruefen``, bricht aber nichts ab (dieser Abruf schreibt nie)."""
-    aufrufer = arbeitsstand.aufrufer_fuer(anfrage.session_id)
+    aufrufer = arbeitsstand.aufrufer_fuer(anfrage.session_id, entities)
     vw = arbeitsstand.verweis(entities, aufrufer)
     v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
     lauf = (v.akte or {}).get("lauf") if v is not None else None
@@ -77,7 +77,7 @@ async def _wartender_auftrag(session: AsyncSession, anfrage: StandAnfrage,
             or lauf.get("status") != treiber.WARTET_AUFTRAG):
         raise _kein_auftrag()
     ablauf = laden(anfrage.ablauf)
-    if ablauf is None or not ablauf.aktiv or lauf.get("fassung") != treiber.fassung(ablauf):
+    if not treiber.gilt(ablauf, lauf):
         raise _kein_auftrag()
     auftrag = await ablage.offen(session, v.id)
     if (auftrag is None or auftrag.schritt != lauf.get("schritt")
@@ -100,10 +100,16 @@ async def stand(anfrage: StandAnfrage, request: Request, response: Response,
     adopt_turn_auth_block(request)
     uebernimm_llm_schluessel(request, pflicht=False)
     await bestaetige_anmeldung()
-    if not has_personal_auth():
+    # Review AS-8a, Befund 2: in der Probe der Studio-Vorschau gibt es nur Trocken-Aufträge — die
+    # beantwortet der Client selbst, ohne Anmeldung und ohne Schlüssel der Person.
+    in_probe = probe.in_sitzung(entities)
+    if not has_personal_auth() and not in_probe:
         raise HTTPException(status_code=403, detail="nur_angemeldet")
     auftrag = await _wartender_auftrag(session, anfrage, entities)
-    if not hat_zug_schluessel():
+    if not client.ist_trocken(auftrag.job_id) and not (has_personal_auth()
+                                                        and hat_zug_schluessel()):
+        if not has_personal_auth():
+            raise HTTPException(status_code=403, detail="nur_angemeldet")
         raise HTTPException(status_code=503, detail="nicht_abrufbar")
     job_id = auftrag.job_id
     await verbindung_freigeben(session)      # die b-api-Abfrage hält keine DB-Verbindung

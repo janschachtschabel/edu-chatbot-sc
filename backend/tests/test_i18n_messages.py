@@ -148,6 +148,9 @@ _CODE_U33 = ("Code, kein Text: nur das Modul ui_upload ruft die Ablage (U3-3a) u
 _CODE_K2A = ("Paket K2a: ein Code für das Widget, kein Text — `POST /api/ui/vorgaenge/offen` "
              "antwortet ohne Anmeldung mit 403 `nur_angemeldet`; das Widget zeigt dann einfach "
              "keinen Hinweis.")
+_CODE_AS4C = ("Paket AS-4c: ein Code für das Widget, kein Text — `POST /api/ui/vorgaenge/"
+              "wiederkehr` antwortet für alles außer der eigenen, offenen Arbeit mit 404 "
+              "`unbekannt` (kein Orakel); das Widget setzt dann nicht fort.")
 
 # ── Wächter: keine Meldung am Katalog vorbei ───────────────────────────────
 #: Jede ``HTTPException``-Meldung in ``api/``, die NICHT durch ``msg()`` geht,
@@ -219,6 +222,8 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'keine_anfrage'": _CODE_U33,
         "'nur_angemeldet'": _CODE_U33,
         "'sitzung_unbekannt'": _CODE_U33,
+        # Paket AS-8a (P-4): Probe der Studio-Vorschau — das Widget nennt den Trockenlauf (AS-8b)
+        "'trockenlauf'": _CODE_U33,
         "'zu_gross'": _CODE_U33,
     },
     "ui_auftrag.py": {
@@ -229,6 +234,13 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
     },
     "ui_vorgaenge.py": {
         "'nur_angemeldet'": _CODE_K2A,
+        # Review AS-8a, Befund 1: in der Probe der Studio-Vorschau keine Vorgänge
+        "'trockenlauf'": _CODE_K2A,
+        "'unbekannt'": _CODE_AS4C,
+    },
+    "probe_anfrage.py": {
+        "'probe_ohne_recht'": "Code, kein Text: nur das Widget der Studio-Vorschau schickt "
+                              "``probe`` (AS-8b nennt den Grund im Widget)",
     },
     "ui_dokumente.py": {
         "'aus'": _CODE_U32,

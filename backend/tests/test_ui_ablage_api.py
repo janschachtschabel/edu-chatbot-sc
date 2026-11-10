@@ -465,3 +465,17 @@ def test_ein_abschluss_schreibt_keinen_fremden_stapel_ab(client, lage, monkeypat
     monkeypatch.setattr(mcp_ablage, "abschliessen", mitten_drin)
     _abschluss(client)
     assert lage.teil["abgeschlossen"] is False
+
+
+# ── Paket AS-8a (P-4): in einer Probe-Sitzung legt die Ablage nichts ab ──────────────────────────
+
+def test_in_einer_probe_sitzung_weist_die_ablage_vor_jedem_mcp_aufruf_ab(client, lage):
+    lage.entities = {**(lage.entities or {}), "_probe": True}
+    r = _vorbereiten(client)
+    assert (r.status_code, r.json()["detail"]) == (409, "trockenlauf")
+    r = _datei(client)
+    assert (r.status_code, r.json()["detail"]) == (409, "trockenlauf")
+    r = client.post("/api/ui/ablage/abschluss", json={
+        "session_id": _SITZUNG, "block_id": _BLOCK, "batch_token": _TOKEN})
+    assert (r.status_code, r.json()["detail"]) == (409, "trockenlauf")
+    assert lage.mcp == []
