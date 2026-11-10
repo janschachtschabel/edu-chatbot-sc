@@ -59,7 +59,8 @@ async def laden(session: Any, session_id: str) -> DokumentStand | None:
         return None
     aufrufer = aufrufer_kennung() if has_personal_auth() else None
     try:
-        zeile = await ablage.aktuelles(session, session_id, aufrufer)
+        # TB-E1 (N2): anonym gelesen, dann angemeldet — das Dokument geht an diese Person
+        zeile = await ablage.fuer_aufrufer(session, session_id, aufrufer)
         if zeile is None:
             return None
         abschnitte = _abschnitte(zeile.gliederung)

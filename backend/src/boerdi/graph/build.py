@@ -308,7 +308,7 @@ def begin_turn(ctx: TurnContext) -> None:
     binde_llm_zug()
     binde_zug_aufgaben()
     # Paket AS-8a: der Trockenlauf-Merker — ``setup`` gleicht ihn mit der Sitzung ab.
-    probe.binde(ctx.probe, resolve_locale(ctx.req.environment.locale))
+    probe.binde(ctx.probe, resolve_locale(ctx.req.environment.locale), vorschau=ctx.vorschau)
 
 
 async def run_turn(graph: CompiledStateGraph, ctx: TurnContext) -> dict[str, Any]:

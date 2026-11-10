@@ -1,0 +1,103 @@
+# Ablauf „Themenbaum · aus einem Thema“ (Plan docs/plans/2026-11-10-themenbaum-aus-inhalten.md,
+# TB-T2, Nutzer-Auftrag N15). Ohne eigene Inhalte: die Kernfragen aus dem Gestaltungsleitfaden
+# (wofür, für wen, welches Thema, wie tief) grenzen den Entwurf ein, dann erzeugt die KI ihn mit
+# ui_strukturentwurf und zeigt ihn im Chat. Danach endet der Ablauf — Sammlungen daraus anzulegen,
+# kommt später (N15).
+#
+# Die Antworten werden Teile (TB-T1): eine Wahl schreibt ihr Label (schreibt an der Nachricht),
+# getippter Text den Teil von freitext.schreibt. Die KI sieht sie in der Arbeitsstands-Zeile und im
+# Verlauf; der Hinweis an die KI setzt bewusst nichts ein (getippter Text wäre ein Einfallstor).
+id: themenbaum_aus_thema
+titel: {de: "Themenbaum · aus einem Thema", en: "Topic tree · from a topic"}
+beschreibung: >-
+  Vier kurze Fragen (wofür, für wen, welches Thema, wie tief), dann ein bearbeitbarer
+  Themenbaum-Entwurf im Chat. Ohne eigene Dateien.
+wann:
+  - Die Person will einen Themenbaum zu einem Fach oder Thema, ohne eigene Dateien
+aktiv: false
+ausloeser:
+  - {art: knopf}
+  - {art: agent}
+  - {art: text, wendungen: [themenbaum zu einem thema, themenbaum aus einem thema]}
+schritte:
+  - id: wofuer
+    typ: nachricht
+    text: {de: "Gern baue ich dir einen Themenbaum. Wofür soll er sein?",
+           en: "I'll gladly build you a topic tree. What is it for?"}
+    schreibt: zweck
+    optionen:
+      - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: stufe}
+      - {id: materialpool, label: {de: Materialpool aufbauen, en: Build a material pool}, ziel: stufe}
+      - {id: redaktion, label: {de: Redaktionelle Sammlung, en: Editorial collection}, ziel: stufe}
+  - id: stufe
+    typ: nachricht
+    text: {de: "Für wen ist er gedacht?", en: "Who is it for?"}
+    schreibt: stufe
+    optionen:
+      - {id: grundschule, label: {de: Grundschule, en: Primary school}, ziel: thema}
+      - {id: sek1, label: {de: Sekundarstufe I, en: Lower secondary}, ziel: thema}
+      - {id: sek2, label: {de: Sekundarstufe II, en: Upper secondary}, ziel: thema}
+      - {id: beruf, label: {de: Berufliche Bildung, en: Vocational training}, ziel: thema}
+      - {id: hochschule, label: {de: Hochschule, en: Higher education}, ziel: thema}
+    # andere Zielgruppe getippt: derselbe Teil
+    freitext: {ziel: thema, schreibt: stufe}
+  - id: thema
+    typ: nachricht
+    text: {de: "Zu welchem Fach und Thema? Schreib es kurz, zum Beispiel „Physik: Optik“.",
+           en: "Which subject and topic? Keep it short, for example “Physics: optics”."}
+    freitext: {ziel: tiefe, schreibt: thema}
+  - id: tiefe
+    typ: nachricht
+    text: {de: "Wie ausführlich soll der Baum werden?", en: "How detailed should the tree be?"}
+    schreibt: tiefe
+    optionen:
+      - {id: ueberblick, label: {de: Überblick (2 Ebenen), en: Overview (2 levels)}, ziel: entwurf}
+      - {id: ausfuehrlich, label: {de: Ausführlich (3 Ebenen), en: Detailed (3 levels)}, ziel: entwurf}
+  - id: entwurf
+    typ: agent
+    # Ein KI-Schritt antwortet auf den nächsten getippten Zug (Paket A2b) — die Frage nach
+    # Schwerpunkten ist zugleich die präzisierende Frage des Leitfadens.
+    text: {de: "Danke! Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder einfach „Los“.",
+           en: "Thanks! Any focus areas that must not be missing? Tell me – or just say “Go”."}
+    agent:
+      werkzeuge: [ui_strukturentwurf]
+      hinweis:
+        de: "Rufe ui_strukturentwurf mit Thema, Fach, Stufe, Tiefe aus den Antworten auf; Zweck und Wünsche als hinweise. Klassen, Formate, Jahre sind keine Punkte."
+        en: "Call ui_strukturentwurf with topic, subject, level, depth from the answers; purpose and wishes as hinweise. Grades, formats, years are not topics."
+      ausgabe: draft
+      zuege: 3
+    bei_fehler: ohne_entwurf
+  - id: ende
+    typ: ende
+    text: {de: "Dein Themenbaum-Entwurf ist gespeichert. Du kannst ihn herunterladen oder später weiter bearbeiten.",
+           en: "Your topic tree draft is saved. You can download it or keep editing it later."}
+  - id: ohne_entwurf
+    typ: ende
+    text: {de: "Diesmal ist kein Entwurf entstanden. Versuch es gern noch einmal.",
+           en: "No draft came out this time. Feel free to try again."}
+tests:
+  - name: Alle Fragen beantwortet
+    eingaben:
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: thema, text: "Physik: Optik"}
+      - {bei: tiefe, option: ueberblick}
+      - bei: entwurf
+        teile: {draft: {titel: Optik, quelle: ki, knoten: [{titel: Linsen}, {titel: Spiegel}]}}
+    erwartet: {weg: [wofuer, stufe, thema, tiefe, entwurf, ende], status: fertig,
+               teile: [zweck, stufe, thema, tiefe, draft]}
+  - name: Zielgruppe getippt
+    eingaben:
+      - {bei: wofuer, option: materialpool}
+      - {bei: stufe, text: Erwachsenenbildung}
+      - {bei: thema, text: "Geschichte: Römer"}
+      - {bei: tiefe, option: ausfuehrlich}
+    erwartet: {weg: [wofuer, stufe, thema, tiefe, entwurf], status: wartet_ki}
+  - name: Ohne Entwurf
+    eingaben:
+      - {bei: wofuer, option: redaktion}
+      - {bei: stufe, option: sek2}
+      - {bei: thema, text: "Chemie: Säuren"}
+      - {bei: tiefe, option: ueberblick}
+      - {bei: entwurf}
+    erwartet: {weg: [wofuer, stufe, thema, tiefe, entwurf, ohne_entwurf], status: fertig}

@@ -61,8 +61,10 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.StartFeld.max_zeichen.label': 'Höchstens Zeichen',
     'feld.StartFeld.max_zeichen.hint': 'Nur bei Text: längere Texte werden abgewiesen. Im Text zeigt {start.name} höchstens 200 Zeichen.',
     'feld.Ausloeser.modus.label': 'Modus',
-    'feld.Ausloeser.modus.hint': 'Bei „KI“: vorschlagen — unter der Antwort erscheint ein Knopf, die Person startet.',
+    'feld.Ausloeser.modus.hint': 'Bei „KI“: vorschlagen — unter der Antwort erscheint ein Knopf, die Person startet. '
+      + 'direkt — der Ablauf startet nach der Antwort von selbst; nur für Abläufe, die nichts schreiben.',
     'feld.Ausloeser.modus.wahl.vorschlagen': 'vorschlagen',
+    'feld.Ausloeser.modus.wahl.direkt': 'direkt',
     'feld.Ausloeser.modul.label': 'Modul',
     'feld.Ausloeser.modul.hint':
       'Bei „Modul“: dessen geprüfte Antwort startet den Ablauf nach seinem Schritt mit diesem Modul.',
@@ -120,14 +122,20 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.daten.label': 'Daten',
     'feld.Schritt.daten.hint': 'Daten des Moduls (JSON); {"$teil": "name"} liest einen Teil des Vorgangs.',
     'feld.Schritt.werkzeug.label': 'Werkzeug',
-    'feld.Schritt.werkzeug.hint': 'Ein Dienst (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids) oder ein WLO-Werkzeug — ein schreibendes nur mit Freigabe.',
+    'feld.Schritt.werkzeug.hint': 'Ein Dienst (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen) oder ein WLO-Werkzeug — ein schreibendes nur mit Freigabe.',
     'feld.Schritt.argumente.label': 'Argumente',
     'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} setzt einen Teil des Vorgangs ein. Eine Auswahl filtert eine Liste und zieht ein Feld heraus: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}.',
     'feld.Schritt.schreibt.label': 'Ergebnis als Teil',
-    'feld.Schritt.schreibt.hint': 'Name des Teils, unter dem das Ergebnis des Werkzeugs gespeichert wird.',
+    'feld.Schritt.schreibt.hint':
+      'Name des Teils, unter dem das Ergebnis gespeichert wird. An einer Nachricht mit Schnellantworten: das Label der gewählten Antwort.',
     'feld.Schritt.freigabe.label': 'Freigabe (Satz über der Vorschau)',
     'feld.Schritt.freigabe.hint':
       'Nur bei einem schreibenden WLO-Werkzeug: der Schritt zeigt diesen Satz und die Vorschau des Servers und wartet, bis die Person zustimmt. Mindestens auf Deutsch. Platzhalter wie {teil.name} gehen auch hier.',
+    'feld.Schritt.repo_schreibt.label': 'Flow schreibt ins Repositorium',
+    'feld.Schritt.repo_schreibt.hint':
+      'Ankreuzen, wenn der Flow in WLO schreibt (Metadaten, Sammlungen …). Der Chatbot sieht nicht in '
+      + 'den Flow — hier steht es für alle sichtbar. Der Flow arbeitet mit den Rechten der angemeldeten '
+      + 'Person (X-Edu-User-Id); ein Auftrag braucht immer die WLO-Anmeldung.',
     'feld.Schritt.dateien_holen.label': 'Dateien holen',
     'feld.Schritt.dateien_holen.hint':
       'Bis zu drei Dateien des Ergebnisses (ihre outputId), die beim Abholen geholt und wie ein Upload '
@@ -269,8 +277,10 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.StartFeld.max_zeichen.label': 'Maximum characters',
     'feld.StartFeld.max_zeichen.hint': 'Text only: longer texts are rejected. In texts {start.name} shows at most 200 characters.',
     'feld.Ausloeser.modus.label': 'Mode',
-    'feld.Ausloeser.modus.hint': 'For “AI”: suggest — a button appears below the answer, the person starts.',
+    'feld.Ausloeser.modus.hint': 'For “AI”: suggest — a button appears below the answer, the person starts. '
+      + 'direct — the workflow starts by itself after the answer; only for workflows that write nothing.',
     'feld.Ausloeser.modus.wahl.vorschlagen': 'suggest',
+    'feld.Ausloeser.modus.wahl.direkt': 'direct',
     'feld.Ausloeser.modul.label': 'Module',
     'feld.Ausloeser.modul.hint':
       'For “module”: its checked answer starts the workflow after its step with this module.',
@@ -327,14 +337,20 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.daten.label': 'Data',
     'feld.Schritt.daten.hint': 'Data of the module (JSON); {"$teil": "name"} reads a part of the work item.',
     'feld.Schritt.werkzeug.label': 'Tool',
-    'feld.Schritt.werkzeug.hint': 'A service (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids) or a WLO tool — a writing one only with approval.',
+    'feld.Schritt.werkzeug.hint': 'A service (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen) or a WLO tool — a writing one only with approval.',
     'feld.Schritt.argumente.label': 'Arguments',
     'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} inserts a part of the work item. A selection filters a list and extracts a field: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}.',
     'feld.Schritt.schreibt.label': 'Result as part',
-    'feld.Schritt.schreibt.hint': 'Name of the part the tool result is stored under.',
+    'feld.Schritt.schreibt.hint':
+      'Name of the part the result is stored under. On a message with quick replies: the label of the chosen reply.',
     'feld.Schritt.freigabe.label': 'Approval (sentence above the preview)',
     'feld.Schritt.freigabe.hint':
       'Only for a writing WLO tool: the step shows this sentence and the server preview and waits until the person agrees. At least in German. Placeholders such as {teil.name} work here too.',
+    'feld.Schritt.repo_schreibt.label': 'Flow writes to the repository',
+    'feld.Schritt.repo_schreibt.hint':
+      'Tick if the flow writes to WLO (metadata, collections …). The chatbot cannot see into the flow — '
+      + 'this makes it visible. The flow acts with the rights of the signed-in person (X-Edu-User-Id); '
+      + 'a job always needs the WLO sign-in.',
     'feld.Schritt.dateien_holen.label': 'Fetch files',
     'feld.Schritt.dateien_holen.hint':
       'Up to three files of the result (their outputId), fetched on pick-up and checked like an upload. '

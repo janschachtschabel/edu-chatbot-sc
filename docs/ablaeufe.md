@@ -33,9 +33,18 @@ und liest.
 Nachricht), `agent` (die KI schlägt ihn vor), `modul` (die Antwort eines Moduls), `extern` (die
 Gastseite, mit Startdaten) und `seite` (Angebot unter der Begrüßung).
 
+Bei `agent` legt `modus` fest, wie der Ablauf startet:
+- `vorschlagen` (Vorgabe): Unter der Antwort erscheint ein Knopf, und die Person startet.
+- `direkt`: Der Ablauf startet nach der Antwort von selbst. Das Widget drückt denselben Knopf, deshalb
+  laufen Prüfung, Bremse („läuft schon“) und die Herkunft `ki` der Angaben wie bei einem Klick.
+- `direkt` gilt nur für Abläufe, die nichts schreiben (kein schreibendes Werkzeug, kein Auftrag, kein
+  Upload). Sonst bleibt es ein Vorschlag, und „Ablauf prüfen“ meldet es.
+- Die KI bietet nur **eingeschaltete** Abläufe an. Einen ausgeschalteten Ablauf mit `direkt` kann man
+  in der Studio-Vorschau also nicht über die KI ausprobieren, nur über „Ablauf ausprobieren“.
+
 ## Beispiel: Sammlung aus Ordnern
 
-`06-ablaeufe/sammlungsstruktur` („Themenbaum aus Ordnern“) ist der kürzeste vollständige Ablauf:
+`06-ablaeufe/sammlungsstruktur` („Themenbaum · aus Ordnern“) ist der kürzeste vollständige Ablauf:
 
 1. `erfassen` (`modul ui_upload`, Zweck `sammlungsstruktur`): Die Person wählt einen Ordner. Die
    Ordnerstruktur wird der Teil `structure`.
@@ -81,6 +90,73 @@ Fünf Testfälle decken ab:
 Der Entwurf entsteht in den Tests echt aus der Ordnerstruktur; nur die Zählung ist
 nachgestellt. **Regel für eigene Testfälle:** Stelle ein Werkzeug so nach, wie es im Betrieb
 antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
+
+## Beispiele: Themenbaum mit Kernfragen
+
+Die drei Themenbaum-Abläufe heißen im Studio einheitlich „Themenbaum · aus …“: aus Ordnern, aus
+einem Thema, aus eigenen Inhalten. Alle sind im Werkszustand aus.
+
+**Kernfragen als Teile.** Die Fragen kommen aus dem Gestaltungsleitfaden: wofür, für wen, welches
+Thema, wie tief.
+
+- Eine Nachricht mit Schnellantworten und `schreibt: zweck` legt das Label der gewählten Antwort
+  als Teil `zweck` ab. In der Zeile für die KI steht dann „Wahl: Unterricht planen“.
+- Getippter Text geht wie bisher über `freitext.schreibt` in einen Teil. Tragen beide denselben
+  Namen (etwa `stufe`), ergeben Wahl und Tippen denselben Teil.
+- Der Hinweis an die KI setzt nichts ein. Die KI sieht eine Wahl in der Arbeitsstands-Zeile
+  („Wahl: …“). Getippten Text sieht sie im Verlauf; in der Zeile steht davon nur der Name des
+  Teils.
+
+**`06-ablaeufe/themenbaum_aus_thema`** („Themenbaum · aus einem Thema“):
+
+1. `wofuer`, `stufe`, `thema` (Freitext) und `tiefe`.
+2. `entwurf` (`agent` mit `ui_strukturentwurf`, `ausgabe: draft`): Der Schritt fragt nach
+   Schwerpunkten. Ein KI-Schritt antwortet erst auf den nächsten getippten Zug, darum diese
+   Frage („oder einfach ‚Los‘“). Dann erzeugt die KI den Entwurf nach den Antworten und zeigt ihn.
+3. „Weiter“ führt zu `ende`. Ohne Entwurf geht es zu `ohne_entwurf`.
+
+**`06-ablaeufe/themenbaum_aus_inhalten`** („Themenbaum · aus eigenen Inhalten“, Voraussetzung
+Anmeldung):
+
+1. `wofuer`, `stufe`, `thema`.
+2. `hochladen` (`ui_upload`): Die Person überträgt Dateien in ihren Bereich in WLO; daraus wird
+   der Teil `ablage`. Dafür muss im Studio unter „Datei-Upload“ die Ablage in WLO an sein.
+3. `uebertragen` (`verzweigung` mit `wenn_teil: ablage`): Ohne Übertragung geht es zu
+   `ohne_ablage`.
+4. `metadaten_frage`: die Rückfrage vor dem schreibenden Flow.
+5. `metadaten` (`auftrag` `edusharing.chatbot/node-metadata-write`, `repo_schreibt: true`). Die
+   nodeIds nimmt der Schritt nur aus der Ablage desselben Vorgangs, als Auswahl
+   `{$teil: ablage, liste: inhalte, wo: {stand: stored}, feld: node_id}`. Scheitert der Flow, sagt
+   `metadaten_fehlt` das, und es geht mit den vorhandenen Angaben weiter.
+6. `lesen` (`werkzeug metadaten_lesen`, `schreibt: metadaten`): Titel, Beschreibung, Schlagworte …
+   der Dateien, unter der Anmeldung der Person.
+7. `entwurf` (`agent`): Die KI ruft `ui_strukturentwurf` mit `aus_inhalten: true`. Der Dienst
+   liest den Teil `metadaten` selbst und gruppiert die Materialien zu Themen.
+8. `ende`. Sammlungen daraus anzulegen, kommt später.
+
+Damit der Auftrag im Betrieb läuft, muss der Flow in `B_API_JOBS_FLOWS` stehen, und der
+B-API-Schlüssel muss ihn starten dürfen. Solange der Ablauf aus ist, ist eine fehlende
+Freischaltung nur ein Hinweis.
+
+**Grenzen des Flows `node-metadata-write`** (Plan §5b):
+
+- Er ersetzt acht Felder je Datei: Titel, Beschreibung, Schlagworte, Sprache, Fach,
+  Bildungsstufe, Zielgruppe, Ressourcentyp. Jede Änderung wird eine neue Version. Die Rückfrage
+  nennt sie alle.
+- **Nur Dateien dieses Laufs:**
+  - Ein schreibender Ablauf beginnt immer in einem frischen Vorgang, damit keine alte Ablage
+    hineinrutscht.
+  - Die nodeIds sind die abgelegten des jetzigen Stapels.
+  - Eine leere Auswahl startet keinen Auftrag, es geht weiter mit `bei_fehler`.
+- **Kein Limit je Job:**
+  - Ein Stapel hat bis zu 200 Dateien.
+  - `metadaten_lesen` liest davon 50, der Rest steht in `fehlend`.
+- **`FAILED`:** Scheitert der Flow, gibt es vermutlich keinen Bericht (F7). Der Ablauf geht mit
+  den vorhandenen Angaben weiter.
+- **In der Studio-Probe** („Ablauf ausprobieren“) legt der Upload nichts in WLO ab (Trockenlauf).
+  Der Ablauf endet dort also in `ohne_ablage`.
+- **Vor der Antwort:** „Weiter im Ablauf“ am KI-Schritt, bevor die Person etwas getippt hat,
+  führt zu `ohne_entwurf`. Das ist Absicht, so bleibt die Person am Steuer.
 
 ## Führungen: durch die Webseite leiten
 
@@ -192,3 +268,18 @@ lassen sich Startdaten (JSON) mitgeben, und **„Ablauf starten“** startet ihn
 - Anmeldung und Freigaben bleiben wie im Betrieb: Die Probe zeigt, was die Person sieht.
 - Das Widget trägt dabei das Etikett „Probe · Trockenlauf“. Ohne gültige Studio-Anmeldung läuft
   keine Probe, das Widget meldet dann einen Fehler.
+
+## Aufträge, die schreiben (Plan 2026-11-10, TB-F1)
+
+Ein `auftrag` startet einen Kestra-Flow über die B-API **im Namen der angemeldeten Person**. Der
+Chatbot schickt `X-Edu-User-Id` mit ihrem Benutzernamen, also arbeitet der Flow im Repositorium mit
+ihren Rechten. Ohne WLO-Anmeldung startet kein Auftrag.
+
+- Ob ein Flow schreibt, sieht der Chatbot nicht. Die Redaktion kreuzt am Schritt **„Flow schreibt
+  ins Repositorium“** an (`repo_schreibt: true`). Der Vermerk steht im Studio, ein Ablauf mit Auftrag
+  startet nie direkt.
+- Vor einem schreibenden Auftrag gehört eine Wahl, die sagt, was geschieht. Zum Beispiel: „Ich
+  erzeuge jetzt Metadaten für deine N Dateien und schreibe sie hinein. Weiter?“
+- Ein Flow, den der Betrieb nicht in `B_API_JOBS_FLOWS` freischaltet, sperrt nur einen
+  **eingeschalteten** Ablauf. Bei einem ausgeschalteten erscheint er als Hinweis.
+

@@ -212,7 +212,7 @@ describe("QualityComponent", () => {
     const radios = Array.from(
       h.el.querySelectorAll<HTMLInputElement>('input[type="radio"]'),
     );
-    expect(radios).toHaveLength(3);
+    expect(radios).toHaveLength(4);   // TB-E2: dazu „Nur Studio-Vorschau“
     // Vorgabe „Produktion“ (Studio-Rundgang 2026-10-18); die anderen bleiben wählbar.
     expect(radios[1].checked).toBe(true);
 
@@ -296,8 +296,9 @@ describe("QualityComponent", () => {
     );
     expect(hints).toEqual([
       "Real conversations, eval runs, load tests and trial runs together",
-      "Without eval runs, load tests and the studio’s trial runs (its widget preview counts)",
+      "Without eval runs, load tests and the studio’s trial runs, and without the chats of its widget preview",
       "Only the sessions of eval runs",
+      "Only the chats and workflow trials of the studio’s widget preview (not the agent page’s chat trial and not “test a task”)",
     ]);
   });
 });

@@ -23,13 +23,13 @@ async function mount(value: OriginScope = 'all'): Promise<{
 }
 
 describe('OriginScopeComponent (ST-9)', () => {
-  it('bietet Alle, Produktion und Nur Eval als echte Radiogruppe „Datenbasis“ an', async () => {
+  it('bietet die Herkünfte als echte Radiogruppe „Datenbasis“ an', async () => {
     const { el } = await mount();
     expect(el.querySelector('fieldset legend')?.textContent).toContain('Datenbasis');
     const radios = [...el.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
-    expect(radios.map((r) => r.name)).toEqual(['test-herkunft', 'test-herkunft', 'test-herkunft']);
+    expect(new Set(radios.map((r) => r.name))).toEqual(new Set(['test-herkunft']));
     const labels = [...el.querySelectorAll('label')].map((l) => l.querySelector('.os-label')?.textContent?.trim());
-    expect(labels).toEqual(['Alle', 'Produktion', 'Nur Eval']);
+    expect(labels.slice(0, 3)).toEqual(['Alle', 'Produktion', 'Nur Eval']);
   });
 
   it('sagt ehrlich, was „Produktion“ ausschließt', async () => {
@@ -40,10 +40,20 @@ describe('OriginScopeComponent (ST-9)', () => {
     expect(hinweis).toContain('Eval');
   });
 
+  it('TB-E2: bietet die Proben der Studio-Vorschau als eigene Datenbasis an', async () => {
+    const { el, emitted } = await mount();
+    const labels = [...el.querySelectorAll('label')];
+    expect(labels.map((l) => l.querySelector('.os-label')?.textContent?.trim()))
+      .toEqual(['Alle', 'Produktion', 'Nur Eval', 'Nur Studio-Vorschau']);
+    expect(labels[1].textContent).toContain('Vorschau');   // Produktion nennt sie als ausgeschlossen
+    el.querySelectorAll<HTMLInputElement>('input[type="radio"]')[3].click();
+    expect(emitted).toEqual(['probe']);
+  });
+
   it('markiert die gewählte Herkunft und meldet einen Wechsel', async () => {
     const { el, emitted } = await mount('eval');
     const radios = [...el.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
-    expect(radios.map((r) => r.checked)).toEqual([false, false, true]);
+    expect(radios.map((r) => r.checked)).toEqual([false, false, true, false]);
     radios[1].click();
     expect(emitted).toEqual(['production']);
   });

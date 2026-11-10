@@ -32,6 +32,9 @@ from boerdi.i18n.locale import Locale
 
 #: In ``entities``: diese Sitzung ist eine Probe der Studio-Vorschau (nur ``True`` zählt).
 ENTITY_KEY: Final = "_probe"
+#: Plan 2026-11-10, TB-E2: diese Sitzung ist ein Gespräch der Studio-Vorschau — zählt nicht als
+#: Betrieb (``services/session_origin``), schränkt aber nichts ein (kein Trockenlauf).
+VORSCHAU_KEY: Final = "_vorschau"
 
 
 @dataclass
@@ -40,14 +43,16 @@ class _Merker:
     #: nur aus dem Cookie dieses Zuges (``binde``), nie aus der Sitzung
     recht: bool = False
     sprache: Locale = "de"
+    #: TB-E2: nur aus dem Cookie dieses Zuges, wie ``recht``
+    vorschau: bool = False
 
 
 _merker: ContextVar[_Merker | None] = ContextVar("probe_merker", default=None)
 
 
-def binde(aktiv: bool, sprache: Locale = "de") -> None:
+def binde(aktiv: bool, sprache: Locale = "de", *, vorschau: bool = False) -> None:
     """Den Merker des Zuges binden — einmal, vor dem Graphen (``begin_turn``)."""
-    _merker.set(_Merker(aktiv=aktiv, recht=aktiv, sprache=sprache))
+    _merker.set(_Merker(aktiv=aktiv, recht=aktiv, sprache=sprache, vorschau=vorschau or aktiv))
 
 
 def aktiv() -> bool:
@@ -75,13 +80,18 @@ def uebernehmen(entities: dict[str, Any]) -> bool:
     merker = _merker.get()
     if merker is None:
         return False
+    neu = False
+    # TB-E2: das Gespräch der Vorschau merkt sich die Sitzung (nur Herkunft, keine Einschränkung)
+    if merker.vorschau and entities.get(VORSCHAU_KEY) is not True:
+        entities[VORSCHAU_KEY] = True
+        neu = True
     if in_sitzung(entities):
         merker.aktiv = True
-        return False
+        return neu
     if merker.aktiv:
         entities[ENTITY_KEY] = True
         return True
-    return False
+    return neu
 
 
 def trocken_noetig(name: str, args: dict[str, Any]) -> bool:

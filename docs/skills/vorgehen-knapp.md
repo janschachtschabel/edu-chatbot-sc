@@ -231,6 +231,9 @@ durchgerechnetem Beispiel, danach Übungsmaterial anbieten. Keine Suche, keine K
 eine offene Angabe den nächsten Schritt (Klasse, Vorwissen) → Auswahlfeld, sonst Schnellantworten
 mit Übungsangebot.
 
+Formeln als LaTeX: im Satz `\( … \)`, abgesetzt `\[ … \]` (das Widget zeigt sie als Formel).
+Einfache Zahlen und Einheiten ohne LaTeX.
+
 ### Orientierung (M15)
 
 Erstkontakt ohne Anliegen: 3–5 Sätze (finden, erklären, erstellen), dann eine konkrete Frage.

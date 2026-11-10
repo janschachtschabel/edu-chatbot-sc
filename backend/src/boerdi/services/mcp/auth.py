@@ -47,7 +47,8 @@ _turn_block: _ctxvars.ContextVar[str] = _ctxvars.ContextVar("_turn_block", defau
 # ``(fingerabdruck, person, kennung)``, ``None`` = noch nicht gefragt. An den
 # Fingerabdruck gebunden: ein anderer Block gilt erst nach eigener Bestätigung.
 # Gesetzt von ``services/mcp/anmeldung`` zu Beginn jedes Zuges.
-_bestaetigung: _ctxvars.ContextVar[tuple[str, bool, str] | None] = _ctxvars.ContextVar(
+#: Plan 2026-11-10, TB-F1: dazu der Benutzername (4. Stelle) — nur im Zug, nie gespeichert.
+_bestaetigung: _ctxvars.ContextVar[tuple[str, bool, str, str] | None] = _ctxvars.ContextVar(
     "_bestaetigung", default=None)
 
 
@@ -141,10 +142,21 @@ def set_turn_auth_block(raw: str | None) -> bool:
     return True
 
 
-def setze_bestaetigung(*, person: bool, kennung: str = "") -> None:
+def setze_bestaetigung(*, person: bool, kennung: str = "", benutzer: str = "") -> None:
     """Das Ergebnis der Echtheitsprüfung (``services/mcp/anmeldung``) für den gerade
-    gesetzten Block — ``kennung`` ist ein Streuwert der Person, nie der Block."""
-    _bestaetigung.set((caller_fingerprint(), person, kennung))
+    gesetzten Block — ``kennung`` ist ein Streuwert der Person, nie der Block; ``benutzer`` ihr
+    Name im Repositorium (TB-F1, nur für ``X-Edu-User-Id``)."""
+    _bestaetigung.set((caller_fingerprint(), person, kennung, benutzer if person else ""))
+
+
+def benutzername() -> str:
+    """Plan 2026-11-10, TB-F1: der Benutzername der bestätigten Person dieses Zuges für
+    ``X-Edu-User-Id`` (B-API, Weg A) — leer ohne bestätigte, persönliche Anmeldung. Nie loggen."""
+    stand = _bestaetigung.get()
+    if (stand is None or stand[0] != caller_fingerprint() or not stand[1]
+            or not zug_block_wirkt_persoenlich()):
+        return ""
+    return stand[3] if len(stand) > 3 else ""
 
 
 def verwirf_zug_block() -> None:

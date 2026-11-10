@@ -27,6 +27,7 @@
 import { ChatMessage } from '../grouping/message-types';
 import { BOERDI_LOGO_DATA_URL } from '../branding/boerdi-logo';
 import type { TranslateFn } from '../i18n/i18n';
+import { formelnEinsetzen, formelnHerausnehmen, formelNonce } from '../markdown/formel';
 import { stripLatex } from '../markdown/latex';
 import { druckeNachDemLaden, verdrahteDruckknopf } from './print-fenster';
 
@@ -88,7 +89,11 @@ export function printMdToHtml(
   opts: { blockquotes?: boolean } = {},
 ): string {
   const blockquotes = opts.blockquotes !== false;
-  let html = stripLatex(text)
+  // Querschnitts-Review Gruppe E, Befund 5: Formeln wie im Widget (TB-E4) — herausnehmen, am Ende
+  // im DOM einsetzen (nie per String-Ersatz); das Druckfenster zeichnet MathML
+  const nonce = formelNonce();
+  const { text: ohneFormeln, formeln } = formelnHerausnehmen(text, nonce);
+  let html = stripLatex(ohneFormeln, { dollar: false })
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -124,7 +129,7 @@ export function printMdToHtml(
     if (li) { out.push(`<div class="li"><span class="b">•</span> ${li[1]}</div>`); continue; }
     if (line) out.push(`<p>${line}</p>`);
   }
-  return out.join('\n');
+  return formelnEinsetzen(out.join('\n'), formeln, nonce);
 }
 
 /** Markdown-Druck des Inhaltsrahmens (``WidgetModulHost.drucken``)

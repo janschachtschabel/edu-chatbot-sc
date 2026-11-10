@@ -11,15 +11,22 @@
  * (Chat-Shell / Element-Definition 8-5).
  */
 
+import { formelnAlsText } from '../markdown/formel';
+
 /** Markdown-Escapes vor ASCII-Satzzeichen (`\:`, `\.`) — der Ablauf-Treiber escapt eingesetzte
  *  Werte so (AS-3b); vorgelesen und im Studio angezeigt stört der Rückstrich. */
 export function ohneMarkdownEscapes(text: string): string {
-  return text.replace(/\\([!-/:-@[-`{-~])/g, '$1');
+  return text.replace(/\\([!-/:-@[-`{-~])/g, '$1')
+    // Querschnitts-Review Gruppe E: Klammern und `$` maskiert der Treiber als Entität (sonst hielte
+    // das Widget `\(` für eine Formel) — nur diese fünf
+    .replace(/&#(36|40|41|91|93);/g, (_m, code: string) => String.fromCharCode(Number(code)));
 }
 
 /** Entfernt Bold/Italic/Links/Header-Marker/Backticks für TTS-Vorlesetext. */
 export function stripMarkdown(text: string): string {
-  return ohneMarkdownEscapes(text)
+  // Querschnitts-Review Gruppe E, Befund 5: Formeln zuerst als Text — sonst machte
+  // `ohneMarkdownEscapes` aus `\(` eine Klammer und vorgelesen würde „cdot“
+  return ohneMarkdownEscapes(formelnAlsText(text))
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/\[(.*?)\]\(.*?\)/g, '$1')

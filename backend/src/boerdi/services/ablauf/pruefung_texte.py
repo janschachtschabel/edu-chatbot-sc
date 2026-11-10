@@ -67,6 +67,19 @@ _T: Final[dict[str, dict[str, str]]] = {
                                "({{teil.name}}, {{teil.name.pfad}} or {{start.feld}})"},
     "platzhalter_start": {"de": "Schritt {s}: Platzhalter {p} — kein Feld der Startdaten heißt {t}",
                           "en": "Step {s}: placeholder {p} — no start data field is called {t}"},
+    "auftrag_rueckfrage": {"de": "Schritt {s}: der Flow schreibt ins Repositorium — direkt davor "
+                                 "gehört auf jedem Weg eine Rückfrage an die Person (eine Wahl, "
+                                 "deren Antwort zu ihm führt, oder eine Freigabe)",
+                           "en": "Step {s}: the flow writes to the repository — on every path a "
+                                 "question to the person must come directly before it (a choice "
+                                 "leading to it, or an approval)"},
+    "direkt_nur_agent": {"de": "Auslöser {a}: modus direkt gibt es nur am Auslöser agent",
+                         "en": "Trigger {a}: mode direkt exists only for the trigger agent"},
+    "direkt_schreibt": {"de": "Auslöser agent mit modus direkt: der Ablauf schreibt (Werkzeug, "
+                              "Auftrag oder Upload) — er startet daher nie direkt, die KI schlägt "
+                              "ihn per Knopf vor",
+                        "en": "Trigger agent with mode direkt: the workflow writes (tool, job or "
+                              "upload) — so it never starts directly, the AI offers a button"},
     "start_doppelt": {"de": "Startdaten: Feld doppelt: {f}",
                       "en": "Start data: duplicate field: {f}"},
     "start_pflicht_ausloeser": {"de": "Auslöser {a} startet nie: Pflichtfelder in den Startdaten "
@@ -241,8 +254,19 @@ _T: Final[dict[str, dict[str, str]]] = {
                              "werkzeug, agent and auftrag)"},
     "warten": {"de": "Schritt {s}: warten gilt nur an Schritten der Art auftrag",
                "en": "Step {s}: warten only applies to steps of kind auftrag"},
+    "wahl_schreibt": {"de": "Schritt {s}: schreibt an einer Nachricht braucht Schnellantworten "
+                            "(das Label der Wahl wird der Teil)",
+                      "en": "Step {s}: schreibt on a message needs quick replies (the label of "
+                            "the choice becomes the part)"},
     "auftrag_anmeldung": {"de": "Aufträge brauchen die Voraussetzung Anmeldung",
                           "en": "Jobs need the requirement sign-in"},
+    "metadaten_teil": {"de": "Schritt {s}: der Teil heißt {t} — ui_strukturentwurf liest mit "
+                             "aus_inhalten nur den Teil metadaten",
+                       "en": "Step {s}: the part is called {t} — ui_strukturentwurf with "
+                             "aus_inhalten only reads the part metadaten"},
+    "metadaten_anmeldung": {"de": "Das Werkzeug metadaten_lesen braucht die Voraussetzung "
+                                  "Anmeldung",
+                            "en": "The tool metadaten_lesen needs the requirement sign-in"},
     "agent_fehlt": {"de": "Schritt {s}: Art agent braucht den Block agent",
                     "en": "Step {s}: kind agent needs the agent block"},
     "agent_werkzeuge": {"de": "Schritt {s}: 1 bis {max} Werkzeuge erwartet",

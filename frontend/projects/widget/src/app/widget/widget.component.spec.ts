@@ -63,7 +63,7 @@ describe('WidgetComponent', () => {
     expect(c.interceptEduSharingLinks()).toBe(false);
   });
 
-  it('hat genau diese 37 Host-Attribute (§5.5-Kontrakt)', () => {
+  it('hat genau diese Host-Attribute (§5.5-Kontrakt)', () => {
     // Der Attribut-Satz IST der öffentliche Vertrag der Web-Komponente, und er
     // steht zusätzlich in der Studio-Architektur-Referenz
     // (`projects/studio/src/app/views/widget-contract-data.ts`, HOST_ATTRIBUTES).
@@ -80,7 +80,7 @@ describe('WidgetComponent', () => {
       'primaryColor', 'probe', 'quickReplies', 'quickRepliesMax', 'resultSchema', 'sessionCookieDomain',
       'sessionCookieMaxAge',
       'sessionKey', 'showCards', 'showDebugButton', 'showLanguageButtons', 'showWelcome',
-      'size', 'startReplies', 'theme', 'ticket', 'toolMode', 'trustedDomains',
+      'size', 'startReplies', 'theme', 'ticket', 'toolMode', 'trustedDomains', 'vorschau',
     ]);
   });
 
@@ -661,6 +661,21 @@ describe('WidgetComponent', () => {
     expect(spy.mock.calls.at(-1)?.[0]).toBeNull();
     spy.mockRestore();
   });
+
+  it('TB-E2: das Attribut vorschau erreicht die Shell — und nur ein wahrer Wert schaltet sie ein',
+    () => {
+      const f = mount();
+      f.componentInstance.openChatbot();
+      f.detectChanges();
+      const shell = f.componentInstance.shell()! as any;
+      const spy = vi.spyOn(shell, 'setVorschau');
+      f.componentRef.setInput('vorschau', '');
+      f.detectChanges();
+      expect(spy.mock.calls.at(-1)?.[0]).toBe(true);
+      f.componentRef.setInput('vorschau', 'nein');
+      f.detectChanges();
+      expect(spy.mock.calls.at(-1)?.[0]).toBe(false);
+    });
 
   it('AS-8b: das Attribut probe erreicht die Shell — und nur ein wahrer Wert schaltet sie ein', () => {
     const f = mount();

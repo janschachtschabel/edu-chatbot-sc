@@ -99,6 +99,8 @@ describe('WidgetPreviewComponent', () => {
     // Pattern, Quellen und die freigegebenen RAG-Bereiche — ist in der Vorschau
     // also ohnehin erreichbar. Ein explizites Attribut wäre eine Dublette.
     expect(el.getAttribute('show-debug-button')).toBeNull();
+    // Plan 2026-11-10, TB-E2: jedes Gespräch der Vorschau zählt nicht als Betrieb
+    expect(el.getAttribute('vorschau')).toBe('');
   });
 
   it('übernimmt den Seitenkontext erst beim Absenden, nicht beim Tippen', async () => {

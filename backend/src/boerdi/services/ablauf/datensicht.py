@@ -60,6 +60,12 @@ def _werte(ablauf: AblaufArea, test: Any) -> dict[str, Any]:
             continue
         if e.text and s.freitext:
             werte.setdefault(s.freitext.schreibt, e.text)
+        if e.option and s.typ == "nachricht" and s.schreibt:   # TB-T1
+            option = next((o for o in s.optionen or [] if o.id == e.option), None)
+            if option is not None:
+                from boerdi.services.ablauf.treiber import wahl_wert
+
+                werte.setdefault(s.schreibt, wahl_wert(option))
         if e.ergebnis is not None and s.schreibt:
             werte.setdefault(s.schreibt, e.ergebnis)
     return werte

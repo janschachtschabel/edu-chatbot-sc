@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.api.chat_handschlag import handschlag
 from boerdi.api.deps import get_session, get_session_factory, require_studio_key, todo
-from boerdi.api.probe_anfrage import pruefe_probe
+from boerdi.api.probe_anfrage import pruefe_probe, vorschau_erlaubt
 from boerdi.api.publikum import antwort_fuer
 from boerdi.api.ratelimit import peer_ip, zug_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
@@ -63,11 +63,11 @@ public_router = APIRouter(tags=["chat"])
 router = APIRouter(tags=["chat"], dependencies=[Security(require_studio_key)])
 
 
-def turn_kontext(req: ChatRequest, probe: bool) -> TurnContext:
+def turn_kontext(req: ChatRequest, probe: bool, *, vorschau: bool = False) -> TurnContext:
     """Der Zug-Kontext beider Chat-Endpunkte. ``probe`` ist die Entscheidung aus ``pruefe_probe``
     im Vorspann — einmal getroffen (zweites Review AS-8a, Befund 3: eine zweite Prüfung nach
     Handschlag und Sitzungssperre könnte anders ausgehen, und der Zug liefe still echt)."""
-    return TurnContext(req=req, probe=probe)
+    return TurnContext(req=req, probe=probe, vorschau=vorschau or probe)
 
 
 async def _record_usage(session: AsyncSession, session_id: str, state: dict) -> None:
@@ -123,6 +123,7 @@ async def chat(
     """
     pruefe_oeffentliche_kennung(request, req.session_id)  # Paket 19, M-5
     probe_recht = pruefe_probe(request, req)  # Paket AS-8a, Review Befund 3
+    vorschau = not probe_recht and vorschau_erlaubt(request, req)  # TB-E2
     await uebernimm_zugang(request)
     intern = darf_diagnose(request)
     try:
@@ -132,7 +133,8 @@ async def chat(
                     session=session, peer_ip=peer_ip(request),
                     engine=choose_engine(request.headers.get(ENGINE_HEADER)),
                 )
-                result = await run_turn(graph, turn_kontext(req, probe_recht))
+                result = await run_turn(graph, turn_kontext(req, probe_recht,
+                                                            vorschau=vorschau))
                 await _record_usage(session, req.session_id, result)
                 resp = _anmeldestand(result.get("early_response") or result.get("response"),
                                      req, result)
@@ -278,7 +280,7 @@ async def _fehlerblase(
 
 async def _stream_turn(
     req: ChatRequest, request: Request, sitzungen: async_sessionmaker[AsyncSession],
-    engine: str = "pattern", intern: bool = False, probe: bool = False,
+    engine: str = "pattern", intern: bool = False, probe: bool = False, vorschau: bool = False,
 ) -> AsyncIterator[str]:
     """Yield the SSE frames for one streamed turn: connected → phase* → result | error.
 
@@ -327,7 +329,7 @@ async def _stream_turn(
                     engine=engine,
                     on_token=strom,
                 )
-                state = await run_turn(graph, turn_kontext(req, probe))
+                state = await run_turn(graph, turn_kontext(req, probe, vorschau=vorschau))
                 await _record_usage(session, req.session_id, state)
                 return _anmeldestand(state.get("early_response") or state.get("response"),
                                      req, state)
@@ -393,11 +395,13 @@ async def chat_stream(
     # selbst blieb unsichtbar (``parameters`` bleibt ``None``).
     pruefe_oeffentliche_kennung(request, req.session_id)  # Paket 19, M-5
     probe_recht = pruefe_probe(request, req)  # Paket AS-8a, Review Befund 3
+    vorschau = not probe_recht and vorschau_erlaubt(request, req)  # TB-E2
     await uebernimm_zugang(request)
     return StreamingResponse(
         _stream_turn(req, request, sitzungen,
                      engine=choose_engine(request.headers.get(ENGINE_HEADER)),
-                     intern=darf_diagnose(request), probe=probe_recht),
+                     intern=darf_diagnose(request), probe=probe_recht,
+                     vorschau=vorschau),
         media_type="text/event-stream",
         headers={
             # Proxies must not buffer or transform SSE.

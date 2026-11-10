@@ -96,7 +96,12 @@ def antwort_fuer(resp: ChatResponse, intern: bool) -> ChatResponse:
     # Paket AS-Ua: Stand und Merker stehen live an ``ui`` (``api/chat``, ``zug_basis``).
     resp.ui = ui.model_copy(update={"type_focus": resp.ui.type_focus, "ui_bloecke": bloecke,
                                     "ablauf": resp.ui.ablauf,
-                                    "fester_text": resp.ui.fester_text or ui.fester_text})
+                                    "fester_text": resp.ui.fester_text or ui.fester_text,
+                                    "direkt_start": resp.ui.direkt_start})
+    # Review TB-E3, Befund 4: nach der Nachbearbeitung für das Widget (Deckel, Muster-Politik)
+    # gilt der Direktstart nur, wenn sein Knopf noch dasteht — auch für andere Clients
+    if resp.ui.direkt_start and resp.ui.direkt_start not in (resp.quick_replies or []):
+        resp.ui = resp.ui.model_copy(update={"direkt_start": None})
     if not intern:
         resp.debug = None
     return resp

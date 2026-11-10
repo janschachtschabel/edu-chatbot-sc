@@ -41,7 +41,11 @@ Die zugehörigen Pläne:
 
 ## 1 Befunde mit Wirkung im Betrieb
 
-- **Formeln im Widget falsch dargestellt (Nutzer 2026-11-10) — für den nächsten Plan.** Im Widget
+- ~~**Formeln im Widget falsch dargestellt (Nutzer 2026-11-10) — für den nächsten Plan.**~~ **Erledigt
+  10.11. mit TB-E4** (`ui/src/markdown/formel.ts`, MathML; Notiz
+  `aenderungen/2026-11-10-paket-tb-e4-formeln.md`; Druckfenster und Vorlesen seit dem
+  Querschnitts-Review ebenso). Offen bleibt: der Canvas zeigt Formeln als Text (sein Prompt verbietet
+  LaTeX). Ursprünglicher Befund: Im Widget
   werden Formeln für die Person nicht korrekt angezeigt (etwa LaTeX-Ausdrücke in Erklärungen von
   Mathe/Physik). Noch nicht untersucht: welche Schreibweise das Modell liefert (`$…$`, `\(…\)`,
   Unicode), was der Markdown-Weg im Widget daraus macht (Bubble, `ui_inhaltsrahmen`, Druckfenster)
@@ -54,8 +58,10 @@ Die zugehörigen Pläne:
   ohne Pipes, Logo gerundet), BU-2 (`ui_strukturentwurf` nachgeladen) und BU-3 (Debug-Panel
   nachgeladen) brachten das Widget mit AS-Ud auf 186,9 kB gzip, also unter die Warnschwelle von 190.
   Notizen `aenderungen/2026-11-10-paket-bu-*.md`. **Stand 10.11. nach AS-7, AS-8 und den Review-Fixes zu
-  PR #51: 189,3 kB gzip / 653,0 kB roh** (`node scripts/check-widget-budget.mjs`; Grenzen 200 / 690 kB).
-  Angular warnt beim Roh-Budget 650 kB um 3 kB (nur Warnung). Bis zur Warnschwelle 190 kB bleiben 0,7 kB.
+  PR #51: 189,3 kB gzip / 653,0 kB roh**. **Seit TB-E4 (Formeln, Grenzen +10 kB nach Nutzer-Entscheid
+  N5) und den Reviews dazu: 192,4 kB gzip / 661,0 kB roh**; Grenzen 210 / 700 kB, Warnung ab 200 kB
+  gzip, Angular-Warnung ab 660 kB roh, um 1,0 kB überschritten (nur Warnung;
+  `node scripts/check-widget-budget.mjs`).
   **Weiter gilt:** Neue, selten gebrauchte Widget-Oberfläche wird nachgeladen, sobald sie mehr als
   2 kB gzip kostet oder das Bündel über 190 kB triebe (Plan §5j, Ud-5). Nächster Kandidat mit
   Messung: `ui_themenbaum` (18 kB roh).
@@ -77,11 +83,9 @@ Die zugehörigen Pläne:
   - **Versprechen vor dem Auswahlfeld (nur noch bei „Aus“ im Studio):** Den `hinweis` schreibt die KI, bevor
     sie die Schalter kennt. Ist Lesen nur für Angemeldete eingestellt, verspricht er zu viel; das Modul sagt
     es danach richtig. Kandidat: Das Modul nennt die Anmeldung gleich unter dem Hinweis.
-  - **Lesen, dann anmelden:** Ein anonym gelesenes Dokument gehört `aufrufer=None`
-    (`services/dokumente/stand.py`, `ablage.py`). Meldet sich die Person zwischen Lesen und Entwurf an,
-    findet der Entwurf es nicht mehr (`kein_dokument`), und sie muss es noch einmal lesen lassen. Kandidat:
-    beim Laden auch das Dokument derselben Sitzung ohne Besitzerin annehmen und es dann der Person
-    zuschreiben. Das ist ein Entscheid über Besitz, darum offen.
+  - ~~**Lesen, dann anmelden:**~~ **Erledigt 10.11. mit TB-E1** (`ablage.fuer_aufrufer`, Notiz
+    `aenderungen/2026-11-10-paket-tb-e1-dokument-besitz.md`). Offen bleibt nur: Ein anonym begonnener
+    **Vorgang** gehört weiter der Sitzung und ist nach der Anmeldung nicht der der Person.
   - Die Zeile „[ edu-sharing Skill ] Chatbot Masterskill - aktiv“ über den Antworten ist **gewollt**
     (Aktivierungszeile des Master-Skills im WLO-Knoten, Nutzer 10.11.).
 
@@ -199,6 +203,7 @@ Die zugehörigen Pläne:
 
 ## 2 Entscheidungen des Nutzers
 
+- **Entscheide vom 2026-11-10** (Dokument-Besitz, Proben in der Auswertung, Abläufe direkt starten, Formeln + Budget +10 kB, Ort der Umwandlung, T1–T5, MCP-Byte-Werkzeug): festgehalten in [`plans/2026-11-10-themenbaum-aus-inhalten.md`](plans/2026-11-10-themenbaum-aus-inhalten.md) §1; neue offene Fragen F1–F6 und L1–L10 dort in §5.
 - ~~**Preis für `gpt-6-luna` fehlt in der Preistafel des Seeds**~~ — erledigt 2026-10-18: die Werksfassung `01-base/pricing` trägt die OpenAI-Listenpreise (Standard, kurzer Kontext) in **USD** (Nutzer-Entscheid; hebt „Seed ohne Preise“ auf). Nicht abgebildet: Cache-Schreibpreise, langer Kontext, abweichende Abrechnung über b-api/AcademicCloud. Achtung Präfix-Suche: eine ungelistete Variante (etwa `gpt-5.4-nano`) bekäme still den Preis von `gpt-5.4`. Eine Anlage, deren Preistafel unberührt ist, übernimmt die Preise beim nächsten Werksabgleich (`migrate`).
 Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — in [`entscheidungen-offen.md`](entscheidungen-offen.md). Die Entscheide vom 2026-10-09 sind in Paket 7 und Paket 8 umgesetzt (siehe die Plan-Liste oben); offen ist:
 
@@ -275,8 +280,9 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   nicht. Es bleibt dabei: Nur ein Zug der Person fragt ab („Stand prüfen“ bzw. `ui_fortschritt`).
   - Ebenfalls geklärt: K16 (Start-Pfad `/api/v1/jobs/flows/{flow}`) und K21 (Abbruch per `DELETE`; der
     Chatbot bricht seit dem Job-Paket 2026-11-08 ersetzte und abgebrochene Aufträge auch bei der B-API ab).
-  - Offen bleibt K18, `X-Edu-User-Id`. Am Staging gemessen ist die Kennung der Benutzername (`authority`).
-    Ob die B-API sie gegen den Schlüssel prüft, ist offen; bis dahin nur Flows ohne Repository-Scopes.
+  - K18 `X-Edu-User-Id` ist seit 10.11. vorläufig umgesetzt (TB-F1, Nutzer-Entscheid N13: Benutzername aus `authority`, nur beim Start); offen ist nur noch, ob die B-API die interne ID erwartet. Am Staging gemessen ist der Benutzername (`authority`).
+    Ob die B-API sie gegen den Schlüssel prüft, ist offen. Seit TB-F1 sind schreibende Flows erlaubt
+    (Vermerk `repo_schreibt`, Rückfrage direkt davor); der Kopf geht nur beim Start mit.
   - Ohne Abbruch bei der B-API (Nachprüfung Job-Paket 2026-11-08; der Job läuft dort zu Ende und zählt bis
     dahin auf die Grenze von 20 je Schlüssel):
     - ~~Verdrängen in `vorgaenge.anlegen` nimmt einen wartenden Lauf per Kaskade mit.~~ Erledigt in K2a:
@@ -296,8 +302,38 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   eigenen Ablagen). T1b erledigt in M6 (`aenderungen/2026-11-07-paket-m6-letzte-ablagen.md`). (`ui-upload.element.ts` ist seit Q4 geteilt.) Bewusst
   angehoben: Budget je nachgeladenem Modul 15 → 20 kB gzip (`ui-upload` 17,9 kB seit dem Review vom 07.11.).
 
+- **Themenbaum aus Inhalten, Gruppen F/T (2026-11-10, offen):** Plan
+  [`2026-11-10-themenbaum-aus-inhalten.md`](plans/2026-11-10-themenbaum-aus-inhalten.md), Notizen
+  `aenderungen/2026-11-10-paket-tb-{f1,f2,t1,t2}*.md` und `…-querschnitt-gruppe-ft.md`.
+  - **Limit je Job (N14):** fehlt. Der Auftrag schickt alle abgelegten nodeIds eines Stapels (bis
+    200). `metadaten_lesen` liest 50, der Rest steht in `fehlend`.
+  - **`X-Edu-User-Id`** geht nur beim Start mit, nicht bei „Stand prüfen“, Abbruch und Datei. Ob
+    die B-API ihn dort braucht, klärt die Staging-Probe. Bei einer 400 käme „Stand prüfen“ ohne
+    Ende.
+  - **F7:** Ob ein `FAILED` des Flows einen Bericht trägt, ist offen. Der Ablauf geht dann ohne
+    Bericht zu `metadaten_fehlt`.
+  - **Staging-Probe:**
+    - Der Flow muss in `B_API_JOBS_FLOWS` stehen.
+    - Der B-API-Schlüssel muss ihn starten dürfen (F9).
+    - Testperson, eigene Testknoten, danach entfernen; den Umfang klein halten.
+  - **`language: de`** ist im Seed fest. Für englischsprachige Personen schreibt der Flow deutsche
+    Metadaten.
+  - **Noch nicht gebaut:**
+    - Sammlungen aus dem Entwurf anlegen (TB-3 Schritt 6);
+    - Start aus der Sammlungsseite (Startdaten `sammlung`);
+    - Raster-Warnungen (TB-4).
+
 ## 4 Beim nächsten Deploy
 
+- **Themenbaum, Gruppen E/F/T (2026-11-10):**
+  - Migration 0022 (`sessions.vorschau`, TB-E2) einspielen.
+  - Image neu bauen (Widget mit Formeln, Studio, Backend).
+  - Danach `import-config --werksabgleich`: neue Seeds `themenbaum_aus_thema` und
+    `themenbaum_aus_inhalten` (beide aus), neuer Titel von `sammlungsstruktur`.
+  - Für „aus eigenen Inhalten“ zusätzlich:
+    - Ablage in WLO im Studio unter „Datei-Upload“;
+    - den Flow in `B_API_JOBS_FLOWS`;
+    - die Rechte des B-API-Schlüssels.
 - **Abläufe im Studio AS-1…AS-3 (2026-11-09):** keine Migration, keine neue Variable. Das Image neu
   bauen (Widget, Studio, Backend in einem `Dockerfile`): Die Bibliothek `ui` hat sich geändert
   (Sprachausgabe löst die Escapes eingesetzter Platzhalter auf). Danach im Browser einmal hart neu
@@ -332,8 +368,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   Je Ablauf mit Auslöser `agent` ein KI-Werkzeug `ablauf-<id>` (Startschema als Parameter), Knopf
   mit `start_quelle: "ki"` (ohne Rechte aus Option 2); `ablauf_vorschlagen` entfällt. **Sperrt:** ein
   gespeicherter Ablauf mit Auslöser `agent` und Startfeldern ohne Beschreibung lässt sich erst nach
-  dem Nachtragen wieder speichern/testen (Befund `start_beschreibung`; im Werk keiner). Offen:
-  AS-5c (`direkt`). Notiz `aenderungen/2026-11-10-paket-as-5a-…`.
+  dem Nachtragen wieder speichern/testen (Befund `start_beschreibung`; im Werk keiner). AS-5c
+  (`direkt`) ist seit 10.11. als TB-E3 umgesetzt. Notiz `aenderungen/2026-11-10-paket-as-5a-…`.
 - **AS-5b (2026-11-10):** Backend-Image neu. Muster nennen `ablauf-<id>` in `tools:` (Katalog
   `tools`); dieselben Werkzeuge und Knöpfe wie im Agent-Modus. Notiz `…-paket-as-5b-…`.
   Drei Reviews (AS-5b, Querschnitt AS-5, zweites Review) behoben. Der offene Punkt „Wahl mit ≥ 4
@@ -356,6 +392,9 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   anderen Gespräch löschen. Läuft dort ein Auftrag, endet er bei der b-api (ohne den Schlüssel der
   Person sagt das Widget, dass er weiterläuft). Nach dem Querschnitts-Review (Plan §5k): auch der
   Verlaufsabruf trägt den Zugangsblock (Leiste nach dem Neuladen).
+- **Gruppe E des Plans 2026-11-10 (TB-E1…E4):** Migration **0022** (`sessions.vorschau`, TB-E2) im
+  `migrate`-Dienst; Image neu bauen (Widget, Studio, Backend). Notizen
+  `aenderungen/2026-11-10-paket-tb-e*.md`.
 - **PR #51 (AS-0…AS-8, Upload 2026-11-10) — Dokumente ohne Anmeldung:** Seit dem Nutzer-Entscheid
   vom 10.11. steht `dokument_ohne_anmeldung` in `upload-config` auf **an** (Vorgabe im Modell
   `UploadConfig`; der Seed setzt den Schalter nicht). Nach dem Deploy dürfen also auch **anonyme** Personen ein Dokument in den Chat lesen lassen
@@ -580,9 +619,11 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 6 Zurückgestellte Plan-Teile
 
-- **AS-5c `direkt` (Plan 2026-11-09 §5g, A5-5):** Start eines Ablaufs durch die KI ohne Knopf — erst
-  mit Treiber-Ausgabe im selben Zug und eigener Bremse gegen Schleifen; bis dahin schlägt die KI
-  immer per Knopf vor.
+- ~~**AS-5c `direkt` (Plan 2026-11-09 §5g, A5-5):**~~ **Umgesetzt 10.11. als TB-E3** (Notiz
+  `aenderungen/2026-11-10-paket-tb-e3-ablauf-direkt.md`): `modus: direkt`, das Widget drückt den Knopf.
+  Offen als Folgepunkte: Die Ablauf-Übersicht im Studio zeigt den Modus nicht an (die Liste liefert nur
+  die Art des Auslösers; Querschnitts-Review Gruppe E, Befund 6). Der automatische Klick erscheint wie
+  ein Klick der Person (Review TB-E3, Befund 7).
 
 - **MCP-Vertrag (2026-11-07), bewusst nicht gebaut oder verschoben:**
   - `resolve_wlo_filters` als interne Filterauflösung: unsere Argumentauflösung macht dasselbe vor jeder Suche; eine

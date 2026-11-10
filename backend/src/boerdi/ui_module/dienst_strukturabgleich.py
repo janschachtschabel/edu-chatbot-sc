@@ -79,8 +79,12 @@ async def _sammlung(node_id: str) -> dict[str, Any] | str:
     return roh if isinstance(roh, dict) else "sammlung"
 
 
+#: Querschnitts-Review Gruppe E: Klammern als Entität — ``\(``/``\[`` wäre im Widget eine Formel.
+_ENTITAETEN: Final = {"(": "&#40;", ")": "&#41;", "[": "&#91;", "]": "&#93;"}
+
+
 def _md(titel: str) -> str:
-    return _MARKDOWN.sub(r"\\\1", titel)
+    return _MARKDOWN.sub(lambda m: _ENTITAETEN.get(m.group(1), "\\" + m.group(1)), titel)
 
 
 def textfassung(daten: dict[str, Any]) -> str:

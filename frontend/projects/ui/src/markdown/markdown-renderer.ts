@@ -20,6 +20,7 @@ import { marked } from 'marked';
 
 import { ICONS } from '../icons/icons';
 import type { TranslateFn } from '../i18n/i18n';
+import { formelnEinsetzen, formelnHerausnehmen, formelNonce } from './formel';
 import { stripLatex } from './latex';
 
 /** Mapping vom ``@@ICON:NAME@@``-Sentinel auf den Katalog-Schlüssel des
@@ -143,7 +144,11 @@ export class MarkdownRenderer {
     );
     // LaTeX-Stripping via gemeinsamen Helper — wandelt ``\frac12``,
     // ``\frac{1}{2}``, ``\sqrt{2}`` und ``$x$`` in lesbaren Text.
-    const withoutLatex = stripLatex(withoutCanvasSentinel);
+    // TB-E4: Formeln in \(…\), \[…\], $$…$$, $…$ zuerst herausnehmen — sie werden MathML; nur
+    // LaTeX außerhalb davon wandelt `stripLatex` (vorher zerlegte es die Formeln, „(⅔\cdot…)“).
+    const nonce = formelNonce();
+    const { text: ohneFormeln, formeln } = formelnHerausnehmen(withoutCanvasSentinel, nonce);
+    const withoutLatex = stripLatex(ohneFormeln, { dollar: false });
     // Backend-Sentinel ``@@ICON:NAME@@`` durch Inline-SVG-Span ersetzen,
     // bevor marked parsed. Ersatz passiert VOR marked, damit das Span IN den
     // ``<a>``-Tag wandert (Sentinel steht innerhalb der Link-Klammern beim
@@ -177,12 +182,16 @@ export class MarkdownRenderer {
     // überleben — das ``svg``-Profile erlaubt die nötigen Tags + Attribute.
     // Sicherheit: Skript-Tags, on*-Attribute usw. werden trotzdem gestripped,
     // weil HTML+SVG-Profile additiv sind.
-    const clean = DOMPurify.sanitize(html, {
+    const gereinigt = DOMPurify.sanitize(html, {
       ADD_ATTR: ['target', 'rel', 'data-bb-type'],
       USE_PROFILES: { html: true, svg: true, svgFilters: true },
       FORBID_TAGS: [...NACHLADENDE_TAGS, ...FORMULAR_TAGS],
       FORBID_ATTR: [...NACHLADENDE_ATTRIBUTE, ...FORMULAR_ATTRIBUTE, ...SVG_LINK_ATTRIBUTE],
     });
+    // TB-E4: das MathML erst NACH DOMPurify und im DOM (`formelnEinsetzen`, Review TB-E4: nie
+    // per String-Ersatz, nie in Attribute). DOMPurify bekommt kein MathML-Profil: rohes
+    // `<math href=…>` aus dem Modelltext bleibt so verboten.
+    const clean = formelnEinsetzen(gereinigt, formeln, nonce);
     // Post-Process: (1) Externe Links (NICHT auf der Trusted-Hosts-Liste)
     // in neuem Tab öffnen — Tabnabbing-sicher via ``rel="noopener noreferrer"``.
     // Trusted-Hosts bleiben same-tab, damit das Outgoing-Link-Rewrite des

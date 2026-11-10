@@ -150,3 +150,47 @@ def test_list_laesst_sich_nach_herkunft_filtern(test_db) -> None:
     assert [r["session_id"] for r in echt] == ["bb-1"]
     assert [r["session_id"] for r in ev] == ["eval-1"]
     assert len(alle) == 3
+
+
+def test_tb_e2_proben_der_studio_vorschau_zaehlen_nicht_als_betrieb(test_db) -> None:
+    """Plan 2026-11-10, TB-E2: eine Probe-Sitzung (``entities._probe``) fehlt in „Produktion“ und
+    steht allein unter „probe“; „alle“ zeigt sie weiter."""
+    from boerdi.services.db_sessions import get_or_create_session
+    from boerdi.services.session_admin import list_sessions_admin
+
+    async def scenario(session):
+        for sid in ("bb-echt-1", "bb-probe-1", "eval-1"):
+            await get_or_create_session(session, sid)
+        await session.execute(text("UPDATE sessions SET vorschau = true "
+                                   "WHERE session_id = 'bb-probe-1'"))
+        await session.commit()
+        return (await list_sessions_admin(session, scope="production"),
+                await list_sessions_admin(session, scope="probe"),
+                await list_sessions_admin(session))
+
+    echt, probe, alle = _run(scenario)
+    assert [r["session_id"] for r in echt] == ["bb-echt-1"]
+    assert [r["session_id"] for r in probe] == ["bb-probe-1"]
+    assert len(alle) == 3
+
+
+def test_tb_e2_review_1_die_aufbewahrung_nimmt_die_herkunft_nicht_mit(test_db) -> None:
+    """Review TB-E2, Befund 1: die Aufbewahrung leert ``entities`` nach der Frist — die Herkunft
+    steht in der Spalte ``vorschau`` und bleibt."""
+    from boerdi.services.db_sessions import get_or_create_session, vorschau_markieren
+    from boerdi.services.session_admin import list_sessions_admin
+
+    async def scenario(session):
+        await get_or_create_session(session, "bb-vorschau-2")
+        await vorschau_markieren(session, "bb-vorschau-2")
+        # wie ``aufbewahrung._stand_leeren``
+        await session.execute(text("UPDATE sessions SET entities = '{}'::jsonb, "
+                                   "signal_history = '[]'::jsonb, tour_state = '{}'::jsonb"))
+        await session.commit()
+        return (await list_sessions_admin(session, scope="production"),
+                await list_sessions_admin(session, scope="probe"))
+
+    echt, probe = _run(scenario)
+    assert echt == []
+    assert [r["session_id"] for r in probe] == ["bb-vorschau-2"]
+

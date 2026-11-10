@@ -265,7 +265,9 @@ async def pattern_usage(
     since: str | None = Query(None, description="ISO timestamp floor"),
     scope: str = Query(
         "all",
-        description="'all' | 'eval' (session_id LIKE eval-%) | 'production' (not eval-)",
+        description="'all' | 'eval' (session_id LIKE eval-%) | 'production' (ohne Eval, "
+                    "Lasttest, Studio-Probeläufe und Studio-Vorschau) | 'probe' "
+                    "(nur Studio-Vorschau)",
     ),
     engine: Literal["pattern", "agent"] | None = Query(
         None, description="Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",

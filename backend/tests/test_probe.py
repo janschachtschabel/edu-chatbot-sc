@@ -340,10 +340,18 @@ def test_setup_haelt_eine_neue_probe_sofort_an_der_sitzung_fest(monkeypatch):
     monkeypatch.setattr(setup_mod, "get_or_create_session", zeile)
     monkeypatch.setattr(setup_mod, "get_messages", verlauf)
     monkeypatch.setattr(setup_mod, "update_session", merken)
+    markiert: list = []
+
+    async def vorschau(_s, sid):
+        markiert.append(sid)
+
+    monkeypatch.setattr(setup_mod, "vorschau_markieren", vorschau)
     probe.binde(True)
     ctx = asyncio.run(setup_mod.setup(TurnContext(req=_chat(True), probe=True), object()))
     assert ctx.session_state["entities"][probe.ENTITY_KEY] is True
     assert any(s.get("entities", {}).get(probe.ENTITY_KEY) is True for s in gespeichert)
+    # Review TB-E2, Befund 1/2: die Herkunft auch als Spalte — eine Probe ist immer Vorschau
+    assert markiert == ["sitzung-0123456789"]
 
 
 # ── Review AS-8a, Befund 1: Probe- und echte Vorgänge bleiben getrennt ─────────────────────────

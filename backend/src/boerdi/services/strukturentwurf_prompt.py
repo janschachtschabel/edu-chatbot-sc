@@ -81,6 +81,28 @@ def oben_aus_dokument(*, thema: str, fach: str | None, bildungsstufe: str | None
                                   "dokument": {"gliederung": gliederung, "anfang": anfang}})
 
 
+def oben_aus_inhalten(*, thema: str, fach: str | None, bildungsstufe: str | None,
+                      anzahl_oben: int, hinweise: str, gliederung: str, anfang: str
+                      ) -> list[dict[str, Any]]:
+    """TB-T1: die obere Ebene aus den Materialien der Person — wie :func:`oben_aus_dokument`,
+    aber die Abschnitte sind Materialien (Titel, Beschreibung, Schlagworte), die zu Themen gruppiert
+    werden statt einer Ordnung zu folgen."""
+    aufgabe = (
+        "Aufgabe: die obere Ebene eines Themenbaums AUS DEN MATERIALIEN der Person — \"dokument\" "
+        "enthält die Liste ihrer Materialien (Titel mit Kennungen [aN]) und den Anfang ihrer "
+        "Beschreibungen. Ordne die Materialien thematisch zu Punkten; ein Punkt fasst "
+        "zusammengehörige Materialien zusammen, ein Material darf zu mehreren Punkten passen. "
+        "Benenne Punkte nach dem Thema, nicht nach einem Dateinamen. Ergänze kein Thema, das die "
+        "Materialien nicht tragen, außer \"hinweise\" verlangt es. Höchstens \"anzahl_oben\" "
+        "Punkte. Antwort: {\"titel\": Titel des Themenbaums, \"fach\": Fach oder null, "
+        "\"bildungsstufe\": Stufe oder null, \"knoten\": [Punkte]}. Je Punkt zusätzlich "
+        "\"abschnitte\": die Kennungen (\"a3\" …) der Materialien, die zu ihm gehören, 1 bis 12. "
+        f"\"unterthemen\" je Punkt 0 bis {UNTERTHEMEN_OBEN}.")
+    return _nachrichten(aufgabe, {"thema": thema, "fach": fach, "bildungsstufe": bildungsstufe,
+                                  "anzahl_oben": anzahl_oben, "hinweise": hinweise,
+                                  "dokument": {"gliederung": gliederung, "anfang": anfang}})
+
+
 def unterthemen(*, entwurf: str, thema: str, fach: str | None, bildungsstufe: str | None,
                 hinweise: str, pfad: list[str], knoten: dict[str, Any], geschwister: list[str],
                 anzahl: int, letzte_ebene: bool, vorhanden: list[str] | None = None,

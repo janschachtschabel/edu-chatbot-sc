@@ -11,11 +11,14 @@ Vertrag (B-API-Handbuch 2026-11-07, am Staging gemessen):
 
 Regeln dieses Clients:
 
-- **Betrieb schaltet frei:** nur Flows aus ``B_API_JOBS_FLOWS`` (:func:`erlaubt`), nur lesende.
+- **Betrieb schaltet frei:** nur Flows aus ``B_API_JOBS_FLOWS`` (:func:`erlaubt`).
 - **Schlüssel des Zuges** (``llm_auth.b_api_schluessel``) — nie gespeichert, nie geloggt. Deshalb
   fragt nur ein Zug der Person ab, kein Hintergrund-Wächter. Dass es der **durchgereichte**
   Schlüssel der Person ist (nicht ``B_API_KEY`` aller), prüft ``auftrag_zug`` (Review K1a, 1).
-- **Kein ``X-Edu-User-Id``** (K18 offen): ohne geprüfte Bedeutung ginge sonst eine Identität mit.
+- **``X-Edu-User-Id`` beim Start** (Plan 2026-11-10, TB-F1, Nutzer-Entscheid N13): der
+  Benutzername der bestätigten Person (``auth.benutzername``) — der Job arbeitet im Repositorium mit
+  ihren Rechten (B-API-Leitfaden §9.1, Weg A). Ohne bestätigte Anmeldung fehlt der Kopf.
+- **Schreibende Flows** sind erlaubt (N15); der Schritt trägt dann den Vermerk ``repo_schreibt``.
 - **Dateien** nur als Name und Größe: die Adresse kann ein Token tragen. Paket K2d-2: dazu die
   Kennung (``outputId``); geholt wird über eine Adresse, die der Client aus Job-ID und Kennung
   selbst bildet (:func:`datei`), nie über ``downloadUrl``.
@@ -151,10 +154,12 @@ def _koepfe() -> dict[str, str]:
     return koepfe
 
 
-async def _anfrage(methode: str, pfad: str, **mehr: Any) -> httpx.Response:
+async def _anfrage(methode: str, pfad: str, *, extra_koepfe: dict[str, str] | None = None,
+                   **mehr: Any) -> httpx.Response:
     try:
         async with httpx.AsyncClient(timeout=_FRIST, transport=_transport) as http:
-            return await http.request(methode, _wurzel() + pfad, headers=_koepfe(), **mehr)
+            return await http.request(methode, _wurzel() + pfad,
+                                      headers={**_koepfe(), **(extra_koepfe or {})}, **mehr)
     except (httpx.HTTPError, httpx.InvalidURL) as fehler:
         logger.warning("Auftrag: b-api nicht erreichbar (%s)", type(fehler).__name__)
         raise AuftragFehler("fehler") from fehler
@@ -170,7 +175,7 @@ def _pruefe_antwort(antwort: httpx.Response) -> dict[str, Any]:
         raise AuftragFehler("voll", warte_s=_wartezeit(antwort))
     if antwort.status_code == 400:
         # Eingaben passen nicht zum Schema des Flows — oder ein Repository-Scope ohne
-        # ``X-Edu-User-Id`` (den der Chatbot bewusst noch nicht sendet).
+        # ``X-Edu-User-Id`` (ohne bestätigte Anmeldung, TB-F1).
         raise AuftragFehler("eingaben")
     if antwort.status_code in (401, 403):
         raise AuftragFehler("abgewiesen")
@@ -196,7 +201,11 @@ async def starten(flow: str, eingaben: dict[str, Any]) -> str:
     if not erlaubt(flow):
         raise AuftragFehler("nicht_erlaubt")
     pfad = (_vorlage(get_settings().b_api_jobs_start_path) or "").replace("{flow}", flow)
-    daten = _pruefe_antwort(await _anfrage("POST", pfad, json=eingaben))
+    from boerdi.services.mcp import auth
+
+    # TB-F1: im Namen der angemeldeten Person (Weg A) — nur beim Start, nie geloggt
+    person = {"X-Edu-User-Id": name} if (name := auth.benutzername()) else {}
+    daten = _pruefe_antwort(await _anfrage("POST", pfad, json=eingaben, extra_koepfe=person))
     job = next((daten[k] for k in ("jobId", "job_id", "id") if isinstance(daten.get(k), str)), "")
     if not _ID.fullmatch(job):
         logger.warning("Auftrag: Start ohne brauchbare Job-ID")

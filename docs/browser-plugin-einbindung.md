@@ -289,6 +289,7 @@ Alle Werte sind HTML-Attribute, also Zeichenketten. Boolesche Attribute nehmen
 | `ablauf-start` | — | Kennung eines Ablaufs, der beim ersten Öffnen startet (öffnet nicht von selbst). Mit Daten nur Abläufe mit dem Auslöser „Gastseite“; läuft er schon mit denselben Daten, geht es dort weiter (§5, `startAblauf`) |
 | `ablauf-start-daten` | — | Startdaten dazu als JSON-Objekt. Kaputtes JSON startet nichts (eine Warnung in der Konsole, ohne Werte) |
 | `probe` | `false` | Nur für die Studio-Vorschau (Paket AS-8): jeder Zug als Trockenlauf — nichts wird in WLO geschrieben, kein Auftrag startet, nichts wird abgelegt; im Widget steht ein Etikett. Gilt nur mit Studio-Anmeldung auf derselben Herkunft, sonst weist das Backend jeden Zug ab (403). Nur beim Erzeugen setzen: die Sitzung bleibt im Backend Probe, auch wenn das Attribut später wegfällt. Auf Gastseiten nicht setzen |
+| `vorschau` | `false` | Nur für die Studio-Vorschau (Plan 2026-11-10, TB-E2): die Sitzung zählt in Auswertung, Kosten und Sitzungsliste nicht als Betrieb (Datenbasis „Nur Studio-Vorschau“). Schränkt nichts ein (anders als `probe`). Gilt nur mit Studio-Anmeldung auf derselben Herkunft; ohne sie bleibt es wirkungslos, ohne Fehler. Auf Gastseiten nicht setzen |
 | `fortsetzen-vorgang` | — | Kennung eines Vorgangs (etwa aus einer Benachrichtigung): öffnet den Chat und führt die angemeldete Besitzerin zurück ins Gespräch (§5, `vorgangFortsetzen`) |
 | `fortsetzen-auftrag` | — | Job-ID eines Auftrags: wie `fortsetzen-vorgang`; wartet der Lauf auf den Auftrag, fragt der Chat gleich „Stand prüfen“ |
 
@@ -323,6 +324,7 @@ einer Template-Bindung — die nächste Auswertung nimmt den neuen Wert.
 | `intercept-edu-sharing-links`, `emit-guide-suggestion`, `emit-routing-debug`, `emit-query-meta` | werden beim Ereignis gelesen |
 | `trusted-domains` | `computed`, mit der Backend-Liste gemergt |
 | `probe` | Effect → `shell.setProbe()`; `startAblauf()` und der Start aus `ablauf-start` übernehmen es synchron. **Achtung:** die Sitzung bleibt im Backend Probe, auch wenn das Attribut später wegfällt — nur beim Erzeugen setzen (die Studio-Vorschau baut dafür jedes Mal ein neues Element) |
+| `vorschau` | Effect → `shell.setVorschau()`; das Backend merkt die Sitzung (`entities._vorschau`), sie bleibt markiert |
 
 **B · Wirkt erst beim nächsten Neustart des Chats.** Die Bindung ist live, aber
 die einzige Stelle, die sie liest, läuft nur beim Öffnen und bei „Neu starten"

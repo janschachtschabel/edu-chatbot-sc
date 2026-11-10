@@ -778,7 +778,8 @@
             "title": "Modus",
             "type": "string",
             "x-choices": [
-              "vorschlagen"
+              "vorschlagen",
+              "direkt"
             ]
           },
           "muster": {
@@ -1141,6 +1142,11 @@
                 "type": "null"
               }
             ]
+          },
+          "vorschau": {
+            "default": false,
+            "title": "Vorschau",
+            "type": "boolean"
           }
         },
         "required": [
@@ -3225,6 +3231,23 @@
               ]
             }
           },
+          "repo_schreibt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo Schreibt",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
+          },
           "schreibt": {
             "anyOf": [
               {
@@ -3239,6 +3262,7 @@
               "feld": "typ",
               "werte": [
                 "auftrag",
+                "nachricht",
                 "werkzeug"
               ]
             }
@@ -3247,7 +3271,8 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "type": "string",
+                  "x-widget": "textarea"
                 },
                 "type": "object"
               },
@@ -4103,6 +4128,17 @@
                 "type": "null"
               }
             ]
+          },
+          "direkt_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direkt Start"
           },
           "dokumente": {
             "deprecated": true,
@@ -7437,13 +7473,13 @@
             }
           },
           {
-            "description": "'all' | 'eval' (session_id LIKE eval-%) | 'production' (not eval-)",
+            "description": "'all' | 'eval' (session_id LIKE eval-%) | 'production' (ohne Eval, Lasttest, Studio-Probeläufe und Studio-Vorschau) | 'probe' (nur Studio-Vorschau)",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'eval' (session_id LIKE eval-%) | 'production' (not eval-)",
+              "description": "'all' | 'eval' (session_id LIKE eval-%) | 'production' (ohne Eval, Lasttest, Studio-Probeläufe und Studio-Vorschau) | 'probe' (nur Studio-Vorschau)",
               "title": "Scope",
               "type": "string"
             }
@@ -8659,17 +8695,18 @@
             }
           },
           {
-            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen, ohne die Studio-Vorschau) | 'eval' | 'probe' (nur die Studio-Vorschau)",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen, ohne die Studio-Vorschau) | 'eval' | 'probe' (nur die Studio-Vorschau)",
               "enum": [
                 "all",
                 "production",
-                "eval"
+                "eval",
+                "probe"
               ],
               "title": "Scope",
               "type": "string"
@@ -8739,13 +8776,13 @@
         "operationId": "degradations_api_quality_degradations_get",
         "parameters": [
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -8826,13 +8863,13 @@
         "operationId": "empty_entities_api_quality_empty_entities_get",
         "parameters": [
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -8955,13 +8992,13 @@
             }
           },
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -9060,13 +9097,13 @@
             }
           },
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -9195,13 +9232,13 @@
         "operationId": "low_confidence_api_quality_low_confidence_get",
         "parameters": [
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -9294,13 +9331,13 @@
         "operationId": "quality_matrix_api_quality_matrix_get",
         "parameters": [
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -9383,13 +9420,13 @@
         "operationId": "state_transitions_api_quality_state_transitions_get",
         "parameters": [
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -9486,13 +9523,13 @@
         "operationId": "quality_stats_api_quality_stats_get",
         "parameters": [
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -9561,13 +9598,13 @@
         "operationId": "tight_races_api_quality_tight_races_get",
         "parameters": [
           {
-            "description": "'all' | 'production' | 'eval'",
+            "description": "'all' | 'production' | 'eval' | 'probe'",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "'all' | 'production' | 'eval'",
+              "description": "'all' | 'production' | 'eval' | 'probe'",
               "title": "Scope",
               "type": "string"
             }
@@ -10222,17 +10259,18 @@
         "operationId": "list_sessions_api_sessions__get",
         "parameters": [
           {
-            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen, ohne die Studio-Vorschau) | 'eval' | 'probe' (nur die Studio-Vorschau)",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen, ohne die Studio-Vorschau) | 'eval' | 'probe' (nur die Studio-Vorschau)",
               "enum": [
                 "all",
                 "production",
-                "eval"
+                "eval",
+                "probe"
               ],
               "title": "Scope",
               "type": "string"
@@ -11509,17 +11547,18 @@
             }
           },
           {
-            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen, ohne die Studio-Vorschau) | 'eval' | 'probe' (nur die Studio-Vorschau)",
             "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen, ohne die Studio-Vorschau) | 'eval' | 'probe' (nur die Studio-Vorschau)",
               "enum": [
                 "all",
                 "production",
-                "eval"
+                "eval",
+                "probe"
               ],
               "title": "Scope",
               "type": "string"

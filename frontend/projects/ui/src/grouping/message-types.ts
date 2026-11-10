@@ -137,6 +137,9 @@ export interface UiInfo {
   ablauf?: AblaufStand | null;
   /** Paket AS-Ua: ein fester Text des Ablaufs — ohne Etikett „KI-generierte Antwort“. */
   fester_text?: boolean;
+  /** Plan 2026-11-10, TB-E3: nur live — dieser Knopf aus `quick_replies` startet einen Ablauf,
+   *  den die KI direkt startet; das Widget drückt ihn nach dem Zug. */
+  direkt_start?: string | null;
   pattern?: string;
   intent?: string;
   state?: string;

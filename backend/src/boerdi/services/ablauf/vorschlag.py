@@ -11,8 +11,10 @@
   So formuliert die KI nie selbst einen Knopf; der Start läuft wie jeder Knopf durch Preflight und
   Sicherheitsprüfung, und Daten der KI tragen nie die Rechte der Gastseite (A5-3).
 
-``direkt`` (sofort starten) bleibt offen (AS-5c): es bräuchte Treiber-Ausgabe mitten in der
-Agent-Antwort.
+``direkt`` (Plan 2026-11-10, TB-E3, Nutzer-Entscheid N4): kein Treiber mitten in der Antwort —
+der Knopf entsteht wie beim Vorschlag, die Zusammenstellung merkt ihn (:data:`DIREKT_KEY`), die
+Antwort trägt ihn in ``ui.direkt_start`` (:func:`direkt_fuer_antwort`) und das Widget drückt ihn
+nach dem Zug. Nur für Abläufe, die nichts schreiben (``werkzeuge.ablauf_schreibt``).
 """
 
 from __future__ import annotations
@@ -29,7 +31,6 @@ from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
 from boerdi.services.ablauf import ausloeser, startdaten
 from boerdi.services.ablauf import werkzeuge as werkzeuge_mod
 from boerdi.ui_module.antwort import NACH_DER_FRAGE
-from boerdi.ui_module.namen import UPLOAD
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ _REEXPORT = (MUSTER_KEY, PRAEFIX, ist_ablauf_werkzeug, kennung)
 #: Im ``session_state``: die Vorschläge dieses Zugs (``{ablauf, start?}``), gelesen (und entfernt)
 #: beim Zusammenstellen.
 SITZUNG_KEY: Final = "_ablauf_vorschlaege"
+#: TB-E3: im ``session_state`` der Knopf, den das Widget nach diesem Zug selbst drückt.
+DIREKT_KEY: Final = "_ablauf_direkt"
 MAX_JE_ZUG: Final = 1
 #: A5-7: die Schemas reisen in jedem Agent-Zug mit (Kosten, Cache).
 MAX_WERKZEUGE: Final = 6
@@ -51,6 +54,10 @@ _LABEL_ZEICHEN: Final = 60
 QUITTUNG: Final = ("Vorschlag angenommen: unter deiner Antwort erscheint ein Knopf, mit dem die "
                    "Person den Ablauf startet. Sag ihr in einem Satz, was er tut und mit welchen "
                    "Angaben (A5-8); starte selbst nichts und beschreibe keine Schritte im Voraus.")
+#: TB-E3: der Ablauf startet nach der Antwort von selbst.
+QUITTUNG_DIREKT: Final = ("Angenommen: der Ablauf startet gleich nach deiner Antwort von selbst. "
+                          "Sag der Person in einem Satz, was jetzt passiert und mit welchen "
+                          "Angaben (A5-8); beschreibe keine Schritte im Voraus.")
 SCHON_VORGESCHLAGEN: Final = "Ein Ablauf ist in diesem Zug schon vorgeschlagen."
 UNBEKANNT: Final = "Diesen Ablauf gibt es nicht (mehr) — schlage ihn nicht vor."
 #: Review AS-5a, Befund 7: die Abweichungen vom Schema der Angaben (nicht „das Ergebnis“).
@@ -70,27 +77,38 @@ def _titel(ablauf: Any, lang: str) -> str:
 _SCHLUSS: Final = (". Das Werkzeug startet nichts: unter deiner Antwort erscheint ein Knopf, und "
                    "die Person entscheidet. Höchstens ein Ablauf je Antwort. Mit Angaben: rufe "
                    "das Werkzeug allein auf und antworte erst nach der Quittung.")
+#: Review TB-E3, Befund 1: ein direkter Ablauf startet von selbst — die Beschreibung sagt es, sonst
+#: kündigte das Modell einen Knopf an, und der Ablauf liefe ohne Klick.
+_SCHLUSS_DIREKT: Final = (". Der Ablauf startet gleich nach deiner Antwort von selbst. Höchstens "
+                          "ein Ablauf je Antwort. Rufe das Werkzeug allein auf und sag erst nach "
+                          "der Quittung in einem Satz, was jetzt passiert.")
 
 
 def _beschreibung(a: Any, lang: str) -> str:
     """Titel und Schlusssatz bleiben immer ganz; ``wann``/``nicht_wann`` teilen sich den Rest —
     jedes höchstens die Hälfte, damit die Einschränkungen nie ganz wegfallen (Review AS-5a,
     Befund 4)."""
-    kopf = f"Schlage der Person den festen Ablauf „{_titel(a, lang)}“ vor"
-    rest = max(0, _BESCHREIBUNG_ZEICHEN - len(kopf) - len(_SCHLUSS))
+    direkt = _direkt(a)
+    kopf = (f"Starte für die Person den festen Ablauf „{_titel(a, lang)}“" if direkt
+            else f"Schlage der Person den festen Ablauf „{_titel(a, lang)}“ vor")
+    schluss = _SCHLUSS_DIREKT if direkt else _SCHLUSS
+    rest = max(0, _BESCHREIBUNG_ZEICHEN - len(kopf) - len(schluss))
     teile = [kopf]
     for marke, liste in (("passt, wenn: ", a.wann), ("nicht, wenn: ", a.nicht_wann)):
         if liste:
             teile.append((marke + "; ".join(liste))[:max(0, rest // 2 - 3)])
-    return " — ".join(teile) + _SCHLUSS
+    return " — ".join(teile) + schluss
 
 
 def _schreibt(ablauf: Any) -> bool:
-    """Ändert der Ablauf etwas im Repositorium — ein schreibendes Werkzeug, ein Auftrag oder der
-    Upload (Querschnitts-Review AS-5, Befund 6)?"""
-    return any(s.typ == "auftrag" or (s.typ == "modul" and s.modul == UPLOAD)
-               or (s.typ == "werkzeug" and werkzeuge_mod.schreibend(s.werkzeug or ""))
-               for s in ablauf.schritte)
+    return werkzeuge_mod.ablauf_schreibt(ablauf)
+
+
+def _direkt(ablauf: Any) -> bool:
+    """TB-E3: startet die KI diesen Ablauf direkt? Nur mit ``modus: direkt`` am Auslöser ``agent``
+    und nur, wenn er nichts schreibt."""
+    return (any(a.art == "agent" and a.modus == "direkt" for a in ablauf.ausloeser)
+            and not _schreibt(ablauf))
 
 
 def werkzeuge(lang: str, nur: Collection[str] | None = None,
@@ -115,7 +133,7 @@ def werkzeuge(lang: str, nur: Collection[str] | None = None,
 
 
 def ist_quittung(text: str) -> bool:
-    return text == QUITTUNG
+    return text in (QUITTUNG, QUITTUNG_DIREKT)
 
 
 def merken(vorgeschlagen: list[dict[str, Any]], name: str, args: dict[str, Any] | None) -> str:
@@ -131,7 +149,7 @@ def merken(vorgeschlagen: list[dict[str, Any]], name: str, args: dict[str, Any] 
     if start and len(json.dumps(start, ensure_ascii=False)) > MAX_DATEN_ZEICHEN:
         return ZU_LANG
     vorgeschlagen.append({"ablauf": ablauf.id, **({"start": start} if start else {})})
-    return QUITTUNG
+    return QUITTUNG_DIREKT if _direkt(ablauf) else QUITTUNG
 
 
 def _vorschlag(eintrag: Any) -> tuple[str, dict[str, Any] | None] | None:
@@ -159,6 +177,24 @@ def schnellantworten(vorschlaege: list[Any] | None, lang: str) -> list[str]:
         label = _titel(a, lang).replace("|", "/")[:_LABEL_ZEICHEN]
         aus.append(f"__action__|{label}|ablauf_starten|" + json.dumps(params, ensure_ascii=False))
     return aus
+
+
+def direkt_knopf(vorschlaege: list[Any] | None, lang: str) -> str | None:
+    """TB-E3: der Knopf des (einen) Vorschlags, wenn sein Ablauf direkt startet — sonst ``None``."""
+    vorschlagbar = {a.id: a for a in ausloeser.vorschlaege()}
+    for eintrag in vorschlaege or []:
+        if (v := _vorschlag(eintrag)) and (a := vorschlagbar.get(v[0])) and _direkt(a):
+            [knopf] = schnellantworten([eintrag], lang)
+            return knopf
+    return None
+
+
+def direkt_fuer_antwort(session_state: Any, quick_replies: list[str] | None) -> str | None:
+    """TB-E3: der gemerkte Direktknopf für ``ui.direkt_start`` — nur, wenn er nach der letzten
+    Kürzung noch unter den Schnellantworten steht (sonst startete etwas, das die Person nicht
+    sieht). Gilt nur für diesen Zug."""
+    knopf = session_state.pop(DIREKT_KEY, None) if isinstance(session_state, dict) else None
+    return knopf if isinstance(knopf, str) and knopf in (quick_replies or []) else None
 
 
 def grenze(hoechstens: int | None) -> int:
@@ -216,7 +252,7 @@ def nimm_an(tool_calls: Any, angeboten: Any, session_state: dict[str, Any],
             text = NEBEN_DER_ANTWORT
         else:
             text = merken(vorgeschlagen, name, args)
-        angenommen = text == QUITTUNG
+        angenommen = ist_quittung(text)   # Review TB-E3, Befund 2: auch QUITTUNG_DIREKT
         if not angenommen and abgewiesen is not None:
             schluessel = name + "|" + (tc.function.arguments or "")
             stillstand = stillstand or schluessel in abgewiesen

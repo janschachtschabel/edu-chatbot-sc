@@ -157,6 +157,12 @@ async def update_session(session: AsyncSession, session_id: str, **kwargs: Any) 
         raise
 
 
+async def vorschau_markieren(session: AsyncSession, session_id: str) -> None:
+    """Plan 2026-11-10, TB-E2: die Sitzung stammt aus der Widget-Vorschau des Studios — die Spalte
+    ``vorschau`` (Migration 0022) bleibt, auch wenn die Aufbewahrung ``entities`` leert."""
+    await update_session(session, session_id, vorschau=True)
+
+
 async def _zurueckrollen(session: AsyncSession) -> None:
     """Nach einem gescheiterten Schreiben zurückrollen — sonst bleibt die geteilte
     Sitzung in „needs rollback“, und jeder weitere Zugriff im selben Zug scheitert

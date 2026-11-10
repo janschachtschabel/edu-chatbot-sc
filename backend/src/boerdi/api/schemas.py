@@ -331,6 +331,9 @@ class ChatRequest(BaseModel):
     # Paket AS-8a: aus der Studio-Vorschau (Attribut ``probe``) — gilt nur mit Studio-Cookie
     # (``api/probe_anfrage``); dann Trockenlauf: nichts wird geschrieben, kein Auftrag startet.
     probe: bool = False
+    # Plan 2026-11-10, TB-E2: ein Gespräch der Studio-Vorschau (Attribut ``vorschau``) — gilt nur
+    # mit Studio-Cookie; dann zählt die Sitzung nicht als Betrieb. Schränkt nichts ein.
+    vorschau: bool = False
 
 
 class PreparedWriteOut(BaseModel):

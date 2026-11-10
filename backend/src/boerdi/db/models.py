@@ -18,7 +18,9 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     Text,
+    false,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -30,6 +32,10 @@ class Base(DeclarativeBase):
 
 class ChatSession(Base):
     __tablename__ = "sessions"
+    # Migration 0022 (TB-E2): der Herkunftsfilter liest nur die wenigen Vorschau-Zeilen.
+    __table_args__ = (
+        Index("ix_sessions_vorschau", "session_id", postgresql_where=text("vorschau")),
+    )
 
     session_id: Mapped[str] = mapped_column(Text, primary_key=True)  # 'bb-<uuid>'
     persona_id: Mapped[str] = mapped_column(Text, default="")
@@ -38,6 +44,9 @@ class ChatSession(Base):
     signal_history: Mapped[list[Any]] = mapped_column(JSONB, default=list)
     turn_count: Mapped[int] = mapped_column(Integer, default=0)
     tour_state: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # Plan 2026-11-10, TB-E2 (Migration 0022): aus der Widget-Vorschau des Studios — zählt nicht
+    # als Betrieb. Eine Spalte, keine Marke in ``entities``: die leert die Aufbewahrung.
+    vorschau: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

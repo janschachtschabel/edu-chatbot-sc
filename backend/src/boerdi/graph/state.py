@@ -72,6 +72,9 @@ class TurnContext(BaseModel):
     #: Paket AS-8a: der Endpunkt hat eine Probe mit Studio-Recht festgestellt
     #: (``api/probe_anfrage``) — ``begin_turn`` bindet daraus den Zug-Merker (``services/probe``).
     probe: bool = False
+    #: TB-E2: ein Gespräch der Studio-Vorschau mit Studio-Recht (eine Probe ist es immer) —
+    #: ``setup`` merkt es an der Sitzung, die dann nicht als Betrieb zählt.
+    vorschau: bool = False
     # Laufzeit-Env-Dict aus dem Setup (Repo-URLs, Flags, Config-Schnappschüsse
     # …) — ALT ``env: dict``; Inhalt befüllt der Setup-Node, nicht dieser Vertrag.
     env: dict[str, Any] = Field(default_factory=dict)

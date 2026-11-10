@@ -151,7 +151,8 @@ Lang = Annotated[Locale, Depends(request_locale)]
 OriginScope = Annotated[
     Scope,
     Query(description="Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- "
-                      "und Studio-Probe-Sitzungen) | 'eval'"),
+                      "und Studio-Probe-Sitzungen, ohne die Studio-Vorschau) | 'eval' | "
+                      "'probe' (nur die Studio-Vorschau)"),
 ]
 
 

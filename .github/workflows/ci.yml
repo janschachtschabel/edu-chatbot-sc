@@ -190,7 +190,7 @@ jobs:
       - name: Build widget bundle
         run: npm run build:widget
       # Direkt das Skript: `npm run budget` würde (bewusst) erst neu bauen.
-      - name: Widget bundle budget (§5.5 — ≤690 kB raw / ≤200 kB gzip, warning >190 kB)
+      - name: Widget bundle budget (§5.5 — ≤700 kB raw / ≤210 kB gzip, warning >200 kB)
         run: node scripts/check-widget-budget.mjs
       - name: Nachgeladene Module (U3-0 — je ≤15 kB gzip, zusammen ≤60 kB)
         run: node scripts/check-module-budget.mjs

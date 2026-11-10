@@ -126,3 +126,6 @@ class UiInfo(BaseModel):
     ablauf: AblaufStand | None = None
     # Paket AS-Ua (U-7): ein fester, redaktioneller Text des Ablaufs — kein Etikett „KI-generiert“.
     fester_text: bool = False
+    # Plan 2026-11-10, TB-E3: nur live — dieser Knopf aus ``quick_replies`` startet einen Ablauf,
+    # den die KI direkt startet; das Widget drückt ihn nach dem Zug (nie aus dem Verlauf).
+    direkt_start: str | None = None

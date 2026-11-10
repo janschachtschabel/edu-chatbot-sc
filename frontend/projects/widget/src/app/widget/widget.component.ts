@@ -220,6 +220,9 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Paket AS-8b (Plan 2026-11-09 §5n, P-1/P-10): Probe der Studio-Vorschau — jeder Zug als
    *  Trockenlauf. Wirkt nur mit Studio-Anmeldung; ohne sie weist das Backend den Zug ab. */
   readonly probe = input<boolean | string>(false);
+  /** Plan 2026-11-10, TB-E2: ein Gespräch der Studio-Vorschau — die Sitzung zählt nicht als
+   *  Betrieb. Wirkt nur mit Studio-Anmeldung; schränkt nichts ein (anders als `probe`). */
+  readonly vorschau = input<boolean | string>(false);
   /**
    * O-B — Schnellantworten, die der Gastgeber HART setzt, als JSON-Array
    * (`quick-replies='["Passt","Passt nicht"]'`). Anders als `start-replies`
@@ -438,6 +441,10 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     effect(() => {
       const shell = this.shell();
       if (shell) shell.setProbe(_attrIsTrue(this.probe()));
+    });
+    effect(() => {
+      const shell = this.shell();
+      if (shell) shell.setVorschau(_attrIsTrue(this.vorschau()));
     });
     effect(() => {
       const shell = this.shell();

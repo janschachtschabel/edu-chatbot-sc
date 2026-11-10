@@ -401,8 +401,9 @@ def _ersetzbar(im_zug, monkeypatch):
 def test_ein_konflikt_beim_ersetzen_bricht_den_alten_auftrag_nicht_ab(im_zug, monkeypatch,
                                                                       abbrueche):
     """Review Job-Vertrag, Befund 1: der Abbruch geht erst nach dem Festschreiben raus — sonst
-    endete bei einem Rollback ein Auftrag, auf den der Lauf noch wartet. Der eben gestartete, nicht
-    festgehaltene endet dagegen (Befund 3)."""
+    endete bei einem Rollback ein Auftrag, auf den der Lauf noch wartet. Seit dem
+    Querschnitts-Review F/T (Befund 1) beginnt ein Ablauf mit Auftrag in einem frischen Vorgang:
+    scheitert schon das Schließen des alten, startet nichts Neues und nichts endet."""
     _ersetzbar(im_zug, monkeypatch)
     state: dict = {"entities": {}}
     _starte(state)
@@ -413,7 +414,25 @@ def test_ein_konflikt_beim_ersetzen_bricht_den_alten_auftrag_nicht_ab(im_zug, mo
     monkeypatch.setattr(vorgaenge, "lauf_setzen", konflikt)
     antwort = _starte(state)
     assert antwort.content == bot_text("de", "action.ablauf.konflikt")
-    assert abbrueche == ["job-2"]
+    assert abbrueche == [] and len(im_zug.gestartet) == 1
+
+
+def test_ein_konflikt_beim_festhalten_beendet_den_eben_gestarteten(im_zug, monkeypatch,
+                                                                    abbrueche):
+    """Review Job-Vertrag, Befund 3: der eben gestartete, nicht festgehaltene Auftrag endet."""
+    from boerdi.services.ablauf import zug_basis
+
+    _ersetzbar(im_zug, monkeypatch)
+    state: dict = {"entities": {}}
+    _starte(state)
+
+    async def konflikt(*_a, **_k):
+        raise vorgaenge.VorgangKonflikt("v-2")
+
+    monkeypatch.setattr(zug_basis, "festhalten", konflikt)
+    antwort = _starte(state)
+    assert antwort.content == bot_text("de", "action.ablauf.konflikt")
+    assert "job-2" in abbrueche
 
 
 def test_neues_vorhaben_beendet_den_wartenden_auftrag_bei_der_b_api(im_zug, abbrueche):

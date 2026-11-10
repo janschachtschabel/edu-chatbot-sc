@@ -42,15 +42,25 @@ def test_ein_fehlender_wert_wird_ein_strich():
 
 def test_werte_haben_keine_markdown_wirkung_und_sind_gekuerzt():
     text = _einsetzen("{teil.boese}", {"boese": "[klick](https://x.y) **fett**\n# Titel"})
-    assert "[" not in text.replace("\\[", "") and "\n" not in text
-    assert text.startswith("\\[klick\\]")
+    assert "[" not in text and "\n" not in text
+    # Querschnitts-Review Gruppe E: Klammern als Entitäten — ``\(`` und ``\[`` hielte das Widget
+    # seit TB-E4 für eine Formel
+    assert text.startswith("&#91;klick&#93;")
     lang = _einsetzen("{teil.lang}", {"lang": "x" * 500})
     assert len(lang) == platzhalter.MAX_ZEICHEN and lang.endswith("…")
 
 
 def test_ein_objekt_mit_titel_zeigt_den_titel_sonst_kompaktes_json():
     assert _einsetzen("{teil.sa}", {"sa": {"titel": "Optik", "x": 1}}) == "Optik"
-    assert _einsetzen("{teil.nn}", {"nn": [1, 2]}) == "\\[1\\,2\\]"
+    assert _einsetzen("{teil.nn}", {"nn": [1, 2]}) == "&#91;1\\,2&#93;"
+
+
+def test_quer_e_klammern_werden_keine_formel():
+    """Querschnitts-Review Gruppe E, MAJOR: ein Wert wie „Brüche (Klasse 6)“ darf im Widget nicht
+    als MathML erscheinen — Klammern und ``$`` reisen als Entitäten, nie mit Rückstrich."""
+    text = _einsetzen("{teil.titel}", {"titel": "Brüche (Klasse 6) [a.b] $5"})
+    assert "\\(" not in text and "\\[" not in text and "$" not in text
+    assert text == "Brüche &#40;Klasse 6&#41; &#91;a\\.b&#93; &#36;5"
 
 
 def test_text_ohne_platzhalter_und_fremde_klammern_bleiben():
@@ -122,8 +132,8 @@ def test_nackte_adressen_und_icons_werden_keine_links():
     assert "https://" not in text and "www.x" not in text and "a@b" not in text
     assert text.startswith("https\\:\\/\\/")
     assert "@@" not in _einsetzen("{teil.ic}", {"ic": "@@ICON:book@@"})
-    # ``$`` bleibt (stripLatex)
-    assert _einsetzen("{teil.preis}", {"preis": "5 $"}) == "5 $"
+    # ``$`` als Entität: weder stripLatex noch die Formel-Erkennung (TB-E4) greifen; angezeigt „$“
+    assert _einsetzen("{teil.preis}", {"preis": "5 $"}) == "5 &#36;"
 
 
 def test_steuer_und_bidi_zeichen_fallen_weg():

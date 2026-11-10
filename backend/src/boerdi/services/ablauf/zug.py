@@ -38,7 +38,7 @@ from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.services import arbeitsstand, probe, vorgaenge
-from boerdi.services.ablauf import ausloeser, ki_schritt, startdaten, treiber, typen
+from boerdi.services.ablauf import ausloeser, ki_schritt, startdaten, treiber, typen, werkzeuge
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden
 from boerdi.ui_module import strukturentwurf_merken
@@ -227,13 +227,13 @@ async def per_modul_starten(session: Any, req: ChatRequest, session_state: dict,
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     return await starten_mit(session, req, session_state, ablauf, ab=ab,
                              gewaehlt=treiber.gewaehlt_aus(geprueft.get("daten")),
-                             blocked_tools=blocked_tools)
+                             blocked_tools=blocked_tools, frisch=False)
 
 
 async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablauf: AblaufArea,
                       *, ab: int = 0, gewaehlt: list[str] | None = None,
                       start: dict[str, Any] | None = None, start_quelle: str | None = None,
-                      blocked_tools: Iterable[str] = ()) -> ChatResponse:
+                      blocked_tools: Iterable[str] = (), frisch: bool = True) -> ChatResponse:
     if not ausloeser.erfuellt(ablauf):
         return await basis.nur_text(session, req, "action.ablauf.anmeldung")
     if start is None and startdaten.pflichtfelder(ablauf):
@@ -245,7 +245,12 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
         start = {}
     entities = session_state.setdefault("entities", {})
     aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
-    if not await _ziel_vorbereiten(session, req, entities, ablauf):
+    # Querschnitts-Review F/T, Befund 1: ein Ablauf, der ins Repositorium schreibt, beginnt immer
+    # in einem frischen Vorgang — eine alte Ablage ginge sonst als „frisch hochgeladen“ an einen
+    # schreibenden Flow (N14). Der Modul-Auslöser (``frisch=False``) bleibt: er hat sein Ziel schon
+    # vorbereitet und die Antwort dort gespeichert.
+    if not await _ziel_vorbereiten(session, req, entities, ablauf,
+                                   frisch=frisch and werkzeuge.ablauf_schreibt(ablauf)):
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     aus = await basis.rechne(session, ablauf, treiber.starten(
         ablauf, basis.umgebung(session, req, entities, blocked_tools), ab, gewaehlt, start,
@@ -286,14 +291,17 @@ async def _anlegen(session: Any, req: ChatRequest, aufrufer: str, ablauf: Ablauf
 
 
 async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, Any],
-                            ablauf: AblaufArea, *, anlegen: bool = False) -> bool:
+                            ablauf: AblaufArea, *, anlegen: bool = False,
+                            frisch: bool = False) -> bool:
     """Querschnitts-Review 2026-11-06, M6 (nach Review Q3): ein beendeter Lauf lässt seinen Vorgang
     offen — der Entwurf darin bleibt erreichbar. Erst ein neuer Start schließt einen Vorgang, dessen
     Lauf beendet ist (fertig, Fehler, abgebrochen) oder einem anderen Ablauf gehört, und beginnt
     einen neuen; sonst bliebe jede Person bei einem ewigen Vorgang. Freie Arbeit (kein Lauf) und ein
     wartender Lauf desselben Ablaufs bleiben. Mit ``anlegen`` steht danach immer ein Ziel fest (ein
     neuer Vorgang, wenn keiner da ist) — der Modul-Auslöser speichert dann nur dorthin (Review Q3,
-    Nachprüfung, Befund 3). ``False`` bei einem Konflikt."""
+    Nachprüfung, Befund 3). Mit ``frisch`` (ein schreibender Ablauf) wird jeder vorhandene Vorgang
+    geschlossen, auch freie Arbeit und ein wartender Lauf desselben Ablaufs (Querschnitts-Review
+    F/T, Befund 1). ``False`` bei einem Konflikt."""
     aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
     vw = arbeitsstand.verweis(entities, aufrufer)
     v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
@@ -302,8 +310,9 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
     if v is None:
         arbeitsstand.verweis_weg(entities, aufrufer)
     lauf = (v.akte or {}).get("lauf") if v is not None else None
-    if v is not None and (not isinstance(lauf, dict) or (lauf.get("ablauf") == ablauf.id
-                                                         and lauf.get("status") not in _BEENDET)):
+    if v is not None and not frisch and (
+            not isinstance(lauf, dict) or (lauf.get("ablauf") == ablauf.id
+                                           and lauf.get("status") not in _BEENDET)):
         return True
     if v is None and not anlegen:
         return True
