@@ -11,6 +11,11 @@
  *     ausliefert; dazu der SRI-Wert (`sha384`).
  * Angular-Pakete sind verboten: sie würden das Framework ein zweites Mal ausliefern.
  *
+ * Paket BU-3: eine zweite Quelle für **Widget-Teile ohne Manifest** (`projects/ui/src/nachgeladen/`,
+ * je `ui-<name>/ui-<name>.element.ts`, etwa das Debug-Panel) — kein KI-Werkzeug, nicht im Register,
+ * aber derselbe Bau, derselbe Index und derselbe Pfad `/widget/module/`. Ein Name darf nur einmal
+ * vorkommen.
+ *
  * Ausgaben: die Bündel in `dist/widget-module/` (alte werden entfernt) und der Index
  * `projects/ui/src/ui-bloecke/nachlade-index.build.ts` (nicht eingecheckt), den der Widget-Build per
  * `fileReplacements` statt des leeren `nachlade-index.ts` einbindet.
@@ -23,6 +28,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
+
+import { erzeuge, widgetTeile } from './module-register.mjs';
 
 /** Gleiche Regel wie `module-register.mjs`: nur `ui-*`-Ordner mit `laden: "bei_bedarf"`. */
 function nachgeladeneModule(quelle) {
@@ -78,11 +85,15 @@ function indexText(eintraege) {
 }
 
 /** Baut alle nachgeladenen Module; gibt Name → {datei, integritaet} zurück. */
-export async function baue({ quelle, ausgabe, index }) {
+export async function baue({ quelle, teile = null, ausgabe, index }) {
   const eintraege = {};
   const dateien = new Map();
-  for (const ordner of nachgeladeneModule(quelle)) {
-    const bytes = await baueModul(quelle, ordner);
+  const module = nachgeladeneModule(quelle).map((ordner) => [quelle, ordner]);
+  const zweite = widgetTeile(teile).map((ordner) => [teile, ordner]);
+  const doppelt = zweite.filter(([, o]) => module.some(([, m]) => m === o)).map(([, o]) => o);
+  if (doppelt.length) throw new Error(`Name als Modul und als Widget-Teil: ${doppelt.join(', ')}`);
+  for (const [wurzel, ordner] of [...module, ...zweite]) {
+    const bytes = await baueModul(wurzel, ordner);
     const datei = `${ordner}.${createHash('sha256').update(bytes).digest('hex').slice(0, 8)}.js`;
     eintraege[ordner.replace(/-/g, '_')] = {
       datei, integritaet: 'sha384-' + createHash('sha384').update(bytes).digest('base64'),
@@ -99,8 +110,22 @@ export async function baue({ quelle, ausgabe, index }) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  // Review BU-2, Befund 8: ein erzeugter Stil, der nicht mehr zur SCSS passt, ginge sonst still alt
+  // ins Bündel — die CI prüft es, ein lokaler Bau bisher nicht.
+  const { veraltet } = erzeuge({
+    quelle: join(frontend, 'projects', 'ui-module', 'src'),
+    backend: join(frontend, '..', 'backend', 'src', 'boerdi', 'ui_module'),
+    teile: join(frontend, 'projects', 'ui', 'src', 'nachgeladen'),
+    pruefen: true,
+  });
+  const stile = veraltet.filter((name) => name.endsWith('.stil.generated.ts'));
+  if (stile.length) {
+    console.error(`Veralteter Stil: ${stile.join(', ')} — erst npm run module:register ausführen.`);
+    process.exit(1);
+  }
   const eintraege = await baue({
     quelle: join(frontend, 'projects', 'ui-module', 'src'),
+    teile: join(frontend, 'projects', 'ui', 'src', 'nachgeladen'),
     ausgabe: join(frontend, 'dist', 'widget-module'),
     index: join(frontend, 'projects', 'ui', 'src', 'ui-bloecke', 'nachlade-index.build.ts'),
   });

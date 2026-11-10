@@ -27,6 +27,36 @@ $border:     var(--mat-sys-outline-variant);
   border-top: 1px solid $border;
 }
 
+// AS-Ud (Plan 2026-11-09 §5j): angemeldet steht „Meine Vorgänge“ als weiteres Element in der Zeile.
+// Unter 364 px (12 + 120 + 5 × 44 + 12) bliebe dem Eingabefeld weniger als 120 px — gemessen bei
+// 320 px: 76 px. Dann bricht die Zeile um (WCAG 1.4.10 Reflow): das Feld steht allein oben, die
+// Knöpfe rechtsbündig darunter. Mit Mikrofon (vor dem Feld) gilt 408 px, und Mikrofon und Feld
+// teilen sich die erste Zeile — ohne `order`, damit Sicht- und Tab-Reihenfolge gleich bleiben
+// (Review AS-Ud, Befund 6). Ohne Anmeldung bleibt es eine Zeile.
+@container chat (width < 364px) {
+  .chat-footer--konto {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+
+    > .chat-input {
+      flex-basis: 100%;
+    }
+  }
+}
+
+@container chat (width < 408px) {
+  .chat-footer--konto.chat-footer--mikro {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+
+    > .chat-input {
+      // die Basis schließt Polster und Rand ein — sonst passt das Mikrofon nicht mehr davor
+      box-sizing: border-box;
+      flex-basis: calc(100% - 44px);
+    }
+  }
+}
+
 // Neustart (U1) — teilt die Form des Mikrofon-Knopfs: beide sind sekundäre
 // Aktionen neben dem einen gefüllten Senden-Knopf. Eigene Regel statt einer
 // gemeinsamen Klasse, weil `.btn-mic` zusätzlich den Aufnahme-Zustand trägt;
@@ -56,8 +86,10 @@ $border:     var(--mat-sys-outline-variant);
 // Anmelden/Abmelden — dieselbe sekundäre Form wie Neustart und Größe, eigene
 // Regel aus demselben Grund wie dort. 36 px bleibt bewusst gleich: über dem
 // WCAG-2.2-Mindestmaß von 24 px, und eine Abweichung nach oben würde die Zeile
-// bei 320 px als Einzige sprengen.
-.btn-auth {
+// bei 320 px als Einzige sprengen. „Meine Vorgänge“ (AS-Ud) steht daneben in derselben Form;
+// geöffnet ist er getönt wie beim Hover (sein Zustand steht zudem in `aria-expanded`).
+.btn-auth,
+.btn-vorgaenge {
   background: none;
   border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
   border-radius: var(--mat-sys-corner-full);
@@ -75,6 +107,11 @@ $border:     var(--mat-sys-outline-variant);
     background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
     color: var(--mat-sys-primary);
   }
+}
+
+.btn-vorgaenge[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+  color: var(--mat-sys-primary);
 }
 
 .btn-restart {

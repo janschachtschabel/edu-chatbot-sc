@@ -1,3 +1,11 @@
+// Seit Paket BU-3 der Stil des nachgeladenen Elements (Shadow Root): `npm run module:register`
+// übersetzt ihn nach `ui-debug-panel.stil.generated.ts`. Die Token (`--mat-sys-*`) erben in den
+// Shadow Root; die Regeln sind die der früheren Komponente.
+
+:host {
+  display: block;
+}
+
 // DebugPanel — Port der ALT Debug-Panel-Stile aus chat.component.scss
 // (.debug-panel / .debug-row / .debug-label / .debug-parallel-* / .debug-
 // section-title / .debug-warn / .debug-ok, Z. 1227-1308).
@@ -25,8 +33,8 @@
   padding: 10px 14px;
   font-size: 0.72rem;
   font-family: monospace;
-  max-height: 320px;
-  overflow-y: auto;
+  // Zweites Review, Z-11: keine eigene Höhe mehr — der Bereich über der Eingabe (`.ueber-eingabe`,
+  // höchstens die halbe Widget-Höhe) scrollt; zwei verschachtelte Scrollflächen fingen das Mausrad.
   overflow-x: hidden;
   line-height: 1.5;
   word-break: break-all;

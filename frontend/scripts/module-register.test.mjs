@@ -1,7 +1,7 @@
 // Tests für scripts/module-register.mjs (Paket U1-a). Lauf: node --test scripts/module-register.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -171,4 +171,57 @@ test('U3-1a: die Element-Quellen der nachgeladenen Module stehen in einer eigene
   assert.doesNotMatch(quellen, /ui_alpha/);
   // das Register selbst importiert keine Element-Quelle (sonst landete sie im Widget-Bündel)
   assert.doesNotMatch(readFileSync(join(quelle, 'register.generated.ts'), 'utf8'), /import\(/);
+});
+
+test('BU-2: die SCSS eines nachgeladenen Moduls wird zu einer erzeugten Stil-Datei (samt @use)', () => {
+  const { quelle, backend } = aufbau([['ui-probe', manifest('ui_probe', { laden: 'bei_bedarf' }), false]]);
+  writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.ts'), 'export {};');
+  mkdirSync(join(quelle, '_teil'));
+  writeFileSync(join(quelle, '_teil', '_farbe.scss'), '@mixin rand($p) { .#{$p} { border: 1px solid red; } }');
+  writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.scss'),
+    "@use '../_teil/farbe';\n:host { display: block; }\n@include farbe.rand('p');\n.p__x { a { color: blue; } }");
+  erzeuge({ quelle, backend });
+  const stil = readFileSync(join(quelle, 'ui-probe', 'ui-probe.stil.generated.ts'), 'utf8');
+  assert.match(stil, /^\/\/ ERZEUGT von `npm run module:register`/);
+  const css = JSON.parse(stil.match(/export const STIL = (".*");/)[1]);
+  assert.equal(css, ':host{display:block}.p{border:1px solid red}.p__x a{color:blue}');
+  // ein veralteter Stil fällt der CI-Prüfung auf
+  writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.scss'), ':host { display: grid; }');
+  assert.deepEqual(erzeuge({ quelle, backend, pruefen: true }).veraltet, ['ui-probe.stil.generated.ts']);
+});
+
+test('BU-2: ohne SCSS keine Stil-Datei; ein sofort geladenes Modul bekommt nie eine', () => {
+  const { quelle, backend } = aufbau([
+    ['ui-alpha', manifest('ui_alpha')],
+    ['ui-probe', manifest('ui_probe', { laden: 'bei_bedarf' }), false],
+  ]);
+  writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.ts'), 'export {};');
+  writeFileSync(join(quelle, 'ui-alpha', 'ui-alpha.element.scss'), ':host { display: block; }');
+  erzeuge({ quelle, backend });
+  assert.equal(existsSync(join(quelle, 'ui-probe', 'ui-probe.stil.generated.ts')), false);
+  assert.equal(existsSync(join(quelle, 'ui-alpha', 'ui-alpha.stil.generated.ts')), false);
+});
+
+test('Review BU-2, Befund 3: Nicht-ASCII im Stil setzt kein BOM vor die erste Regel', () => {
+  const { quelle, backend } = aufbau([['ui-probe', manifest('ui_probe', { laden: 'bei_bedarf' }), false]]);
+  writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.ts'), 'export {};');
+  writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.scss'), ':host { display: block; }\n.p::after { content: "…"; }');
+  erzeuge({ quelle, backend });
+  const stil = readFileSync(join(quelle, 'ui-probe', 'ui-probe.stil.generated.ts'), 'utf8');
+  const css = JSON.parse(stil.match(/export const STIL = (".*");/)[1]);
+  assert.ok(css.startsWith(':host{display:block}'), JSON.stringify(css.slice(0, 12)));
+});
+
+test('BU-3: auch Widget-Teile (zweite Quelle, ohne Manifest) bekommen ihren Stil — und nie ins Register', () => {
+  const { quelle, backend } = aufbau([['ui-alpha', manifest('ui_alpha')]]);
+  const teile = join(quelle, '..', 'teile');
+  mkdirSync(join(teile, 'ui-diagnose'), { recursive: true });
+  writeFileSync(join(teile, 'ui-diagnose', 'ui-diagnose.element.ts'), 'export {};');
+  writeFileSync(join(teile, 'ui-diagnose', 'ui-diagnose.element.scss'), '.d { a { color: red; } }');
+  erzeuge({ quelle, backend, teile });
+  const stil = readFileSync(join(teile, 'ui-diagnose', 'ui-diagnose.stil.generated.ts'), 'utf8');
+  assert.equal(JSON.parse(stil.match(/export const STIL = (".*");/)[1]), '.d a{color:red}');
+  assert.doesNotMatch(readFileSync(join(quelle, 'register.generated.ts'), 'utf8'), /diagnose/);
+  writeFileSync(join(teile, 'ui-diagnose', 'ui-diagnose.element.scss'), '.d { color: blue; }');
+  assert.deepEqual(erzeuge({ quelle, backend, teile, pruefen: true }).veraltet, ['ui-diagnose.stil.generated.ts']);
 });
