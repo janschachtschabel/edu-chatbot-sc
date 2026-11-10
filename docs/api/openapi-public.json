@@ -314,6 +314,11 @@
                 "type": "null"
               }
             ]
+          },
+          "vorschau": {
+            "default": false,
+            "title": "Vorschau",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1413,6 +1418,17 @@
                 "type": "null"
               }
             ]
+          },
+          "direkt_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direkt Start"
           },
           "dokumente": {
             "deprecated": true,

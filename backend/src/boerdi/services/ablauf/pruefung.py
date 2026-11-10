@@ -51,7 +51,7 @@ MAX_AGENT_ZUEGE: Final = 20
 MAX_AGENT_HINWEIS: Final = 200
 #: AS-3a: so viele Schnellantworten zeigt ein Schritt höchstens (Chips unter der Antwort).
 MAX_OPTIONEN: Final = 8
-_MODI: Final = frozenset({"vorschlagen"})
+_MODI: Final = frozenset({"vorschlagen", "direkt"})  # TB-E3
 
 
 #: Review K2c-1, Befund 8 (älter): tiefer sucht die Prüfung keine Verweise — eine sehr tief
@@ -133,6 +133,15 @@ def nachfolger(ablauf: AblaufArea, i: int) -> list[str]:
     return ziele
 
 
+def _direkt_gefragt(ablauf: AblaufArea, i: int) -> bool:
+    """Kommt man zu Schritt ``i`` nur über eine Wahl, deren Antwort direkt zu ihm führt, oder eine
+    Freigabe (Querschnitts-Review F/T, Befund 5)? Der erste Schritt hat keinen Vorgänger."""
+    ziel = ablauf.schritte[i].id
+    vor = [v for j, v in enumerate(ablauf.schritte) if ziel in nachfolger(ablauf, j)]
+    return i > 0 and bool(vor) and all(
+        (mit_wahl(v) and ziel in wahl_ziele(v)) or schreibt_mit_freigabe(v) for v in vor)
+
+
 def _wartet(s: Schritt) -> bool:
     if s.typ in ("agent", "auftrag") or schreibt_mit_freigabe(s) or mit_wahl(s):
         return True
@@ -186,6 +195,8 @@ def _modul(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
 def _schritt(s: Schritt, module: dict[str, Any], lang: str,
              kennungsfelder: frozenset[str] = frozenset()) -> list[str]:
     b: list[str] = []
+    if s.typ == "nachricht" and s.schreibt and not s.optionen:
+        b.append(_t(lang, "wahl_schreibt", s=s.id))   # TB-T1: ohne Wahl entstünde nie ein Teil
     # Review AS-7a, Befund 6: ohne Text bliebe die Antwort auf den Seiten-Ping leer und unsichtbar
     if (s.typ == "nachricht" and not (s.text or {}).get("de")) or (
             s.typ == "seite" and not ((s.text or {}).get("de") or "").strip()):
@@ -539,6 +550,12 @@ def warnungen(ablauf: AblaufArea, lang: str = "de") -> list[str]:
     rueckfrage = False
     for i, s in enumerate(ablauf.schritte):
         w += _auswahl_listen(s, ausgaben, gespraech_typen, lang)
+        if s.typ == "auftrag" and s.flow and not ablauf.aktiv and not _flow_frei(s.flow):
+            w.append(_t(lang, "auftrag_frei", s=s.id, f=s.flow))   # TB-F1: ausgeschaltet → Hinweis
+        if (s.typ == "werkzeug" and s.werkzeug == "metadaten_lesen" and s.schreibt
+                and s.schreibt != "metadaten"):
+            # Review TB-T1, Befund 7: ``ui_strukturentwurf`` (aus_inhalten) liest fest ``metadaten``
+            w.append(_t(lang, "metadaten_teil", s=s.id, t=s.schreibt[:40]))
         if (s.typ == "auftrag" and not rueckfrage
                 and typen.START_TEIL in typen.verweis_namen(s)):
             # Review AS-4a, Befund 11: Daten der Gastseite gingen ungesehen in einen Auftrag
@@ -605,14 +622,18 @@ def schreibt_mit_freigabe(s: Schritt) -> bool:
             and werkzeuge.freigebbar(s.werkzeug or ""))
 
 
-def _auftrag(s: Schritt, lang: str) -> list[str]:
+def _flow_frei(flow: str) -> bool:
     from boerdi.services.auftraege import client
+
+    return client.erlaubt(flow)
+
+
+def _auftrag(s: Schritt, lang: str) -> list[str]:
 
     b: list[str] = []
     if not s.flow:
         b.append(_t(lang, "auftrag_flow", s=s.id))
-    elif not client.erlaubt(s.flow):
-        b.append(_t(lang, "auftrag_frei", s=s.id, f=s.flow))
+    # „nicht freigeschaltet“ prüft ``pruefe`` nur bei eingeschalteten Abläufen (TB-F1)
     if not s.schreibt:
         b.append(_t(lang, "auftrag_schreibt", s=s.id))
     return b
@@ -730,8 +751,20 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
     # Gastseite starten kann — sonst ginge der Schritt im Betrieb still zu ``bei_fehler``.
     kennungen = (startdaten.kennungsfelder(ablauf)
                  if any(a.art == "extern" for a in ablauf.ausloeser) else frozenset())
+    rueckfrage = False
     for i, s in enumerate(ablauf.schritte):
         befunde += [(i, text) for text in _schritt(s, module, lang, kennungen)]
+        # Review TB-F1, Befund 2 (Plan N15): vor einem Flow, der ins Repositorium schreibt, steht
+        # eine Rückfrage an die Person — seit dem Querschnitts-Review F/T (Befund 5) direkt davor,
+        # auf jedem Weg: eine Wahl, deren Antwort zu ihm führt, oder eine Freigabe
+        if s.typ == "auftrag" and s.repo_schreibt and not _direkt_gefragt(ablauf, i):
+            befunde.append((i, _t(lang, "auftrag_rueckfrage", s=s.id)))
+        rueckfrage = rueckfrage or s.typ == "modul" or bool(s.optionen) or s.freitext is not None
+        rueckfrage = rueckfrage or (s.typ == "werkzeug" and s.freigabe is not None)
+        # TB-F1: ein Flow, den der Betrieb nicht freischaltet, sperrt nur einen eingeschalteten
+        # Ablauf — ein ausgeschalteter (etwa ein Seed) sperrte sonst den Werksabgleich
+        if s.typ == "auftrag" and s.flow and ablauf.aktiv and not _flow_frei(s.flow):
+            befunde.append((i, _t(lang, "auftrag_frei", s=s.id, f=s.flow)))
         befunde += [(i, text) for text in _platzhalter(s, davor.get(i, set()), geschrieben,
                                                        lang, startfelder)]
         # AS-4a: ``start`` tragen nur die Startdaten
@@ -759,12 +792,19 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
     if (any(s.typ == "auftrag" for s in ablauf.schritte)
             and "anmeldung" not in ablauf.voraussetzungen):
         befunde.append((None, _t(lang, "auftrag_anmeldung")))
+    if (any(s.typ == "werkzeug" and s.werkzeug == "metadaten_lesen" for s in ablauf.schritte)
+            and "anmeldung" not in ablauf.voraussetzungen):
+        # Review TB-F2, Befund 2: liest private Nodes der Person — nur unter ihrer Anmeldung
+        befunde.append((None, _t(lang, "metadaten_anmeldung")))
     if (any(s.typ == "werkzeug" and werkzeuge.schreibend(s.werkzeug or "")
             for s in ablauf.schritte) and "anmeldung" not in ablauf.voraussetzungen):
         # Paket S (FS-5): geschrieben wird nur unter der eigenen Anmeldung
         befunde.append((None, _t(lang, "freigabe_anmeldung")))
     for a in ablauf.ausloeser:
         befunde += [(None, text) for text in _ausloeser(ablauf, a, module, lang)]
+        # TB-E3: ``direkt`` nur ohne Schreiben — sonst bleibt es ein Vorschlag
+        if a.art == "agent" and a.modus == "direkt" and werkzeuge.ablauf_schreibt(ablauf):
+            befunde.append((None, _t(lang, "direkt_schreibt")))
     befunde += [(None, text) for text in _startschema(ablauf, lang)]
     return befunde
 
@@ -851,8 +891,11 @@ def modul_start(ablauf: AblaufArea, modul: str | None) -> int | None:
 
 def _ausloeser(ablauf: AblaufArea, a: Any, module: dict[str, Any], lang: str) -> list[str]:
     b: list[str] = []
+    # TB-E3: ``direkt`` nur am Auslöser ``agent`` — sonst ist der Modus bedeutungslos
     if a.modus not in _MODI:
         b.append(_t(lang, "modus", m=a.modus))
+    elif a.modus == "direkt" and a.art != "agent":
+        b.append(_t(lang, "direkt_nur_agent", a=a.art))   # Review TB-E3, Befund 8
     if a.art == "text" and not (1 <= len(a.wendungen) <= MAX_WENDUNGEN and all(
             4 <= len(wendung(w)) <= 80 for w in a.wendungen)):
         b.append(_t(lang, "wendung", max=MAX_WENDUNGEN))

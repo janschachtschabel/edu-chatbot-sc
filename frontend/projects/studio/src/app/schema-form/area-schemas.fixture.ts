@@ -193,7 +193,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Modus",
             "type": "string",
             "x-choices": [
-              "vorschlagen"
+              "vorschlagen",
+              "direkt"
             ]
           },
           "wendungen": {
@@ -326,7 +327,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "type": "string",
+                  "x-widget": "textarea"
                 },
                 "type": "object"
               },
@@ -468,6 +470,24 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               ]
             }
           },
+          "repo_schreibt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repo Schreibt",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
+          },
           "schreibt": {
             "anyOf": [
               {
@@ -483,6 +503,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               "feld": "typ",
               "werte": [
                 "auftrag",
+                "nachricht",
                 "werkzeug"
               ]
             }

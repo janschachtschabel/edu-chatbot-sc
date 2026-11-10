@@ -233,6 +233,14 @@ async def _einsetzen(aus: Ausgabe, text: str, teile: Callable[[str], Awaitable[A
     return await platzhalter.einsetzen(text, teile)
 
 
+def _leere_auswahl(definition: dict[str, Any] | None, args: dict[str, Any]) -> bool:
+    """Querschnitts-Review F/T, Befund 1: ein Argument, das eine Auswahl aus einem Teil ist
+    (``liste``), ergab nichts — ein Auftrag über null Einträge startet nicht (``bei_fehler``) und
+    belegt keinen der offenen Jobs."""
+    return any(isinstance(d, dict) and "liste" in d and args.get(k) == []
+               for k, d in (definition or {}).items())
+
+
 def _zusammenfassung(wert: Any) -> str:
     if isinstance(wert, dict) and isinstance(wert.get("titel"), str):
         return wert["titel"][:80]
@@ -343,6 +351,7 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                 aus.neue_teile.append((s.schreibt, typ, wert, _zusammenfassung(wert)))
         elif s.typ == "auftrag":
             args, fehlt = await teil_verweise.einsetzen(dict(s.argumente or {}), teile)
+            fehlt = fehlt or _leere_auswahl(s.argumente, args)
             job = (None if fehlt or umgebung.auftrag_starten is None
                    else await umgebung.auftrag_starten(s.flow or "", args))
             if job is None:
@@ -448,6 +457,12 @@ async def weiter_seite(ablauf: AblaufArea, lauf: dict[str, Any], umgebung: Umgeb
     return await _rechne(ablauf, neu, index[naechster], umgebung)
 
 
+def wahl_wert(o: Any) -> str:
+    """TB-T1: der Wert des Teils einer Wahl — das deutsche Label (sonst die Kennung), in jeder
+    Sprache gleich (Review TB-T1, Befund 2); Simulation und Datensicht nutzen dieselbe Regel."""
+    return _label(o, "de")
+
+
 def _label(o: Any, sprache: str) -> str:
     """Das Label in der Sprache, sonst Deutsch, sonst die Kennung — ein Label nur aus Leerraum
     zählt nicht (Review AS-3a: sonst ein leerer Chip)."""
@@ -501,9 +516,11 @@ async def weiter_wahl(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None
     neu = {**lauf, "status": "laeuft"}
     neue_teile: list[Teil] = []
     option = next((o for o in s.optionen or [] if o.id == wahl), None)
+    # TB-T1: nur an einer ``nachricht`` schreibt die Wahl ihr Label (Review TB-T1, Befund 5)
+    wahl_teil = s.schreibt if s.typ == "nachricht" else None
     if option is not None:
         ziel, neu["gewaehlt"] = option.ziel, [option.id]
-        if (s.freitext is not None
+        if (s.freitext is not None and s.freitext.schreibt != wahl_teil
                 and await umgebung.teile(s.freitext.schreibt) not in (None, "")):
             # Querschnitts-Review AS-3, Befund 3: ein Freitext aus einem früheren Durchgang gilt
             # nach einer Wahl nicht mehr — der Teil wird leer (``vorhanden`` greift nicht, ein
@@ -516,6 +533,18 @@ async def weiter_wahl(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None
                 return "" if teil == name else await lader_wahl(teil)
 
             umgebung = replace(umgebung, teile=ohne_freitext)
+        if wahl_teil:
+            # TB-T1: das Label (Text der Redaktion, nie Eingabe der Person) wird ein Teil — mit dem
+            # Namen des Freitexts ergibt Wahl oder Tippen denselben Teil. Immer das deutsche Label
+            # (Review TB-T1, Befund 2): sprachfest für ``wenn_wert`` und die Simulation
+            label, name_wahl = wahl_wert(option), wahl_teil
+            neue_teile.append((name_wahl, typen.TEXT, label, f"Wahl: {label}"[:80]))
+            lader_label = umgebung.teile
+
+            async def mit_label(teil: str) -> Any:
+                return label if teil == name_wahl else await lader_label(teil)
+
+            umgebung = replace(umgebung, teile=mit_label)
     elif s.freitext is not None and text is not None:   # ``wahl_gilt`` hat es geprüft
         wert = text.strip()[:FREITEXT_ZEICHEN]
         ziel, name = s.freitext.ziel, s.freitext.schreibt
@@ -526,8 +555,16 @@ async def weiter_wahl(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None
         # „Gesammelte Daten“, was gesammelt ist (Browser-Abnahme AS-U, L-1)
         neue_teile.append((name, typen.TEXT, wert, f"Text: {name}"))
         lader = umgebung.teile
+        # Review TB-T1, Befund 3: eine Wahl aus einem früheren Durchgang (anderer Teil) gilt nach
+        # dem Freitext nicht mehr — wie umgekehrt der Freitext nach einer Wahl
+        alt_wahl = (wahl_teil if wahl_teil and wahl_teil != name
+                    and await lader(wahl_teil) not in (None, "") else None)
+        if alt_wahl:
+            neue_teile.append((alt_wahl, typen.TEXT, "", "—"))
 
         async def mit_freitext(teil: str) -> Any:
+            if teil == alt_wahl:
+                return ""
             return wert if teil == name else await lader(teil)
 
         umgebung = replace(umgebung, teile=mit_freitext)

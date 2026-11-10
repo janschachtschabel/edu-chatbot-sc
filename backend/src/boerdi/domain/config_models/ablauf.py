@@ -126,7 +126,7 @@ class Schritt(AreaModel):
     # ``pruefung`` gelesen; Wächter ``tests/test_ablauf_studio_k2c1.py``). Nur Schema — die Fassung
     # eines Ablaufs hängt an den Daten, nicht an der Auszeichnung.
     #: ``nachricht``/``ende``: der Text je Sprache; bei ``modul`` der Satz über dem Modul.
-    text: Annotated[dict[str, str] | None,
+    text: Annotated[dict[str, Annotated[str, Textarea()]] | None,
                     NurBei("typ", "nachricht", "modul", "agent", "auftrag", "seite", "ende")] = None
     modul: Annotated[str | None, NurBei("typ", "modul")] = None
     #: Daten des Moduls (ein Werkzeug nimmt ``argumente``); ``{"$teil": "<name>"}`` liest aus dem
@@ -152,8 +152,15 @@ class Schritt(AreaModel):
                                 Field(pattern=r"^(frei|gesperrt)$")] | None,
                       BeforeValidator(lambda w: None if w == "" else w),
                       NurBei("typ", "auftrag")] = None
-    #: Wohin das Ergebnis eines Werkzeugs geht (Teil des Vorgangs).
-    schreibt: Annotated[str | None, NurBei("typ", "werkzeug", "auftrag")] = None
+    #: ``auftrag`` (Plan 2026-11-10, TB-F1, Nutzer-Entscheid N15): der Flow schreibt ins
+    #: Repositorium (Metadaten, Sammlungen …). Der Chatbot sieht nicht in den Flow — die Redaktion
+    #: legt es hier fest. Ein Auftrag braucht ohnehin die WLO-Anmeldung; der Vermerk steht im Studio
+    #: und im Handbuch. Vorgabe ``None`` (wegen ``treiber.fassung``).
+    repo_schreibt: Annotated[bool | None, NurBei("typ", "auftrag")] = None
+    #: Wohin das Ergebnis eines Werkzeugs geht (Teil des Vorgangs). An einer ``nachricht`` mit
+    #: Schnellantworten (Plan 2026-11-10, TB-T1): das Label der gewählten Option als Text-Teil —
+    #: so erreichen die Antworten auf die Kernfragen die Werkzeuge späterer Schritte.
+    schreibt: Annotated[str | None, NurBei("typ", "werkzeug", "auftrag", "nachricht")] = None
     #: ``werkzeug`` (Paket S): der Satz über der Vorschau eines schreibenden WLO-Werkzeugs, je
     #: Sprache. Ohne ihn ist ein schreibendes Werkzeug nicht erlaubt (``pruefung``); mit ihm legt
     #: der Schritt die Änderung vor und wartet auf die Freigabe der Person. Vorgabe ``None`` (wegen
@@ -196,9 +203,12 @@ class Ausloeser(AreaModel):
     #: ``ablauf-start``) mit Startdaten; seit AS-5a bringt auch ``agent`` (Vorschlag der KI) Daten.
     art: Annotated[str, Choices("knopf", "agent", "text", "modul", "extern", "seite")] = Field(
         pattern=r"^(knopf|agent|text|modul|extern|seite)$")
-    #: ``agent``: ``vorschlagen`` (Schnellantwort) — ``direkt`` ist offen.
-    #: AS-5a: die KI schlägt per Knopf vor; ``direkt`` folgt in AS-5c.
-    modus: Annotated[str, Choices("vorschlagen")] = "vorschlagen"
+    #: ``agent``: ``vorschlagen`` (die KI schlägt per Knopf vor, AS-5a) oder ``direkt`` (Plan
+    #: 2026-11-10, TB-E3: der Ablauf startet nach der Antwort von selbst — derselbe Knopf, das
+    #: Widget drückt ihn). ``direkt`` gilt nur für Abläufe, die nichts schreiben; sonst bleibt es
+    #: ein Vorschlag (``werkzeuge.ablauf_schreibt``), und die Prüfung meldet es.
+    #: Ohne ``pattern`` wie bisher: ein unbekannter Modus lädt und wird ein Prüfbefund.
+    modus: Annotated[str, Choices("vorschlagen", "direkt")] = "vorschlagen"
     #: ``text``: Wendungen (keine regulären Ausdrücke) — kommt eine in der Nachricht vor, startet
     #: der Ablauf (``services/ablauf/ausloeser.per_text``).
     wendungen: list[str] = []

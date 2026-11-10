@@ -275,3 +275,44 @@ def test_ohne_vorgang_ein_hinweis(umgebung):  # noqa: F811
     antwort = asyncio.run(vorgang_aktion.neu(_S(), _req(action=vorgang_aktion.AKTION_NEU),
                                              {"entities": {}}))
     assert antwort.content == bot_text("de", "action.vorgang.keiner")
+
+
+# ── Querschnitts-Review F/T (2026-11-10), Befund 1 ─────────────────────────────────────────────
+
+_HOCHLADEN = {"id": "hoch", "titel": {"de": "Hoch"}, "aktiv": True, "voraussetzungen": [],
+              "ausloeser": [{"art": "knopf"}],
+              "schritte": [{"id": "h", "typ": "modul", "modul": "ui_upload",
+                            "text": {"de": "Wähle."}, "daten": {"zweck": "sammlungsstruktur"}}]}
+
+
+def _mit_hochladen(umgebung):  # noqa: F811
+    umgebung.katalog["wert"] = {**umgebung.katalog["wert"],
+                                "ablaeufe": [*umgebung.katalog["wert"]["ablaeufe"], _HOCHLADEN]}
+
+
+def _hoch(state):
+    return asyncio.run(zug.starten(_S(), _req(action=zug.AKTION,
+                                              action_params={"ablauf": "hoch"}), state))
+
+
+def test_ft1_ein_schreibender_ablauf_beginnt_ohne_alte_ablage(umgebung):  # noqa: F811
+    """Eine Ablage aus freier Arbeit ginge sonst als „frisch hochgeladen“ an einen schreibenden
+    Flow (N14: nur die Dateien dieses Laufs)."""
+    _mit_hochladen(umgebung)
+    state: dict = {"entities": {}}
+    asyncio.run(arbeitsstand.teile_speichern(_S(), _SID, state["entities"],
+                                             [("ablage", "t", {"inhalte": []}, "z")]))
+    _hoch(state)
+    alt, neu = _vorgaenge(umgebung)
+    assert alt.status == "fertig" and "ablage" in alt.akte["teile"]
+    assert "ablage" not in (neu.akte.get("teile") or {})
+    assert state["entities"][arbeitsstand.VERWEIS]["id"] == neu.id
+
+
+def test_ft1_auch_ein_neustart_desselben_schreibenden_ablaufs(umgebung):  # noqa: F811
+    _mit_hochladen(umgebung)
+    state: dict = {"entities": {}}
+    _hoch(state)
+    _hoch(state)
+    alt, neu = _vorgaenge(umgebung)
+    assert alt.status == "fertig" and neu.akte["lauf"]["ablauf"] == "hoch"
