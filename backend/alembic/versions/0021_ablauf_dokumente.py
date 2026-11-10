@@ -72,6 +72,25 @@ def _ablaeufe(data: object) -> dict[str, dict]:
     return ergebnis
 
 
+def _uebersprungen(data: object) -> list[str]:
+    """Die Einträge, die kein Dokument werden (Kennung ``katalog``, ungültig, doppelt, kein Objekt)
+    — für den Hinweis der Migration (Review PR #51, C2), gekürzt auf 40 Zeichen."""
+    liste = data.get("ablaeufe") if isinstance(data, dict) else None
+    gesehen: set[str] = set()
+    weg: list[str] = []
+    for eintrag in liste if isinstance(liste, list) else []:
+        kennung = eintrag.get("id") if isinstance(eintrag, dict) else None
+        if not isinstance(kennung, str):
+            weg.append("(ohne Kennung)")
+        elif not _ID.fullmatch(kennung) or kennung == "katalog":
+            weg.append(kennung if len(kennung) <= 40 else kennung[:40] + "…")
+        elif kennung in gesehen:
+            weg.append(f"{kennung} (doppelt)")
+        else:
+            gesehen.add(kennung)
+    return weg
+
+
 def _offline() -> bool:
     if op.get_context().as_sql:
         op.execute("-- 0021: Daten-Migration (Ablauf-Katalog -> Dokumente) laeuft nur online")
@@ -96,6 +115,9 @@ def upgrade() -> None:
         vorhanden = {r[0] for r in conn.execute(sa.text(
             "SELECT area FROM config_areas WHERE area LIKE '06-ablaeufe/%'"))}
         ablaeufe = _ablaeufe(data)
+        if uebersprungen := _uebersprungen(data):
+            print(f"0021: kein Dokument für diese Einträge des Katalogs "
+                  f"(stehen in config_history von {_KATALOG}): {', '.join(uebersprungen)}")
         if verworfen := sorted(set(still) - set(ablaeufe)):
             # Querschnitts-Review AS-0…AS-2: nicht still — der Betrieb holt sie bei Bedarf aus
             # ``config_history`` des Katalogs
