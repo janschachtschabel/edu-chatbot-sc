@@ -10,6 +10,7 @@
  * Aufrufer die zugehörigen Signals unangetastet lässt (IST-Verhalten: nur
  * vorhandene Config überschreibt Defaults).
  */
+import { type AblaufSeite, ablaufSeitenAus } from './fuehrung-angebote';
 import { ICONS } from '../icons/icons';
 import { isValidSessionId } from '../session/session-id';
 import { isTrustedHost, normalizeTrustedDomain } from '../session/trusted-host';
@@ -50,6 +51,8 @@ export interface ParsedGuideModeConfig {
    *  Ein leerer Wert ist eine AUSSAGE („diese Anlage bietet sie nicht an") und
    *  wird deshalb übernommen; `null` heisst nur „stand nicht in der Antwort". */
   mcpAuthBase: string | null;
+  /** AS-7b (F-7): Abläufe mit Auslöser `seite` — `null` heißt „stand nicht in der Antwort". */
+  ablaufSeiten: AblaufSeite[] | null;
 }
 
 
@@ -78,7 +81,9 @@ export function parseGuideModeConfig(data: any): ParsedGuideModeConfig {
     startRepliesEn: null,
     tourReplyEn: null,
     mcpAuthBase: null,
+    ablaufSeiten: null,
   };
+  out.ablaufSeiten = ablaufSeitenAus(data?.ablauf_seiten);
   // C5-c2: jeder String zählt, auch der leere — er sagt „diese Anlage bietet
   // keine WLO-Anmeldung an". Nur ein fehlendes Feld bleibt `null`.
   if (typeof data?.mcp_auth_base === 'string') {

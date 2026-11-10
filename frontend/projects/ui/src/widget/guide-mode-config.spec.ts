@@ -21,6 +21,7 @@ describe('parseGuideModeConfig', () => {
     expect(parseGuideModeConfig({})).toEqual({
       trustedDomains: null, headerNav: null, greeting: null, startReplies: null, tourReply: null,
       greetingEn: null, startRepliesEn: null, tourReplyEn: null, mcpAuthBase: null,
+      ablaufSeiten: null,   // AS-7b
     });
     expect(parseGuideModeConfig(null).trustedDomains).toBeNull();
   });

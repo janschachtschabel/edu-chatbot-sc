@@ -71,10 +71,13 @@ export function guideQuickReplyTarget(qr: string, ctx: InputRoutingContext): str
 /** T-3-Guard (Audit 2026-07-09): sichere Ziel-URL einer Bot-`navigate`-Aktion —
  *  nur http(s) + Trusted-Host (bei Cross-Origin mit `?bsid=`/`bgm`), sonst
  *  `null` (fail-closed). Der window-Sprung bleibt Sache der Komponente. */
-export function resolveGuideNavTarget(url: string | undefined, ctx: InputRoutingContext): string | null {
+export function resolveGuideNavTarget(url: string | undefined, ctx: InputRoutingContext,
+                                      gleicheHerkunft = false): string | null {
   return resolveGuideNavUrl(url || '', {
     trustedDomains: ctx.trustedDomains(),
     sessionId: ctx.sessionId(),
     guideMode: ctx.guideModeActive,
+    // AS-7b: nur ein Führungs-Chip darf ohne Vertrauensliste auf derselben Herkunft navigieren
+    gleicheHerkunft,
   });
 }

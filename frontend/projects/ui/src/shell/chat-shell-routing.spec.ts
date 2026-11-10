@@ -105,7 +105,10 @@ describe('ChatShellComponent — Input-Routing (8-4S-d2b)', () => {
     const { c } = make();
     const nav = vi.spyOn(c, 'onGuideNavigate').mockImplementation(() => {});
     c.onGuideQuickReply('__guide__|Themenseite|https://wirlernenonline.de/thema');
-    expect(nav).toHaveBeenCalledWith('https://wirlernenonline.de/thema');
+    expect(nav).toHaveBeenCalledWith('https://wirlernenonline.de/thema', false);
+    // AS-7b: nur der Führungs-Chip darf auf derselben Herkunft ohne Vertrauensliste navigieren
+    c.onGuideQuickReply('__fuehrung__|Zur Seite|/mitmachen/');
+    expect(nav).toHaveBeenLastCalledWith('/mitmachen/', true);
   });
 
   it('onGuideNavigate: untrusted/javascript-URL → fail-closed (keine Navigation, kein Throw)', () => {

@@ -80,3 +80,22 @@ describe('WelcomeMessage.relocalize (Paket 1, T2)', () => {
     expect(msgs()).toEqual([]);
   });
 });
+
+describe('WelcomeMessage — Führungs-Chips (AS-7b, Review Befund 3)', () => {
+  const F = '__action__|Führung|ablauf_starten|{"ablauf":"fuehrung"}';
+
+  it('stehen vor den Studio-Chips', () => {
+    const { wm, msgs } = make({ fuehrungsChips: () => [F] });
+    wm.show();
+    expect(msgs()[0].quickReplies).toEqual([F, 'A']);
+  });
+
+  it('verdrängen die Vorgabe-Chips nicht, wenn das Studio keine hat', () => {
+    const { wm, msgs, zustand } = make({ fuehrungsChips: () => [F] });
+    zustand.chips = [];
+    wm.show();
+    const chips = msgs()[0].quickReplies ?? [];
+    expect(chips[0]).toBe(F);
+    expect(chips.length).toBe(5);   // dazu die vier Vorgaben
+  });
+});

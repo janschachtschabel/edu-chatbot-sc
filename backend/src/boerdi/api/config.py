@@ -35,6 +35,7 @@ from boerdi.obs.log_format import ausnahme_text
 from boerdi.obs.trace_id import fehlernummer
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_io
+from boerdi.services.ablauf import ausloeser
 from boerdi.services.config_conflict import ConfigConflict
 from boerdi.services.mcp import tool_descriptions, transport
 from boerdi.services.url_safety import UnsafeUrlError, assert_public_url
@@ -309,4 +310,7 @@ async def get_guide_mode(request: Request) -> dict:
         request.headers.get("origin"), allow_all=s.cors_allow_all,
         origins=s.cors_origin_list, origin_regex=s.cors_origin_regex)
     cfg["mcp_auth_base"] = _mcp_auth_base() if erlaubt else ""
+    # AS-7b (Plan 2026-11-09 §5m, F-7): Abläufe mit Auslöser ``seite`` — das Widget bietet sie unter
+    # der Begrüßung an, wenn die Seite passt. Neues Feld im offenen Objekt, wie ``mcp_auth_base``.
+    cfg["ablauf_seiten"] = ausloeser.seiten_angebote()
     return cfg
