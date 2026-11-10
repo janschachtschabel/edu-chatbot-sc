@@ -474,7 +474,8 @@ def test_knapp_ordner_oder_lehrplan_und_abgleich(knapp: str) -> None:
     oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
     assert "→ `ui_upload` mit `zweck: sammlungsstruktur`" in oberflaeche
     assert "nur per Klick im Modul — nie selbst anstoßen" in oberflaeche
-    assert "ohne Anmeldung sagen, dass Übertragen eine" in oberflaeche
+    # 2026-11-10: Lesen und Entwerfen gehen anonym, nur das Übertragen braucht die Anmeldung
+    assert "ohne Anmeldung sagen, dass erst das Übertragen eine" in oberflaeche
     assert "→ `ui_strukturabgleich` mit der `nodeId` der Sammlung" in oberflaeche
     assert "`abdeckung: true`, wenn nach fehlendem Material" in oberflaeche
     assert "Ohne Entwurf erst `ui_strukturentwurf`." in oberflaeche
@@ -483,3 +484,15 @@ def test_knapp_ordner_oder_lehrplan_und_abgleich(knapp: str) -> None:
     assert "zuerst `ui_upload`" in _unterabschnitt(knapp, "M08")
     assert "zeigt es `ui_strukturabgleich`" in _unterabschnitt(knapp, "M19")
 
+
+
+def test_knapp_dokument_weg_und_ablaeufe(knapp: str) -> None:
+    """2026-11-10: Lehrplan-PDF → Lesen → Entwurf aus dem Dokument (anonym, Nutzer-Entscheid) und
+    die Abläufe der Redaktion als Werkzeuge ``ablauf-…`` (Plan 2026-11-09, AS-5)."""
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "`aus_dokument: true`" in oberflaeche
+    assert "Lesen und Entwerfen gehen ohne Anmeldung" in oberflaeche
+    assert "das Feld zeigen, nicht nur" in oberflaeche
+    assert "Werkzeuge `ablauf-…`" in oberflaeche
+    assert "höchstens einen je Zug" in oberflaeche
+    assert "`[ABLAUFSCHRITT — …]`" in oberflaeche
