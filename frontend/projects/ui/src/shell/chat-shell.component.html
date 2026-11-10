@@ -15,6 +15,11 @@
   Der Chat-Header (ALT: schon nach widget.component hochgezogen) ist 8-5.
 -->
 <div class="chat-wrapper">
+  <!-- Paket AS-8b: Probe der Studio-Vorschau — steht in jeder Einbettungsart (auch rahmenlos),
+       darum hier und nicht im Kopf der Hülle. Text, nicht nur Farbe. -->
+  @if (probe()) {
+    <p class="probe-etikett" role="note">{{ t('chat.probe') }}</p>
+  }
   <!-- Messages. role="log"+aria-live: Screenreader bekommen neue Bot-Antworten
        angesagt (ALT-a11y, 2026-06-10). -->
   <div class="messages-area" #messagesContainer role="log" aria-live="polite" [attr.aria-label]="t('chat.log')">
@@ -73,7 +78,9 @@
                `aria-hidden` — der Hinweis gilt für Screenreader genauso. Er
                steht NACH dem Inhalt, damit er vorgelesen wird, wenn die Antwort
                steht, und nicht davor als Rauschen. -->
-          @if (!msg.isLoading && msg.content && msg.sender === 'bot') {
+          <!-- Paket AS-Ub (U-7): feste, redaktionelle Texte eines Ablaufs tragen das Etikett nicht —
+               sie sind nicht KI-generiert. -->
+          @if (!msg.isLoading && msg.content && msg.sender === 'bot' && !msg.ui?.fester_text) {
             <p class="ai-notice">{{ t('chat.aiGenerated') }}</p>
           }
 
@@ -242,15 +249,37 @@
     }
   </div>
 
+  <!-- Querschnitts-Review AS-U/BU, Q-4: EIN Bereich über der Eingabe — Debug-Panel, Leiste, „Meine
+       Vorgänge“ und Hinweis nehmen zusammen höchstens die halbe Höhe des Widgets und scrollen selbst;
+       sonst schoben sie bei wenig Höhe (200 % Zoom, niedriger Gast-Container) das Eingabefeld weg. -->
+  <div class="ueber-eingabe">
+  <!-- Paket BU-3: das Debug-Panel lädt als eigenes Bündel nach (nur mit Debug-Schalter). -->
   <boerdi-debug-panel
     [debug]="latestDebug()" [ui]="latestUi()" [translate]="translate()" [show]="showDebug()"
+    [nachladen]="modulNachladen"
   />
+
+  <!-- Paket AS-Ub: die Ablauf-Leiste, solange in diesem Gespräch ein Lauf nicht beendet ist. -->
+  <boerdi-ablauf-leiste
+    [stand]="ablaufStand()" [translate]="translate()" [beschaeftigt]="isLoading()"
+    (abbrechen)="onAblaufAbbrechen()"
+    (fuehren)="onGuideNavigate($event, true)"
+  />
+
+  <!-- Paket AS-Ud: „Meine Vorgänge“ (Knopf neben dem Anmelde-Knopf). -->
+  @if (meineVorgaenge.offen() && authButton() === 'signOut') {
+    <boerdi-meine-vorgaenge
+      [vorgaenge]="meineVorgaenge" [translate]="translate()" [locale]="locale()" [beschaeftigt]="isLoading()"
+      panelId="boerdi-meine-vorgaenge" (fortsetzen)="onVorgangFortsetzen($event)" (schliessen)="onVorgaengeSchliessen()"
+    />
+  }
 
   <!-- Paket K2a: ein Ablauf der angemeldeten Person wartet in einem anderen Gespräch. Die Live-Region
        steht immer im DOM (Review K2a, Befund 5): eine schon gefüllt eingefügte sagen Screenreader oft
        nicht an; nur ihr Inhalt wechselt. -->
   <div class="fortsetzen-ort" role="status">
-    @if (fortsetzen.angebot(); as angebot) {
+    <!-- Q-18: solange „Meine Vorgänge“ offen ist, ruht der Hinweis — die Liste nennt denselben Vorgang. -->
+    @if (!probe() && !meineVorgaenge.offen() && fortsetzen.angebot(); as angebot) {
       <div class="fortsetzen-hinweis">
         <span class="fortsetzen-hinweis__text">{{ t('fortsetzen.hinweis', { titel: angebot.titel, datum: fortsetzenDatum(angebot) }) }}</span>
         <button type="button" class="fortsetzen-hinweis__los" (click)="onFortsetzen()" [disabled]="isLoading()">
@@ -261,9 +290,12 @@
       </div>
     }
   </div>
+  </div>
 
   <!-- Eingabe-Footer (ALT 609-632) -->
-  <div class="chat-footer">
+  <!-- AS-Ud: angemeldet ein Knopf mehr — bei schmaler Breite bricht die Zeile um (`_chat-footer.scss`). -->
+  <div class="chat-footer" [class.chat-footer--konto]="authButton() === 'signOut'"
+       [class.chat-footer--mikro]="languageButtonsVisible">
     @if (languageButtonsVisible) {
       <button
         type="button"
@@ -314,6 +346,22 @@
          und nicht in einer Kopfzeile, damit sie im rahmenlosen Einbettungs-
          Modus bleibt — derselbe Grund, aus dem der Neustart hierher wanderte.
          `hidden` heißt: diese Anlage bietet keine Anmeldung an. -->
+    <!-- Paket AS-Ud: „Meine Vorgänge“ — nur angemeldet; ein Aufklapp-Knopf mit festem Namen, darum
+         mit aria-expanded (anders als der Umschalter der Leiste, dessen Beschriftung den Zustand sagt). -->
+    @if (authButton() === 'signOut' && !probe()) {
+      <button
+        #vorgaengeKnopf
+        type="button"
+        class="btn-vorgaenge"
+        (click)="onVorgaengeUmschalten()"
+        [title]="t('vorgaenge.knopf')"
+        [attr.aria-label]="t('vorgaenge.knopf')"
+        [attr.aria-expanded]="meineVorgaenge.offen()"
+        aria-controls="boerdi-meine-vorgaenge"
+      >
+        <span class="bb-icon" [innerHTML]="ICONS.restore | safeSvg"></span>
+      </button>
+    }
     @if (authButton() !== 'hidden') {
       <button
         type="button"

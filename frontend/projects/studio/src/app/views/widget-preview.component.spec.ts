@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AblaufApi } from '../core/ablauf-api.service';
 import { WidgetElementLoader } from '../core/widget-element-loader';
 import { OverviewApi } from '../core/overview-api.service';
 import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
@@ -30,6 +31,8 @@ async function mount(load: () => Promise<void>): Promise<Harness> {
       { provide: WidgetElementLoader, useValue: { load: spy } },
       // Plan 2026-11-07 (R4): der Abschnitt „Einbettende Seiten“ liest `/api/health`.
       { provide: OverviewApi, useValue: { health: async () => ({}) } },
+      // AS-8b: der Abschnitt „Ablauf ausprobieren“ liest die Liste der Abläufe.
+      { provide: AblaufApi, useValue: { liste: async () => [] } },
     ],
   });
   const fixture = TestBed.createComponent(WidgetPreviewComponent);
@@ -53,7 +56,7 @@ describe('WidgetPreviewComponent', () => {
     const h = await mount(() => new Promise<void>((resolve) => { release = resolve; }));
 
     expect(h.load).toHaveBeenCalledTimes(1);
-    expect(h.el.querySelector('[role="status"]')?.textContent).toContain('wird geladen');
+    expect(h.el.querySelector('.wp-state')?.textContent).toContain('wird geladen');
     expect(widget(h)).toBeNull();
 
     release();
@@ -192,5 +195,84 @@ describe('WidgetPreviewComponent', () => {
     select.dispatchEvent(new Event('change'));
     await settle(h);
     expect((h.el.querySelector('input[type="text"]') as HTMLInputElement).value).toBe('abc-123');
+  });
+});
+
+
+describe('WidgetPreviewComponent — Ablauf ausprobieren (AS-8b)', () => {
+  // Browser-Abnahme AS-8: Attribute, die das Studio erst nach dem Verbinden setzt, liest das Widget
+  // nicht mehr (`ablauf-start` nur in `ngOnInit`, und je Tab nur einmal). Die Vorschau startet den
+  // Ablauf deshalb über die Laufzeit-API des Elements — bei jedem „Ablauf starten“ neu.
+  function mitStartSpion(): ReturnType<typeof vi.fn> {
+    const spion = vi.fn();
+    (HTMLElement.prototype as unknown as { startAblauf: unknown }).startAblauf = spion;
+    return spion;
+  }
+  const ohneSpion = () => { delete (HTMLElement.prototype as unknown as { startAblauf?: unknown }).startAblauf; };
+
+  it('eine Probe baut das Widget neu, setzt probe und startet den Ablauf über die API', async () => {
+    const spion = mitStartSpion();
+    try {
+      const h = await mount(async () => undefined);
+      h.fixture.detectChanges();
+      const vorher = widget(h);
+      expect(vorher?.hasAttribute('probe')).toBe(false);
+      h.fixture.componentInstance.onProbe({ ablauf: 'sammlung_pruefen', daten: '{"thema":"Optik"}' });
+      h.fixture.detectChanges();
+      await settle(h);
+      const w = widget(h)!;
+      expect(w).not.toBe(vorher);                       // ein neues Element — neuer Boot
+      expect(w.getAttribute('probe')).toBe('');
+      expect(w.getAttribute('persist-session')).toBe('false');
+      expect(spion).toHaveBeenCalledTimes(1);
+      expect(spion).toHaveBeenCalledWith('sammlung_pruefen', { thema: 'Optik' });
+      expect(spion.mock.contexts[0]).toBe(w);
+      // derselbe Start noch einmal: wieder ein neues Element, wieder ein Start
+      h.fixture.componentInstance.onProbe({ ablauf: 'sammlung_pruefen', daten: '{"thema":"Optik"}' });
+      h.fixture.detectChanges();
+      await settle(h);
+      expect(spion).toHaveBeenCalledTimes(2);
+    } finally {
+      ohneSpion();
+    }
+  });
+
+  it('ohne Startdaten ohne zweites Argument; „Probe beenden“ kehrt zur gewöhnlichen Vorschau zurück',
+    async () => {
+      const spion = mitStartSpion();
+      try {
+        const h = await mount(async () => undefined);
+        h.fixture.componentInstance.onProbe({ ablauf: 'a', daten: null });
+        h.fixture.detectChanges();
+        await settle(h);
+        expect(spion).toHaveBeenCalledWith('a', undefined);
+        h.fixture.componentInstance.onProbe(null);
+        h.fixture.detectChanges();
+        await settle(h);
+        expect(widget(h)!.hasAttribute('probe')).toBe(false);
+        expect(spion).toHaveBeenCalledTimes(1);
+      } finally {
+        ohneSpion();
+      }
+    });
+});
+
+describe('WidgetPreviewComponent — Neustart während einer Probe (Review AS-8b, N4)', () => {
+  it('„Vorschau neu starten“ behält die Probe und startet den Ablauf neu', async () => {
+    const spion = vi.fn();
+    (HTMLElement.prototype as unknown as { startAblauf: unknown }).startAblauf = spion;
+    try {
+      const h = await mount(async () => undefined);
+      h.fixture.componentInstance.onProbe({ ablauf: 'a', daten: null });
+      h.fixture.detectChanges();
+      await settle(h);
+      h.fixture.componentInstance.apply(new Event('submit'));
+      h.fixture.detectChanges();
+      await settle(h);
+      expect(widget(h)!.getAttribute('probe')).toBe('');
+      expect(spion).toHaveBeenCalledTimes(2);
+    } finally {
+      delete (HTMLElement.prototype as unknown as { startAblauf?: unknown }).startAblauf;
+    }
   });
 });

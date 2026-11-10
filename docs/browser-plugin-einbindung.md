@@ -143,6 +143,8 @@ Und was ihr **je nach Aufgabe** braucht:
 | die offene Seite melden | `replaceContext({…})` | §5 |
 | ein Feld nachreichen (gleiche Seite) | `updateContext({…})` | §5 |
 | den Chat auf ein Thema starten | `startTask('…')` | §5 |
+| einen Ablauf mit Daten starten | `startAblauf(id, {…})` · `ablauf-start` | §5 |
+| aus einer Benachrichtigung zurückführen | `vorgangFortsetzen({…})` · `fortsetzen-auftrag` | §5 |
 | maschinenlesbares Ergebnis | `result-schema` + `boerdi:agent-result` | §7a |
 | Chat gar nicht anzeigen | `POST /api/agent` | §7 |
 
@@ -284,6 +286,11 @@ Alle Werte sind HTML-Attribute, also Zeichenketten. Boolesche Attribute nehmen
 | `emit-routing-debug` | `false` | `boerdi:routing-debug` einschalten (§6) |
 | `emit-query-meta` | `false` | `boerdi:query-meta` einschalten (§6). Bis Paket 19 immer an — wer das Ereignis liest, setzt jetzt `emit-query-meta="true"` |
 | `ticket` | — | edu-sharing-Ticket der Gastgeberseite. **Für Plugins nicht nutzbar** (§8) |
+| `ablauf-start` | — | Kennung eines Ablaufs, der beim ersten Öffnen startet (öffnet nicht von selbst). Mit Daten nur Abläufe mit dem Auslöser „Gastseite“; läuft er schon mit denselben Daten, geht es dort weiter (§5, `startAblauf`) |
+| `ablauf-start-daten` | — | Startdaten dazu als JSON-Objekt. Kaputtes JSON startet nichts (eine Warnung in der Konsole, ohne Werte) |
+| `probe` | `false` | Nur für die Studio-Vorschau (Paket AS-8): jeder Zug als Trockenlauf — nichts wird in WLO geschrieben, kein Auftrag startet, nichts wird abgelegt; im Widget steht ein Etikett. Gilt nur mit Studio-Anmeldung auf derselben Herkunft, sonst weist das Backend jeden Zug ab (403). Nur beim Erzeugen setzen: die Sitzung bleibt im Backend Probe, auch wenn das Attribut später wegfällt. Auf Gastseiten nicht setzen |
+| `fortsetzen-vorgang` | — | Kennung eines Vorgangs (etwa aus einer Benachrichtigung): öffnet den Chat und führt die angemeldete Besitzerin zurück ins Gespräch (§5, `vorgangFortsetzen`) |
+| `fortsetzen-auftrag` | — | Job-ID eines Auftrags: wie `fortsetzen-vorgang`; wartet der Lauf auf den Auftrag, fragt der Chat gleich „Stand prüfen“ |
 
 ### Was zur Laufzeit noch wirkt
 
@@ -315,6 +322,7 @@ einer Template-Bindung — die nächste Auswertung nimmt den neuen Wert.
 | `show-cards`, `show-debug-button`, `show-language-buttons`, `inline-result-grouping` | werden beim Rendern gelesen (Getter/`computed` der Shell) |
 | `intercept-edu-sharing-links`, `emit-guide-suggestion`, `emit-routing-debug`, `emit-query-meta` | werden beim Ereignis gelesen |
 | `trusted-domains` | `computed`, mit der Backend-Liste gemergt |
+| `probe` | Effect → `shell.setProbe()`; `startAblauf()` und der Start aus `ablauf-start` übernehmen es synchron. **Achtung:** die Sitzung bleibt im Backend Probe, auch wenn das Attribut später wegfällt — nur beim Erzeugen setzen (die Studio-Vorschau baut dafür jedes Mal ein neues Element) |
 
 **B · Wirkt erst beim nächsten Neustart des Chats.** Die Bindung ist live, aber
 die einzige Stelle, die sie liest, läuft nur beim Öffnen und bei „Neu starten"
@@ -335,6 +343,8 @@ einen anderen gibt, steht er dabei.
 | `persist-session`, `session-key`, `session-cookie-domain`, `session-cookie-max-age` | Die Sitzungs-Kaskade läuft einmal beim Start. Danach: `resetSession()` |
 | `size` | Startwert; danach gehört die Stufe dem Umschalter in der Eingabezeile — ein Effect überschriebe jede Handbedienung |
 | `ticket` | Einmal gelesen und sofort aus dem DOM getilgt: ein Ticket darf nirgends liegenbleiben |
+| `ablauf-start`, `ablauf-start-daten` | Einmal in `ngOnInit` — ein Attribut, das erst danach gesetzt wird (etwa über eine Bindung), wirkt nicht. Zur Laufzeit `startAblauf()` (§5) |
+| `fortsetzen-vorgang`, `fortsetzen-auftrag` | Einmal in `ngOnInit` und **je Tab nur einmal** (ein Hash in `sessionStorage`). Zur Laufzeit `vorgangFortsetzen()` (§5) |
 
 Faustregel, wenn ihr unsicher seid: **alles, was den Verlauf oder die Sitzung
 betrifft, ist Start-Zustand; alles, was nur die Darstellung oder den nächsten Zug
@@ -550,8 +560,8 @@ grep -c showWelcome boerdi-widget.js
 
 ### Die JS-API des Elements
 
-Neun Methoden, auf dem Element-Prototyp
-(`frontend/projects/widget/src/element-api.ts:40-53`):
+Elf Methoden, auf dem Element-Prototyp
+(`frontend/projects/widget/src/element-api.ts`, `FORWARDED_METHODS`):
 
 ```js
 const chat = document.querySelector('boerdi-chat');
@@ -565,14 +575,16 @@ chat.updateContext({ … });   // Seitenkontext ERGÄNZEN (mergt)
 chat.replaceContext({ … });  // Seitenkontext ERSETZEN (wie eine Navigation)
 chat.startTask('…');         // Zug starten — SICHTBAR als Auftrags-Blase (unten)
 chat.setHostInstruction('…'); // Rahmen mitgeben — UNSICHTBAR (unten)
+chat.startAblauf('id', { … }); // einen Ablauf mit Startdaten starten (unten)
+chat.vorgangFortsetzen({ auftrag: '…' }); // zurück zur Arbeit — Vorgang oder Auftrag (unten)
 ```
 
 Ruft ihr sie, **bevor** das Element aufgewertet ist, bekommt ihr `undefined`
 statt einer Ausnahme — bewusst so, aber es heißt eben auch: nichts ist passiert.
 Wartet auf `customElements.whenDefined('boerdi-chat')`.
 
-Zwei Ausnahmen von dieser Regel: `startTask` und `setHostInstruction` **warten**
-auf die Shell, statt ins Leere zu laufen. Beide werden typischerweise sofort nach
+Vier Ausnahmen von dieser Regel: `startTask`, `startAblauf`, `vorgangFortsetzen` und
+`setHostInstruction` **warten** auf die Shell, statt ins Leere zu laufen. Alle werden typischerweise sofort nach
 dem Einbau gerufen, und die Shell ist da noch keinen Zyklus alt (rahmenlos) bzw.
 bis zum ersten Öffnen gar nicht gemountet (Panel-Betrieb).
 
@@ -833,6 +845,88 @@ Zwei Dinge, die in einer Seitenleiste zählen:
 
 `ui/src/shell/chat-shell.component.ts` (`startTask`) ·
 `widget/src/app/widget/widget.component.ts` (Warteschlange).
+
+### Einen Ablauf mit Startdaten starten: `startAblauf` (seit AS-4, 09.11.2026)
+
+Ein Ablauf aus dem Studio (Seite „Abläufe“) kann von der Gastseite gestartet werden, wenn er den
+Auslöser **„Gastseite (Widget)“** trägt. Die Gastseite gibt ihm Daten mit, die er unter
+„Startdaten“ beschreibt, etwa die Sammlung, um die es geht:
+
+```js
+chat.startAblauf('sammlung_pflegen', { sammlung: '<nodeId>' });
+```
+
+```html
+<!-- oder beim Einbau: startet beim ersten Öffnen -->
+<boerdi-chat ablauf-start="sammlung_pflegen"
+             ablauf-start-daten='{"sammlung": "<nodeId>"}'></boerdi-chat>
+```
+
+- **Sichtbar:** Der Start erscheint als Blase „Auftrag der Seite — Start des Ablaufs „…“ angefragt“, wie
+  `startTask`. Die Methode öffnet den Chat; das Attribut nicht. Eine ungültige Kennung oder
+  Daten, die kein Objekt sind (oder mehr als 20 Schlüssel, mehr als 16 000 Zeichen JSON), starten
+  nichts — eine Warnung in der Konsole, ohne Werte.
+- **Geprüft:** Das Backend nimmt **Daten** nur bei einem Ablauf mit diesem Auslöser und prüft
+  sie gegen dessen Startschema:
+  - Typen (Text, Knoten-Kennung, Zahl, Ja/Nein), Pflichtfelder, unbekannte Felder und die Länge
+    werden geprüft;
+  - passt etwas nicht, startet der Ablauf nicht, und der Chat sagt es, ohne die Werte zu nennen.
+- **Ohne Daten** startet `startAblauf` auch jeden Ablauf, den ein Knopf starten kann (Auslöser
+  „Knopf“ oder „KI schlägt vor“). Das Backend kann einen Start der Gastseite nicht von einem
+  Knopfdruck unterscheiden — die Liste der Auslöser ist die Grenze, nicht die Methode.
+- **Kein Neustart bei jedem Seitenaufruf:** Das Attribut wirkt je Tab nur einmal. Läuft in
+  diesem Gespräch derselbe Ablauf mit denselben Startdaten noch, startet er nicht neu — der Chat
+  sagt „läuft hier schon“, und es geht dort weiter.
+- **Nie still ersetzen:** Läuft im Gespräch ein **anderer** Lauf (ein anderer Ablauf oder andere
+  Daten), ersetzt ein Start der Seite ihn nicht — ein Neustart beendete den laufenden samt einem
+  Auftrag, auf den er wartet. Der Chat fragt mit den Knöpfen „Neu starten“ und, wenn ein Auftrag
+  wartet, „Stand prüfen“; erst ein Klick der Person startet neu. Der Knopf gilt nur für den Lauf,
+  für den er gefragt hat — hat der sich bewegt, fragt der Chat neu. Ist ein Lauf „gesperrt“
+  (`warten: gesperrt`), kommt statt der Frage dessen Hinweis. Eine freie Arbeit (ein Vorgang ohne
+  Lauf) übernimmt der Ablauf, wie bei einem Knopf.
+- **Mit `fortsetzen-*` zusammen:** Wirkt eine Wiederkehr in diesem Aufruf, gilt `ablauf-start`
+  nicht (er liefe sonst im alten Gespräch). Ein Auftrag der Seite, der vor einem Wechsel des
+  Gesprächs eingereiht war, verfällt mit einer Warnung in der Konsole.
+- **Eingaben, keine Rechte:** Eine mitgegebene Kennung öffnet nichts. Lesen und Schreiben gehen
+  weiter mit der Anmeldung der Person, und schreibende Schritte brauchen ihre Freigabe.
+- **Reines JSON:** Funktionen und Prototypen gehen nicht mit, ein Datum wird Text. Keine
+  personenbezogenen Daten mitgeben: Die Startdaten landen im Arbeitsstand der Person.
+
+`ui/src/shell/chat-shell.component.ts` (`startAblauf`) ·
+`widget/src/app/widget/widget.component.ts` (Attribute, Warten auf die Shell) ·
+Backend `services/ablauf/startdaten.py`.
+
+### Zurück zur Arbeit: `vorgangFortsetzen` (seit AS-4, 09.11.2026)
+
+Ein Ablauf, der auf einen Auftrag wartet, kann die Person gehen lassen. Kommt sie über eine
+Benachrichtigung oder einen Link der Gastseite zurück, nennt die Seite den Vorgang oder den
+Auftrag:
+
+```js
+chat.vorgangFortsetzen({ auftrag: '<job-id>' });   // oder { vorgang: '<uuid>' }
+```
+
+```html
+<boerdi-chat fortsetzen-auftrag="<job-id>"></boerdi-chat>
+```
+
+- **Der Chat öffnet sich.** Ist die Person angemeldet (etwa über `ticket`) und gehört ihr der
+  Vorgang, wechselt der Chat in das Gespräch des Vorgangs. Wartet dort ein Auftrag, fragt er
+  gleich „Stand prüfen“, wie „Gespräch fortsetzen“.
+- **Eine Kennung ist kein Recht.** Fremd, unbekannt, abgeschlossen und abgelaufen sehen gleich
+  aus: Der Chat sagt in einer Zeile, dass er nichts zum Fortsetzen findet (ohne die Kennung). Ein
+  Link mit einer Kennung gibt also niemandem außer der Besitzerin etwas preis.
+- **Ohne Anmeldung** bittet der Chat darum (mit dem Knopf „Anmelden“) und versucht es nach der
+  Anmeldung (von Hand oder über das Ticket) einmal neu. Ein Server- oder Netzfehler heißt „gerade
+  nicht prüfbar“, nicht „nichts mehr da“.
+- **Einmal je Tab:** Das Attribut wirkt in einem Tab nur einmal, sobald es ein Ergebnis gab
+  (gefunden oder „nichts“) — ein Neuladen holt die Person nicht jedes Mal zurück; scheiterte es
+  an der Anmeldung, wirkt es beim nächsten Laden wieder. Setzt die Gastseite das Attribut aus einem Adress-Parameter (etwa
+  `?auftrag=…`), entfernt sie ihn danach am besten (`history.replaceState`), damit Zurück und
+  Lesezeichen ihn nicht weitertragen.
+
+`ui/src/shell/chat-shell.component.ts` (`vorgangFortsetzen`) · Backend
+`POST /api/ui/vorgaenge/wiederkehr`.
 
 ### Der unsichtbare Rahmen: `setHostInstruction`
 

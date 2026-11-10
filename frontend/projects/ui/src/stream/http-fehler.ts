@@ -38,6 +38,14 @@ export function drosselHinweis(t: TranslateFn, err: unknown): string | null {
     : t('error.rateLimited');
 }
 
+/** Paket AS-8b: in der Probe der Studio-Vorschau heißt ein 403 auf dem Chat-Weg „keine gültige
+ *  Studio-Anmeldung“ (Backend: `probe_ohne_recht`) — sonst `null`. Nur mit `probe`, denn ein
+ *  anderer 403 hätte einen anderen Grund. */
+export function probeHinweis(t: TranslateFn, err: unknown, probe: boolean): string | null {
+  return probe && (err as { status?: unknown } | null)?.status === 403
+    ? t('error.probeOhneRecht') : null;
+}
+
 /** Der Satz für „Frist abgelaufen“ (Paket 19, M-15): der POST lief in seine Frist
  *  (`StreamStaleError` aus `postChat`) — sonst `null`. Über den Namen, nicht über
  *  `instanceof`: so bleibt dieses Modul frei vom Strom-Transport. */

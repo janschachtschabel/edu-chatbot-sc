@@ -47,6 +47,10 @@
     </form>
   </section>
 
+  <!-- Paket AS-8b: einen Ablauf im Widget ausprobieren (Trockenlauf) -->
+  <studio-ablauf-probe [vorauswahl]="ablaufWunsch()" [aktiv]="probe()?.ablauf ?? null"
+    (starten)="onProbe($event)" />
+
   <studio-einbettung-herkuenfte [backendHerkunft]="apiUrl" />
 
   <!-- Eine bleibende Region, nicht zwei wechselnde: ein Screenreader erfährt so
@@ -72,11 +76,14 @@
          erneut laufen zu lassen. -->
     @for (id of [boot()]; track id) {
       <boerdi-chat
+        #widget
+        [attr.data-boot]="id"
         [attr.api-url]="apiUrl"
         [attr.page-context]="applied()"
         auto-context="false"
         persist-session="false"
         initial-state="expanded"
+        [attr.probe]="probe() ? '' : null"
       ></boerdi-chat>
     }
   }

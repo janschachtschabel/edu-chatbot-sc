@@ -8,8 +8,8 @@
  * - Die Befunde sind ein **Stand**: Ändert sich der Ablauf, nimmt das Feld sie aus dem Formular und
  *   bittet um eine neue Prüfung. Ein anderer Ablauf in derselben Instanz (die Liste zeigt einen
  *   Eintrag nach dem anderen) und „Verwerfen“ setzen alles zurück.
- * - Die **Schrittfolge** liest den Entwurf live (`ablauf-folge.ts`): je Schritt die Pfeile zum
- *   nächsten, bei Fehler, je Regel; unbekannte Ziele sind markiert.
+ * - Die **Schrittfolge** (Text und Bild) steht darunter (`ablauf-schrittfolge.component.ts`), mit
+ *   den Befunden der Prüfung am Schritt.
  *
  * Die Befunde sperren das Speichern nicht (`FORM_BEFUNDE`); das Speichern prüft ohnehin selbst.
  */
@@ -25,12 +25,18 @@ import {
   untracked,
 } from '@angular/core';
 
-import { type AblaufBefund, AblaufApi } from '../core/ablauf-api.service';
+import { Router } from '@angular/router';
+import { ohneMarkdownEscapes } from '@boerdi/ui';
+
+import { type AblaufBefund, AblaufApi, type AblaufTeil, type AblaufTestErgebnis } from '../core/ablauf-api.service';
 import { describeProblem, pathKey } from '../core/field-problems';
 import { StudioApiError } from '../core/studio-api-error';
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
-import { type FolgePfeil, schrittFolge } from './ablauf-folge';
+import { probeHref } from '../views/probe-start';
+import { schrittFolge } from './ablauf-folge';
+import { AblaufDatenComponent } from './ablauf-daten.component';
+import { AblaufSchrittfolgeComponent } from './ablauf-schrittfolge.component';
 import { FORM_BEFUNDE, type FormBefund } from './form-befunde';
 import { FORM_EPOCHE } from './form-epoche';
 import type { ValuePath } from './form-value';
@@ -38,12 +44,14 @@ import type { ValuePath } from './form-value';
 /** `alt`: seit der Prüfung geändert — fest gemerkt, damit nicht jede weitere Änderung den ganzen
  *  Ablauf noch einmal serialisiert (Review K2c-4, Befund 8). */
 type Stand = { readonly geprueft: string; readonly alt?: boolean } & (
-  | { readonly art: 'befunde'; readonly befunde: readonly AblaufBefund[] }
+  | { readonly art: 'befunde'; readonly befunde: readonly AblaufBefund[];
+      readonly warnungen: readonly string[]; readonly teile: readonly AblaufTeil[] }
   | { readonly art: 'form'; readonly meldungen: readonly { readonly ort: string; readonly text: string }[] }
   | { readonly art: 'fehler'; readonly text: string });
 
 @Component({
   selector: 'studio-ablauf-pruefen',
+  imports: [AblaufDatenComponent, AblaufSchrittfolgeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './schema-form.scss',
   template: `
@@ -56,10 +64,28 @@ type Stand = { readonly geprueft: string; readonly alt?: boolean } & (
         </button>
         <p class="ap-status live" role="status">{{ statusText() }}</p>
       </div>
+      <!-- AS-8b: dieselbe Kennung in der Vorschau ausprobieren (gespeicherte Fassung, Trockenlauf) -->
+      @if (probeLink(); as href) {
+        <p class="ap-probe-zeile">
+          <a class="ap-probe" [href]="href" (click)="zurProbe($event)"
+            [attr.aria-describedby]="idBasis() + '-probe-hinweis'">{{ t('ablaufPruefen.ausprobieren') }}</a>
+          <span class="ap-probe-hinweis" [id]="idBasis() + '-probe-hinweis'">{{
+            t('ablaufPruefen.ausprobierenHinweis') }}</span>
+        </p>
+      }
       @if (gueltig(); as s) {
         @if (s.art === 'befunde' && ablaufBefunde().length) {
           <ul class="ap-befunde">
             @for (text of ablaufBefunde(); track $index) { <li class="sf-error">{{ text }}</li> }
+          </ul>
+        }
+        @if (s.art === 'befunde' && s.warnungen.length) {
+          <!-- AS-0: Hinweise ohne Sperre (dieselbe Wendung in einem anderen aktiven Ablauf);
+               seit AS-Db auch zum Datenfluss (Teil entsteht später oder kommt aus dem Gespräch). -->
+          <ul class="ap-befunde" [attr.aria-label]="t('ablaufPruefen.warnungen')">
+            @for (text of s.warnungen; track $index) {
+              <li>{{ t('ablaufPruefen.warnung', { text }) }}</li>
+            }
           </ul>
         }
         @if (s.art === 'form') {
@@ -72,39 +98,52 @@ type Stand = { readonly geprueft: string; readonly alt?: boolean } & (
           </ul>
         }
       }
-      <p class="sf-desc">{{ t('ablaufPruefen.folge') }}</p>
-      @if (!folge().length) {
-        <p class="sf-desc">{{ t('ablaufPruefen.keineSchritte') }}</p>
-      } @else {
-        <ol class="ap-folge">
-          @for (z of folge(); track z.nr) {
-            <li class="ap-zeile" [class.ap-mit-befund]="befundeAn(z.nr).length > 0">
-              <span class="ap-schritt">
-                <code>{{ z.id || t('ablaufPruefen.ohneKennung') }}</code>
-                @if (z.typ) { <span class="ap-typ">{{ typText(z.typ) }}</span> }
-              </span>
-              @if (!z.pfeile.length) {
-                <!-- Befund 3: „Endet hier.“ nur am ende-Schritt; sonst läuft der Lauf aus -->
-                <span class="ap-pfeil">{{ z.typ === 'ende' ? t('ablaufPruefen.endetHier') : t('ablaufPruefen.laeuftAus') }}</span>
-              } @else {
-                <ul class="ap-pfeile">
-                  @for (p of z.pfeile; track $index) {
-                    <li class="ap-pfeil" [class.ap-unbekannt]="!p.bekannt">{{ pfeilText(p) }}</li>
+      <!-- AS-1: die Testfälle des Ablaufs, mit dem echten Treiber simuliert (ohne LLM, MCP, Auftrag). -->
+      <div class="ap-tests">
+        @if (testZahl()) {
+          <div class="ap-kopf">
+            <button type="button" class="sf-add" [id]="idBasis() + '-tests'"
+              [attr.aria-disabled]="testLaeuft() ? 'true' : null" (click)="testen()">
+              {{ t('ablaufTesten.knopf') }}
+            </button>
+            <p class="ap-test-status live" role="status">{{ testStatus() }}</p>
+          </div>
+          @if (testErgebnisse(); as ergebnisse) {
+            <ul class="ap-befunde">
+              @for (e of ergebnisse; track $index) {
+                <li class="ap-test" [class.sf-error]="!e.ok">
+                  {{ t(e.ok ? 'ablaufTesten.bestanden' : 'ablaufTesten.abweichung', { name: e.name }) }}
+                  @if (!e.ok) {
+                    <ul>
+                      @for (a of e.abweichungen; track $index) { <li>{{ a }}</li> }
+                    </ul>
                   }
-                </ul>
+                  @if (e.texte?.length) {
+                    <!-- AS-3b: was der Lauf sagte, mit eingesetzten Platzhaltern -->
+                    <details class="ap-texte">
+                      <summary>{{ lang.plural('ablaufTesten.texte', e.texte!.length) }}</summary>
+                      <ol>
+                        @for (text of e.texte; track $index) { <li>{{ lesbar(text) }}</li> }
+                      </ol>
+                    </details>
+                  }
+                </li>
               }
-              @for (text of befundeAn(z.nr); track $index) {
-                <p class="sf-error ap-befund">{{ text }}</p>
-              }
-            </li>
+            </ul>
           }
-        </ol>
-      }
+        } @else {
+          <p class="sf-desc">{{ t('ablaufTesten.keine') }}</p>
+        }
+      </div>
+      <studio-ablauf-schrittfolge [folge]="folge()" [pfad]="pfad()" [befunde]="schrittBefunde()" />
+      <!-- AS-Dc: die Sicht „Daten“ — mit „Prüfen“ gerechnet, solange sie zum Entwurf passt -->
+      <studio-ablauf-daten [teile]="datenTeile()" [folge]="folge()" [pfad]="pfad()" />
     </div>
   `,
 })
 export class AblaufPruefenComponent {
-  private readonly lang = inject(StudioLanguageService);
+  protected readonly lang = inject(StudioLanguageService);
+  protected readonly lesbar = ohneMarkdownEscapes;
   private readonly format = inject(StudioFormat);
   private readonly api = inject(AblaufApi);
   private readonly befundeImFormular = inject(FORM_BEFUNDE, { optional: true });
@@ -118,6 +157,11 @@ export class AblaufPruefenComponent {
   readonly idBasis = input.required<string>();
 
   readonly laeuft = signal(false);
+  /** AS-1: der Stand von „Tests ausführen“ — für genau den Entwurf, der geschickt wurde. */
+  readonly testLaeuft = signal(false);
+  private readonly testStand = signal<{ readonly geprueft: string; readonly ergebnisse?: readonly AblaufTestErgebnis[];
+                                         readonly fehler?: string } | null>(null);
+  private testAnfrage = 0;
   private readonly stand = signal<Stand | null>(null);
   /** Nummer der jüngsten Anfrage — eine ältere Antwort gilt nicht, und ein Wechsel des Ablaufs gibt
    *  den Knopf sofort frei (Review K2c-4, Befund 5). */
@@ -126,11 +170,34 @@ export class AblaufPruefenComponent {
   private quelle: string | null = null;
 
   readonly folge = computed(() => schrittFolge(this.wert()));
+  /** AS-8b: der Weg in die Vorschau mit diesem Ablauf — nur mit Kennung. */
+  readonly probeLink = computed(() => probeHref((this.wert() as { id?: unknown } | null | undefined)?.id));
+  private readonly router = inject(Router, { optional: true });
   private readonly jetzt = computed(() => JSON.stringify(this.wert() ?? null));
   readonly veraltet = computed(() => {
     const s = this.stand();
     return s !== null && (s.alt === true || s.geprueft !== this.jetzt());
   });
+  readonly testZahl = computed(() => {
+    const tests = (this.wert() as { tests?: unknown } | null | undefined)?.tests;
+    return Array.isArray(tests) ? tests.length : 0;
+  });
+  /** Die Ergebnisse, solange sie zum Entwurf passen. */
+  readonly testErgebnisse = computed(() => {
+    const s = this.testStand();
+    return s && s.geprueft === this.jetzt() ? (s.ergebnisse ?? null) : null;
+  });
+  readonly testStatus = computed(() => {
+    if (this.testLaeuft()) return this.t('ablaufTesten.laeuft');
+    const s = this.testStand();
+    if (!s) return '';
+    if (s.geprueft !== this.jetzt()) return this.t('ablaufTesten.veraltet');
+    if (s.fehler !== undefined) return this.t('ablaufTesten.fehler', { detail: s.fehler });
+    const alle = s.ergebnisse ?? [];
+    const gut = alle.filter((e) => e.ok).length;
+    return this.lang.plural('ablaufTesten.zusammen', alle.length, { gut, abweichend: alle.length - gut });
+  });
+
   /** Der Stand, solange er zum Entwurf passt. */
   readonly gueltig = computed(() => (this.veraltet() ? null : this.stand()));
 
@@ -146,8 +213,10 @@ export class AblaufPruefenComponent {
     if (this.veraltet()) return this.t('ablaufPruefen.veraltet');
     switch (s.art) {
       case 'befunde':
-        return s.befunde.length
-          ? this.lang.plural('ablaufPruefen.befunde', s.befunde.length)
+        if (s.befunde.length) return this.lang.plural('ablaufPruefen.befunde', s.befunde.length);
+        // Review AS-0, Befund 6: Hinweise ohne Befund — die Live-Region sagt es auch an.
+        return s.warnungen.length
+          ? this.lang.plural('ablaufPruefen.okMitHinweisen', s.warnungen.length)
           : this.t('ablaufPruefen.ok');
       case 'form':
         return this.lang.plural('ablaufPruefen.form', s.meldungen.length);
@@ -186,9 +255,43 @@ export class AblaufPruefenComponent {
     inject(DestroyRef).onDestroy(() => this.ausFormular());
   }
 
-  befundeAn(nr: number): readonly string[] {
+  /** AS-Dc: die Sicht „Daten“ der gültigen Prüfung. */
+  readonly datenTeile = computed<readonly AblaufTeil[] | null>(() => {
     const s = this.gueltig();
-    return s?.art === 'befunde' ? s.befunde.filter((b) => b.nr === nr).map((b) => b.text) : [];
+    return s?.art === 'befunde' ? s.teile : null;
+  });
+
+  /** Die Befunde der gültigen Prüfung je Stelle in `schritte` — für die Schrittfolge. */
+  readonly schrittBefunde = computed<ReadonlyMap<number, readonly string[]>>(() => {
+    const s = this.gueltig();
+    const je = new Map<number, string[]>();
+    if (s?.art === 'befunde') {
+      for (const b of s.befunde) if (b.nr !== null) je.set(b.nr, [...(je.get(b.nr) ?? []), b.text]);
+    }
+    return je;
+  });
+
+  async testen(): Promise<void> {
+    if (this.testLaeuft()) return;
+    const wert = this.wert() ?? null;
+    const geprueft = JSON.stringify(wert);
+    const nummer = ++this.testAnfrage;
+    this.testLaeuft.set(true);
+    try {
+      const ergebnisse = await this.api.testen(wert);
+      if (nummer === this.testAnfrage) this.testStand.set({ geprueft, ergebnisse });
+    } catch (err) {
+      if (nummer !== this.testAnfrage) return;
+      const problems = err instanceof StudioApiError && err.status === 422 ? err.problems : [];
+      const text = problems.length
+        ? problems.map((p) => `${pathKey(p.path[0] === 'body' ? p.path.slice(1) : p.path)}: ${describeProblem(p, this.t, this.format.decimal)}`).join('; ')
+        // Querschnitts-Review AS-0…AS-2, Befund 9: der Grund statt eines nackten 413
+        : err instanceof StudioApiError && err.status === 413 ? this.t('ablaufTesten.zuGross')
+        : err instanceof StudioApiError ? err.detail : String(err);
+      this.testStand.set({ geprueft, fehler: text });
+    } finally {
+      if (nummer === this.testAnfrage) this.testLaeuft.set(false);
+    }
   }
 
   async pruefen(): Promise<void> {
@@ -199,9 +302,9 @@ export class AblaufPruefenComponent {
     const nummer = ++this.anfrage;
     this.laeuft.set(true);
     try {
-      const befunde = await this.api.pruefen(wert);
+      const { befunde, warnungen, teile } = await this.api.pruefen(wert);
       if (this.verpasst(nummer, geprueft)) return;
-      this.stand.set({ art: 'befunde', geprueft, befunde });
+      this.stand.set({ art: 'befunde', geprueft, befunde, warnungen, teile: teile ?? [] });
       this.insFormular(pfad, this.jeSchritt(pfad, befunde));
     } catch (err) {
       if (this.verpasst(nummer, geprueft)) return;
@@ -223,28 +326,6 @@ export class AblaufPruefenComponent {
     } finally {
       if (nummer === this.anfrage) this.laeuft.set(false);
     }
-  }
-
-  protected typText(typ: string): string {
-    const key = `feld.Schritt.typ.wahl.${typ}`;
-    return this.lang.has(key) ? this.t(key) : typ;
-  }
-
-  protected pfeilText(p: FolgePfeil): string {
-    const ziel = p.ziel ? p.ziel : this.t('ablaufPruefen.laeuftAus');
-    const unbekannt = p.bekannt ? '' : ` ${this.t('ablaufPruefen.unbekannt')}`;
-    if (p.keineGreift) return this.t('ablaufPruefen.keineGreift', { ziel });
-    if (p.art === 'fehler') return this.t('ablaufPruefen.beiFehler', { ziel }) + unbekannt;
-    if (p.art === 'weiter') return this.t('ablaufPruefen.weiter', { ziel }) + unbekannt;
-    if (p.sonst) return this.t('ablaufPruefen.sonst', { ziel }) + unbekannt;
-    const bedingungen = [
-      ...(p.wennTeil ? [this.t('ablaufPruefen.wennTeil', { teil: p.wennTeil })] : []),
-      ...(p.wennGewaehlt ? [this.t('ablaufPruefen.wennGewaehlt', { wahl: p.wennGewaehlt })] : []),
-    ];
-    return this.t('ablaufPruefen.regel', {
-      wenn: bedingungen.length ? this.lang.listOr(bedingungen) : this.t('ablaufPruefen.ohneBedingung'),
-      ziel,
-    }) + unbekannt;
   }
 
   /** Die Antwort kam, nachdem eine neuere Anfrage lief, der Ablauf wechselte (`leeren`) oder er sich
@@ -275,5 +356,18 @@ export class AblaufPruefenComponent {
     this.stand.set(null);
     this.anfrage += 1;
     this.laeuft.set(false);
+    // Review AS-1, Befund 8: auch der Testlauf gehört zum alten Ablauf
+    this.testStand.set(null);
+    this.testAnfrage += 1;
+    this.testLaeuft.set(false);
+  }
+
+  /** Im Studio ohne Neuladen — die Adresse bleibt für „in neuem Tab öffnen“. */
+  zurProbe(event: MouseEvent): void {
+    const id = (this.wert() as { id?: unknown } | null | undefined)?.id;
+    if (!this.router || typeof id !== 'string' || event.ctrlKey || event.metaKey || event.shiftKey
+        || event.button !== 0) return;
+    event.preventDefault();
+    void this.router.navigate(['/vorschau'], { queryParams: { ablauf: id } });
   }
 }

@@ -53,6 +53,7 @@ import { FIELDS_REGELWERK } from './fields-regelwerk';
 import { FIELDS_SICHERHEIT } from './fields-sicherheit';
 import { FIELDS_TONE } from './fields-tone';
 import { FIELDS_TOUR } from './fields-tour';
+import { ABLAEUFE_SEITE } from './ablaeufe-seite';
 import { FIELDS_ABLAEUFE } from './fields-ablaeufe';
 import { FIELDS_UPLOAD } from './fields-upload';
 import { FIELDS_WISSENSBEREICHE } from './fields-wissensbereiche';
@@ -64,6 +65,7 @@ import { MATERIAL_FORMATE } from './material-formate';
 import { MCP } from './mcp';
 import { OVERVIEW } from './overview';
 import { PREVIEW } from './preview';
+import { PREVIEW_PROBE } from './preview-probe';
 import { PRIVACY_PURGE } from './privacy-purge';
 import { QUALITY } from './quality';
 import { QUALITY_FLOW } from './quality-flow';
@@ -86,7 +88,7 @@ import { VALIDATION } from './validation';
 import { VIEWS } from './views';
 
 export const STUDIO_PARTS: readonly CataloguePart[] = [
-  FRAME, VIEWS, SHARED, AREA_EDITOR, GROUP_SECTION, BACKUP, FASSUNGEN, RESTORE_MODE, PREVIEW, KNOWLEDGE, MCP, CURATED, CURATED_BETRIEB, OVERVIEW,
+  FRAME, VIEWS, SHARED, AREA_EDITOR, GROUP_SECTION, BACKUP, FASSUNGEN, RESTORE_MODE, PREVIEW, PREVIEW_PROBE, KNOWLEDGE, MCP, CURATED, CURATED_BETRIEB, OVERVIEW,
   EVALUATION, EVAL_DETAIL, EVAL_PATTERN, EVAL_TRENDS, EVAL_START,
   QUALITY, QUALITY_MATRIX, QUALITY_FLOW, QUALITY_LOGS,
   LOADTEST, SESSIONS, SAFETY, COSTS, AGENT,
@@ -122,4 +124,6 @@ export const STUDIO_PARTS: readonly CataloguePart[] = [
   MATERIAL_FORMATE,
   // Paket U1-f: Seite „UI-Module“
   UI_MODULE, FIELDS_UPLOAD, FIELDS_ABLAEUFE,
+  // AS-0: Seite „Abläufe“
+  ABLAEUFE_SEITE,
 ];

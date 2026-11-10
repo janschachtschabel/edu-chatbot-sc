@@ -72,6 +72,8 @@ const DE = {
     netz: 'Keine Verbindung zum Server.',
     unsicher: 'Übertragen geht nur, wenn diese Seite sicher (über https) geladen ist.',
     abgebrochen: 'Das Übertragen wurde abgebrochen.',
+    // Paket AS-8b: Probe der Studio-Vorschau (Backend 409 `trockenlauf`)
+    trockenlauf: 'Probe der Studio-Vorschau: Dateien werden nicht in WLO abgelegt.',
     fehler: 'Das Übertragen ist nicht gelungen.',
   },
   blase: (abgelegt: number, n: number) => `${zahl('de', abgelegt)} von ${zahl('de', n)} ${mehrzahl('de', n, 'Datei', 'Dateien')} in meinen persönlichen Bereich in WLO übertragen.`,
@@ -146,6 +148,7 @@ const EN: typeof DE = {
     netz: 'No connection to the server.',
     unsicher: 'Transferring only works when this page is loaded securely (over https).',
     abgebrochen: 'The transfer was cancelled.',
+    trockenlauf: 'Studio preview: files are not stored in WLO.',
     fehler: 'The transfer did not work.',
   },
   blase: (abgelegt: number, n: number) => `Transferred ${zahl('en', abgelegt)} of ${zahl('en', n)} ${mehrzahl('en', n, 'file', 'files')} to my personal area in WLO.`,

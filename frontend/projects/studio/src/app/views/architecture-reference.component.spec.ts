@@ -95,8 +95,8 @@ describe("ArchitectureReferenceComponent", () => {
     for (const { attr } of HOST_ATTRIBUTES) {
       expect(documented, `Attribut ${attr}`).toContain(attr);
     }
-    // +quick-replies-max (O-B2, 2026-08-20), +emit-query-meta (Paket 19, N-6)
-    expect(HOST_ATTRIBUTES).toHaveLength(33);
+    // +quick-replies-max (O-B2, 2026-08-20), +emit-query-meta (Paket 19, N-6), +probe (AS-8b)
+    expect(HOST_ATTRIBUTES).toHaveLength(38);
     expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain(
       "inline-result-grouping",
     );

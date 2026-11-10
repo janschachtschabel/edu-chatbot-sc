@@ -133,6 +133,69 @@
   .tw-wert, .tw-kopf-wert { grid-column: 1 / -1; }
 }
 
+// AS-2a: Regel-Editor für `weiter` — je Regel Bedingung, Wert, Ziel, Knöpfe; schmal bricht es um.
+.we {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-2);
+  container-type: inline-size;
+}
+
+.we-regeln {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-2);
+  margin: 0;
+  padding-inline-start: var(--st-4);
+}
+
+.we-zeile {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(8rem, 1fr) minmax(8rem, 1fr) auto;
+  gap: var(--st-2);
+  align-items: start;
+}
+
+// Review AS-2, Befund 13: bei „sonst“ fehlt das Wert-Feld — Ziel und Knöpfe bleiben in ihrer Spalte
+.we-ziel {
+  grid-column: 3;
+}
+
+// AS-3c: Quelle, Vergleich und Wert stehen zusammen in der Spalte des Werts
+.we-wert {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1);
+}
+
+// AS-7b (Review Befund 8): das Feld der Zeile — sonst unsichtbar für das Raster, bei „Seite passt“
+// eine Spalte aus Feld und sichtbarer Hilfe
+.we-feld {
+  display: contents;
+}
+
+.we-feld.we-seite {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-1);
+}
+
+.we-hilfe {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.we-knoepfe {
+  grid-column: 4;
+  display: inline-flex;
+  gap: var(--st-1);
+}
+
+@container (max-width: 34rem) {
+  .we-zeile { grid-template-columns: 1fr 1fr; }
+  .we-ziel, .we-knoepfe { grid-column: auto; }
+}
+
 .tw-aktionen {
   display: flex;
   flex-wrap: wrap;
@@ -156,6 +219,21 @@
 .ap-status {
   margin: 0;
   font-size: 0.875rem;
+}
+
+/* AS-8b: „Im Widget ausprobieren“ — ein gewöhnlicher Link (globale Linkfarbe, unterstrichen),
+   daneben der Hinweis auf die gespeicherte Fassung. */
+.ap-probe-zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-1) var(--st-3);
+  margin: var(--st-2) 0 0;
+  font-size: 0.875rem;
+}
+
+.ap-probe-hinweis {
+  color: var(--st-text-muted);
 }
 
 .ap-befunde,
@@ -195,4 +273,138 @@
 
 .ap-befund {
   margin: var(--st-1) 0 0;
+}
+
+.ap-zum,
+.ap-modul {
+  margin-inline-start: var(--st-2);
+}
+
+.ap-modul {
+  font-size: 0.8125rem;
+}
+
+// AS-2b: das Ablaufbild — Kästen untereinander, Bögen rechts; „bei Fehler“ gestrichelt, ein
+// unbekanntes Ziel mit kräftigem Rand und ⚠ (nie nur Farbe). Breiter als der Platz: es scrollt.
+// AS-Dc: die Sicht „Daten“ — eine Tabelle, die schmal seitlich rollt
+.ad {
+  margin-block: var(--st-2);
+}
+
+.ad-flaeche {
+  overflow-x: auto;
+}
+
+.ad-tabelle {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-2);
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+    vertical-align: top;
+  }
+}
+
+// Review AS-Dc, Befunde 4/9/10: Abstand über die Hülle, 24×24 auch bei kurzer Kennung, ein Name
+// ohne Knopf (kein Formular) sieht nicht wie ein Knopf aus
+.ad-zelle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--st-1);
+}
+
+.ad-schritt {
+  padding: 0 var(--st-1);
+  min-inline-size: 1.5rem;
+  text-align: center;
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  min-block-size: 1.5rem;
+  cursor: pointer;
+}
+
+.ad-schritt:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 1px;
+}
+
+span.ad-schritt {
+  border-color: transparent;
+  background: none;
+  cursor: default;
+}
+
+.ad-beispiel {
+  overflow-wrap: anywhere;
+}
+
+.ab-rahmen {
+  margin-block: var(--st-2);
+}
+
+.ab-kopf {
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.ab-flaeche {
+  overflow-x: auto;
+  padding-block: var(--st-2);
+}
+
+.ab {
+  display: block;
+  max-inline-size: none;
+}
+
+.ab-kasten {
+  cursor: pointer;
+
+  rect {
+    fill: var(--st-panel);
+    stroke: var(--st-rule-strong);
+    stroke-width: 1;
+  }
+
+  &:hover rect {
+    fill: var(--st-accent-soft);
+  }
+}
+
+.ab-unbekannt rect {
+  stroke: var(--st-warn-dot);
+  stroke-width: 2.5;
+}
+
+.ab-text {
+  fill: var(--st-text);
+  font-size: 0.75rem;
+}
+
+.ab-linie {
+  fill: none;
+  stroke: var(--st-text-muted);
+  stroke-width: 1.25;
+}
+
+.ab-fehler {
+  stroke-dasharray: 4 3;
+}
+
+.ab-spitze {
+  fill: var(--st-text-muted);
+}
+
+.ab-beschriftung {
+  fill: var(--st-text-muted);
+  font-size: 0.6875rem;
+  paint-order: stroke;
+  stroke: var(--st-bg);
+  stroke-width: 3px;
 }

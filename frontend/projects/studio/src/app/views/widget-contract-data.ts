@@ -167,6 +167,29 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
     groupKey: 'rw.group.integration', attr: 'ticket', fallback: '—',
     descKey: 'rw.attr.ticket',
   },
+  {
+    // AS-4b (Plan 2026-11-09 E2 A): ein Ablauf mit Startdaten beim ersten Öffnen.
+    groupKey: 'rw.group.integration', attr: 'ablauf-start', fallback: '—',
+    descKey: 'rw.attr.ablaufStart',
+  },
+  {
+    groupKey: 'rw.group.integration', attr: 'ablauf-start-daten', fallback: '—',
+    descKey: 'rw.attr.ablaufStartDaten',
+  },
+  {
+    // AS-8b (Plan 2026-11-09 §5n): Probe der Studio-Vorschau — Trockenlauf, nur mit Studio-Anmeldung.
+    groupKey: 'rw.group.integration', attr: 'probe', fallback: 'false',
+    descKey: 'rw.attr.probe',
+  },
+  {
+    // AS-4c (Plan 2026-11-09 R3): zurück zur Arbeit aus einer Benachrichtigung.
+    groupKey: 'rw.group.integration', attr: 'fortsetzen-vorgang', fallback: '—',
+    descKey: 'rw.attr.fortsetzenVorgang',
+  },
+  {
+    groupKey: 'rw.group.integration', attr: 'fortsetzen-auftrag', fallback: '—',
+    descKey: 'rw.attr.fortsetzenAuftrag',
+  },
 ];
 
 export interface HostEvent {
