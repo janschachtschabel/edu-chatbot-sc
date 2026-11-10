@@ -19,6 +19,7 @@ from typing import Any, Final
 
 from boerdi.i18n.locale import Locale
 from boerdi.services import master_skill
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_knowledge import WISSENS_REGEL, wissen_werkzeug
 from boerdi.services.agent_kopf import kopf
 from boerdi.services.agent_tools import build_agent_tools
@@ -58,8 +59,10 @@ async def prompt_vorschau(sprache: Locale) -> dict[str, Any]:
     zustand = master_skill.zustand()
     # Die Werkzeuge einer Person ohne Anmeldung (Paket 9): die kuratierenden nur,
     # wenn das Studio das Gastkonto erlaubt — wie im Zug (``respond_agent``).
+    # Review AS-5a, Befund 6: die Ablauf-Werkzeuge reisen in jedem Agent-Zug mit — sie zählen.
     werkzeuge = build_agent_tools(allow_curation=schreiben_erlaubt(), include_submit=False,
-                                  include_dokument=True, wissen_tool=wissen)
+                                  include_dokument=True, wissen_tool=wissen,
+                                  ablauf_tools=ablauf_vorschlag.werkzeuge(sprache))
     # U1-d2: Die Modul-Werkzeuge kommen nur dazu, wenn das Widget sie meldet — getrennt genannt.
     # U1-f: nur die, die das Studio dem Agenten lässt; mit Datenquelle (U1-e) nur bei
     # verfügbarem Werkzeug — wie im Zug. Namen und Umfang zählen dieselben (Review U1-f, #11).

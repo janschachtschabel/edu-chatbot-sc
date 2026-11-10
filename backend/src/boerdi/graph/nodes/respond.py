@@ -52,6 +52,7 @@ from boerdi.obs.tasks import _retrieve_task_exception, cancel_and_drain, merke_z
 from boerdi.obs.zeiten import schritt
 from boerdi.services import arbeitsstand
 from boerdi.services.ablauf import ki_schritt
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.dokumente.stand import lader as dokument_lader
 from boerdi.services.engine_choice import (
@@ -484,6 +485,9 @@ async def respond(
                 vorsatz="\n\n".join(t for t in (
                     _kennzeile,
                     frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage, _letzter)) if t),
+                # Querschnitts-Review AS-5, Befund 2: am KI-Schritt eines Laufs schlägt die KI
+                # keinen anderen Ablauf vor — wie im Agent-Modus.
+                ohne_ablaeufe=bool(_ki),
             )
             if _antwort_strom is not None:
                 _antwort_strom.schliessen()  # den zurückgehaltenen Rest senden
@@ -516,8 +520,10 @@ async def respond(
             # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase.
             response_text = antwort_fehlertext(resolve_locale(req.environment.locale),
                                                "error.answerFailed", fehler=_gen_err)
-            # Eine Frage zur Fehlerblase zeigte ein Auswahlfeld zu einem gescheiterten Zug.
+            # Eine Frage zur Fehlerblase zeigte ein Auswahlfeld zu einem gescheiterten Zug — ebenso
+            # ein Ablauf-Knopf (Review AS-5b, Befund 3).
             session_state.pop(MODUL_BLOECKE_KEY, None)
+            session_state.pop(ablauf_vorschlag.SITZUNG_KEY, None)
             wlo_cards_raw = []
             tools_called = ["error"]
             response_outcomes = []
