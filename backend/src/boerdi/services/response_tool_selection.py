@@ -63,13 +63,16 @@ import os
 from collections.abc import Collection
 from typing import Any
 
+from boerdi.domain.ablauf_werkzeug import MUSTER_KEY as ABLAUF_MUSTER_KEY
 from boerdi.domain.antwort_werkzeug import antwort_werkzeug, inline_anzahl
 from boerdi.domain.content_types import medientyp_meint_sammlungen
 from boerdi.domain.host_capabilities import erlaubt
 from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
+from boerdi.domain.quick_reply_policy import _qr_policy
 from boerdi.domain.skill_bruecke import ZUSATZ_KEY as SKILL_ZUSATZ_KEY
 from boerdi.domain.write_confirm import CURATION_TOOLS
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_tools import angebotene_mcp_werkzeuge, verborgene_werkzeuge
 from boerdi.services.mcp import fremdwerkzeuge
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
@@ -175,6 +178,8 @@ def _select_active_tools(
     tool_mode: str | None = None,
     gesperrt: Collection[str] = (),
     ui_module: Collection[str] | None = None,
+    sprache: str = "de",
+    ohne_ablaeufe: bool = False,
 ) -> tuple[list[dict], Any, bool, bool]:
     """Stellt die aktive Tool-Liste fuer ``generate_response`` zusammen
     (Phasen P10-P11: pattern.tools / tools=[] / mcp-Source / Fallback,
@@ -558,6 +563,18 @@ def _select_active_tools(
                                                 tool_mode=tool_mode),
             # U1-f: nur aktive Module; „für den Agenten“ gilt hier nicht (U-F4, Muster-Wahl).
             fuer="muster"))
+
+    # ── Abläufe als Werkzeuge (Paket AS-5b, A5-6) ───────────────────────────
+    # Nur, was das Muster in ``tools:`` nennt UND vorschlagbar ist (aktiv, Auslöser ``agent``,
+    # Voraussetzungen erfüllt) — dieselben Werkzeuge wie im Agent-Modus. Vor dem
+    # Degradations-Wipe: fehlt ein Pflicht-Slot, verlangt der Prompt reinen Text.
+    # Nicht, wo kein Knopf erscheinen kann: ``ohne_ablaeufe`` (Chips des Gastgebers, ein
+    # laufender KI-Schritt — Review AS-5b, Befund 4; Querschnitt AS-5, Befund 2) oder ein Muster
+    # ohne Schnellantworten (``quick_replies_mode: none``).
+    genannt = set(pattern_output.get(ABLAUF_MUSTER_KEY) or ())
+    if (genannt and not ohne_ablaeufe
+            and _qr_policy(pattern_output.get("id") or "")[0] != "none"):
+        active_tools.extend(ablauf_vorschlag.werkzeuge(sprache, nur=genannt, tool_mode=tool_mode))
 
     # Degradation (Pflicht-Slot fehlt): Tool-Liste wirklich leeren statt nur
     # per Prompt-Regel zu bitten — gegen einen Pattern-Body mit

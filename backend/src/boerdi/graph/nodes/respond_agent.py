@@ -106,6 +106,12 @@ from boerdi.ui_module.antwort import vorsatz as frage_vorsatz
 logger = logging.getLogger(__name__)
 
 
+def _gastgeber_chips(ctx: Any) -> bool:
+    """Setzt der Gastgeber die Chips dieses Zugs (``forced_quick_replies``)? Dann gibt es keinen
+    Ablauf-Knopf (``turn_assembly``), also auch kein Ablauf-Werkzeug."""
+    return any(c and c.strip() for c in (ctx.req.environment.forced_quick_replies or []))
+
+
 def _antwort_werkzeug(ctx: TurnContext) -> dict[str, Any] | None:
     """``respond_to_user`` für den Agenten — nur mit den Agent-Schnellantworten
     (Studio ``betrieb.agent_schnellantworten`` oder ``AGENT_INLINE_QUICK_REPLIES``).
@@ -358,7 +364,10 @@ async def respond_agent(
             antwort_tool=_antwort_tool,
             # Paket A2a: nur mit vorschlagbarem Ablauf (Auslöser ``agent``) im Angebot — nicht im
             # agent-Schritt eines Laufs (dort zählen nur dessen Werkzeuge).
-            ablauf_tool=None if _ki else ablauf_vorschlag.werkzeug(sprache))
+            # Kein Ablauf-Werkzeug, wo kein Knopf erscheinen kann (Chips des Gastgebers, Review
+            # AS-5b, Befund 4); die Erlaubnis der Einbettung gilt auch hier (Querschnitt AS-5, 6).
+            ablauf_tools=None if _ki or _gastgeber_chips(ctx) else ablauf_vorschlag.werkzeuge(
+                sprache, tool_mode=ctx.req.environment.tool_mode))
     if _ki:
         _werkzeuge = ki_schritt.einengen(_werkzeuge, _ki[1])
         _ki_zeile = ki_schritt.zeile(*_ki, sprache, zuege=_ki_zug, angeboten={
@@ -464,7 +473,8 @@ async def respond_agent(
     # Keine Wiederholung, sondern der ehrliche Satz: derselbe Fall, dieselbe
     # Antwort wie bei jedem anderen textlosen Zug. Das WARNING macht die
     # Häufigkeit sichtbar — ohne es war der Fall im Betrieb unauffindbar.
-    if not _antwort.strip():
+    _ersatzsatz = not _antwort.strip()
+    if _ersatzsatz:
         logger.warning(
             "Agent-Modus: Antwort bestand nur aus Ansagezeilen "
             "(%d Zeichen Lauf-Text, Ende=%s) — ehrlicher Ersatzsatz",
@@ -480,7 +490,9 @@ async def respond_agent(
     if lauf.vorschlaege:
         ctx.session_state["_inline_quick_replies"] = lauf.vorschlaege
     # Paket A2a: vorgeschlagene Abläufe — den Knopf setzt die Zusammenstellung.
-    if lauf.ablauf_vorschlaege:
+    # Nicht unter dem Ersatzsatz eines gescheiterten Zugs — und nie ohne eigenen Satz des Modells,
+    # der den Knopf erklärt (A5-8; Review AS-5b, Befund 3).
+    if lauf.ablauf_vorschlaege and not _ersatzsatz and (lauf.text or "").strip():
         ctx.session_state[ablauf_vorschlag.SITZUNG_KEY] = list(lauf.ablauf_vorschlaege)
     # Paket U1-d1: Blöcke der Modul-Werkzeuge (``turn_persist`` speichert und liefert sie). Eine
     # Frage merkt sich die Sitzung für den nächsten Zug; darunter keine Schnellantworten — ein

@@ -37,9 +37,28 @@ async def _abdeckung_zaehlen(args: dict[str, Any]) -> Any:
         "knoten") else None
 
 
+async def _struktur_mit_nodeids(args: dict[str, Any]) -> Any:
+    """Paket AS-Dd: der Entwurf ``entwurf`` mit den Kennungen der Sammlungen, die
+    ``wlo_create_collection_tree`` angelegt hat (``angelegt``) — Folgeschritte treffen so die
+    richtigen Knoten (``strukturentwurf_bestand.mit_kennungen``, ohne LLM)."""
+    from boerdi.ui_module.strukturentwurf_bestand import mit_kennungen
+
+    return mit_kennungen(args.get("entwurf"), args.get("angelegt"))
+
+
+async def _baum_aus_entwurf(args: dict[str, Any]) -> Any:
+    """Paket AS-Dd (Review, Befund 5): der Baum für ``wlo_create_collection_tree`` aus dem Entwurf
+    ``entwurf`` — mit dessen Titeln, damit ``struktur_mit_nodeids`` danach jeden Punkt findet."""
+    from boerdi.ui_module.strukturentwurf_bestand import baum_aus_entwurf
+
+    return baum_aus_entwurf(args.get("entwurf"))
+
+
 DIENSTE: Final[dict[str, Dienst]] = {
     "strukturentwurf_aus_ordnern": _strukturentwurf_aus_ordnern,
     "abdeckung_zaehlen": _abdeckung_zaehlen,
+    "struktur_mit_nodeids": _struktur_mit_nodeids,
+    "baum_aus_entwurf": _baum_aus_entwurf,
 }
 
 #: Die MCP-Werkzeuge, die ein Dienst ruft — sperrt die Sicherheitsprüfung eines davon (etwa bei
@@ -48,6 +67,10 @@ DIENSTE: Final[dict[str, Dienst]] = {
 DIENST_MCP: Final[dict[str, frozenset[str]]] = {
     "abdeckung_zaehlen": frozenset({"count_wlo_content_matches"}),
 }
+
+#: Dienste ohne Netz — die Simulation rechnet sie selbst (Querschnitts-Review AS-D, Befund 1: sonst
+#: sagte ein von Hand geschriebenes Ergebnis einen Weg voraus, den es nicht gibt).
+REINE_DIENSTE: Final = frozenset(DIENSTE) - set(DIENST_MCP)
 
 #: Lesende MCP-Werkzeuge, die ein Schritt rufen darf (am Code geprüft, 2026-11-05).
 LESENDE_MCP: Final = frozenset({

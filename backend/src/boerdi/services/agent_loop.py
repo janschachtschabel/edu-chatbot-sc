@@ -107,6 +107,12 @@ from boerdi.ui_module.werkzeuge import (
 
 logger = logging.getLogger(__name__)
 
+
+def _name_von(call: Any) -> str:
+    """Der Werkzeugname eines Aufrufs (``tc.function.name``) — leer, wenn er fehlt."""
+    funktion = getattr(call, "function", None)
+    return str(getattr(funktion, "name", "") or "")
+
 #: Der Name, unter dem die Kostenschau (K3) die Züge der Agent-Schleife führt.
 USAGE_PHASE = "agent"
 
@@ -170,8 +176,9 @@ class AgentRun:
     #: Paket U1-d1: Blöcke der allgemeinen Modul-Werkzeuge, in Aufrufreihenfolge. Ein
     #: abfragender beendet den Lauf mit ``stop_reason`` „frage“ (die Person ist am Zug).
     ui_bloecke: list[UiBlock] = field(default_factory=list)
-    #: Paket A2a: vorgeschlagene Abläufe (Kennungen) — den Knopf setzt die Zusammenstellung.
-    ablauf_vorschlaege: list[str] = field(default_factory=list)
+    #: Paket A2a/AS-5a: vorgeschlagene Abläufe (``{ablauf, start?}``) — den Knopf setzt die
+    #: Zusammenstellung.
+    ablauf_vorschlaege: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _spent(acc: dict[str, Any]) -> int:
@@ -457,6 +464,11 @@ async def run_agent_loop(
             return schluss("deadline")
 
         antwort: dict[str, Any] | None = None
+        # Querschnitts-Review AS-5, Befunde 4 und 10: ob die Runde eine Antwort oder eine Frage
+        # enthält, gilt für jeden Ablauf-Vorschlag der Runde — unabhängig von der Reihenfolge.
+        runde_mit_antwort = any(_name_von(c) == RESPOND_TO_USER for c in calls)
+        runde_mit_frage = any(ist_abfragendes_modul(n := _name_von(c)) and n in angeboten
+                              for c in calls)
         antwort_id = ""
         frage: UiBlock | None = None
         # Ein Modul mit Datenquelle dieser Runde hat keinen Block geliefert (Review U1-e).
@@ -501,9 +513,12 @@ async def run_agent_loop(
                 antwort, antwort_id = args, tc.id
                 messages.append(_tool_turn(tc.id, "OK"))
                 continue
+            # Review AS-5a, Befund 2 (A5-8): nach der Antwort nur ein Ablauf-Vorschlag ohne
+            # Angaben — mit Angaben muss der Satz über dem Knopf nach der Quittung entstehen.
             if antwort is not None and not (
                     ist_dokument_werkzeug(name) or name == LIEFERE_ERGEBNIS
-                    or ist_modul_werkzeug(name) or name == ablauf_vorschlag.NAME):
+                    or ist_modul_werkzeug(name)
+                    or (ablauf_vorschlag.ist_ablauf_werkzeug(name) and not args)):
                 messages.append(_tool_turn(tc.id, _NACH_DER_ANTWORT))
                 continue
             # Nach einer Frage (U1-d1) wie nach der Antwort: kein echtes Werkzeug mehr.
@@ -543,11 +558,32 @@ async def run_agent_loop(
 
             # Paket A2a: einen Ablauf vorschlagen — virtuell, nur gemerkt (die Kennung gegen die
             # Aufzählung im Schema geprüft); den Knopf setzt die Zusammenstellung.
-            if name == ablauf_vorschlag.NAME:
+            # AS-5a: je Ablauf ein Werkzeug; die Daten prüft ``merken`` wie jeden Start.
+            if ablauf_vorschlag.ist_ablauf_werkzeug(name):
                 abweichungen = argument_fehler(angebotene_parameter(tools, name), args)
-                messages.append(_tool_turn(tc.id, ergebnis_ungueltig(abweichungen) if abweichungen
-                                           else ablauf_vorschlag.merken(run.ablauf_vorschlaege,
-                                                                        str(args["ablauf"]))))
+                if runde_mit_frage:
+                    ablauf_antwort = _NACH_DER_FRAGE
+                elif runde_mit_antwort and args:
+                    # Zweites Review AS-5, Befund 3: das Modell liest diese Abweisung nicht mehr —
+                    # die Beschreibung sagt es vorher; hier nur die Zählung.
+                    logger.info("Ablauf-Vorschlag mit Angaben neben der Antwort verworfen")
+                    ablauf_antwort = ablauf_vorschlag.NEBEN_DER_ANTWORT
+                elif abweichungen:
+                    ablauf_antwort = ablauf_vorschlag.ANGABEN_FALSCH.format(
+                        abweichungen="; ".join(abweichungen)[:300])
+                else:
+                    ablauf_antwort = ablauf_vorschlag.merken(run.ablauf_vorschlaege, name, args)
+                if not ablauf_vorschlag.ist_quittung(ablauf_antwort):
+                    # Review AS-5a, Befund 5: derselbe abgewiesene Vorschlag zweimal ist
+                    # Stillstand — wie beim Ergebnis.
+                    key = _call_key(name, args)
+                    if key == last_call:
+                        logger.info("Agent-Schleife: derselbe Ablauf-Vorschlag zweimal abgewiesen "
+                                    "— Stillstand")
+                        quittiere(calls[i:], NICHT_AUSGEFUEHRT_STILLSTAND)
+                        return schluss("no_progress")
+                    last_call = key
+                messages.append(_tool_turn(tc.id, ablauf_antwort))
                 continue
 
             # Das Ergebnis als eigener Kanal (J1): virtuell wie ``submit_result``

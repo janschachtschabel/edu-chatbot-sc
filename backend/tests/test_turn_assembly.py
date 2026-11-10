@@ -647,6 +647,24 @@ async def test_ein_vorgeschlagener_ablauf_wird_ein_knopf_vorn(monkeypatch):
     assert vorschlag.SITZUNG_KEY not in zustand            # gilt nur für diesen Zug
 
 
+async def test_der_vorschlag_mit_angaben_wird_ein_knopf_mit_herkunft_ki(monkeypatch):
+    """AS-5b (Review, Befund 6): der Durchstich ohne ersetzte Knopf-Funktion."""
+    import json
+
+    from boerdi.services.ablauf import ausloeser, vorschlag
+
+    roh = {"id": "baum", "titel": {"de": "Baum"}, "aktiv": True, "ausloeser": [{"art": "agent"}],
+           "start": [{"name": "thema", "typ": "text", "beschreibung": {"de": "Thema"}}],
+           "schritte": [{"id": "a", "typ": "nachricht", "text": {"de": "Los."}},
+                        {"id": "e", "typ": "ende"}]}
+    monkeypatch.setattr(ausloeser, "_roh_liste", lambda: [roh])
+    zustand = {"entities": {}, vorschlag.SITZUNG_KEY: [{"ablauf": "baum",
+                                                        "start": {"thema": "Optik"}}]}
+    _cards, qrs, *_ = await _call(session_state=zustand)
+    params = json.loads(qrs[0].split("|", 3)[3])
+    assert params == {"ablauf": "baum", "start": {"thema": "Optik"}, "start_quelle": "ki"}
+
+
 async def test_unter_einer_offenen_frage_kein_ablauf_knopf(monkeypatch):
     from boerdi.services.ablauf import vorschlag
 

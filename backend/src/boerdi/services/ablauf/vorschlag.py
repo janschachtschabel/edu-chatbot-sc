@@ -1,35 +1,65 @@
-"""Auslöser ``agent`` (Paket A2a): die KI schlägt einen Ablauf vor — gestartet wird per Knopf.
+"""Auslöser ``agent`` (A2a, AS-5a): die KI schlägt einen Ablauf vor — gestartet wird per Knopf.
 
-- :func:`werkzeug`: das virtuelle Agent-Werkzeug ``ablauf_vorschlagen`` — nur, wenn ein aktiver
-  Ablauf den Auslöser ``agent`` trägt; die Kennungen als Aufzählung (die Schleife prüft die
-  Argumente gegen das Schema), Titel, ``wann`` und ``nicht_wann`` in der Beschreibung.
-- Die Schleife merkt sich die Kennung (:data:`MAX_JE_ZUG`, ``AgentRun.ablauf_vorschlaege``) und ruft
-  nichts; :func:`schnellantworten` macht daraus beim Zusammenstellen die Knopf-Schnellantwort
-  ``__action__|<Titel>|ablauf_starten|{"ablauf": id}``, die das Widget schon kennt. So formuliert
-  die KI nie selbst einen Knopf, und der Start läuft wie jeder Knopf durch Preflight und
-  Sicherheitsprüfung.
+- :func:`werkzeuge`: je aktivem Ablauf mit Auslöser ``agent`` ein virtuelles Werkzeug
+  ``ablauf-<id>`` (Plan §5g, A5-1/A5-2: ein Bindestrich, weil ``__`` ein Fremdwerkzeug kennzeichnet
+  und Ablauf-Kennungen nie ``-`` enthalten). Seine Parameter sind das Startschema
+  (``startdaten.werkzeug_schema``); Titel, ``wann`` und ``nicht_wann`` stehen in der Beschreibung.
+- Die Schleife ruft nichts: :func:`merken` prüft die Daten wie jeder Start
+  (``startdaten.pruefen``) und merkt den Vorschlag (:data:`MAX_JE_ZUG`,
+  ``AgentRun.ablauf_vorschlaege``). :func:`schnellantworten` macht daraus beim Zusammenstellen den
+  Knopf ``__action__|<Titel>|ablauf_starten|{"ablauf": id, "start": {…}, "start_quelle": "ki"}``.
+  So formuliert die KI nie selbst einen Knopf; der Start läuft wie jeder Knopf durch Preflight und
+  Sicherheitsprüfung, und Daten der KI tragen nie die Rechte der Gastseite (A5-3).
 
-``direkt`` (sofort starten) bleibt offen: es bräuchte Treiber-Ausgabe mitten in der Agent-Antwort.
+``direkt`` (sofort starten) bleibt offen (AS-5c): es bräuchte Treiber-Ausgabe mitten in der
+Agent-Antwort.
 """
 
 from __future__ import annotations
 
 import json
+import logging
+from collections.abc import Collection
 from typing import Any, Final
 
-from boerdi.services.ablauf import ausloeser
+from boerdi.domain.ablauf_werkzeug import MUSTER_KEY, PRAEFIX, ist_ablauf_werkzeug, kennung
+from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER
+from boerdi.domain.host_capabilities import MODI, VOLL
+from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
+from boerdi.services.ablauf import ausloeser, startdaten
+from boerdi.services.ablauf import werkzeuge as werkzeuge_mod
+from boerdi.ui_module.antwort import NACH_DER_FRAGE
+from boerdi.ui_module.namen import UPLOAD
 
-NAME: Final = "ablauf_vorschlagen"
-#: Im ``session_state``: die Kennungen dieses Zugs, gelesen (und entfernt) beim Zusammenstellen.
+logger = logging.getLogger(__name__)
+
+# Re-Exporte (die Namensregel liegt rein in ``domain/ablauf_werkzeug``).
+_REEXPORT = (MUSTER_KEY, PRAEFIX, ist_ablauf_werkzeug, kennung)
+
+#: Im ``session_state``: die Vorschläge dieses Zugs (``{ablauf, start?}``), gelesen (und entfernt)
+#: beim Zusammenstellen.
 SITZUNG_KEY: Final = "_ablauf_vorschlaege"
 MAX_JE_ZUG: Final = 1
+#: A5-7: die Schemas reisen in jedem Agent-Zug mit (Kosten, Cache).
+MAX_WERKZEUGE: Final = 6
+_BESCHREIBUNG_ZEICHEN: Final = 600
+#: A5-7: so lang dürfen die Daten im Knopf werden (als JSON) — sonst kein Knopf.
+MAX_DATEN_ZEICHEN: Final = 2000
 _MAX_SCHNELLANTWORTEN: Final = 4
 _LABEL_ZEICHEN: Final = 60
 
 QUITTUNG: Final = ("Vorschlag angenommen: unter deiner Antwort erscheint ein Knopf, mit dem die "
-                   "Person den Ablauf startet. Sag ihr in einem Satz, was er tut; starte selbst "
-                   "nichts und beschreibe keine Schritte im Voraus.")
+                   "Person den Ablauf startet. Sag ihr in einem Satz, was er tut und mit welchen "
+                   "Angaben (A5-8); starte selbst nichts und beschreibe keine Schritte im Voraus.")
 SCHON_VORGESCHLAGEN: Final = "Ein Ablauf ist in diesem Zug schon vorgeschlagen."
+UNBEKANNT: Final = "Diesen Ablauf gibt es nicht (mehr) — schlage ihn nicht vor."
+#: Review AS-5a, Befund 7: die Abweichungen vom Schema der Angaben (nicht „das Ergebnis“).
+ANGABEN_FALSCH: Final = "Die Angaben passen nicht zum Ablauf: {abweichungen}"
+#: AS-5b (A5-8): in derselben Runde wie die Antwort kein Vorschlag mit Angaben.
+NEBEN_DER_ANTWORT: Final = ("Nicht ausgeführt: Die Antwort steht in derselben Runde — ein "
+                            "Ablauf mit Angaben braucht einen Satz danach.")
+ZU_LANG: Final = "Die Angaben sind zu lang für einen Knopf — kürze sie oder schlage nichts vor."
+DATEN_FALSCH: Final = "Die Angaben passen nicht zum Ablauf ({codes}) — korrigiere sie oder lass es."
 
 
 def _titel(ablauf: Any, lang: str) -> str:
@@ -37,56 +67,158 @@ def _titel(ablauf: Any, lang: str) -> str:
             or ablauf.id)
 
 
-def werkzeug(lang: str) -> dict[str, Any] | None:
-    ablaeufe = ausloeser.vorschlaege()
-    if not ablaeufe:
-        return None
-    zeilen = []
-    for a in ablaeufe:
-        zeile = f"- {a.id}: {_titel(a, lang)}"
-        if a.wann:
-            zeile += f" — passt, wenn: {'; '.join(a.wann)}"
-        if a.nicht_wann:
-            zeile += f" — nicht, wenn: {'; '.join(a.nicht_wann)}"
-        zeilen.append(zeile)
-    beschreibung = (
-        "Schlage der Person einen festen Ablauf vor, wenn ihr Anliegen genau zu einem der "
-        "folgenden passt. Das Werkzeug startet nichts: unter deiner Antwort erscheint ein Knopf, "
-        "und die Person entscheidet. Höchstens einmal je Antwort.\n" + "\n".join(zeilen))
-    return {"type": "function", "function": {
-        "name": NAME, "description": beschreibung,
-        "parameters": {"type": "object", "additionalProperties": False, "required": ["ablauf"],
-                       "properties": {"ablauf": {"type": "string",
-                                                 "enum": [a.id for a in ablaeufe]}}}}}
+_SCHLUSS: Final = (". Das Werkzeug startet nichts: unter deiner Antwort erscheint ein Knopf, und "
+                   "die Person entscheidet. Höchstens ein Ablauf je Antwort. Mit Angaben: rufe "
+                   "das Werkzeug allein auf und antworte erst nach der Quittung.")
 
 
-def merken(vorgeschlagen: list[str], ablauf_id: str) -> str:
-    """Die Kennung (schon gegen das Schema geprüft) merken — Quittung für das Modell."""
+def _beschreibung(a: Any, lang: str) -> str:
+    """Titel und Schlusssatz bleiben immer ganz; ``wann``/``nicht_wann`` teilen sich den Rest —
+    jedes höchstens die Hälfte, damit die Einschränkungen nie ganz wegfallen (Review AS-5a,
+    Befund 4)."""
+    kopf = f"Schlage der Person den festen Ablauf „{_titel(a, lang)}“ vor"
+    rest = max(0, _BESCHREIBUNG_ZEICHEN - len(kopf) - len(_SCHLUSS))
+    teile = [kopf]
+    for marke, liste in (("passt, wenn: ", a.wann), ("nicht, wenn: ", a.nicht_wann)):
+        if liste:
+            teile.append((marke + "; ".join(liste))[:max(0, rest // 2 - 3)])
+    return " — ".join(teile) + _SCHLUSS
+
+
+def _schreibt(ablauf: Any) -> bool:
+    """Ändert der Ablauf etwas im Repositorium — ein schreibendes Werkzeug, ein Auftrag oder der
+    Upload (Querschnitts-Review AS-5, Befund 6)?"""
+    return any(s.typ == "auftrag" or (s.typ == "modul" and s.modul == UPLOAD)
+               or (s.typ == "werkzeug" and werkzeuge_mod.schreibend(s.werkzeug or ""))
+               for s in ablauf.schritte)
+
+
+def werkzeuge(lang: str, nur: Collection[str] | None = None,
+              tool_mode: str | None = None) -> list[dict[str, Any]]:
+    """Je vorschlagbarem Ablauf ein Werkzeug, höchstens :data:`MAX_WERKZEUGE`.
+
+    - ``nur``: nur diese Namen (``tools:`` eines Musters) — gefiltert **vor** der Kürzung, sonst
+      fiele ein genannter Ablauf ab Platz 7 still weg (Review AS-5b, Befund 1).
+    - ``tool_mode`` (Erlaubnis der Einbettung): ohne „full“ keine Abläufe, die schreiben — die KI
+      wäre sonst ein Einstieg an der Vorgabe des Gastgebers vorbei (Querschnitt AS-5, Befund 6).
+    """
+    # Wie ``host_capabilities.erlaubt``: normalisiert; ein unbekannter Wert gilt als voll
+    # (zweites Review AS-5, Befund 1).
+    modus = (tool_mode or "").strip().lower()
+    voll = modus not in MODI or modus == VOLL
+    passend = [a for a in ausloeser.vorschlaege()
+               if (nur is None or PRAEFIX + a.id in nur) and (voll or not _schreibt(a))]
+    return [{"type": "function", "function": {
+        "name": PRAEFIX + a.id, "description": _beschreibung(a, lang),
+        "parameters": startdaten.werkzeug_schema(a, lang)}}
+        for a in passend[:MAX_WERKZEUGE]]
+
+
+def ist_quittung(text: str) -> bool:
+    return text == QUITTUNG
+
+
+def merken(vorgeschlagen: list[dict[str, Any]], name: str, args: dict[str, Any] | None) -> str:
+    """Einen Vorschlag merken — die Daten geprüft wie jeder Start; Quittung für das Modell."""
     if len(vorgeschlagen) >= MAX_JE_ZUG:
         return SCHON_VORGESCHLAGEN
-    vorgeschlagen.append(ablauf_id)
+    ablauf = next((a for a in ausloeser.vorschlaege() if a.id == kennung(name)), None)
+    if ablauf is None:
+        return UNBEKANNT
+    start, fehler = startdaten.pruefen(ablauf, args or None)
+    if fehler:
+        return DATEN_FALSCH.format(codes=", ".join(fehler)[:200])
+    if start and len(json.dumps(start, ensure_ascii=False)) > MAX_DATEN_ZEICHEN:
+        return ZU_LANG
+    vorgeschlagen.append({"ablauf": ablauf.id, **({"start": start} if start else {})})
     return QUITTUNG
 
 
-def schnellantworten(ids: list[str] | None, lang: str) -> list[str]:
-    """Knopf-Schnellantworten für die vorgeschlagenen Kennungen — nur, was noch vorschlagbar ist."""
+def _vorschlag(eintrag: Any) -> tuple[str, dict[str, Any] | None] | None:
+    """``(Kennung, Daten)`` — auch die Form vor AS-5a (bloße Kennung) einer laufenden Sitzung."""
+    if isinstance(eintrag, str):
+        return eintrag, None
+    if isinstance(eintrag, dict) and isinstance(eintrag.get("ablauf"), str):
+        start = eintrag.get("start")
+        return eintrag["ablauf"], start if isinstance(start, dict) and start else None
+    return None
+
+
+def schnellantworten(vorschlaege: list[Any] | None, lang: str) -> list[str]:
+    """Knopf-Schnellantworten für die Vorschläge — nur, was noch vorschlagbar ist. Daten der KI
+    reisen mit der Herkunft ``ki`` (A5-3)."""
     vorschlagbar = {a.id: a for a in ausloeser.vorschlaege()}
     aus: list[str] = []
-    for ablauf_id in ids or []:
-        if (a := vorschlagbar.get(ablauf_id)) is None:
+    for eintrag in vorschlaege or []:
+        if (v := _vorschlag(eintrag)) is None or (a := vorschlagbar.get(v[0])) is None:
             continue
+        # Querschnitts-Review AS-5, Befund 1: jeder KI-Knopf trägt die Marke — auch ohne Angaben;
+        # ``zug.starten`` fragt damit, bevor er einen laufenden Lauf ersetzt.
+        params: dict[str, Any] = {"ablauf": a.id, **({"start": v[1]} if v[1] else {}),
+                                  "start_quelle": startdaten.QUELLE_KI}
         label = _titel(a, lang).replace("|", "/")[:_LABEL_ZEICHEN]
-        aus.append(f"__action__|{label}|ablauf_starten|"
-                   + json.dumps({"ablauf": a.id}, ensure_ascii=False))
+        aus.append(f"__action__|{label}|ablauf_starten|" + json.dumps(params, ensure_ascii=False))
     return aus
 
 
 def anhaengen(quick_replies: list[str] | None, vorschlaege: list[str] | None, *,
-              hoechstens: int | None = None) -> list[str]:
+              hoechstens: int | None = None, alle: bool = False) -> list[str]:
     """Die Knöpfe zuerst, insgesamt höchstens vier (wie der Relevanz-Rückfall) bzw. die Höchstzahl
-    des Gastgebers."""
+    des Gastgebers. ``alle`` (Review AS-3a, Befund 2): die Knöpfe selbst werden nie gekürzt — die
+    Schnellantworten eines wartenden Schritts sind der einzige Weg zurück in den Ablauf; nur
+    andere Vorschläge fallen dann weg."""
     if not vorschlaege:
         return list(quick_replies or [])
     grenze = min(_MAX_SCHNELLANTWORTEN, hoechstens) if hoechstens else _MAX_SCHNELLANTWORTEN
+    if alle:
+        grenze = max(grenze, len(vorschlaege))
     rest = [q for q in quick_replies or [] if q not in vorschlaege]
     return [*vorschlaege, *rest][:grenze]
+
+
+def nimm_an(tool_calls: Any, angeboten: Any, session_state: dict[str, Any],
+            messages: list[dict[str, Any]], *, mit_frage: bool = False,
+            abgewiesen: set[str] | None = None) -> tuple[set[str], bool]:
+    """AS-5b: die Ablauf-Aufrufe einer Runde der Muster-Schleife — virtuell, in der Vorrunde (wie
+    die UI-Module): nur Angebotenes, die Angaben geprüft wie jeder Start, der Vorschlag im
+    ``session_state`` (den Knopf setzt die Zusammenstellung). Steht ``respond_to_user`` in
+    derselben Runde, gibt es keinen Vorschlag mit Angaben (A5-8); unter einer Frage keinen
+    (Querschnitt AS-5, Befund 10). ``abgewiesen`` (die Schleife hält es über die Runden):
+    derselbe abgewiesene Vorschlag ein zweites Mal ist Stillstand (Review AS-5b, Befund 5).
+
+    Rückgabe: die erledigten Aufruf-Kennungen und ob ein Stillstand vorliegt (dann nimmt die
+    Schleife die Ablauf-Werkzeuge für den Rest des Zugs weg)."""
+    aufrufe = [tc for tc in tool_calls or [] if ist_ablauf_werkzeug(tc.function.name)]
+    if not aufrufe:
+        return set(), False
+    stillstand = False
+    mit_antwort = any(tc.function.name == RESPOND_TO_USER for tc in tool_calls)
+    vorgeschlagen = session_state.setdefault(SITZUNG_KEY, [])
+    for tc in aufrufe:
+        name = tc.function.name
+        try:
+            args = json.loads(tc.function.arguments or "{}")
+        except ValueError:
+            args = None
+        if name not in angeboten:
+            text = NICHT_ANGEBOTEN
+        elif not isinstance(args, dict):
+            text = DATEN_FALSCH.format(codes="form")
+        elif mit_frage:
+            text = NACH_DER_FRAGE
+        elif mit_antwort and args:
+            text = NEBEN_DER_ANTWORT
+        else:
+            text = merken(vorgeschlagen, name, args)
+        angenommen = text == QUITTUNG
+        if not angenommen and abgewiesen is not None:
+            schluessel = name + "|" + (tc.function.arguments or "")
+            stillstand = stillstand or schluessel in abgewiesen
+            abgewiesen.add(schluessel)
+        # Review AS-5b, Kleinigkeit 8: eine Spur ohne die Angaben; zweites Review, Befund 3: ein
+        # Vorschlag mit Angaben neben der Antwort geht verloren — wie oft, zeigt der Grund.
+        grund = ("angenommen" if angenommen
+                 else "neben_der_antwort" if text == NEBEN_DER_ANTWORT else "abgewiesen")
+        logger.info("Ablauf-Vorschlag (Muster): %s → %s", name, grund)
+        messages.append({"role": "tool", "tool_call_id": tc.id, "content": text})
+    return {tc.id for tc in aufrufe}, stillstand

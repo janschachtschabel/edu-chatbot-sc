@@ -91,6 +91,7 @@ from boerdi.obs.log_inhalt import inhalt
 from boerdi.obs.usage import add_usage, extract_usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm, teil_verweise
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
@@ -102,7 +103,12 @@ from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.mcp.client import is_mcp_error, nimm_bestaetigung
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.services.response_tool_selection import _nameable_tools
-from boerdi.services.tool_loop_module import TEIL_LADER_KEY, nimm_module_an, offene_frage
+from boerdi.services.tool_loop_module import (
+    MODUL_BLOECKE_KEY,
+    TEIL_LADER_KEY,
+    nimm_module_an,
+    offene_frage,
+)
 from boerdi.services.zustimmung_pruefen import zugestimmt
 from boerdi.ui_module.antwort import NACH_DER_FRAGE
 from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
@@ -255,6 +261,7 @@ async def _run_tool_loop(
     # (Paket 4, A2): die Auswahl hält sie bewusst zurück, etwa im Rückfrage-
     # Muster oder bei abgeschalteter Karten-Auswahl (``response_tool_selection``).
     _direkt_angeboten = angebotene_namen(active_tools)
+    _ablauf_abgewiesen: set[str] = set()
     # S4 (2026-08-14): Die Zustimmung steht in der Nachricht des Menschen, nicht
     # in den Argumenten des Modells — siehe ``domain/write_confirm``. Die letzte
     # Nachricht mit ``role: "user"`` IST die dieses Zugs: ``_assemble_messages``
@@ -289,7 +296,9 @@ async def _run_tool_loop(
             # Review U1-d2 (Befund 1): Ein Modul-Werkzeug allein ist kein Grund für „required“ —
             # sonst zwänge die erste Runde eines Rückfrage-Musters ohne Antwort-Werkzeug die KI
             # in die Auswahl-Frage. Erzwungen wird nur, wenn ein anderes Werkzeug angeboten ist.
-            erzwingbar = any(not ist_modul_werkzeug(t.get("function", {}).get("name"))
+            # AS-5b (Review, Befund 2): ebenso kein Ablauf-Werkzeug — ein Vorschlag ist nie Pflicht.
+            erzwingbar = any(not ist_modul_werkzeug(n := t.get("function", {}).get("name"))
+                             and not ablauf_vorschlag.ist_ablauf_werkzeug(n)
                              for t in active_tools)
             if erzwingbar and pattern_forces_tool and first_iteration and not real_tools_called:
                 tool_choice = "required"
@@ -358,6 +367,10 @@ async def _run_tool_loop(
             # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase statt einer Fehlernummer —
             # in der Sprache der Person (Review 18F: bis dahin immer DEFAULT).
             text = antwort_fehlertext(sprache, "error.internal", fehler=e)
+            # Zweites Review AS-5, Befund 2: unter der Fehlerblase weder Ablauf-Knopf noch Frage
+            # einer früheren Runde dieses Zugs.
+            session_state.pop(ablauf_vorschlag.SITZUNG_KEY, None)
+            session_state.pop(MODUL_BLOECKE_KEY, None)
             return text, all_cards, tools_called, outcomes
 
         choice = resp.choices[0]
@@ -404,6 +417,7 @@ async def _run_tool_loop(
                 if _tc.function.name not in _LOCAL_TOOLS
                 and not ist_dokument_werkzeug(_tc.function.name)
                 and not ist_modul_werkzeug(_tc.function.name)
+                and not ablauf_vorschlag.ist_ablauf_werkzeug(_tc.function.name)
             )
             if _mcp_calls_this_round >= 2:
                 _logger.info(  # log-ok: Werkzeugnamen
@@ -467,6 +481,17 @@ async def _run_tool_loop(
                 usage_acc=usage_acc)
             _dokument_calls |= _vorrunde.erledigt
             _frage = offene_frage(session_state)
+            # Paket AS-5b: Ablauf-Vorschläge ebenso (virtuell; der Knopf kommt später). Derselbe
+            # abgewiesene Vorschlag zweimal: die Ablauf-Werkzeuge gehen für den Rest des Zugs weg.
+            _ablauf_erledigt, _ablauf_stillstand = ablauf_vorschlag.nimm_an(
+                choice.message.tool_calls, _direkt_angeboten, session_state, messages,
+                mit_frage=_frage is not None, abgewiesen=_ablauf_abgewiesen)
+            _dokument_calls |= _ablauf_erledigt
+            if _ablauf_stillstand:
+                active_tools = [t for t in active_tools if not ablauf_vorschlag.ist_ablauf_werkzeug(
+                    t.get("function", {}).get("name"))]
+                _direkt_angeboten = {n for n in _direkt_angeboten
+                                     if not ablauf_vorschlag.ist_ablauf_werkzeug(n)}
 
             for tc in choice.message.tool_calls:
                 if tc.id in _dokument_calls:
