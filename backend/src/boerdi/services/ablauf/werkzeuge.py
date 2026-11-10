@@ -2,8 +2,9 @@
 
 Schreibende Werkzeuge (``domain/write_confirm.CURATION_TOOLS``) nur mit Freigabe am Schritt
 (Paket S,
-:func:`freigebbar`). Ein Dienst ist eine reine Funktion Argumente → Wert (oder ``None``,
-wenn nichts entsteht); sein Wert wird ein Teil des Vorgangs.
+:func:`freigebbar`). Ein Dienst ist eine Funktion Argumente → Wert (oder ``None``, wenn nichts
+entsteht); sein Wert wird ein Teil des Vorgangs. Dienste ohne Netz stehen in :data:`REINE_DIENSTE`,
+die übrigen rufen MCP-Werkzeuge (:data:`DIENST_MCP`).
 """
 
 from __future__ import annotations
@@ -54,11 +55,20 @@ async def _baum_aus_entwurf(args: dict[str, Any]) -> Any:
     return baum_aus_entwurf(args.get("entwurf"))
 
 
+async def _metadaten_lesen(args: dict[str, Any]) -> Any:
+    """Plan 2026-11-10, TB-F2: die Metadaten der abgelegten Nodes aus dem Teil ``ablage``
+    (``services/ablauf/metadaten``, ohne LLM, unter der Anmeldung der Person, ohne Cache)."""
+    from boerdi.services.ablauf.metadaten import lesen
+
+    return await lesen(args.get("ablage"))
+
+
 DIENSTE: Final[dict[str, Dienst]] = {
     "strukturentwurf_aus_ordnern": _strukturentwurf_aus_ordnern,
     "abdeckung_zaehlen": _abdeckung_zaehlen,
     "struktur_mit_nodeids": _struktur_mit_nodeids,
     "baum_aus_entwurf": _baum_aus_entwurf,
+    "metadaten_lesen": _metadaten_lesen,
 }
 
 #: Die MCP-Werkzeuge, die ein Dienst ruft — sperrt die Sicherheitsprüfung eines davon (etwa bei
@@ -66,6 +76,7 @@ DIENSTE: Final[dict[str, Dienst]] = {
 #: Befund 6).
 DIENST_MCP: Final[dict[str, frozenset[str]]] = {
     "abdeckung_zaehlen": frozenset({"count_wlo_content_matches"}),
+    "metadaten_lesen": frozenset({"get_nodes_details"}),
 }
 
 #: Dienste ohne Netz — die Simulation rechnet sie selbst (Querschnitts-Review AS-D, Befund 1: sonst
@@ -77,6 +88,18 @@ LESENDE_MCP: Final = frozenset({
     "search_wlo_all", "get_node_details", "browse_collection_tree", "get_collection_contents",
     "get_topic_page_content",
 })
+
+
+def ablauf_schreibt(ablauf: Any) -> bool:
+    """Ändert der Ablauf etwas im Repositorium — ein schreibendes Werkzeug, ein Auftrag oder der
+    Upload (Querschnitts-Review AS-5, Befund 6)? Solche Abläufe bietet die KI nur mit voller
+    Erlaubnis an und startet sie nie direkt (TB-E3)."""
+    return any(s.typ == "auftrag" or (s.typ == "modul" and s.modul == UPLOAD)
+               or (s.typ == "werkzeug" and schreibend(s.werkzeug or ""))
+               # Review TB-E3, Befund 3: auch ein KI-Schritt, der hochladen oder schreiben darf
+               or (s.typ == "agent" and s.agent is not None
+                   and any(w == UPLOAD or schreibend(w) for w in s.agent.werkzeuge))
+               for s in ablauf.schritte)
 
 
 def schreibend(name: str) -> bool:
