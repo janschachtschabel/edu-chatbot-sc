@@ -965,7 +965,8 @@
       "die Person will eine neue Gliederung: 'entwirf', 'gliedere', 'neue Struktur', 'Unterrichtsreihe', 'Sammlung aufbauen zu Thema X'",
       "ein Thema ohne WLO-Sammlung soll gegliedert werden",
       "einen mitgeschickten Entwurf vertiefen (vorlage, vertiefen)",
-      "die Person hat ein Dokument gelesen ([DOKUMENT DER PERSON], etwa ein Lehrplan) und will daraus einen Themenbaum (aus_dokument)"
+      "die Person hat ein Dokument gelesen ([DOKUMENT DER PERSON], etwa ein Lehrplan) und will daraus einen Themenbaum (aus_dokument)",
+      "die Person hat Materialien in WLO hochgeladen und ihre Metadaten liegen im Vorgang (Teil metadaten); daraus soll ein Themenbaum entstehen (aus_inhalten)"
     ],
     "nicht_wann": [
       "zeigen, was es in WLO schon gibt — Themen eines Fachportals oder einer Sammlung (dafuer ui_themenbaum)",
@@ -1039,6 +1040,10 @@
           "aus_dokument": {
             "type": "boolean",
             "description": "true: die Gliederung aus dem Dokument der Person ableiten, das sie im Auswahlfeld (ui_upload) hat lesen lassen ([DOKUMENT DER PERSON]); das System liest es selbst. thema ist dann sein Titel oder Zweck. Nicht zusammen mit vorlage."
+          },
+          "aus_inhalten": {
+            "type": "boolean",
+            "description": "true: den Themenbaum aus den hochgeladenen Materialien der Person ableiten (ihre Metadaten liegen im Vorgang als Teil metadaten, ein Ablauf hat sie gelesen); das System liest sie selbst. thema ist dann das Thema der Sammlung. Nicht zusammen mit vorlage oder aus_dokument."
           }
         }
       }

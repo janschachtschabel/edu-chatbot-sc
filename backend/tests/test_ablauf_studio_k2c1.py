@@ -34,7 +34,7 @@ ERWARTET = {
     "argumente": {"werkzeug", "auftrag"},
     "warten": {"auftrag"},
     "dateien_holen": {"auftrag"},  # K2d-2
-    "schreibt": {"werkzeug", "auftrag"},
+    "schreibt": {"werkzeug", "auftrag", "nachricht"},   # TB-T1: Label der Wahl
     "freigabe": {"werkzeug"},  # Paket S
     "weiter": {"nachricht", "modul", "werkzeug", "verzweigung", "agent", "auftrag", "seite"},
     "bei_fehler": {"modul", "werkzeug", "agent", "auftrag"},

@@ -57,11 +57,14 @@ MODUL_TEILE: Final[dict[str, str]] = {"structure": ORDNERBAUM, "document": DOKUM
 ZUSATZ_TEILE: Final[dict[str, tuple[str, ...]]] = {"ui_upload": ("ablage",)}
 #: Was ``wlo_create_collection_tree`` hinterlässt (nach der Freigabe, ``treiber.weiter_freigabe``).
 ANGELEGT: Final = _werkzeug_typ("wlo_create_collection_tree")
+#: Plan 2026-11-10, TB-F2: die Metadaten abgelegter Nodes (``services/ablauf/metadaten``).
+METADATEN: Final = "wlo.metadaten@1"
 DIENST_AUSGABE: Final[dict[str, str]] = {
     "strukturentwurf_aus_ordnern": STRUKTUR,
     "abdeckung_zaehlen": "wlo.abdeckung@1",
     "struktur_mit_nodeids": STRUKTUR,
     "baum_aus_entwurf": _werkzeug_typ("baum_aus_entwurf"),
+    "metadaten_lesen": METADATEN,
 }
 #: Dienst → Argument → erwarteter Typ, wenn das Argument ein ganzer Teil ist. Zugleich die Liste
 #: aller Argumente eines Dienstes (alle Pflicht) — die Prüfung meldet unbekannte und fehlende.
@@ -70,6 +73,7 @@ DIENST_EINGABE: Final[dict[str, dict[str, str]]] = {
     "abdeckung_zaehlen": {"entwurf": STRUKTUR},
     "struktur_mit_nodeids": {"entwurf": STRUKTUR, "angelegt": ANGELEGT},
     "baum_aus_entwurf": {"entwurf": STRUKTUR},
+    "metadaten_lesen": {"ablage": ABLAGE},
 }
 #: Dienst-Argumente, die auch eine Liste nehmen — eine Auswahl ist dort kein Befund.
 LISTE_ERLAUBT: Final = frozenset({("struktur_mit_nodeids", "angelegt")})
@@ -79,6 +83,7 @@ LISTEN: Final[dict[str, frozenset[str]]] = {
     STRUKTUR: frozenset({"knoten"}),
     ANGELEGT: frozenset({"nodes"}),
     ABLAGE: frozenset({"inhalte", "frueher"}),
+    METADATEN: frozenset({"inhalte", "fehlend"}),
 }
 #: Modul → erwarteter Typ, wenn ``daten`` als Ganzes ein Teil ist (``daten: {"$teil": "draft"}``).
 MODUL_EINGABE: Final[dict[str, str]] = {"ui_strukturentwurf": STRUKTUR,
@@ -120,6 +125,8 @@ def schritt_ausgaben(s: Schritt, module: dict[str, Any]) -> Typen:
         aus.update(modul_teile(module, s.modul))
     if s.typ in ("nachricht", "modul") and s.freitext:
         aus[s.freitext.schreibt] = TEXT
+    if s.typ == "nachricht" and s.schreibt and s.optionen:
+        aus[s.schreibt] = TEXT   # TB-T1: das Label der Wahl
     return aus
 
 

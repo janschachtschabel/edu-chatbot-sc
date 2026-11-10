@@ -27,6 +27,11 @@ def aufforderung_oben(a: Any, d: dict[str, Any], dokument: DokumentStand | None
     if dokument is None:
         return prompt.oben(**gemeinsam)
     gliederung, _ = uebersicht(dokument.abschnitte, DOKUMENT_GLIEDERUNG)
+    from boerdi.services.ablauf.metadaten import DOKUMENT_FORMAT
+
+    if getattr(dokument, "format", None) == DOKUMENT_FORMAT:   # TB-T1: gruppieren, nicht gliedern
+        return prompt.oben_aus_inhalten(**gemeinsam, gliederung=gliederung,
+                                        anfang=dokument.markdown[:DOKUMENT_ANFANG])
     return prompt.oben_aus_dokument(**gemeinsam, gliederung=gliederung,
                                     anfang=dokument.markdown[:DOKUMENT_ANFANG])
 

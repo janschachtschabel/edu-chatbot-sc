@@ -47,6 +47,18 @@ _FEHLER: Final = {
     "kein_dokument": ("Fehler: Es liegt kein Dokument der Person vor (nicht hochgeladen, oder es "
                       "ist abgelaufen). Rufe {name} nicht mit aus_dokument auf; bitte die Person, "
                       "das Dokument im Auswahlfeld (ui_upload) noch einmal zu wählen."),
+    "keine_inhalte": ("Fehler: Im Vorgang liegen keine Metadaten der Materialien (Teil "
+                      "metadaten). Rufe {name} nicht mit aus_inhalten auf; sag der Person, dass "
+                      "die Materialien erst hochgeladen und gelesen sein müssen."),
+    "abgewiesen": ("Fehler: Die Angaben zu den Materialien der Person hat die Prüfung "
+                   "abgewiesen. Rufe {name} nicht noch einmal auf; sag der Person, dass aus diesen "
+                   "Materialien kein Entwurf entstehen kann."),
+    "pruefung_fehlt": ("Fehler: Die Angaben zu den Materialien ließen sich gerade nicht prüfen. "
+                       "Rufe {name} nicht noch einmal auf; sag der Person, dass sie es gleich noch "
+                       "einmal versuchen kann."),
+    "inhalte_ausschluss": ("Fehler: aus_inhalten schließt vorlage und aus_dokument aus. Rufe "
+                           "{name} für einen neuen Entwurf aus den Materialien nur mit "
+                           "aus_inhalten auf."),
     "dokument_vorlage": ("Fehler: aus_dokument und vorlage schließen sich aus. Rufe {name} für "
                          "einen neuen Entwurf aus dem Dokument ohne vorlage auf."),
     "vorlage": ("Fehler: Mit dieser Nachricht wurde kein Entwurf mitgeschickt. Rufe {name} ohne "
@@ -94,6 +106,20 @@ def _moderation():
     return functools.partial(moderate, stufe="strukturentwurf_auszug")
 
 
+async def _ebene_eins_pruefen(text: str) -> str | None:
+    """Review TB-T1, Befund 1: Übersicht und Anfang der Materialien vor Ebene 1 durch die
+    Moderation — ``abgewiesen``, ``pruefung_fehlt`` (ohne Urteil bei Ausfallmodus ``closed``,
+    wie ``dokumente/aufnahme``) oder ``None``."""
+    from boerdi.settings import get_settings
+
+    urteil = await _moderation()(text)
+    if urteil.get("flagged"):
+        return "abgewiesen"
+    if not urteil and get_settings().moderation_failure_mode == "closed":
+        return "pruefung_fehlt"
+    return None
+
+
 def _frist(umgebung: Umgebung) -> float:
     """Fristende des Dienstes: vor dem Ende des Laufs (Reserve), höchstens die Gesamtfrist."""
     from boerdi.services.strukturentwurf_dienst import GESAMT_FRIST_S
@@ -109,6 +135,10 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
     from boerdi.services import strukturentwurf_dienst as dienst
 
     modul = manifest["name"]
+    if args.get("aus_inhalten") is True and (args.get("vorlage") is True
+                                             or args.get("aus_dokument") is True):
+        # Review TB-T1, Befund 13: vor dem Lesen der Vorlage
+        return _fehlschlag(modul, _FEHLER["inhalte_ausschluss"].format(name=modul), "argumente")
     if args.get("vorlage") is True and not isinstance(umgebung.vorlage, dict) and umgebung.teile:
         # Paket V1: ohne mitgeschickten oder gemerkten Entwurf den übernommenen aus dem Vorgang —
         # auch Tage später und aus einer neuen Sitzung derselben Person.
@@ -126,7 +156,19 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
     if args.get("vertiefen") and args.get("vorlage") is not True:
         return _fehlschlag(modul, _FEHLER["vertiefen"].format(name=modul), "argumente")
     dokument = None
-    if args.get("aus_dokument") is True:
+    if args.get("aus_inhalten") is True:
+        # TB-T1: die Metadaten der Materialien aus dem Vorgang (Teil ``metadaten``, vom Ablauf-
+        # Werkzeug ``metadaten_lesen``) — serverseitig gelesen, nie aus den Argumenten.
+        from boerdi.services.ablauf import metadaten
+
+        teil = await umgebung.teile(metadaten.TEIL) if umgebung.teile is not None else None
+        dokument = metadaten.als_dokument(teil)
+        if dokument is None:
+            return _fehlschlag(modul, _FEHLER["keine_inhalte"].format(name=modul),
+                               "keine_inhalte")
+        if (abgewiesen := await _ebene_eins_pruefen(metadaten.moderationstext(dokument))):
+            return _fehlschlag(modul, _FEHLER[abgewiesen].format(name=modul), abgewiesen)
+    elif args.get("aus_dokument") is True:
         # U3-2b: das Dokument der Sitzung, serverseitig gelesen — nie aus den Argumenten.
         if args.get("vorlage") is True:
             return _fehlschlag(modul, _FEHLER["dokument_vorlage"].format(name=modul), "argumente")
