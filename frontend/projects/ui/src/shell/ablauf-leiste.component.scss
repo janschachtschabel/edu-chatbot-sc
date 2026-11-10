@@ -1,0 +1,112 @@
+// Paket AS-Ub: die Ablauf-Leiste über dem Eingabefeld — derselbe getönte Grund wie der Hinweis
+// „Gespräch fortsetzen“ (K2a), damit sie zur Eingabe gehört und nicht wie eine Bot-Nachricht wirkt.
+// Nur M3-Systemtoken (folgt dem `color-scheme` der Gastseite), logische Abstände (RTL), Ziele
+// mindestens 32 px hoch (WCAG 2.5.8 verlangt 24), sichtbarer Fokus.
+
+:host {
+  display: block;
+}
+
+.ablauf-leiste {
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+  color: var(--mat-sys-on-surface);
+  font-size: 0.875rem;
+}
+
+.ablauf-leiste__kopf {
+  display: flex;
+  flex-wrap: wrap;            // schmale Leisten (320 px): die Knöpfe rutschen in die nächste Zeile
+  align-items: center;
+  gap: 8px;
+}
+
+.ablauf-leiste__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+.ablauf-leiste__titel {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ablauf-leiste__stand {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.ablauf-leiste__pause {
+  overflow-wrap: anywhere;   // lange Titel brechen um (320 px, WCAG 1.4.10)
+}
+
+.ablauf-leiste__abbrechen,
+.ablauf-leiste__umschalten,
+.ablauf-leiste__weg {
+  min-block-size: 32px;
+  padding-inline: 14px;
+  border-radius: var(--mat-sys-corner-full);
+  font: inherit;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+}
+
+// „Später“ und „Zeigen“ sind die ruhigen Wege; „Abbrechen“ ist umrandet — die Rückfrage im
+// Gespräch schützt vor dem Versehen, die Leiste muss es nicht noch rot einfärben.
+.ablauf-leiste__umschalten {
+  background: none;
+  border: 0;
+  color: var(--mat-sys-primary);
+}
+
+// AS-7 (Querschnitts-Review, Befund 1): der Weg einer wartenden Führung ist die Hauptsache der Leiste
+.ablauf-leiste__weg {
+  background: var(--mat-sys-primary);
+  border: 0;
+  color: var(--mat-sys-on-primary);
+}
+
+.ablauf-leiste__abbrechen {
+  background: none;
+  border: 1px solid var(--mat-sys-outline);
+  color: var(--mat-sys-on-surface);
+
+  // Review AS-Ub, Kleinigkeit 11: nicht nur über die Farbe erkennbar
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+    border-style: dashed;
+  }
+}
+
+.ablauf-leiste__daten {
+  margin-block-start: 6px;
+
+  summary {
+    cursor: pointer;
+    color: var(--mat-sys-primary);
+    min-block-size: 24px;
+    &:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  // Review AS-Ub, Befund 6: viele Teile schieben den Chat nicht weg — seit Q-4 begrenzt und
+  // scrollt der gemeinsame Bereich über der Eingabe (`.ueber-eingabe`); lange Namen brechen um
+  ul {
+    margin: 4px 0 0;
+    padding-inline-start: 1.25rem;
+  }
+
+  li {
+    overflow-wrap: anywhere;
+  }
+}
