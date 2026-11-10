@@ -145,7 +145,35 @@ BOT_TEXT: Final[Catalogue] = {
         ),
         # Paket A1: Abläufe aus dem Katalog (``services/ablauf/zug``).
         "action.ablauf.unbekannt": "Diesen Ablauf gibt es hier nicht oder er ist ausgeschaltet.",
+        "action.ablauf.wahlVeraltet": (
+            "Diese Wahl gilt nicht mehr — der Ablauf steht inzwischen woanders."),
         "action.ablauf.anmeldung": "Für diesen Ablauf melde dich bitte bei WLO an.",
+        "action.ablauf.startdaten": (
+            "Dieser Ablauf braucht passende Startdaten von der Seite, in die der Chat eingebettet "
+            "ist — so kann er nicht starten."),
+        "action.ablauf.laeuftSchon": (
+            "Dieser Ablauf läuft hier schon — es geht weiter, wo er steht."),
+        # AS-Ua: neutral — auch ein Vorschlag der KI löst die Rückfrage aus (AS-5).
+        "action.ablauf.ersetzen": (
+            "Ein Ablauf soll starten, aber in diesem Gespräch läuft noch einer. Ein Neustart "
+            "beendet den laufenden (auch einen Auftrag, auf den er wartet). Willst du neu "
+            "starten?"),
+        "action.ablauf.keinLauf": "In diesem Gespräch läuft gerade kein Ablauf.",
+        "action.ablauf.abbrechenFrage": (
+            "Den Ablauf wirklich abbrechen? Das lässt sich nicht zurücknehmen; ein Auftrag, auf "
+            "den er wartet, endet mit. Was schon gesammelt ist, bleibt im Arbeitsstand."),
+        # Browser-Abnahme AS-U, L-2: neben den Chips des Schritts muss der Satz sagen, wofür sie
+        # stehen, und der Knopf darf nicht wie eine zweite Zusage („Ja, …“) klingen.
+        "action.ablauf.abbrechenFrageZurueck": (
+            "Den Ablauf wirklich abbrechen? Das lässt sich nicht zurücknehmen; ein Auftrag, auf "
+            "den er wartet, endet mit. Was schon gesammelt ist, bleibt im Arbeitsstand. Willst du "
+            "lieber weitermachen, wähle eine andere Antwort."),
+        "action.ablauf.abbrechenJa": "Ablauf abbrechen",
+        "action.ablauf.abgebrochenPerson": "Der Ablauf ist abgebrochen.",
+        "action.ablauf.neuStarten": "Neu starten",
+        "action.ablauf.ersetzenOhneKnopf": (
+            "Die Seite möchte einen Ablauf starten, aber in diesem Gespräch läuft noch einer. "
+            "Beende ihn zuerst („Neues Vorhaben“), dann kann die Seite neu starten."),
         "action.ablauf.konflikt": (
             "Dein Arbeitsstand wurde gerade an anderer Stelle geändert. Bitte versuche es "
             "noch einmal."),
@@ -463,6 +491,9 @@ BOT_TEXT: Final[Catalogue] = {
         "write.timeoutNothingDone": (
             "WLO hat nicht rechtzeitig geantwortet — geändert wurde nichts. Bitte mich einfach "
             "noch einmal darum, dann lege ich dir die Vorschau neu vor."),
+        # Paket AS-8a: Probe der Studio-Vorschau — das Werkzeug lief nicht.
+        "probe.trocken": (
+            "Trockenlauf: Hier wäre jetzt {werkzeug} gelaufen — geschrieben wurde nichts."),
         "write.planStillOpen": (
             "Ein früherer Plan ist noch nicht fertig — es wurde nichts geändert. Führe ihn zuerst "
             "mit „Plan fortsetzen“ zu Ende; danach lege ich dir die neue Vorschau gern vor."),
@@ -671,7 +702,31 @@ BOT_TEXT: Final[Catalogue] = {
             "draft."
         ),
         "action.ablauf.unbekannt": "This workflow does not exist here or is switched off.",
+        "action.ablauf.wahlVeraltet": "This choice no longer applies — the workflow has moved on.",
         "action.ablauf.anmeldung": "Please sign in to WLO for this workflow.",
+        "action.ablauf.startdaten": (
+            "This workflow needs suitable start data from the page that embeds the chat — it "
+            "cannot start like this."),
+        "action.ablauf.laeuftSchon": (
+            "This workflow is already running here — it continues where it stands."),
+        "action.ablauf.ersetzen": (
+            "A workflow is about to start, but another one is still running in this "
+            "conversation. A restart ends the running one (including a job it is waiting for). "
+            "Do you want to restart?"),
+        "action.ablauf.keinLauf": "No workflow is running in this conversation right now.",
+        "action.ablauf.abbrechenFrage": (
+            "Really cancel the workflow? This cannot be undone; a job it is waiting for ends "
+            "too. What has been collected so far stays in your work state."),
+        "action.ablauf.abbrechenFrageZurueck": (
+            "Really cancel the workflow? This cannot be undone; a job it is waiting for ends "
+            "too. What has been collected so far stays in your work state. To carry on instead, "
+            "pick another answer."),
+        "action.ablauf.abbrechenJa": "Cancel workflow",
+        "action.ablauf.abgebrochenPerson": "The workflow has been cancelled.",
+        "action.ablauf.neuStarten": "Restart",
+        "action.ablauf.ersetzenOhneKnopf": (
+            "The page wants to start a workflow, but another one is still running in this "
+            "conversation. End it first (“new project”), then the page can start again."),
         "action.ablauf.konflikt": (
             "Your work was just changed elsewhere. Please try again."),
         "action.ablauf.fehler": "The workflow cannot continue at this point.",
@@ -911,6 +966,7 @@ BOT_TEXT: Final[Catalogue] = {
         "write.timeoutNothingDone": (
             "WLO did not answer in time — nothing was changed. Just ask me again and I will show "
             "you the preview anew."),
+        "probe.trocken": "Dry run: {werkzeug} would have run here — nothing was written.",
         "write.planStillOpen": (
             "An earlier plan is not finished yet — nothing was changed. Finish it with “Continue” "
             "first; then I will gladly show you the new preview."),

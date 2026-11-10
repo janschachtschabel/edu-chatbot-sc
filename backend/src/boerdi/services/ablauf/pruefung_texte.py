@@ -10,6 +10,132 @@ _T: Final[dict[str, dict[str, str]]] = {
     "anzahl": {"de": "1 bis {max} Schritte erwartet, {n} gefunden",
                "en": "1 to {max} steps expected, {n} found"},
     "doppelt": {"de": "Schritt-IDs doppelt: {ids}", "en": "Duplicate step ids: {ids}"},
+    "optionen_anzahl": {"de": "Schritt {s}: höchstens {max} Schnellantworten",
+                        "en": "Step {s}: at most {max} quick replies"},
+    "optionen_doppelt": {"de": "Schritt {s}: Kennungen der Schnellantworten doppelt: {ids}",
+                         "en": "Step {s}: duplicate quick reply ids: {ids}"},
+    "optionen_label_doppelt": {"de": "Schritt {s}: Schnellantworten gleich beschriftet: {l}",
+                               "en": "Step {s}: quick replies with the same label: {l}"},
+    "optionen_label": {"de": "Schritt {s}: Schnellantwort {o} braucht eine Beschriftung "
+                             "(mindestens auf Deutsch)",
+                       "en": "Step {s}: quick reply {o} needs a label (at least in German)"},
+    "verweis_teil": {"de": "Schritt {s}: liest den Teil {t} — den schreibt kein Schritt und kein "
+                           "Modul",
+                     "en": "Step {s}: reads the part {t} — no step or module writes it"},
+    "verweis_text": {"de": "Schritt {s}: Pfad oder Auswahl im Teil {t} — der Teil ist Text, darin "
+                           "findet der Lauf keine Stelle",
+                     "en": "Step {s}: path or selection in the part {t} — the part is text, the "
+                           "run finds no field in it"},
+    "dienst_auswahl": {"de": "Schritt {s}: das Argument {a} ist eine Auswahl (eine Liste), der "
+                             "Dienst {w} erwartet dort ein Objekt — einen ganzen Teil oder pfad "
+                             "nehmen",
+                       "en": "Step {s}: argument {a} is a selection (a list); the service {w} "
+                             "expects an object there — use a whole part or pfad"},
+    "auswahl_einzeln": {"de": "Schritt {s}: das Argument {a} von {w} nimmt einen einzelnen Wert, "
+                              "eine Auswahl ergibt eine Liste — pfad nehmen",
+                        "en": "Step {s}: argument {a} of {w} takes a single value, a selection "
+                              "yields a list — use pfad"},
+    "auswahl_liste": {"de": "Schritt {s}: die Auswahl im Teil {t} sucht die Liste {l} — der Teil "
+                            "trägt {k}",
+                      "en": "Step {s}: the selection in the part {t} looks for the list {l} — the "
+                            "part has {k}"},
+    "verweis_typ": {"de": "Schritt {s}: der Teil {t} hat den Typ {i}, erwartet ist {e}",
+                    "en": "Step {s}: the part {t} has type {i}, expected is {e}"},
+    "verweis_spaeter": {"de": "Schritt {s}: liest den Teil {t}, den der Ablauf erst nach diesem "
+                              "Schritt schreibt — er kommt nur aus einem früheren Gespräch",
+                        "en": "Step {s}: reads the part {t}, which the workflow only writes after "
+                              "this step — it can only come from an earlier conversation"},
+    "verweis_gespraech": {"de": "Schritt {s}: liest den Teil {t}, den der Ablauf nicht selbst "
+                                "schreibt — er muss aus dem Gespräch im Vorgang liegen, sonst "
+                                "scheitert der Schritt (Bei Fehler, falls gesetzt)",
+                          "en": "Step {s}: reads the part {t}, which the workflow does not write "
+                                "itself — it must come from the conversation, otherwise the step "
+                                "fails (on error, if set)"},
+    "verweis_form": {"de": "Schritt {s}: Verweis auf {t} hat keine gültige Form ($teil mit pfad "
+                           "oder mit liste/wo/feld)",
+                     "en": "Step {s}: reference to {t} is malformed ($teil with pfad or with "
+                           "liste/wo/feld)"},
+    "daten_auswahl": {"de": "Schritt {s}: eine Auswahl ergibt eine Liste, Moduldaten sind ein "
+                            "Objekt — die Auswahl unter einem Feld eintragen",
+                      "en": "Step {s}: a selection yields a list, module data is an object — put "
+                            "the selection under a field"},
+    "auswahl_form": {"de": "Schritt {s}: Auswahl aus {t} — ungültig: {f}",
+                     "en": "Step {s}: selection from {t} — invalid: {f}"},
+    "platzhalter_form": {"de": "Schritt {s}: Platzhalter {p} hat keine gültige Form "
+                               "({{teil.name}}, {{teil.name.pfad}} oder {{start.feld}})",
+                         "en": "Step {s}: placeholder {p} is malformed "
+                               "({{teil.name}}, {{teil.name.pfad}} or {{start.feld}})"},
+    "platzhalter_start": {"de": "Schritt {s}: Platzhalter {p} — kein Feld der Startdaten heißt {t}",
+                          "en": "Step {s}: placeholder {p} — no start data field is called {t}"},
+    "start_doppelt": {"de": "Startdaten: Feld doppelt: {f}",
+                      "en": "Start data: duplicate field: {f}"},
+    "start_pflicht_ausloeser": {"de": "Auslöser {a} startet nie: Pflichtfelder in den Startdaten "
+                                      "kommen nur von der Gastseite oder der KI",
+                                "en": "Trigger {a} never starts: required start data fields only "
+                                      "come from the host page or the AI"},
+    "start_feld": {"de": "Schritt {s}: Verweis auf start.{f} — kein Feld der Startdaten heißt {f}",
+                   "en": "Step {s}: reference to start.{f} — no start data field is called {f}"},
+    "start_auftrag": {"de": "Schritt {s}: Startdaten der Gastseite gehen ohne Rückfrage in den "
+                            "Auftrag — eine Wahl oder ein Modul davor zeigt sie der Person erst",
+                      "en": "Step {s}: start data from the host page go into the job without a "
+                            "check-back — a choice or a module before it shows them to the person "
+                            "first"},
+    "start_reserviert": {"de": "Schritt {s}: der Teil start ist für die Startdaten reserviert",
+                         "en": "Step {s}: the part start is reserved for the start data"},
+    "start_pflicht": {"de": "Pflichtfelder in den Startdaten brauchen den Auslöser extern "
+                            "(Gastseite) oder agent (KI) — sonst startet der Ablauf nie",
+                      "en": "Required start data fields need the trigger extern (host page) or "
+                            "agent (AI) — otherwise the workflow never starts"},
+    "agent_zu_viele": {"de": "{n} aktive Abläufe schlägt die KI vor — ein Zug bekommt höchstens "
+                             "{m} als Werkzeug, die übrigen bietet er nie an",
+                       "en": "{n} active workflows are suggested by the AI — a turn gets at most "
+                             "{m} as tools, it never offers the others"},
+    "start_beschreibung": {"de": "Startdaten: Feld {f} ohne Beschreibung — mit dem Auslöser agent "
+                                 "ist sie die Anleitung für die KI",
+                           "en": "Start data: field {f} has no description — with the trigger "
+                                 "agent it is the instruction for the AI"},
+    "platzhalter_teil": {"de": "Schritt {s}: Platzhalter {p} — kein Schritt und kein Modul "
+                               "schreibt den Teil {t}",
+                         "en": "Step {s}: placeholder {p} — no step or module writes the part "
+                               "{t}"},
+    "platzhalter_spaeter": {"de": "Schritt {s}: Platzhalter {p} — der Teil {t} entsteht erst "
+                                  "nach diesem Schritt",
+                            "en": "Step {s}: placeholder {p} — the part {t} is only created "
+                                  "after this step"},
+    "wert_allein": {"de": "Schritt {s}: wenn_wert steht allein — nicht zusammen mit wenn_teil "
+                          "oder wenn_gewaehlt",
+                    "en": "Step {s}: wenn_wert stands alone — not together with wenn_teil or "
+                          "wenn_gewaehlt"},
+    "wert_quelle": {"de": "Schritt {s}: Quelle {q} — erwartet teil.<name> oder "
+                          "teil.<name>.<pfad>",
+                    "en": "Step {s}: source {q} — expected teil.<name> or teil.<name>.<pfad>"},
+    "wert_teil": {"de": "Schritt {s}: Quelle {q} — kein Schritt und kein Modul schreibt den Teil "
+                        "{t}",
+                  "en": "Step {s}: source {q} — no step or module writes the part {t}"},
+    "wert_spaeter": {"de": "Schritt {s}: Quelle {q} — der Teil {t} entsteht erst nach diesem "
+                           "Schritt",
+                     "en": "Step {s}: source {q} — the part {t} is only created after this "
+                           "step"},
+    "wert_fehlt": {"de": "Schritt {s}: der Vergleich {v} braucht einen Wert",
+                   "en": "Step {s}: the comparison {v} needs a value"},
+    "wert_ohne": {"de": "Schritt {s}: der Vergleich {v} prüft ohne Wert — Wert leer lassen",
+                  "en": "Step {s}: the comparison {v} checks without a value — leave it empty"},
+    "wert_zahl": {"de": "Schritt {s}: der Vergleich {v} braucht eine Zahl als Wert",
+                  "en": "Step {s}: the comparison {v} needs a number as value"},
+    "platzhalter_label": {"de": "Schritt {s}: in Beschriftungen von Schnellantworten wirken "
+                                "Platzhalter nicht",
+                          "en": "Step {s}: placeholders do not work in quick reply labels"},
+    "wahl_typ": {"de": "Schritt {s}: Schnellantworten und Freitext gibt es nur an nachricht und "
+                       "modul",
+                 "en": "Step {s}: quick replies and free text only exist on nachricht and modul"},
+    "wahl_weiter": {"de": "Schritt {s}: mit Schnellantworten entscheidet die Wahl — weiter "
+                          "bleibt leer",
+                    "en": "Step {s}: with quick replies the choice decides — leave weiter "
+                          "empty"},
+    "wahl_abfragend": {"de": "Schritt {s}: das Modul {m} ist abfragend und wartet selbst auf die "
+                             "Antwort — keine Schnellantworten daneben",
+                       "en": "Step {s}: module {m} asks and waits for its own answer — no quick "
+                             "replies next to it"},
     "text": {"de": "Schritt {s}: Text (de) fehlt", "en": "Step {s}: text (de) missing"},
     "modul": {"de": "Schritt {s}: Modul {m!r} gibt es nicht",
               "en": "Step {s}: module {m!r} does not exist"},
@@ -38,8 +164,18 @@ _T: Final[dict[str, dict[str, str]]] = {
                            "en": "Writing steps need the requirement sign-in"},
     "werkzeug": {"de": "Schritt {s}: Werkzeug {w!r} ist unbekannt",
                  "en": "Step {s}: tool {w!r} is unknown"},
-    "mcp_teil": {"de": "Schritt {s}: lesende WLO-Werkzeuge bekommen keine Teile des Vorgangs",
-                 "en": "Step {s}: read-only WLO tools get no parts of the work item"},
+    "dienst_argument": {"de": "Schritt {s}: Dienst {w} kennt das Argument {a} nicht "
+                              "(erwartet: {e})",
+                        "en": "Step {s}: service {w} does not know the argument {a} (expected: "
+                              "{e})"},
+    "dienst_argument_fehlt": {"de": "Schritt {s}: Dienst {w} braucht das Argument {a}",
+                              "en": "Step {s}: service {w} needs the argument {a}"},
+    "mcp_teil": {"de": "Schritt {s}: lesende WLO-Werkzeuge bekommen keine Teile des Vorgangs — "
+                       "nur eine Kennung aus den Startdaten (Feld vom Typ Knoten-Kennung, als "
+                       "ganzes Argument, mit dem Auslöser Gastseite)",
+                 "en": "Step {s}: read-only WLO tools get no parts of the work item — only an id "
+                       "from the start data (field of type node id, as a whole argument, "
+                       "with the trigger host page)"},
     "teil": {"de": "Schritt {s}: Teil {t!r} hat keine gültige Form",
              "en": "Step {s}: part {t!r} has no valid form"},
     "dateien_holen": {"de": "Schritt {s}: dateien_holen gibt es nur an einem Auftragsschritt",
@@ -68,6 +204,10 @@ _T: Final[dict[str, dict[str, str]]] = {
               "en": "Step {s}: branch without sonst as the last rule"},
     "ziel": {"de": "Schritt {s}: Ziel {z!r} gibt es nicht",
              "en": "Step {s}: target {z!r} does not exist"},
+    "wendung_doppelt": {"de": "Die Wendung „{w}“ überschneidet sich mit: {andere} — es gilt der "
+                               "Ablauf mit der kleinsten Kennung",
+                        "en": "The phrase “{w}” overlaps with: {andere} — the workflow with the "
+                              "smallest id wins"},
     "ende": {"de": "Kein Schritt ende — der Lauf hätte kein Ende",
              "en": "No end step — the run would never end"},
     "auslaufen": {"de": "Schritt {s}: der Lauf liefe ohne Ende aus (letzter Schritt ohne weiter)",
@@ -115,6 +255,35 @@ _T: Final[dict[str, dict[str, str]]] = {
                     "en": "Step {s}: 1 to {max} turns expected"},
     "modus": {"de": "Auslöser: Modus {m!r} gibt es nicht",
               "en": "Trigger: mode {m!r} does not exist"},
+    # AS-7a (Plan 2026-11-09 §5m): Führungen
+    "seite_url": {"de": "Schritt {s}: url muss ein Pfad mit / oder eine https-Adresse ohne "
+                        "Zugangsdaten sein",
+                  "en": "Step {s}: url must be a path starting with / or an https address "
+                        "without credentials"},
+    "seite_label": {"de": "Schritt {s}: label (Aufschrift des Chips) fehlt auf Deutsch",
+                    "en": "Step {s}: label (text of the chip) is missing in German"},
+    "seite_felder": {"de": "Schritt {s}: url, label und ankunft gibt es nur bei Art seite",
+                     "en": "Step {s}: url, label and arrival only exist for kind page"},
+    "seite_muster": {"de": "{wo}: Muster {m!r} ungültig ({f}) — erwartet ein Pfad mit / und * als "
+                           "Platzhalter",
+                     "en": "{wo}: pattern {m!r} invalid ({f}) — expected a path with / and * as "
+                           "wildcard"},
+    "seite_anzahl": {"de": "{wo}: höchstens {max} Muster",
+                     "en": "{wo}: at most {max} patterns"},
+    "seite_unerreichbar": {"de": "Schritt {s}: das Ziel (url) passt zu keinem Muster der ankunft — "
+                                  "der Lauf wartete für immer",
+                            "en": "Step {s}: the target (url) matches no arrival pattern — the run "
+                                  "would wait forever"},
+    "muster_leer": {"de": "leer", "en": "empty"},
+    "muster_lang": {"de": "länger als 200 Zeichen", "en": "longer than 200 characters"},
+    "muster_form": {"de": "beginnt nicht mit / oder enthält Zeichen außer Pfad und *",
+                    "en": "does not start with / or contains characters other than path and *"},
+    "seite_allein": {"de": "Schritt {s}: wenn_seite steht allein in seiner Regel",
+                     "en": "Step {s}: wenn_seite stands alone in its rule"},
+    "schritt_wo": {"de": "Schritt {s}", "en": "Step {s}"},
+    "ausloeser_wo": {"de": "Auslöser seite", "en": "Trigger page"},
+    "seite_ausloeser": {"de": "Auslöser seite: 1 bis {max} Muster erwartet",
+                        "en": "Trigger page: 1 to {max} patterns expected"},
 }
 
 
