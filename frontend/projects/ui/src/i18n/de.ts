@@ -72,7 +72,7 @@ export const DE: Catalogue = {
   'chat.record.stop': 'Aufnahme stoppen',
   'chat.send': 'Senden',
   'chat.hostTask': 'Auftrag der Seite',
-  'chat.hostAblauf': 'Start des Ablaufs „{id}“ angefragt',
+  'chat.hostAblauf': 'Ablauf starten',
   'wiederkehr.anmelden': 'Melde dich bei WLO an, dann geht es mit deiner Arbeit weiter.',
   'wiederkehr.nichts': 'Unter dieser Anmeldung finde ich dazu nichts mehr zum Fortsetzen.',
   'wiederkehr.spaeter': 'Das kann ich gerade nicht prüfen — versuch es gleich noch einmal.',

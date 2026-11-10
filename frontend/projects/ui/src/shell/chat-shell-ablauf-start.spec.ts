@@ -53,7 +53,9 @@ describe('ChatShellComponent — startAblauf (AS-4b)', () => {
       quelle: 'gastseite' });
     const blase = c.messages()[0];
     expect(blase.fromHost).toBe(true);
-    expect(blase.content).toContain('sammlung_pflegen');
+    // Review PR #51 (Widget, Befund 5): die Blase nennt keine technische Kennung
+    expect(blase.content).toBe('Ablauf starten');
+    expect(blase.content).not.toContain('sammlung_pflegen');
     expect(nachricht).toBe(blase.content);
   });
 

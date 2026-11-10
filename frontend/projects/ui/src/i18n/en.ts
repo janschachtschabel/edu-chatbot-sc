@@ -55,7 +55,7 @@ export const EN: Catalogue = {
   'chat.record.stop': 'Stop recording',
   'chat.send': 'Send',
   'chat.hostTask': 'Task from the page',
-  'chat.hostAblauf': 'Requested start of workflow “{id}”',
+  'chat.hostAblauf': 'Start workflow',
   'wiederkehr.anmelden': 'Sign in to WLO to continue your work.',
   'wiederkehr.nichts': 'I cannot find anything to continue for this sign-in.',
   'wiederkehr.spaeter': 'I cannot check that right now — please try again shortly.',

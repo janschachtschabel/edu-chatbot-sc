@@ -135,6 +135,8 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     lc.loadingEnded();
     await Promise.resolve();
     expect(seitenPing).toHaveBeenCalledTimes(1);
+    // Review PR #51 (Widget, Befund 3): der nachgeholte Ping meldet weiter die neue Seite
+    expect(seitenPing).toHaveBeenCalledWith(true);
   });
 
   it('Browser-Abnahme AS-7, L-3: wartet eine Führung auf eine andere Seite, kommt kein Kontext-Gruß', async () => {

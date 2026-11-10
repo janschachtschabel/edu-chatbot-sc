@@ -261,4 +261,3 @@ describe('Wiederkehr (AS-4c)', () => {
     expect(c.messages().at(-1)!.quickReplies).toEqual(['__auth__']);
   });
 });
-

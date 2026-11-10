@@ -787,7 +787,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
         starte: () => this.startAblauf(ablauf, start), fertig, sid: this.sessionId }));
     }
     return this._alsGastgeber(
-      () => this.sendMessage(this.t('chat.hostAblauf', { id: ablauf }), 'ablauf_starten', params));
+      () => this.sendMessage(this.t('chat.hostAblauf'), 'ablauf_starten', params));
   }
 
   /** Paket AS-Ub: „Abbrechen“ in der Ablauf-Leiste — eine Direktaktion; das Backend fragt nach,
@@ -1061,8 +1061,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       const pruefen = () => this.sendMessage(
         this.t('fortsetzen.pruefen'), 'ablauf_auftrag_pruefen', { ablauf });
       // Kam nach dem Wechsel schon ein anderer Zug in Gang, wartet „Stand prüfen“ vorn in der
-      // Reihe statt still auszufallen (Review AS-4c, Befund 2).
-      if (this.isLoading()) {
+      // Reihe statt still auszufallen (Review AS-4c, Befund 2) — ebenso hinter dem Verlauf.
+      if (this._mussWarten()) {
         await new Promise<void>((fertig) => this._wartendeAuftraege.unshift({
           starte: pruefen, fertig, sid: this.sessionId }));
       } else {
@@ -1104,7 +1104,9 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       beimErgebnis?.('ungueltig');
       return 'ungueltig';
     }
-    if (this.isLoading()) {
+    // Review PR #51 (Widget, Befund 2): wie `startTask` auch auf den Verlauf warten — sonst hinge
+    // `restoreHistory` Begrüßung und alten Verlauf unter die neue Blase (derselbe Fehler wie RB-3)
+    if (this._mussWarten()) {
       let ausgang: WiederkehrAusgang = 'verworfen';
       return new Promise((fertig) => this._wartendeAuftraege.push({
         starte: () => this.vorgangFortsetzen(kennung, beimErgebnis).then((a) => { ausgang = a; }),
@@ -1358,8 +1360,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       if (angemeldet) clearSignedOut();
       this._hasAccessBlock.set(angemeldet);
       this._fortsetzenNeu();     // K2a: nach der Anmeldung fragen, mit diesem Block
-      void this._standNachladen();   // Z-1: der Lauf der Person, nun angemeldet
-      if (angemeldet) void this._wiederkehrNachDerAnmeldung();   // AS-4c, Befund 5
+      if (angemeldet) {
+        void this._standNachladen();   // Z-1: der Lauf der Person, nun angemeldet (Review PR #51, W4)
+        void this._wiederkehrNachDerAnmeldung();   // AS-4c, Befund 5
+      }
     });
   }
 

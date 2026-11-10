@@ -175,3 +175,30 @@ describe('ChatApiClient.buildBody — from_host (RB-3)', () => {
     expect(nutzer.map((m) => [m.content, m.fromHost === true])).toEqual([['Leg los', true], ['Danke', false]]);
   });
 });
+
+describe('Wiederkehr vor dem Verlauf (Review PR #51, Widget-Befund 2)', () => {
+  afterEach(() => { vi.restoreAllMocks(); localStorage.removeItem(SCHLUESSEL); });
+
+  it('in einer fortgesetzten Sitzung wartet die Wiederkehr auf den Verlauf — „Stand prüfen“ dahinter', async () => {
+    let liefern!: (v: HistoryMessage[]) => void;
+    const api = fakeApi(new Promise((r) => { liefern = r; }));
+    const c = starten(api, true);
+    const wiederkehr = vi.fn(async () => ({
+      titel: 'Lesen', ablauf: 'lesen', status: 'wartet_auftrag', session_id: c.sessionId,
+      geaendert: '2026-11-07T09:30:00Z' }));
+    (api as any).wiederkehr = wiederkehr;
+
+    const fertig = c.vorgangFortsetzen({ auftrag: 'job-42' });
+    await ruhe();
+    expect(wiederkehr).not.toHaveBeenCalled();
+    expect(api.stream).not.toHaveBeenCalled();
+
+    liefern([{ role: 'user', content: 'Alte Frage' }, { role: 'assistant', content: 'Alte Antwort' }]);
+    expect(await fertig).toBe('gefunden');
+    expect(wiederkehr).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(api.stream).toHaveBeenCalledTimes(1));
+    expect(api.stream.mock.calls[0][4]).toBe('ablauf_auftrag_pruefen');
+    const texte = c.messages().map((m) => m.content).filter(Boolean);
+    expect(texte).toContain('Alte Frage');
+  });
+});

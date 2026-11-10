@@ -226,22 +226,26 @@ export class ShellLifecycle {
 
   /** Das Laden ist zu Ende (Shell-Effect auf `isLoading`). */
   loadingEnded(): void {
-    if (this._seitenPingOffen) void this._seitenPing();   // AS-7b, Review Befund 4
+    if (this._seitenPingOffen) void this._seitenPing(this._seitenPingNeueSeite);   // AS-7b, Befund 4
     if (this._neugrussOffen) this.regreetForLocale();
   }
 
   private _neugrussOffen = false;
   /** AS-7b (Review Befund 4): der Seiten-Ping traf auf einen laufenden Zug — nach dem Laden nach. */
   private _seitenPingOffen = false;
+  /** Review PR #51 (Widget, Befund 3): ob der vorgemerkte Ping eine neue Seite meldet. */
+  private _seitenPingNeueSeite = false;
 
   /** AS-7b: der Seiten-Ping einer wartenden Führung — während eines Zugs vorgemerkt. */
   private async _seitenPing(neueSeite = false): Promise<boolean> {
     if (!this.ctx.seitenPing) return false;
     if (this.ctx.isLoading()) {
       this._seitenPingOffen = true;
+      this._seitenPingNeueSeite ||= neueSeite;
       return false;
     }
     this._seitenPingOffen = false;
+    this._seitenPingNeueSeite = false;
     try { return (await this.ctx.seitenPing(neueSeite)) === true; } catch { return false; }
   }
 
