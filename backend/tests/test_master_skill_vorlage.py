@@ -496,3 +496,11 @@ def test_knapp_dokument_weg_und_ablaeufe(knapp: str) -> None:
     assert "Werkzeuge `ablauf-…`" in oberflaeche
     assert "höchstens einen je Zug" in oberflaeche
     assert "`[ABLAUFSCHRITT — …]`" in oberflaeche
+
+
+def test_formeln_stehen_als_latex_in_den_begrenzern(text: str) -> None:
+    r"""Plan 2026-11-10, TB-E4 (Querschnitts-Review Gruppe E, Befund 5): das Widget zeichnet
+    LaTeX in ``\( … \)`` und ``\[ … \]`` als Formel — die Regel steht in jeder Fassung."""
+    assert "Formeln als LaTeX" in text
+    assert r"\(" in text and r"\[" in text
+

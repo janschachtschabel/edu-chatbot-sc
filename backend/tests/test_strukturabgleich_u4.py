@@ -223,7 +223,7 @@ def test_review_titel_aus_dem_argument_und_entschaerft(monkeypatch):
     erg = asyncio.run(asynchron(MODUL, {"sammlung": SAMMLUNG, "titel": "Physik"},
                                 Umgebung(teile=_teile(entwurf))))
     assert erg.block.daten["sammlung"]["titel"] == "Physik"
-    assert "](https://boese.de)" not in erg.block.text and "\\[Klick\\]" in erg.block.text
+    assert "](https://boese.de)" not in erg.block.text and "&#91;Klick&#93;" in erg.block.text
 
 
 def test_review_zeitueberschreitung_und_vorrang_des_gemerkten(monkeypatch):

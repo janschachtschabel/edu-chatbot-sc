@@ -34,8 +34,11 @@ _KANDIDAT: Final = re.compile(r"\{(teil|start)\.([^{}\s]*)\}")
 #: Was die Prüfung als Platzhalter-Versuch ansieht — auch ``{Teil.x}`` oder ``{teil.a b}``
 #: (Review AS-3b, Befund 8).
 _VERSUCH: Final = re.compile(r"(?i)\{\s*(teil|start)\b[^{}]{0,80}\}")
-#: Jedes ASCII-Satzzeichen außer ``$`` (Befund 1).
-_MARKDOWN: Final = re.compile(r"([!-#%-/:-@\[-`{-~])")
+#: Jedes ASCII-Satzzeichen (Befund 1).
+_MARKDOWN: Final = re.compile(r"([!-/:-@\[-`{-~])")
+#: Querschnitts-Review Gruppe E: diese als Entität, nicht mit Rückstrich — ``\(`` und ``\[`` hielte
+#: das Widget seit TB-E4 für eine Formel, ``$`` für ihren Anfang.
+_ENTITAETEN: Final = {"(": "&#40;", ")": "&#41;", "[": "&#91;", "]": "&#93;", "$": "&#36;"}
 
 
 def _form(rest: str) -> tuple[str, str | None, bool]:
@@ -80,7 +83,8 @@ def entschaerft(wert: Any) -> str:
     text = " ".join(roh.split())
     if len(text) > MAX_ZEICHEN:
         text = text[:MAX_ZEICHEN - 1] + "…"
-    return _MARKDOWN.sub(r"\\\1", text) if text else FEHLT
+    return _MARKDOWN.sub(lambda m: _ENTITAETEN.get(m.group(1), "\\" + m.group(1)),
+                         text) if text else FEHLT
 
 
 def herkuenfte(text: str) -> frozenset[str]:

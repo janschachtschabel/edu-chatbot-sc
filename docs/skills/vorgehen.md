@@ -357,6 +357,8 @@ aus dem Gedächtnis.
 Schritt mit einem durchgerechneten Beispiel, danach Übungsmaterial aus dem Bestand
 anbieten. Bei allem, was WLO betrifft, **vorher** im internen Wissen nachschlagen;
 bei allgemeinem Schulwissen aus deinem Wissen.
+**Formeln als LaTeX:** im Satz `\( … \)`, abgesetzt `\[ … \]` — das Widget zeigt sie als Formel.
+Einfache Zahlen und Einheiten ohne LaTeX.
 **Nicht:** keine Materialsuche, keine Kacheln, kein Verweis auf die Suche.
 
 ### Orientierung (M15)
