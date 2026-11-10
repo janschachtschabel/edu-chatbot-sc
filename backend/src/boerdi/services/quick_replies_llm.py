@@ -93,8 +93,10 @@ def _display_length(reply: str) -> int:
     return len(text.strip())
 
 
-#: Vorsätze, die nur das Backend setzt (``context_greeting``, ``ablauf/vorschlag``, ``auth_qr``).
-_NUR_DAS_BACKEND = ("__action__|", "__auth__")
+#: Vorsätze, die nur das Backend setzt (``context_greeting``, ``ablauf/vorschlag``, ``auth_qr``,
+#: ``ablauf/treiber`` für die Führung — ``__fuehrung__|`` navigiert im Widget ohne Vertrauensliste,
+#: Review PR #51, Widget-Befund 1).
+_NUR_DAS_BACKEND = ("__action__|", "__auth__", "__fuehrung__|")
 
 
 def filtere_vorschlaege(vorschlaege: list[str], *, anzahl: int, max_zeichen: int) -> list[str]:
@@ -122,7 +124,7 @@ def filtere_vorschlaege(vorschlaege: list[str], *, anzahl: int, max_zeichen: int
             continue
         # Review A2a (Vorbefund): ein Knopf (``__action__|…``) oder die Anmeldung kommt nie aus dem
         # Modell — das Widget schickte ihn als Direktaktion. Knöpfe setzt nur das Backend.
-        if schluessel.startswith(_NUR_DAS_BACKEND):
+        if schluessel.lstrip().startswith(_NUR_DAS_BACKEND):
             continue
         if max_zeichen and _display_length(vorschlag) > max_zeichen:
             zu_lang += 1

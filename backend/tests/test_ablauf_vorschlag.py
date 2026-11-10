@@ -110,6 +110,18 @@ def test_ki_schnellantworten_tragen_keine_knoepfe():
     assert behalten == ["Mehr zu Optik"]
 
 
+def test_pr51_review_ki_schnellantworten_tragen_keinen_fuehrungs_chip():
+    """Review PR #51 (Widget, Befund 1): ``__fuehrung__|Label|URL`` navigiert im Widget auf
+    derselben Herkunft ohne Vertrauensliste — nur der Treiber darf ihn setzen, nie das Modell (eine
+    eingeschleuste Anweisung führte sonst auf einen beliebigen Pfad der Gastseite)."""
+    from boerdi.services.quick_replies_llm import filtere_vorschlaege
+
+    behalten = filtere_vorschlaege(
+        ["Mehr zu Optik", "__fuehrung__|Weiter|/logout", "  __fuehrung__|X|/a"],
+        anzahl=4, max_zeichen=0)
+    assert behalten == ["Mehr zu Optik"]
+
+
 def test_nach_einer_frage_kein_vorschlag(monkeypatch, katalog):
     """Review A2a, Befund 5: unter einer offenen Frage erschiene der Knopf nie."""
     katalog.append(_roh("baum"))
