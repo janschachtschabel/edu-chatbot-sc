@@ -1,0 +1,68 @@
+# Beispiel-Ablauf „Führung“ (Paket AS-7c, Plan docs/plans/2026-11-09-ablaeufe-im-studio.md §5m, F-8).
+# Zeigt die Bausteine einer Webseitenführung als Ablauf: Schritt `seite` (Chip zur Seite, mit
+# `ankunft` wartet der Lauf auf den Seitenwechsel), Bedingung `wenn_seite` (wo die Person gerade
+# ist) und Auslöser `seite` (Angebot unter der Begrüßung, wenn die Seite passt).
+# Die bestehende Tour (01-base/website-tour.yaml) bleibt unverändert; dieser Ablauf ist aus, bis
+# die Redaktion ihn einschaltet (aktiv: true). Pfade wie in der Tour (wirlernenonline.de).
+id: fuehrung
+titel: {de: Kurze Führung durch WLO, en: Short tour of WLO}
+beschreibung: >-
+  Führt in drei Stationen über die Startseite und die Bildungsinhalte zur Mitmach-Seite. Beispiel
+  für Schritte vom Typ seite, die Bedingung wenn_seite und den Auslöser seite.
+wann: [Die Person möchte WLO kennenlernen oder sucht den Weg zum Mitmachen]
+aktiv: false
+# knopf: Direktaktion ablauf_starten; seite: Angebot unter der Begrüßung auf der Startseite;
+# text: eine dieser Wendungen startet die Führung.
+ausloeser:
+  - {art: knopf}
+  - {art: seite, muster: [/home/*]}
+  - {art: text, wendungen: [kurze führung, zeig mir wlo]}
+schritte:
+  # Steht die Person schon auf der Mitmach-Seite, braucht es keine Führung mehr.
+  - id: wo
+    typ: verzweigung
+    weiter:
+      - {wenn_seite: [/mitmachen/*], dann: schon_da}
+      - {sonst: start}
+  - id: start
+    typ: seite
+    text: {de: "Wir beginnen auf der Startseite — dort siehst du, für wen WLO gemacht ist.",
+           en: "We start on the home page — it shows who WLO is made for."}
+    url: /home/
+    label: {de: Zur Startseite, en: To the home page}
+    ankunft: [/home/*]
+  - id: inhalte
+    typ: seite
+    text: {de: "Als Nächstes die Bildungsinhalte: Themenseiten, Sammlungen und Materialien.",
+           en: "Next up: the educational content — topic pages, collections and materials."}
+    url: /bildungsinhalte/
+    label: {de: Zu den Bildungsinhalten, en: To the educational content}
+    ankunft: [/bildungsinhalte/*]
+  - id: mitmachen
+    typ: seite
+    text: {de: "Zum Schluss die Mitmach-Seite: Dort kannst du eine Anfrage stellen oder mitarbeiten.",
+           en: "Finally the get-involved page: there you can send an enquiry or join in."}
+    url: /mitmachen/
+    label: {de: Zur Mitmach-Seite, en: To the get-involved page}
+    ankunft: [/mitmachen/*]
+  - id: ende
+    typ: ende
+    text: {de: "Das war die kurze Führung. Frag mich jederzeit, wenn du etwas suchst.",
+           en: "That was the short tour. Ask me any time if you are looking for something."}
+  - id: schon_da
+    typ: ende
+    text: {de: "Du bist schon auf der Mitmach-Seite — hier kannst du direkt loslegen.",
+           en: "You are already on the get-involved page — you can start right here."}
+tests:
+  - name: Von der Startseite bis zur Mitmach-Seite
+    seite: /home/
+    eingaben:
+      - {bei: inhalte, seite: /bildungsinhalte/}
+      - {bei: mitmachen, seite: /mitmachen/}
+    erwartet: {weg: [wo, start, inhalte, mitmachen, ende], status: fertig}
+  - name: Schon auf der Mitmach-Seite
+    seite: /mitmachen/faq/
+    erwartet: {weg: [wo, schon_da], status: fertig}
+  - name: Wartet auf den Seitenwechsel
+    seite: /home/
+    erwartet: {status: wartet_seite, ende: inhalte}
