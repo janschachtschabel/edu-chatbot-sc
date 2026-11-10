@@ -202,6 +202,28 @@
   </details>
 
   <details class="karte">
+    <summary><h2>3a · Einen Ablauf mit Startdaten starten (<code>startAblauf()</code>)</h2></summary>
+    <label for="ablaufId">Kennung des Ablaufs (im Studio unter „Abläufe“, Auslöser „Gastseite“)</label>
+    <input id="ablaufId" value="sammlung_pflegen">
+    <label for="ablaufDaten">Startdaten als JSON-Objekt (leer: keine)</label>
+    <textarea id="ablaufDaten" rows="3">{"sammlung": "00000000-0000-4000-8000-000000000000"}</textarea>
+    <div class="knoepfe">
+      <button type="button" class="stark" id="btnAblauf">Ablauf starten</button>
+    </div>
+    <label for="wiederkehrAuftrag">Zurück zur Arbeit: Job-ID eines Auftrags (<code>vorgangFortsetzen()</code>)</label>
+    <input id="wiederkehrAuftrag" value="">
+    <div class="knoepfe">
+      <button type="button" id="btnWiederkehr">Zurück zur Arbeit</button>
+    </div>
+    <p class="hinweis">
+      Das Backend prüft die Daten gegen das Startschema des Ablaufs; passt etwas nicht, startet
+      er nicht. Daten nimmt nur ein Ablauf mit dem Auslöser „Gastseite“; ohne Daten startet
+      <code>startAblauf</code> auch jeden Ablauf, den ein Knopf starten kann. Läuft derselbe
+      Ablauf mit denselben Daten schon, geht es dort weiter. Eingaben, nie Rechte.
+    </p>
+  </details>
+
+  <details class="karte">
     <summary><h2>4 · Maschine, Ergebnis-Schema, Anmeldung</h2></summary>
     <label for="engine">Maschine (Attribut <code>engine</code>)</label>
     <select id="engine">
@@ -450,6 +472,27 @@
   $('btnVerwerfen').addEventListener('click', function () {
     element().setHostInstruction('');
     protokoll('demo:setHostInstruction', { ausloeser: 'verworfen' });
+  });
+  // AS-4b: einen Ablauf mit Startdaten starten. Kaputtes JSON startet nichts (Protokoll ohne Werte).
+  $('btnAblauf').addEventListener('click', function () {
+    var id = $('ablaufId').value.trim();
+    var roh = $('ablaufDaten').value.trim();
+    var daten;
+    if (roh) {
+      try { daten = JSON.parse(roh); } catch (e) {
+        protokoll('demo:startAblauf', { fehler: 'kein JSON' });
+        return;
+      }
+    }
+    element().startAblauf(id, daten);
+    protokoll('demo:startAblauf', { ablauf: id, felder: daten ? Object.keys(daten).length : 0 });
+  });
+  // AS-4c: mit einer Auftragskennung zurück zur Arbeit (nur die angemeldete Besitzerin)
+  $('btnWiederkehr').addEventListener('click', function () {
+    var auftrag = $('wiederkehrAuftrag').value.trim();
+    if (!auftrag) return;
+    element().vorgangFortsetzen({ auftrag: auftrag });
+    protokoll('demo:vorgangFortsetzen', { art: 'auftrag' });
   });
 
   /** Ausgabe-Steuerung: Vorlage in den Rahmen schreiben UND sofort setzen.

@@ -56,6 +56,21 @@ logger = logging.getLogger(__name__)
 #: Angriffsfläche ist der Rumpf der Anfrage.
 MAX_GESPEICHERT = 20_000
 
+#: Paket RB-3: Merker im Debug-Block einer Nutzernachricht — der Zug kam von der Gastseite
+#: (``ChatRequest.from_host``). Der öffentliche Verlauf gibt ihn als ``ui.from_host`` zurück.
+VOM_GASTGEBER_KEY = "_vom_gastgeber"
+#: Paket AS-Ua (U-7): Merker im Debug-Block einer Bot-Nachricht — ein fester Text des Ablaufs.
+FESTER_TEXT_KEY = "_fester_text"
+
+
+def nutzer_debug(from_host: bool, **mehr: Any) -> dict[str, Any] | None:
+    """Der Debug-Block einer Nutzernachricht: gesetzte Einträge aus ``mehr`` und der Merker der
+    Gastseite — ``None``, wenn nichts davon da ist."""
+    debug = {k: v for k, v in mehr.items() if v}
+    if from_host:
+        debug[VOM_GASTGEBER_KEY] = True
+    return debug or None
+
 
 def _gekappt(inhalt: str) -> str:
     if not isinstance(inhalt, str) or len(inhalt) <= MAX_GESPEICHERT:
