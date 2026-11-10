@@ -161,6 +161,12 @@ def schnellantworten(vorschlaege: list[Any] | None, lang: str) -> list[str]:
     return aus
 
 
+def grenze(hoechstens: int | None) -> int:
+    """Wie viele Schnellantworten unter einer Antwort stehen: vier, höchstens die Zahl des
+    Gastgebers."""
+    return min(_MAX_SCHNELLANTWORTEN, hoechstens) if hoechstens else _MAX_SCHNELLANTWORTEN
+
+
 def anhaengen(quick_replies: list[str] | None, vorschlaege: list[str] | None, *,
               hoechstens: int | None = None, alle: bool = False) -> list[str]:
     """Die Knöpfe zuerst, insgesamt höchstens vier (wie der Relevanz-Rückfall) bzw. die Höchstzahl
@@ -169,11 +175,11 @@ def anhaengen(quick_replies: list[str] | None, vorschlaege: list[str] | None, *,
     andere Vorschläge fallen dann weg."""
     if not vorschlaege:
         return list(quick_replies or [])
-    grenze = min(_MAX_SCHNELLANTWORTEN, hoechstens) if hoechstens else _MAX_SCHNELLANTWORTEN
+    platz = grenze(hoechstens)
     if alle:
-        grenze = max(grenze, len(vorschlaege))
+        platz = max(platz, len(vorschlaege))
     rest = [q for q in quick_replies or [] if q not in vorschlaege]
-    return [*vorschlaege, *rest][:grenze]
+    return [*vorschlaege, *rest][:platz]
 
 
 def nimm_an(tool_calls: Any, angeboten: Any, session_state: dict[str, Any],

@@ -80,7 +80,7 @@ from boerdi.services import (
     prompt_ablage,
     seitenkontext_prompt,
 )
-from boerdi.services.ablauf import ki_schritt
+from boerdi.services.ablauf import ki_schritt, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_abschluss import abschluss_nachholen, antwort_oder_ersatz
 from boerdi.services.agent_deckel import fuer_diesen_zug
@@ -366,7 +366,11 @@ async def respond_agent(
             # agent-Schritt eines Laufs (dort zählen nur dessen Werkzeuge).
             # Kein Ablauf-Werkzeug, wo kein Knopf erscheinen kann (Chips des Gastgebers, Review
             # AS-5b, Befund 4); die Erlaubnis der Einbettung gilt auch hier (Querschnitt AS-5, 6).
-            ablauf_tools=None if _ki or _gastgeber_chips(ctx) else ablauf_vorschlag.werkzeuge(
+            # Kein Ablauf-Werkzeug, wo die Chips einer wartenden Wahl den Platz füllen (sonst fiele
+            # der Knopf weg, den die KI ankündigt — offen seit AS-5b).
+            ablauf_tools=None if (_ki or _gastgeber_chips(ctx) or not wahl_zug.platz_fuer_vorschlag(
+                ctx.req.session_id, ctx.session_state, sprache,
+                ctx.req.environment.quick_replies_max)) else ablauf_vorschlag.werkzeuge(
                 sprache, tool_mode=ctx.req.environment.tool_mode))
     if _ki:
         _werkzeuge = ki_schritt.einengen(_werkzeuge, _ki[1])

@@ -51,7 +51,7 @@ from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception, cancel_and_drain, merke_zug_aufgabe
 from boerdi.obs.zeiten import schritt
 from boerdi.services import arbeitsstand
-from boerdi.services.ablauf import ki_schritt
+from boerdi.services.ablauf import ki_schritt, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.dokumente.stand import lader as dokument_lader
@@ -486,8 +486,11 @@ async def respond(
                     _kennzeile,
                     frage_vorsatz(ctx.ui_antwort, ctx.geschlossene_frage, _letzter)) if t),
                 # Querschnitts-Review AS-5, Befund 2: am KI-Schritt eines Laufs schlägt die KI
-                # keinen anderen Ablauf vor — wie im Agent-Modus.
-                ohne_ablaeufe=bool(_ki),
+                # keinen anderen Ablauf vor — wie im Agent-Modus; ebenso nicht, wo die Chips einer
+                # wartenden Wahl den Platz füllen (offen seit AS-5b).
+                ohne_ablaeufe=bool(_ki) or not wahl_zug.platz_fuer_vorschlag(
+                    req.session_id, session_state, resolve_locale(req.environment.locale),
+                    req.environment.quick_replies_max),
             )
             if _antwort_strom is not None:
                 _antwort_strom.schliessen()  # den zurückgehaltenen Rest senden

@@ -30,7 +30,7 @@ from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
 from boerdi.domain.wahl_knopf import AKTION as WAHL_AKTION
 from boerdi.i18n import resolve_locale
 from boerdi.services import arbeitsstand, vorgaenge
-from boerdi.services.ablauf import treiber
+from boerdi.services.ablauf import treiber, vorschlag
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden
 from boerdi.services.ablauf.pruefung import mit_wahl
@@ -68,6 +68,14 @@ def _wartend(session_id: str, session_state: dict[str, Any]
     if schritt is None or not mit_wahl(schritt):
         return None
     return lauf, ablauf, schritt
+
+
+def platz_fuer_vorschlag(session_id: str, session_state: dict[str, Any], lang: str,
+                         hoechstens: int | None = None) -> bool:
+    """Passt neben die Chips einer wartenden Wahl noch ein Ablauf-Knopf? Die Chips bleiben ganz
+    (``vorschlag.anhaengen(alle=True)``); füllen sie den Platz, fiele der Knopf weg, obwohl die KI
+    ihn angekündigt hätte — dann bietet der Zug keinen Ablauf an (offen seit AS-5b)."""
+    return len(aktuelle_knoepfe(session_id, session_state, lang)) < vorschlag.grenze(hoechstens)
 
 
 def aktuelle_knoepfe(session_id: str, session_state: dict[str, Any], lang: str) -> list[str]:
