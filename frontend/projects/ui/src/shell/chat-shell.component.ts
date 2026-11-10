@@ -825,7 +825,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     // wechselte es inzwischen (Wiederkehr, Neustart), verfällt er, statt im falschen zu laufen.
     // (Leer: eingereiht, bevor die Shell ihr Gespräch hatte — gehört zu keinem anderen.)
     while (naechster && naechster.sid && naechster.sid !== this.sessionId) {
-      console.warn('boerdi-chat: ein wartender Auftrag der Seite verfällt — das Gespräch wechselte.');
+      console.warn('boerdi-chat: ein wartender Auftrag verfällt — das Gespräch wechselte.');
       naechster.fertig();
       naechster = this._wartendeAuftraege.shift();
     }
@@ -856,11 +856,27 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     if (this._speech.autoSpeak && resp.content) {
       this._speech.autoSpeakText(resp.content);
     }
+    this._direktStarten(resp);
     try {
       this._meldeAnDieGastseite(resp, userMessage);
     } catch (err) {
       console.error('boerdi: Rückruf der Gastseite gescheitert —', fehlerKurz(err));
     }
+  }
+
+  /** Plan 2026-11-10, TB-E3: die KI startet einen Ablauf direkt — das Widget drückt den Knopf aus
+   *  `ui.direkt_start` nach dem Zug selbst, derselbe Weg wie ein Klick. Nur einen Knopf, der unter
+   *  den Schnellantworten steht und `ablauf_starten` auslöst; nur live (`_onResult`). Er wartet in
+   *  der Reihe, bis dieser Zug geladen ist. */
+  private _direktStarten(resp: ChatResponse): void {
+    const knopf = resp.ui?.direkt_start;
+    if (typeof knopf !== 'string' || !(resp.quick_replies ?? []).includes(knopf)) return;
+    if (knopf.split('|', 4)[0] !== '__action__' || knopf.split('|', 4)[2] !== 'ablauf_starten') return;
+    // Review TB-E3, Befund 5: vorn in der Reihe — „gleich nach der Antwort“, vor Aufträgen der
+    // Gastseite, die schon warten (wie „Stand prüfen“)
+    this._wartendeAuftraege.unshift({
+      starte: async () => this.onQuickReply(knopf), fertig: () => undefined, sid: this.sessionId,
+    });
   }
 
   /** Was die Gastseite von einem Zug erfährt — Rückrufe, Ausgänge, Ereignisse. */
@@ -1511,6 +1527,11 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   setProbe(an: boolean): void {
     this.probe.set(an);
     this._api.setProbe(an);
+  }
+
+  /** Plan 2026-11-10, TB-E2: Gespräch der Studio-Vorschau — zählt nicht als Betrieb. */
+  setVorschau(an: boolean): void {
+    this._api.setVorschau(an);
   }
 
   /** **Public API** (O-B) — Schnellantworten fuer die naechsten Zuege hart

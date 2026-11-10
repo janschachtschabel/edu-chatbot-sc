@@ -87,6 +87,7 @@ from boerdi.domain.zustimmung import is_affirmation
 from boerdi.i18n import CLAIM_WORDS, DEFAULT, resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.zeiten import spur_zeilen
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_zugblock import DOKUMENTE_DEBUG_KEY, dokumente_fuer_die_nachricht
 from boerdi.services.config_loader import load_display_rules_config
 from boerdi.services.db_sessions import finalize_message, save_message, update_session
@@ -756,7 +757,9 @@ async def persist_and_build_response(
         quick_replies=quick_replies,
         debug=debug,
         # Der Typ-Fokus steht in keinem Feld des Debug-Blocks; ``api/publikum`` lässt ihn stehen.
-        ui=UiInfo(type_focus=_type_focus_label, ui_bloecke=_ui_bloecke),
+        ui=UiInfo(type_focus=_type_focus_label, ui_bloecke=_ui_bloecke,
+                  # TB-E3: der Knopf, den das Widget nach diesem Zug selbst drückt
+                  direkt_start=ablauf_vorschlag.direkt_fuer_antwort(session_state, quick_replies)),
         page_action=page_action,
         pagination=pagination,
         query_metas=_query_meta_entries,
