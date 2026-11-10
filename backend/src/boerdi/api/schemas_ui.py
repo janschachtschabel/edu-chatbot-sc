@@ -58,6 +58,43 @@ class UiAntwort(BaseModel):
     daten: dict[str, Any] = Field(default_factory=dict)
 
 
+class AblaufTeilText(BaseModel):
+    """Paket AS-Ua: ein Teil eines laufenden Ablaufs, als Kurztext (ohne Kennungen)."""
+
+    name: str
+    text: str
+
+
+class AblaufWeg(BaseModel):
+    """AS-7 (Querschnitts-Review, Befund 1): der Weg einer wartenden Führung — Aufschrift und Ziel
+    des Chips (``__fuehrung__``). Die Leiste zeigt ihn als Knopf, auch nach dem Neuladen."""
+
+    label: str
+    url: str
+
+
+class AblaufStand(BaseModel):
+    """Paket AS-Ua (Plan 2026-11-09 §5h, U-2): der Stand des Ablaufs, der in diesem Gespräch läuft
+    — für die Leiste im Widget. ``nr``/``von``: „Schritt n von m“ (``services/ablauf/fortschritt``).
+    ``status`` ist der Status des Laufs (``laeuft``, ``wartet_wahl``, ``wartet_person``,
+    ``wartet_ki``, ``wartet_auftrag``, ``wartet_freigabe`` …)."""
+
+    id: str
+    titel: str
+    nr: int
+    von: int
+    status: str
+    #: Marke dieses Laufs — ein neuer Lauf desselben Ablaufs hat eine andere (leer bei Läufen von
+    #: vor der Marke).
+    lauf: str = ""
+    #: Zweites Review, Z-8: der Lauf einer angemeldeten Person (nicht der Sitzung) — das Widget
+    #: zeigt ihn nur, solange es angemeldet ist.
+    persoenlich: bool = False
+    teile: list[AblaufTeilText] = Field(default_factory=list)
+    #: AS-7: nur bei ``wartet_seite`` — der Weg zur Seite, auf die der Lauf wartet.
+    weg: AblaufWeg | None = None
+
+
 class UiInfo(BaseModel):
     """Öffentlicher Teil einer Antwort; alle Felder optional, Vorgabe leer."""
 
@@ -82,3 +119,10 @@ class UiInfo(BaseModel):
     prepared_write: dict[str, Any] | None = None
     # Paket U1: die UI-Module dieser Antwort — live und im Verlauf.
     ui_bloecke: list[UiBlock] = Field(default_factory=list)
+    # Paket RB-3: nur im Verlauf, an einer Nutzernachricht — sie kam von der Gastseite.
+    from_host: bool = False
+    # Paket AS-Ua (U-1): solange im Gespräch ein Lauf nicht beendet ist, an jeder Antwort (im
+    # Verlauf an der letzten Bot-Nachricht).
+    ablauf: AblaufStand | None = None
+    # Paket AS-Ua (U-7): ein fester, redaktioneller Text des Ablaufs — kein Etikett „KI-generiert“.
+    fester_text: bool = False
