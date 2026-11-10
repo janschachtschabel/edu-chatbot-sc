@@ -934,7 +934,7 @@ Reviews (1 kritisch und 1 schwer, danach 1 schwer, alle behoben). Bei AS-7b traf
 Befund nicht zu, alle mittleren sind behoben. Notizen `aenderungen/2026-11-10-paket-as-7a-…`, `…-7b-…`,
 `…-7c-…`. Querschnitts-Review über AS-7 behoben (`…-querschnitt-as-7.md`), Browser-Abnahme
 bestanden mit Befund L-3 (kein Kontext-Gruß neben einer wartenden Führung), behoben
-(`…-browser-abnahme-as-7.md`). Offen: E2E für den Kernpfad.
+(`…-browser-abnahme-as-7.md`). E2E für den Kernweg: `frontend/e2e/fuehrung.spec.ts` (10.11.).
 
 ## 5n. Aufgaben AS-8 — Im Widget ausprobieren (E4 B), Handbuch (D7)
 

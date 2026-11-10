@@ -87,9 +87,10 @@ Die zugehörigen Pläne:
   einem Seitenaufruf der Stand, und es geht kein Seiten-Ping hinaus. Die Ankunft kommt dieses eine Mal
   nicht an; der nächste getippte Satz holt den Chip zurück, der nächste Seitenaufruf pingt wieder.
   Kandidat: bei einer Zeitüberschreitung ein Kennzeichen `ablauf_unbestimmt`, und das Widget pingt dann einmal.
-- **Führungen (AS-7, 10.11.):** E2E für Führungs-Chip, Seiten-Ping und Begrüßungs-Chip fehlt noch.
-  Geplant ist zuerst eine Browser-Abnahme der ganzen Führung gegen ein echtes Backend, danach E2E für den
-  Kernweg. Angular meldet für das Widget-Roh-Budget 650 kB eine Überschreitung um wenige Byte (Warnung);
+- **Führungen (AS-7, 10.11.):** ~~E2E für Führungs-Chip, Seiten-Ping und Begrüßungs-Chip fehlt noch.~~
+  **Erledigt 10.11.:** Browser-Abnahme (`aenderungen/2026-11-10-browser-abnahme-as-7.md`) und E2E für den
+  Kernweg (`frontend/e2e/fuehrung.spec.ts`, Notiz `aenderungen/2026-11-10-e2e-fuehrung.md`). Offen bleibt
+  ein E2E für das Angebot unter der Begrüßung (Auslöser `seite`), durch Specs abgedeckt. Angular meldet für das Widget-Roh-Budget 650 kB eine Überschreitung um wenige Byte (Warnung);
   gzip 188,6 kB < 190.
 
 - **Upload → Volltext → Metadaten (Anwendungsfall „Strukturdokument + Inhalte“, 2026-11-07):** Auftrag an das
