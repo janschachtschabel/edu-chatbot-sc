@@ -1,0 +1,263 @@
+# Ablauf „Themenbaum · aus eigenen Inhalten“ (Plan docs/plans/2026-11-10-themenbaum-aus-inhalten.md,
+# TB-T2/TB-3, Nutzer-Auftrag N15). Die Person lädt Dateien oder einen Ordner in ihren Bereich in WLO,
+# der Kestra-Flow edusharing.chatbot/node-metadata-write erzeugt auf Wunsch Metadaten (schreibt ins
+# Repositorium, nur die eben hochgeladenen Dateien), metadaten_lesen liest sie, und die KI baut
+# daraus mit ui_strukturentwurf (aus_inhalten) einen Themenbaum im Chat. Danach endet der Ablauf —
+# Sammlungen daraus anzulegen, kommt später (N15).
+#
+# Voraussetzungen im Betrieb:
+# - Studio „Datei-Upload“: Ablage in WLO an (ablage_in_wlo), die Person ist bei WLO angemeldet;
+# - der Flow steht in B_API_JOBS_FLOWS, und der B-API-Schlüssel darf ihn starten (Plan F9).
+# Ohne Freischaltung ist das im Studio nur ein Hinweis (der Ablauf ist aus); eingeschaltet sperrt
+# die Prüfung ihn (auftrag_frei).
+id: themenbaum_aus_inhalten
+titel: {de: "Themenbaum · aus eigenen Inhalten", en: "Topic tree · from own content"}
+beschreibung: >-
+  Drei kurze Fragen, dann lädt die Person Dateien in ihren Bereich in WLO. Auf Wunsch erzeugt ein
+  Flow ihre Metadaten (schreibt ins Repositorium). Aus Titeln, Beschreibungen und Schlagworten
+  entsteht ein bearbeitbarer Themenbaum-Entwurf im Chat.
+wann:
+  - Die Person will aus ihren eigenen Dateien oder Materialien einen Themenbaum bauen
+aktiv: false
+voraussetzungen: [anmeldung]
+ausloeser:
+  - {art: knopf}
+  - {art: agent}
+  - {art: text, wendungen: [themenbaum aus meinen inhalten, themenbaum aus meinen dateien]}
+schritte:
+  - id: wofuer
+    typ: nachricht
+    text: {de: "Gern baue ich aus deinen Inhalten einen Themenbaum. Wofür soll er sein?",
+           en: "I'll gladly build a topic tree from your content. What is it for?"}
+    schreibt: zweck
+    optionen:
+      - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: stufe}
+      - {id: materialpool, label: {de: Materialpool aufbauen, en: Build a material pool}, ziel: stufe}
+      - {id: redaktion, label: {de: Redaktionelle Sammlung, en: Editorial collection}, ziel: stufe}
+  - id: stufe
+    typ: nachricht
+    text: {de: "Für wen ist er gedacht?", en: "Who is it for?"}
+    schreibt: stufe
+    optionen:
+      - {id: grundschule, label: {de: Grundschule, en: Primary school}, ziel: thema}
+      - {id: sek1, label: {de: Sekundarstufe I, en: Lower secondary}, ziel: thema}
+      - {id: sek2, label: {de: Sekundarstufe II, en: Upper secondary}, ziel: thema}
+      - {id: beruf, label: {de: Berufliche Bildung, en: Vocational training}, ziel: thema}
+      - {id: hochschule, label: {de: Hochschule, en: Higher education}, ziel: thema}
+    freitext: {ziel: thema, schreibt: stufe}
+  - id: thema
+    typ: nachricht
+    text: {de: "Worum geht es in deinen Inhalten? Schreib Fach und Thema kurz, zum Beispiel „Physik: Optik“.",
+           en: "What is your content about? Write subject and topic briefly, for example “Physics: optics”."}
+    freitext: {ziel: hochladen, schreibt: thema}
+  - id: hochladen
+    typ: modul
+    modul: ui_upload
+    text: {de: "Wähle deine Dateien oder einen Ordner und übertrage sie in deinen Bereich in WLO.",
+           en: "Choose your files or a folder and transfer them to your area in WLO."}
+    daten: {zweck: sammlungsstruktur}
+  # Ohne Übertragung nach WLO (nur erfasst) gibt es keine Nodes für den Flow.
+  - id: uebertragen
+    typ: verzweigung
+    weiter:
+      - {wenn_teil: ablage, dann: metadaten_frage}
+      - {sonst: ohne_ablage}
+  # Die Rückfrage vor dem schreibenden Flow (Prüfung auftrag_rueckfrage, TB-F1).
+  - id: metadaten_frage
+    typ: nachricht
+    text:
+      de: >-
+        Soll WLO Metadaten für die eben hochgeladenen Dateien erzeugen? Das ersetzt je Datei Titel,
+        Beschreibung, Schlagworte, Sprache, Fach, Bildungsstufe, Zielgruppe und Ressourcentyp –
+        jede Änderung als neue Version.
+      en: >-
+        Should WLO create metadata for the files you just uploaded? For each file this replaces
+        title, description, keywords, language, subject, educational level, audience and resource
+        type – each change as a new version.
+    optionen:
+      - {id: ja, label: {de: "Ja, Metadaten erzeugen", en: "Yes, create metadata"}, ziel: metadaten}
+      - {id: nein, label: {de: "Nein, so lassen", en: "No, leave as is"}, ziel: lesen}
+  - id: metadaten
+    typ: auftrag
+    flow: edusharing.chatbot/node-metadata-write
+    repo_schreibt: true
+    text: {de: "Ich lasse die Metadaten erzeugen. Das kann ein paar Minuten dauern.",
+           en: "I'm having the metadata created. This can take a few minutes."}
+    argumente:
+      node_ids: {$teil: ablage, liste: inhalte, wo: {stand: stored}, feld: node_id}
+      language: de
+    schreibt: metadatenlauf
+    bei_fehler: metadaten_fehlt
+  # Schritte folgen der Liste; diese Verzweigung springt über metadaten_fehlt hinweg.
+  - id: zum_lesen
+    typ: verzweigung
+    weiter: [{sonst: lesen}]
+  - id: metadaten_fehlt
+    typ: nachricht
+    text: {de: "Die Metadaten ließen sich gerade nicht erzeugen. Ich nehme die Angaben, die schon da sind.",
+           en: "The metadata could not be created right now. I'll use the details that are already there."}
+  - id: lesen
+    typ: werkzeug
+    werkzeug: metadaten_lesen
+    argumente: {ablage: {$teil: ablage}}
+    schreibt: metadaten
+    bei_fehler: ohne_metadaten
+  - id: entwurf
+    typ: agent
+    # Ein KI-Schritt antwortet auf den nächsten getippten Zug (Paket A2b).
+    text: {de: "Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder einfach „Los“.",
+           en: "Any focus areas that must not be missing? Tell me – or just say “Go”."}
+    agent:
+      werkzeuge: [ui_strukturentwurf]
+      hinweis:
+        de: "Rufe ui_strukturentwurf mit aus_inhalten: true, Thema, Fach, Stufe aus den Antworten auf; Zweck und Wünsche als hinweise. Ordner, Klassen, Formate, Jahre sind keine Punkte."
+        en: "Call ui_strukturentwurf with aus_inhalten: true, topic, subject, level from the answers; purpose and wishes as hinweise. Folders, grades, formats, years are not topics."
+      ausgabe: draft
+      zuege: 3
+    bei_fehler: ohne_entwurf
+  - id: ende
+    typ: ende
+    text: {de: "Dein Themenbaum-Entwurf ist gespeichert. Sammlungen daraus anzulegen, kommt in einem späteren Schritt.",
+           en: "Your topic tree draft is saved. Creating collections from it will come in a later step."}
+  - id: ohne_ablage
+    typ: ende
+    text: {de: "Ohne Dateien in WLO kann ich keinen Themenbaum aus deinen Inhalten bauen. Probier sonst „Themenbaum · aus einem Thema“.",
+           en: "Without files in WLO I can't build a topic tree from your content. Otherwise try “Topic tree · from a topic”."}
+  # Nach dem Flow wäre ein Neustart teuer (neu hochladen, zweiter Flow) — darum ein neuer Versuch.
+  - id: ohne_metadaten
+    typ: nachricht
+    text: {de: "Ich konnte die Angaben zu deinen Dateien nicht lesen. Bist du noch bei WLO angemeldet?",
+           en: "I couldn't read the details of your files. Are you still signed in to WLO?"}
+    optionen:
+      - {id: nochmal, label: {de: Nochmal lesen, en: Read again}, ziel: lesen}
+      - {id: beenden, label: {de: Beenden, en: Stop}, ziel: abgebrochen}
+  - id: abgebrochen
+    typ: ende
+    text: {de: "Gut, ich höre hier auf. Deine Dateien bleiben in deinem Bereich in WLO.",
+           en: "Alright, I'll stop here. Your files stay in your area in WLO."}
+  - id: ohne_entwurf
+    typ: ende
+    text: {de: "Diesmal ist kein Entwurf entstanden. Versuch es gern noch einmal.",
+           en: "No draft came out this time. Feel free to try again."}
+tests:
+  - name: Mit Metadaten bis zum Entwurf
+    teile:
+      ablage: {format: wlo.ablage@1, inhalte: [{index: 0, titel: Linsen.pdf, stand: stored,
+               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+    werkzeuge:
+      lesen: {format: wlo.metadaten@1, titel: Metadaten zu 1 Inhalten, fehlend: [],
+              inhalte: [{node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt,
+                         titel: Linsen, beschreibung: "", schlagworte: [], faecher: [],
+                         stufen: [], arten: []}]}
+    eingaben:
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: thema, text: "Physik: Optik"}
+      - bei: hochladen
+        antwort:
+          aktion: uebertragen
+          struktur: {name: Optik, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+          ablage: {layout: flach, gesamt: 1, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 0,
+                   ordner_verweigert: false, vorgang_abgelegt: false}
+      - {bei: metadaten_frage, option: ja}
+      - {bei: metadaten, ergebnis: {status: SUCCEEDED, outputs: {report: []}}}
+      - bei: entwurf
+        teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
+    erwartet:
+      weg: [wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten, zum_lesen,
+            lesen, entwurf, ende]
+      status: fertig
+  - name: Flow scheitert, vorhandene Angaben
+    teile:
+      ablage: {format: wlo.ablage@1, inhalte: [{index: 0, titel: Linsen.pdf, stand: stored,
+               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+    werkzeuge:
+      lesen: {format: wlo.metadaten@1, titel: Metadaten zu 1 Inhalten, fehlend: [],
+              inhalte: [{node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt,
+                         titel: Linsen.pdf, beschreibung: "", schlagworte: [], faecher: [],
+                         stufen: [], arten: []}]}
+    eingaben:
+      - {bei: wofuer, option: materialpool}
+      - {bei: stufe, option: sek2}
+      - {bei: thema, text: "Physik: Optik"}
+      - bei: hochladen
+        antwort:
+          aktion: uebertragen
+          struktur: {name: Optik, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+          ablage: {layout: flach, gesamt: 1, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 0,
+                   ordner_verweigert: false, vorgang_abgelegt: false}
+      - {bei: metadaten_frage, option: ja}
+      - {bei: metadaten, fehler: true}
+    erwartet:
+      weg: [wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten,
+            metadaten_fehlt, lesen, entwurf]
+      status: wartet_ki
+  - name: Ohne Metadaten-Flow
+    teile:
+      ablage: {format: wlo.ablage@1, inhalte: [{index: 0, titel: Linsen.pdf, stand: stored,
+               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+    werkzeuge: {lesen: null}
+    eingaben:
+      - {bei: wofuer, option: redaktion}
+      - {bei: stufe, option: grundschule}
+      - {bei: thema, text: "Sachunterricht: Wasser"}
+      - bei: hochladen
+        antwort:
+          aktion: uebertragen
+          struktur: {name: Optik, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+          ablage: {layout: flach, gesamt: 1, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 0,
+                   ordner_verweigert: false, vorgang_abgelegt: false}
+      - {bei: metadaten_frage, option: nein}
+    erwartet:
+      weg: [wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, lesen, ohne_metadaten]
+      status: wartet_wahl
+  - name: Nur erfasst, nichts in WLO
+    eingaben:
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: thema, text: "Physik: Optik"}
+      - bei: hochladen
+        antwort:
+          aktion: erfasst
+          struktur: {name: Optik, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+    erwartet:
+      weg: [wofuer, stufe, thema, hochladen, uebertragen, ohne_ablage]
+      status: fertig
+  # Querschnitts-Review F/T, Befund 1: eine Übertragung ohne abgelegte Datei startet keinen Flow
+  # (leere Auswahl → bei_fehler) — dann bleibt nur Beenden.
+  - name: Übertragen, aber nichts abgelegt
+    teile:
+      ablage: {format: wlo.ablage@1, inhalte: [{index: 0, titel: Linsen.pdf, stand: failed,
+               rolle: inhalt}]}
+    werkzeuge: {lesen: null}
+    eingaben:
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: thema, text: "Physik: Optik"}
+      - bei: hochladen
+        antwort:
+          aktion: uebertragen
+          struktur: {name: Optik, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+          ablage: {layout: flach, gesamt: 1, abgelegt: 0, unklar: 0, fehler: 1, abgebrochen: 0,
+                   ordner_verweigert: false, vorgang_abgelegt: false}
+      - {bei: metadaten_frage, option: ja}
+      - {bei: ohne_metadaten, option: beenden}
+    erwartet:
+      weg: [wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten,
+            metadaten_fehlt, lesen, ohne_metadaten, abgebrochen]
+      status: fertig

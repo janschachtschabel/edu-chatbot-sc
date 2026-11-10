@@ -7,7 +7,7 @@
 # einschaltet (aktiv: true). Beim Speichern prüft das Studio, ob der Treiber den Ablauf sicher
 # ausführen kann.
 id: sammlungsstruktur
-titel: {de: Themenbaum aus Ordnern, en: Topic tree from folders}
+titel: {de: "Themenbaum · aus Ordnern", en: "Topic tree · from folders"}
 beschreibung: Die Person erfasst einen Ordner; daraus entsteht ein bearbeitbarer Themenbaum-Entwurf.
 wann: [Die Person will aus eigenen Ordnern eine Sammlungsstruktur bauen]
 aktiv: false
