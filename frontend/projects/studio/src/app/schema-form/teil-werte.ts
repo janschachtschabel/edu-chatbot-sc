@@ -25,8 +25,9 @@ export const TEIL_SCHLUESSEL = '$teil';
 
 export const PFAD_SCHLUESSEL = 'pfad';
 
-/** Genau die Regel des Treibers (`teil_verweise.verweis`): `$teil` mit einem Text, dazu höchstens
- *  `pfad` mit einem Text (K2d-1). Alles andere bleibt JSON. */
+/** Die Regel des Treibers (`teil_verweise.verweis`): `$teil` mit einem Text, dazu höchstens
+ *  `pfad` mit einem Text (K2d-1) — außer Auswahlen (`liste`/`wo`/`feld`, AS-Da): die bleiben in der
+ *  Tabelle eine JSON-Zeile. */
 export function istTeil(wert: unknown): wert is { readonly $teil: string; readonly pfad?: string } {
   if (typeof wert !== 'object' || wert === null || Array.isArray(wert)) return false;
   const w = wert as Record<string, unknown>;
@@ -72,6 +73,8 @@ export function zeilenAus(wert: unknown): TeilZeile[] {
  *  Eintrag „$teil“ — als Zeile bearbeitet, wäre er kein Verweis mehr (Review K2c-3, Befund 1). */
 export function alsTabelleLesbar(wert: unknown): boolean {
   if (istTeil(wert)) return false;
+  // Review AS-Da, Befund 1: jedes Objekt mit `$teil` ist ein Verweis (auch eine Auswahl) — keine Tabelle
+  if (typeof wert === 'object' && wert !== null && !Array.isArray(wert) && '$teil' in wert) return false;
   return wert === undefined || wert === null
     || (typeof wert === 'object' && !Array.isArray(wert));
 }
@@ -112,7 +115,8 @@ export function wertAus(zeilen: readonly TeilZeile[]): { wert: Record<string, un
 }
 
 /**
- * Die Teile, die die Schritte VOR diesem bereitstellen (`schreibt`, `agent.ausgabe`) — gelesen aus
+ * Die Teile, die die Schritte VOR diesem bereitstellen (`schreibt`, `agent.ausgabe`,
+ * `freitext.schreibt` — Querschnitts-Review AS-D, Befund 7) — Vorschläge, gelesen aus
  * dem ganzen Dokument entlang des Pfads (`…, 'schritte', j, 'argumente'`). Ohne `schritte` im Pfad
  * keine. Nur Text-Namen, je einmal, in Reihenfolge.
  */
@@ -131,7 +135,8 @@ export function vorigeTeile(dokument: unknown, pfad: readonly (string | number)[
     if (typeof schritt !== 'object' || schritt === null) continue;
     const s = schritt as Record<string, unknown>;
     const agent = s['agent'] as Record<string, unknown> | undefined;
-    for (const name of [s['schreibt'], agent?.['ausgabe']]) {
+    const freitext = s['freitext'] as Record<string, unknown> | undefined;
+    for (const name of [s['schreibt'], agent?.['ausgabe'], freitext?.['schreibt']]) {
       if (typeof name === 'string' && name.trim() && !aus.includes(name.trim())) aus.push(name.trim());
     }
   }

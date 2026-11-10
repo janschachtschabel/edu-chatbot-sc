@@ -102,10 +102,18 @@ describe('teil-werte (K2c-3)', () => {
       { id: 'a', schreibt: 'volltext' },
       { id: 'b', agent: { ausgabe: 'gliederung' } },
       { id: 'c', schreibt: 'volltext' },
+      { id: 'f', freitext: { ziel: 'd', schreibt: 'wunsch' } },
       { id: 'd', schreibt: 'spaeter' },
     ] }] };
-    expect(vorigeTeile(dok, ['ablaeufe', 0, 'schritte', 3, 'argumente'])).toEqual(['volltext', 'gliederung']);
+    expect(vorigeTeile(dok, ['ablaeufe', 0, 'schritte', 4, 'argumente'])).toEqual(['volltext', 'gliederung', 'wunsch']);
     expect(vorigeTeile(dok, ['ablaeufe', 0, 'schritte', 0, 'argumente'])).toEqual([]);
     expect(vorigeTeile(dok, ['etwas', 'anderes'])).toEqual([]);
+  });
+});
+
+describe('alsTabelleLesbar — Auswahl (Review AS-Da, Befund 1)', () => {
+  it('eine Auswahl als ganze Daten ist keine Tabelle mit Zeilen „$teil“, „liste“, „feld“', () => {
+    expect(alsTabelleLesbar({ $teil: 'ablage', liste: 'inhalte', feld: 'node_id' })).toBe(false);
+    expect(alsTabelleLesbar({ frage: 'x' })).toBe(true);
   });
 });
