@@ -954,6 +954,7 @@
   {
     "name": "ui_strukturentwurf",
     "version": 1,
+    "laden": "bei_bedarf",
     "art": "abfragen",
     "titel": {
       "de": "Strukturentwurf",

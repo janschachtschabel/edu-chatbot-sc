@@ -16,6 +16,7 @@ from boerdi.api.schemas_ui import UiInfo
 from boerdi.domain import ui_bloecke
 from boerdi.domain.prepared_write import VERLAUF_SCHLUESSEL
 from boerdi.services.agent_zugblock import DOKUMENTE_DEBUG_KEY
+from boerdi.services.db_sessions import FESTER_TEXT_KEY, VOM_GASTGEBER_KEY
 from boerdi.ui_module import abgeleitet, antwort
 
 _LIVE = {"pattern", "intent", "state", "tools_called", "phase3_modulations"}
@@ -62,6 +63,8 @@ def ui_aus_gespeichert(debug: Any, cards: Any = None,
         dokumente=_objekte(d.get(DOKUMENTE_DEBUG_KEY)),
         topic_page_view=_objekt(d.get("_topic_page_view")),
         prepared_write=_objekt(d.get(VERLAUF_SCHLUESSEL)),
+        from_host=d.get(VOM_GASTGEBER_KEY) is True,
+        fester_text=d.get(FESTER_TEXT_KEY) is True,
         # Paket U1-c: die abgeleiteten Blöcke (Linkbox) stehen nicht im Debug-Block — sie
         # entstehen hier wie live aus den gespeicherten Links, mit derselben Kennung.
         ui_bloecke=abgeleitet.ergaenzt(
@@ -90,7 +93,10 @@ def antwort_fuer(resp: ChatResponse, intern: bool) -> ChatResponse:
                                   web_links=resp.web_links, type_focus=resp.ui.type_focus,
                                   cards=resp.cards, query_metas=resp.query_metas,
                                   pagination=resp.pagination)
-    resp.ui = ui.model_copy(update={"type_focus": resp.ui.type_focus, "ui_bloecke": bloecke})
+    # Paket AS-Ua: Stand und Merker stehen live an ``ui`` (``api/chat``, ``zug_basis``).
+    resp.ui = ui.model_copy(update={"type_focus": resp.ui.type_focus, "ui_bloecke": bloecke,
+                                    "ablauf": resp.ui.ablauf,
+                                    "fester_text": resp.ui.fester_text or ui.fester_text})
     if not intern:
         resp.debug = None
     return resp
@@ -132,3 +138,28 @@ def _ui_fuer_den_verlauf(debug: Any, cards: Any = None,
     if ui.ui_bloecke:
         aus["ui_bloecke"] = [b.model_dump() for b in ui.ui_bloecke]
     return aus
+
+
+def mit_ablauf_stand(nachrichten: list[dict[str, Any]],
+                     stand: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Paket AS-Ua (U-1): der aktuelle Stand des Laufs an der letzten Bot-Nachricht des Verlaufs —
+    so zeigt das Widget die Leiste auch nach dem Neuladen. Ohne Stand unverändert."""
+    if not stand:
+        return nachrichten
+
+    def wiederhergestellt(n: dict[str, Any]) -> bool:
+        # Review AS-Ub, Befund 4: nur Antworten, die das Widget wiederherstellt — mit Text oder
+        # UI-Blöcken (``history-restore.ts`` überspringt die übrigen)
+        return n.get("role") == "assistant" and bool(
+            (n.get("content") or "").strip() or (n.get("ui") or {}).get("ui_bloecke"))
+
+    # Zweites Review AS-U, Befund 5: an allen Antworten nach der letzten Frage — nach einem
+    # Strom-Abbruch nimmt das Widget die erste davon, eine Einlösung speichert zwei.
+    letzte_frage = max((i for i, n in enumerate(nachrichten) if n.get("role") == "user"),
+                       default=-1)
+    ziele = [n for n in nachrichten[letzte_frage + 1:] if wiederhergestellt(n)]
+    if not ziele:
+        ziele = [n for n in nachrichten if wiederhergestellt(n)][-1:]
+    for n in ziele:
+        n["ui"] = {**(n.get("ui") or {}), "ablauf": stand}
+    return nachrichten
