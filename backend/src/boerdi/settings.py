@@ -207,7 +207,8 @@ class Settings(BaseSettings):
     )
     b_api_jobs_flows: str = Field(
         "", validation_alias=_env("B_API_JOBS_FLOWS"),
-        description="comma-separated flows a workflow may start (read-only flows only)",
+        description="comma-separated flows a workflow may start (writing ones are marked "
+                    "repo_schreibt at the step)",
     )
     # Paket 17 (AB2, Nutzer 2026-10-20): woher der b-api-Schlüssel eines Zuges kommt.
     # ``auto`` (Vorgabe, auch leer/unbekannt): ``Authorization: Bearer`` vom b-api-Proxy, sonst

@@ -160,7 +160,10 @@ def test_unbekannte_voraussetzung_und_modus_werden_abgewiesen():
     befunde = pruefe(_ablauf(voraussetzungen=["login"], ausloeser=[{"art": "knopf",
                                                                     "modus": "direkt"}]))
     assert any("Voraussetzung 'login'" in b for b in befunde)
-    assert any("Modus 'direkt'" in b for b in befunde)
+    # TB-E3: ``direkt`` gibt es seitdem, aber nur am Auslöser ``agent`` (Review TB-E3, Befund 8)
+    assert any("nur am Auslöser agent" in b for b in befunde)
+    unbekannt = pruefe(_ablauf(ausloeser=[{"art": "agent", "modus": "sofort"}]))
+    assert any("Modus 'sofort'" in b for b in unbekannt)
 
 
 def test_befunde_in_der_sprache_des_studios():
