@@ -56,11 +56,19 @@ export const GEMEINSAME_SEITEN: readonly CuratedView[] = [
         labelKey: 'curated.uiModule.upload.label',
         hintKey: 'curated.uiModule.upload.hint',
       },
+    ],
+  },
+  {
+    // AS-0 (Plan 2026-11-09): die Abläufe als eigener Arbeitsbereich — ein Dokument je Ablauf
+    // (`06-ablaeufe/<id>`), vorher ein Abschnitt der Seite „UI-Module“.
+    slug: 'ablaeufe',
+    introKey: 'curated.ablaeufe.intro',
+    sections: [
       {
-        // Paket A1: Abläufe aus Modulen, Werkzeugen und Nachrichten (`06-ablaeufe/katalog`).
-        area: '06-ablaeufe/katalog',
-        labelKey: 'curated.uiModule.ablaeufe.label',
-        hintKey: 'curated.uiModule.ablaeufe.hint',
+        area: '06-ablaeufe',
+        kind: 'group',
+        labelKey: 'curated.ablaeufe.liste.label',
+        hintKey: 'curated.ablaeufe.liste.hint',
       },
     ],
   },

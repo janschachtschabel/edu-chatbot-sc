@@ -1,5 +1,5 @@
 /**
- * Die Dokumente eines Ordners — Muster oder Personas (Paket 6, S1 — ST-3d):
+ * Die Dokumente eines Ordners — Muster, Personas oder (AS-0) Abläufe (Paket 6, S1 — ST-3d):
  * laden, anlegen, duplizieren, löschen, und ob ein Dokument zum
  * Auslieferungsstand gehört.
  *
@@ -11,6 +11,7 @@
  */
 import { signal } from '@angular/core';
 
+import type { AblaufZeile } from '../core/ablauf-api.service';
 import type { ConfigApi } from '../core/config-api.service';
 import type { SnapshotsApi } from '../core/snapshots-api.service';
 import type { StudioApi } from '../core/studio-api.service';
@@ -21,6 +22,19 @@ export interface GroupEntry extends ListEntry {
   readonly id: string;
   readonly kennung: string;
   readonly name: string;
+}
+
+/** Der Ordner der Abläufe (AS-0): YAML-Dokumente, die Kennung ist der Schlüssel. */
+export const ABLAEUFE = '06-ablaeufe';
+/** Wie der Treiber Ablauf-Kennungen liest (`domain/config_models/ablauf.ID_FORM`). */
+const ABLAUF_KENNUNG_MAX = 40;
+
+/** Was die Liste der Abläufe je Eintrag über den Titel hinaus nennt — von der Seite übersetzt. */
+export interface GroupOptions {
+  /** Die Sprache des Studios: welcher Titel eines Ablaufs gilt. */
+  readonly sprache?: () => string;
+  /** Der Zusatz einer Ablauf-Zeile (Kennung, an/aus, Auslöser, Befunde). */
+  readonly ablaufNotiz?: (zeile: AblaufZeile) => string;
 }
 
 interface ElementsResponse {
@@ -41,13 +55,25 @@ export class GroupDocuments {
     private readonly config: ConfigApi,
     private readonly snapshots: SnapshotsApi,
     private readonly area: () => string,
+    private readonly optionen: GroupOptions = {},
   ) {}
+
+  /** Ist das der Ordner der Abläufe (YAML, Kennung = Schlüssel)? */
+  get istAblauf(): boolean {
+    return this.area() === ABLAEUFE;
+  }
 
   /** Die Liste aus `/config/elements` — wirft bei einem Fehler (der Aufrufer meldet ihn). */
   async load(): Promise<void> {
     const mine = ++this.generation;
     this.loading.set(true);
     try {
+      if (this.istAblauf) {
+        const liste = await this.api.get<{ ablaeufe: readonly AblaufZeile[] }>('/config/ablaeufe');
+        if (mine !== this.generation) return;
+        this.entries.set(liste.ablaeufe.map((zeile) => this.ablaufEintrag(zeile)));
+        return;
+      }
       const elements = await this.api.get<ElementsResponse>('/config/elements');
       if (mine !== this.generation) return;
       const raw = this.area() === '04-personas' ? elements.personas : elements.patterns;
@@ -67,10 +93,31 @@ export class GroupDocuments {
     }
   }
 
+  private ablaufEintrag(zeile: AblaufZeile): GroupEntry {
+    const sprache = this.optionen.sprache?.() ?? 'de';
+    const name = zeile.titel[sprache] || zeile.titel['de'] || Object.values(zeile.titel)[0] || zeile.id;
+    return {
+      id: zeile.key, title: name, kennung: zeile.id, name,
+      note: this.optionen.ablaufNotiz?.(zeile) ?? zeile.id,
+      problem: !zeile.lesbar || zeile.befunde > 0,
+    };
+  }
+
+  /** Die Kennung eines neuen Dokuments aus seinem Namen: bei Abläufen in der Form des Treibers
+   *  (Kleinbuchstaben, Ziffern, `_`, Buchstabe vorn, höchstens 40), sonst wie bisher. */
+  neueKennung(name: string): string {
+    if (!this.istAblauf) return slugify(name);
+    const roh = slugify(name).replace(/-/g, '_').slice(0, ABLAUF_KENNUNG_MAX).replace(/_+$/, '');
+    if (!roh) return '';
+    return /^[a-z]/.test(roh) ? roh : `a_${roh}`.slice(0, ABLAUF_KENNUNG_MAX).replace(/_+$/, '');
+  }
+
   /** Gibt es die Kennung schon — als Kennung oder als Dateiname, ohne Groß/Klein?
    *  Der Server prüft dasselbe (409); hier spart es den Weg dorthin. */
   taken(kennung: string): boolean {
     const gesucht = kennung.toLowerCase();
+    // `katalog` hieß bis AS-0 der Bereich aller Abläufe — vergeben (der Server weist ihn ab).
+    if (this.istAblauf && gesucht === 'katalog') return true;
     return this.entries().some((entry) =>
       entry.kennung.toLowerCase() === gesucht
       || entry.id.slice(this.area().length + 1).toLowerCase() === gesucht);
@@ -78,10 +125,13 @@ export class GroupDocuments {
 
   /** `M05` → `M05_kopie`, `M05_kopie_2` … wie die Kopie eines Listeneintrags. */
   freeCopyId(kennung: string): string {
-    const stamm = `${kennung}_kopie`;
-    if (!this.taken(stamm)) return stamm;
+    // Abläufe: die Kopie muss in 40 Zeichen passen — der Stamm wird je Endung gekürzt.
+    const kopie = (endung: string) => this.istAblauf
+      ? `${kennung.slice(0, ABLAUF_KENNUNG_MAX - endung.length)}${endung}`
+      : `${kennung}${endung}`;
+    if (!this.taken(kopie('_kopie'))) return kopie('_kopie');
     for (let n = 2; ; n += 1) {
-      if (!this.taken(`${stamm}_${n}`)) return `${stamm}_${n}`;
+      if (!this.taken(kopie(`_kopie_${n}`))) return kopie(`_kopie_${n}`);
     }
   }
 

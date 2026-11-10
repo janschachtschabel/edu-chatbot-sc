@@ -24,11 +24,13 @@ from pathlib import Path
 
 import pytest
 
+from boerdi.api.config_guards import _GROUPED_AREAS
 from boerdi.domain.config_models import AREA_MODELS, model_for
 from boerdi.services import seed_sync
 
-#: Gruppen-Bereiche: ein Modell für jedes Dokument darunter, kein eigener Schlüssel.
-_GRUPPEN = ("03-patterns", "04-personas")
+#: Gruppen-Bereiche: ein Modell für jedes Dokument darunter, kein eigener Schlüssel. Aus der
+#: Regel des Servers gelesen (AS-0 brachte ``06-ablaeufe`` dazu), damit die Liste nicht abweicht.
+_GRUPPEN = _GROUPED_AREAS
 
 
 def _seed_pfad() -> Path:

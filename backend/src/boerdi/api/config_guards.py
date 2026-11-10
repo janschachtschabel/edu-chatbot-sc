@@ -31,7 +31,7 @@ _PATTERN_PREFIX = "03-patterns/"
 _GUIDE_RULES_AREA = "02-domain/guide-rules"
 #: The policy rules: their ``match.message_regex`` must compile (Paket 6, B1).
 _POLICY_AREA = "01-base/policy"
-_ABLAEUFE_AREA = "06-ablaeufe/katalog"
+_ABLAEUFE_ORDNER = "06-ablaeufe/"
 
 
 def _assert_servers_public(servers: object, lang: Locale) -> None:
@@ -102,30 +102,24 @@ def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
         _assert_guide_patterns_compile(data.get("message_rules"), lang)
     if key == _POLICY_AREA and isinstance(data, dict):
         _assert_policy_patterns_compile(data.get("rules"), lang)
-    if key == _ABLAEUFE_AREA and isinstance(data, dict):
-        _assert_ablaeufe_ausfuehrbar(data, lang)
+    if key.startswith(_ABLAEUFE_ORDNER) and isinstance(data, dict):
+        _assert_ablauf_ausfuehrbar(data, lang)
 
 
-def _assert_ablaeufe_ausfuehrbar(data: dict, lang: Locale) -> None:
-    """Paket A1: jeder Ablauf muss den Prüfungen des Treibers genügen (``services/ablauf/pruefung``)
-    — Ziele, Ende, Module, Werkzeuge (nicht schreibend), Teilnamen, Schleifen; IDs eindeutig."""
+def _assert_ablauf_ausfuehrbar(data: dict, lang: Locale) -> None:
+    """Paket A1: ein Ablauf muss den Prüfungen des Treibers genügen (``services/ablauf/pruefung``)
+    — Ziele, Ende, Module, Werkzeuge, Teilnamen, Schleifen. Seit AS-0 ein Dokument je Ablauf; dass
+    die Kennung zum Schlüssel passt, prüft ``config_kennungen`` (wie bei den Personas)."""
     from pydantic import ValidationError
 
-    from boerdi.domain.config_models.ablauf import AblaufKatalogArea
+    from boerdi.domain.config_models.ablauf import AblaufArea
     from boerdi.services.ablauf.pruefung import pruefe
 
     try:
-        katalog = AblaufKatalogArea.model_validate(data)
+        ablauf = AblaufArea.model_validate(data)
     except ValidationError:
         return   # die Modellprüfung meldet das (422 mit allen Einwänden)
-    befunde: list[str] = []
-    ids = [a.id for a in katalog.ablaeufe]
-    if doppelt := sorted({i for i in ids if ids.count(i) > 1}):
-        befunde.append(("Ablauf-IDs doppelt: " if lang == "de" else "Duplicate workflow ids: ")
-                       + ", ".join(doppelt))
-    for ablauf in katalog.ablaeufe:
-        befunde += [f"{ablauf.id}: {b}" for b in pruefe(ablauf, lang)]
-    if befunde:
+    if befunde := pruefe(ablauf, lang):
         raise HTTPException(400, msg(lang, "ablaeufe.ungueltig", value="; ".join(befunde)[:900]))
 
 
@@ -170,10 +164,11 @@ def _assert_policy_patterns_compile(rules: object, lang: Locale) -> None:
             )) from e
 
 
-#: The two areas whose model covers a whole DIRECTORY of files. They are legal
+#: The areas whose model covers a whole DIRECTORY of files. They are legal
 #: as a schema target (one model describes every file) but never as a document
-#: key — no row is stored under them.
-_GROUPED_AREAS = ("03-patterns", "04-personas")
+#: key — no row is stored under them. ``06-ablaeufe`` since AS-0 (YAML documents, the id in
+#: the field ``id`` instead of the frontmatter).
+_GROUPED_AREAS = ("03-patterns", "04-personas", "06-ablaeufe")
 
 
 def _is_file_key(key: str) -> bool:
@@ -215,14 +210,17 @@ def _resolve_area(area: str, *, file_key: bool = False) -> tuple[str, type[BaseM
     ``file_key=True`` additionally demands a key that addresses one document —
     required for reading and writing, not for the schema, which is per model.
     """
-    from boerdi.domain.config_models import model_for
+    from boerdi.domain.config_models import GESTRICHENE_BEREICHE, model_for
 
     try:
         key = cl._validate_config_path(area)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid path") from None
     model = model_for(key)
-    if model is None or (file_key and not _is_file_key(key)):
+    # Review AS-0, Befund 1: ein gestrichener Bereich hat kein Modell mehr — außer er liegt in
+    # einem Ordner (``06-ablaeufe/katalog``); dort sprang die Ordner-Regel ein.
+    if (model is None or key in GESTRICHENE_BEREICHE
+            or (file_key and not _is_file_key(key))):
         raise HTTPException(status_code=404, detail=f"unknown config area: {area}")
     return key, model
 

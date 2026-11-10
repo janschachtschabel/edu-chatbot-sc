@@ -56,6 +56,10 @@ _DOKUMENT_LOESCHEN = "/api/ui/dokumente/loeschen"
 _ABLAGE_DATEI = "/api/ui/ablage/datei"
 _ABLAGE_JSON = ("/api/ui/ablage/vorbereiten", "/api/ui/ablage/abschluss")
 _ABLAGE_JSON_BYTES = 256 * 1024
+#: AS-1: ein Ablauf mit seinen Testfällen — reichlich für 40 Schritte und 20 Testfälle; die
+#: Simulation rechnet je Modul-Schritt über die Teile (Review AS-1, Befund 9).
+_ABLAUF_TESTEN = "/api/config/ablauf-testen"
+_ABLAUF_TESTEN_BYTES = 2 * _MIB
 #: Alles andere (Studio-JSON, Konfig-Bereiche, Text-Ingest).
 _ALLGEMEIN_BYTES = 16 * _MIB
 _KONFIG_UPLOADS = ("/api/config/restore", "/api/config/factory/upload")
@@ -82,6 +86,8 @@ def body_limit_for(path: str) -> int | None:
         return _DOKUMENT_BYTES
     if path in _ABLAGE_JSON:
         return _ABLAGE_JSON_BYTES
+    if path == _ABLAUF_TESTEN:
+        return _ABLAUF_TESTEN_BYTES
     if any(_unter(path, p) for p in _OEFFENTLICHE_ZUEGE):
         return _OEFFENTLICH_BYTES
     return _ALLGEMEIN_BYTES

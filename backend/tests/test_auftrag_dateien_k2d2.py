@@ -166,7 +166,8 @@ def test_beim_abholen_stehen_die_texte_im_teil(im_zug, monkeypatch, aufbereitung
     schritte = [{**_SCHRITTE[0], "argumente": {"text": "fest"},
                  "dateien_holen": ["report", "alt"]}, *_SCHRITTE[1:]]
     katalog = {"ablaeufe": [_roh(schritte=schritte)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     state: dict = {"entities": {}}
     _starte(state)
     im_zug.staende.append(client.Stand("fertig", {"n": 1}, [
@@ -324,7 +325,8 @@ def test_review_ein_voruebergehender_fehler_verbraucht_das_ergebnis_nicht(
     schritte = [{**_SCHRITTE[0], "argumente": {"text": "fest"}, "dateien_holen": ["report"]},
                 *_SCHRITTE[1:]]
     katalog = {"ablaeufe": [_roh(schritte=schritte)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
 
     async def holen(job_id, d, kennungen):
         return {}, {"report": "ausgelastet"}
@@ -354,7 +356,8 @@ def test_review2_der_zaehler_traegt_nur_das_kuerzel(im_zug, monkeypatch):  # noq
     schritte = [{**_SCHRITTE[0], "argumente": {"text": "fest"}, "dateien_holen": ["report"]},
                 *_SCHRITTE[1:]]
     katalog = {"ablaeufe": [_roh(schritte=schritte)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     ergebnisse = [({}, {"report": "fehler"}), ({"report": "# Text"}, {})]
 
     async def holen(job_id, d, kennungen):

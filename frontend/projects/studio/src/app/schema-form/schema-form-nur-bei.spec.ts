@@ -159,18 +159,19 @@ describe('SchemaFormComponent — Felder je Typ (K2c-2)', () => {
   it('der klebende Zustand eines Schritts geht nicht auf den nächsten über', async () => {
     const schritt = (id: string, mehr: Record<string, unknown> = {}) =>
       ({ id, typ: 'nachricht', text: { de: id }, ...mehr });
-    const wert = (flow: unknown) => ({ ablaeufe: [{ id: 'lesen', titel: { de: 'Lesen' }, schritte: [
-      schritt('erster', { flow }), schritt('zweiter')] }] });
-    const h = await mount(wert('wlo/volltext'), AREA_SCHEMAS['06-ablaeufe/katalog']);
+    // AS-0: ein Dokument je Ablauf — der Ablauf ist die Wurzel.
+    const wert = (flow: unknown) => ({ id: 'lesen', titel: { de: 'Lesen' }, schritte: [
+      schritt('erster', { flow }), schritt('zweiter')] });
+    const h = await mount(wert('wlo/volltext'), AREA_SCHEMAS['06-ablaeufe']);
     h.fixture.componentRef.setInput('value', wert(''));
     await h.fixture.whenStable();
-    expect(h.el.querySelector('[id="sf-ablaeufe.0.schritte.0.flow"]')).not.toBeNull();
+    expect(h.el.querySelector('[id="sf-schritte.0.flow"]')).not.toBeNull();
     const zweiter = [...h.el.querySelectorAll<HTMLButtonElement>('.ol-entry')]
       .find((b) => b.querySelector('.ol-title')?.textContent?.trim() === 'zweiter')!;
     zweiter.click();
     await h.fixture.whenStable();
-    expect(h.el.querySelector('[id^="sf-ablaeufe.0.schritte.1.text"]')).not.toBeNull();
-    expect(h.el.querySelector('[id="sf-ablaeufe.0.schritte.1.flow"]')).toBeNull();
+    expect(h.el.querySelector('[id^="sf-schritte.1.text"]')).not.toBeNull();
+    expect(h.el.querySelector('[id="sf-schritte.1.flow"]')).toBeNull();
     expect(h.el.querySelector('.sf-nur-bei')).toBeNull();
   });
 
@@ -179,18 +180,18 @@ describe('SchemaFormComponent — Felder je Typ (K2c-2)', () => {
   it('eine JSON-Meldung wird für ihren eigenen Pfad zurückgenommen', async () => {
     // Seit K2c-3 ist `daten` eine Tabelle; ihre JSON-Zeile meldet sich wie die JSON-Box.
     const schritt = (id: string) => ({ id, typ: 'modul', modul: 'ui_upload', daten: { n: 1 } });
-    const wert = { ablaeufe: [{ id: 'lesen', titel: { de: 'Lesen' }, schritte: [
-      schritt('erster'), schritt('zweiter')] }] };
-    const h = await mount(wert, AREA_SCHEMAS['06-ablaeufe/katalog']);
+    const wert = { id: 'lesen', titel: { de: 'Lesen' }, schritte: [
+      schritt('erster'), schritt('zweiter')] };
+    const h = await mount(wert, AREA_SCHEMAS['06-ablaeufe']);
     const fehler: (readonly string[])[] = [];
     h.fixture.componentInstance.errorsChange.subscribe((f) => fehler.push(f));
     const box = h.el.querySelector<HTMLTextAreaElement>(
-      '[id="sf-ablaeufe.0.schritte.0.daten"] textarea.tw-wert')!;
+      '[id="sf-schritte.0.daten"] textarea.tw-wert')!;
     box.value = '{ kaputt';
     box.dispatchEvent(new Event('input'));
     box.dispatchEvent(new Event('change'));      // gelesen wird beim Verlassen
     await h.fixture.whenStable();
-    expect(fehler.at(-1)).toEqual(['ablaeufe.0.schritte.0.daten']);
+    expect(fehler.at(-1)).toEqual(['schritte.0.daten']);
     const zweiter = [...h.el.querySelectorAll<HTMLButtonElement>('.ol-entry')]
       .find((b) => b.querySelector('.ol-title')?.textContent?.trim() === 'zweiter')!;
     zweiter.click();
@@ -200,11 +201,11 @@ describe('SchemaFormComponent — Felder je Typ (K2c-2)', () => {
 
   // Befund 7: das echte Schema eines Ablaufschritts, Typ im Formular gewechselt.
   it('im echten Ablaufschema wechselt der Typ die Felder, ohne etwas zu schreiben', async () => {
-    const wert = { ablaeufe: [{ id: 'lesen', titel: { de: 'Lesen' }, schritte: [
-      { id: 'hallo', typ: 'nachricht', text: { de: 'Hallo' } }] }] };
-    const h = await mount(wert, AREA_SCHEMAS['06-ablaeufe/katalog']);
+    const wert = { id: 'lesen', titel: { de: 'Lesen' }, schritte: [
+      { id: 'hallo', typ: 'nachricht', text: { de: 'Hallo' } }] };
+    const h = await mount(wert, AREA_SCHEMAS['06-ablaeufe']);
     expect(h.emitted).toEqual([]);
-    const id = (k: string) => `sf-ablaeufe.0.schritte.0.${k}`;
+    const id = (k: string) => `sf-schritte.0.${k}`;
     // Eine Map (`text`) trägt keine eigene Kennung, nur `…text-desc`, `…text-key-0` — also der Anfang.
     const da = (k: string) => h.el.querySelector(`[id^="${id(k)}"]`) !== null;
     expect(da('text')).toBe(true);

@@ -60,7 +60,8 @@ def _gesperrt_katalog(monkeypatch, warten="gesperrt"):
     schritte = copy.deepcopy(_SCHRITTE)
     schritte[0] = {**schritte[0], "argumente": {"text": "fest"}, "warten": warten}
     katalog = {"ablaeufe": [_roh(schritte=schritte)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
 
 
 # ── Abbrechen ───────────────────────────────────────────────────────────────────────────────

@@ -86,17 +86,15 @@ def test_das_studio_weist_einen_nicht_ausfuehrbaren_ablauf_beim_speichern_ab():
 
     from boerdi.api.config_guards import _assert_area_document_safe
 
-    gut = {"ablaeufe": [_ablauf().model_dump()]}
-    _assert_area_document_safe("06-ablaeufe/katalog", gut, "de")
-    schlecht = {"ablaeufe": [_ablauf(schritte=[
+    # seit AS-0 ein Dokument je Ablauf (``06-ablaeufe/<id>``)
+    gut = _ablauf().model_dump()
+    _assert_area_document_safe(f"06-ablaeufe/{gut['id']}", gut, "de")
+    schlecht = _ablauf(schritte=[
         {"id": "a", "typ": "werkzeug", "werkzeug": "wlo_create_collection"},
-        {"id": "e", "typ": "ende"}]).model_dump()]}
+        {"id": "e", "typ": "ende"}]).model_dump()
     with pytest.raises(HTTPException) as fehler:
-        _assert_area_document_safe("06-ablaeufe/katalog", schlecht, "de")
+        _assert_area_document_safe(f"06-ablaeufe/{schlecht['id']}", schlecht, "de")
     assert fehler.value.status_code == 400 and "schreibend" in fehler.value.detail
-    doppelt = {"ablaeufe": [_ablauf().model_dump(), _ablauf().model_dump()]}
-    with pytest.raises(HTTPException):
-        _assert_area_document_safe("06-ablaeufe/katalog", doppelt, "de")
 
 
 def test_null_oder_zu_viele_schritte():

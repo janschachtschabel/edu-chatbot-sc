@@ -1,4 +1,5 @@
-"""Ordner-Dokumente — Muster und Personas anlegen, duplizieren, löschen (Paket 6, S1).
+"""Ordner-Dokumente — Muster, Personas und Abläufe anlegen, duplizieren, löschen (Paket 6, S1;
+Abläufe seit AS-0).
 
 ``03-patterns`` und ``04-personas`` sind Ordner: ein Dokument je Eintrag
 (ST-3d). Drei Regeln stehen hier an einer Stelle:
@@ -31,7 +32,9 @@ from boerdi.api.config_guards import (
     modell_fehler,
 )
 from boerdi.api.config_kennungen import (
+    ABLAEUFE,
     KENNUNG,
+    ablauf_kennung_gueltig,
     gruppe_von,
     ist_fest,
     ist_sicherheitsmuster,
@@ -89,9 +92,27 @@ async def pruefe_kennung(
         raise HTTPException(status, msg(lang, einwand.meldung, **einwand.werte))
 
 
+def _neues_md_dokument(kennung: str, name: str, vorlage: dict | None) -> dict:
+    """Muster und Personas: Kennung und Name im Frontmatter, der Rest aus der Vorlage."""
+    data = vorlage or {"frontmatter": {}, "body": ""}
+    alt = data.get("frontmatter") if isinstance(data.get("frontmatter"), dict) else {}
+    data["frontmatter"] = {"id": kennung, "label": name,
+                           **{k: v for k, v in alt.items() if k not in ("id", "label")}}
+    return data
+
+
+def _neuer_ablauf(kennung: str, name: str, lang: Locale, vorlage: dict | None) -> dict:
+    """AS-0: ein Ablauf — leer (nur ``ende``) oder als Kopie. Der Name gilt für die Sprache der
+    Anfrage, andere Titel bleiben. Eine Kopie ist **aus**: sonst lösten zwei aktive Abläufe
+    dieselbe Wendung und denselben Knopf aus."""
+    data = vorlage or {"schritte": [{"id": "ende", "typ": "ende", "text": {lang: ""}}]}
+    titel = data.get("titel") if isinstance(data.get("titel"), dict) else {}
+    return {**data, "id": kennung, "titel": {**titel, lang: name}, "aktiv": False}
+
+
 @router.post("/documents", status_code=201)
 async def create_document(body: DocumentCreate, lang: Lang) -> dict:
-    """Ein Muster oder eine Persona anlegen — leer oder als Kopie (ST-3d).
+    """Ein Muster, eine Persona oder (AS-0) einen Ablauf anlegen — leer oder als Kopie (ST-3d).
 
     Die Kopie übernimmt das ganze Dokument der Vorlage und setzt nur Kennung und
     Name neu. Angelegt wird bedingt (409, wenn es den Schlüssel schon gibt), mit
@@ -106,18 +127,19 @@ async def create_document(body: DocumentCreate, lang: Lang) -> dict:
         raise HTTPException(400, msg(lang, "documents.idInvalid", id=kennung))
     if group == "03-patterns" and ist_reservierte_kennung(kennung):
         raise HTTPException(400, msg(lang, "patterns.idReserved", value=repr(kennung)))
+    if group == ABLAEUFE and not ablauf_kennung_gueltig(kennung):
+        raise HTTPException(400, msg(lang, "documents.ablaufIdInvalid", id=kennung))
     if not name or len(name) > _NAME_MAX:
         raise HTTPException(400, msg(lang, "documents.labelMissing", max=_NAME_MAX))
 
-    data: dict = {"frontmatter": {}, "body": ""}
+    vorlage: dict | None = None
     if body.source is not None:
-        vorlage = await cl.read_area(body.source) if gruppe_von(body.source) == group else None
-        if vorlage is None:
+        gelesen = await cl.read_area(body.source) if gruppe_von(body.source) == group else None
+        if gelesen is None:
             raise HTTPException(400, msg(lang, "documents.sourceMissing", source=body.source))
-        data = copy.deepcopy(vorlage[0])
-    alt = data.get("frontmatter") if isinstance(data.get("frontmatter"), dict) else {}
-    data["frontmatter"] = {"id": kennung, "label": name,
-                           **{k: v for k, v in alt.items() if k not in ("id", "label")}}
+        vorlage = copy.deepcopy(gelesen[0])
+    data = (_neuer_ablauf(kennung, name, lang, vorlage) if group == ABLAEUFE
+            else _neues_md_dokument(kennung, name, vorlage))
 
     key = schluessel_fuer(group, kennung)
     if not is_restorable_area_key(key) or gruppe_von(key) != group:

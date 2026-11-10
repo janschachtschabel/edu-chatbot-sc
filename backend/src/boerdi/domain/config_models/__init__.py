@@ -1,13 +1,13 @@
 """Area model registry (P2-1, spec §5.3 — 35 logical areas).
 
-DB rows are per FILE (55 keys, path sans extension); the 35 logical areas
-group 03-patterns/* and 04-personas/* under one model each. ``model_for``
-resolves a file key to its model (prefix rule for the two grouped areas).
+DB rows are per FILE (55 keys, path sans extension); the logical areas
+group 03-patterns/*, 04-personas/* and (AS-0) 06-ablaeufe/* under one model each. ``model_for``
+resolves a file key to its model (prefix rule for the grouped areas).
 """
 
 from pydantic import BaseModel
 
-from boerdi.domain.config_models.ablauf import AblaufKatalogArea
+from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.domain.config_models.base_governance import (
     CardPipelineArea,
     ClassifyOverridesArea,
@@ -102,8 +102,9 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
     # 05-knowledge (2) + eval (1)
     "05-knowledge/mcp-servers": McpServersArea,
     "05-knowledge/rag-config": RagConfigArea,
-    # Kein ALT-Gegenstück: ALT kannte nur die Webseiten-Tour als Ablauf (Paket A1).
-    "06-ablaeufe/katalog": AblaufKatalogArea,
+    # Kein ALT-Gegenstück: ALT kannte nur die Webseiten-Tour als Ablauf (Paket A1). Seit AS-0 ein
+    # Ordner: ein Dokument je Ablauf (``06-ablaeufe/<id>``).
+    "06-ablaeufe": AblaufArea,
     "eval/gold-flows": GoldFlowsArea,
 }
 
@@ -111,6 +112,8 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
 #: Kein Schreibweg legt sie wieder an — auch keine alte Sicherung (Paket 9).
 GESTRICHENE_BEREICHE: frozenset[str] = frozenset({
     "05-canvas/create-triggers", "05-canvas/edit-triggers",
+    # AS-0: der Katalog aller Abläufe — Migration 0021 teilt ihn in ein Dokument je Ablauf.
+    "06-ablaeufe/katalog",
 })
 
 
@@ -120,4 +123,6 @@ def model_for(file_key: str) -> type[BaseModel] | None:
         return AREA_MODELS["03-patterns"]
     if file_key.startswith("04-personas/"):
         return AREA_MODELS["04-personas"]
+    if file_key.startswith("06-ablaeufe/"):
+        return AREA_MODELS["06-ablaeufe"]
     return AREA_MODELS.get(file_key)

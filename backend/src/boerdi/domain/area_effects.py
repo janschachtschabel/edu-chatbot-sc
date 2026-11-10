@@ -115,7 +115,7 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     "05-knowledge/rag-config": _e("teilweise", "teilweise"),
     "eval/gold-flows": _e("voll", "voll"),
     # Paket A1: der lokale Treiber läuft im Preflight, vor der Maschinenwahl.
-    "06-ablaeufe/katalog": _e("voll", "voll"),
+    "06-ablaeufe": _e("voll", "voll"),
 }
 
 
