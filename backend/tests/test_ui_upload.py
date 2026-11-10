@@ -50,14 +50,23 @@ def test_der_dienst_zeigt_das_auswahlfeld_mit_grenzen_und_schaltern():
     assert d["zweck"] == "sammlungsstruktur" and d["hinweis"] == "Wähle"
     assert d["grenzen"] == {"max_dateien": 500, "max_tiefe": 8, "max_mb_datei": 50,
                             "max_mb_ablage": 10}
-    assert d["schalter"] == {"dokument_im_chat": False, "ablage_in_wlo": False}
+    # Nutzer-Entscheid 2026-11-10: Lesen und Entwurf auch anonym (das Repositorium ist nicht
+    # beteiligt); die Ablage in WLO bleibt an die Anmeldung gebunden.
+    assert d["schalter"] == {"dokument_im_chat": True, "ablage_in_wlo": False}
     assert not katalog.daten_fehler(_manifest(), d)
     assert "Zug endet hier" in erg.text
     assert erg.block.text                 # Textfassung für Widgets ohne das Modul
 
 
+def test_die_vorgabe_erlaubt_lesen_ohne_anmeldung():
+    from boerdi.domain.config_models.upload import UploadSettings
+
+    assert UploadSettings().dokument_ohne_anmeldung is True
+    assert UploadSettings().ablage_in_wlo is False
+
+
 @pytest.mark.parametrize(("im_chat", "ohne", "person", "erwartet"), [
-    (True, False, False, False),      # Vorgabe: ohne Anmeldung kein Dokument
+    (True, False, False, False),      # im Studio auf „nur angemeldet“ gestellt
     (True, False, True, True),
     (True, True, False, True),
     (False, True, True, False),       # Studio aus schlägt alles
@@ -185,6 +194,50 @@ def test_bei_ordner_als_entwurf_liest_die_sicherheitspruefung_jeden_entwurfspunk
                                         "kinder": []})
     text = antwort.sicherheits_text("Hallo", _pruefe(daten))
     assert "Spaeter Boese" in text and text.index("Spaeter Boese") < text.index("Hallo")
+
+
+# ── Probe 2026-11-10 (Lehrplan-PDF → Themenbaum): markiert, aber nicht gelesen ──
+# Ohne Anmeldung zeigt das Modul nur „Befund senden“. Der Rahmen nannte bloß den Namen des
+# Strukturdokuments; die KI bat darauf, das PDF „noch einmal auszuwählen und zu markieren“ —
+# eine Schleife, weil das Lesen an der Anmeldung hing und sie das nicht wusste.
+
+def _nicht_gelesen_rahmen(monkeypatch, *, im_chat: bool, ohne: bool, person: bool,
+                          aktion: str = "erfasst") -> str:
+    from boerdi.domain.config_models.upload import UploadSettings
+    from boerdi.ui_module import dienst_upload
+
+    monkeypatch.setattr(dienst_upload, "load_upload_config", lambda: UploadSettings(
+        dokument_im_chat=im_chat, dokument_ohne_anmeldung=ohne))
+    monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: person)
+    return antwort.antwort_block(_pruefe(_antwort_daten(aktion)))
+
+
+def test_ohne_anmeldung_sagt_der_rahmen_warum_das_dokument_nicht_gelesen_wurde(monkeypatch):
+    text = _nicht_gelesen_rahmen(monkeypatch, im_chat=True, ohne=False, person=False)
+    assert "NICHT gelesen" in text and "WLO-Anmeldung" in text
+    assert "nicht, es noch einmal auszuwählen" in text
+    assert text.index("NICHT gelesen") < text.index("[ENDE ORDNER]")
+
+
+def test_bei_abgeschaltetem_lesen_nennt_der_rahmen_das_studio(monkeypatch):
+    text = _nicht_gelesen_rahmen(monkeypatch, im_chat=False, ohne=True, person=True)
+    assert "NICHT gelesen" in text and "abgeschaltet" in text
+    assert "Anmeldung" not in text
+
+
+def test_mit_erlaubtem_lesen_verweist_der_rahmen_auf_den_knopf(monkeypatch):
+    text = _nicht_gelesen_rahmen(monkeypatch, im_chat=True, ohne=False, person=True)
+    assert "NICHT gelesen" in text
+    assert "Themenbaum aus dem Strukturdokument erstellen" in text
+
+
+def test_ohne_strukturdokument_oder_beim_ordner_entwurf_kein_satz_zum_lesen(monkeypatch):
+    assert "NICHT gelesen" not in _nicht_gelesen_rahmen(
+        monkeypatch, im_chat=True, ohne=False, person=False, aktion="ordner_als_entwurf")
+    daten = _antwort_daten()
+    daten["strukturdokument"] = None
+    daten["zahlen"]["strukturdokumente"] = 0
+    assert "NICHT gelesen" not in antwort.antwort_block(_pruefe(daten))
 
 
 # ── Paket U3-2b: aktion „dokument“ — das gelesene Dokument und was die Person damit will ──

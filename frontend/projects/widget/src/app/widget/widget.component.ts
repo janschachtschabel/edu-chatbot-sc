@@ -6,7 +6,7 @@ import {
 } from '@angular/core';
 
 import {
-  ChatShellComponent, GuideBoot, GuideNav, GuideSuggestionPayload, HeaderNavButton, HostBridges,
+  ChatShellComponent, ablaufStartPruefen, wiederkehrKennung, type WiederkehrAusgang, GuideBoot, GuideNav, GuideSuggestionPayload, HeaderNavButton, HostBridges,
   ICONS, PanelState, RoutingDebugPayload, SafeSvgPipe, TranslationParams, WidgetLanguage,
   _attrEnum,
   _attrIsTrue,
@@ -217,6 +217,9 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    * nicht ausfuehren kann. Nur mit `engine=agent`.
    */
   readonly toolMode = input('');
+  /** Paket AS-8b (Plan 2026-11-09 §5n, P-1/P-10): Probe der Studio-Vorschau — jeder Zug als
+   *  Trockenlauf. Wirkt nur mit Studio-Anmeldung; ohne sie weist das Backend den Zug ab. */
+  readonly probe = input<boolean | string>(false);
   /**
    * O-B — Schnellantworten, die der Gastgeber HART setzt, als JSON-Array
    * (`quick-replies='["Passt","Passt nicht"]'`). Anders als `start-replies`
@@ -256,6 +259,16 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    *  macht die Shell (`session/ticket-login.ts`), sobald die Anmelde-Adresse
    *  aus dem Config-Bündel da ist. */
   readonly ticket = input('');
+  /** AS-4b: ein Ablauf, der beim ersten Öffnen startet (`ablauf-start="<id>"`), mit
+   *  Startdaten als JSON-Objekt (`ablauf-start-daten`). Nur in `ngOnInit` gelesen; das
+   *  Attribut öffnet den Chat nicht von selbst. Zur Laufzeit: `startAblauf(id, daten)`. */
+  readonly ablaufStart = input('');
+  readonly ablaufStartDaten = input('');
+  /** AS-4c (R3): zurück zur Arbeit — aus einer Benachrichtigung oder einem Link der Gastseite
+   *  (`fortsetzen-vorgang="<uuid>"` oder `fortsetzen-auftrag="<job-id>"`). Öffnet den Chat; nur
+   *  die angemeldete Besitzerin kommt ins Gespräch. Zur Laufzeit: `vorgangFortsetzen({…})`. */
+  readonly fortsetzenVorgang = input('');
+  readonly fortsetzenAuftrag = input('');
 
   // ── Outputs (Host-Integration, siehe docs/05-widget-javascript-api.md) ──
   /** Abgefangener Link (nur mit `intercept-edu-sharing-links`). */
@@ -424,6 +437,10 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     });
     effect(() => {
       const shell = this.shell();
+      if (shell) shell.setProbe(_attrIsTrue(this.probe()));
+    });
+    effect(() => {
+      const shell = this.shell();
       if (shell) shell.setQuickReplies(_attrJsonStringArray(this.quickReplies()));
     });
     effect(() => {
@@ -448,11 +465,10 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
         this._wartenderRahmen = null;
         void shell.setHostInstruction(rahmen.text, rahmen.opts);
       }
-      const auftrag = this._wartenderAuftrag;
-      if (auftrag) {
-        this._wartenderAuftrag = null;
-        void shell.startTask(auftrag);
-      }
+      // Aufträge und Abläufe in der Reihenfolge, in der sie kamen (Review AS-4b, Befund 6) —
+      // die Shell reiht sie weiter, solange ein Zug läuft.
+      const wartend = this._wartendeZuege.splice(0);
+      for (const zug of wartend) zug(shell);
     });
   }
 
@@ -491,6 +507,11 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     return vomHost ?? pickLocalized(
       this.guide.startReplies(), this.guide.startRepliesEn(), this.activeLocale());
   });
+  /** AS-7b (Plan 2026-11-09 §5m, F-7): die Führungen aus dem Boot-Bündel — die Begrüßung der Shell
+   *  stellt die zur Seite passenden als Start-Chips vorn hin (Review AS-7b, Befunde 3 und 4). Ein
+   *  gesetztes `start-replies` des Gastgebers gewinnt: dann keine. */
+  readonly fuehrungsAngebote = computed(() =>
+    _attrJsonStringArray(this.startReplies()) !== null ? [] : this.guide.ablaufSeiten());
   /** Beide Fassungen gehen an die Shell — sie vergleicht den geklickten Chip
    *  gegen BEIDE, weil ein Sprachwechsel den Verlauf nicht nachuebersetzt. */
   readonly tourReply = this.guide.tourReply;
@@ -532,6 +553,9 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     // Umschalter bedienbar, und ein Effect würde jede Handbedienung beim
     // nächsten Signal-Lauf wieder überschreiben.
     this.panel.initSize(_attrEnum(this.size(), PANEL_SIZE_STEPS, 'small'));
+    // Querschnitts-Review AS-4, Befund 2: führt eine Wiederkehr zurück, gilt ein `ablauf-start`
+    // in diesem Aufruf nicht — er liefe sonst im alten Gespräch und verschwände hinter dem Wechsel.
+    if (!this._wiederkehrAusAttributen()) this._ablaufAusAttributen();
     this.refreshPageContext(false);
     // Allow-Liste + Studio-Config async holen — non-blocking, Fehler sind
     // kein Show-Stopper (siehe GuideBoot).
@@ -618,10 +642,113 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     this.shell()?.onSpaContextChange(ctx);
   }
 
-  /** Auftrag, der auf die Shell wartet. Im Panel-Modus wird sie erst beim
-   *  ersten Öffnen gemountet; ein `startTask` davor liefe sonst ins Leere —
-   *  und ein still verschluckter Startbefehl ist schlimmer als gar keiner. */
-  private _wartenderAuftrag: string | null = null;
+  /** Aufträge und Abläufe, die auf die Shell warten, in ihrer Reihenfolge. Im Panel-Modus wird
+   *  sie erst beim ersten Öffnen gemountet; ein `startTask` davor liefe sonst ins Leere — und ein
+   *  still verschluckter Startbefehl ist schlimmer als gar keiner. */
+  private readonly _wartendeZuege: ((shell: ChatShellComponent) => void)[] = [];
+
+  /** **Public API** (AS-4b, Plan 2026-11-09 E2 A) — einen Ablauf mit Startdaten starten.
+   *
+   *  `startAblauf('sammlung_pflegen', { sammlung: '<nodeId>' })`: Das Backend nimmt Daten nur
+   *  bei einem Ablauf mit dem Auslöser „Gastseite“ und prüft sie gegen dessen Startschema — sie
+   *  sind Eingaben, nie Rechte. Öffnet das Panel (ein Start, den niemand sieht, ist keiner) und
+   *  wartet, bis die Shell da ist. */
+  startAblauf(id: string, daten?: Record<string, unknown>): void {
+    if (!ablaufStartPruefen(id, daten)) {
+      // Review AS-4b, Befund 7: nicht öffnen und still nichts tun — warnen, ohne Werte
+      console.warn('boerdi-chat: startAblauf — ungültige Kennung oder Startdaten; der Ablauf startet nicht.');
+      return;
+    }
+    this.panel.setExpanded(true);
+    // Browser-Abnahme AS-8: die Probe gilt schon für diesen Start — die Studio-Vorschau setzt das
+    // Attribut `probe` und startet sofort, bevor der Effect es an die Shell gereicht hätte.
+    const los = (s: ChatShellComponent) => {
+      s.setProbe(_attrIsTrue(this.probe()));
+      void s.startAblauf(id, daten);
+    };
+    const shell = this.shell();
+    if (shell) {
+      los(shell);
+      return;
+    }
+    this._wartendeZuege.push(los);
+  }
+
+  /** **Public API** (AS-4c, R3) — mit `{vorgang}` oder `{auftrag}` zur Arbeit zurückkehren.
+   *  Öffnet den Chat und wartet auf die Shell; das Backend entscheidet, ob die angemeldete Person
+   *  die Besitzerin ist. */
+  vorgangFortsetzen(kennung: { vorgang?: string; auftrag?: string }): void {
+    this._vorgangFortsetzen(kennung);
+  }
+
+  /** Wie `vorgangFortsetzen`, mit einem Rückruf nach dem Ergebnis (für den Merker je Tab). */
+  private _vorgangFortsetzen(kennung: { vorgang?: string; auftrag?: string },
+    nachher?: (ausgang: WiederkehrAusgang) => void): boolean {
+    if (!wiederkehrKennung(kennung)) {
+      // Review AS-4c, Befund 4: vor dem Öffnen prüfen, wie bei `startAblauf`
+      console.warn('boerdi-chat: vorgangFortsetzen — genau eine gültige Kennung (vorgang oder auftrag) nötig.');
+      return false;
+    }
+    this.panel.setExpanded(true);
+    const los = (s: ChatShellComponent) => { void s.vorgangFortsetzen(kennung, nachher); };
+    const shell = this.shell();
+    if (shell) los(shell);
+    else this._wartendeZuege.push(los);
+    return true;
+  }
+
+  /** Die Attribute `fortsetzen-vorgang`/`fortsetzen-auftrag` (einmal, in `ngOnInit`). */
+  private _wiederkehrAusAttributen(): boolean {
+    const vorgang = this.fortsetzenVorgang().trim();
+    const auftrag = this.fortsetzenAuftrag().trim();
+    if (!vorgang && !auftrag) return false;
+    if (vorgang && auftrag) {
+      // Review AS-4c, Befund 11: wie API und Backend — zwei Kennungen sind keine
+      console.warn('boerdi-chat: vorgangFortsetzen — fortsetzen-vorgang und fortsetzen-auftrag zugleich; nichts geschieht.');
+      return false;
+    }
+    const kennung = vorgang ? { vorgang } : { auftrag };
+    // Review AS-4c, Befund 3: je Tab nur einmal — ein Neuladen mit demselben Attribut holte die
+    // Person sonst jedes Mal zurück und fragte erneut nach dem Stand. Gemerkt wird ein Hash,
+    // nicht die Kennung — und erst nach einem Ergebnis (Querschnitts-Review AS-4, Befund 6: eine
+    // Seite, die nach der Anmeldung neu lädt, versucht es dann noch einmal).
+    const merker = `boerdi_wiederkehr_${_fnv1a(JSON.stringify(kennung))}`;
+    if (_gemerkt(merker)) return false;
+    return this._vorgangFortsetzen(kennung, (a) => {
+      if (a === 'gefunden' || a === 'nichts') _merken(merker);
+    });
+  }
+
+  /** Die Attribute `ablauf-start`/`ablauf-start-daten` (einmal, in `ngOnInit`): der Start wartet
+   *  auf die Shell, öffnet aber nicht. Kaputtes JSON startet nichts — die Warnung nennt keine
+   *  Werte (die Daten der Gastseite gehören nicht in fremde Konsolen-Mitschnitte). */
+  private _ablaufAusAttributen(): void {
+    const id = this.ablaufStart().trim();
+    if (!id) return;
+    const roh = this.ablaufStartDaten().trim();
+    // Querschnitts-Review AS-4, Befund 1: je Tab nur einmal (Hash aus Kennung und Daten) — ein
+    // Neuladen erzeugt sonst jedes Mal eine Blase und eine Antwort des Backends.
+    const merker = `boerdi_ablauf_start_${_fnv1a(`${id}|${roh}`)}`;
+    if (_gemerkt(merker)) return;
+    let daten: Record<string, unknown> | undefined;
+    if (roh) {
+      try {
+        const wert: unknown = JSON.parse(roh);
+        if (!wert || typeof wert !== 'object' || Array.isArray(wert)) throw new TypeError();
+        daten = wert as Record<string, unknown>;
+      } catch {
+        console.warn('boerdi-chat: ablauf-start-daten ist kein JSON-Objekt — der Ablauf startet nicht.');
+        return;
+      }
+    }
+    // Nachprüfung Querschnitt AS-4, Befund 2: gemerkt erst, wenn der Start wirklich hinausgeht —
+    // im Panel-Betrieb wartet er auf das erste Öffnen; ein Neuladen davor verliert ihn sonst
+    this._wartendeZuege.push((s) => {
+      _merken(merker);
+      s.setProbe(_attrIsTrue(this.probe()));   // wie `startAblauf` (Browser-Abnahme AS-8)
+      void s.startAblauf(id, daten);
+    });
+  }
 
   /** Rahmen, der auf die Shell wartet (G1). Siehe `setHostInstruction`. */
   private _wartenderRahmen:
@@ -639,13 +766,14 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   startTask(text: string): void {
     const auftrag = (text ?? '').trim();
     if (!auftrag) return;
+    // Review AS-4b, Befund 3: auch mit gemounteter Shell — ein geschlossenes Panel zeigte nichts
+    this.panel.setExpanded(true);
     const shell = this.shell();
     if (shell) {
       void shell.startTask(auftrag);
       return;
     }
-    this._wartenderAuftrag = auftrag;
-    this.panel.setExpanded(true);
+    this._wartendeZuege.push((s) => { void s.startTask(auftrag); });
   }
 
   /** **Public API** (G1) — der Gastanwendung ihren unsichtbaren Rahmen mitgeben.
@@ -743,5 +871,32 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
       // Navigation darf das Widget nie brechen — die Spur auf DEBUG, nie der Kontext.
       console.debug('boerdi: Seitenkontext nicht aufgelöst —', fehlerKurz(err));
     }
+  }
+}
+
+/** FNV-1a (32 bit) als Hex — ein Merker, aus dem sich die Kennung nicht ablesen lässt. */
+function _fnv1a(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+/** Ein Merker je Tab — ohne Speicher (privater Modus, gesperrt) gilt nichts als gemerkt. */
+function _gemerkt(merker: string): boolean {
+  try {
+    return sessionStorage.getItem(merker) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function _merken(merker: string): void {
+  try {
+    sessionStorage.setItem(merker, '1');
+  } catch {
+    /* ohne Speicher: jedes Mal — besser als nie */
   }
 }

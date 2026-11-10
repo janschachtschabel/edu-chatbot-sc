@@ -17,11 +17,14 @@ import type { AblageSchritt } from '@boerdi/ui-module';
 
 import { ChatResponse, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { fehlerKurz } from '../obs/fehler-kurz';
-import { MCP_ACCESS_HEADER } from '../session/mcp-access';
+import { accessBlockHeaders, MCP_ACCESS_HEADER } from '../session/mcp-access';
 import { ablageSenden } from './ablage-transport';
 import { type DokumentBefund, dokumentHochladen } from './dokument-transport';
 import { verlaufAbrufen } from './history-transport';
-import { type OffenerVorgang, offeneVorgaengeLesen } from './offene-vorgaenge';
+import {
+  type EigenerVorgang, eigeneVorgaengeLesen, type OffenerVorgang, offeneVorgaengeLesen, type WiederkehrKennung,
+  type WiederkehrVorgang, wiederkehrLesen,
+} from './offene-vorgaenge';
 import { ChatStreamEvent, postChat, streamChat } from './stream-client';
 
 /** Antwort auf einen abfragenden UI-Block (Paket U1-d1, `ChatRequest.ui_antwort`). `message`
@@ -156,7 +159,7 @@ const ZWEIG_FRIST_MS = 75_000;
 /** K1b: eine Standabfrage ist eine kurze b-api-Abfrage — länger wartet das Modul nicht. */
 const AUFTRAG_FRIST_MS = 25_000;
 const AUFTRAG_STAENDE: ReadonlySet<unknown> = new Set(['laeuft', 'fertig', 'fehler']);
-/** Abmelden (R2): der Widerruf am MCP-Server ist eine kurze Anfrage — länger wartet niemand. */
+/** Abmelden (RB-2): der Widerruf am MCP-Server ist eine kurze Anfrage — länger wartet niemand. */
 const ABMELDEN_FRIST_MS = 15_000;
 
 /**
@@ -176,6 +179,9 @@ export class ChatApiClient {
   private masterSkill: boolean | null = null;
   private inlineResultGrouping: boolean | null = null;
   private toolMode = '';
+  /** Paket AS-8b: Probe der Studio-Vorschau (Attribut `probe`) — das Backend nimmt sie nur mit
+   *  Studio-Cookie an, sonst weist es den Zug ab (403). */
+  private probe = false;
   private forcedQuickReplies: string[] = [];
   private forcedQuickRepliesMax: number | null = null;
   private uiModule: string[] = [];
@@ -286,6 +292,11 @@ export class ChatApiClient {
    */
   setToolMode(modus: string): void {
     this.toolMode = (modus || '').trim();
+  }
+
+  /** Paket AS-8b: jeder Zug dieser Einbettung als Probe (Trockenlauf). */
+  setProbe(an: boolean): void {
+    this.probe = an;
   }
 
   /**
@@ -407,11 +418,15 @@ export class ChatApiClient {
   private buildBody(
     sessionId: string, message: string, env?: Partial<Environment>,
     action?: string, actionParams?: Record<string, any>, uiAntwort?: UiAntwortAnfrage,
+    fromHost?: boolean,
   ): Record<string, any> {
     const body: Record<string, any> = { session_id: sessionId, message, environment: this.buildEnvironment(env) };
     if (action) body['action'] = action;
     if (actionParams) body['action_params'] = actionParams;
     if (uiAntwort) body['ui_antwort'] = uiAntwort;
+    // Paket RB-3: nur Anzeige (Auftrags-Blase nach dem Neuladen), kein Recht
+    if (fromHost) body['from_host'] = true;
+    if (this.probe) body['probe'] = true;
     return body;
   }
 
@@ -429,12 +444,12 @@ export class ChatApiClient {
   async stream(
     sessionId: string, message: string, onEvent: (evt: ChatStreamEvent) => void,
     env?: Partial<Environment>, action?: string, actionParams?: Record<string, any>,
-    uiAntwort?: UiAntwortAnfrage,
+    uiAntwort?: UiAntwortAnfrage, fromHost?: boolean,
   ): Promise<ChatResponse> {
     await this.anmeldung;
     return streamChat<ChatResponse>({
       url: `${this.baseUrl}/chat/stream`,
-      body: this.buildBody(sessionId, message, env, action, actionParams, uiAntwort),
+      body: this.buildBody(sessionId, message, env, action, actionParams, uiAntwort, fromHost),
       onEvent,
       fetchImpl: this.fetchImpl,
       extraHeaders: this.turnHeaders(),
@@ -446,12 +461,12 @@ export class ChatApiClient {
   async post(
     sessionId: string, message: string, env?: Partial<Environment>,
     action?: string, actionParams?: Record<string, any>, fristMs?: number,
-    uiAntwort?: UiAntwortAnfrage,
+    uiAntwort?: UiAntwortAnfrage, fromHost?: boolean,
   ): Promise<ChatResponse> {
     await this.anmeldung;
     return postChat<ChatResponse>({
       url: `${this.baseUrl}/chat`,
-      body: this.buildBody(sessionId, message, env, action, actionParams, uiAntwort),
+      body: this.buildBody(sessionId, message, env, action, actionParams, uiAntwort, fromHost),
       fetchImpl: this.fetchImpl,
       extraHeaders: this.turnHeaders(),
       ...(fristMs === undefined ? {} : { fristMs }),
@@ -538,12 +553,67 @@ export class ChatApiClient {
     await this.anmeldung;
     const antwort = await postChat<unknown>({
       url: `${this.baseUrl}/ui/vorgaenge/offen`,
-      body: { session_id: sessionId },
+      // Zweites Review, Z-2: der Titel eines Ablaufs im Hinweis wie in der Liste
+      body: { session_id: sessionId, sprache: this.sprache() },
       fetchImpl: this.fetchImpl,
       fristMs: AUFTRAG_FRIST_MS,
       signal,
     });
     return offeneVorgaengeLesen(antwort);
+  }
+
+  /** AS-4c (RB-3): der Vorgang zu einer Kennung der Gastseite (`POST /api/ui/vorgaenge/wiederkehr`)
+   *  — nur für die angemeldete Besitzerin. Wirft bei jedem Fehler (404 heißt: nichts für diese
+   *  Anmeldung), eine unbrauchbare Antwort ist `null`. */
+  async wiederkehr(sessionId: string, kennung: WiederkehrKennung, signal?: AbortSignal,
+  ): Promise<WiederkehrVorgang | null> {
+    await this.anmeldung;
+    const antwort = await postChat<unknown>({
+      url: `${this.baseUrl}/ui/vorgaenge/wiederkehr`,
+      // Review PR #51 (R3): der Titel eines Ablaufs wie im Hinweis und in der Liste
+      body: { session_id: sessionId, ...kennung, sprache: this.sprache() },
+      fetchImpl: this.fetchImpl,
+      fristMs: AUFTRAG_FRIST_MS,
+      signal,
+    });
+    return wiederkehrLesen(antwort);
+  }
+
+  /** AS-Ud: die eigenen, nicht abgeschlossenen Vorgänge anderer Gespräche
+   *  (`POST /api/ui/vorgaenge/liste`) — nur für die angemeldete Besitzerin. Wirft bei jedem Fehler;
+   *  unbrauchbare Einträge fallen still weg. */
+  async eigeneVorgaenge(sessionId: string, signal?: AbortSignal): Promise<EigenerVorgang[]> {
+    await this.anmeldung;
+    const antwort = await postChat<unknown>({
+      url: `${this.baseUrl}/ui/vorgaenge/liste`,
+      body: { session_id: sessionId, sprache: this.sprache() },
+      fetchImpl: this.fetchImpl,
+      fristMs: AUFTRAG_FRIST_MS,
+      signal,
+    });
+    return eigeneVorgaengeLesen(antwort);
+  }
+
+  /** AS-Ud: einen eigenen Vorgang eines anderen Gesprächs löschen
+   *  (`POST /api/ui/vorgaenge/loeschen`). Wirft bei jedem Fehler (404: schon weg oder nicht eigen).
+   *  `laeuftWeiter` (Q-6): ein Auftrag läuft bei der b-api weiter (ohne Schlüssel der Person). */
+  async vorgangLoeschen(sessionId: string, vorgangId: string, signal?: AbortSignal,
+  ): Promise<{ laeuftWeiter: boolean }> {
+    await this.anmeldung;
+    const antwort = await postChat<{ geloescht?: unknown; auftrag_laeuft_weiter?: unknown } | null>({
+      url: `${this.baseUrl}/ui/vorgaenge/loeschen`,
+      body: { session_id: sessionId, vorgang: vorgangId },
+      fetchImpl: this.fetchImpl,
+      fristMs: AUFTRAG_FRIST_MS,
+      signal,
+    });
+    if (antwort?.geloescht !== true) throw new Error('Vorgang: nicht gelöscht');
+    return { laeuftWeiter: antwort.auftrag_laeuft_weiter === true };
+  }
+
+  /** Q-8: die Sprache des Widgets für Titel von Abläufen (`en`, sonst `de`). */
+  private sprache(): 'de' | 'en' {
+    return this.uiLocale.toLowerCase().startsWith('en') ? 'en' : 'de';
   }
 
   // ── Sprach-Transport (STT/TTS) ──────────────────────────────────
@@ -606,7 +676,11 @@ export class ChatApiClient {
   /** Wie {@link loadHistory}, aber ein Fehler wird geworfen statt zu `[]` — mit
    *  `status` und gegebenenfalls `retryAfterMs`. Für die Nachfrage nach einem
    *  Stream-Abbruch (Paket 7, Review C-3). */
-  fetchHistory(sessionId: string, limit: number, signal?: AbortSignal): Promise<HistoryMessage[]> {
-    return verlaufAbrufen(this.fetchImpl ?? fetch, this.baseUrl, sessionId, limit, signal);
+  async fetchHistory(sessionId: string, limit: number, signal?: AbortSignal): Promise<HistoryMessage[]> {
+    // Zweites Review, Z-1: wie jeder Abruf mit Zugangsblock erst nach einem laufenden Ticket-Tausch —
+    // sonst ginge der Verlauf anonym hinaus und kennte den Lauf der Person nicht.
+    await this.anmeldung;
+    return verlaufAbrufen(this.fetchImpl ?? fetch, this.baseUrl, sessionId, limit, signal,
+                          this.uiLocale || undefined, accessBlockHeaders());
   }
 }

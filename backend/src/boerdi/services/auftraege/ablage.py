@@ -44,6 +44,18 @@ async def offen(s: AsyncSession, vorgang_id: str) -> VorgangAuftrag | None:
     return (await s.execute(stmt)).scalar_one_or_none()
 
 
+async def vorgang_zum_job(s: AsyncSession, job_id: str, aufrufer: str) -> str | None:
+    """AS-4c (R3): der Vorgang dieser Besitzerin, zu dem der Auftrag ``job_id`` gehört — der
+    jüngste, auch wenn der Auftrag schon zu Ende ist (eine Benachrichtigung kommt danach). Ein
+    fremder oder abgelaufener Vorgang gibt ``None``."""
+    stmt = (select(VorgangAuftrag.vorgang_id)
+            .join(Vorgang, Vorgang.id == VorgangAuftrag.vorgang_id)
+            .where(VorgangAuftrag.job_id == job_id, Vorgang.aufrufer == aufrufer,
+                   Vorgang.verfaellt_am > datetime.now(UTC))
+            .order_by(VorgangAuftrag.erstellt.desc()).limit(1))
+    return (await s.execute(stmt)).scalar_one_or_none()
+
+
 async def offene_job_ids(s: AsyncSession, aufrufer: list[str]) -> list[str]:
     """Die Job-IDs der laufenden Aufträge aller Vorgänge dieser Besitzerinnen — für „Arbeitsstand
     löschen“, damit sie auch bei der b-api enden (Job-Vertrag 2026-11-07)."""

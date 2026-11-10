@@ -29,9 +29,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.api.chat_handschlag import handschlag
 from boerdi.api.deps import get_session, get_session_factory, require_studio_key, todo
+from boerdi.api.probe_anfrage import pruefe_probe
 from boerdi.api.publikum import antwort_fuer
 from boerdi.api.ratelimit import peer_ip, zug_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
+from boerdi.api.schemas_ui import AblaufStand
 from boerdi.api.session_locks import sitzung_sperren
 from boerdi.api.sse import sse_turn
 from boerdi.api.turn_auth import darf_diagnose, pruefe_oeffentliche_kennung, uebernimm_zugang
@@ -42,9 +44,9 @@ from boerdi.i18n import bot_text, msg, resolve_locale
 from boerdi.obs import metrics
 from boerdi.obs.log_inhalt import kennung
 from boerdi.obs.progress import TurnProgress
-from boerdi.services import betriebsschalter, prompt_ablage
-from boerdi.services.ablauf import auftrag_zug
-from boerdi.services.db_sessions import save_message
+from boerdi.services import arbeitsstand, betriebsschalter, prompt_ablage
+from boerdi.services.ablauf import auftrag_zug, fortschritt
+from boerdi.services.db_sessions import save_message, sitzung_entities
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
 from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.llm_parallel import LlmAusgelastet
@@ -59,6 +61,13 @@ logger = logging.getLogger(__name__)
 
 public_router = APIRouter(tags=["chat"])
 router = APIRouter(tags=["chat"], dependencies=[Security(require_studio_key)])
+
+
+def turn_kontext(req: ChatRequest, probe: bool) -> TurnContext:
+    """Der Zug-Kontext beider Chat-Endpunkte. ``probe`` ist die Entscheidung aus ``pruefe_probe``
+    im Vorspann — einmal getroffen (zweites Review AS-8a, Befund 3: eine zweite Prüfung nach
+    Handschlag und Sitzungssperre könnte anders ausgehen, und der Zug liefe still echt)."""
+    return TurnContext(req=req, probe=probe)
 
 
 async def _record_usage(session: AsyncSession, session_id: str, state: dict) -> None:
@@ -113,6 +122,7 @@ async def chat(
     instead of an HTTP 500 so the widget shows something actionable.
     """
     pruefe_oeffentliche_kennung(request, req.session_id)  # Paket 19, M-5
+    probe_recht = pruefe_probe(request, req)  # Paket AS-8a, Review Befund 3
     await uebernimm_zugang(request)
     intern = darf_diagnose(request)
     try:
@@ -122,7 +132,7 @@ async def chat(
                     session=session, peer_ip=peer_ip(request),
                     engine=choose_engine(request.headers.get(ENGINE_HEADER)),
                 )
-                result = await run_turn(graph, TurnContext(req=req))
+                result = await run_turn(graph, turn_kontext(req, probe_recht))
                 await _record_usage(session, req.session_id, result)
                 resp = _anmeldestand(result.get("early_response") or result.get("response"),
                                      req, result)
@@ -162,6 +172,7 @@ def _anmeldestand(resp: ChatResponse | None, req: ChatRequest | None = None,
     Auftragsschritts — aus dem Verweis nach dem Zug, für beide Wege gleich."""
     if resp is not None and req is not None and zustand is not None:
         _eingabe_sperre(resp, req, zustand)
+        _ablauf_stand(resp, req, zustand)
     if resp is not None and abgelehnt_in_diesem_zug():
         resp.auth_invalid = True
     elif resp is not None:
@@ -194,6 +205,21 @@ def _eingabe_sperre(resp: ChatResponse, req: ChatRequest, zustand: dict[str, Any
         resp.eingabe_gesperrt = False
 
 
+def _ablauf_stand(resp: ChatResponse, req: ChatRequest, zustand: dict[str, Any]) -> None:
+    """Paket AS-Ua (U-1): der Stand des Laufs dieses Gesprächs an der Antwort — für die Leiste
+    im Widget, aus dem Verweis nach dem Zug, für beide Wege gleich. Wirft nie: der Zug ist schon
+    gespeichert; ohne Stand zeigt das Widget nur keine Leiste."""
+    try:
+        stand = zustand.get("session_state")
+        entities = stand.get("entities") if isinstance(stand, dict) else None
+        daten = fortschritt.stand(entities or {},
+                                  arbeitsstand.aufrufer_fuer(req.session_id, entities),
+                                  resolve_locale(getattr(req.environment, "locale", None)))
+        resp.ui = resp.ui.model_copy(update={"ablauf": AblaufStand(**daten) if daten else None})
+    except Exception as fehler:  # noqa: BLE001 — die Leiste ist eine Anzeige
+        logger.warning("Ablauf-Stand nicht bestimmbar (%s)", type(fehler).__name__)
+
+
 async def _fehlerblase(
     session: AsyncSession, req: ChatRequest, fehler: BaseException,
 ) -> ChatResponse:
@@ -221,24 +247,38 @@ async def _fehlerblase(
         await session.rollback()
     except Exception:
         logger.debug("Rollback vor der Fehlerblase gescheitert", exc_info=True)
+    gespeichert = False
     try:
         await save_message(session, req.session_id, "assistant", err_text,
                            debug=err_debug.model_dump())
+        gespeichert = True
     except Exception:
         # Never let a DB-write failure mask the original error. WARNING (Paket 19, N-14): das
         # Widget sucht die Blase nach dem Neuladen im Verlauf.
         logger.warning("Fehlerblase nicht gespeichert", exc_info=True)
-    return ChatResponse(
+    blase = ChatResponse(
         session_id=req.session_id,
         content=err_text,
         quick_replies=[bot_text(lang, "error.retryChip")],
         debug=err_debug,
     )
+    # Review AS-Ua, Befund 7: der Lauf wartet weiter — die Leiste (samt „Abbrechen“) bleibt. Der
+    # Zustand des Zugs fehlt hier; der Verweis kommt aus der gespeicherten Sitzung.
+    try:
+        # Zweites Review AS-U, Kleinigkeit 10: scheiterte das Speichern, ist die Datenbank weg —
+        # kein zweiter Versuch (die Blase käme erst nach zwei Fristen)
+        if gespeichert:
+            entities = await sitzung_entities(session, req.session_id)
+            _ablauf_stand(blase, req, {"session_state": {"entities": entities or {}}})
+    except Exception as stand_fehler:  # noqa: BLE001 — die Blase geht in jedem Fall hinaus
+        # DEBUG: nach einem Fehler ist die Datenbank oft gerade der Grund — kein zweiter Alarm
+        logger.debug("Ablauf-Stand an der Fehlerblase fehlt (%s)", type(stand_fehler).__name__)
+    return blase
 
 
 async def _stream_turn(
     req: ChatRequest, request: Request, sitzungen: async_sessionmaker[AsyncSession],
-    engine: str = "pattern", intern: bool = False,
+    engine: str = "pattern", intern: bool = False, probe: bool = False,
 ) -> AsyncIterator[str]:
     """Yield the SSE frames for one streamed turn: connected → phase* → result | error.
 
@@ -287,7 +327,7 @@ async def _stream_turn(
                     engine=engine,
                     on_token=strom,
                 )
-                state = await run_turn(graph, TurnContext(req=req))
+                state = await run_turn(graph, turn_kontext(req, probe))
                 await _record_usage(session, req.session_id, state)
                 return _anmeldestand(state.get("early_response") or state.get("response"),
                                      req, state)
@@ -352,11 +392,12 @@ async def chat_stream(
     # hat den Vertragstest brechen lassen. Gemessen 2026-08-10; die Kopfzeile
     # selbst blieb unsichtbar (``parameters`` bleibt ``None``).
     pruefe_oeffentliche_kennung(request, req.session_id)  # Paket 19, M-5
+    probe_recht = pruefe_probe(request, req)  # Paket AS-8a, Review Befund 3
     await uebernimm_zugang(request)
     return StreamingResponse(
         _stream_turn(req, request, sitzungen,
                      engine=choose_engine(request.headers.get(ENGINE_HEADER)),
-                     intern=darf_diagnose(request)),
+                     intern=darf_diagnose(request), probe=probe_recht),
         media_type="text/event-stream",
         headers={
             # Proxies must not buffer or transform SSE.

@@ -91,17 +91,34 @@ def _direct_action_safety_text(req: ChatRequest) -> str:
     Direct-action requests skip the regular pattern engine, so they would
     otherwise bypass the safety gate. We feed the raw user message plus all
     string-valued ``action_params`` into the same regex/LLM safety pipeline.
-    Caps each field at 500 chars, total 2000.
+    Caps each field at 500 chars, total 2000 — plus up to 5000 for the start data of a workflow
+    (``start``, at most 10 text fields of at most 500 chars each, so every field is screened
+    whole; cross-review AS-4, finding 3).
     """
+    from boerdi.services.ablauf.startdaten import text_bereinigt
+
     chunks: list[str] = []
+    params = dict(req.action_params or {})
+    # Startdaten der Gastseite (AS-4a) zuerst und ohne Abbruch — bereinigt wie in
+    # ``startdaten.pruefen`` und dann gekürzt: so liegt jedes Feld (höchstens 500 Zeichen nach dem
+    # Bereinigen) ganz in der Prüfung (Nachprüfung Querschnitt AS-4, Befund 1: führender Leerraum
+    # und Füll-Parameter schoben sie sonst hinaus).
+    start = params.pop("start", None)
+    if isinstance(start, dict):
+        chunks += [f"start.{k2}: {t[:500]}" for k2, v2 in list(start.items())[:10]
+                   if isinstance(v2, str) and (t := text_bereinigt(v2))]
+    start_laenge = sum(len(c) + 2 for c in chunks)
     if req.message:
         chunks.append(req.message[:500])
-    for k, v in (req.action_params or {}).items():
+    for k, v in params.items():
+        if sum(len(c) for c in chunks) - start_laenge >= 2000:
+            break
         if isinstance(v, str) and v.strip():
             chunks.append(f"{k}: {v[:500]}")
-        if sum(len(c) for c in chunks) >= 2000:
-            break
-    return " \n".join(chunks)[:2000]
+        elif isinstance(v, dict):
+            chunks += [f"{k}.{k2}: {v2[:500]}" for k2, v2 in list(v.items())[:10]
+                       if isinstance(v2, str) and v2.strip()]
+    return " \n".join(chunks)[:start_laenge + 2000]
 
 
 # ── Action: Browse collection contents ────────────────────────────

@@ -10,6 +10,9 @@
  * per-document route `PUT /api/config/data/03-patterns/x` replaces the
  * document with exactly what was read, which is the rule 9-3 arrived at.
  *
+ * Since AS-0 also the folder of workflows (`06-ablaeufe`): YAML documents, the id is the key;
+ * the list comes from `GET /api/config/ablaeufe` and names status, triggers and findings.
+ *
  * Since Paket 6 (ST-3d) a list│editor: the side list is `studio-entry-list`
  * (count, search, the id beside each name), with Duplicate and Delete beside
  * New. The traffic with the server — load, create, copy, delete, „shipped?" —
@@ -27,6 +30,7 @@ import {
   input,
   output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 
@@ -44,7 +48,9 @@ import type { CuratedAreaSection } from './curated-views';
 import { EffectBadgeComponent } from './effect-badge.component';
 import { feldAusschnitt } from './feld-ausschnitt';
 import { FeldReiter } from './feld-reiter';
-import { GroupDocuments, type GroupEntry, slugify } from './group-documents';
+import { ablaufNotiz } from './ablauf-notiz';
+import { ablaufAusAdresse } from './ablauf-sprung';
+import { GroupDocuments, type GroupEntry } from './group-documents';
 import { LoeschRueckfrage } from './loesch-rueckfrage';
 import { SaveConflictComponent } from './save-conflict.component';
 import { TabBarComponent } from './tab-bar.component';
@@ -72,7 +78,10 @@ export class GroupSectionComponent {
   protected readonly t = this.lang.t;
   readonly editor = new AreaDocEditor(this.config, this.t);
   readonly docs = new GroupDocuments(
-    inject(StudioApi), this.config, inject(SnapshotsApi), () => this.area());
+    inject(StudioApi), this.config, inject(SnapshotsApi), () => this.area(), {
+      sprache: () => this.lang.i18n.locale(),
+      ablaufNotiz: (zeile) => ablaufNotiz(zeile, this.t, this.lang.plural),
+    });
   /** Die Rückfrage vor dem Löschen — an EIN Dokument gebunden (Review Paket 6). */
   readonly rueckfrage = new LoeschRueckfrage(this.docs);
 
@@ -140,15 +149,38 @@ export class GroupSectionComponent {
 
   readonly idPrefix = computed(() => `gs-${this.area().replace(/[^\w-]/g, '-')}`);
   /** Die Kennung eines neuen Dokuments — den Schlüssel leitet der Server ab. */
-  readonly newId = computed(() => slugify(this.newName()));
+  readonly newId = computed(() => this.docs.neueKennung(this.newName()));
 
   private loaded = false;
+  /** AS-2c: `?ablauf=<id>` (vom Modul her) wählt den Ablauf, sobald die Liste da ist — einmal. */
+  private readonly gewuenscht = ablaufAusAdresse();
+  private angewandt: string | null = null;
 
   constructor() {
     effect(() => {
+      const id = this.gewuenscht();
+      const eintrag = id && this.docs.istAblauf && id !== this.angewandt
+        ? this.docs.entries().find((e) => e.kennung === id) : undefined;
+      if (!eintrag) return;
+      this.angewandt = id;
+      untracked(() => this.select(eintrag.id));
+    });
+    effect(() => {
       if (this.open()) this.ensureLoaded();
     });
+    // Review AS-0, Befund 7: Titel und Zusatz der Abläufe entstehen in der Sprache des Studios.
+    let sprache = this.lang.i18n.locale();
+    effect(() => {
+      const jetzt = this.lang.i18n.locale();
+      if (jetzt === sprache) return;
+      sprache = jetzt;
+      if (this.loaded && this.docs.istAblauf) void this.loadList();
+    });
   }
+
+  /** Der Text der leeren Liste — bei Abläufen eine Einladung zum ersten (Review AS-0, Befund 8). */
+  readonly leerText = computed(() =>
+    this.t(this.docs.istAblauf ? 'ablaeufe.leer' : 'groupSection.empty'));
 
   onToggle(event: Event): void {
     if ((event.target as HTMLDetailsElement).open) this.ensureLoaded();
@@ -190,7 +222,10 @@ export class GroupSectionComponent {
     this.notice.set('');
     // `vomServer` (Review U1-f, #3): die Anrede (`ohneFelder`) pflegt eine andere Seite.
     void this.editor.save(this.selected(), { force, vomServer: this.section().ohneFelder }).then((saved) => {
-      if (saved) this.changed.emit();
+      if (!saved) return;
+      this.changed.emit();
+      // Review AS-0, Befund 7: bei Abläufen ist der Zusatz der Liste ein Stand (an/aus, Befunde).
+      if (this.docs.istAblauf) void this.loadList();
     });
   }
 

@@ -17,27 +17,29 @@ import pytest
 import yaml
 
 from boerdi.api.schemas import ChatRequest, Environment
-from boerdi.domain.config_models.ablauf import AblaufKatalogArea
+from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.i18n import bot_text
 from boerdi.services import arbeitsstand, vorgaenge
 from boerdi.services.ablauf import ausloeser, zug, zug_basis
 from boerdi.services.ablauf.pruefung import pruefe
 from boerdi.ui_module.namen import STRUKTURENTWURF, UPLOAD
 
-_SEED = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe" / "katalog.yaml"
+_SEED = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe" / "sammlungsstruktur.yaml"
 
 
 def _katalog(aktiv=True, **mehr):
+    """Der mitgelieferte Ablauf (seit AS-0 ein Dokument) in der Form ``{ablaeufe: [...]}``, die die
+    Tests der Laufzeit unterschieben (``ausloeser._roh_liste``)."""
     roh = yaml.safe_load(_SEED.read_text(encoding="utf-8"))
-    roh["ablaeufe"][0]["aktiv"] = aktiv
-    roh["ablaeufe"][0].update(mehr)
-    return roh
+    roh["aktiv"] = aktiv
+    roh.update(mehr)
+    return {"ablaeufe": [roh]}
 
 
 def test_der_mitgelieferte_ablauf_besteht_die_pruefung():
-    katalog = AblaufKatalogArea.model_validate(yaml.safe_load(_SEED.read_text(encoding="utf-8")))
-    assert [a.id for a in katalog.ablaeufe] == ["sammlungsstruktur"]
-    assert pruefe(katalog.ablaeufe[0]) == []
+    ablauf = AblaufArea.model_validate(yaml.safe_load(_SEED.read_text(encoding="utf-8")))
+    assert ablauf.id == "sammlungsstruktur" == _SEED.stem
+    assert pruefe(ablauf) == []
 
 
 class _Speicher:
@@ -59,6 +61,9 @@ class _Speicher:
             del self.v[vid]
 
     async def sperren(self, s, vid, aufrufer):
+        return None
+
+    async def alle_sperren(self, s, aufrufer):
         return None
 
     async def anonyme_der_sitzung_loeschen(self, s, session_id):
@@ -125,7 +130,7 @@ class _S:
 def umgebung(monkeypatch):
     sp = _Speicher()
     for name in ("lesen", "juengster", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
-                 "beruehren", "loeschen", "alle_loeschen", "sperren",
+                 "beruehren", "loeschen", "alle_loeschen", "sperren", "alle_sperren",
                  "anonyme_der_sitzung_loeschen", "sitzung_setzen"):
         monkeypatch.setattr(vorgaenge, name, getattr(sp, name))
     from boerdi.services.dokumente import ablage as dokumente
@@ -154,8 +159,8 @@ def umgebung(monkeypatch):
     monkeypatch.setattr(zug_basis, "save_message", speichern)
     monkeypatch.setattr(zug_basis, "update_session", nichts)
     katalog = {"wert": _katalog()}
-    monkeypatch.setattr(ausloeser, "area",
-                        lambda key: katalog["wert"] if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog["wert"]).get("ablaeufe") or [])
     return SimpleNamespace(speicher=sp, gesendet=gesendet, katalog=katalog)
 
 
@@ -178,8 +183,10 @@ def test_der_start_zeigt_das_erste_modul_und_haelt_den_lauf(umgebung):
     assert v.akte["lauf"]["schritt"] == "erfassen" and v.status == "wartet_person"
     assert v.akte["lauf"]["offener_block"] == block.block_id
     vw = state["entities"][arbeitsstand.VERWEIS]
+    # ``start``: Marke des Laufs für die Leiste im Widget (zweites Review AS-U, Befund 2)
     assert vw["lauf"] == {"ablauf": "sammlungsstruktur", "schritt": "erfassen",
-                          "status": "wartet_person", "fassung": v.akte["lauf"]["fassung"]}
+                          "status": "wartet_person", "fassung": v.akte["lauf"]["fassung"],
+                          "start": v.akte["lauf"]["start"], "freigabe_id": ""}
     assert "Ablauf sammlungsstruktur: Schritt erfassen" in arbeitsstand.kennzeile(
         state["entities"], "person-a")
 

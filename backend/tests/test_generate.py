@@ -118,8 +118,9 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
     # Und die Erlaubnis der Einbettung (Paket 4, P4-1), für Auswahl UND Schleife;
     # dazu die Sperren der Sicherheit für den Nachschub der Suche (Review Paket 9).
     # Paket U1-d2: die Module, die das Widget meldet — ohne Meldung keine Modul-Werkzeuge.
+    # Paket AS-5b: die Sprache für die Beschreibungen der Ablauf-Werkzeuge (ohne Angabe: de).
     assert select.kwargs == {"pattern_label": "M05", "tool_mode": "read-only", "gesperrt": [],
-                             "ui_module": None}
+                             "ui_module": None, "sprache": "de", "ohne_ablaeufe": False}
     # P12/P14: assemble — session FIRST, blocked_tools normalized to [],
     # system + inline_grouping + sources_decl + rag_allowed from prior phases.
     assert assemble.args == (

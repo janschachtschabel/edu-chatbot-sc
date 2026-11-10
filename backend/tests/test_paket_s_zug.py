@@ -45,7 +45,8 @@ def _req(**mehr):
 def im_zug(monkeypatch):
     sp = _Speicher()
     for name in ("lesen", "juengster", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
-                 "beruehren", "alle_loeschen", "anonyme_der_sitzung_loeschen", "sitzung_setzen"):
+                 "beruehren", "alle_loeschen", "alle_sperren", "anonyme_der_sitzung_loeschen",
+                 "sitzung_setzen"):
         monkeypatch.setattr(vorgaenge, name, getattr(sp, name))
     for modul in (arbeitsstand, ausloeser):
         monkeypatch.setattr(modul, "has_personal_auth", lambda: True)
@@ -65,7 +66,8 @@ def im_zug(monkeypatch):
     katalog = {"ablaeufe": [{"id": "anhaengen", "titel": {"de": "Anhängen"}, "aktiv": True,
                              "ausloeser": [{"art": "knopf"}], "voraussetzungen": ["anmeldung"],
                              "schritte": copy.deepcopy(_SCHRITTE)}]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     vorgelegt: list = []
     vorlagen: list = []
 

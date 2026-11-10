@@ -7,6 +7,15 @@ Den **Bestand** zeigt `ui_themenbaum` (`../ui-themenbaum/`); beide teilen Baum, 
 Aussehen über `../_baum/`. Der Kopf sagt „Entwurf (KI)“ bzw. „Entwurf (aus WLO)“ — ein Entwurf
 sieht nie aus wie Bestand.
 
+**Seit Paket BU-2 nachgeladen** (`laden: "bei_bedarf"`): ein rahmenloses Custom Element
+`boerdi-ui-strukturentwurf` in einem eigenen Bündel statt einer Angular-Komponente im Widget
+(−8 kB gzip im Haupt-Bündel). Aufteilung: `entwurf-zustand.ts` (Zustand und Bearbeitung, ohne DOM),
+`entwurf-zeichnen.ts` (die Teile als DOM; der Baum wird je Punkt abgeglichen, nicht neu gebaut),
+`ui-strukturentwurf.element.ts` (Eigenschaften, Ereignisse, Fokus, Vormerken). Der Stil kommt aus
+`ui-strukturentwurf.element.scss` (erzeugt nach `ui-strukturentwurf.stil.generated.ts`), die
+Symbole aus `entwurf-symbole.ts` (gleich `ICONS`, per Spec geprüft). Das Verhalten ist unverändert;
+die Spec der Komponente gilt am Element weiter (`ui-strukturentwurf.element.spec.ts`).
+
 - **Art:** abfragend (`antworten`, `herunterladen`). Erstes Modul mit **Dienst**
   (`dienst: {name: strukturentwurf, parameter}`): die KI nennt nur den Auftrag — `thema`, `fach?`,
   `bildungsstufe?`, `anzahl_oben` (5–20, sonst 10), `tiefe` (1–3, sonst 2), `hinweise?`,

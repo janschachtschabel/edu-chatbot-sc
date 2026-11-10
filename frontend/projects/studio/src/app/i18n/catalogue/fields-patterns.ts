@@ -125,7 +125,11 @@ export const FIELDS_PATTERNS: CataloguePart = {
       + 'lookup_wlo_vocabulary und get_node_details dazu. UI-Module wie ui_entscheidung wirken '
       + 'nur, wenn das Widget sie meldet, sie auf der Seite „UI-Module“ aktiv sind und mcp in '
       + 'den Quellen steht; fehlt eine Pflichtangabe, '
-      + 'fallen sie wie alle Werkzeuge weg.',
+      + 'fallen sie wie alle Werkzeuge weg. Abläufe (ablauf-<Kennung>) schlägt die KI per Knopf '
+      + 'vor — nur, wenn der Ablauf aktiv ist, den Auslöser „KI schlägt vor“ trägt und seine '
+      + 'Voraussetzungen erfüllt sind; nicht bei Chips des Gastgebers, ohne Schnellantworten, am '
+      + 'KI-Schritt eines laufenden Ablaufs und — wenn der Ablauf schreibt — in einer Einbettung, '
+      + 'die nicht „full“ erlaubt (auch nicht bei „curate“).',
     'feld.PatternFrontmatter.precondition_slots.label': 'Pflichtangaben',
     'feld.PatternFrontmatter.precondition_slots.hint':
       'Angaben, die vorliegen müssen, bevor das Muster arbeitet, etwa thema. Fehlt eine, sperrt '
@@ -255,7 +259,11 @@ export const FIELDS_PATTERNS: CataloguePart = {
       + 'and get_node_details. UI modules such as ui_entscheidung only work when the widget '
       + 'reports them, they are active on the “UI modules” page and mcp is among the sources; '
       + 'if a required detail is missing, they are '
-      + 'dropped like all tools.',
+      + 'dropped like all tools. Workflows (ablauf-<id>) are suggested by the AI as a button — '
+      + 'only if the workflow is active, has the trigger “AI suggests” and its preconditions are '
+      + 'met; not with host chips, without quick replies, at the AI step of a running workflow '
+      + 'and — if the workflow writes — in an embedding that does not allow “full” (not even '
+      + 'with “curate”).',
     'feld.PatternFrontmatter.precondition_slots.label': 'Required details',
     'feld.PatternFrontmatter.precondition_slots.hint':
       'Details that must be known before the pattern works, such as thema. If one is missing, '

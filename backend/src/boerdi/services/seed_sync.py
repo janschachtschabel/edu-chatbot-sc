@@ -34,6 +34,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Final, Literal
 
+from boerdi.domain.ablauf_altbestand import katalog_aufteilen
 from boerdi.services import seed_io, werkfassung
 
 logger = logging.getLogger(__name__)
@@ -247,7 +248,9 @@ def _lesen(pfad: Path) -> dict[str, dict[str, Any]]:
     stats = asyncio.run(seed_io.import_tree(pfad, einsammeln))
     logger.info("Seed gelesen: %d Bereiche (%d yaml, %d md) aus %s",
                 stats["areas"], stats["yaml"], stats["md"], pfad)
-    return gesammelt
+    # Querschnitts-Review AS-0…AS-2: ein Baum von vor AS-0 (``export-config``) trägt noch den
+    # Katalog — geteilt wie eine ZIP-Sicherung, sonst löschte ``exact`` die Abläufe.
+    return katalog_aufteilen(gesammelt)
 
 
 async def werksabgleich(

@@ -24,6 +24,7 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass
+from typing import Any
 
 from boerdi.domain.dokument_art import ENDUNG
 from boerdi.services.rag.umwandeln import Ausfuehrer, wandle_datei
@@ -83,31 +84,53 @@ async def wandle(rumpf: bytes, art: str, *, max_seiten: int, frist_s: float,
         return Umwandlungsfehler("Fehler: Umwandlung ausgelastet", art="ausgelastet")
     _wartende += 1
     verzeichnis = None
+    lauf: asyncio.Future[Any] | None = None
     try:
-        # Querschnitts-Review (NIT): bis 25 MB schreiben und löschen nicht in der Ereignisschleife.
-        # Das Verzeichnis entsteht vorher hier — ein Abbruch während des Schreibens räumt es im
+        # Querschnitts-Review (NIT): bis 25 MB schreiben nicht in der Ereignisschleife. Das
+        # Verzeichnis entsteht vorher hier — ein Abbruch während des Schreibens räumt es im
         # ``finally`` mit weg (Review Q1, Befund 8).
         verzeichnis = tempfile.mkdtemp(prefix="boerdi-dok-")   # 0700 laut mkdtemp
         pfad = os.path.join(verzeichnis, "dokument" + ENDUNG[art])
         await asyncio.to_thread(_schreiben, pfad, rumpf)
+        abgesagt = asyncio.Event()
         rufe = ausfuehren or functools.partial(im_kindprozess, frist_s=frist_s,
-                                               platz_frist_s=PLATZ_FRIST_S)
+                                               platz_frist_s=PLATZ_FRIST_S, abgesagt=abgesagt)
+        # Der Zähler sinkt und die Datei geht erst, wenn der Lauf wirklich vorbei ist — ein Abbruch
+        # des Aufrufers (etwa ``auftraege/dateien``) beendet nur das Warten; der Kindprozess hält
+        # seinen Platz bis zur Frist (vorbestehender Befund, Review 2 zu P1).
+        lauf = asyncio.ensure_future(rufe(pruefe_und_wandle, pfad, max_seiten))
+        lauf.add_done_callback(functools.partial(_lauf_vorbei, verzeichnis))
         try:
-            ergebnis = await asyncio.wait_for(rufe(pruefe_und_wandle, pfad, max_seiten),
+            ergebnis = await asyncio.wait_for(asyncio.shield(lauf),
                                               frist_s + PLATZ_FRIST_S + _PUFFER_S)
+        except asyncio.CancelledError:
+            abgesagt.set()      # wartet er noch auf den Platz, wandelt er nicht mehr um
+            raise
         except TimeoutError:
+            abgesagt.set()
             return Umwandlungsfehler(f"Fehler: Umwandlung länger als {frist_s:g} s",
                                      art="umwandlung_zu_langsam", wert=frist_s)
     except OSError:
         return Umwandlungsfehler("Fehler: Datei nicht ablegbar", art="server")
     finally:
-        _wartende -= 1
-        if verzeichnis:
-            await asyncio.to_thread(shutil.rmtree, verzeichnis, ignore_errors=True)
+        if lauf is None:      # nichts gestartet: hier aufräumen
+            _wartende -= 1
+            if verzeichnis:
+                await asyncio.to_thread(shutil.rmtree, verzeichnis, ignore_errors=True)
     if isinstance(ergebnis, Umwandlungsfehler):
         return ergebnis
     kopf, _, text = ergebnis.partition(_TRENNER)
     return _fertig(text, int(kopf) if kopf.isdigit() else None)
+
+
+def _lauf_vorbei(verzeichnis: str, lauf: asyncio.Future[Any]) -> None:
+    """Am Ende des Laufs: Zähler senken, Verzeichnis löschen (eine Datei — ``unlink`` ist schnell,
+    auch bei 25 MB), eine Ausnahme abholen (sonst „never retrieved“)."""
+    global _wartende
+    _wartende -= 1
+    shutil.rmtree(verzeichnis, ignore_errors=True)
+    if not lauf.cancelled():
+        lauf.exception()
 
 
 def _text(rumpf: bytes) -> str:

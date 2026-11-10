@@ -476,18 +476,21 @@ def test_die_sitzungsliste_ist_gedeckelt(db, keine_preise) -> None:
 def test_die_sitzungsliste_haelt_sich_an_den_zeitraum(db, keine_preise) -> None:
     from boerdi.services.usage_analytics import period_usage
 
+    # Ein Fenster VOR ``_JAN``: Zeilen ohne ``created_at`` (Nachbartests) bekommen ``now()``, und
+    # ``_JAN`` + 300 Tage war der 10.11.2026 — an dem Tag kippte der Test (offene-befunde §5).
+    frueh = _JAN - timedelta(days=400)
+
     async def szenario(factory):
         await _saee(factory, "k5-drin", [
             {"model": "a", "prompt_tokens": 5, "cached_tokens": 0,
              "completion_tokens": 0, "reasoning_tokens": 0, "calls": 1,
-             "created_at": _JAN + timedelta(days=300)}])
+             "created_at": frueh}])
         await _saee(factory, "k5-draussen", [
             {"model": "a", "prompt_tokens": 5000, "cached_tokens": 0,
              "completion_tokens": 0, "reasoning_tokens": 0, "calls": 1,
-             "created_at": _JAN + timedelta(days=400)}])
+             "created_at": frueh + timedelta(days=100)}])
         async with factory() as s:
-            return await period_usage(s, _JAN + timedelta(days=299),
-                                      _JAN + timedelta(days=301))
+            return await period_usage(s, frueh - timedelta(days=1), frueh + timedelta(days=1))
 
     namen = [z["session_id"] for z in _lauf(db, szenario)["sessions"]]
     assert namen == ["k5-drin"]
@@ -517,7 +520,8 @@ def test_bekannte_kosten_schlagen_viele_token(db, monkeypatch) -> None:
         # Nur Ausgabe bepreist; die billige Sitzung verbraucht nur Eingabe und
         # kommt darum auf GENAU 0 — der Gleichstand, den der Rang auflösen muss.
         **{"a": {"input": 0.0, "cached_input": 0.0, "output": 7.0}}))
-    spaet = _JAN + timedelta(days=500)
+    # vor ``_JAN`` — ein Fenster in der Zukunft erreichte ``now()`` der Nachbartests irgendwann
+    spaet = _JAN - timedelta(days=500)
 
     async def szenario(factory):
         await _saee(factory, "k5r-bepreist", [

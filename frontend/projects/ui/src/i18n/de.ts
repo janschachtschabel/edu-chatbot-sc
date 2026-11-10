@@ -64,12 +64,18 @@ export const DE: Catalogue = {
 
   // ── Chat-Shell: Verlauf, Druckleisten, Eingabe-Footer ──────────────
   'chat.log': 'Chat-Verlauf',
+  // Paket AS-8b: Probe der Studio-Vorschau
+  'chat.probe': 'Probe · Trockenlauf — es wird nichts geschrieben',
   'chat.speak': 'Vorlesen',
   'chat.speakStop': 'Stop',
   'chat.record.start': 'Spracheingabe starten',
   'chat.record.stop': 'Aufnahme stoppen',
   'chat.send': 'Senden',
   'chat.hostTask': 'Auftrag der Seite',
+  'chat.hostAblauf': 'Ablauf starten',
+  'wiederkehr.anmelden': 'Melde dich bei WLO an, dann geht es mit deiner Arbeit weiter.',
+  'wiederkehr.nichts': 'Unter dieser Anmeldung finde ich dazu nichts mehr zum Fortsetzen.',
+  'wiederkehr.spaeter': 'Das kann ich gerade nicht prüfen — versuch es gleich noch einmal.',
   /** An einer Ergebnis-Box aus dem Verlauf, die dort gekappt gespeichert ist. */
 
   'chat.input.label': 'Nachricht an BOERDi',
@@ -80,6 +86,48 @@ export const DE: Catalogue = {
   'fortsetzen.knopf': 'Fortsetzen',
   'fortsetzen.schliessen': 'Hinweis schließen',
   'fortsetzen.pruefen': 'Stand prüfen',
+  'vorgaenge.knopf': 'Meine Vorgänge',
+  'vorgaenge.titel': 'Meine Vorgänge in anderen Gesprächen',
+  'vorgaenge.schliessen': 'Liste schließen',
+  'vorgaenge.laedt': 'Liste wird geladen …',
+  'vorgaenge.fehler': 'Die Liste ließ sich nicht laden.',
+  'vorgaenge.erneut': 'Erneut versuchen',
+  'vorgaenge.leer': 'In anderen Gesprächen ist nichts offen.',
+  'vorgaenge.stand': '{status} · zuletzt {datum}',
+  'vorgaenge.status.aktiv': 'Offen',
+  'vorgaenge.status.wartet_auftrag': 'Auftrag läuft',
+  'vorgaenge.status.wartet_person': 'Wartet auf dich',
+  'vorgaenge.fortsetzen': 'Fortsetzen',
+  'vorgaenge.fortsetzenName': '„{titel}“ fortsetzen',
+  'vorgaenge.loeschen': 'Löschen',
+  'vorgaenge.loeschenName': '„{titel}“ löschen',
+  'vorgaenge.frage': '„{titel}“ löschen? Die gesammelten Daten gehen verloren, ein laufender Auftrag wird hier beendet.',
+  'vorgaenge.ja': 'Ja, löschen',
+  'vorgaenge.nein': 'Behalten',
+  'vorgaenge.geloescht': '„{titel}“ gelöscht.',
+  'vorgaenge.geloeschtAuftragWeiter': '„{titel}“ gelöscht. Sein Auftrag läuft bei der b-api weiter, bis er dort von selbst endet — dieser Zugang darf ihn dort nicht beenden.',
+  'vorgaenge.lauf.laeuft': 'Läuft',
+  'vorgaenge.lauf.person': 'Wartet auf dich',
+  'vorgaenge.lauf.ki': 'Die KI ist dran',
+  'vorgaenge.lauf.freigabe': 'Wartet auf deine Freigabe',
+  'vorgaenge.lauf.seite': 'Wartet auf den Seitenwechsel',
+  'vorgaenge.lauf.beendet': 'Ablauf beendet',
+  'vorgaenge.loeschFehler': '„{titel}“ ließ sich nicht löschen. Die Liste ist neu geladen.',
+  // Paket AS-Ub: die Ablauf-Leiste über dem Eingabefeld
+  'ablauf.leiste.region': 'Laufender Ablauf',
+  'ablauf.leiste.schritt': 'Schritt {nr} von {von}',
+  'ablauf.leiste.status.laeuft': 'läuft',
+  'ablauf.leiste.status.person': 'wartet auf dich',
+  'ablauf.leiste.stand': '{schritt}, {status}',
+  'ablauf.leiste.status.ki': 'die KI ist dran',
+  'ablauf.leiste.status.auftrag': 'Auftrag läuft',
+  'ablauf.leiste.status.freigabe': 'wartet auf deine Freigabe',
+  'ablauf.leiste.status.seite': 'wartet auf den Seitenwechsel',
+  'ablauf.leiste.abbrechen': 'Ablauf abbrechen',
+  'ablauf.leiste.spaeter': 'Einklappen',
+  'ablauf.leiste.pausiert': '„{titel}“ wartet — hier geht es weiter, wenn du so weit bist.',
+  'ablauf.leiste.zeigen': 'Aufklappen',
+  'ablauf.leiste.daten': 'Gesammelte Daten ({anzahl})',
   'chat.input.recording': 'Aufnahme läuft… Klicke Stop zum Beenden',
 
   'chat.print.learningPathTitle': 'Lernpfad als PDF drucken',
@@ -221,6 +269,8 @@ export const DE: Catalogue = {
    *  Satzende wie in der gespeicherten Blase des Backends (`error.internal`). */
   'error.genericNumber': 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut. (Fehlernummer: {nummer})',
   /** Paket 18C/D: ohne Freigabe kein Debug-Block — das Debug-Panel sagt, wo er steht. */
+  'debug.laedt': 'Diagnose-Ansicht wird geladen …',
+  'debug.ladeFehler': 'Die Diagnose-Ansicht ließ sich nicht laden. Aus- und wieder einschalten versucht es erneut.',
   'debug.onlyInStudio': 'Die volle Diagnose dieser Antwort (Persona, Signale, Spur, Kosten) steht im Studio unter „Sessions“.',
   'debug.ui.pattern': 'Muster',
   'debug.ui.intent': 'Absicht',
@@ -237,6 +287,9 @@ export const DE: Catalogue = {
    *  anderen Server-Kopie). Die Frage wurde NICHT beantwortet. */
   'error.busy': 'Einen Moment — ich beantworte noch deine vorige Nachricht. '
     + 'Schick diese bitte gleich noch einmal.',
+  // Paket AS-8b: Probe der Studio-Vorschau ohne gültige Studio-Anmeldung (403)
+  'error.probeOhneRecht': 'Die Probe braucht eine gültige Studio-Anmeldung. Bitte im Studio '
+    + 'neu anmelden und die Vorschau neu starten.',
   /** B10: der Stream wird 100 s lang nicht fertig. */
   'error.stale': 'Das dauert gerade ungewöhnlich lange — bitte stell deine Frage '
     + 'gleich noch einmal. Falls meine Antwort doch noch fertig '

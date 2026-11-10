@@ -29,6 +29,9 @@ from typing import Protocol
 KONTEXT_PING_FORTSETZUNG = "context_open"
 KONTEXT_PING_ERSTLADEN = "context_open_initial"
 TOUR_TICK = "tick"
+#: AS-7a (Plan 2026-11-09 §5m, F-4): der Seiten-Ping — nach einem Seitenaufruf, solange ein
+#: Ablauf auf die Ankunft wartet. Beantwortet von ``graph/nodes/ablauf_seite``.
+ABLAUF_SEITE = "ablauf_seite"
 #: Direktaktionen, die das Widget mit ``automatisch: true`` von sich aus schickt.
 AUTOMATISCH_AKTIONEN = frozenset({"ablauf_auftrag_pruefen"})
 
@@ -63,6 +66,14 @@ def ist_hintergrund_anfrage(umgebung: _Umgebung) -> bool:
     Eine Tour-Aktion geht vor: der Tour-Knoten läuft vor der Begrüßung, und jede
     andere Aktion als der Tick (``start`` usw.) ist ein Klick der Person.
     """
+    if ist_seiten_ping(umgebung.page_event):
+        # Zweites Review AS-7a, Befund 3: wie im Graphen (``tour`` lässt ihn durch) — vor der Tour
+        return True
     if _wort(umgebung.tour_action):
         return ist_tour_tick(umgebung.tour_action)
     return ist_kontext_ping(umgebung.page_event)
+
+
+def ist_seiten_ping(page_event: str | None) -> bool:
+    """AS-7a: Ist der Zug der Seiten-Ping eines wartenden Ablaufs?"""
+    return _wort(page_event) == ABLAUF_SEITE

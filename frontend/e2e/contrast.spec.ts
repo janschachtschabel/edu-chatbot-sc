@@ -20,7 +20,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { card, chatResponse, debugInfo } from './fixtures/backend-payloads';
+import { card, chatResponse, debugInfo, guideModeConfig } from './fixtures/backend-payloads';
 import { bericht, textkontraste, verstoesse } from './fixtures/contrast';
 import { mount } from './fixtures/harness';
 
@@ -109,6 +109,34 @@ for (const theme of ['light', 'dark'] as const) {
     const funde = verstoesse(befunde);
     expect(funde, `Kontrast zu schwach (Debug ohne Freigabe, ${theme}):\n${bericht(funde)}`)
       .toEqual([]);
+  });
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`kein Text unter SC 1.4.3 — Ablauf-Leiste und „Meine Vorgänge“, ${theme}`, async ({ page }) => {
+    // Querschnitts-Review AS-U/BU, Q-16: beide Bereiche über der Eingabe blieben ungemessen.
+    await page.addInitScript(() => sessionStorage.setItem('boerdi.mcp-access', 'wloE2eTestBlock'));
+    const w = await mount(page, { attrs: { theme }, config: guideModeConfig({ mcp_auth_base: 'https://mcp.test' }) });
+    await page.route('https://api.test/api/ui/vorgaenge/**', (route) => route.fulfill({ json: { vorgaenge: [{
+      id: '0a1b2c3d-0000-4000-8000-000000000001', titel: 'Optik in Klasse 8', ablauf: 'lesen', status: 'wartet_person',
+      lauf_status: 'wartet_freigabe', session_id: 'bb-87654321-4321-4321-8321-cba987654321', geaendert: '2026-11-07T09:30:00Z',
+    }] } }));
+    w.enqueue(chatResponse({ content: 'Weiter im Ablauf.', ui: { pattern: 'ABLAUF', ablauf: {
+      id: 'lesen', titel: 'Dokument lesen', nr: 2, von: 4, status: 'wartet_freigabe', lauf: 'a1',
+      teile: [{ name: 'a', text: 'Erster Teil' }] } } }));
+    await w.open();
+    await page.locator('.chat-input').fill('weiter');
+    await page.locator('.btn-send').click();
+    await page.locator('boerdi-ablauf-leiste section').waitFor();
+    await page.locator('.btn-vorgaenge').click();
+    await page.locator('.meine-vorgaenge__name').first().waitFor();
+
+    const befunde = await textkontraste(page);
+    expect(befunde.some((b) => b.sel.includes('ablauf-leiste')), 'Leiste nicht gemessen').toBe(true);
+    expect(befunde.some((b) => b.sel.includes('meine-vorgaenge')), 'Liste nicht gemessen').toBe(true);
+    expect(befunde.filter((b) => b.unmessbar), 'Fläche nicht messbar').toEqual([]);
+    const funde = verstoesse(befunde);
+    expect(funde, `Kontrast zu schwach (Leiste und Liste, ${theme}):\n${bericht(funde)}`).toEqual([]);
   });
 }
 

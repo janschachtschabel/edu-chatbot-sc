@@ -147,7 +147,28 @@
     }
   }
   @default {
-    @if (field().widget === 'teil-werte') {
+    @if (field().widget === 'weiter') {
+      <studio-weiter-editor
+        [controlId]="controlId()"
+        [value]="value()"
+        [describedBy]="describedBy()"
+        [beschriftetVon]="controlId() + '-label'"
+        [pfad]="pfad()"
+        (valueChange)="valueChange.emit($event)"
+        (errorChange)="errorChange.emit($event)"
+      />
+    } @else if (field().widget === 'schritt-ziel') {
+      <studio-schritt-ziel
+        [controlId]="controlId()"
+        [value]="value()"
+        [invalid]="invalid()"
+        [pflicht]="field().required"
+        [describedBy]="describedBy()"
+        [beschriftetVon]="controlId() + '-label'"
+        [pfad]="pfad()"
+        (valueChange)="valueChange.emit($event)"
+      />
+    } @else if (field().widget === 'teil-werte') {
       <studio-teil-werte
         [controlId]="controlId()"
         [value]="value()"

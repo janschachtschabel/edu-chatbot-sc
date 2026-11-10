@@ -24,6 +24,8 @@ import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { JsonValueComponent } from './json-value.component';
 import { TeilWerteComponent } from './teil-werte.component';
+import { SchrittZielComponent } from './schritt-ziel.component';
+import { WeiterEditorComponent } from './weiter-editor.component';
 import type { SchemaField } from './schema-to-fields';
 
 /** Grobe Zeichen je Zeile bei 46rem Feldbreite und Schriftgrad 0.8125rem. */
@@ -35,7 +37,7 @@ const MAX_ROWS = 20;
 
 @Component({
   selector: 'studio-field-control',
-  imports: [JsonValueComponent, RouterLink, TeilWerteComponent],
+  imports: [JsonValueComponent, RouterLink, TeilWerteComponent, SchrittZielComponent, WeiterEditorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './field-control.component.html',
   styleUrl: './schema-form.scss',

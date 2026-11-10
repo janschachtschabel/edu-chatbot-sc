@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from boerdi.api.schemas import ChatRequest, ClassificationResult, Environment, SafetyDecision
 from boerdi.graph import state as state_mod
 from boerdi.graph.nodes import merge as merge_mod
@@ -286,3 +288,18 @@ def test_vorabruf_aufgaben_werden_fuer_das_zugende_gemerkt(monkeypatch):
         return await obs_tasks.raeume_zug_aufgaben(), haupt.cancelled(), extra.cancelled()
 
     assert asyncio.run(lauf()) == (2, True, True)
+
+
+# ── Review AS-8a, Befund 4: interne Schlüssel setzt der Klassifikator nie ──────────────────────
+
+@pytest.mark.parametrize("turn_type", ["initial", "topic_switch", "correction", "follow_up"])
+def test_review_as8a_4_interne_schluessel_aus_dem_klassifikator_fallen_weg(monkeypatch, turn_type):
+    _patch(monkeypatch)
+    ctx = _ctx(turn_type=turn_type, cls_entities={"_probe": True, "_vorgang": {"id": "x"},
+                                                  "fach": "Physik"},
+               ss_entities={"_vorgang": {"id": "echt"}})
+    out = _run(ctx)
+    ents = out.session_state["entities"]
+    assert "_probe" not in ents
+    assert ents["_vorgang"] == {"id": "echt"}          # der Merkposten des Servers bleibt
+    assert ents["fach"] == "Physik"

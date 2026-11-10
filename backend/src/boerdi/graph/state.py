@@ -69,6 +69,9 @@ class TurnContext(BaseModel):
 
     # ── Input & Session (preflight/setup — 4-2) ─────────────────────────
     req: ChatRequest
+    #: Paket AS-8a: der Endpunkt hat eine Probe mit Studio-Recht festgestellt
+    #: (``api/probe_anfrage``) — ``begin_turn`` bindet daraus den Zug-Merker (``services/probe``).
+    probe: bool = False
     # Laufzeit-Env-Dict aus dem Setup (Repo-URLs, Flags, Config-Schnappschüsse
     # …) — ALT ``env: dict``; Inhalt befüllt der Setup-Node, nicht dieser Vertrag.
     env: dict[str, Any] = Field(default_factory=dict)

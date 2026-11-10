@@ -70,6 +70,7 @@ export const STUDIO_VIEWS: readonly StudioView[] = [
   view('skills', 'gemeinsam', 'P15'),
   // Paket U1-f: UI-Module mit Vorschau und Schaltern — gelten in beiden Modi.
   view('ui-module', 'gemeinsam', 'U1'),
+  view('ablaeufe', 'gemeinsam', 'AS-0'),
   view('anzeige', 'gemeinsam', '9-4'),
   view('datenschutz', 'gemeinsam', '9-4'),
   // ── Auswertung ──

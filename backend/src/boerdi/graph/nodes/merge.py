@@ -105,6 +105,14 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
         logger.info("stale session_state.thema (Platzhalter) entfernt")
         _ss_ents["thema"] = ""
 
+    # Review AS-8a, Befund 4: ``_``-Schlüssel sind Merkposten des Servers (Probe, Vorgang, Abnahme,
+    # Plan …) — die Ausgabe des Klassifikators ist Modelltext und setzt sie nie.
+    _intern = [k for k in classification.entities if str(k).startswith("_")]
+    for k in _intern:
+        classification.entities.pop(k)
+    if _intern:
+        logger.warning("Klassifikator lieferte %d interne Schlüssel — verworfen", len(_intern))
+
     # ── turn_type entity merge ──────────────────────────────────────
     turn_type = classification.turn_type
     new_entities = classification.entities

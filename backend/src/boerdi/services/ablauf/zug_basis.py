@@ -16,19 +16,19 @@ from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.domain.ui_bloecke import DEBUG_KEY, fuer_den_debug_block
 from boerdi.i18n import bot_text, resolve_locale
-from boerdi.services import arbeitsstand, vorgaenge
+from boerdi.services import arbeitsstand, probe, vorgaenge
 from boerdi.services.ablauf import ki_schritt, treiber
-from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.db_sessions import FESTER_TEXT_KEY, save_message, update_session
 from boerdi.ui_module.antwort import merke_frage
 
 logger = logging.getLogger(__name__)
 
 STATUS: Final = {treiber.WARTET: "wartet_person", treiber.WARTET_KI: "wartet_person",
                  treiber.WARTET_AUFTRAG: vorgaenge.WARTET_AUFTRAG,
-                 treiber.WARTET_FREIGABE: "wartet_person",
+                 treiber.WARTET_FREIGABE: "wartet_person", treiber.WARTET_WAHL: "wartet_person",
+                 treiber.WARTET_SEITE: "wartet_person",
                   "laeuft": "aktiv", "fertig": "aktiv", "fehler": "aktiv", "abgebrochen": "aktiv"}
-_WARTEND: Final = (treiber.WARTET, treiber.WARTET_KI, treiber.WARTET_AUFTRAG,
-                   treiber.WARTET_FREIGABE, "laeuft")
+_WARTEND: Final = (*treiber.WARTEND, "laeuft")
 
 
 async def mcp(name: str, args: dict[str, Any]) -> Any:
@@ -45,7 +45,11 @@ def umgebung(session: Any, req: ChatRequest, entities: dict[str, Any],
     return treiber.Umgebung(teile=arbeitsstand.teil_lader(session, req.session_id, entities),
                             sprache=resolve_locale(req.environment.locale), mcp=mcp,
                             gesperrt=frozenset(gesperrt), auftrag_starten=auftrag_zug.starter(),
-                            vorlegen=freigabe_zug.vorleger(req))
+                            vorlegen=freigabe_zug.vorleger(req),
+                            # AS-7a (F-6): die Seite dieses Zugs — für ``wenn_seite`` und Ankunft
+                            seite=req.environment.page or "/",
+                            # AS-8a (P-6): Probe der Studio-Vorschau — der Lauf merkt es sich
+                            probe=probe.recht())
 
 
 async def festhalten(session: Any, v: Any, aus: treiber.Ausgabe, *,
@@ -95,7 +99,7 @@ def nicht_festgehalten(aus: treiber.Ausgabe) -> None:
     der Aufrufer hat schon zurückgerollt."""
     if aus.auftrag:
         logger.warning("Auftrag gestartet, aber nicht festgehalten (Konflikt) — Flow %s",
-                       aus.auftrag.get("flow"))
+                       aus.auftrag.get("flow"))  # log-ok: Flow-Name aus der Konfiguration
         bei_der_b_api_abbrechen(aus.auftrag.get("job_id"))
 
 
@@ -129,8 +133,12 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
     debug = DebugInfo(persona=session_state.get("persona_id", ""), intent="I03", state="S3",
                       pattern=f"ABLAUF: {ablauf.id}/{aus.lauf.get('schritt')}", tools_called=[],
                       entities={k: v for k, v in entities.items() if not k.startswith("_")})
+    # AS-Ua (U-7, Review Befund 2): fest nur ohne eingesetzten KI-Inhalt und ohne Modul-Blöcke —
+    # ein Block kann einen Entwurf der KI zeigen. Ein Etikett zu viel ist hinnehmbar.
+    fest = not aus.ki_inhalt and not aus.bloecke
     await save_message(session, req.session_id, "assistant", text,
-                       debug={**debug.model_dump(), DEBUG_KEY: fuer_den_debug_block(aus.bloecke)})
+                       debug={**debug.model_dump(), DEBUG_KEY: fuer_den_debug_block(aus.bloecke),
+                              **({FESTER_TEXT_KEY: True} if fest else {})})
     # Paket A2b: hält der Lauf am ``agent``-Schritt, steht „Weiter im Ablauf“ darunter.
     knoepfe = ([ki_schritt.knopf(ablauf.id, resolve_locale(req.environment.locale))]
                if aus.lauf.get("status") == treiber.WARTET_KI else [])
@@ -143,17 +151,27 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
 
         knoepfe = freigabe_zug.knoepfe(ablauf.id, resolve_locale(req.environment.locale),
                                        vorgelegt=aus.freigabe is not None)
+    if aus.lauf.get("status") == treiber.WARTET_WAHL:
+        # AS-3a: die Schnellantworten des Schritts als Chips
+        from boerdi.services.ablauf import wahl_zug
+
+        knoepfe = wahl_zug.knoepfe(ablauf.id, aus.wahl)
     if aus.lauf.get("status") in ("fertig", "fehler", "abgebrochen"):
         # Querschnitts-Review 2026-11-06 (Review Q3, Befund 4): der Einstieg zu „neues Vorhaben“
         # und „Arbeitsstand löschen“ — ``__action__``-Knöpfe schreibt das Modell nicht.
         from boerdi.services import vorgang_aktion
 
         knoepfe = vorgang_aktion.knoepfe(resolve_locale(req.environment.locale))
+    if aus.navigation:
+        # AS-7a (F-2): die Wege der ``seite``-Schritte — vorn, auch wenn es danach weiterging
+        from boerdi.services.ablauf import seite_zug
+
+        knoepfe = [*dict.fromkeys(seite_zug.knopf(n) for n in aus.navigation), *knoepfe]
     # Ohne Block kein ``ui`` (``None`` nähme ``ChatResponse`` nicht an — ein Lauf aus Nachricht und
     # Ende scheiterte daran seit A1).
-    ui = {"ui": UiInfo(ui_bloecke=list(aus.bloecke))} if aus.bloecke else {}
     return ChatResponse(session_id=req.session_id, content=text, debug=debug,
-                        quick_replies=knoepfe, **ui)
+                        quick_replies=knoepfe,
+                        ui=UiInfo(ui_bloecke=list(aus.bloecke), fester_text=fest))
 
 
 async def nur_text(session: Any, req: ChatRequest, schluessel: str,
@@ -164,8 +182,9 @@ async def nur_text(session: Any, req: ChatRequest, schluessel: str,
     if entities is not None:
         await update_session(session, req.session_id, entities=entities)
     text = bot_text(resolve_locale(req.environment.locale), schluessel)
-    await save_message(session, req.session_id, "assistant", text)
-    return ChatResponse(session_id=req.session_id, content=text, quick_replies=[])
+    await save_message(session, req.session_id, "assistant", text, debug={FESTER_TEXT_KEY: True})
+    return ChatResponse(session_id=req.session_id, content=text, quick_replies=[],
+                        ui=UiInfo(fester_text=True))
 
 
 def verweis_auffrischen(entities: dict[str, Any], v: Any, aufrufer: str) -> None:

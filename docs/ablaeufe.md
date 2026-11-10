@@ -1,0 +1,194 @@
+# Abläufe bauen — Handbuch für die Redaktion
+
+Ein **Ablauf** führt die Person Schritt für Schritt durch eine Aufgabe, etwa vom Ordner zum
+Themenbaum oder durch die Webseite. Er wird im Studio unter **Abläufe** gebaut, geprüft und
+getestet. Jeder Ablauf ist ein eigenes Dokument (`06-ablaeufe/<kennung>`).
+
+Dieses Handbuch gehört zum Plan `plans/2026-11-09-ablaeufe-im-studio.md`. Es erklärt die Bausteine,
+drei Beispiele aus dem Werkszustand (alle ausgeschaltet, bis die Redaktion sie einschaltet) sowie
+Testen und Ausprobieren.
+
+## Bausteine
+
+**Schritte** laufen in der Reihenfolge der Liste. Ein Schritt springt woandershin, wenn er es sagt
+(`weiter`, `bei_fehler`, das Ziel einer Schnellantwort).
+
+| Typ | Was er tut |
+|---|---|
+| `nachricht` | Ein Text, auf Wunsch mit Schnellantworten (`optionen`) oder Freitext (`freitext`). |
+| `modul` | Ein UI-Modul im Chat, etwa `ui_upload` oder `ui_strukturentwurf`; der Lauf wartet auf die Antwort darin. Auch hier gehen `optionen` und `freitext`. |
+| `werkzeug` | Ein Dienst ohne Sprachmodell oder ein lesendes WLO-Werkzeug; das Ergebnis wird ein Teil (`schreibt`). Ein schreibendes WLO-Werkzeug nur mit `freigabe`: Der Schritt legt die Änderung vor, und die Person gibt sie frei. |
+| `verzweigung` | Regeln unter `weiter`: `wenn_teil` (ein Teil ist da), `wenn_gewaehlt` (eine Wahl), `wenn_wert` (eine Stelle eines Teils vergleichen: gleich, enthält, vorhanden, leer, größer, kleiner) und `wenn_seite` (Führungen). Die erste passende gilt, `sonst` am Ende. |
+| `agent` | Ein Abschnitt, in dem die KI mit genau den genannten Werkzeugen arbeitet (`agent.werkzeuge`, höchstens `agent.zuege` Züge). |
+| `auftrag` | Ein Auftrag bei der b-api (Kestra), etwa für lange Umwandlungen. |
+| `seite` | Führt auf eine Seite der Webseite (Kapitel Führungen). |
+| `ende` | Schlusssatz; der Lauf ist fertig. |
+
+**Teile** sind die Daten eines Laufs. Ein Schritt liest sie mit `{$teil: <name>}` und schreibt sie
+mit `schreibt: <name>`. In Texten setzt `{teil.<name>.<pfad>}` einen Wert ein, `{start.<feld>}` ein
+Feld der Startdaten. Die Sicht **Daten** im Studio zeigt, welcher Schritt welchen Teil schreibt
+und liest.
+
+**Auslöser** sagen, wie ein Ablauf startet: `knopf` (Direktaktion), `text` (eine Wendung in der
+Nachricht), `agent` (die KI schlägt ihn vor), `modul` (die Antwort eines Moduls), `extern` (die
+Gastseite, mit Startdaten) und `seite` (Angebot unter der Begrüßung).
+
+## Beispiel: Sammlung aus Ordnern
+
+`06-ablaeufe/sammlungsstruktur` („Themenbaum aus Ordnern“) ist der kürzeste vollständige Ablauf:
+
+1. `erfassen` (`modul ui_upload`, Zweck `sammlungsstruktur`): Die Person wählt einen Ordner. Die
+   Ordnerstruktur wird der Teil `structure`.
+2. `entwurf` (`werkzeug strukturentwurf_aus_ordnern`): Ein Dienst ohne Sprachmodell macht daraus
+   einen Themenbaum-Entwurf, Teil `draft`. Ohne Unterordner geht es zu `ohne_ordner`.
+3. `bearbeiten` (`modul ui_strukturentwurf` mit `daten: {$teil: draft}`): Die Person sieht und
+   bearbeitet den Entwurf.
+4. `ende`.
+
+Er zeigt das Grundmuster: Modul erfasst → Dienst rechnet → Modul zeigt, mit einem eigenen Ende für
+den Fehlerweg.
+
+## Beispiel: Sammlung prüfen
+
+`06-ablaeufe/sammlung_pruefen` gleicht einen Entwurf aus den Ordnern der Person mit WLO ab. Er
+schreibt nichts in WLO.
+
+1. `erfassen` und `entwurf` wie oben.
+2. `luecken` (`werkzeug abdeckung_zaehlen`): zählt je Punkt des Entwurfs die WLO-Inhalte, Teil
+   `abdeckung` (`gezaehlt`, `luecken`).
+3. `gezaehlt` (`verzweigung` mit `wenn_wert`): Ist `teil.abdeckung.gezaehlt` größer 0, geht es zu
+   `zeigen`, sonst zu `ohne_zahlen`. **Wichtig:** Der Dienst liefert auch bei einem Ausfall (WLO
+   nicht erreichbar) ein Ergebnis, dann mit `gezaehlt: 0`. `bei_fehler` greift nur, wenn das
+   Werkzeug gar nichts liefert (etwa gesperrt). Darum prüft der Ablauf den Wert.
+4. `zeigen` (`modul ui_strukturentwurf`): Der Text nennt die Lücken mit Platzhaltern —
+   „Bei {teil.abdeckung.luecken} von {teil.abdeckung.gezaehlt} Punkten …“.
+5. `weiter_zum_abgleich` (`verzweigung` nur mit `sonst`): springt über `ohne_zahlen` hinweg. So
+   bleibt der Fehlerweg in der Liste, ohne dass der normale Weg hineinläuft.
+6. `abgleich` (`agent` mit `werkzeuge: [search_wlo_all, ui_strukturabgleich]`): Die KI fragt
+   nach der Sammlung. Nennt die Person einen Namen, sucht sie die Sammlung und nimmt ihre Kennung;
+   dann zeigt sie den Abgleich im Modul. Den Abgleich kann kein Werkzeug-Schritt liefern; er
+   braucht die Sammlung, die erst im Gespräch feststeht. Ein KI-Schritt bekommt nur lesende
+   WLO-Werkzeuge und UI-Module mit Agent-Freigabe.
+7. `ende`.
+
+Fünf Testfälle decken ab:
+- den Weg mit Zahlen;
+- den Weg ohne Unterordner;
+- eine Zählung ohne Ergebnis (`gezaehlt: 0`, so sieht ein Ausfall aus);
+- ein gesperrtes Werkzeug (`null`);
+- den ganzen Weg bis zum Ende.
+
+Der Entwurf entsteht in den Tests echt aus der Ordnerstruktur; nur die Zählung ist
+nachgestellt. **Regel für eigene Testfälle:** Stelle ein Werkzeug so nach, wie es im Betrieb
+antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
+
+## Führungen: durch die Webseite leiten
+
+Eine Führung zeigt der Person den Weg zu einer Seite und kann warten, bis sie dort ist. Drei
+Bausteine gibt es dafür.
+
+### Schritt „Seite“ (`typ: seite`)
+
+| Feld | Bedeutung |
+|---|---|
+| `text` | Was der Chat dazu sagt (Pflicht, Deutsch). |
+| `url` | Wohin der Chip führt: ein Pfad mit `/` (etwa `/mitmachen/`) oder eine `https://`-Adresse. |
+| `label` | Aufschrift des Chips je Sprache, etwa „Zur Mitmach-Seite“ (Pflicht, Deutsch). |
+| `ankunft` | Pfadmuster. Gesetzt: Der Ablauf wartet, bis die Person auf einer passenden Seite ist. Leer: Der Chip steht da, und es geht sofort weiter. |
+
+- Der Chip öffnet die Seite im selben Fenster. Das Gespräch geht dort weiter, wenn das Widget auf
+  der Zielseite eingebunden ist und die Sitzung behält (`persist-session`, oder die Übergabe zu
+  einer vertrauten Domain). **Ohne `persist-session` beginnt auf der neuen Seite ein neues
+  Gespräch**; eine Führung mit `ankunft` kommt dort nie an. Für solche Einbindungen nur
+  Seitenschritte ohne `ankunft` nehmen.
+- Kommt die Person an, meldet das Widget es von selbst, und der nächste Schritt erscheint.
+- Solange der Ablauf wartet, zeigt die Ablauf-Leiste den Weg als Knopf, auch nach einem Neuladen
+  oder einem anderen Link.
+- Steht die Person schon auf der Seite, zeigt der Schritt keinen Chip und geht gleich weiter.
+- Schreibe den Text als Ankündigung („Als Nächstes …“): Er erscheint vor dem Wechsel.
+- Tippt sie zwischendurch etwas, antwortet die KI. Der Ablauf wartet weiter, und der Chip steht
+  wieder unter der Antwort.
+- Die Prüfung meldet, wenn das eigene Ziel (`url`) zu keinem Muster der `ankunft` passt. Der
+  Ablauf wartete sonst für immer.
+
+### Bedingung „Seite passt“ (`wenn_seite`)
+
+In einer **Verzweigung** prüft eine Regel, auf welcher Seite die Person gerade ist. Im
+Regel-Editor ist es die Bedingung „Seite passt“; mehrere Muster werden mit Komma getrennt.
+
+### Auslöser „Seite“ (`art: seite`)
+
+Passt die Seite beim Öffnen des Chats, bietet das Widget den Ablauf als Chip unter der Begrüßung
+an, höchstens zwei solche Angebote. Von selbst startet nichts. Hat die Einbindung eigene
+Start-Chips (`start-replies`), gelten diese. Auf Seiten mit eigenem Kontext-Gruß (Sammlung,
+Inhalt, Themenseite) entfällt die Begrüßung und damit das Angebot. Abläufe mit der Voraussetzung
+„Anmeldung“ werden nicht angeboten.
+
+### Pfadmuster
+
+- Ein Muster beginnt mit `/`. `*` steht für beliebig viele Zeichen, auch für `/`; sonst zählt jedes
+  Zeichen wörtlich. Groß- und Kleinschreibung, Anfrage (`?…`), Anker (`#…`) und ein `/` am Ende
+  zählen nicht.
+- `/mitmachen/*` passt auf `/mitmachen/` und auf jede Seite darunter, aber nicht auf
+  `/mitmachen-xyz`. `/mitmachen*` passt auf alle drei.
+- Höchstens 10 Muster je Liste, je 200 Zeichen. Reguläre Ausdrücke gibt es nicht.
+
+### Testen
+
+Ein Testfall nennt die Seite beim Start (`seite`) und an einem wartenden Seitenschritt die Seite,
+auf der die Person ankommt (Eingabe `seite`). „Tests ausführen“ spielt den Ablauf ohne Browser durch
+(siehe auch das Kapitel „Testen“ unten).
+
+### Beispiel
+
+Im Werkszustand liegt `06-ablaeufe/fuehrung` („Kurze Führung durch WLO“), ausgeschaltet. Er prüft
+zuerst mit `wenn_seite`, ob die Person schon auf der Mitmach-Seite ist. Dann führt er über
+Startseite und Bildungsinhalte dorthin, mit drei Testfällen. Die bestehende Webseiten-Tour bleibt
+davon unberührt.
+
+## Testen
+
+- **Prüfen** meldet, was der Treiber nicht sicher ausführen könnte (fehlende Ziele, Teile, die nie
+  entstehen, schreibende Werkzeuge ohne Freigabe …). Gespeichert wird nur ein Ablauf ohne Befund.
+- **Tests ausführen** spielt jeden Testfall mit dem echten Treiber durch, ohne Sprachmodell, WLO
+  oder b-api. Das kostet nichts und kommt jedes Mal gleich heraus.
+
+Ein Testfall (`tests`) nennt:
+
+| Feld | Bedeutung |
+|---|---|
+| `ab` | Bei welchem Schritt er beginnt (sonst beim ersten). |
+| `teile` | Teile vor dem Start, etwa die Ordnerstruktur eines Uploads. |
+| `start` | Startdaten wie von der Gastseite. |
+| `quelle` | Woher die Startdaten kommen: `gastseite` (Vorgabe) oder `ki`. |
+| `angemeldet` | `true` (Vorgabe) oder `false`. Ohne Anmeldung startet ein Ablauf mit der Voraussetzung „Anmeldung“ nicht, Aufträge und Freigaben gehen zu `bei_fehler`. |
+| `gewaehlt` | Die Wahl eines Modul-Auslösers, mit `ab` zusammen. |
+| `seite` | Die Seite beim Start (Führungen, `wenn_seite`). |
+| `werkzeuge` | Ergebnis je Werkzeug-Schritt (Schritt-Kennung → Wert, `null` = liefert nichts). Dienste ohne Netz rechnet die Simulation selbst. |
+| `eingaben` | Antworten an wartenden Schritten, je mit `bei` (der wartende Schritt): `antwort` für ein Modul, `option`/`text` für eine Wahl, `ergebnis`/`fehler` für Auftrag und Freigabe, `freigabe: ja`/`nein`, `teile` für einen KI-Schritt, `seite` für eine Führung. |
+| `erwartet` | `weg` (die Schritte), `status`, `ende`, `teile`. |
+
+Die Antwort an ein Modul muss so aussehen wie im Betrieb; bei `ui_strukturentwurf` also mit
+`titel`, `quelle`, `knoten`, `uebernommen`, `bearbeitet`. Sonst meldet der Test „passt nicht zur
+Frage“.
+
+## Im Widget ausprobieren
+
+Am Ablauf steht **„Im Widget ausprobieren“**. Der Knopf öffnet die Vorschau mit diesem Ablauf; dort
+lassen sich Startdaten (JSON) mitgeben, und **„Ablauf starten“** startet ihn im echten Widget.
+
+- Es gilt die **gespeicherte** Fassung. Erst speichern, dann ausprobieren.
+- Auch ein ausgeschalteter Ablauf startet hier, und Startdaten gehen auch ohne Auslöser „Gastseite“,
+  solange sein Startschema passt.
+- Es ist ein **Trockenlauf**:
+  - Schreibende WLO-Werkzeuge laufen nicht. Die Vorschau einer Änderung ist echt, nach der Freigabe
+    steht „Trockenlauf: … geschrieben wurde nichts“. Was ein Schreibschritt anlegen würde, gibt es
+    in der Probe nicht: Sein Teil enthält nur `{trockenlauf, werkzeug}`. Folgeschritte, die auf
+    Kennungen des Angelegten bauen, prüft ein Testfall mit `eingaben.ergebnis`.
+  - Aufträge starten nicht; sie sind sofort fertig, ohne Ergebnis. Wer Ergebnisse durchspielen
+    will, nimmt einen Testfall. Wie im Betrieb braucht ein Auftrag die WLO-Anmeldung.
+  - Dateien werden nicht in WLO abgelegt.
+  - „Meine Vorgänge“ gibt es in der Probe nicht; sie berührt keine echten Vorgänge.
+- Anmeldung und Freigaben bleiben wie im Betrieb: Die Probe zeigt, was die Person sieht.
+- Das Widget trägt dabei das Etikett „Probe · Trockenlauf“. Ohne gültige Studio-Anmeldung läuft
+  keine Probe, das Widget meldet dann einen Fehler.

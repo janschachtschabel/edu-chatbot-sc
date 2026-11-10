@@ -144,3 +144,35 @@ def test_offene_job_ids_der_besitzerinnen(db_url):
             return await ablage.offene_job_ids(s, ["person-a", "sitzung:sitzung-k1-0001"])
 
     assert _lauf(db_url, ablauf) == ["job-offen"]
+
+
+def test_vorgang_zum_job_nur_eigene_und_der_juengste(db_url):
+    """AS-4c (Review, Befund 7): die Sicherheitsgrenze der Wiederkehr gegen das echte Postgres —
+    fremd und abgelaufen geben nichts, ein beendeter Auftrag wird gefunden, der jüngste gewinnt."""
+    from datetime import UTC, datetime, timedelta
+
+    from boerdi.services import vorgaenge
+    from boerdi.services.auftraege import ablage
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            eigen = await _vorgang(s)
+            neuer = await vorgaenge.anlegen(s, aufrufer="person-a", session_id="sitzung-k1-0001",
+                                            titel="Neu", zweck="probe", tage=3)
+            fremd = await vorgaenge.anlegen(s, aufrufer="person-b", session_id="sitzung-k1-0001",
+                                            titel="Fremd", zweck="probe", tage=3)
+            a = await ablage.anlegen(s, eigen.id, job_id="job-x", flow="f", schritt="a")
+            await ablage.abschliessen(s, a, "fertig")
+            await ablage.anlegen(s, neuer.id, job_id="job-x", flow="f", schritt="a")
+            await ablage.anlegen(s, fremd.id, job_id="job-fremd", flow="f", schritt="a")
+            await s.commit()
+            juengster = await ablage.vorgang_zum_job(s, "job-x", "person-a")
+            beendet = await ablage.vorgang_zum_job(s, "job-x", "person-a")
+            fremder = await ablage.vorgang_zum_job(s, "job-fremd", "person-a")
+            await s.execute(text("UPDATE vorgaenge SET verfaellt_am = :t WHERE id = :v"),
+                            {"t": datetime.now(UTC) - timedelta(days=1), "v": neuer.id})
+            await s.commit()
+            nach_ablauf = await ablage.vorgang_zum_job(s, "job-x", "person-a")
+            return juengster == neuer.id, beendet is not None, fremder, nach_ablauf == eigen.id
+
+    assert _lauf(db_url, ablauf) == (True, True, None, True)

@@ -31,6 +31,9 @@ export interface WelcomeContext {
   ) => string;
   updateMessages: (updater: (msgs: ChatMessage[]) => ChatMessage[]) => void;
   hasUserMessages: () => boolean;
+  /** AS-7b (F-7): Start-Chips passender Führungen — vor den Studio- bzw. Vorgabe-Chips (Review
+   *  AS-7b, Befund 3: in der Hülle vorangestellt, verdrängten sie die Vorgaben). */
+  fuehrungsChips?: () => string[];
 }
 
 export class WelcomeMessage {
@@ -51,7 +54,8 @@ export class WelcomeMessage {
     const replies = (this.ctx.startReplies() && this.ctx.startReplies().length)
       ? this.ctx.startReplies()
       : DEFAULT_REPLY_KEYS.map(k => this.ctx.t(k));
-    this._id = this.ctx.addBotMessage(text, false, undefined, replies);
+    this._id = this.ctx.addBotMessage(text, false, undefined,
+      [...(this.ctx.fuehrungsChips?.() ?? []), ...replies]);
   }
 
   /** Nach einem Sprachwechsel: die Startnachricht in der neuen Sprache zeigen,

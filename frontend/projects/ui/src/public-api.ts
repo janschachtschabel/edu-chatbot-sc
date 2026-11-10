@@ -131,7 +131,9 @@ export type {
   UiInfo,
   WebLink,
 } from './grouping/message-types';
-export { DebugPanelComponent } from './debug/debug-panel.component';
+// Paket BU-3: das Debug-Panel ist ein nachgeladenes Element (`nachgeladen/ui-debug-panel/`) mit der
+// Hülle `debug/debug-panel-huelle.component.ts` in der Shell.
+export { DebugPanelHuelleComponent } from './debug/debug-panel-huelle.component';
 export { ResultGroupsComponent } from './grouping/result-groups.component';
 export type { ResultGroupsContext } from './grouping/result-grouping';
 export { SwimlanesComponent } from './grouping/swimlanes.component';
@@ -169,6 +171,7 @@ export {
 } from './controllers/collection-actions';
 export type { CollectionActionsContext } from './controllers/collection-actions';
 export { SpeechService } from './speech/speech.service';
+export { ohneMarkdownEscapes } from './speech/tts-text';
 export type { SpeechContext } from './speech/speech.service';
 
 export {
@@ -185,7 +188,10 @@ export {
 export type { GuideSuggestionPayload, HostEventsContext, RoutingDebugPayload } from './host-events/host-events';
 
 // ── Widget-Hülle (8-5): Chat-Shell + die Bausteine, die die Hülle verdrahtet ──
-export { ChatShellComponent } from './shell/chat-shell.component';
+export {
+  ChatShellComponent, type WiederkehrAusgang, ablaufStartPruefen, START_JSON_MAX, START_SCHLUESSEL_MAX,
+} from './shell/chat-shell.component';
+export { wiederkehrKennung } from './stream/offene-vorgaenge';
 export { computeInitialExpanded, resolveMergedPageContext } from './widget/widget-init';
 export {
   headerNavHrefWithBsid,
@@ -194,6 +200,8 @@ export {
   pickLocalized,
 } from './widget/guide-mode-config';
 export type { HeaderNavButton, ParsedGuideModeConfig } from './widget/guide-mode-config';
+export { fuehrungsChips } from './widget/fuehrung-angebote';
+export type { AblaufSeite } from './widget/fuehrung-angebote';
 export { PanelState } from './widget/panel-state';
 export type { PanelStateContext } from './widget/panel-state';
 export { GuideBoot } from './widget/guide-boot';

@@ -59,7 +59,7 @@ from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.quality_events import log_safety_event
 from boerdi.services import abnahme_hinweis, arbeitsstand, plan_fortsetzen, vorgang_aktion
-from boerdi.services.ablauf import auftrag_zug, freigabe_zug
+from boerdi.services.ablauf import abbruch_zug, auftrag_zug, freigabe_zug, wahl_zug
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.content_text_action import _handle_show_content_text
 from boerdi.services.db_sessions import save_message, update_session
@@ -96,6 +96,8 @@ _DIRECT_ACTIONS = {
     ablauf_zug.AKTION_WEITER,
     # Paket K1a: „Stand prüfen“ am auftrag-Schritt (b-api-Auftrag).
     auftrag_zug.AKTION,
+    # Paket AS-3a: eine Schnellantwort am wartenden Schritt eines Laufs.
+    wahl_zug.AKTION,
     # Paket K2b: „Auftrag abbrechen“ (mit Rückfrage).
     auftrag_zug.AKTION_ABBRECHEN,
     # Querschnitts-Review 2026-11-06 (M6, Datenschutz): neues Vorhaben, Arbeitsstand löschen.
@@ -106,6 +108,8 @@ _DIRECT_ACTIONS = {
     # Paket S: am Freigabe-Schritt „Vorschau erneut zeigen“ und „Ablauf abbrechen“.
     freigabe_zug.AKTION_ERNEUT,
     freigabe_zug.AKTION_ABBRECHEN,
+    # Paket AS-Ua: „Abbrechen“ in der Ablauf-Leiste (mit Rückfrage).
+    abbruch_zug.AKTION,
 }
 
 
@@ -216,8 +220,9 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     # Review A2a, Befund 2: eine getippte Nachricht, die nur zufällig eine Wendung trägt, geht bei
     # hohem Risiko (Krise) oder ohne Prüfung den gewöhnlichen Weg — samt Krisenantwort M01 — statt
     # die Abweisung einer Direktaktion zu bekommen.
-    # Ebenso eine getippte Nachricht im gesperrten Lauf (K2b): eine Krise bekommt ihre Antwort.
-    if ((a.per_text is not None or a.gesperrt) and not req.action
+    # Ebenso eine getippte Nachricht im gesperrten Lauf (K2b) und ein Freitext an einem wartenden
+    # Schritt (Review AS-3a, Befund 1): eine Krise bekommt ihre Antwort.
+    if ((a.per_text is not None or a.gesperrt or a.freitext) and not req.action
             and (decision.risk_level == "high" or ohne_pruefung)):
         if a.gesperrt and decision.risk_level == "high":
             # Zweites Review K2b, Befund 2: danach ruht die Sperre dieses Wartens — sonst bekäme

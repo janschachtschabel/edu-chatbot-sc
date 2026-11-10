@@ -6,6 +6,8 @@ import { ChatMessage, DebugInfo, TopicPageView, UiInfo } from '../grouping/messa
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import { ChatShellComponent } from './chat-shell.component';
+// Paket BU-3: im Widget lädt das Debug-Panel sein Bündel; hier vorab definiert.
+import '../nachgeladen/ui-debug-panel/ui-debug-panel.element';
 
 /** Deutscher Übersetzer ohne Signal-Maschinerie (C1-b2). Die Bestandstests
  *  unten prüfen den deutschen Wortlaut weiter wörtlich und sind damit das
@@ -262,15 +264,19 @@ describe('ChatShellComponent — Message-Row-Template (8-4S-f3)', () => {
     expect(more).not.toHaveBeenCalled();
   });
 
-  it('Debug-Panel: aus by default, sichtbar nach toggleDebug()', () => {
+  it('Debug-Panel: aus by default, sichtbar nach toggleDebug()', async () => {
+    // Paket BU-3: das Panel lädt als eigenes Bündel — hier ist das Element vorab definiert
+    // (Import oben), der Lader der Shell ist sofort fertig.
     const { c, f, el } = make();
+    Object.defineProperty(c, 'modulNachladen', { value: () => Promise.resolve() });
     f.detectChanges();
-    expect(el.querySelector('.debug-panel')).toBeNull();
+    const panel = () => el.querySelector('boerdi-ui-debug-panel')?.shadowRoot?.querySelector('.debug-panel') ?? null;
+    expect(panel()).toBeNull();
 
     c.latestDebug.set({ ...DEBUG_FIXTURE });
     c.toggleDebug();
     f.detectChanges();
-    expect(el.querySelector('.debug-panel')).not.toBeNull();
+    await vi.waitFor(() => { f.detectChanges(); expect(panel()).not.toBeNull(); });
   });
 });
 

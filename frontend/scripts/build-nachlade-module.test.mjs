@@ -71,3 +71,25 @@ test('ein Bündel, das ein Angular-Paket einbindet, wird abgewiesen (Module blei
   writeFileSync(join(quelle, 'ui-probe', 'ui-probe.element.ts'), "import { Component } from '@angular/core';\nexport const x = Component;");
   await assert.rejects(baue({ quelle, ausgabe, index }), /@angular/);
 });
+
+test('BU-3: Widget-Teile ohne Manifest (zweite Quelle) werden gebaut und stehen im selben Index', async () => {
+  const { quelle, ausgabe, index } = aufbau();
+  const teile = join(quelle, '..', 'teile');
+  mkdirSync(join(teile, 'ui-diagnose'), { recursive: true });
+  writeFileSync(join(teile, 'ui-diagnose', 'ui-diagnose.element.ts'),
+    "class D extends HTMLElement {}\nif (!customElements.get('boerdi-ui-diagnose')) customElements.define('boerdi-ui-diagnose', D);");
+  mkdirSync(join(teile, 'ui-ohne-element'));                  // ohne Element-Datei: kein Teil
+  mkdirSync(join(teile, '_hilfe'));                           // ohne ui-Präfix: kein Teil
+  const ergebnis = await baue({ quelle, teile, ausgabe, index });
+  assert.deepEqual(Object.keys(ergebnis).sort(), ['ui_diagnose', 'ui_probe']);
+  assert.match(ergebnis.ui_diagnose.datei, /^ui-diagnose\.[0-9a-f]{8}\.js$/);
+  assert.ok(readFileSync(index, 'utf8').includes(`ui_diagnose: { datei: '${ergebnis.ui_diagnose.datei}'`));
+});
+
+test('BU-3: derselbe Name als Modul und als Teil wird abgewiesen', async () => {
+  const { quelle, ausgabe, index } = aufbau();
+  const teile = join(quelle, '..', 'teile');
+  mkdirSync(join(teile, 'ui-probe'), { recursive: true });
+  writeFileSync(join(teile, 'ui-probe', 'ui-probe.element.ts'), 'export {};');
+  await assert.rejects(baue({ quelle, teile, ausgabe, index }), /ui-probe/);
+});

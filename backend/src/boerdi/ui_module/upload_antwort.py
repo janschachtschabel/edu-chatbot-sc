@@ -180,6 +180,11 @@ def zeilen(geprueft: dict[str, Any]) -> tuple[str, list[str]]:
              f"{int(z.get('ignoriert') or 0)} ignoriert."),
             f"Strukturdokument: {zeile(sd.get('name'), 120)}" if isinstance(sd, dict)
             else "Kein Strukturdokument markiert."]
+    if isinstance(sd, dict) and daten.get("aktion") == "erfasst":
+        # spät: das Rahmen-Modul bleibt beim Laden frei von Config- und MCP-Importen
+        from boerdi.ui_module.dienst_upload import nicht_gelesen_satz
+
+        kopf.append(nicht_gelesen_satz())
     if warnungen := daten.get("warnungen"):
         kopf.append(f"Hinweise beim Erfassen: {', '.join(zeile(w, 30) for w in warnungen)}")
     baum = uebersicht(daten.get("struktur") or {})

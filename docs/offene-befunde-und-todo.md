@@ -41,6 +41,61 @@ Die zugehörigen Pläne:
 
 ## 1 Befunde mit Wirkung im Betrieb
 
+- **Formeln im Widget falsch dargestellt (Nutzer 2026-11-10) — für den nächsten Plan.** Im Widget
+  werden Formeln für die Person nicht korrekt angezeigt (etwa LaTeX-Ausdrücke in Erklärungen von
+  Mathe/Physik). Noch nicht untersucht: welche Schreibweise das Modell liefert (`$…$`, `\(…\)`,
+  Unicode), was der Markdown-Weg im Widget daraus macht (Bubble, `ui_inhaltsrahmen`, Druckfenster)
+  und ob eine Darstellung ohne fremde Netzquelle möglich ist (Guardrail: keine CDN-Schriften/
+  -Skripte aus dem Netz). **Aufnehmen in den nächsten Plan** als eigenes Paket: Befund nachstellen
+  (Beispiele aus echten Antworten), Lösungswege abwägen (Formel-Renderer im Bündel und Budget,
+  Unicode/Text-Fallback, Prompt-Vorgabe an das Modell), Entscheid, Umsetzung mit Specs.
+- ~~**Widget-Bündel am Budget (2026-11-10):** Haupt-Bündel 199,93 kB gzip bei harter Grenze 200 kB.~~
+  **Erledigt mit Paket BU (10.11., Plan `2026-11-09-ablaeufe-im-studio.md` §5i):** BU-1 (Debug-Panel
+  ohne Pipes, Logo gerundet), BU-2 (`ui_strukturentwurf` nachgeladen) und BU-3 (Debug-Panel
+  nachgeladen) brachten das Widget mit AS-Ud auf 186,9 kB gzip, also unter die Warnschwelle von 190.
+  Notizen `aenderungen/2026-11-10-paket-bu-*.md`. **Stand 10.11. nach AS-7, AS-8 und den Review-Fixes zu
+  PR #51: 189,3 kB gzip / 653,0 kB roh** (`node scripts/check-widget-budget.mjs`; Grenzen 200 / 690 kB).
+  Angular warnt beim Roh-Budget 650 kB um 3 kB (nur Warnung). Bis zur Warnschwelle 190 kB bleiben 0,7 kB.
+  **Weiter gilt:** Neue, selten gebrauchte Widget-Oberfläche wird nachgeladen, sobald sie mehr als
+  2 kB gzip kostet oder das Bündel über 190 kB triebe (Plan §5j, Ud-5). Nächster Kandidat mit
+  Messung: `ui_themenbaum` (18 kB roh).
+
+- ~~**Wahl mit ≥ 4 Chips schneidet den Ablauf-Knopf ab (offen seit AS-5b, verschoben aus §4):**~~
+  **Erledigt 10.11.** (`wahl_zug.platz_fuer_vorschlag`, Notiz `aenderungen/2026-11-10-befunde-nach-pr51.md`): Wartete
+  ein Lauf an einer Wahl mit vier oder mehr Chips, schnitt `anhaengen(alle=True)` den Knopf eines
+  Ablauf-Werkzeugs ab. Jetzt bietet der Zug in diesem Fall kein Ablauf-Werkzeug an (wie bei
+  Gastgeber-Chips).
+
+- **Lehrplan-PDF → Themenbaum: Probe vom 10.11.** (Notiz `aenderungen/2026-11-10-probe-lehrplan-upload.md`).
+  Der Weg funktioniert: das Hochladen, markitdown und `ui_strukturentwurf` mit `aus_dokument` laufen durch
+  (Ausbildungsrahmenplan, 23 Abschnitte, 37 Punkte). Die Schleife ohne Anmeldung ist behoben. **Seit dem
+  Nutzer-Entscheid vom 10.11. geht das auch anonym** (`dokument_ohne_anmeldung` Vorgabe an). Offen bleibt:
+  - **Die KI zeigt das Auswahlfeld nicht immer.** In einem von drei Läufen beschrieb sie es nur
+    („Wähle die PDF … aus“). Die Regel „Lehrplan → `ui_upload`“ steht im Master-Skill
+    `docs/skills/vorgehen-knapp.md` (U3-5). Im WLO-Knoten fehlt sie noch; der Nutzer aktualisiert den
+    Master-Skill. Danach Golden GV-UI-13/14 (startet der Nutzer).
+  - **Versprechen vor dem Auswahlfeld (nur noch bei „Aus“ im Studio):** Den `hinweis` schreibt die KI, bevor
+    sie die Schalter kennt. Ist Lesen nur für Angemeldete eingestellt, verspricht er zu viel; das Modul sagt
+    es danach richtig. Kandidat: Das Modul nennt die Anmeldung gleich unter dem Hinweis.
+  - **Lesen, dann anmelden:** Ein anonym gelesenes Dokument gehört `aufrufer=None`
+    (`services/dokumente/stand.py`, `ablage.py`). Meldet sich die Person zwischen Lesen und Entwurf an,
+    findet der Entwurf es nicht mehr (`kein_dokument`), und sie muss es noch einmal lesen lassen. Kandidat:
+    beim Laden auch das Dokument derselben Sitzung ohne Besitzerin annehmen und es dann der Person
+    zuschreiben. Das ist ein Entscheid über Besitz, darum offen.
+  - Die Zeile „[ edu-sharing Skill ] Chatbot Masterskill - aktiv“ über den Antworten ist **gewollt**
+    (Aktivierungszeile des Master-Skills im WLO-Knoten, Nutzer 10.11.).
+
+- **Führungen (AS-7, 10.11.) — Grenze aus dem Querschnitts-Review, Befund 4:** Bei angemeldeten Personen
+  holt der Verlauf den Stand nur, wenn der MCP die Anmeldung binnen 1 s bestätigt (Z-6). Sonst fehlt nach
+  einem Seitenaufruf der Stand, und es geht kein Seiten-Ping hinaus. Die Ankunft kommt dieses eine Mal
+  nicht an; der nächste getippte Satz holt den Chip zurück, der nächste Seitenaufruf pingt wieder.
+  Kandidat: bei einer Zeitüberschreitung ein Kennzeichen `ablauf_unbestimmt`, und das Widget pingt dann einmal.
+- **Führungen (AS-7, 10.11.):** ~~E2E für Führungs-Chip, Seiten-Ping und Begrüßungs-Chip fehlt noch.~~
+  **Erledigt 10.11.:** Browser-Abnahme (`aenderungen/2026-11-10-browser-abnahme-as-7.md`) und E2E für den
+  Kernweg (`frontend/e2e/fuehrung.spec.ts`, Notiz `aenderungen/2026-11-10-e2e-fuehrung.md`). Offen bleibt
+  ein E2E für das Angebot unter der Begrüßung (Auslöser `seite`), durch Specs abgedeckt. Bündelgröße
+  siehe oben („Widget-Bündel am Budget“).
+
 - **Upload → Volltext → Metadaten (Anwendungsfall „Strukturdokument + Inhalte“, 2026-11-07):** Auftrag an das
   MCP-Team [`mcp-auftrag-volltext-metadaten.md`](mcp-auftrag-volltext-metadaten.md) (W1 Volltext an Knoten, W2/W3 als
   Plan, W4 Rolle im Stapel). Entscheid: der Chatbot steuert auch die Kestra-Flows. Die B-API erlaubt Flows derzeit nur
@@ -157,7 +212,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Paket 19 (Review 19-1) — Titel fremder Seiten im Metadaten-Cache:** Für eine nicht auflösbare Seite cacht `services/page_context.resolve_page_context` den Tab-Titel als `entities._page_metadata.title` (Gruß und Prompt der Folgezüge lesen ihn) — bei fremden Seiten ein Stück Browserverlauf, 30 Tage. Titel und Suchbegriff als eigene Entities fallen seit Paket 19 weg; ob auch der Cache bei `external` ohne Titel auskommt (der Gruß nennt dort den Host), ist zu prüfen. **Nutzer-Entscheid 2026-10-31: bleibt so.** Der Titel ist Kontext für Seitenerkennung und Aktionen; der Chatbot ist nicht für fremde Seiten gedacht. Eine Lösung „im Zug nutzen, vor dem Speichern entfernen“ erst nach gründlicher Folgenprüfung (nachgelagerte Aktionen, Auswertungen).
 
 - **Paket U1 — offene Entscheide** (Plan [`2026-11-02-paket-u1-ui-module.md`](plans/2026-11-02-paket-u1-ui-module.md)):
-  - `ui_upload` (§13, „Konzept `ui_upload`“): wer darf hochladen (nur Angemeldete?) und mit welchen Grenzen; Aufbewahrung samt Datenschutz-Hinweis; Ziel (nur Kontext im Chat, edu-sharing, Kestra); Virenprüfung; Formate über MarkItDown hinaus (OCR). Die übrigen vorgeschlagenen Module (`ui_freigabe`, `ui_fortschritt`, `ui_befund`, `ui_themenbaum_auswahl`) sind nicht freigegeben. `ui_freigabe` entfällt seit Paket S: ein schreibender Ablaufschritt zeigt die Vorschau-Box und den Chip des Chats.
+  - `ui_upload` (§13, „Konzept `ui_upload`“): wer darf hochladen (**entschieden 10.11.:** Dokument lesen und
+    Entwurf auch anonym, Ablage in WLO nur angemeldet) und mit welchen Grenzen; Aufbewahrung samt Datenschutz-Hinweis; Ziel (nur Kontext im Chat, edu-sharing, Kestra); Virenprüfung; Formate über MarkItDown hinaus (OCR). Die übrigen vorgeschlagenen Module (`ui_freigabe`, `ui_fortschritt`, `ui_befund`, `ui_themenbaum_auswahl`) sind nicht freigegeben. `ui_freigabe` entfällt seit Paket S: ein schreibender Ablaufschritt zeigt die Vorschau-Box und den Chip des Chats.
   - Themenbaum statt `browse_collection_tree`: die Master-Skill-Kurzfassung (`docs/skills/vorgehen-knapp.md`, live) ist seit 2026-11-03 auf `ui_themenbaum` umgestellt. Offen: `docs/skills/vorgehen.md`, `docs/skills/vorgehen-kompakt.md`, `services/response_prompt_tools_text.py` und die Muster, die `browse_collection_tree` nennen — umstellen oder so lassen (§15 „Offen (U1-e)“).
   - Textfassung im Verlauf für abgeschaltete Module (§16, F-2 und „Offen (U1-f)“): heute bleiben gespeicherte Blöcke, wie sie gezeigt wurden; rückwirkend verschwinden bräuchte eine Widget-Regel „leere Daten → Textfassung“.
   - Themenbaum: Nachgeladenes (U1-h, §18 H-8) gilt nur bis zum Neuladen der Seite; der Verlauf zeigt den ursprünglichen Baum. In die gespeicherte Nachricht schreiben hieße einen Schreibweg ohne Zug (und `eingabe` kennt nur eine Ebene Kinder) — ja oder nein?
@@ -242,6 +298,81 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Abläufe im Studio AS-1…AS-3 (2026-11-09):** keine Migration, keine neue Variable. Das Image neu
+  bauen (Widget, Studio, Backend in einem `Dockerfile`): Die Bibliothek `ui` hat sich geändert
+  (Sprachausgabe löst die Escapes eingesetzter Platzhalter auf). Danach im Browser einmal hart neu
+  laden. Wartende Läufe behalten ihre Fassung, denn alle neuen Felder sind `null`. Getippter
+  Freitext an Ablaufschritten liegt als Teil im Vorgang bis zu dessen Frist, unabhängig von
+  `privacy-config.logging.messages` (siehe Notiz AS-3a). Notizen unter `aenderungen/2026-11-09-paket-as-1…as-3c`.
+- **Abläufe im Studio AS-D (2026-11-09):** keine Migration, keine neue Variable; Image neu bauen
+  (Studio, Backend). `POST /api/config/ablauf-pruefen` liefert dazu `teile` (Sicht „Daten“).
+  **Offen:**
+  - der Dienst `ablage_zuordnen` (Plan §5e): Der Teil `ablage` trägt keinen Ordnerpfad je Datei (der
+    MCP legt flach ab), und der Ordnerbaum trägt keine Dateien, nur Zahlen je Ordner. Nötig ist ein
+    Ordnerpfad oder Index je Datei im Upload und in `ablage`; wartet auf Teamfrage T1.
+  - P1 (`plans/2026-11-09-p1-chatbot-umwandlung.md`): Entscheide für AS-T offen (T1 zuerst, dann
+    Option A–E, Aufbewahrung der Texte, PPTX), Staging-Messung von `textContent` für private
+    Uploads, Messung auf dem vServer.
+  - **An das MCP-Team:** ein Endpunkt bzw. Werkzeug für die Bytes einer privaten Datei
+    (`eduservlet/download` 403, `GET …/content` 405 mit Basic); `get_skill` lädt jede nodeId ohne
+    Größengrenze als Text herunter.
+
+  Notizen unter `aenderungen/2026-11-09-paket-as-da…as-dd`.
+- **Restbefunde RB-1 (2026-11-09):** keine Migration, keine neue Variable; Studio- und Backend-Image
+  neu (Katalog `ablauf_werkzeuge` an `Schritt.werkzeug`). Entscheid AS-4a Befund 10 = Option 2:
+  eine `nodeid` aus den Startdaten der Gastseite darf als ganzes Argument an lesende WLO-Werkzeuge.
+  Die Rechtsstufe sieht jetzt 8000 Zeichen. Notiz `aenderungen/2026-11-09-paket-rb1-restbefunde.md`.
+- **Restbefunde RB-2/RB-3 (2026-11-09):** keine Migration, keine neue Variable; Image neu (Studio,
+  Widget, Backend), im Browser hart neu laden. RB-2: Typnamen in der Sicht „Daten“. RB-3: Aufträge der
+  Gastseite warten auf den wiederhergestellten Verlauf; `ChatRequest.from_host` und `ui.from_host`
+  im Verlauf halten die Auftrags-Blase über das Neuladen. Querschnitts-Review RB: die Herkunft „Gastseite“ (Rechte aus Option 2)
+  wird nur noch positiv festgestellt (`quelle`/`start_quelle`), Notiz `…-paket-rb-querschnitt.md`.
+  Browser-Abnahme AS-4 und RB-3 bestanden (Notiz RB-3).
+- **AS-5a (2026-11-10):** keine Migration, keine neue Variable; Studio- und Backend-Image neu.
+  Je Ablauf mit Auslöser `agent` ein KI-Werkzeug `ablauf-<id>` (Startschema als Parameter), Knopf
+  mit `start_quelle: "ki"` (ohne Rechte aus Option 2); `ablauf_vorschlagen` entfällt. **Sperrt:** ein
+  gespeicherter Ablauf mit Auslöser `agent` und Startfeldern ohne Beschreibung lässt sich erst nach
+  dem Nachtragen wieder speichern/testen (Befund `start_beschreibung`; im Werk keiner). Offen:
+  AS-5c (`direkt`). Notiz `aenderungen/2026-11-10-paket-as-5a-…`.
+- **AS-5b (2026-11-10):** Backend-Image neu. Muster nennen `ablauf-<id>` in `tools:` (Katalog
+  `tools`); dieselben Werkzeuge und Knöpfe wie im Agent-Modus. Notiz `…-paket-as-5b-…`.
+  Drei Reviews (AS-5b, Querschnitt AS-5, zweites Review) behoben. Der offene Punkt „Wahl mit ≥ 4
+  Chips“ steht jetzt in §1.
+- **AS-Ua (2026-11-10):** Backend-Image neu. `ui.ablauf` (Stand des Laufs) und `ui.fester_text` an
+  den Antworten, Direktaktion `ablauf_abbrechen` mit Rückfrage. Die Leiste im Widget folgt mit AS-Ub.
+  Notiz `aenderungen/2026-11-10-paket-as-ua-leiste-backend.md`.
+- **AS-Ub (2026-11-10):** Widget-Bündel neu bauen, im Browser hart neu laden. Ablauf-Leiste über dem
+  Eingabefeld; kein KI-Etikett an festen Texten (damit ist die frühere offene Frage aus RB-2/RB-3
+  erledigt, U-7). Notiz `…-paket-as-ub-leiste-widget.md`.
+- **BU-1/BU-2 (2026-11-10):** Widget-Bündel neu bauen. Neu ist das nachgeladene Bündel
+  `ui-strukturentwurf.<hash>.js` unter `/widget/module/` (kommt mit `dist/widget-module/` ins
+  Backend-Image wie die übrigen Module). Keine Migration, keine neue Variable. Nach dem Deploy einen
+  Strukturentwurf im Widget öffnen und bearbeiten (lädt das Modul nach).
+- **BU-3 (2026-11-10):** Widget-Bündel neu bauen; neu ist `ui-debug-panel.<hash>.js` unter
+  `/widget/module/`. Smoke: im Widget den Debug-Schalter einschalten, das Panel muss erscheinen.
+- **AS-Ud (2026-11-10):** Backend und Widget-Bündel neu bauen. Neue öffentliche Pfade
+  `POST /api/ui/vorgaenge/liste` und `/loeschen` (nur angemeldet, IP-Drossel). Keine Migration, keine
+  neue Variable. Smoke nach dem Deploy: angemeldet „Meine Vorgänge“ öffnen; einen Vorgang aus einem
+  anderen Gespräch löschen. Läuft dort ein Auftrag, endet er bei der b-api (ohne den Schlüssel der
+  Person sagt das Widget, dass er weiterläuft). Nach dem Querschnitts-Review (Plan §5k): auch der
+  Verlaufsabruf trägt den Zugangsblock (Leiste nach dem Neuladen).
+- **PR #51 (AS-0…AS-8, Upload 2026-11-10) — Dokumente ohne Anmeldung:** Seit dem Nutzer-Entscheid
+  vom 10.11. steht `dokument_ohne_anmeldung` in `upload-config` auf **an** (Vorgabe im Modell
+  `UploadConfig`; der Seed setzt den Schalter nicht). Nach dem Deploy dürfen also auch **anonyme** Personen ein Dokument in den Chat lesen lassen
+  (Text liegt bis zur Frist im Vorgang, Ablage in WLO weiter nur angemeldet). Wer das nicht will,
+  stellt es im Studio unter „Hochladen“ aus. Den Datenschutz-Hinweis im Widget prüfen: Er sollte
+  anonymes Lesen nennen (Review PR #51, C1). Migration 0021 nennt beim Lauf Katalog-Einträge, die
+  kein Dokument werden (Kennung `katalog`, ungültig, doppelt); sie stehen in `config_history`.
+- **Abläufe als Dokumente, AS-0 (2026-11-09):** Migration **`0021`** im `migrate`-Dienst. Sie teilt
+  `06-ablaeufe/katalog` in ein Dokument je Ablauf (`06-ablaeufe/<id>`), samt Werksbasis, stillgelegter
+  eigener Fassung und Löschvermerk. Danach `boerdi import-config --werksabgleich`, Studio- und
+  Backend-Bild neu. Laufende Abläufe laufen weiter (die Fassung hängt an den Schritten). Eine alte
+  Sicherung mit `06-ablaeufe/katalog` wird beim Wiederherstellen in Dokumente geteilt, auch ein
+  Verzeichnisbaum aus `export-config` beim `import-config`. **Nicht übernommen** werden Kennungen,
+  die nur in der stillgelegten eigenen Fassung des Katalogs standen (die Migration nennt sie in
+  ihrer Ausgabe; sie bleiben in `config_history` von `06-ablaeufe/katalog`), und die Basis einer
+  eigenen Fassung (`eigene_basis`). Notiz
+  [`aenderungen/2026-11-09-paket-as-0-ablaeufe-als-dokumente.md`](aenderungen/2026-11-09-paket-as-0-ablaeufe-als-dokumente.md).
 - **Kestra-Abläufe K2b/K2a (2026-11-08):** keine Migration, keine neue Variable; Widget-Bündel neu bauen.
   Solange b-api-Aufträge freigeschaltet sind, die Aufbewahrung der Gesprächsverläufe auf **mindestens 8 Tage**
   stellen — sonst kann „Gespräch fortsetzen“ in einen leeren Verlauf führen (Notiz
@@ -274,8 +405,9 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Keine Migration, keine neue Umgebungsvariable.
 
 - **Vorgänge, Abläufe, Aufträge (2026-11-05/06):** Migrationen `0018` (`vorgaenge`, `vorgang_ablage`) und
-  `0019` (`vorgang_auftraege`) laufen im `migrate`-Dienst. Neuer Bereich `06-ablaeufe/katalog` (Werksfassung:
-  Ablauf `sammlungsstruktur`, aus) und `privacy-config.logging.vorgang_tage` kommen mit dem Werksabgleich.
+  `0019` (`vorgang_auftraege`) laufen im `migrate`-Dienst. Abläufe liegen seit AS-0 (2026-11-09) je als
+  Dokument `06-ablaeufe/<id>` (Werksfassung: Ablauf `sammlungsstruktur`, aus; Migration `0021` teilt den
+  alten Bereich `06-ablaeufe/katalog` auf) und `privacy-config.logging.vorgang_tage` kommen mit dem Werksabgleich.
   Aufträge bleiben aus, bis `B_API_JOBS_START_PATH` und `B_API_JOBS_FLOWS` gesetzt sind (K16).
 - **Migration `0013` (Review PR #18):** Teilindex `ix_quality_logs_text_offen` für den Text-Schritt der Aufbewahrung; wird `CONCURRENTLY` gebaut (sperrt das Schreiben nicht) und läuft im `migrate`-Dienst mit `alembic upgrade head`.
 - **Paket 16 — Plattform-Wissen neu einlesen:** der RAG-Seed `Plattformwissen.jsonl` folgt jetzt dem Domänen-Dokument 2.0 (13 Abschnitte). Nur diesen Bereich ersetzen: die Datei allein in ein Verzeichnis legen und `boerdi import-rag --seed <verz> --force` (leert nur die Bereiche dieses Seeds; Einbettung von 13 Abschnitten). Ohne den Schritt bleibt in bestehenden Datenbanken die Fassung 1.0.
@@ -344,6 +476,26 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 - **Zeitraum-Grenzen in Browser-Zeit** (Review Paket 16, D-5): Kosten und Nutzung bauen `from`/`to` aus dem Kalendertag des Browsers, Tage und Raster rechnet der Server in Europe/Berlin. Außerhalb deutscher Zeit kommt am Rand ein angeschnittener Tag dazu. Hebel: Grenzen als Berliner Mitternacht bauen (`Intl`-Versatz).
 - ~~**Zeitabhängiger Test**~~ erledigt in Paket 20 (B3): wartet jetzt auf den zweiten Lauf. War: `tests/test_aufbewahrung_takt.py::test_der_takt_laeuft_weiter_auch_nach_einem_fehler` (50-ms-Fenster, 5-ms-Takt) kippte im vollen Lauf unter Parallellast (Paket 16, 2026-10-18), allein grün. Fester machen: auf eine Bedingung warten (zweiter Lauf) statt fest 50 ms schlafen.
+- ~~**Uhrenabhängiger Test**~~ **erledigt 10.11.** (Toleranz), ebenso die zwei Kippler darunter (Zeitfenster vor
+  `_JAN`, Merker vor dem Test löschen). War (gesehen 2026-11-10 im vollen Lauf zu AS-8a):
+  `tests/test_anmeldung_status.py::test_eine_bestaetigung_gilt_hoechstens_bis_zur_frist` kippte mit
+  `60.00000023841858 <= 60`, allein grün. `datetime.now` (Test) und die Uhr in `_gueltig_s` laufen
+  unter Windows um Bruchteile auseinander. Fester machen: eine Toleranz (`<= 60 + 1e-3`) oder eine
+  feste Uhr im Test.
+- **Vorschau-Sitzungen zählen als Betrieb** (Querschnitts-Review AS-8, vorbestehend): Sitzungen der
+  Studio-Vorschau — auch Probe-Sitzungen mit `entities._probe` — tragen eine gewöhnliche
+  Widget-Kennung und zählen in `services/session_origin` als `production` (Kosten, Nutzung,
+  Qualität). Hebel: Probe-Sitzungen über `_probe` als eigene Herkunft (`studio`) zählen.
+- **Zwei weitere Kippler im vollen Lauf** (gesehen 2026-11-10, zweiter Lauf zu AS-8a, je allein
+  grün):
+  - `tests/test_usage_analytics.py::test_die_sitzungsliste_haelt_sich_an_den_zeitraum` sah fremde
+    Sitzungen `k4-…` aus einem anderen Test in derselben Test-DB. Fester machen: eigene Kennungen
+    filtern oder vorher aufräumen.
+  - `tests/test_url_safety.py::test_tropfende_kopfzeilen_werden_zur_frist_abgeschnitten` hängt an
+    einer Zeitfrist unter Last.
+  - Widget: `projects/ui/src/session/anmelde-frist.spec.ts` („steht nach dem Abmelden …“) sah im
+    vollen `ng test ui` einmal einen Abmelde-Merker aus einer anderen Spec; allein und im nächsten
+    vollen Lauf grün. Fester machen: den Merker im `beforeEach` löschen.
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
   - Paket 6 hat geteilt: `services/rag/ingest.py` (→ `umwandeln.py`), Studio `schema-form/schema-form.scss` (Teildateien je Baustein, CSS byte-gleich), `views/curated-views.ts` und `i18n/catalogue/curated.ts` (nach Seitengruppen), `i18n/catalogue/area-editor.ts` (`groupSection.*` eigener Teil), `views/eval-run-detail.component.ts` (Gold-Zug-Tabelle als `eval-gold-turns`) und `schema-form/schema-field.component.ts` (Listen- und Map-Regeln in `list-items.ts`, `map-entries.ts`; die Vorlage steht mit 300 an der Grenze). Dabei vor dem Überschreiten bewahrt: `api/config_guards.py` (Fehler-Antworten nach `api/config_antworten.py`), `api/rag.py` (`api/rag_umwandlung.py`), `api/config.py` (Löschen nach `api/config_documents.py`), `views/group-section.component.ts` (`group-documents.ts`, `feld-reiter.ts`).
   - Paket 7: `graph/nodes/respond_agent.py` (537; Paket B und E-C, überwiegend Begründungs-Kommentar; Review B-3 +3), `services/response_prompt_builder.py` (324; P4 +6, E-E +6, Review B-5 +2), `services/classify_prompt.py` (315; vorher 330), `services/tool_loop_messages.py` (373, Fidelity-Port; D, E-E, T1, Review B-5 +4), `services/page_context.py` (815; vorher 972 — der tote Regel-Zweig ist weg), Widget `shell/lifecycle.ts` (326; vorher 302, T2 und Review C-5 — die Kontext-Ping-Abläufe wären ein eigener Baustein, ein Backend-Test liest aber `PING_COVERS_BACKEND_KINDS` aus genau dieser Datei).
@@ -428,6 +580,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 6 Zurückgestellte Plan-Teile
 
+- **AS-5c `direkt` (Plan 2026-11-09 §5g, A5-5):** Start eines Ablaufs durch die KI ohne Knopf — erst
+  mit Treiber-Ausgabe im selben Zug und eigener Bremse gegen Schleifen; bis dahin schlägt die KI
+  immer per Knopf vor.
+
 - **MCP-Vertrag (2026-11-07), bewusst nicht gebaut oder verschoben:**
   - `resolve_wlo_filters` als interne Filterauflösung: unsere Argumentauflösung macht dasselbe vor jeder Suche; eine
     Umstellung ändert jede Suche und ihre Zeiten — eigener, gemessener Schritt.
@@ -468,4 +624,4 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - `AsyncData`: scheitert ein Abruf nach einem Arbeitsbereich-Wechsel, bleibt die Summe der anderen Maschine neben dem Fehler stehen (Kosten).
   - Gold-Start: werden nach einer Flow-Änderung alle gewählten Kennungen ungültig, ist der Start-Knopf ohne Erklärung grau.
   - Werkzeuge: die Sperre `policy` verlinkt auf „Identität & Schutz“ (Muster-Seite) — im Agent-Arbeitsbereich steht das Regelwerk auf „Rolle & Grenzen“ (`agent-tools.ts`, `lockLink`).
-- **Aus Paket 18, bewusst nicht jetzt:** Circuit-Breaker für einen toten Endpunkt (kostet nur im Fehlerfall Zeit); die Rechtsprüfung sieht nur die ersten 2000 Zeichen einer Nachricht; „Testnachricht“ auf Englisch ergibt weiter `quiz` („Test“ heißt auch Klassenarbeit); Zähler für Warteschlange und DB-Pool, Gesamtfrist für Musterzüge (Plan 18 „später“). Bewusst gelassen in 18E: der Eval-Judge übernimmt den Anbietertext in `JudgeError` (synthetische Gespräche), einige Konsolenzeilen des Widgets geben das Fehlerobjekt weiter (seit 18D ohne Inhalt). Ungeklärt: warum die GitHub-Runner seit 18E-2 die ersten Agent-Runden langsamer rechnen — der betroffene Test hat jetzt Spielraum (Plan-Log 18E/18F).
+- **Aus Paket 18, bewusst nicht jetzt:** Circuit-Breaker für einen toten Endpunkt (kostet nur im Fehlerfall Zeit); die Rechtsprüfung sieht nur die ersten 8000 Zeichen einer Nachricht (bis RB-1: 2000); „Testnachricht“ auf Englisch ergibt weiter `quiz` („Test“ heißt auch Klassenarbeit); Zähler für Warteschlange und DB-Pool, Gesamtfrist für Musterzüge (Plan 18 „später“). Bewusst gelassen in 18E: der Eval-Judge übernimmt den Anbietertext in `JudgeError` (synthetische Gespräche), einige Konsolenzeilen des Widgets geben das Fehlerobjekt weiter (seit 18D ohne Inhalt). Ungeklärt: warum die GitHub-Runner seit 18E-2 die ersten Agent-Runden langsamer rechnen — der betroffene Test hat jetzt Spielraum (Plan-Log 18E/18F).

@@ -80,7 +80,7 @@ export interface SchemaField {
   /** `number` only (ST-2h): drawn as a slider — only with both bounds. `step`
    *  is its step; `thresholds` are where the value changes what it does (the
    *  slider names the zone the value is in). */
-  readonly widget?: 'slider' | 'teil-werte' | 'ablauf';
+  readonly widget?: 'slider' | 'teil-werte' | 'ablauf' | 'weiter' | 'schritt-ziel';
   readonly step?: number;
   readonly thresholds?: readonly number[];
   /** `integer`/`number` only (ST-2c): the schema's bounds, shown at the field and
@@ -149,6 +149,13 @@ function fieldFor(
     return nullable ? null : fallback;
   };
 
+  // AS-2a: `weiter` eines Ablaufschritts (`str | list[Weiter]`) bekommt seinen Editor — die
+  // Auszeichnung steht an der Eigenschaft, nicht am (zweigeteilten) Typ.
+  if (raw['x-widget'] === 'weiter') return { ...base, kind: 'raw', widget: 'weiter', blank: blank(null) };
+  // AS-3a: ein Schritt desselben Ablaufs als Ziel — Auswahl statt Textfeld.
+  if (raw['x-widget'] === 'schritt-ziel' || node?.['x-widget'] === 'schritt-ziel') {
+    return { ...base, kind: 'raw', widget: 'schritt-ziel', blank: blank('') };
+  }
   if (!node) return { ...base, kind: 'raw', blank: blank(null) };
 
   switch (node.type) {

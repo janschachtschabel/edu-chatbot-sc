@@ -19,12 +19,19 @@
 /** Ein Pfeil zum nächsten Schritt. `ziel` `''`: der Lauf endet hier ohne `ende`-Schritt. */
 export interface FolgePfeil {
   readonly ziel: string;
-  /** `weiter` (regulär), `regel` (eine Regel der Verzweigung), `fehler` (`bei_fehler`). */
-  readonly art: 'weiter' | 'regel' | 'fehler';
+  /** `weiter` (regulär), `regel` (eine Regel der Verzweigung), `fehler` (`bei_fehler`), seit AS-3a
+   *  `wahl` (eine Schnellantwort) und `freitext` (getippter Text). */
+  readonly art: 'weiter' | 'regel' | 'fehler' | 'wahl' | 'freitext';
+  /** Nur `wahl`: die Beschriftung der Schnellantwort (Deutsch, sonst ihre Kennung). */
+  readonly label?: string;
   /** Nur `regel`: die Bedingungen, wie der Treiber sie liest (`sonst` gilt vor allem anderen). */
   readonly sonst?: boolean;
   readonly wennTeil?: string;
   readonly wennGewaehlt?: string;
+  /** AS-3c: die Bedingung `wenn_wert` — übersetzt zusammengesetzt erst in der Anzeige. */
+  readonly wennWert?: { readonly quelle: string; readonly vergleich: string; readonly wert: string };
+  /** AS-7b: die Bedingung `wenn_seite` — die Muster, mit Komma verbunden. */
+  readonly wennSeite?: string;
   /** Nur `regel` einer Verzweigung: keine Regel greift (oder es gibt keine) — der Lauf läuft aus. */
   readonly keineGreift?: boolean;
   /** Das Ziel ist ein Schritt dieses Ablaufs (oder `''`). */
@@ -36,6 +43,8 @@ export interface FolgeZeile {
   readonly nr: number;
   readonly id: string;
   readonly typ: string;
+  /** AS-2c: das UI-Modul eines `modul`-Schritts (für den Verweis auf seine Seite); sonst leer. */
+  readonly modul: string;
   readonly pfeile: readonly FolgePfeil[];
 }
 
@@ -65,11 +74,31 @@ export function schrittFolge(ablauf: unknown): FolgeZeile[] {
       const fehler = text(s['bei_fehler']);
       if (fehler && MIT_BEI_FEHLER.has(typ)) pfeile.push({ ziel: fehler, art: 'fehler', bekannt: bekannt(fehler) });
     }
-    return { nr, id: text(s['id']), typ, pfeile };
+    return { nr, id: text(s['id']), typ, modul: typ === 'modul' ? text(s['modul']) : '', pfeile };
   });
 }
 
+function wertText(w: Roh): { quelle: string; vergleich: string; wert: string } {
+  return { quelle: text(w['quelle']), vergleich: text(w['vergleich']), wert: text(w['wert']) };
+}
+
+/** AS-3a: wie `pruefung.mit_wahl` — an `nachricht` und `modul` entscheidet die Wahl. */
+function wahlPfeile(s: Roh, typ: string): Omit<FolgePfeil, 'bekannt'>[] | null {
+  if (typ !== 'nachricht' && typ !== 'modul') return null;
+  const optionen = Array.isArray(s['optionen']) ? s['optionen'].filter(istObjekt) : [];
+  const freitext = istObjekt(s['freitext']) ? s['freitext'] : null;
+  if (!optionen.length && !freitext) return null;
+  const pfeile: Omit<FolgePfeil, 'bekannt'>[] = optionen.map((o) => {
+    const label = istObjekt(o['label']) ? text(o['label']['de']) : '';
+    return { ziel: text(o['ziel']), art: 'wahl' as const, label: label || text(o['id']) };
+  });
+  if (freitext) pfeile.push({ ziel: text(freitext['ziel']), art: 'freitext' });
+  return pfeile;
+}
+
 function regulaer(s: Roh, typ: string, folgender: Roh | undefined): Omit<FolgePfeil, 'bekannt'>[] {
+  const wahl = wahlPfeile(s, typ);
+  if (wahl) return wahl;
   const weiter = s['weiter'];
   if (typ === 'verzweigung') {
     const regeln: Omit<FolgePfeil, 'bekannt'>[] = (Array.isArray(weiter) ? weiter : []).map((r: unknown) => {
@@ -83,6 +112,9 @@ function regulaer(s: Roh, typ: string, folgender: Roh | undefined): Omit<FolgePf
         ...(sonst ? { sonst: true } : {}),
         ...(text(regel['wenn_teil']) ? { wennTeil: text(regel['wenn_teil']) } : {}),
         ...(text(regel['wenn_gewaehlt']) ? { wennGewaehlt: text(regel['wenn_gewaehlt']) } : {}),
+        ...(istObjekt(regel['wenn_wert']) ? { wennWert: wertText(regel['wenn_wert']) } : {}),
+        ...(Array.isArray(regel['wenn_seite']) && regel['wenn_seite'].length
+          ? { wennSeite: regel['wenn_seite'].map(text).filter(Boolean).join(', ') } : {}),
       };
     });
     // Eine Verzweigung, bei der keine Regel greift, läuft aus (`_waehle(...) or ""`).

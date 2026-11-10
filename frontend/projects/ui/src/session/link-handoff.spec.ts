@@ -41,6 +41,17 @@ describe('resolveGuideNavUrl (T7 Open-Redirect-Guard, fail-closed)', () => {
     expect(resolveGuideNavUrl('https://evil.com/phish', ctx)).toBeNull();
   });
 
+  it('AS-7b: ein Pfad derselben Seite geht für einen Führungs-Chip auch ohne Vertrauensliste', () => {
+    const ohne = { trustedDomains: [], sessionId: undefined, guideMode: true };
+    expect(resolveGuideNavUrl('/mitmachen/', { ...ohne, gleicheHerkunft: true }))
+      .toBe(`${window.location.origin}/mitmachen/`);
+    // Review AS-7b, Befund 2: für Bot-Navigation und Lotsen-Chips bleibt die Vertrauensliste Pflicht
+    expect(resolveGuideNavUrl('/mitmachen/', ohne)).toBeNull();
+    // ein protokoll-relativer Sprung zu einem fremden Host bleibt gesperrt
+    expect(resolveGuideNavUrl('//evil.com/x', { ...ohne, gleicheHerkunft: true })).toBeNull();
+    expect(resolveGuideNavUrl('/\\evil.com/x', { ...ohne, gleicheHerkunft: true })).toBeNull();
+  });
+
   it('trusted, cross-origin, gültige Session → bsid + bgm=1 angehängt', () => {
     const out = resolveGuideNavUrl('https://wirlernenonline.de/mathe', ctx);
     expect(out).not.toBeNull();

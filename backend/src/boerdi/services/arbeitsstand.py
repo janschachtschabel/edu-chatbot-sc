@@ -25,7 +25,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from boerdi.db.models import Vorgang
 from boerdi.db.verbindung import verbindung_freigeben
-from boerdi.services import vorgaenge
+from boerdi.services import probe, vorgaenge
 
 # Querschnitts-Review 2026-11-06 (Q4): Normalform und Verweis in eigenen Modulen —
 # hier weiter erreichbar, wie bisher genutzt.
@@ -76,8 +76,20 @@ def tage() -> int:
 VorgangLader = Callable[[], Awaitable[Vorgang | None]]
 
 
-def aufrufer_fuer(session_id: str) -> str:
+def aufrufer_fuer(session_id: str, entities: dict[str, Any] | None = None) -> str:
+    """Wem gehören die Vorgänge dieses Zuges? Der Person, sonst der Sitzung. Eine Probe der
+    Studio-Vorschau hat eine eigene Kennung je Sitzung (Review AS-8a, Befund 1): sie findet keinen
+    echten Vorgang der Person, und ihre Läufe tauchen in keiner echten Sitzung auf. Endpunkte
+    außerhalb des Graphen (ohne Zug-Merker) geben ``entities`` der Sitzung mit."""
+    if probe.aktiv() or probe.in_sitzung(entities):
+        return f"probe:{session_id}"
     return aufrufer_kennung() if has_personal_auth() else f"sitzung:{session_id}"
+
+
+def ist_persoenlich(aufrufer: str) -> bool:
+    """Gehört der Vorgang einer angemeldeten Person (nicht der Sitzung, nicht einer Probe)? Nur dann
+    hängt er an der Anmeldung (Leiste nur mit Zugangsblock, Z-8; zweites Review AS-8a, Befund 2)."""
+    return not aufrufer.startswith(("sitzung:", "probe:"))
 
 
 _verweis_aus = verweis_fuer

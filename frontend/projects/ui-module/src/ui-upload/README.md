@@ -17,7 +17,7 @@ eigenen Bündel (siehe `docs/ui-module.md` §2.5).
   beim Neuzeichnen, Ansagen über eine bleibende `aria-live`-Zeile, nur M3-Tokens.
 - **Strukturdokument lesen** (U3-2c, `upload-dokument.ts`, `upload-dokument-ansicht.ts`): ist ein
   Strukturdokument markiert und erlaubt es das System (`schalter.dokument_im_chat` — Studio-Bereich
-  `01-base/upload-config` und WLO-Anmeldung), zeigt das Modul die **Ziele** als Knöpfe (eine Liste,
+  `01-base/upload-config`; die WLO-Anmeldung nur, wenn dort `dokument_ohne_anmeldung` aus ist), zeigt das Modul die **Ziele** als Knöpfe (eine Liste,
   Plan O-26; heute „Themenbaum aus dem Strukturdokument erstellen“). Klick → `host.hochladen(datei)`
   (Fähigkeit `hochladen`, XHR mit Fortschritt, `POST /api/ui/dokumente`) → Befund → Antwort
   `aktion: "dokument"` mit `dokument{upload_id, name, format, ziel, befund, vorschau}` — nie der Text.

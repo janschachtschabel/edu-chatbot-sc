@@ -22,8 +22,10 @@ class UploadSettings(AreaModel):
 
     #: Ein Dokument im Chat umwandeln und verwerten (ohne Ablage im Repositorium).
     dokument_im_chat: bool = True
-    #: Dasselbe auch ohne WLO-Anmeldung (Kosten und Missbrauch: Vorgabe aus).
-    dokument_ohne_anmeldung: bool = False
+    #: Dasselbe auch ohne WLO-Anmeldung. Vorgabe an (Nutzer-Entscheid 2026-11-10): Lesen und
+    #: Entwurf berühren das Repositorium nicht; gebremst wird über Ratenbremsen, Plätze der
+    #: Umwandlung, Größe/Seiten, Moderation und Frist. Aus = nur angemeldete Personen.
+    dokument_ohne_anmeldung: bool = True
     #: Inhalte im persönlichen Bereich von WLO anlegen (U3-3; nur mit bestätigter Anmeldung;
     #: je Datei höchstens ``max_mb``).
     ablage_in_wlo: bool = False

@@ -31,6 +31,7 @@ import hashlib
 import json
 import logging
 import re
+import secrets
 from dataclasses import dataclass, field
 from typing import Any, Final
 
@@ -62,6 +63,21 @@ _DATEI: Final = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MAX_AUSGABE_BYTES: Final = 1_000_000
 #: Eine Pfad-Vorlage darf den Ziel-Server nicht wechseln (Review K1a, Befund 5).
 _UNSICHER: Final = ("//", "@", "?", "#", "\\")
+
+
+#: Paket AS-8a: Kennung eines Auftrags im Trockenlauf (Probe der Studio-Vorschau) — die b-api sieht
+#: sie nie: ``stand``, ``abbrechen`` und ``datei`` antworten selbst.
+TROCKEN_PRAEFIX: Final = "trocken-"
+_TROCKEN: Final = re.compile(r"^trocken-[0-9a-f]{16}$")
+
+
+def trocken_kennung() -> str:
+    """Eine Job-ID für den Trockenlauf; besteht die Prüfung ``_ID`` wie eine echte."""
+    return TROCKEN_PRAEFIX + secrets.token_hex(8)
+
+
+def ist_trocken(job_id: str) -> bool:
+    return bool(_TROCKEN.fullmatch(job_id or ""))
 
 
 def kuerzel(job_id: str) -> str:
@@ -215,7 +231,10 @@ def _fehlercode(daten: dict[str, Any]) -> str | None:
 
 
 async def stand(job_id: str) -> Stand:
-    """Der Stand eines Auftrags (``laeuft``/``fertig``/``fehler``)."""
+    """Der Stand eines Auftrags (``laeuft``/``fertig``/``fehler``). Im Trockenlauf sofort fertig,
+    ohne Ausgaben — echte Ergebnisse spielen die Testfälle durch (Plan §5n, P-5)."""
+    if ist_trocken(job_id):
+        return Stand("fertig")
     if not _ID.fullmatch(job_id or ""):
         raise AuftragFehler("unbekannt")
     if (vorlage := _vorlage(get_settings().b_api_jobs_status_path)) is None:
@@ -244,6 +263,8 @@ async def stand(job_id: str) -> Stand:
 async def abbrechen(job_id: str) -> str:
     """Einen Auftrag bei der B-API abbrechen: ``abgebrochen`` (200/202/204), ``schon_fertig`` (409).
     Fremd oder unbekannt: :class:`AuftragFehler` ``unbekannt`` (404)."""
+    if ist_trocken(job_id):
+        return "abgebrochen"
     if not _ID.fullmatch(job_id or ""):
         raise AuftragFehler("unbekannt")
     if (vorlage := _vorlage(get_settings().b_api_jobs_status_path)) is None:
@@ -264,7 +285,8 @@ async def datei(job_id: str, kennung: str, max_bytes: int) -> bytes:
     Keine Weiterleitung: der Schlüssel ginge sonst mit, wohin die Antwort zeigt. Unkomprimiert
     (Review K2d-2, Befund 6): ein gepacktes Stück wüchse beim Entpacken vor dem Deckel; eine
     angekündigte Länge über dem Deckel wird gar nicht erst gelesen."""
-    if not _ID.fullmatch(job_id or "") or not _DATEI.fullmatch(kennung or ""):
+    if (ist_trocken(job_id) or not _ID.fullmatch(job_id or "")
+            or not _DATEI.fullmatch(kennung or "")):
         raise AuftragFehler("unbekannt")
     if (vorlage := _vorlage(get_settings().b_api_jobs_status_path)) is None:
         raise AuftragFehler("aus")
@@ -313,7 +335,7 @@ def abbrechen_im_hintergrund(job_id: str) -> None:
     """Einen ersetzten oder abgebrochenen Auftrag auch bei der B-API beenden — ohne dass der Zug
     darauf wartet (keine DB-Verbindung über den Rundlauf) und ohne zu werfen. Der Schlüssel des
     Zuges reist im kopierten Kontext mit; ohne ihn antwortet die B-API mit 404 (fremder Job)."""
-    if not _ID.fullmatch(job_id or ""):
+    if not _ID.fullmatch(job_id or "") or ist_trocken(job_id):
         return
 
     async def lauf() -> None:

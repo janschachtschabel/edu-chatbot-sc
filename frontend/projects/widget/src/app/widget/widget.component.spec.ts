@@ -4,6 +4,8 @@ import { By } from '@angular/platform-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatShellComponent } from '@boerdi/ui';
+import { MCP_ACCESS_STORAGE_KEY } from '@boerdi/ui/session/mcp-access';
+import { ChatApiClient } from '@boerdi/ui/stream/chat-api';
 
 import { WidgetComponent } from './widget.component';
 
@@ -61,7 +63,7 @@ describe('WidgetComponent', () => {
     expect(c.interceptEduSharingLinks()).toBe(false);
   });
 
-  it('hat genau diese 33 Host-Attribute (§5.5-Kontrakt)', () => {
+  it('hat genau diese 37 Host-Attribute (§5.5-Kontrakt)', () => {
     // Der Attribut-Satz IST der öffentliche Vertrag der Web-Komponente, und er
     // steht zusätzlich in der Studio-Architektur-Referenz
     // (`projects/studio/src/app/views/widget-contract-data.ts`, HOST_ATTRIBUTES).
@@ -71,11 +73,11 @@ describe('WidgetComponent', () => {
     const inputs = (reflectComponentType(WidgetComponent)?.inputs ?? [])
       .map((i) => i.templateName).sort();
     expect(inputs).toEqual([
-      'apiUrl', 'autoContext', 'embedMode', 'emitGuideSuggestion', 'emitQueryMeta', 'emitRoutingDebug',
-      'engine', 'greeting', 'initialState', 'inlineResultGrouping',
+      'ablaufStart', 'ablaufStartDaten', 'apiUrl', 'autoContext', 'embedMode', 'emitGuideSuggestion', 'emitQueryMeta', 'emitRoutingDebug',
+      'engine', 'fortsetzenAuftrag', 'fortsetzenVorgang', 'greeting', 'initialState', 'inlineResultGrouping',
       'interceptEduSharingLinks', 'language', 'masterSkill', 'pageContext',
       'persistSession', 'position',
-      'primaryColor', 'quickReplies', 'quickRepliesMax', 'resultSchema', 'sessionCookieDomain',
+      'primaryColor', 'probe', 'quickReplies', 'quickRepliesMax', 'resultSchema', 'sessionCookieDomain',
       'sessionCookieMaxAge',
       'sessionKey', 'showCards', 'showDebugButton', 'showLanguageButtons', 'showWelcome',
       'size', 'startReplies', 'theme', 'ticket', 'toolMode', 'trustedDomains',
@@ -113,6 +115,19 @@ describe('WidgetComponent', () => {
     c.guide.startReplies.set(['Aus dem Studio']);
     f.detectChanges();
     expect(c.resolvedStartReplies()).toEqual(['Aus dem Studio']);
+  });
+
+  it('AS-7b: passt die Seite zu einer Führung, gibt die Hülle das Angebot an die Shell — ein gesetztes start-replies gewinnt', () => {
+    const f = mount();
+    const c = f.componentInstance as any;
+    c.guide.startReplies.set(['Aus dem Studio']);
+    c.guide.ablaufSeiten.set([{ id: 'fuehrung', titel: { de: 'Führung' }, muster: [`${location.pathname}*`] }]);
+    f.detectChanges();
+    expect(c.fuehrungsAngebote().map((a: any) => a.id)).toEqual(['fuehrung']);
+    expect(c.resolvedStartReplies()).toEqual(['Aus dem Studio']);   // die Begrüßung setzt ihn vorn ein
+    f.componentRef.setInput('startReplies', '[]');
+    f.detectChanges();
+    expect(c.fuehrungsAngebote()).toEqual([]);
   });
 
   it('show-welcome erreicht die Shell — Vorgabe an, "false" aus', () => {
@@ -647,6 +662,54 @@ describe('WidgetComponent', () => {
     spy.mockRestore();
   });
 
+  it('AS-8b: das Attribut probe erreicht die Shell — und nur ein wahrer Wert schaltet sie ein', () => {
+    const f = mount();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    // ohne Attribut nie eine Probe (`_attrIsTrue('')` hieße sonst: an)
+    expect(f.componentInstance.shell()?.probe()).toBe(false);
+    f.componentRef.setInput('probe', 'true');
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    expect(f.componentInstance.shell()?.probe()).toBe(true);
+    f.componentRef.setInput('probe', 'nein');
+    f.detectChanges();
+    expect(f.componentInstance.shell()?.probe()).toBe(false);
+  });
+
+  it('Browser-Abnahme AS-8: startAblauf gleich nach dem Setzen von probe geht schon als Probe hinaus',
+    () => {
+      const f = mount();
+      f.componentInstance.openChatbot();
+      f.detectChanges();
+      const shell = f.componentInstance.shell()! as any;
+      let probeBeimStart: boolean | null = null;
+      vi.spyOn(shell, 'startAblauf').mockImplementation(async () => { probeBeimStart = shell.probe(); });
+      // wie die Studio-Vorschau: Attribut gesetzt, Start sofort — ohne Änderungserkennung dazwischen
+      f.componentRef.setInput('probe', '');
+      f.componentInstance.startAblauf('fuehrung');
+      expect(probeBeimStart).toBe(true);
+    });
+
+  it('Review AS-8b, Befund 6: angemeldet und mit probe fragt die neue Shell nie nach offenen Vorgängen',
+    async () => {
+      sessionStorage.setItem(MCP_ACCESS_STORAGE_KEY, 'wlo-test-block');
+      const frage = vi.spyOn(ChatApiClient.prototype, 'offeneVorgaenge').mockResolvedValue([]);
+      try {
+        const f = mount();
+        f.componentRef.setInput('probe', '');
+        f.componentInstance.openChatbot();
+        f.detectChanges();
+        await f.whenStable();
+        f.detectChanges();
+        expect(f.componentInstance.shell()?.probe()).toBe(true);
+        expect(frage).not.toHaveBeenCalled();
+      } finally {
+        frage.mockRestore();
+        sessionStorage.removeItem(MCP_ACCESS_STORAGE_KEY);
+      }
+    });
+
   it('inline-result-grouping="false" erreicht die Shell (sonst totes Host-Attribut)', () => {
     // Gefunden von e2e/chat.spec.ts: die Shell hat das Attribut seit 8-2i, die
     // Hülle reichte es aber nicht durch — am echten Embed war das flache
@@ -767,6 +830,244 @@ describe('WidgetComponent', () => {
 
     expect(spy).toHaveBeenCalledTimes(1);
     spy.mockRestore();
+  });
+
+  // ── Start eines Ablaufs von der Gastseite (AS-4b) ──────────────────────
+  it('startAblauf vor dem Mount öffnet, wartet und erreicht die Shell danach', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'startAblauf').mockResolvedValue(undefined);
+    const f = mount();
+    f.detectChanges();
+    f.componentInstance.startAblauf('baum', { sammlung: 'x' });
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+
+    expect(f.componentInstance.isChatbotOpen()).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]).toEqual(['baum', { sammlung: 'x' }]);
+    f.detectChanges();
+    expect(spy).toHaveBeenCalledTimes(1);           // verbraucht
+    spy.mockRestore();
+  });
+
+  it('die Attribute ablauf-start und ablauf-start-daten starten beim ersten Öffnen', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'startAblauf').mockResolvedValue(undefined);
+    const f = mount();
+    f.componentRef.setInput('ablaufStart', 'baum');
+    f.componentRef.setInput('ablaufStartDaten', '{"sammlung": "x", "neu": true}');
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    expect(spy).not.toHaveBeenCalled();               // das Attribut öffnet nicht von selbst
+
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]).toEqual(['baum', { sammlung: 'x', neu: true }]);
+    spy.mockRestore();
+  });
+
+  it('Wiederöffnen startet nicht noch einmal (Review AS-4b, Befund 8)', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'startAblauf').mockResolvedValue(undefined);
+    const f = mount();
+    f.componentRef.setInput('ablaufStart', 'baum');
+    f.detectChanges();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    f.componentInstance.closeChatbot();
+    f.detectChanges();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('startAblauf öffnet auch ein wieder geschlossenes Panel (Befund 3)', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'startAblauf').mockResolvedValue(undefined);
+    const f = mount();
+    f.detectChanges();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    await Promise.resolve();
+    f.componentInstance.closeChatbot();
+    f.detectChanges();
+    f.componentInstance.startAblauf('baum');
+    f.detectChanges();
+    expect(f.componentInstance.isChatbotOpen()).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('eine ungültige Kennung öffnet nichts und warnt (Befund 7)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const f = mount();
+    f.detectChanges();
+    f.componentInstance.startAblauf('Nicht Gültig');
+    expect(f.componentInstance.isChatbotOpen()).toBe(false);
+    expect(warn.mock.calls.map(String).some((z) => z.includes('startAblauf'))).toBe(true);
+    warn.mockRestore();
+  });
+
+  it('vor dem Mount gehen Auftrag und Ablauf in ihrer Reihenfolge ab (Befund 6)', async () => {
+    const folge: string[] = [];
+    const ablauf = vi.spyOn(ChatShellComponent.prototype, 'startAblauf')
+      .mockImplementation(async () => { folge.push('ablauf'); });
+    const zug = vi.spyOn(ChatShellComponent.prototype, 'startTask')
+      .mockImplementation(async () => { folge.push('auftrag'); });
+    const f = mount();
+    f.detectChanges();
+    f.componentInstance.startAblauf('baum');
+    f.componentInstance.startTask('danach');
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    expect(folge).toEqual(['ablauf', 'auftrag']);
+    ablauf.mockRestore();
+    zug.mockRestore();
+  });
+
+  // ── Wiederkehr (AS-4c) ────────────────────────────────────────────────
+  it('fortsetzen-auftrag öffnet den Chat und erreicht die Shell', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'vorgangFortsetzen')
+      .mockImplementation(async (_k, nachher) => { nachher?.('gefunden'); return 'gefunden'; });
+    const f = mount();
+    f.componentRef.setInput('fortsetzenAuftrag', 'job-42');
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    expect(f.componentInstance.isChatbotOpen()).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0]).toEqual({ auftrag: 'job-42' });
+    spy.mockRestore();
+  });
+
+  it('das Attribut wirkt je Tab nur einmal (Review AS-4c, Befund 3)', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'vorgangFortsetzen')
+      .mockImplementation(async (_k, nachher) => { nachher?.('gefunden'); return 'gefunden'; });
+    for (let i = 0; i < 2; i++) {
+      const f = mount();
+      f.componentRef.setInput('fortsetzenAuftrag', 'job-einmal');
+      f.detectChanges();
+      await Promise.resolve();
+      f.detectChanges();
+    }
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(sessionStorage)).not.toContain('job-einmal');   // nur ein Hash
+    spy.mockRestore();
+  });
+
+  it('beide Attribute oder eine kaputte Kennung: nichts öffnet, eine Warnung (Befunde 4, 11)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const f = mount();
+    f.componentRef.setInput('fortsetzenVorgang', '0a1b2c3d-0000-4000-8000-000000000009');
+    f.componentRef.setInput('fortsetzenAuftrag', 'job-42');
+    f.detectChanges();
+    f.componentInstance.vorgangFortsetzen({ auftrag: 'a b' });
+    expect(f.componentInstance.isChatbotOpen()).toBe(false);
+    expect(warn.mock.calls.map(String).filter((z) => z.includes('vorgangFortsetzen'))).toHaveLength(2);
+    warn.mockRestore();
+  });
+
+  it('der Merker steht erst nach einem Ergebnis — ohne Anmeldung wirkt das Attribut wieder (AS-4, Befund 6)', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'vorgangFortsetzen').mockResolvedValue('anmeldung');
+    for (let i = 0; i < 2; i++) {
+      const f = mount();
+      f.componentRef.setInput('fortsetzenAuftrag', 'job-spaeter');
+      f.detectChanges();
+      await Promise.resolve();
+      f.detectChanges();
+      await Promise.resolve();
+    }
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
+
+  it('ablauf-start wirkt je Tab nur einmal (Querschnitts-Review AS-4, Befund 1)', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'startAblauf').mockResolvedValue(undefined);
+    for (let i = 0; i < 2; i++) {
+      const f = mount();
+      f.componentRef.setInput('ablaufStart', 'einmal');
+      f.componentRef.setInput('ablaufStartDaten', '{"a": 1}');
+      f.detectChanges();
+      f.componentInstance.openChatbot();
+      f.detectChanges();
+      await Promise.resolve();
+      f.detectChanges();
+    }
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('ablauf-start ohne Öffnen geht beim Neuladen nicht verloren (Nachprüfung, Befund 2)', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'startAblauf').mockResolvedValue(undefined);
+    const ohne = mount();
+    ohne.componentRef.setInput('ablaufStart', 'spaeter');
+    ohne.detectChanges();                            // nicht geöffnet — die Seite lädt neu
+    const f = mount();
+    f.componentRef.setInput('ablaufStart', 'spaeter');
+    f.detectChanges();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('mit fortsetzen-* wirkt ablauf-start in diesem Aufruf nicht (Befund 2)', async () => {
+    const ablauf = vi.spyOn(ChatShellComponent.prototype, 'startAblauf').mockResolvedValue(undefined);
+    const zurueck = vi.spyOn(ChatShellComponent.prototype, 'vorgangFortsetzen')
+      .mockImplementation(async (_k, nachher) => { nachher?.('gefunden'); return 'gefunden'; });
+    const f = mount();
+    f.componentRef.setInput('ablaufStart', 'baum');
+    f.componentRef.setInput('fortsetzenAuftrag', 'job-42');
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    expect(zurueck).toHaveBeenCalledTimes(1);
+    expect(ablauf).not.toHaveBeenCalled();
+    ablauf.mockRestore();
+    zurueck.mockRestore();
+  });
+
+  it('vorgangFortsetzen zur Laufzeit', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'vorgangFortsetzen')
+      .mockImplementation(async (_k, nachher) => { nachher?.('gefunden'); return 'gefunden'; });
+    const f = mount();
+    f.detectChanges();
+    f.componentInstance.vorgangFortsetzen({ vorgang: '0a1b2c3d-0000-4000-8000-000000000009' });
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    expect(spy.mock.calls[0][0]).toEqual({ vorgang: '0a1b2c3d-0000-4000-8000-000000000009' });
+    spy.mockRestore();
+  });
+
+  it('kaputtes JSON in ablauf-start-daten startet nichts und nennt keine Werte', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'startAblauf').mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const f = mount();
+    f.componentRef.setInput('ablaufStart', 'baum');
+    f.componentRef.setInput('ablaufStartDaten', '{geheim: 1');
+    f.detectChanges();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+
+    expect(spy).not.toHaveBeenCalled();
+    // nur die eigene Warnung (der Kontext-Ping des Tests warnt ebenfalls)
+    const eigene = warn.mock.calls.map(String).filter((z) => z.includes('ablauf-start-daten'));
+    expect(eigene).toHaveLength(1);
+    expect(eigene[0]).not.toContain('geheim');
+    spy.mockRestore();
+    warn.mockRestore();
   });
 
   it('„sofort" vor dem Mount: erst der Rahmen, dann der Zug', async () => {

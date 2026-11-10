@@ -167,7 +167,7 @@ def im_zug(monkeypatch, freigeschaltet):
     sp, ab = _Speicher(), _Ablage()
     ab.speicher = sp
     for name in ("lesen", "juengster", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
-                 "beruehren", "alle_loeschen", "anonyme_der_sitzung_loeschen",
+                 "beruehren", "alle_loeschen", "alle_sperren", "anonyme_der_sitzung_loeschen",
                  "sitzung_setzen"):
         monkeypatch.setattr(vorgaenge, name, getattr(sp, name))
     for name in ("anlegen", "offen", "abschliessen", "offene_job_ids"):
@@ -184,7 +184,8 @@ def im_zug(monkeypatch, freigeschaltet):
     monkeypatch.setattr(zug_basis, "update_session", nichts)
     katalog = {"ablaeufe": [_roh(schritte=[{**_SCHRITTE[0], "argumente": {"text": "fest"}},
                                            *_SCHRITTE[1:]])]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     gestartet: list = []
     staende: list = []
 
@@ -324,7 +325,8 @@ def test_ein_ausgeschalteter_ablauf_bricht_lauf_und_auftrag_ab(im_zug, monkeypat
     state: dict = {"entities": {}}
     _starte(state)
     katalog = {"ablaeufe": [_roh(aktiv=False)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     assert auftrag_zug.pruefen_knoepfe("sitzung-0123456789", state, "de") == []
     antwort = _pruefe(state)
     assert antwort.content == bot_text("de", "action.ablauf.unbekannt")
@@ -360,7 +362,8 @@ def test_ein_abgebrochener_lauf_beendet_den_auftrag_auch_bei_der_b_api(im_zug, m
     state: dict = {"entities": {}}
     _starte(state)
     katalog = {"ablaeufe": [_roh(aktiv=False)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     _pruefe(state)
     assert abbrueche == ["job-1"]
 
@@ -372,7 +375,8 @@ def test_ohne_schluessel_der_person_kein_abbruch_bei_der_b_api(im_zug, monkeypat
     state: dict = {"entities": {}}
     _starte(state)
     katalog = {"ablaeufe": [_roh(aktiv=False)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     _pruefe(state)
     assert abbrueche == []
 
@@ -468,7 +472,8 @@ def test_der_start_eines_anderen_ablaufs_beendet_den_wartenden_auftrag(im_zug, m
              "ausloeser": [{"art": "knopf"}],
              "schritte": [{"id": "ende", "typ": "ende", "text": {"de": "Hallo."}}]}
     katalog = {"ablaeufe": [_roh(), gruss]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     asyncio.run(zug.starten(_S(), _req(action=zug.AKTION, action_params={"ablauf": "gruss"}),
                             state))
     assert abbrueche == ["job-1"]
@@ -480,7 +485,8 @@ def test_ein_konflikt_beim_abbrechen_sendet_kein_delete(im_zug, monkeypatch, abb
     state: dict = {"entities": {}}
     _starte(state)
     katalog = {"ablaeufe": [_roh(aktiv=False)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
 
     async def konflikt(*_a, **_k):
         raise vorgaenge.VorgangKonflikt("v-1")
@@ -505,3 +511,137 @@ def test_ein_wartender_lauf_merkt_sein_gespraech(im_zug):
     asyncio.run(zug_basis.festhalten(_S(), im_zug.speicher.v[v.id], wartet,
                                      session_id="gespraech-b"))
     assert im_zug.speicher.v[v.id].session_id == "gespraech-b"
+
+
+def test_ein_gerade_geloeschter_vorgang_ist_ein_konflikt_kein_absturz(im_zug, monkeypatch):
+    """Review AS-Ud, Befund 2c: „Meine Vorgänge“ löscht einen Vorgang, während ein Zug darauf einen
+    Auftrag anlegt — der Fremdschlüssel schlägt fehl (``IntegrityError``). Wie ein Konflikt:
+    zurückrollen, der gestartete Auftrag endet bei der b-api, die Person liest den Konflikt-Satz."""
+    from sqlalchemy.exc import IntegrityError
+
+    state: dict = {"entities": {}}
+    beendet: list = []
+
+    async def fk_fehler(*_a, **_k):
+        raise IntegrityError("INSERT INTO vorgang_auftraege", {}, Exception("fk"))
+
+    monkeypatch.setattr(ablage, "anlegen", fk_fehler)
+    monkeypatch.setattr(zug_basis, "bei_der_b_api_abbrechen", lambda *ids: beendet.extend(ids))
+    antwort = _starte(state)
+    assert antwort.content == bot_text("de", "action.ablauf.konflikt")
+    assert beendet == ["job-1"]
+
+
+def test_q5_arbeitsstand_loeschen_sperrt_vor_dem_lesen_der_auftraege(im_zug, monkeypatch,
+                                                                     abbrueche):
+    """Querschnitts-Review AS-U/BU, Q-5: wie ``/loeschen`` — ein Zug, der gerade einen Auftrag
+    einträgt (noch nicht festgeschrieben), wäre beim Lesen unsichtbar und ginge per Kaskade ohne
+    b-api-Abbruch mit. Erst sperren (FOR UPDATE: der Eintrag wartet), dann lesen."""
+    from boerdi.services.dokumente import ablage as dokumente
+
+    folge: list = []
+
+    async def kein_dokument(*_a, **_k):
+        return 0
+
+    async def sperren(s, aufrufer):
+        folge.append(("sperren", tuple(aufrufer)))
+
+    lesen = ablage.offene_job_ids
+
+    async def offene(s, aufrufer):
+        folge.append(("lesen", tuple(aufrufer)))
+        return await lesen(s, aufrufer)
+
+    monkeypatch.setattr(dokumente, "der_sitzung_loeschen", kein_dokument)
+    monkeypatch.setattr(vorgaenge, "alle_sperren", sperren)
+    monkeypatch.setattr(ablage, "offene_job_ids", offene)
+    state: dict = {"entities": {}}
+    _starte(state)
+    asyncio.run(vorgang_aktion.loeschen(
+        _S(), _req(action=vorgang_aktion.AKTION_LOESCHEN, action_params={"bestaetigt": True}),
+        state))
+    assert [f[0] for f in folge] == ["sperren", "lesen"] and folge[0][1] == folge[1][1]
+    assert abbrueche == ["job-1"]
+
+
+def test_z4_ein_deadlock_beim_arbeitsstand_loeschen_ist_ein_konflikt(im_zug, monkeypatch,
+                                                                     abbrueche):
+    """Zweites Review, Z-4: bricht PostgreSQL eine Seite mit 40P01 ab, antwortet „Arbeitsstand
+    löschen“ wie bei einem Konflikt — zurückgerollt, nichts beendet, kein Fehler im Zug."""
+    from sqlalchemy.exc import DBAPIError
+
+    from boerdi.services.dokumente import ablage as dokumente
+
+    class _Deadlock(Exception):
+        sqlstate = "40P01"
+
+    async def kein_dokument(*_a, **_k):
+        return 0
+
+    async def deadlock(*_a, **_k):
+        raise DBAPIError("DELETE FROM vorgaenge", {}, _Deadlock("deadlock detected"))
+
+    zurueck: list = []
+
+    class _Rueck(_S):
+        async def rollback(self):
+            zurueck.append(True)
+
+    monkeypatch.setattr(dokumente, "der_sitzung_loeschen", kein_dokument)
+    monkeypatch.setattr(vorgaenge, "alle_loeschen", deadlock)
+    state: dict = {"entities": {}}
+    _starte(state)
+    antwort = asyncio.run(vorgang_aktion.loeschen(
+        _Rueck(), _req(action=vorgang_aktion.AKTION_LOESCHEN, action_params={"bestaetigt": True}),
+        state))
+    assert antwort.content == bot_text("de", "action.ablauf.konflikt")
+    assert zurueck == [True] and abbrueche == []
+
+
+# ── Review AS-8a: Trocken-Aufträge der Probe (Befunde 2, 5, 6) ─────────────────────────────────
+
+_ECHTER_STAND = client.stand
+
+
+@pytest.fixture
+def probe_an():
+    from boerdi.services import probe
+
+    marke = probe._merker.set(None)
+    probe.binde(True)
+    yield
+    probe._merker.reset(marke)
+
+
+def test_review_as8a_2_ein_trockener_auftrag_ist_ohne_schluessel_fertig(im_zug, monkeypatch,
+                                                                        probe_an):
+    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(client, "stand", _ECHTER_STAND)
+    state: dict = {"entities": {}}
+    _starte(state)
+    assert im_zug.gestartet == []                       # kein echter Start
+    assert client.ist_trocken(im_zug.ablage.auftraege[0].job_id)
+    antwort = _pruefe(state)
+    assert antwort.content != bot_text("de", "action.ablauf.auftragNichtAbrufbar")
+    [v] = im_zug.speicher.v.values()
+    assert v.akte["lauf"]["status"] == "fertig"
+
+
+def test_review_as8a_5_ein_nicht_freigeschalteter_flow_scheitert_auch_trocken(im_zug, monkeypatch,
+                                                                            probe_an):
+    monkeypatch.setattr(client, "erlaubt", lambda flow: False)
+    starte = auftrag_zug.starter()
+    assert starte is not None and asyncio.run(starte("wlo/anderer", {})) is None
+
+
+def test_review_as8a_6_ein_trockener_auftrag_endet_ohne_hinweis_auf_die_b_api(im_zug, monkeypatch,
+                                                                            probe_an):
+    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: False)
+    state: dict = {"entities": {}}
+    _starte(state)
+    kuerzel = client.kuerzel(im_zug.ablage.auftraege[0].job_id)
+    anfrage = _req(action=auftrag_zug.AKTION_ABBRECHEN,
+                   action_params={"ablauf": "lesen", "bestaetigt": True, "kuerzel": kuerzel})
+    antwort = asyncio.run(auftrag_zug.abbrechen(_S(), anfrage, state))
+    assert antwort.content == bot_text("de", "action.ablauf.auftragAbgebrochen")

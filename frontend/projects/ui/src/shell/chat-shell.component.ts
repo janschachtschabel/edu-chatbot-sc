@@ -9,9 +9,9 @@ import { TREFFERLISTE } from '@boerdi/ui-module/_vertrag/modul-namen';
 
 import { CardListComponent } from '../cards/card-list.component';
 import { resolveCardsVisible, SHOW_CARDS_MODES } from '../cards/cards-visible';
-import { DebugPanelComponent } from '../debug/debug-panel.component';
+import { DebugPanelHuelleComponent } from '../debug/debug-panel-huelle.component';
 import { _attrEnum, _attrIsTrue, PanelSizeStep } from '../element/attr';
-import { ChatMessage, ChatResponse, DebugInfo, PreparedWriteOut, QueryMetaEntry, UiInfo } from '../grouping/message-types';
+import { type AblaufStand, ChatMessage, ChatResponse, DebugInfo, PreparedWriteOut, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { ResultGroupsComponent } from '../grouping/result-groups.component';
 import { WebLinksComponent } from '../grouping/web-links.component';
 import { SwimlanesComponent } from '../grouping/swimlanes.component';
@@ -20,6 +20,34 @@ import { SafeSvgPipe } from '../icons/safe-svg.pipe';
 import type { TranslationParams } from '../i18n/dictionary';
 import type { TranslateFn } from '../i18n/i18n';
 import { DEFAULT_LOCALE, Locale } from '../i18n/locale';
+
+/** Form einer Ablauf-Kennung (wie `ablauf.ID_FORM` im Backend). */
+const ABLAUF_KENNUNG = /^[a-z][a-z0-9_]{0,39}$/;
+/** Frühe Grenzen der Startdaten (das Backend nimmt höchstens 20 Schlüssel, Review AS-4b, 13). */
+export const START_SCHLUESSEL_MAX = 20;
+export const START_JSON_MAX = 16_000;
+
+/** AS-4b: Kennung und Startdaten der Gastseite — als reines JSON kopiert, oder `null`. Leere Daten
+ *  zählen als keine (Review AS-4b, Befund 9: sonst wiese das Backend einen Knopf-Ablauf ab). */
+export function ablaufStartPruefen(
+  id: unknown, daten?: unknown,
+): { ablauf: string; start?: Record<string, unknown> } | null {
+  const ablauf = typeof id === 'string' ? id.trim() : '';
+  if (!ABLAUF_KENNUNG.test(ablauf)) return null;
+  if (daten === undefined || daten === null) return { ablauf };
+  if (typeof daten !== 'object' || Array.isArray(daten)) return null;
+  let json: string;
+  try {
+    json = JSON.stringify(daten);
+  } catch {
+    return null;   // zyklisch oder nicht serialisierbar
+  }
+  if (json.length > START_JSON_MAX) return null;
+  const start = JSON.parse(json) as Record<string, unknown>;
+  const zahl = Object.keys(start).length;
+  if (zahl > START_SCHLUESSEL_MAX) return null;
+  return zahl ? { ablauf, start } : { ablauf };
+}
 import { UiBloeckeComponent } from '../ui-bloecke/ui-bloecke.component';
 import { alsBeantwortet, offeneFragenSchliessen, wiederOffen } from '../ui-bloecke/fragen-status';
 import { Vormerkungen } from '../ui-bloecke/vormerkungen';
@@ -43,12 +71,25 @@ import {
   themenbaumZweig,
 } from '../controllers/collection-actions';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
+import { SeitenPing } from '../controllers/seiten-ping';
+import { type AblaufSeite, fuehrungsChips } from '../widget/fuehrung-angebote';
+
+/** AS-7b: der Pfad der Gastseite (ohne Fenster: die Wurzel). */
+function _aktuellerPfad(): string {
+  try { return window.location.pathname; } catch { return '/'; }
+}
+import { FUEHRUNG_QR_PREFIX } from '../chips/guide-qr';
 import { TourController } from '../controllers/tour.controller';
 import { SpeechService } from '../speech/speech.service';
 import { CORE_TRUSTED_DOMAINS } from '../session/trusted-host';
 import { runSignIn } from '../session/sign-in-flow';
 import { authButtonState } from '../session/auth-button';
 import { FortsetzenController, type OffenerVorgang, fortsetzenDatum } from './fortsetzen';
+import { type WiederkehrKennung, wiederkehrKennung } from '../stream/offene-vorgaenge';
+import { sitzungsWache } from '../session/session-id';
+
+/** Wie eine Wiederkehr ausging — die Gastseite (Widget) merkt sich danach, ob sie fertig ist. */
+export type WiederkehrAusgang = 'gefunden' | 'nichts' | 'anmeldung' | 'fehler' | 'verworfen' | 'ungueltig';
 import {
   clearAccessBlock, clearSignedOut, isSignedOut, markSignedOut, readAccessBlock,
 } from '../session/mcp-access';
@@ -70,6 +111,9 @@ import { SendMessageContext, runSendMessage } from './send-message';
 import { ControllerContexts, ShellHost, buildControllerContexts } from './shell-contexts';
 import { LifecycleContext, ShellLifecycle } from './lifecycle';
 import { fehlerKurz } from '../obs/fehler-kurz';
+import { AblaufLeisteComponent } from './ablauf-leiste.component';
+import { type EigenerVorgang, MeineVorgaengeController } from './meine-vorgaenge';
+import { MeineVorgaengeComponent } from './meine-vorgaenge.component';
 import { MessageStore } from './message-store';
 import { ScrollFollowController } from './scroll-follow';
 import { ShellRender } from './shell-render';
@@ -108,9 +152,9 @@ import { ShellRender } from './shell-render';
   templateUrl: './chat-shell.component.html',
   styleUrl: './chat-shell.component.scss',
   imports: [
-    SafeSvgPipe, CardListComponent, DebugPanelComponent,
+    AblaufLeisteComponent, SafeSvgPipe, CardListComponent, DebugPanelHuelleComponent,
     QuickRepliesComponent, ResultGroupsComponent, SwimlanesComponent, UiBloeckeComponent,
-    WebLinksComponent,
+    WebLinksComponent, MeineVorgaengeComponent,
   ],
 })
 export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, OnDestroy {
@@ -120,11 +164,36 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly messages = this._store.messages;
   /** Turn-Serialisierung: true während ein Chat-Turn läuft. ALT: plain field. */
   readonly isLoading = signal(false);
+  /** Paket AS-8b (Plan 2026-11-09 §5n, P-10): Probe der Studio-Vorschau — Etikett, kein
+   *  „Meine Vorgänge“, kein „Gespräch fortsetzen“ (das Backend antwortete dort 409). */
+  readonly probe = signal(false);
   /** Letzter Debug-/Telemetrie-Block fürs Debug-Panel. ALT: plain field. Seit
    *  Paket 18C/D nur mit Freigabe (Studio) — sonst bleibt er `null`. */
   readonly latestDebug = signal<DebugInfo | null>(null);
   /** `ui` der jüngsten Antwort: was das Debug-Panel ohne Debug-Block zeigt. */
   readonly latestUi = signal<UiInfo | null>(null);
+  /** Paket AS-Ub: der Stand des Laufs aus der jüngsten **Serverantwort** (live und nach dem
+   *  Neuladen — der Verlauf trägt ihn an der letzten). Lokale Blasen (Hinweise, Fehler, Anmeldung)
+   *  tragen kein `ui` und zählen nicht — sonst verschwände die Leiste mitten im Lauf (Review AS-Ub,
+   *  Befund 1). Ohne Stand an der jüngsten Serverantwort: keine Leiste (Lauf beendet). */
+  readonly ablaufStand = computed(() => {
+    const msgs = this.messages();
+    let antworten = 0;
+    let stand: AblaufStand | null = null;
+    for (const m of msgs) {
+      if (m.sender !== 'bot' || m.isLoading || !m.ui) continue;
+      antworten++;
+      stand = m.ui.ablauf ?? null;
+    }
+    // Zweites Review, Z-1: nach der Anmeldung nachgeladen — gilt, bis eine neue Serverantwort kommt
+    const nach = this._standNachAnmeldung();
+    if (nach && antworten <= nach.antworten) stand = nach.stand;
+    // Z-8: abgemeldet ist die Leiste eines persönlichen Laufs weg (ihr Abbruch liefe anonym ins Leere)
+    return stand?.persoenlich && !this._hasAccessBlock() ? null : stand;
+  });
+  /** Z-1: der Stand aus dem Nachladen nach einer Anmeldung, mit der Zahl der Serverantworten zu
+   *  diesem Zeitpunkt — eine spätere Antwort gilt vor ihm. */
+  private readonly _standNachAnmeldung = signal<{ stand: AblaufStand | null; antworten: number } | null>(null);
   /** K2b: ein Auftragsschritt mit `warten: gesperrt` wartet — das Eingabefeld zeigt den Hinweis als
    *  Platzhalter, bis eine Antwort ohne die Marke kommt. Bewusst eine WEICHE Sperre (zweites Review
    *  K2b): das Feld bleibt bedienbar, damit eine Krisennachricht immer getippt werden kann; anderes
@@ -209,6 +278,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly greeting = input('');
   /** Einstiegs-Quick-Replies (Studio-pflegbar; leer → hardkodierte Default-4). */
   readonly startReplies = input<string[]>([]);
+  /** AS-7b (F-7): Abläufe mit Auslöser `seite` aus dem Boot-Bündel. Die Begrüßung stellt die
+   *  passenden als Start-Chips vorn hin — gerechnet beim Zeigen aus dem aktuellen Pfad (Review AS-7b,
+   *  Befund 4: nach einer SPA-Navigation stand sonst der Chip der alten Seite da). */
+  readonly fuehrungsAngebote = input<AblaufSeite[]>([]);
   /** `show-welcome` — `false` startet mit LEEREM Verlauf: keine Startnachricht,
    *  keine Einstiegs-Chips. Für Einbettungen, die den Chat selbst anmoderieren
    *  (Browser-Plugin, edu-sharing-Seite) und keine zweite Begrüßung wollen.
@@ -473,6 +546,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private readonly _contexts: ControllerContexts = buildControllerContexts(this._host);
   private readonly _tour = new TourController(this._contexts.tour);
   private readonly _contextGreeting = new ContextGreetingController(this._contexts.contextGreeting);
+  /** AS-7b: der Seiten-Ping einer wartenden Führung (teilt den Kontext mit dem Kontext-Ping). */
+  private readonly _seitenPing = new SeitenPing(this._contexts.contextGreeting);
   private readonly _speech = new SpeechService(this._contexts.speech);
 
   /** Lebenszyklus-Seam (8-4S-e4). Objekt-Literal deferred Arrows (Muster `_host`);
@@ -487,6 +562,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     sessionCookieMaxAge: () => this.sessionCookieMaxAge(),
     greeting: () => this.greeting(),
     startReplies: () => this.startReplies(),
+    fuehrungsChips: () => fuehrungsChips(this.fuehrungsAngebote(), _aktuellerPfad(), this.locale()),
+    seitenPingWartet: () => this.ablaufStand()?.status === 'wartet_seite',
     showWelcome: () => _attrIsTrue(this.showWelcome()),
     sessionId: () => this.sessionId,
     setSessionId: (id) => { this.sessionId = id; },
@@ -498,25 +575,38 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     setSpeechEnabled: (v) => this.speechBackendEnabled.set(v),
     setMessages: (msgs) => this._store.set(msgs),
     updateMessages: (u) => this._store.update(u),
-    addUserMessage: (content) => this._store.addUserMessage(content),
+    addUserMessage: (content, fromHost) => this._store.addUserMessage(content, fromHost),
     addBotMessage: (...args) => this._store.addBotMessage(...args),
     setLatestDebug: (d, ui) => this._setzeLetzte(d, ui),
     isLoading: () => this.isLoading(),
     setLoading: (v) => this.isLoading.set(v),
+    setVerlaufBereit: (v) => this._verlaufBereit.set(v),
+    gastAuftragWartet: () => this._wartendeAuftraege.length > 0,
     tour: this._tour,
     contextGreeting: this._contextGreeting,
+    seitenPing: (neueSeite) => {
+      if (neueSeite) this._seitenPing.zuruecksetzen();
+      return this.ablaufStand()?.status === 'wartet_seite' ? this._seitenPing.senden() : Promise.resolve(false);
+    },
     scrollToLatest: () => this._scroll.scrollToLatest(),
     t: (key, params) => this.t(key, params),
   };
   private readonly _lifecycle = new ShellLifecycle(this._lifecycleCtx);
+  /** Paket RB-3 (Review AS-4b, Befund 4): `false`, solange der Verlauf einer fortgesetzten Sitzung
+   *  lädt — Aufträge der Gastseite warten (`_mussWarten`), sonst stünde ihre Blase vor dem alten
+   *  Gespräch. */
+  private readonly _verlaufBereit = signal(true);
   /** Nach dem Laden: zuerst ein wartender Auftrag der Gastseite (Paket 10, H-2),
    *  dann ein zurückgestellter Seitengruß (Review Paket 7, C-5) — der wartet so
    *  hinter dem Auftrag, statt ihm den Zug wegzunehmen. Zuletzt ein Fokus, der
    *  aufs gesperrte Feld traf (`focusInput`). */
   private readonly _nachDemLaden = effect(() => {
     if (this.isLoading()) return;
+    // Auch der Wechsel auf „Verlauf lädt“ löst einen Lauf aus — harmlos: Gruß und Fokus warten nur,
+    // solange ein Zug lief (Review RB-3, Kleinigkeit 7).
+    const verlaufDa = this._verlaufBereit();
     untracked(() => {
-      this._auftragNachholen();
+      if (verlaufDa) this._auftragNachholen();
       this._lifecycle.loadingEnded();
       this._fokusNachholen();
     });
@@ -525,6 +615,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Turn-Lebenszyklus-Seam (8-4S-c). */
   private readonly _sendCtx: SendMessageContext = {
     currentInput: () => this.userInput(),
+    vomGastgeber: () => this._hostTurn,
     clearInput: () => this.userInput.set(''),
     setInput: (text) => this.userInput.set(text),
     sessionId: () => this.sessionId,
@@ -545,15 +636,17 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     focusInput: () => { if (fokusZurueckholen(this._element.nativeElement)) this.focusInput(); },
     pageContextEnv: () => Object.keys(this.parsedPageContext).length
       ? { page_context: this.parsedPageContext } : undefined,
-    stream: (msg, onEvent, env, action, actionParams, uiAntwort) =>
-      this._api.stream(this.sessionId, msg, onEvent, env as any, action, actionParams, uiAntwort),
+    stream: (msg, onEvent, env, action, actionParams, uiAntwort, ...mehr) =>
+      this._api.stream(this.sessionId, msg, onEvent, env as any, action, actionParams, uiAntwort, ...mehr),
     // Review zu M-15: der POST-Rückfall eines Zugs hat keine Fortschrittsrahmen
     // und kann ein ganzer Agent-Lauf sein — eigene, längere Frist.
-    post: (msg, env, action, actionParams, uiAntwort) =>
-      this._api.post(this.sessionId, msg, env as any, action, actionParams, ZUG_POST_FRIST_MS, uiAntwort),
+    post: (msg, env, action, actionParams, uiAntwort, ...mehr) =>
+      this._api.post(this.sessionId, msg, env as any, action, actionParams, ZUG_POST_FRIST_MS, uiAntwort,
+        ...mehr),
     formatPhaseLabel: (evt) => formatPhaseLabel(evt, (k, p) => this.t(k, p)),
     onResult: (resp, msg) => this._onResult(resp, msg),
     t: (key, params) => this.t(key, params),
+    probe: () => this.probe(),
     answerFromHistory: async (msg, nachfrage) => {
       // Die Sitzung des Zuges, nicht die beim jeweiligen Abruf (Review C-3).
       const sitzung = this.sessionId;
@@ -659,27 +752,84 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     // Paket 10 (Audit H-2): läuft noch ein Zug — beim Erstaufruf meist der
     // Kontext-Ping —, fiele der Auftrag am `isLoading`-Tor still weg. Er wartet,
     // bis das Laden endet; das Promise erfüllt sich erst mit seinem Zug.
-    if (this.isLoading()) {
-      return new Promise((fertig) => this._wartendeAuftraege.push({ auftrag, fertig }));
+    if (this._mussWarten()) {
+      return new Promise((fertig) => this._wartendeAuftraege.push({
+        starte: () => this.startTask(auftrag), fertig, sid: this.sessionId }));
     }
+    return this._alsGastgeber(() => this.sendMessage(auftrag));
+  }
+
+  /** **Public API** (AS-4b, Plan 2026-11-09 E2 A) — einen Ablauf mit Startdaten starten.
+   *
+   *  Die Gastseite gibt die Kennung des Ablaufs und ihre Daten (`{sammlung: <nodeId>}`); der Zug
+   *  geht als Direktaktion `ablauf_starten` mit `{ablauf, start}` hinaus. Das Backend nimmt Daten
+   *  bei einem Ablauf mit dem Auslöser „Gastseite“ (seit AS-5a auch „KI schlägt vor“, dann ohne
+   *  die Rechte der Gastseite) und prüft sie gegen dessen Startschema —
+   *  sie sind Eingaben, nie Rechte. Hier nur: eine gültige Kennung, ein reines Objekt (als JSON
+   *  kopiert: keine Funktionen, keine Prototypen). Sonst startet nichts.
+   *
+   *  Sichtbar als Auftrags-Blase des Gastgebers, wie `startTask`; wartet wie dieser auf einen
+   *  laufenden Zug. */
+  startAblauf(id: string, daten?: Record<string, unknown>): Promise<void> {
+    const geprueft = ablaufStartPruefen(id, daten);
+    if (!geprueft) {
+      // Review AS-4b, Befund 7: nicht still — aber ohne Werte (Daten der Gastseite)
+      console.warn('boerdi-chat: startAblauf — ungültige Kennung oder Startdaten; der Ablauf startet nicht.');
+      return Promise.resolve();
+    }
+    const { ablauf, start } = geprueft;
+    // `quelle`: die Bremse „läuft schon“ (Review AS-4b, Befund 1) — und, nur beim Auslöser
+    // „Gastseite“, die Herkunft, mit der Kennungen an lesende Werkzeuge dürfen (Entscheid AS-4a, RB)
+    const params: Record<string, unknown> = start
+      ? { ablauf, start, quelle: 'gastseite' } : { ablauf, quelle: 'gastseite' };
+    if (this._mussWarten()) {
+      return new Promise((fertig) => this._wartendeAuftraege.push({
+        starte: () => this.startAblauf(ablauf, start), fertig, sid: this.sessionId }));
+    }
+    return this._alsGastgeber(
+      () => this.sendMessage(this.t('chat.hostAblauf'), 'ablauf_starten', params));
+  }
+
+  /** Paket AS-Ub: „Abbrechen“ in der Ablauf-Leiste — eine Direktaktion; das Backend fragt nach,
+   *  bevor es den Lauf (samt Auftrag) beendet (U-5). */
+  onAblaufAbbrechen(): void {
+    void this.sendMessage(this.t('ablauf.leiste.abbrechen'), 'ablauf_abbrechen', {});
+  }
+
+  /** Ein Auftrag der Gastseite wartet während eines Zugs und, in einer fortgesetzten Sitzung, bis
+   *  der Verlauf da ist (Paket RB-3). */
+  private _mussWarten(): boolean {
+    return this.isLoading() || !this._verlaufBereit();
+  }
+
+  /** Einen Zug als Auftrag des Gastgebers senden — der Merker gilt nur, solange die Blase
+   *  entsteht. Im `finally`, nicht nach dem `await`: die Blase entsteht synchron, und ein
+   *  Merker, der bis zum Ende des Zuges stünde, färbte die nächste getippte Nachricht mit. */
+  private _alsGastgeber(senden: () => Promise<void>): Promise<void> {
     this._hostTurn = true;
     try {
-      return this.sendMessage(auftrag);
+      return senden();
     } finally {
-      // Im `finally`, nicht nach dem `await`: die Blase entsteht synchron,
-      // und ein Merker, der bis zum Ende des Zuges stünde, färbte die nächste
-      // getippte Nachricht mit.
       this._hostTurn = false;
     }
   }
 
-  /** Aufträge, die während eines Zugs kamen — in ihrer Reihenfolge (H-2). */
-  private readonly _wartendeAuftraege: { auftrag: string; fertig: () => void }[] = [];
+  /** Aufträge und Abläufe des Gastgebers, die während eines Zugs kamen — in ihrer Reihenfolge
+   *  (H-2). */
+  private readonly _wartendeAuftraege: { starte: () => Promise<void>; fertig: () => void; sid: string }[] = [];
 
   /** Den nächsten wartenden Auftrag starten; die übrigen folgen je nach Zugende. */
   private _auftragNachholen(): void {
-    const naechster = this._wartendeAuftraege.shift();
-    if (naechster) void this.startTask(naechster.auftrag).then(naechster.fertig);
+    let naechster = this._wartendeAuftraege.shift();
+    // Querschnitts-Review AS-4, Befund 2: ein Auftrag gehört zu dem Gespräch, in dem er kam —
+    // wechselte es inzwischen (Wiederkehr, Neustart), verfällt er, statt im falschen zu laufen.
+    // (Leer: eingereiht, bevor die Shell ihr Gespräch hatte — gehört zu keinem anderen.)
+    while (naechster && naechster.sid && naechster.sid !== this.sessionId) {
+      console.warn('boerdi-chat: ein wartender Auftrag der Seite verfällt — das Gespräch wechselte.');
+      naechster.fertig();
+      naechster = this._wartendeAuftraege.shift();
+    }
+    if (naechster) void naechster.starte().then(naechster.fertig);
   }
 
   /** Erfolgs-Seiteneffekte eines Turns — ALT `sendMessage`-Tail (522-560):
@@ -845,18 +995,37 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     sessionId: () => this.sessionId,
     block: () => readAccessBlock(),
   });
+  /** Paket AS-Ud (Plan 2026-11-09 §5j): „Meine Vorgänge“ — die eigenen, nicht abgeschlossenen
+   *  Vorgänge anderer Gespräche; der Knopf steht nur mit Anmeldung neben dem Anmelde-Knopf. Gilt
+   *  wie das Angebot oben nur für das Gespräch und den Block, mit denen gefragt wurde. */
+  readonly meineVorgaenge = new MeineVorgaengeController({
+    abrufen: (sid) => this._api.eigeneVorgaenge(sid),
+    loeschen: async (sid, id) => {
+      const gespraech = this.meineVorgaenge.liste().find((v) => v.id === id)?.session_id;
+      const ergebnis = await this._api.vorgangLoeschen(sid, id);
+      // ein Hinweis „Gespräch fortsetzen“ auf genau diesen Vorgang führte jetzt ins Leere
+      if (gespraech && this.fortsetzen.angebot()?.session_id === gespraech) this.fortsetzen.verwerfen();
+      return ergebnis;
+    },
+    sessionId: () => this.sessionId,
+    block: () => readAccessBlock(),
+  });
+  private readonly _vorgaengeKnopf = viewChild<ElementRef<HTMLButtonElement>>('vorgaengeKnopf');
+
   /** Zählt Anlässe, neu zu fragen, die kein anderes Signal trägt: ein neuer Block (Ticket-Tausch,
    *  Anmeldung — Review K2a, Befund 2/3), ein Neustart (Befund 8). */
   private readonly _fortsetzenAnlass = signal(0);
   private readonly _fortsetzenFragen = effect(() => {
     this._fortsetzenAnlass();
-    if (!this._hasAccessBlock() || this.isLoading()) return;
+    if (!this._hasAccessBlock() || this.isLoading() || this.probe()) return;
     untracked(() => { void this.fortsetzen.pruefen().then(() => this._cdr.markForCheck()); });
   });
 
   /** Ein neuer Block oder ein neues Gespräch: altes Angebot weg, neu fragen. */
   private _fortsetzenNeu(): void {
+    this._standNachAnmeldung.set(null);   // Z-1: galt dem alten Gespräch oder Block
     this.fortsetzen.vergessen();
+    this.meineVorgaenge.vergessen();
     this._fortsetzenAnlass.update((n) => n + 1);
   }
 
@@ -872,15 +1041,162 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     const v = this.fortsetzen.gueltiges();
     if (!v || this.isLoading()) return;
     this.fortsetzen.verwerfen();
-    this.eingabeGesperrt.set(false);
     // Review K2a, Befund 4: `wechseln` hält das Laden, bis der Verlauf da ist — sonst landete eine
     // getippte Nachricht vor ihm, und „Stand prüfen“ fiele danach still aus.
-    const gewechselt = await this._lifecycle.wechseln(v.session_id);
+    await this._zumVorgang(v);
+    this.focusInput();   // Befund 5: der geklickte Knopf ist weg — der Fokus nicht ins Leere
+  }
+
+  /** Auf das Gespräch eines Vorgangs wechseln (wenn es nicht schon dieses ist) und bei einem
+   *  wartenden Auftrag „Stand prüfen“ fragen — für „Fortsetzen“ (K2a) und die Wiederkehr (AS-4c). */
+  private async _zumVorgang(v: { session_id: string; status: string; ablauf: string | null },
+  ): Promise<boolean> {
+    const gewechselt = v.session_id === this.sessionId || await this._lifecycle.wechseln(v.session_id);
+    // Review AS-Ud, Befund 1: die Liste „Meine Vorgänge“ galt dem alten Gespräch
+    if (gewechselt) this.meineVorgaenge.vergessen();
+    // Querschnitts-Review AS-4, Befund 5: der Hinweis „gesperrt“ gehört zum alten Gespräch
+    if (gewechselt) this.eingabeGesperrt.set(false);
     if (gewechselt && v.status === 'wartet_auftrag' && v.ablauf) {
-      this.sendMessage(this.t('fortsetzen.pruefen'), 'ablauf_auftrag_pruefen', { ablauf: v.ablauf });
+      const ablauf = v.ablauf;
+      const pruefen = () => this.sendMessage(
+        this.t('fortsetzen.pruefen'), 'ablauf_auftrag_pruefen', { ablauf });
+      // Kam nach dem Wechsel schon ein anderer Zug in Gang, wartet „Stand prüfen“ vorn in der
+      // Reihe statt still auszufallen (Review AS-4c, Befund 2) — ebenso hinter dem Verlauf.
+      if (this._mussWarten()) {
+        await new Promise<void>((fertig) => this._wartendeAuftraege.unshift({
+          starte: pruefen, fertig, sid: this.sessionId }));
+      } else {
+        await pruefen();
+      }
     }
     this._cdr.markForCheck();
-    this.focusInput();   // Befund 5: der geklickte Knopf ist weg — der Fokus nicht ins Leere
+    return gewechselt;
+  }
+
+  /** AS-4c (Review, Befund 5): eine Wiederkehr, die an der fehlenden Anmeldung scheiterte —
+   *  nach der Anmeldung einmal neu versucht. Nur im Speicher. */
+  private _wiederkehrWartet: { kennung: WiederkehrKennung;
+    beimErgebnis?: (a: WiederkehrAusgang) => void } | null = null;
+
+  /** Ob ein Zugangsblock da ist — eigene Naht für die Specs. */
+  private _hatBlock(): boolean {
+    return readAccessBlock() !== null;
+  }
+
+  /** Nach der Anmeldung: eine gescheiterte Wiederkehr einmal neu versuchen. */
+  private _wiederkehrNachDerAnmeldung(): Promise<unknown> {
+    const wartet = this._wiederkehrWartet;
+    this._wiederkehrWartet = null;
+    return wartet ? this.vorgangFortsetzen(wartet.kennung, wartet.beimErgebnis) : Promise.resolve();
+  }
+
+  /** **Public API** (AS-4c, Plan 2026-11-09 R3) — mit einer Vorgang- oder Auftragskennung der
+   *  Gastseite (Benachrichtigung, Link) zur Arbeit zurückkehren.
+   *
+   *  Das Backend gibt das Gespräch nur der angemeldeten Besitzerin; fremd, unbekannt, abgelaufen
+   *  und ohne Anmeldung sehen gleich aus. Gefunden: wechseln wie „Fortsetzen“ und bei einem
+   *  Auftrag „Stand prüfen“. Nicht gefunden: eine Warnung in der Konsole, ohne die Kennung. */
+  async vorgangFortsetzen(roh: { vorgang?: string; auftrag?: string },
+    beimErgebnis?: (a: WiederkehrAusgang) => void): Promise<WiederkehrAusgang> {
+    const kennung = wiederkehrKennung(roh);
+    if (!kennung) {
+      console.warn('boerdi-chat: vorgangFortsetzen — genau eine gültige Kennung (vorgang oder auftrag) nötig.');
+      beimErgebnis?.('ungueltig');
+      return 'ungueltig';
+    }
+    // Review PR #51 (Widget, Befund 2): wie `startTask` auch auf den Verlauf warten — sonst hinge
+    // `restoreHistory` Begrüßung und alten Verlauf unter die neue Blase (derselbe Fehler wie RB-3)
+    if (this._mussWarten()) {
+      let ausgang: WiederkehrAusgang = 'verworfen';
+      return new Promise((fertig) => this._wartendeAuftraege.push({
+        starte: () => this.vorgangFortsetzen(kennung, beimErgebnis).then((a) => { ausgang = a; }),
+        fertig: () => fertig(ausgang), sid: this.sessionId }));
+    }
+    const ausgang = await this._wiederkehr(kennung, beimErgebnis);
+    // „anmeldung“ meldet erst der neue Versuch nach der Anmeldung (Nachprüfung Querschnitt AS-4,
+    // Befund 6: sonst fehlte dem Widget der Merker nach einem gelungenen zweiten Versuch)
+    if (ausgang !== 'anmeldung') beimErgebnis?.(ausgang);
+    return ausgang;
+  }
+
+  private async _wiederkehr(kennung: WiederkehrKennung,
+    beimErgebnis?: (a: WiederkehrAusgang) => void): Promise<WiederkehrAusgang> {
+    // Review AS-4c, Befund 2: die Abfrage hält das Laden — sonst liefe ein getippter Zug im alten
+    // Gespräch, und ohne Treffer bliebe die Warteschlange liegen. Das Ende des Ladens zieht den
+    // nächsten wartenden Auftrag nach; `wechseln` und `sendMessage` setzen es gleich danach
+    // (synchron) wieder. Querschnitts-Review AS-4, Befund 4: abbrechbar und nur für das Gespräch,
+    // in dem gefragt wurde.
+    const veraltet = sitzungsWache(() => this.sessionId);
+    this.isLoading.set(true);
+    let v = null;
+    let status: number | null = null;
+    try {
+      v = await this._mitAbbruch((signal) => this._api.wiederkehr(this.sessionId, kennung, signal));
+    } catch (e) {
+      v = null;
+      status = typeof (e as { status?: unknown })?.status === 'number' ? (e as { status: number }).status : 0;
+    } finally {
+      // ein Neustart hat das Laden selbst freigegeben — und vielleicht schon einen neuen Zug
+      if (!veraltet()) this.isLoading.set(false);
+    }
+    if (veraltet() || this._zerstoert) return 'verworfen';
+    if (!v) {
+      console.warn('boerdi-chat: vorgangFortsetzen — nichts zum Fortsetzen (Anmeldung, Kennung oder Netz).');
+      // Im Chat erklärt (Review AS-4c, Befund 5). Ohne Anmeldung (oder abgewiesen) weiß der Client
+      // das ohnehin — kein Orakel; „nichts“ lautet für fremd, unbekannt und abgelaufen gleich; ein
+      // Server- oder Netzfehler heißt „später“ (Querschnitts-Review AS-4, Befund 6).
+      const ausgang: WiederkehrAusgang = !this._hatBlock() || status === 403 ? 'anmeldung'
+        : status === 404 || status === null ? 'nichts' : 'fehler';
+      if (ausgang === 'anmeldung') this._wiederkehrWartet = { kennung, beimErgebnis };
+      const schluessel = { anmeldung: 'wiederkehr.anmelden', nichts: 'wiederkehr.nichts',
+        fehler: 'wiederkehr.spaeter' }[ausgang];
+      this._store.addBotMessage(this.t(schluessel), false, [],
+        ausgang === 'anmeldung' ? [AUTH_QR_MARKER] : []);
+      this._cdr.markForCheck();
+      return ausgang;
+    }
+    // Review AS-4c, Befund 6: nur ein Angebot zu genau diesem Gespräch ist erledigt
+    if (this.fortsetzen.angebot()?.session_id === v.session_id) this.fortsetzen.verwerfen();
+    // ein gescheiterter Wechsel ist kein Ergebnis (Nachprüfung, Befund 8)
+    return (await this._zumVorgang(v)) ? 'gefunden' : 'verworfen';
+  }
+
+  /** Zweites Review, Z-1: nach einer gelungenen Anmeldung den Stand des Laufs einmal nachholen —
+   *  der Verlauf beim Start ging ohne Anmeldung hinaus (neuer Tab, Ticket-Tausch) und kannte ihn
+   *  nicht. Die letzten Einträge genügen: der Stand hängt an den Antworten nach der letzten Frage.
+   *  Fehler bleiben still (eine Anzeige); ohne Antwort im Ausschnitt bleibt alles, wie es ist. */
+  private async _standNachladen(): Promise<void> {
+    const sid = this.sessionId;
+    const antworten = this.messages().filter((m) => m.sender === 'bot' && !m.isLoading && m.ui).length;
+    try {
+      const verlauf = await this._api.fetchHistory(sid, 5);
+      if (sid !== this.sessionId) return;
+      const letzte = [...verlauf].reverse().find((m) => m.role === 'assistant');
+      if (!letzte) return;
+      this._standNachAnmeldung.set({ stand: letzte.ui?.ablauf ?? null, antworten });
+    } catch {
+      /* still — die Leiste kommt mit der nächsten Antwort */
+    }
+  }
+
+  /** AS-Ud: „Meine Vorgänge“ auf- oder zuklappen. */
+  onVorgaengeUmschalten(): void {
+    void this.meineVorgaenge.umschalten();
+  }
+
+  /** AS-Ud: Schließen im Panel (× oder Esc) — der Fokus zurück an den Knopf, der es öffnete. */
+  onVorgaengeSchliessen(): void {
+    this.meineVorgaenge.schliessen();
+    this._vorgaengeKnopf()?.nativeElement.focus();
+  }
+
+  /** AS-Ud: „Fortsetzen“ in der Liste — wie der Hinweis „Gespräch fortsetzen“ (K2a). */
+  async onVorgangFortsetzen(v: EigenerVorgang): Promise<void> {
+    if (this.isLoading()) return;
+    this.meineVorgaenge.schliessen();
+    if (this.fortsetzen.angebot()?.session_id === v.session_id) this.fortsetzen.verwerfen();
+    await this._zumVorgang(v);
+    this.focusInput();   // das Panel ist zu — der Fokus nicht ins Leere
   }
 
   /** × am Hinweis: schließen, Fokus zurück in die Eingabe (Review K2a, Befund 5). */
@@ -937,6 +1253,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       if (ausgang === 'done') {
         this._hasAccessBlock.set(readAccessBlock() !== null);
         this._fortsetzenNeu();   // K2a: ein neuer Block kann einer anderen Person gehören
+        void this._standNachladen();   // Z-1: der Lauf der Person, nun angemeldet
+        void this._wiederkehrNachDerAnmeldung();   // Querschnitts-Review AS-4, Befund 6
         this._cdr.markForCheck();
         return true;
       }
@@ -990,9 +1308,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     this._hasAccessBlock.set(false);
     this._frist.vergessen();
     this.fortsetzen.vergessen();
+    this.meineVorgaenge.vergessen();
     // Nach einem Abmelden ist eine Abweisung keine Nachricht wert (Review 2026-11-07, Befund 8).
     if (isSignedOut()) return;
-    // Plan 2026-11-07 (R1): ein Ticket-Block lief nach 12 h ab — still neu tauschen, einmal je
+    // Plan 2026-11-07 (RB-1): ein Ticket-Block lief nach 12 h ab — still neu tauschen, einmal je
     // Ticket. Erst wenn das nicht geht, erfährt es die Person.
     const ticket = this.ticket().trim();
     if (ticket && ticket !== this._ticketNachAbweisung) {
@@ -1013,13 +1332,14 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Nutzergeste, ohne die der Browser das Anmeldefenster blockt. */
   onAuthClick(): void {
     if (this.authButton() === 'signOut') {
-      // Plan 2026-11-07 (R2): das Backend widerruft den Block am MCP-Server. Hier sofort aus dem
+      // Plan 2026-11-07 (RB-2): das Backend widerruft den Block am MCP-Server. Hier sofort aus dem
       // Tab — er reist ausdrücklich mit, also schadet das Löschen dem Widerruf nicht.
       const block = readAccessBlock();
       clearAccessBlock();
       markSignedOut();
       this._frist.vergessen();
       this.fortsetzen.vergessen();
+      this.meineVorgaenge.vergessen();
       this._hasAccessBlock.set(false);
       void (block ? this._api.abmelden(block) : Promise.resolve(false)).then((beendet) => {
         this._store.addBotMessage(this.t(beendet ? 'auth.signedOut' : 'auth.signedOutLocal'));
@@ -1040,6 +1360,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       if (angemeldet) clearSignedOut();
       this._hasAccessBlock.set(angemeldet);
       this._fortsetzenNeu();     // K2a: nach der Anmeldung fragen, mit diesem Block
+      if (angemeldet) {
+        void this._standNachladen();   // Z-1: der Lauf der Person, nun angemeldet (Review PR #51, W4)
+        void this._wiederkehrNachDerAnmeldung();   // AS-4c, Befund 5
+      }
     });
   }
 
@@ -1051,13 +1375,14 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Klick auf einen Guide-Quick-Reply (`__guide__|…`) — Same-Tab-Navigation. */
   onGuideQuickReply(qr: string): void {
     const url = guideQuickReplyTarget(qr, this._routingCtx);
-    if (url) this.onGuideNavigate(url);
+    // AS-7b: der Weg einer Führung darf auf derselben Herkunft auch ohne Vertrauensliste gehen
+    if (url) this.onGuideNavigate(url, qr.startsWith(FUEHRUNG_QR_PREFIX));
   }
 
   /** Bot-getriebene „Bring mich hin"-Navigation — T-3-fail-closed über den
    *  Resolver; nur der window-Sprung ist hier (Verbatim ALT 1093-1097). */
-  onGuideNavigate(url: string | undefined): void {
-    const finalUrl = resolveGuideNavTarget(url, this._routingCtx);
+  onGuideNavigate(url: string | undefined, gleicheHerkunft = false): void {
+    const finalUrl = resolveGuideNavTarget(url, this._routingCtx, gleicheHerkunft);
     if (!finalUrl) return;
     try { window.location.href = finalUrl; }
     catch { window.open(finalUrl, '_self', 'noopener'); }
@@ -1180,6 +1505,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** O-A: was der Gastgeber erlaubt (`read-only` | `curate` | `full`). */
   setToolMode(modus: string): void {
     this._api.setToolMode(modus);
+  }
+
+  /** Paket AS-8b: diese Einbettung ist eine Probe der Studio-Vorschau (Trockenlauf). */
+  setProbe(an: boolean): void {
+    this.probe.set(an);
+    this._api.setProbe(an);
   }
 
   /** **Public API** (O-B) — Schnellantworten fuer die naechsten Zuege hart

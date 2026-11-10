@@ -17,90 +17,111 @@ import type { JsonSchema } from './json-schema';
 
 export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
 {
-  "06-ablaeufe/katalog": {
+  "06-ablaeufe": {
     "$defs": {
-      "AblaufArea": {
+      "AblaufTest": {
         "additionalProperties": true,
+        "description": "AS-1 (Plan 2026-11-09 §5c): ein Testfall, mit dem echten Treiber simuliert — ohne LLM, MCP,\nAuftrag oder Freigabe (``services/ablauf/simulation``).",
         "properties": {
-          "id": {
-            "pattern": "^[a-z][a-z0-9_]{0,39}$",
-            "title": "Id",
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
             "type": "string"
           },
-          "titel": {
-            "additionalProperties": {
-              "maxLength": 120,
-              "type": "string"
-            },
-            "title": "Titel",
+          "teile": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Teile",
             "type": "object"
           },
-          "beschreibung": {
-            "default": "",
-            "maxLength": 600,
-            "title": "Beschreibung",
-            "type": "string"
+          "werkzeuge": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Werkzeuge",
+            "type": "object"
           },
-          "wann": {
+          "eingaben": {
             "default": [],
             "items": {
-              "maxLength": 200,
-              "type": "string"
+              "$ref": "#/$defs/TestEingabe"
             },
-            "maxItems": 5,
-            "title": "Wann",
+            "maxItems": 30,
+            "title": "Eingaben",
             "type": "array"
           },
-          "nicht_wann": {
-            "default": [],
-            "items": {
-              "maxLength": 200,
-              "type": "string"
-            },
-            "maxItems": 5,
-            "title": "Nicht Wann",
-            "type": "array"
+          "erwartet": {
+            "$ref": "#/$defs/TestErwartung",
+            "default": {
+              "weg": [],
+              "status": null,
+              "ende": null,
+              "teile": []
+            }
           },
-          "aktiv": {
-            "default": false,
-            "title": "Aktiv",
+          "start": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start"
+          },
+          "quelle": {
+            "default": "gastseite",
+            "pattern": "^(gastseite|ki)$",
+            "title": "Quelle",
+            "type": "string",
+            "x-choices": [
+              "gastseite",
+              "ki"
+            ]
+          },
+          "angemeldet": {
+            "default": true,
+            "title": "Angemeldet",
             "type": "boolean"
           },
-          "ausloeser": {
+          "ab": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,39}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ab"
+          },
+          "gewaehlt": {
             "default": [],
             "items": {
-              "$ref": "#/$defs/Ausloeser"
+              "maxLength": 40,
+              "type": "string"
             },
-            "title": "Ausloeser",
+            "maxItems": 20,
+            "title": "Gewaehlt",
             "type": "array"
           },
-          "voraussetzungen": {
-            "default": [],
-            "items": {
-              "type": "string",
-              "x-choices": [
-                "anmeldung"
-              ]
-            },
-            "title": "Voraussetzungen",
-            "type": "array"
-          },
-          "schritte": {
-            "default": [],
-            "items": {
-              "$ref": "#/$defs/Schritt"
-            },
-            "title": "Schritte",
-            "type": "array"
+          "seite": {
+            "default": "/",
+            "maxLength": 500,
+            "title": "Seite",
+            "type": "string"
           }
         },
         "required": [
-          "id",
-          "titel"
+          "name"
         ],
-        "title": "AblaufArea",
-        "type": "object",
-        "x-widget": "ablauf"
+        "title": "AblaufTest",
+        "type": "object"
       },
       "AgentSchritt": {
         "additionalProperties": true,
@@ -118,7 +139,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "type": "string",
+                  "x-widget": "textarea"
                 },
                 "type": "object"
               },
@@ -154,14 +176,16 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "additionalProperties": true,
         "properties": {
           "art": {
-            "pattern": "^(knopf|agent|text|modul)$",
+            "pattern": "^(knopf|agent|text|modul|extern|seite)$",
             "title": "Art",
             "type": "string",
             "x-choices": [
               "knopf",
               "agent",
               "text",
-              "modul"
+              "modul",
+              "extern",
+              "seite"
             ]
           },
           "modus": {
@@ -203,12 +227,76 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ],
             "default": null,
             "title": "Wenn Teil"
+          },
+          "muster": {
+            "default": [],
+            "items": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "title": "Muster",
+            "type": "array"
           }
         },
         "required": [
           "art"
         ],
         "title": "Ausloeser",
+        "type": "object"
+      },
+      "Freitext": {
+        "additionalProperties": true,
+        "description": "AS-3a: getippter Text an einem Schritt mit Schnellantworten wird der Teil ``schreibt``,\ndann geht es zum Schritt ``ziel``.",
+        "properties": {
+          "ziel": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Ziel",
+            "type": "string",
+            "x-widget": "schritt-ziel"
+          },
+          "schreibt": {
+            "maxLength": 40,
+            "title": "Schreibt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ziel",
+          "schreibt"
+        ],
+        "title": "Freitext",
+        "type": "object"
+      },
+      "Schnellantwort": {
+        "additionalProperties": true,
+        "description": "AS-3a (Plan 2026-11-09, D2): eine Schnellantwort — ein Chip mit Label je Sprache; die Wahl\nführt zum Schritt ``ziel``.",
+        "properties": {
+          "id": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "additionalProperties": {
+              "maxLength": 60,
+              "type": "string"
+            },
+            "title": "Label",
+            "type": "object"
+          },
+          "ziel": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Ziel",
+            "type": "string",
+            "x-widget": "schritt-ziel"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "ziel"
+        ],
+        "title": "Schnellantwort",
         "type": "object"
       },
       "Schritt": {
@@ -220,7 +308,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "string"
           },
           "typ": {
-            "pattern": "^(nachricht|modul|werkzeug|verzweigung|agent|auftrag|ende)$",
+            "pattern": "^(nachricht|modul|werkzeug|verzweigung|agent|auftrag|seite|ende)$",
             "title": "Typ",
             "type": "string",
             "x-choices": [
@@ -230,6 +318,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               "verzweigung",
               "agent",
               "auftrag",
+              "seite",
               "ende"
             ]
           },
@@ -254,7 +343,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
                 "auftrag",
                 "ende",
                 "modul",
-                "nachricht"
+                "nachricht",
+                "seite"
               ]
             }
           },
@@ -299,7 +389,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "werkzeug": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "x-catalog": "ablauf_werkzeuge"
               },
               {
                 "type": "null"
@@ -464,10 +555,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
                 "auftrag",
                 "modul",
                 "nachricht",
+                "seite",
                 "verzweigung",
                 "werkzeug"
               ]
-            }
+            },
+            "x-widget": "weiter"
           },
           "bei_fehler": {
             "anyOf": [
@@ -490,6 +583,47 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               ]
             }
           },
+          "optionen": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/Schnellantwort"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Optionen",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "modul",
+                "nachricht"
+              ]
+            }
+          },
+          "freitext": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Freitext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "modul",
+                "nachricht"
+              ]
+            }
+          },
           "agent": {
             "anyOf": [
               {
@@ -506,6 +640,69 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
                 "agent"
               ]
             }
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
+          },
+          "label": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Label",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
+          },
+          "ankunft": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ankunft",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
           }
         },
         "required": [
@@ -513,6 +710,233 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "typ"
         ],
         "title": "Schritt",
+        "type": "object"
+      },
+      "StartFeld": {
+        "additionalProperties": true,
+        "description": "AS-4a (Plan 2026-11-09 §5f, E2 A): ein Feld der Startdaten. Die Daten prüft\n``services/ablauf/startdaten`` — sie sind Eingaben, nie Rechte.",
+        "properties": {
+          "name": {
+            "pattern": "^[a-z][a-z0-9_]{1,29}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "typ": {
+            "pattern": "^(text|nodeid|zahl|ja_nein)$",
+            "title": "Typ",
+            "type": "string",
+            "x-choices": [
+              "text",
+              "nodeid",
+              "zahl",
+              "ja_nein"
+            ]
+          },
+          "pflicht": {
+            "default": false,
+            "title": "Pflicht",
+            "type": "boolean"
+          },
+          "beschreibung": {
+            "additionalProperties": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "default": {},
+            "title": "Beschreibung",
+            "type": "object"
+          },
+          "max_zeichen": {
+            "default": 200,
+            "maximum": 500,
+            "minimum": 1,
+            "title": "Max Zeichen",
+            "type": "integer",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "text"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "typ"
+        ],
+        "title": "StartFeld",
+        "type": "object"
+      },
+      "TestEingabe": {
+        "additionalProperties": true,
+        "description": "AS-1: was ein Testfall an einem wartenden Schritt eingibt — je nach Wartepunkt eines\ndavon.",
+        "properties": {
+          "bei": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Bei",
+            "type": "string"
+          },
+          "antwort": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Antwort"
+          },
+          "ergebnis": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ergebnis"
+          },
+          "fehler": {
+            "default": false,
+            "title": "Fehler",
+            "type": "boolean"
+          },
+          "freigabe": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ja",
+                  "nein"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Freigabe"
+          },
+          "teile": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Teile",
+            "type": "object"
+          },
+          "option": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Option"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Text"
+          },
+          "seite": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Seite"
+          }
+        },
+        "required": [
+          "bei"
+        ],
+        "title": "TestEingabe",
+        "type": "object"
+      },
+      "TestErwartung": {
+        "additionalProperties": true,
+        "description": "AS-1: was nach den Eingaben gelten soll — nur, was gesetzt ist, wird verglichen.",
+        "properties": {
+          "weg": {
+            "default": [],
+            "items": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Weg",
+            "type": "array"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fertig",
+                  "fehler",
+                  "wartet_person",
+                  "wartet_ki",
+                  "wartet_auftrag",
+                  "wartet_freigabe",
+                  "wartet_wahl",
+                  "wartet_seite",
+                  "nicht_gestartet"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "ende": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ende"
+          },
+          "teile": {
+            "default": [],
+            "items": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Teile",
+            "type": "array"
+          }
+        },
+        "title": "TestErwartung",
         "type": "object"
       },
       "Weiter": {
@@ -543,6 +967,33 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": null,
             "title": "Wenn Gewaehlt"
           },
+          "wenn_wert": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WennWert"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "wenn_seite": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wenn Seite"
+          },
           "dann": {
             "anyOf": [
               {
@@ -570,22 +1021,158 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         },
         "title": "Weiter",
         "type": "object"
+      },
+      "WennWert": {
+        "additionalProperties": true,
+        "description": "AS-3c (Plan 2026-11-09, D4): eine Stelle eines Teils mit einem Wert vergleichen\n(``services/ablauf/vergleich``).",
+        "properties": {
+          "quelle": {
+            "maxLength": 200,
+            "title": "Quelle",
+            "type": "string"
+          },
+          "vergleich": {
+            "pattern": "^(gleich|enthaelt|vorhanden|leer|groesser|kleiner)$",
+            "title": "Vergleich",
+            "type": "string",
+            "x-choices": [
+              "gleich",
+              "enthaelt",
+              "vorhanden",
+              "leer",
+              "groesser",
+              "kleiner"
+            ]
+          },
+          "wert": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wert"
+          }
+        },
+        "required": [
+          "quelle",
+          "vergleich"
+        ],
+        "title": "WennWert",
+        "type": "object"
       }
     },
     "additionalProperties": true,
-    "description": "Alle Abläufe in einem Bereich — ein Eintrag je Ablauf, die ``id`` ist der Schlüssel.",
     "properties": {
-      "ablaeufe": {
+      "id": {
+        "pattern": "^[a-z][a-z0-9_]{0,39}$",
+        "title": "Id",
+        "type": "string"
+      },
+      "titel": {
+        "additionalProperties": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "title": "Titel",
+        "type": "object"
+      },
+      "beschreibung": {
+        "default": "",
+        "maxLength": 600,
+        "title": "Beschreibung",
+        "type": "string",
+        "x-widget": "textarea"
+      },
+      "wann": {
         "default": [],
         "items": {
-          "$ref": "#/$defs/AblaufArea"
+          "maxLength": 200,
+          "type": "string"
         },
-        "title": "Ablaeufe",
+        "maxItems": 5,
+        "title": "Wann",
+        "type": "array"
+      },
+      "nicht_wann": {
+        "default": [],
+        "items": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "maxItems": 5,
+        "title": "Nicht Wann",
+        "type": "array"
+      },
+      "aktiv": {
+        "default": false,
+        "title": "Aktiv",
+        "type": "boolean"
+      },
+      "ausloeser": {
+        "default": [],
+        "items": {
+          "$ref": "#/$defs/Ausloeser"
+        },
+        "title": "Ausloeser",
+        "type": "array"
+      },
+      "voraussetzungen": {
+        "default": [],
+        "items": {
+          "type": "string",
+          "x-choices": [
+            "anmeldung"
+          ]
+        },
+        "title": "Voraussetzungen",
+        "type": "array"
+      },
+      "start": {
+        "anyOf": [
+          {
+            "items": {
+              "$ref": "#/$defs/StartFeld"
+            },
+            "maxItems": 10,
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Start"
+      },
+      "schritte": {
+        "default": [],
+        "items": {
+          "$ref": "#/$defs/Schritt"
+        },
+        "title": "Schritte",
+        "type": "array"
+      },
+      "tests": {
+        "default": [],
+        "items": {
+          "$ref": "#/$defs/AblaufTest"
+        },
+        "maxItems": 20,
+        "title": "Tests",
         "type": "array"
       }
     },
-    "title": "AblaufKatalogArea",
-    "type": "object"
+    "required": [
+      "id",
+      "titel"
+    ],
+    "title": "AblaufArea",
+    "type": "object",
+    "x-widget": "ablauf"
   },
   "05-canvas/material-types": {
     "$defs": {
@@ -3986,7 +4573,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "boolean"
           },
           "dokument_ohne_anmeldung": {
-            "default": false,
+            "default": true,
             "title": "Dokument Ohne Anmeldung",
             "type": "boolean"
           },
@@ -4027,7 +4614,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "$ref": "#/$defs/UploadSettings",
         "default": {
           "dokument_im_chat": true,
-          "dokument_ohne_anmeldung": false,
+          "dokument_ohne_anmeldung": true,
           "ablage_in_wlo": false,
           "max_mb": 10,
           "max_seiten": 300,
@@ -4798,6 +5385,6 @@ export const AREA_KEYS: readonly string[] = [
   "05-canvas/type-aliases",
   "05-knowledge/mcp-servers",
   "05-knowledge/rag-config",
-  "06-ablaeufe/katalog",
+  "06-ablaeufe",
   "eval/gold-flows"
 ] as const;

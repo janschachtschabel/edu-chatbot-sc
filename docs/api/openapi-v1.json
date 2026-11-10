@@ -39,7 +39,8 @@
             "default": "",
             "maxLength": 600,
             "title": "Beschreibung",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "id": {
             "pattern": "^[a-z][a-z0-9_]{0,39}$",
@@ -61,6 +62,29 @@
               "$ref": "#/components/schemas/Schritt"
             },
             "title": "Schritte",
+            "type": "array"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StartFeld"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/AblaufTest"
+            },
+            "maxItems": 20,
+            "title": "Tests",
             "type": "array"
           },
           "titel": {
@@ -137,6 +161,22 @@
         "title": "AblaufBefund",
         "type": "object"
       },
+      "AblaufListe": {
+        "properties": {
+          "ablaeufe": {
+            "items": {
+              "$ref": "#/components/schemas/AblaufZeile"
+            },
+            "title": "Ablaeufe",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ablaeufe"
+        ],
+        "title": "AblaufListe",
+        "type": "object"
+      },
       "AblaufPruefung": {
         "properties": {
           "befunde": {
@@ -145,12 +185,351 @@
             },
             "title": "Befunde",
             "type": "array"
+          },
+          "teile": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AblaufTeil"
+            },
+            "title": "Teile",
+            "type": "array"
+          },
+          "warnungen": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnungen",
+            "type": "array"
           }
         },
         "required": [
           "befunde"
         ],
         "title": "AblaufPruefung",
+        "type": "object"
+      },
+      "AblaufStand": {
+        "description": "Paket AS-Ua (Plan 2026-11-09 §5h, U-2): der Stand des Ablaufs, der in diesem Gespräch läuft\n— für die Leiste im Widget. ``nr``/``von``: „Schritt n von m“ (``services/ablauf/fortschritt``).\n``status`` ist der Status des Laufs (``laeuft``, ``wartet_wahl``, ``wartet_person``,\n``wartet_ki``, ``wartet_auftrag``, ``wartet_freigabe`` …).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lauf": {
+            "default": "",
+            "title": "Lauf",
+            "type": "string"
+          },
+          "nr": {
+            "title": "Nr",
+            "type": "integer"
+          },
+          "persoenlich": {
+            "default": false,
+            "title": "Persoenlich",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "teile": {
+            "items": {
+              "$ref": "#/components/schemas/AblaufTeilText"
+            },
+            "title": "Teile",
+            "type": "array"
+          },
+          "titel": {
+            "title": "Titel",
+            "type": "string"
+          },
+          "von": {
+            "title": "Von",
+            "type": "integer"
+          },
+          "weg": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AblaufWeg"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "titel",
+          "nr",
+          "von",
+          "status"
+        ],
+        "title": "AblaufStand",
+        "type": "object"
+      },
+      "AblaufTeil": {
+        "description": "AS-Dc: eine Zeile der Sicht „Daten“ (``services/ablauf/datensicht``).",
+        "properties": {
+          "aus_gespraech": {
+            "default": false,
+            "title": "Aus Gespraech",
+            "type": "boolean"
+          },
+          "beispiel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beispiel"
+          },
+          "leser": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Leser",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "schreiber": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Schreiber",
+            "type": "array"
+          },
+          "typen": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Typen",
+            "type": "array"
+          },
+          "vor_dem_start": {
+            "default": false,
+            "title": "Vor Dem Start",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "typen",
+          "schreiber",
+          "leser"
+        ],
+        "title": "AblaufTeil",
+        "type": "object"
+      },
+      "AblaufTeilText": {
+        "description": "Paket AS-Ua: ein Teil eines laufenden Ablaufs, als Kurztext (ohne Kennungen).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "text"
+        ],
+        "title": "AblaufTeilText",
+        "type": "object"
+      },
+      "AblaufTest": {
+        "additionalProperties": true,
+        "description": "AS-1 (Plan 2026-11-09 §5c): ein Testfall, mit dem echten Treiber simuliert — ohne LLM, MCP,\nAuftrag oder Freigabe (``services/ablauf/simulation``).",
+        "properties": {
+          "ab": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,39}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ab"
+          },
+          "angemeldet": {
+            "default": true,
+            "title": "Angemeldet",
+            "type": "boolean"
+          },
+          "eingaben": {
+            "items": {
+              "$ref": "#/components/schemas/TestEingabe"
+            },
+            "maxItems": 30,
+            "title": "Eingaben",
+            "type": "array"
+          },
+          "erwartet": {
+            "$ref": "#/components/schemas/TestErwartung"
+          },
+          "gewaehlt": {
+            "items": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Gewaehlt",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "quelle": {
+            "default": "gastseite",
+            "pattern": "^(gastseite|ki)$",
+            "title": "Quelle",
+            "type": "string",
+            "x-choices": [
+              "gastseite",
+              "ki"
+            ]
+          },
+          "seite": {
+            "default": "/",
+            "maxLength": 500,
+            "title": "Seite",
+            "type": "string"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "teile": {
+            "additionalProperties": true,
+            "title": "Teile",
+            "type": "object"
+          },
+          "werkzeuge": {
+            "additionalProperties": true,
+            "title": "Werkzeuge",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "AblaufTest",
+        "type": "object"
+      },
+      "AblaufTests": {
+        "properties": {
+          "ergebnisse": {
+            "items": {
+              "$ref": "#/components/schemas/TestErgebnis"
+            },
+            "title": "Ergebnisse",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ergebnisse"
+        ],
+        "title": "AblaufTests",
+        "type": "object"
+      },
+      "AblaufWeg": {
+        "description": "AS-7 (Querschnitts-Review, Befund 1): der Weg einer wartenden Führung — Aufschrift und Ziel\ndes Chips (``__fuehrung__``). Die Leiste zeigt ihn als Knopf, auch nach dem Neuladen.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "AblaufWeg",
+        "type": "object"
+      },
+      "AblaufZeile": {
+        "properties": {
+          "aktiv": {
+            "title": "Aktiv",
+            "type": "boolean"
+          },
+          "ausloeser": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ausloeser",
+            "type": "array"
+          },
+          "befunde": {
+            "title": "Befunde",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "lesbar": {
+            "title": "Lesbar",
+            "type": "boolean"
+          },
+          "module": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Module",
+            "type": "array"
+          },
+          "titel": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Titel",
+            "type": "object"
+          }
+        },
+        "required": [
+          "key",
+          "id",
+          "titel",
+          "aktiv",
+          "ausloeser",
+          "module",
+          "befunde",
+          "lesbar"
+        ],
+        "title": "AblaufZeile",
         "type": "object"
       },
       "Abschluss": {
@@ -309,7 +688,8 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "type": "string",
+                  "x-widget": "textarea"
                 },
                 "type": "object"
               },
@@ -370,14 +750,16 @@
         "additionalProperties": true,
         "properties": {
           "art": {
-            "pattern": "^(knopf|agent|text|modul)$",
+            "pattern": "^(knopf|agent|text|modul|extern|seite)$",
             "title": "Art",
             "type": "string",
             "x-choices": [
               "knopf",
               "agent",
               "text",
-              "modul"
+              "modul",
+              "extern",
+              "seite"
             ]
           },
           "modul": {
@@ -398,6 +780,15 @@
             "x-choices": [
               "vorschlagen"
             ]
+          },
+          "muster": {
+            "default": [],
+            "items": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "title": "Muster",
+            "type": "array"
           },
           "wendungen": {
             "default": [],
@@ -722,9 +1113,19 @@
           "environment": {
             "$ref": "#/components/schemas/Environment"
           },
+          "from_host": {
+            "default": false,
+            "title": "From Host",
+            "type": "boolean"
+          },
           "message": {
             "title": "Message",
             "type": "string"
+          },
+          "probe": {
+            "default": false,
+            "title": "Probe",
+            "type": "boolean"
           },
           "session_id": {
             "pattern": "^[A-Za-z0-9_-]{1,128}$",
@@ -1417,6 +1818,79 @@
         "title": "DokumentLoeschen",
         "type": "object"
       },
+      "EigeneVorgaenge": {
+        "properties": {
+          "vorgaenge": {
+            "items": {
+              "$ref": "#/components/schemas/EigenerVorgang"
+            },
+            "title": "Vorgaenge",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vorgaenge"
+        ],
+        "title": "EigeneVorgaenge",
+        "type": "object"
+      },
+      "EigenerVorgang": {
+        "properties": {
+          "ablauf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ablauf"
+          },
+          "geaendert": {
+            "format": "date-time",
+            "title": "Geaendert",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lauf_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lauf Status"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "titel": {
+            "title": "Titel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "titel",
+          "ablauf",
+          "status",
+          "session_id",
+          "geaendert",
+          "id"
+        ],
+        "title": "EigenerVorgang",
+        "type": "object"
+      },
       "Eintrag": {
         "properties": {
           "art": {
@@ -1679,6 +2153,29 @@
         "title": "EstimateRequest",
         "type": "object"
       },
+      "Freitext": {
+        "additionalProperties": true,
+        "description": "AS-3a: getippter Text an einem Schritt mit Schnellantworten wird der Teil ``schreibt``,\ndann geht es zum Schritt ``ziel``.",
+        "properties": {
+          "schreibt": {
+            "maxLength": 40,
+            "title": "Schreibt",
+            "type": "string"
+          },
+          "ziel": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Ziel",
+            "type": "string",
+            "x-widget": "schritt-ziel"
+          }
+        },
+        "required": [
+          "ziel",
+          "schreibt"
+        ],
+        "title": "Freitext",
+        "type": "object"
+      },
       "GoldenRunRequest": {
         "properties": {
           "config_slug": {
@@ -1775,6 +2272,29 @@
         "title": "IntentsPayload",
         "type": "object"
       },
+      "ListenAnfrage": {
+        "properties": {
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sprache": {
+            "default": "de",
+            "enum": [
+              "de",
+              "en"
+            ],
+            "title": "Sprache",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "ListenAnfrage",
+        "type": "object"
+      },
       "LoadTestProfile": {
         "properties": {
           "engine": {
@@ -1834,6 +2354,26 @@
           }
         },
         "title": "LoadTestProfile",
+        "type": "object"
+      },
+      "LoeschAnfrage": {
+        "properties": {
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "vorgang": {
+            "pattern": "^[0-9a-fA-F-]{8,64}$",
+            "title": "Vorgang",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "vorgang"
+        ],
+        "title": "LoeschAnfrage",
         "type": "object"
       },
       "LoginRequest": {
@@ -2011,6 +2551,15 @@
           "session_id": {
             "pattern": "^[A-Za-z0-9_-]{1,128}$",
             "title": "Session Id",
+            "type": "string"
+          },
+          "sprache": {
+            "default": "de",
+            "enum": [
+              "de",
+              "en"
+            ],
+            "title": "Sprache",
             "type": "string"
           }
         },
@@ -2403,6 +2952,38 @@
         "title": "SafetyDecision",
         "type": "object"
       },
+      "Schnellantwort": {
+        "additionalProperties": true,
+        "description": "AS-3a (Plan 2026-11-09, D2): eine Schnellantwort — ein Chip mit Label je Sprache; die Wahl\nführt zum Schritt ``ziel``.",
+        "properties": {
+          "id": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "additionalProperties": {
+              "maxLength": 60,
+              "type": "string"
+            },
+            "title": "Label",
+            "type": "object"
+          },
+          "ziel": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Ziel",
+            "type": "string",
+            "x-widget": "schritt-ziel"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "ziel"
+        ],
+        "title": "Schnellantwort",
+        "type": "object"
+      },
       "Schritt": {
         "additionalProperties": true,
         "properties": {
@@ -2419,6 +3000,27 @@
               "feld": "typ",
               "werte": [
                 "agent"
+              ]
+            }
+          },
+          "ankunft": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ankunft",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
               ]
             }
           },
@@ -2541,10 +3143,48 @@
               ]
             }
           },
+          "freitext": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Freitext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "modul",
+                "nachricht"
+              ]
+            }
+          },
           "id": {
             "pattern": "^[a-z][a-z0-9_]{0,39}$",
             "title": "Id",
             "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
           },
           "modul": {
             "anyOf": [
@@ -2560,6 +3200,28 @@
               "feld": "typ",
               "werte": [
                 "modul"
+              ]
+            }
+          },
+          "optionen": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Schnellantwort"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optionen",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "modul",
+                "nachricht"
               ]
             }
           },
@@ -2601,12 +3263,13 @@
                 "auftrag",
                 "ende",
                 "modul",
-                "nachricht"
+                "nachricht",
+                "seite"
               ]
             }
           },
           "typ": {
-            "pattern": "^(nachricht|modul|werkzeug|verzweigung|agent|auftrag|ende)$",
+            "pattern": "^(nachricht|modul|werkzeug|verzweigung|agent|auftrag|seite|ende)$",
             "title": "Typ",
             "type": "string",
             "x-choices": [
@@ -2616,8 +3279,27 @@
               "verzweigung",
               "agent",
               "auftrag",
+              "seite",
               "ende"
             ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
           },
           "warten": {
             "anyOf": [
@@ -2664,15 +3346,18 @@
                 "auftrag",
                 "modul",
                 "nachricht",
+                "seite",
                 "verzweigung",
                 "werkzeug"
               ]
-            }
+            },
+            "x-widget": "weiter"
           },
           "werkzeug": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "x-catalog": "ablauf_werkzeuge"
               },
               {
                 "type": "null"
@@ -2762,6 +3447,61 @@
           "kuerzel"
         ],
         "title": "StandAnfrage",
+        "type": "object"
+      },
+      "StartFeld": {
+        "additionalProperties": true,
+        "description": "AS-4a (Plan 2026-11-09 §5f, E2 A): ein Feld der Startdaten. Die Daten prüft\n``services/ablauf/startdaten`` — sie sind Eingaben, nie Rechte.",
+        "properties": {
+          "beschreibung": {
+            "additionalProperties": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "default": {},
+            "title": "Beschreibung",
+            "type": "object"
+          },
+          "max_zeichen": {
+            "default": 200,
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Max Zeichen",
+            "type": "integer",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "text"
+              ]
+            }
+          },
+          "name": {
+            "pattern": "^[a-z][a-z0-9_]{1,29}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "pflicht": {
+            "default": false,
+            "title": "Pflicht",
+            "type": "boolean"
+          },
+          "typ": {
+            "pattern": "^(text|nodeid|zahl|ja_nein)$",
+            "title": "Typ",
+            "type": "string",
+            "x-choices": [
+              "text",
+              "nodeid",
+              "zahl",
+              "ja_nein"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "typ"
+        ],
+        "title": "StartFeld",
         "type": "object"
       },
       "StartRequest": {
@@ -2858,6 +3598,219 @@
           }
         },
         "title": "SwimlaneBox",
+        "type": "object"
+      },
+      "TestEingabe": {
+        "additionalProperties": true,
+        "description": "AS-1: was ein Testfall an einem wartenden Schritt eingibt — je nach Wartepunkt eines\ndavon.",
+        "properties": {
+          "antwort": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Antwort"
+          },
+          "bei": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Bei",
+            "type": "string"
+          },
+          "ergebnis": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ergebnis"
+          },
+          "fehler": {
+            "default": false,
+            "title": "Fehler",
+            "type": "boolean"
+          },
+          "freigabe": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ja",
+                  "nein"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freigabe"
+          },
+          "option": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option"
+          },
+          "seite": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seite"
+          },
+          "teile": {
+            "additionalProperties": true,
+            "title": "Teile",
+            "type": "object"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": [
+          "bei"
+        ],
+        "title": "TestEingabe",
+        "type": "object"
+      },
+      "TestErgebnis": {
+        "properties": {
+          "abweichungen": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Abweichungen",
+            "type": "array"
+          },
+          "ende": {
+            "title": "Ende",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "texte": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Texte",
+            "type": "array"
+          },
+          "weg": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Weg",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "ok",
+          "status",
+          "weg",
+          "ende",
+          "abweichungen"
+        ],
+        "title": "TestErgebnis",
+        "type": "object"
+      },
+      "TestErwartung": {
+        "additionalProperties": true,
+        "description": "AS-1: was nach den Eingaben gelten soll — nur, was gesetzt ist, wird verglichen.",
+        "properties": {
+          "ende": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ende"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fertig",
+                  "fehler",
+                  "wartet_person",
+                  "wartet_ki",
+                  "wartet_auftrag",
+                  "wartet_freigabe",
+                  "wartet_wahl",
+                  "wartet_seite",
+                  "nicht_gestartet"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "teile": {
+            "items": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Teile",
+            "type": "array"
+          },
+          "weg": {
+            "items": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Weg",
+            "type": "array"
+          }
+        },
+        "title": "TestErwartung",
         "type": "object"
       },
       "ThemenbaumZweigAnfrage": {
@@ -3141,6 +4094,16 @@
       "UiInfo": {
         "description": "Öffentlicher Teil einer Antwort; alle Felder optional, Vorgabe leer.",
         "properties": {
+          "ablauf": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AblaufStand"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "dokumente": {
             "deprecated": true,
             "description": "Veraltet seit U1-b2 — die Boxen stehen als ui_inhaltsrahmen in ui_bloecke.",
@@ -3150,6 +4113,16 @@
             },
             "title": "Dokumente",
             "type": "array"
+          },
+          "fester_text": {
+            "default": false,
+            "title": "Fester Text",
+            "type": "boolean"
+          },
+          "from_host": {
+            "default": false,
+            "title": "From Host",
+            "type": "boolean"
           },
           "intent": {
             "default": "",
@@ -3401,6 +4374,21 @@
             ],
             "title": "Wenn Gewaehlt"
           },
+          "wenn_seite": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wenn Seite"
+          },
           "wenn_teil": {
             "anyOf": [
               {
@@ -3411,6 +4399,16 @@
               }
             ],
             "title": "Wenn Teil"
+          },
+          "wenn_wert": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WennWert"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "Weiter",
@@ -3458,6 +4456,96 @@
           "quick_replies"
         ],
         "title": "WelcomeConfig",
+        "type": "object"
+      },
+      "WennWert": {
+        "additionalProperties": true,
+        "description": "AS-3c (Plan 2026-11-09, D4): eine Stelle eines Teils mit einem Wert vergleichen\n(``services/ablauf/vergleich``).",
+        "properties": {
+          "quelle": {
+            "maxLength": 200,
+            "title": "Quelle",
+            "type": "string"
+          },
+          "vergleich": {
+            "pattern": "^(gleich|enthaelt|vorhanden|leer|groesser|kleiner)$",
+            "title": "Vergleich",
+            "type": "string",
+            "x-choices": [
+              "gleich",
+              "enthaelt",
+              "vorhanden",
+              "leer",
+              "groesser",
+              "kleiner"
+            ]
+          },
+          "wert": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wert"
+          }
+        },
+        "required": [
+          "quelle",
+          "vergleich"
+        ],
+        "title": "WennWert",
+        "type": "object"
+      },
+      "WiederkehrAnfrage": {
+        "description": "Genau eine Kennung: ``vorgang`` (UUID des Vorgangs) oder ``auftrag`` (Job-ID der b-api).",
+        "properties": {
+          "auftrag": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auftrag"
+          },
+          "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sprache": {
+            "default": "de",
+            "enum": [
+              "de",
+              "en"
+            ],
+            "title": "Sprache",
+            "type": "string"
+          },
+          "vorgang": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F-]{8,64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vorgang"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "WiederkehrAnfrage",
         "type": "object"
       },
       "WloCard": {
@@ -4045,6 +5133,32 @@
         ]
       }
     },
+    "/api/config/ablaeufe": {
+      "get": {
+        "operationId": "ablauf_liste_api_config_ablaeufe_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AblaufListe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Ablauf Liste",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/config/ablauf-pruefen": {
       "post": {
         "operationId": "ablauf_pruefen_api_config_ablauf_pruefen_post",
@@ -4086,6 +5200,53 @@
           }
         ],
         "summary": "Ablauf Pruefen",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/ablauf-testen": {
+      "post": {
+        "description": "AS-1: die Testfälle des Ablaufs simulieren — mit dem echten Treiber, ohne LLM, MCP, Auftrag\noder Vorlage beim Server (``services/ablauf/simulation``). Schreibt nichts.",
+        "operationId": "ablauf_testen_api_config_ablauf_testen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AblaufArea"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AblaufTests"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Ablauf Testen",
         "tags": [
           "config"
         ]
@@ -4402,7 +5563,7 @@
     },
     "/api/config/documents": {
       "post": {
-        "description": "Ein Muster oder eine Persona anlegen — leer oder als Kopie (ST-3d).\n\nDie Kopie übernimmt das ganze Dokument der Vorlage und setzt nur Kennung und\nName neu. Angelegt wird bedingt (409, wenn es den Schlüssel schon gibt), mit\ndenselben Prüfungen wie ein Speichern.",
+        "description": "Ein Muster, eine Persona oder (AS-0) einen Ablauf anlegen — leer oder als Kopie (ST-3d).\n\nDie Kopie übernimmt das ganze Dokument der Vorlage und setzt nur Kennung und\nName neu. Angelegt wird bedingt (409, wenn es den Schlüssel schon gibt), mit\ndenselben Prüfungen wie ein Speichern.",
         "operationId": "create_document_api_config_documents_post",
         "requestBody": {
           "content": {
@@ -10139,6 +11300,101 @@
         ]
       }
     },
+    "/api/ui/vorgaenge/liste": {
+      "post": {
+        "operationId": "liste_api_ui_vorgaenge_liste_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListenAnfrage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EigeneVorgaenge"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "nur_angemeldet"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Liste",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
+    "/api/ui/vorgaenge/loeschen": {
+      "post": {
+        "operationId": "loeschen_api_ui_vorgaenge_loeschen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoeschAnfrage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Loeschen Api Ui Vorgaenge Loeschen Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "nur_angemeldet"
+          },
+          "404": {
+            "description": "unbekannt — fremd, unbekannt, abgeschlossen, ohne Gespräch oder der des aktuellen Gesprächs"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Loeschen",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
     "/api/ui/vorgaenge/offen": {
       "post": {
         "operationId": "offen_api_ui_vorgaenge_offen_post",
@@ -10175,6 +11431,53 @@
           }
         },
         "summary": "Offen",
+        "tags": [
+          "ui"
+        ]
+      }
+    },
+    "/api/ui/vorgaenge/wiederkehr": {
+      "post": {
+        "operationId": "wiederkehr_api_ui_vorgaenge_wiederkehr_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WiederkehrAnfrage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OffenerVorgang"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "nur_angemeldet"
+          },
+          "404": {
+            "description": "unbekannt — fremd, unbekannt, abgeschlossen, abgelaufen oder ohne Gespräch"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Wiederkehr",
         "tags": [
           "ui"
         ]

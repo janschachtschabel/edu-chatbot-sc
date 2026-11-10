@@ -324,3 +324,100 @@ def test_sperren_haelt_die_zeile_bis_zum_ende_der_transaktion(db_url):
         return folge
 
     assert _lauf(db_url, ablauf) == ["a sperrt", "a fertig", "b sperrt"]
+
+
+def test_eigene_nicht_abgeschlossene_vorgaenge_anderer_gespraeche(db_url):
+    """AS-Ud (Plan 2026-11-09 §5j, Ud-1): „Meine Vorgänge“ — aktiv und wartend, nur die eigenen,
+    nie abgeschlossene, ohne das aktuelle Gespräch, die jüngsten zuerst."""
+    from boerdi.services import vorgaenge
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            hier = await _neu(s, titel="hier")
+            await s.commit()
+            dort = await _neu(s, sid="sitzung-zwei-0002", titel="dort")
+            await s.execute(text("UPDATE vorgaenge SET status = 'wartet_person' WHERE id = :k"),
+                            {"k": dort.id})
+            await s.commit()
+            fertig = await _neu(s, sid="sitzung-zwei-0002", titel="fertig")
+            await s.execute(text("UPDATE vorgaenge SET status = 'fertig' WHERE id = :k"),
+                            {"k": fertig.id})
+            await _neu(s, aufrufer="person-b", sid="sitzung-zwei-0002", titel="fremd")
+            await s.commit()
+            ohne = [v.titel for v in
+                    await vorgaenge.eigene(s, "person-a", ohne="sitzung-eins-0001")]
+            alle = [v.titel for v in await vorgaenge.eigene(s, "person-a")]
+            return ohne, alle, hier.id
+
+    ohne, alle, _ = _lauf(db_url, ablauf)
+    assert ohne == ["dort"]
+    assert alle == ["dort", "hier"]
+
+
+def test_eigene_zeigt_auch_mehr_als_drei_und_schliesst_vor_der_grenze_aus(db_url):
+    """Review AS-Ud, Befund 3: wartende Vorgänge weichen nie (``anlegen``) — eine Person kann mehr
+    als drei haben; keiner darf aus der Liste fallen. Der Vorgang, auf den das aktuelle Gespräch
+    verweist (``ohne_id``), fällt in der Abfrage weg, nicht erst danach."""
+    from boerdi.services import vorgaenge
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            ids = []
+            for i in range(4):
+                v = await _neu(s, sid="sitzung-zwei-0002", titel=f"v{i}")
+                if i < 3:          # drei warten — der vierte verdrängt keinen
+                    await s.execute(text("UPDATE vorgaenge SET status = 'wartet_auftrag' "
+                                         "WHERE id = :k"), {"k": v.id})
+                await s.commit()
+                ids.append(v.id)
+            alle = [v.titel for v in await vorgaenge.eigene(s, "person-a")]
+            ohne = [v.titel for v in await vorgaenge.eigene(s, "person-a", ohne_id=ids[3])]
+            return alle, ohne
+
+    alle, ohne = _lauf(db_url, ablauf)
+    assert sorted(alle) == ["v0", "v1", "v2", "v3"]
+    assert sorted(ohne) == ["v0", "v1", "v2"]
+
+
+def test_alle_sperren_laeuft_auf_postgres(db_url):
+    """Q-5: die Sperre vor „Arbeitsstand löschen“ ist gültiges SQL und sperrt nur Zeilen."""
+    from boerdi.services import vorgaenge
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            await _neu(s)
+            await s.commit()
+            await vorgaenge.alle_sperren(s, ["person-a", "sitzung:sitzung-eins-0001"])
+            zahl = await vorgaenge.alle_loeschen(s, "person-a")
+            await s.commit()
+            return zahl
+
+    assert _lauf(db_url, ablauf) == 1
+
+
+
+def test_zweites_review_as8a_4_vorgaenge_der_probe_gehen_mit_der_sitzung(db_url):
+    """Zweites Review AS-8a, Befund 4: ``probe:<sitzung>`` gehört der Sitzung wie ``sitzung:…``."""
+    from boerdi.services import vorgaenge
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            for sid in ("sitzung-drei-0003", "sitzung-vier-0004", "sitzung-fuenf-0005"):
+                await s.execute(text("INSERT INTO sessions (session_id) VALUES (:s) "
+                                     "ON CONFLICT DO NOTHING"), {"s": sid})
+            eine = await _neu(s, aufrufer="probe:sitzung-drei-0003", sid="sitzung-drei-0003")
+            alle = await _neu(s, aufrufer="probe:sitzung-vier-0004", sid="sitzung-vier-0004")
+            waise = await _neu(s, aufrufer="probe:sitzung-fuenf-0005", sid="sitzung-fuenf-0005")
+            await s.execute(text("UPDATE vorgaenge SET session_id = NULL WHERE id = :k"),
+                            {"k": waise.id})
+            await s.commit()
+            weg_eine = await vorgaenge.anonyme_der_sitzung_loeschen(s, "sitzung-drei-0003")
+            weg_alle = await vorgaenge.alle_anonymen_loeschen(s)
+            await s.commit()
+        await vorgaenge.verfallene_loeschen(sitzungen, datetime.now(UTC))
+        async with sitzungen() as s:
+            return (weg_eine, weg_alle,
+                    [await vorgaenge.lesen(s, v.id, v.aufrufer) for v in (eine, alle, waise)])
+
+    weg_eine, weg_alle, rest = _lauf(db_url, ablauf)
+    assert weg_eine == 1 and weg_alle >= 1 and rest == [None, None, None]

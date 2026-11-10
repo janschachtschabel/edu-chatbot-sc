@@ -39,11 +39,11 @@ from collections.abc import Iterable
 from typing import Any, Final
 
 from boerdi.api.schemas import ChatRequest, ChatResponse
+from boerdi.api.schemas_ui import UiInfo
 from boerdi.domain.inline_documents import als_inhaltsrahmen
 from boerdi.domain.write_anzeige import merke_vorschau, preview_for_display
 from boerdi.domain.write_confirm import (
     MAX_REMEMBERED_ARGS_BYTES,
-    SCHLUESSEL_FELDER,
     TOKEN_TTL_SECONDS,
     extract_confirm_token,
     is_expired,
@@ -52,10 +52,10 @@ from boerdi.domain.write_confirm import (
 )
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.services import arbeitsstand, plan_fortsetzen, vorgaenge
-from boerdi.services.ablauf import treiber
+from boerdi.services.ablauf import freigabe_ergebnis, treiber
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden
-from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.db_sessions import FESTER_TEXT_KEY, save_message, update_session
 from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.schreibrecht import schreiben_erlaubt
 
@@ -163,7 +163,7 @@ def _wartend(session_id: str, session_state: dict[str, Any]) -> Any:
     if not isinstance(lauf, dict) or lauf.get("status") != treiber.WARTET_FREIGABE:
         return None
     ablauf = laden(lauf.get("ablauf"))
-    if ablauf is None or not ablauf.aktiv or lauf.get("fassung") != treiber.fassung(ablauf):
+    if not treiber.gilt(ablauf, lauf):
         return None
     return ablauf
 
@@ -231,10 +231,12 @@ async def vor_einloesen(session: Any, req: ChatRequest, session_state: dict
         return None
     lang = resolve_locale(req.environment.locale)
     text = bot_text(lang, schluessel)
-    await save_message(session, req.session_id, "assistant", text)
+    # Review AS-Ua, Kleinigkeit 12: ein fester Hinweis wie alle des Ablaufs (``nur_text``)
+    await save_message(session, req.session_id, "assistant", text, debug={FESTER_TEXT_KEY: True})
     knopf = (knoepfe(str(marke.get("ablauf") or ""), lang, vorgelegt=False)
              if schluessel == "action.ablauf.freigabeAbgelaufen" else [])
-    return ChatResponse(session_id=req.session_id, content=text, quick_replies=knopf)
+    return ChatResponse(session_id=req.session_id, content=text, quick_replies=knopf,
+                        ui=UiInfo(fester_text=True))
 
 
 # ── Direktaktionen ────────────────────────────────────────────────────────────────────────────
@@ -256,7 +258,7 @@ async def _laden(session: Any, req: ChatRequest, entities: dict[str, Any], gewol
             return None
         return await basis.nur_text(session, req, "action.ablauf.unbekannt", entities)
     ablauf = laden(gewollt)
-    if ablauf is None or not ablauf.aktiv or lauf.get("fassung") != treiber.fassung(ablauf):
+    if not treiber.gilt(ablauf, lauf):
         await basis.abbrechen(session, v, lauf, entities, aufrufer)
         return "abgebrochen" if stumm else await basis.nur_text(
             session, req, "action.ablauf.unbekannt", entities)
@@ -270,7 +272,7 @@ async def _festhalten(session: Any, req: ChatRequest, session_state: dict, v: An
     try:
         v = await basis.festhalten(session, v, aus, session_id=req.session_id)
         await session.commit()
-    except vorgaenge.VorgangKonflikt:
+    except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
         return None
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
@@ -293,9 +295,11 @@ async def erneut(session: Any, req: ChatRequest, session_state: dict, *,
         # zweites Mal von vorn laufen. Erst zu Ende führen.
         lang = resolve_locale(req.environment.locale)
         text = bot_text(lang, "write.planStillOpen")
-        await save_message(session, req.session_id, "assistant", text)
+        await save_message(session, req.session_id, "assistant", text,
+                           debug={FESTER_TEXT_KEY: True})
         return ChatResponse(session_id=req.session_id, content=text,
-                            quick_replies=[plan_fortsetzen.knopf(lang)])
+                            quick_replies=[plan_fortsetzen.knopf(lang)],
+                            ui=UiInfo(fester_text=True))
     aus = await basis.rechne(session, ablauf, treiber.erneut_vorlegen(
         ablauf, dict(lauf), basis.umgebung(session, req, entities, blocked_tools)))
     if aus is None:
@@ -340,17 +344,7 @@ def _zusammen(einloesung: ChatResponse, ablauf: ChatResponse | None = None, *,
     return einloesung.model_copy(update=update)
 
 
-def _ohne_schluessel(wert: Any, tiefe: int = 0) -> Any:
-    """Review S2/S3, Befund 11: das Ergebnis wird ein Teil (DB, später ein Werkzeug der KI) — ohne
-    Schlüsselfelder und ohne ``confirm``-Block."""
-    if tiefe > 8:
-        return None
-    if isinstance(wert, dict):
-        return {k: _ohne_schluessel(v, tiefe + 1) for k, v in wert.items()
-                if k not in SCHLUESSEL_FELDER and k != "confirm"}
-    if isinstance(wert, list):
-        return [_ohne_schluessel(v, tiefe + 1) for v in wert]
-    return wert
+_ohne_schluessel = freigabe_ergebnis.ohne_schluessel
 
 
 async def _konflikt_nach_schreiben(session: Any, req: ChatRequest, entities: dict[str, Any],
@@ -487,15 +481,7 @@ def _mit(vorne: list[str] | None, dazu: list[str]) -> list[str]:
     return list(dict.fromkeys([*(vorne or []), *dazu]))
 
 
-def _alle_gescheitert(ergebnis: Any) -> bool:
-    """Review S4, Befund 7: ``complete`` heißt „nichts mehr offen“, nicht „geklappt“ — sind alle
-    Einträge gescheitert, geht der Lauf zu ``bei_fehler``. Teilweise Fehler stehen im Teil."""
-    if not isinstance(ergebnis, dict):
-        return False
-    eintraege = next((ergebnis[k] for k in ("items", "nodes", "pairs")
-                      if isinstance(ergebnis.get(k), list) and ergebnis[k]), None)
-    return bool(eintraege) and all(isinstance(e, dict) and e.get("status") == "failed"
-                                   for e in eintraege)
+_alle_gescheitert = freigabe_ergebnis.alle_gescheitert
 
 
 async def _lauf_merken(session: Any, req: ChatRequest, entities: dict[str, Any], v: Any,
@@ -557,3 +543,7 @@ async def nach_plan(session: Any, req: ChatRequest, session_state: dict, vorher:
         await _konflikt_nach_schreiben(session, req, entities, marke)
         return _zusammen(antwort, satz=bot_text(lang, "action.ablauf.freigabeKonflikt"))
     return _zusammen(antwort, weiter)
+
+
+# Öffentlich für ``abbruch_zug`` (zweites Review AS-U, Kleinigkeit 8).
+plan_offen = _plan_offen

@@ -1,0 +1,20 @@
+// Paket AS-8b: „Ablauf ausprobieren“ in der Vorschau — dieselben Bausteine wie das Kontext-Formular.
+@use './ops-panel';
+
+.ap-probe-form {
+  display: grid;
+  gap: var(--st-2);
+  margin-block-start: var(--st-4);
+  max-inline-size: 40rem;
+}
+
+.ap-probe-daten {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
+.ap-probe-hilfe,
+.ap-probe-stand {
+  margin: 0;
+  color: var(--st-text-muted);
+}

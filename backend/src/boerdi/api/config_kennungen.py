@@ -1,7 +1,9 @@
 """Kennungen der Ordner-Dokumente und was beim Löschen geschützt bleibt.
 
 Muster (``03-patterns/``) und Personas (``04-personas/``) tragen ihre Kennung im
-Frontmatter; die Laufzeit findet sie darüber, nicht über den Schlüssel. Drei
+Frontmatter; die Laufzeit findet sie darüber, nicht über den Schlüssel. Abläufe
+(``06-ablaeufe/``, seit AS-0) sind YAML-Dokumente mit der Kennung im Feld ``id``; bei ihnen ist
+die Kennung zugleich der Schlüssel. Drei
 Wege schreiben oder löschen solche Dokumente: das Studio (``config``,
 ``config_documents``), das Löschen (``config_documents``) und das
 Wiederherstellen (``config_snapshots``).
@@ -21,6 +23,9 @@ from collections.abc import Mapping
 from typing import Final, NamedTuple
 
 from boerdi.api.config_guards import _single_group_leaf, is_restorable_area_key
+from boerdi.domain.config_models.ablauf import ID_FORM as ABLAUF_ID
+from boerdi.domain.config_models.ablauf import ORDNER as ABLAEUFE
+from boerdi.domain.config_models.ablauf import RESERVIERT as ABLAUF_RESERVIERT
 from boerdi.services import config_loader as cl
 from boerdi.services.config_loader.personas import _persona_slug
 
@@ -47,9 +52,22 @@ def gruppe_von(key: str) -> str | None:
     return key.split("/", 1)[0] if _single_group_leaf(key) else None
 
 
-def kennung_von(data: object) -> str:
-    fm = data.get("frontmatter") if isinstance(data, dict) else None
+def kennung_von(data: object, gruppe: str | None = None) -> str:
+    """Die Kennung eines Ordner-Dokuments: bei Abläufen (``gruppe`` ``06-ablaeufe``) das Feld
+    ``id``, sonst das Frontmatter (Muster, Personas). Die Gruppe entscheidet, nicht die Form des
+    Dokuments — sonst umginge ein Ablauf mit einem Feld ``frontmatter`` die Regel „Kennung =
+    Schlüssel“ (Review AS-0, Befund 1)."""
+    if not isinstance(data, dict):
+        return ""
+    if gruppe == ABLAEUFE:
+        return str(data.get("id") or "").strip()
+    fm = data.get("frontmatter")
     return str(fm.get("id") or "").strip() if isinstance(fm, dict) else ""
+
+
+def ablauf_kennung_gueltig(kennung: str) -> bool:
+    """Eine Ablauf-Kennung, wie der Treiber sie liest (``ID_FORM``), und nicht vergeben."""
+    return bool(re.fullmatch(ABLAUF_ID, kennung)) and kennung not in ABLAUF_RESERVIERT
 
 
 def sicherheits_kennungen_aus(cfg: object) -> set[str]:
@@ -115,12 +133,17 @@ def kennungs_einwand(
     ergebnis = {**bestand, **neu}
     belegt: dict[tuple[str, str], list[str]] = {}
     for key, data in ergebnis.items():
-        if (group := gruppe_von(key)) and (kennung := kennung_von(data)):
+        if (group := gruppe_von(key)) and (kennung := kennung_von(data, group)):
             belegt.setdefault((group, kennung.lower()), []).append(key)
     for key, data in neu.items():
-        group, kennung = gruppe_von(key), kennung_von(data)
+        group = gruppe_von(key)
         if group is None:
             continue
+        kennung = kennung_von(data, group)
+        if group == ABLAEUFE and not kennung:
+            # Review AS-0, Befund 1: ein Ablauf ohne Kennung stünde unter einem Schlüssel, unter dem
+            # ihn niemand sucht.
+            return Einwand("ungueltig", "documents.ablaufIdInvalid", {"id": ""})
         # Vor dem Durchlass für Dokumente ohne Kennung (Review Paket 9, MAJOR 5): ein
         # geleertes M01 überspränge der Lader, und das Erzwingen bei Krise fände es
         # nicht mehr.
@@ -135,10 +158,18 @@ def kennungs_einwand(
         if group == "04-personas" and schluessel_fuer(group, kennung) != key:
             return Einwand("ungueltig", "documents.personaKey", {
                 "id": kennung, "area": key, "expected": schluessel_fuer(group, kennung)})
+        if group == ABLAEUFE:
+            # AS-0: die Kennung ist der Schlüssel — eine andere legte den Ablauf unter einen
+            # Schlüssel, unter dem ihn niemand sucht, und zwei Dokumente trügen dieselbe.
+            if not ablauf_kennung_gueltig(kennung):
+                return Einwand("ungueltig", "documents.ablaufIdInvalid", {"id": kennung})
+            if schluessel_fuer(group, kennung) != key:
+                return Einwand("ungueltig", "documents.ablaufKey", {
+                    "id": kennung, "area": key, "expected": schluessel_fuer(group, kennung)})
         andere = [k for k in belegt[(group, kennung.lower())] if k != key]
         if andere:
             return Einwand("vergeben", "documents.idTaken", {
-                "id": kennung, "other": kennung_von(ergebnis[andere[0]]), "area": andere[0]})
+                "id": kennung, "other": kennung_von(ergebnis[andere[0]], group), "area": andere[0]})
     return None
 
 

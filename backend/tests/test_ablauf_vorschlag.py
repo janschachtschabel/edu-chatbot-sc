@@ -1,8 +1,8 @@
 """Paket A2a: Auslöser ``agent`` — die KI schlägt einen Ablauf vor, gestartet wird per Knopf.
 
-Das Werkzeug ``ablauf_vorschlagen`` gibt es nur, wenn ein aktiver Ablauf den Auslöser ``agent``
-trägt; seine Kennungen stehen als Aufzählung im Schema. Es startet nichts: die Schleife merkt sich
-die Kennung (einmal je Zug), und die Zusammenstellung hängt die Schnellantwort
+Seit AS-5a gibt es je aktivem Ablauf mit Auslöser ``agent`` ein Werkzeug ``ablauf-<id>`` (mehr
+in ``test_ablauf_werkzeuge_ki.py``). Es startet nichts: die Schleife merkt sich den Vorschlag
+(einmal je Zug), und die Zusammenstellung hängt die Schnellantwort
 ``__action__|<Titel>|ablauf_starten|{"ablauf": …}`` an — die KI schreibt nie selbst einen Knopf.
 """
 
@@ -27,34 +27,35 @@ def _roh(id_, aktiv=True, art="agent", **mehr):
 @pytest.fixture
 def katalog(monkeypatch):
     eintraege: list = []
-    monkeypatch.setattr(ausloeser, "area", lambda key: {"ablaeufe": eintraege}
-                        if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: ({"ablaeufe": eintraege}
+                       ).get("ablaeufe") or [])
     return eintraege
 
 
 def test_ohne_vorschlagbaren_ablauf_kein_werkzeug(katalog):
     katalog += [_roh("aus", aktiv=False), _roh("knopf", art="knopf")]
-    assert vorschlag.werkzeug("de") is None
+    assert vorschlag.werkzeuge("de") == []
 
 
-def test_das_werkzeug_nennt_die_ablaeufe_und_zaehlt_ihre_kennungen_auf(katalog):
+def test_das_werkzeug_nennt_den_ablauf(katalog):
     katalog += [_roh("baum"), _roh("aus", aktiv=False)]
-    w = vorschlag.werkzeug("de")
-    assert w["function"]["name"] == vorschlag.NAME
-    assert w["function"]["parameters"]["properties"]["ablauf"]["enum"] == ["baum"]
+    [w] = vorschlag.werkzeuge("de")
+    assert w["function"]["name"] == "ablauf-baum"
     beschreibung = w["function"]["description"]
     assert "Titel baum" in beschreibung and "wenn baum" in beschreibung
-    assert "nicht baum" in beschreibung and "aus" not in w["function"]["parameters"][
-        "properties"]["ablauf"]["enum"]
+    assert "nicht baum" in beschreibung
 
 
 def test_die_schnellantwort_startet_den_ablauf_per_knopf(katalog):
+    """Auch die Form vor AS-5a (bloße Kennung) aus einer laufenden Sitzung ergibt den Knopf."""
     katalog.append(_roh("baum", titel={"de": "Baum | aus Ordnern"}))
     [qr] = vorschlag.schnellantworten(["baum", "fehlt"], "de")
     praefix, label, aktion, params = qr.split("|", 3)
     assert praefix == "__action__" and aktion == "ablauf_starten"
     assert "|" not in label and label.startswith("Baum")
-    assert json.loads(params) == {"ablauf": "baum"}
+    # Querschnitts-Review AS-5, Befund 1: jeder KI-Knopf trägt die Marke ``ki`` (Bremse)
+    assert json.loads(params) == {"ablauf": "baum", "start_quelle": "ki"}
 
 
 def test_die_schnellantwort_folgt_der_sprache(katalog):
@@ -70,25 +71,22 @@ def test_der_vorschlag_steht_vor_den_anderen_schnellantworten():
 
 def test_die_schleife_merkt_sich_den_vorschlag_ohne_mcp(monkeypatch, katalog):
     katalog.append(_roh("baum"))
-    werkzeug = vorschlag.werkzeug("de")
     _fake, run, msgs = _lauf(monkeypatch, [
-        _resp_tools([_tool_call(vorschlag.NAME, {"ablauf": "baum"}),
-                     _tool_call(vorschlag.NAME, {"ablauf": "baum"}, "c2")]),
+        _resp_tools([_tool_call("ablauf-baum", {}), _tool_call("ablauf-baum", {}, "c2")]),
         _resp_text("Du kannst den Ablauf mit dem Knopf starten."),
-    ], tools=[werkzeug])
-    assert run.ablauf_vorschlaege == ["baum"] and run.tools_called == []
+    ], tools=vorschlag.werkzeuge("de"))
+    assert run.ablauf_vorschlaege == [{"ablauf": "baum"}] and run.tools_called == []
     assert "Knopf" in msgs[2]["content"]
 
 
 def test_eine_unbekannte_kennung_wird_abgewiesen(monkeypatch, katalog):
     katalog.append(_roh("baum"))
-    werkzeug = vorschlag.werkzeug("de")
     _fake, run, msgs = _lauf(monkeypatch, [
-        _resp_tools([_tool_call(vorschlag.NAME, {"ablauf": "boese"})]),
+        _resp_tools([_tool_call("ablauf-boese", {})]),
         _resp_text("ok"),
-    ], tools=[werkzeug])
-    assert run.ablauf_vorschlaege == []
-    assert "boese" in msgs[2]["content"] and "Knopf" not in msgs[2]["content"]
+    ], tools=vorschlag.werkzeuge("de"))
+    assert run.ablauf_vorschlaege == [] and run.tools_called == []
+    assert "Knopf" not in msgs[2]["content"]
 
 
 # ── Review A2a, Befund 6/9 und Vorbefund ─────────────────────────────────────────────────────
@@ -112,6 +110,18 @@ def test_ki_schnellantworten_tragen_keine_knoepfe():
     assert behalten == ["Mehr zu Optik"]
 
 
+def test_pr51_review_ki_schnellantworten_tragen_keinen_fuehrungs_chip():
+    """Review PR #51 (Widget, Befund 1): ``__fuehrung__|Label|URL`` navigiert im Widget auf
+    derselben Herkunft ohne Vertrauensliste — nur der Treiber darf ihn setzen, nie das Modell (eine
+    eingeschleuste Anweisung führte sonst auf einen beliebigen Pfad der Gastseite)."""
+    from boerdi.services.quick_replies_llm import filtere_vorschlaege
+
+    behalten = filtere_vorschlaege(
+        ["Mehr zu Optik", "__fuehrung__|Weiter|/logout", "  __fuehrung__|X|/a"],
+        anzahl=4, max_zeichen=0)
+    assert behalten == ["Mehr zu Optik"]
+
+
 def test_nach_einer_frage_kein_vorschlag(monkeypatch, katalog):
     """Review A2a, Befund 5: unter einer offenen Frage erschiene der Knopf nie."""
     katalog.append(_roh("baum"))
@@ -119,8 +129,20 @@ def test_nach_einer_frage_kein_vorschlag(monkeypatch, katalog):
                                                   {"id": "b", "label": "B"}]}
     _fake, run, msgs = _lauf(monkeypatch, [
         _resp_tools([_tool_call("ui_entscheidung", frage),
-                     _tool_call(vorschlag.NAME, {"ablauf": "baum"}, "c2")]),
+                     _tool_call("ablauf-baum", {}, "c2")]),
         _resp_text("ok"),
-    ], tools=[vorschlag.werkzeug("de"), "ui_entscheidung"])
+    ], tools=[*vorschlag.werkzeuge("de"), "ui_entscheidung"])
     assert run.ui_bloecke and run.ablauf_vorschlaege == []
     assert "Knopf" not in msgs[3]["content"]
+
+
+
+def test_schnellantworten_eines_schritts_werden_nie_gekuerzt():
+    """Review AS-3a, Befund 2: die Wahl-Chips sind der Weg zurück in den Ablauf — andere Vorschläge
+    fallen weg, die Chips selbst nicht (auch über der Höchstzahl des Gastgebers)."""
+    from boerdi.services.ablauf import vorschlag
+
+    chips = [f"c{i}" for i in range(6)]
+    assert vorschlag.anhaengen(["frage"], chips, hoechstens=3, alle=True) == chips
+    assert vorschlag.anhaengen(["frage"], chips[:2], hoechstens=3, alle=True) == [
+        "c0", "c1", "frage"]

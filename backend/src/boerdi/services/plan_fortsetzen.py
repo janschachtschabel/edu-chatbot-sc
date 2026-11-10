@@ -166,6 +166,21 @@ def anzeige(text: str, lang: Locale | str, *, offen: bool) -> str:
     return f"{sauber}\n\n{bot_text(lang, 'write.planOpen')}" if offen else sauber
 
 
+def _lauf_wartet(entities: dict[str, Any], session_id: str, marke: dict[str, Any]) -> bool:
+    """Wartet der Lauf des Gesprächs (Sitzungsverweis) auf DIESE Freigabe — derselbe Ablauf,
+    derselbe Schritt und dieselbe Freigabe-Kennung (zweites Review, Z-3: übernimmt das Gespräch
+    nach einem Löschen einen anderen Vorgang mit demselben Ablauf, gilt der Plan nicht für ihn)?"""
+    from boerdi.services import arbeitsstand  # zyklenfrei erst zur Laufzeit
+
+    vw = arbeitsstand.verweis(entities, arbeitsstand.aufrufer_fuer(session_id)) or {}
+    lauf = vw.get("lauf") if isinstance(vw.get("lauf"), dict) else {}
+    if lauf.get("ablauf") != marke.get("ablauf") or lauf.get("status") != "wartet_freigabe":
+        return False
+    if marke.get("schritt") and lauf.get("schritt") != marke.get("schritt"):
+        return False
+    return not marke.get("id") or lauf.get("freigabe_id") == marke.get("id")
+
+
 async def weiter(session: Any, req: ChatRequest, session_state: dict, *,
                  blocked_tools: list[str] | None = None) -> ChatResponse:
     """Direktaktion „Plan fortsetzen“: den gemerkten Plan mit seinem Schlüssel fortsetzen. Die
@@ -183,6 +198,14 @@ async def weiter(session: Any, req: ChatRequest, session_state: dict, *,
     if (plan is None or not ist_plan(tool) or not isinstance(plan.get("args"), dict)
             or not offen_fuer(entities, aufrufer_kennung(), time.time())):
         abgelaufen_weg(entities, time.time())
+        return await _antwort(session, req, entities, bot_text(lang, "write.planNone"), debug)
+    # Querschnitts-Review AS-U/BU, Q-2: ein Plan, der zu einem Ablauf gehört, gilt nur, solange
+    # dessen Lauf noch auf die Freigabe wartet — wurde der Vorgang anderswo gelöscht („Meine
+    # Vorgänge“), ist der Verweis weg (Preflight), und fortsetzen schriebe ohne Lauf weiter in WLO.
+    marke = plan.get(_MARKE)
+    if isinstance(marke, dict) and not _lauf_wartet(entities, req.session_id, marke):
+        entities.pop(KEY, None)
+        logger.info("Plan %s nicht fortgesetzt: sein Ablauf läuft nicht mehr", tool)
         return await _antwort(session, req, entities, bot_text(lang, "write.planNone"), debug)
     # Review M5, Befund 1: dieselben Prüfungen wie beim Einlösen — im Studio verborgen, nur lesende
     # Einbettung. Ein verborgenes Werkzeug wird hier nie mehr fortgesetzt; der Merkposten fällt weg.

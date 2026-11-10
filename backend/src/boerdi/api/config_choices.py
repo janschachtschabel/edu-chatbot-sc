@@ -109,8 +109,18 @@ def _tools() -> list[Choice]:
     from boerdi.ui_module.werkzeuge import modul_werkzeug_titel
 
     module = modul_werkzeug_titel()
+    # Paket AS-5b: Abläufe mit Auslöser ``agent`` als Werkzeug ``ablauf-<id>`` — angeboten im Zug
+    # nur, solange der Ablauf vorschlagbar ist (aktiv, Voraussetzungen erfüllt).
+    from boerdi.domain.ablauf_werkzeug import PRAEFIX
+    from boerdi.services.ablauf import ausloeser
+
+    # Ein ausgeschalteter Ablauf steht mit „(aus)“ da: genannt wird er erst angeboten, wenn er
+    # an ist (Querschnitts-Review AS-5, Befund 7).
+    ablaeufe = {PRAEFIX + a.id: (a.titel.get("de") or a.id) + ("" if a.aktiv else " (aus)")
+                for a in ausloeser.katalog() if any(x.art == "agent" for x in a.ausloeser)}
     return _sorted([*(_entry(name, name, "") for name in namen - set(module)),
-                    *(_entry(name, f"{name}: {titel}", "") for name, titel in module.items())])
+                    *(_entry(name, f"{name}: {titel}", "") for name, titel in module.items()),
+                    *(_entry(name, f"{name}: {titel}", "") for name, titel in ablaeufe.items())])
 
 
 def _guardrails() -> list[Choice]:
@@ -141,19 +151,35 @@ def _ablauf_flows() -> list[Choice]:
     return _sorted([_entry(f, f, "") for f in client.freigeschaltete_flows()])
 
 
+def _ablauf_werkzeuge() -> list[Choice]:
+    """Was ein ``werkzeug``-Schritt rufen darf (``services/ablauf/werkzeuge``): Dienste, lesende
+    WLO-Werkzeuge und freigebbare schreibende (nur mit Freigabe am Schritt) — für die Auswahl im
+    Studio (Querschnitts-Review AS-D: vorher ein freies Feld, nur der Hinweis nannte die
+    Dienste)."""
+    from boerdi.domain.write_confirm import CURATION_TOOLS
+    from boerdi.services.ablauf import werkzeuge
+
+    eintraege = [_entry(n, f"{n} (Dienst)", "") for n in werkzeuge.DIENSTE]
+    eintraege += [_entry(n, f"{n} (lesend)", "") for n in werkzeuge.LESENDE_MCP]
+    eintraege += [_entry(n, f"{n} (schreibend, mit Freigabe)", "") for n in CURATION_TOOLS
+                  if werkzeuge.freigebbar(n)]
+    return _sorted(eintraege)
+
+
 def _vorgang_teile() -> list[Choice]:
     """Paket K2c-3: die Teile, die Module in den Vorgang schreiben (``vorgang.schreibt`` im
     Manifest), dazu ``ablage`` (Übertragung in WLO, ``services/ablage/vorgang_teil``) — für die
     Auswahl „Teil“ in den Argumenten eines Ablaufschritts. Die Teile der vorigen Schritte
     (``schreibt``, ``agent.ausgabe``) kennt nur das Formular."""
-    from boerdi.services.ablage.vorgang_teil import TEIL
+    from boerdi.services.ablauf.typen import modul_teile
     from boerdi.ui_module import katalog
 
-    quellen: dict[str, list[str]] = {TEIL: ["ui_upload"]}
-    for name, manifest in katalog.katalog().items():
-        for teil in (manifest.get("vorgang") or {}).get("schreibt") or []:
-            if isinstance(teil, str):
-                quellen.setdefault(teil, []).append(name)
+    # Review AS-Db, Befund 6: dieselbe Quelle wie die Prüfung (``typen``, mit ``ablage``)
+    module = katalog.katalog()
+    quellen: dict[str, list[str]] = {}
+    for name in module:
+        for teil in modul_teile(module, name):
+            quellen.setdefault(teil, []).append(name)
     return _sorted([_entry(t, f"{t} ({', '.join(sorted(set(m)))})", "")
                     for t, m in quellen.items()])
 
@@ -172,6 +198,7 @@ _SOURCES: dict[str, Callable[[], list[Choice]]] = {
     "mcp_tools": _mcp_tools,
     "ui_module": _ui_module,
     "ablauf_flows": _ablauf_flows,
+    "ablauf_werkzeuge": _ablauf_werkzeuge,
     "vorgang_teile": _vorgang_teile,
     "guardrails": _guardrails,
 }

@@ -68,7 +68,8 @@ def test_m5_ein_abgebrochener_lauf_bleibt_auch_in_der_sitzung_abgebrochen(im_zug
     state: dict = {"entities": {}}
     _starte(state)
     katalog = {"ablaeufe": [_roh(aktiv=False)]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     geschrieben = _festgeschrieben(monkeypatch)
     _pruefe(state)
     assert geschrieben[-1][arbeitsstand.VERWEIS]["lauf"]["status"] == "abgebrochen"
@@ -178,7 +179,8 @@ def test_ein_neuer_lauf_schliesst_den_auftrag_des_alten(im_zug, monkeypatch):  #
                "schritte": [{"id": "ende", "typ": "ende", "text": {"de": "Hallo."}}]}
     katalog = {"ablaeufe": [_roh(schritte=[{**_SCHRITTE[0], "argumente": {"text": "fest"}},
                                            *_SCHRITTE[1:]]), zweiter]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     anfrage = _req(action=zug.AKTION, action_params={"ablauf": "gruss"})
     assert asyncio.run(zug.starten(_S(), anfrage, state)).content == "Hallo."
     assert im_zug.ablage.auftraege[0].status == "abgebrochen"
@@ -189,7 +191,8 @@ def test_eine_wendung_ohne_erfuellte_voraussetzung_startet_nichts(monkeypatch):
                              "voraussetzungen": ["anmeldung"],
                              "ausloeser": [{"art": "text", "wendungen": ["themenbaum aus"]}],
                              "schritte": [{"id": "ende", "typ": "ende"}]}]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     monkeypatch.setattr(ausloeser, "has_personal_auth", lambda: False)
     assert zug.text_ausloeser("Mach einen Themenbaum aus meinem Ordner") is None
     monkeypatch.setattr(ausloeser, "has_personal_auth", lambda: True)
@@ -220,7 +223,8 @@ def test_laengengrenzen_der_werkzeugbeschreibung(aenderung):
 
 def test_der_katalog_wird_je_stand_einmal_geprueft(monkeypatch):
     katalog = {"ablaeufe": [_roh()]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     gerufen: list[int] = []
     echt = AblaufArea.model_validate
 

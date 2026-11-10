@@ -3,6 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UiBlock } from '@boerdi/ui-module';
+// Seit Paket BU-2 ein nachgeladenes Element: hier vorab definiert (im Widget lädt es sein Bündel).
+import '@boerdi/ui-module/ui-strukturentwurf/ui-strukturentwurf.element';
 
 import type { ChatMessage } from '../grouping/message-types';
 import { DE } from '../i18n/de';
@@ -14,6 +16,9 @@ import { ChatShellComponent } from './chat-shell.component';
  * nimmt den vorgemerkten Stand eines offenen Strukturentwurfs mit — Eingabefeld und Schnellantwort
  * ja, Karten- und Direktaktionen sowie Aufträge des Gastgebers nicht. Kam der Zug nicht an, ist der
  * Entwurf wieder offen.
+ *
+ * Seit Paket BU-2 lädt der Entwurf als eigenes Bündel nach; der Test ersetzt nur den Lader der Shell
+ * (das Element ist schon definiert) — Platzhalter, Element und Vormerken laufen wie im Widget.
  */
 const DE_T = createTranslator(DE, DE);
 
@@ -28,13 +33,18 @@ async function make() {
   TestBed.configureTestingModule({ imports: [ChatShellComponent], providers: [provideZonelessChangeDetection()] });
   const f = TestBed.createComponent(ChatShellComponent);
   const c = f.componentInstance;
+  Object.defineProperty(c, 'modulNachladen', { value: () => Promise.resolve() });
   f.componentRef.setInput('translate', DE_T);
+  // frische Sitzung: eine fortgesetzte ließe Aufträge der Gastseite auf den Verlauf warten (RB-3)
+  f.componentRef.setInput('persistSession', false);
   f.detectChanges();
   const s = (c as unknown as { _store: { set: (m: ChatMessage[]) => void; addBotMessage: (...a: unknown[]) => string } })._store;
   s.set([]);
   s.addBotMessage('Hier ist ein Entwurf.', false, [], undefined, { ui_bloecke: [ENTWURF] });
   f.detectChanges();
-  await f.whenStable();                                     // das Modul merkt seinen Stand vor
+  await f.whenStable();
+  // Platzhalter: Bündel „geladen“ → Element erzeugt → es merkt seinen Stand vor
+  await vi.waitFor(() => expect(f.nativeElement.querySelector('boerdi-ui-strukturentwurf')).not.toBeNull());
   const api = (c as unknown as { _api: { stream: unknown; post: unknown } })._api;
   const stream = vi.fn(async () => ANTWORT);
   api.stream = stream;

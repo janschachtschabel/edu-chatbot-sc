@@ -37,7 +37,9 @@ def _befunde(schritte, **kw):
 
 def test_s1_schreibend_mit_freigabe_ist_erlaubt():
     befunde = _befunde([_schreiben(freigabe=_FREIGABE)])
-    assert not [b for b in befunde if "schreib" in b.lower() or "Freigabe" in b], befunde
+    # nur die Befunde zum Schreiben — der Teil ``volltext`` hat hier keinen Schreiber, das meldet
+    # seit AS-Db ein eigener Befund zum Datenfluss („den schreibt kein Schritt“)
+    assert not [b for b in befunde if "schreibend" in b.lower() or "Freigabe" in b], befunde
     assert schreibt_mit_freigabe(_ablauf([_schreiben(freigabe=_FREIGABE)]).schritte[0])
 
 

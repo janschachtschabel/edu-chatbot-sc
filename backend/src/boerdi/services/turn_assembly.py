@@ -50,7 +50,7 @@ from boerdi.domain.guide_markers import _strip_guide_markers_from_text
 from boerdi.domain.quick_reply_policy import _qr_default_count
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.tasks import _retrieve_task_exception
-from boerdi.services.ablauf import auftrag_zug, freigabe_zug, ki_schritt
+from boerdi.services.ablauf import auftrag_zug, freigabe_zug, ki_schritt, seite_zug, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.guide_markers import _attach_guide_qr
@@ -392,7 +392,7 @@ async def _assemble_cards_and_qrs(
     # Absichtlich als LETZTE Station: der Relevanz-Rückfall darüber setzt
     # ebenfalls an Position 0 und kürzt auf vier; davor eingesetzt wanderte
     # die Anmeldung wieder nach hinten oder fiele ganz heraus.
-    # Paket A2a: der Knopf eines Ablaufs, den die KI vorgeschlagen hat (``ablauf_vorschlagen``) —
+    # Paket A2a: der Knopf eines Ablaufs, den die KI vorgeschlagen hat (``ablauf-<id>``, AS-5a) —
     # nicht unter einer offenen Frage (``qr_mode`` none: ein Klick machte sie veraltet). Vor der
     # Anmeldung eingesetzt: die geht weiter an die Spitze.
     _ablauf_ids = (session_state.pop(ablauf_vorschlag.SITZUNG_KEY, None)
@@ -412,12 +412,20 @@ async def _assemble_cards_and_qrs(
     # Paket S: am Freigabe-Schritt ohne bereitliegende Abnahme „Vorschau erneut zeigen“.
     _ki_weiter = _ki_weiter or (freigabe_zug.weiter_knopf(req.session_id, session_state, _qr_lang)
                                 if isinstance(session_state, dict) else None)
-    _weiter = ([_ki_weiter] if _ki_weiter
+    # Paket AS-3a: am Schritt mit Schnellantworten deren Chips — der Weg zurück zum Ablauf, wenn
+    # die Person zwischendurch etwas anderes getippt hat.
+    _wahl = (wahl_zug.aktuelle_knoepfe(req.session_id, session_state, _qr_lang)
+             if isinstance(session_state, dict) and not _ki_weiter else [])
+    # AS-7a (F-5): wartet ein ``seite``-Schritt, bleibt sein Weg unter jeder Antwort
+    if not _wahl and not _ki_weiter and isinstance(session_state, dict):
+        _wahl = seite_zug.aktueller_knopf(req.session_id, session_state, _qr_lang)
+    _weiter = ([_ki_weiter] if _ki_weiter else _wahl if _wahl
                else auftrag_zug.pruefen_knoepfe(req.session_id, session_state, _qr_lang)[:1]
                if isinstance(session_state, dict) else [])
     if _weiter and _qr_mode != "none" and not _canvas_forced_quick_replies:
         quick_replies = ablauf_vorschlag.anhaengen(quick_replies, _weiter,
-                                                   hoechstens=_host_qr_max)
+                                                   hoechstens=_host_qr_max,
+                                                   alle=_weiter is _wahl)
     quick_replies = inject_auth_qr(
         quick_replies,
         blocked=curation_blocked_by_mode(pattern_output),

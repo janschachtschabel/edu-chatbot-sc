@@ -3,7 +3,7 @@ import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, DeferBlockBehavior, DeferBlockState, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import entscheidung from '@boerdi/ui-module/ui-entscheidung/manifest.json';
@@ -89,6 +89,43 @@ describe('UiModuleComponent (Paket U1-f)', () => {
     el = fixture.nativeElement as HTMLElement;
     document.body.appendChild(el);
     await fixture.whenStable();
+  });
+
+  const ABLAUF_LISTE = '/studio/api/config/ablaeufe';
+  const ablauf = (id: string, module: string[], aktiv = true) => ({
+    key: `06-ablaeufe/${id}`, id, titel: { de: id.toUpperCase() }, aktiv, ausloeser: [], module,
+    befunde: 0, lesbar: true });
+
+  it('AS-2c: nennt je Modul die Abläufe, die es zeigen, mit Verweis auf den Ablauf', async () => {
+    await laden();
+    http.expectOne(ABLAUF_LISTE).flush({ ablaeufe: [
+      ablauf('wahl', ['ui_entscheidung']), ablauf('still', ['ui_entscheidung'], false), ablauf('anders', ['ui_upload'])] });
+    await settle();
+    const links = Array.from(el.querySelectorAll<HTMLAnchorElement>('.um-ablaeufe a'));
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/ablaeufe?ablauf=wahl', '/ablaeufe?ablauf=still']);
+    expect(norm(el.querySelector('.um-ablaeufe')?.textContent)).toContain(t('ablaeufe.notiz.aus'));
+    await waehle('ui_linkbox');
+    expect(el.querySelector('.um-ablaeufe')).toBeNull();
+    expect(norm(el.querySelector('.um-detail')?.textContent)).toContain(t('uiModule.ablaeufe.keine'));
+  });
+
+  it('AS-2c: kommt die Liste der Abläufe nicht, sagt es die Stelle — der Rest bleibt', async () => {
+    await laden();
+    http.expectOne(ABLAUF_LISTE).flush({ detail: 'kaputt' }, { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(norm(el.querySelector('.um-detail')?.textContent)).toContain(t('uiModule.ablaeufe.fehler'));
+    expect(schalter('aktiv')).not.toBeNull();
+    knopf(t('async.retry')).click();
+    await settle();
+    http.expectOne(ABLAUF_LISTE).flush({ ablaeufe: [ablauf('wahl', ['ui_entscheidung'])] });
+    await settle();
+    expect(el.querySelectorAll('.um-ablaeufe a').length).toBe(1);
+  });
+
+  it('AS-2c: ?modul=<name> (vom Ablauf her) wählt das Modul', async () => {
+    await TestBed.inject(Router).navigateByUrl('/?modul=ui_linkbox');
+    await laden();
+    expect(eintraege()[2].getAttribute('aria-current')).toBe('true');
   });
 
   it('lädt erst beim Öffnen und zeigt solange den Ladezustand', async () => {

@@ -17,7 +17,7 @@ import time
 import pytest
 
 from boerdi.i18n.bot_text import bot_text
-from boerdi.services import plan_fortsetzen
+from boerdi.services import arbeitsstand, plan_fortsetzen
 from boerdi.services.ablauf import ausloeser, freigabe_zug, treiber
 from boerdi.services.mcp.client import McpAntwort
 from tests.test_ablauf_zug import _S
@@ -59,7 +59,8 @@ def plan_zug(im_zug, monkeypatch):  # noqa: F811
     katalog = {"ablaeufe": [{"id": "anhaengen", "titel": {"de": "Anhängen"}, "aktiv": True,
                              "ausloeser": [{"art": "knopf"}], "voraussetzungen": ["anmeldung"],
                              "schritte": copy.deepcopy(_SCHRITTE)}]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
 
     async def nichts(*_a, **_k):
         return None
@@ -250,3 +251,39 @@ def test_review_s4_ein_fremder_plan_gilt_nicht_als_der_des_laufs(plan_zug):
     antwort = _ja(state)
     assert "Alle angehängt." in antwort.content and _lauf(state)["status"] == "fertig"
 
+
+
+def test_querschnitt_q2_ohne_lauf_setzt_ein_plan_des_ablaufs_nicht_fort(plan_zug):
+    """Querschnitts-Review AS-U/BU, Q-2: „Meine Vorgänge“ löschte den Vorgang in einem anderen
+    Gespräch — der Verweis ist weg (der Preflight räumt ihn), der Plan mit Ablauf-Marke aber liegt
+    noch in diesem Gespräch. „Plan fortsetzen“ schreibt dann nichts und verwirft den Merker."""
+    state: dict = {"entities": {}}
+    _starte(state)
+    plan_zug.antworten.append(_plan(False, 1))
+    _ja(state)
+    assert plan_fortsetzen.KEY in state["entities"]
+    state["entities"].pop(arbeitsstand.VERWEIS)             # Vorgang gelöscht
+    plan_zug.weitere.append(_plan(True, 2))
+    antwort = _fortsetzen(state)
+    assert plan_zug.fortgesetzt == []
+    assert antwort.content == bot_text("de", "write.planNone")
+    assert plan_fortsetzen.KEY not in state["entities"]
+
+
+@pytest.mark.parametrize("feld,wert", [("freigabe_id", "eine-andere-freigabe"),
+                                       ("schritt", "ein-anderer-schritt")])
+def test_zweites_review_z3_ein_anderer_lauf_desselben_ablaufs_setzt_den_plan_nicht_fort(
+        plan_zug, feld, wert):
+    """Zweites Review, Z-3: übernimmt das Gespräch nach dem Löschen einen anderen Vorgang mit
+    demselben Ablauf (``auffrischen`` → ``juengster``), gilt der alte Plan nicht für ihn."""
+    state: dict = {"entities": {}}
+    _starte(state)
+    plan_zug.antworten.append(_plan(False, 1))
+    _ja(state)
+    lauf = state["entities"][arbeitsstand.VERWEIS]["lauf"]
+    assert lauf["freigabe_id"]                               # der Verweis kennt die Freigabe
+    lauf[feld] = wert
+    plan_zug.weitere.append(_plan(True, 2))
+    antwort = _fortsetzen(state)
+    assert plan_zug.fortgesetzt == []
+    assert antwort.content == bot_text("de", "write.planNone")

@@ -34,8 +34,9 @@ def _roh(id_="baum", aktiv=True, ausloeser_=None, **mehr):
 @pytest.fixture
 def katalog(monkeypatch):
     eintraege: list = []
-    monkeypatch.setattr(ausloeser, "area", lambda key: {"ablaeufe": eintraege}
-                        if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: ({"ablaeufe": eintraege}
+                       ).get("ablaeufe") or [])
     return eintraege
 
 

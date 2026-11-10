@@ -56,3 +56,22 @@ describe('guide-qr: label + url', () => {
     expect(guideQuickReplyLabel(VALID, true, en)).toBe('Zur Themenseite');
   });
 });
+
+describe('guide-qr: Führungs-Chip eines Ablaufs (AS-7b, F-2)', () => {
+  const F = '__fuehrung__|Zur Mitmach-Seite|/mitmachen/';
+
+  it('wird wie ein Lotsen-Chip erkannt, beschriftet und mit Ziel versehen', () => {
+    expect(isGuideQuickReply(F, true)).toBe(true);
+    expect(guideQuickReplyLabel(F, true, t)).toBe('Zur Mitmach-Seite');
+    expect(guideQuickReplyUrl(F, true)).toBe('/mitmachen/');
+  });
+
+  it('ist ein Weg im Ablauf — er bleibt auch ohne Lotsen-Modus sichtbar', () => {
+    expect(isGuideQuickReply(F, false)).toBe(true);
+    expect(shouldHideGuideQuickReply(F, false)).toBe(false);
+  });
+
+  it('ein Präfix allein ohne Trennzeichen gibt keine URL', () => {
+    expect(guideQuickReplyUrl('__fuehrung__|nur', true)).toBe('');
+  });
+});

@@ -8,13 +8,13 @@ dafür liefert.
 
 from __future__ import annotations
 
-from boerdi.domain.config_models.ablauf import AblaufArea, AblaufKatalogArea
+from boerdi.domain.config_models.ablauf import AblaufArea
 
 
 def test_der_ablauf_traegt_die_auszeichnung():
-    assert AblaufArea.model_json_schema().get("x-widget") == "ablauf"
-    defs = AblaufKatalogArea.model_json_schema()["$defs"]
-    assert defs["AblaufArea"].get("x-widget") == "ablauf"
+    schema = AblaufArea.model_json_schema()
+    assert schema.get("x-widget") == "ablauf"
+    defs = schema["$defs"]
     # nur der Ablauf, nicht seine Teile
     assert "x-widget" not in defs["Schritt"]
 

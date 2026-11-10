@@ -119,6 +119,23 @@ export const REFERENCE_WIDGET: CataloguePart = {
       + 'bettet ein"): einmal gelesen, sofort aus dem DOM entfernt und beim '
       + 'MCP-Server gegen einen Zugangsblock getauscht — die auf der Seite '
       + 'angemeldete Person ist dann auch im Chat angemeldet',
+    'rw.attr.ablaufStart':
+      'Kennung eines Ablaufs: startet beim ersten Öffnen (öffnet nicht von selbst); mit Daten '
+      + 'nur bei Auslöser „Gastseite“, ohne Daten jeder Knopf-Ablauf; läuft er schon mit '
+      + 'denselben Daten, geht es dort weiter. Zur Laufzeit startAblauf(id, daten)',
+    'rw.attr.fortsetzenVorgang':
+      'Kennung eines Vorgangs (etwa aus einer Benachrichtigung): öffnet den Chat und führt die '
+      + 'angemeldete Besitzerin zurück ins Gespräch (je Tab einmal); zur Laufzeit vorgangFortsetzen({vorgang})',
+    'rw.attr.fortsetzenAuftrag':
+      'Job-ID eines Auftrags: wie fortsetzen-vorgang; wartet der Lauf auf ihn, „Stand prüfen“. '
+      + 'Je Tab nur einmal; fremde oder abgelaufene Kennungen führen nirgends hin',
+    'rw.attr.ablaufStartDaten':
+      'Startdaten dazu als JSON-Objekt, etwa {"sammlung": "<nodeId>"} — geprüft gegen das '
+      + 'Startschema des Ablaufs; Eingaben, nie Rechte. Kaputtes JSON startet nichts',
+    'rw.attr.probe':
+      'Nur die Studio-Vorschau: jeder Zug als Trockenlauf (nichts wird geschrieben, kein Auftrag, '
+      + 'keine Ablage), Etikett im Widget. Gilt nur mit Studio-Anmeldung — sonst weist das Backend '
+      + 'den Zug ab (403)',
 
     'rw.eventsTitle': 'Events',
     'rw.col.event': 'Event',
@@ -225,6 +242,22 @@ export const REFERENCE_WIDGET: CataloguePart = {
       + 'mode): read once, removed from the DOM right away and exchanged at the '
       + 'MCP server for an access block — the person signed in on the page is '
       + 'then signed in inside the chat as well',
+    'rw.attr.ablaufStart':
+      'Id of a workflow: starts on first opening (does not open by itself); with data only '
+      + 'for the trigger “host page”, without data any button workflow; if it already runs '
+      + 'with the same data, it continues there. At runtime startAblauf(id, data)',
+    'rw.attr.fortsetzenVorgang':
+      'Id of a case (e.g. from a notification): opens the chat and takes the signed-in owner '
+      + 'back into the conversation (once per tab); at runtime vorgangFortsetzen({vorgang})',
+    'rw.attr.fortsetzenAuftrag':
+      'Job id of a job: like fortsetzen-vorgang; if the workflow waits for it, “check status”. '
+      + 'Once per tab; foreign or expired ids lead nowhere',
+    'rw.attr.ablaufStartDaten':
+      'Its start data as a JSON object, e.g. {"sammlung": "<nodeId>"} — checked against the '
+      + 'workflow\'s start schema; input, never rights. Broken JSON starts nothing',
+    'rw.attr.probe':
+      'Studio preview only: every turn as a dry run (nothing written, no job, no storage), label '
+      + 'in the widget. Needs the Studio sign-in — otherwise the backend rejects the turn (403)',
 
     'rw.eventsTitle': 'Events',
     'rw.col.event': 'Event',

@@ -69,6 +69,7 @@ async def generate_response(
     on_token: Any = None,
     rag_einbettung: tuple[str, list[float]] | None = None,
     vorsatz: str = "",
+    ohne_ablaeufe: bool = False,
 ) -> tuple[str, list[dict], list[str], list]:
     """Generate the final response using the selected pattern and MCP tools.
 
@@ -137,6 +138,11 @@ async def generate_response(
         gesperrt=blocked_tools,
         # Paket U1-d2: Modul-Werkzeuge nur, wenn das Widget sie zeigen kann.
         ui_module=environment.get("ui_module"),
+        # Paket AS-5b: Beschreibungen der Ablauf-Werkzeuge in der Sprache des Zugs; keine, wo
+        # kein Knopf erscheinen kann (Chips des Gastgebers, laufender KI-Schritt).
+        sprache=resolve_locale(environment.get("locale")),
+        ohne_ablaeufe=ohne_ablaeufe or any(
+            c and str(c).strip() for c in environment.get("forced_quick_replies") or []),
     )
 
     # Phasen-Split Teil 2: Messages-Aufbau + Prefetch-Injektion (P12+P14)

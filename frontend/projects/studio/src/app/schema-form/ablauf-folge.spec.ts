@@ -18,6 +18,8 @@ describe('schrittFolge (K2c-4)', () => {
     ]);
     expect(folge.every((z) => z.pfeile.every((p) => p.bekannt))).toBe(true);
     expect(folge.map((z) => [z.nr, z.id, z.typ])[1]).toEqual([1, 'b', 'modul']);
+    // AS-2c: das Modul nur am Modul-Schritt (für den Verweis auf seine Seite)
+    expect(folge.map((z) => z.modul)).toEqual(folge.map((z) => (z.typ === 'modul' ? z.modul : '')));
   });
 
   it('ende hat keinen Nachfolger, auch kein bei_fehler', () => {
@@ -60,7 +62,7 @@ describe('schrittFolge (K2c-4)', () => {
     expect(schrittFolge({ schritte: 'kaputt' })).toEqual([]);
     const folge = schrittFolge({ schritte: [7, { id: 3, typ: null, weiter: [null] }] });
     expect(folge).toHaveLength(2);
-    expect(folge[0]).toEqual({ nr: 0, id: '', typ: '', pfeile: [{ ziel: '', art: 'weiter', bekannt: true }] });
+    expect(folge[0]).toEqual({ nr: 0, id: '', typ: '', modul: '', pfeile: [{ ziel: '', art: 'weiter', bekannt: true }] });
     // eine Liste in `weiter` außerhalb einer Verzweigung nimmt der Treiber wie kein `weiter`
     expect(folge[1].pfeile).toEqual([{ ziel: '', art: 'weiter', bekannt: true }]);
   });
@@ -75,6 +77,21 @@ describe('schrittFolge (K2c-4)', () => {
     expect(folge[1].pfeile).toEqual([
       { ziel: 'e', art: 'weiter', bekannt: true },
       { ziel: 'e', art: 'fehler', bekannt: true },
+    ]);
+  });
+});
+
+describe('schrittFolge — Schnellantworten (AS-3a)', () => {
+  it('an nachricht und modul entscheidet die Wahl: je Option ein Pfeil, dazu der Freitext', () => {
+    const [z] = schrittFolge({ schritte: [
+      { id: 'f', typ: 'nachricht', weiter: 'e',
+        optionen: [{ id: 'a', label: { de: 'Neu' }, ziel: 'e' }, { id: 'b', label: {}, ziel: 'x' }],
+        freitext: { ziel: 'e', schreibt: 'w' } },
+      { id: 'e', typ: 'ende' }] });
+    expect(z.pfeile).toEqual([
+      { ziel: 'e', art: 'wahl', label: 'Neu', bekannt: true },
+      { ziel: 'x', art: 'wahl', label: 'b', bekannt: false },
+      { ziel: 'e', art: 'freitext', bekannt: true },
     ]);
   });
 });

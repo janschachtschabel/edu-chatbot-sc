@@ -1,0 +1,112 @@
+# Beispiel-Ablauf „Sammlung prüfen“ (Paket AS-8c, Plan docs/plans/2026-11-09-ablaeufe-im-studio.md
+# D7): Abgleich plus Lücken. Die Person erfasst ihre Ordner; daraus entsteht ein Themenbaum-Entwurf.
+# Der Dienst abdeckung_zaehlen zählt, wie viele WLO-Inhalte es je Punkt gibt (Lücken = wenige).
+# Danach gleicht die KI den Entwurf mit einer bestehenden WLO-Sammlung ab — über das UI-Modul
+# ui_strukturabgleich; die Sammlung findet sie mit search_wlo_all (beides lesend). Der
+# Ablauf schreibt nichts in WLO.
+# Aus, bis die Redaktion ihn einschaltet (aktiv: true).
+id: sammlung_pruefen
+titel: {de: Sammlung prüfen, en: Check a collection}
+beschreibung: >-
+  Gleicht einen Themenbaum aus den Ordnern der Person mit einer WLO-Sammlung ab und zeigt, wo WLO
+  noch wenig Inhalte hat. Beispiel für Dienst-Schritte, eine Verzweigung nach Wert, Platzhalter
+  und einen KI-Schritt mit zwei ausgewählten Werkzeugen.
+wann: [Die Person will wissen, was ihrer Sammlung im Vergleich zu WLO fehlt]
+aktiv: false
+ausloeser:
+  - {art: knopf}
+  - {art: text, wendungen: [sammlung prüfen, sammlung abgleichen]}
+schritte:
+  - id: erfassen
+    typ: modul
+    modul: ui_upload
+    text: {de: "Wähle den Ordner mit deinen Unterlagen.", en: "Choose the folder with your materials."}
+    daten: {zweck: sammlungsstruktur}
+  - id: entwurf
+    typ: werkzeug
+    werkzeug: strukturentwurf_aus_ordnern
+    argumente: {struktur: {$teil: structure}}
+    schreibt: draft
+    bei_fehler: ohne_ordner
+  # Zählt je Punkt des Entwurfs die WLO-Inhalte. Der Dienst liefert auch bei einem Ausfall ein
+  # Ergebnis — dann mit gezaehlt: 0. Darum prüft die Verzweigung danach den Wert; bei_fehler greift
+  # nur, wenn das Werkzeug gesperrt ist.
+  - id: luecken
+    typ: werkzeug
+    werkzeug: abdeckung_zaehlen
+    argumente: {entwurf: {$teil: draft}}
+    schreibt: abdeckung
+    bei_fehler: ohne_zahlen
+  - id: gezaehlt
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.abdeckung.gezaehlt, vergleich: groesser, wert: '0'}, dann: zeigen}
+      - {sonst: ohne_zahlen}
+  - id: zeigen
+    typ: modul
+    modul: ui_strukturentwurf
+    text: {de: "Dein Entwurf: Bei {teil.abdeckung.luecken} von {teil.abdeckung.gezaehlt} Punkten hat WLO noch wenig Inhalte.",
+           en: "Your draft: for {teil.abdeckung.luecken} of {teil.abdeckung.gezaehlt} topics WLO has little content so far."}
+    daten: {$teil: draft}
+  # Schritte folgen der Liste; diese Verzweigung springt über ``ohne_zahlen`` hinweg.
+  - id: weiter_zum_abgleich
+    typ: verzweigung
+    weiter: [{sonst: abgleich}]
+  - id: ohne_zahlen
+    typ: modul
+    modul: ui_strukturentwurf
+    text: {de: "Dein Entwurf. Die Zahlen aus WLO fehlen gerade.",
+           en: "Your draft. The numbers from WLO are missing right now."}
+    daten: {$teil: draft}
+  # Die KI fragt nach der Sammlung (oder nimmt die Seite, auf der die Person ist), sucht sie bei einem
+  # Namen mit search_wlo_all und zeigt den Abgleich im Modul.
+  - id: abgleich
+    typ: agent
+    text: {de: "Mit welcher WLO-Sammlung soll ich deinen Entwurf vergleichen?",
+           en: "Which WLO collection should I compare your draft with?"}
+    agent:
+      werkzeuge: [search_wlo_all, ui_strukturabgleich]
+      hinweis: {de: "Nennt die Person einen Namen, such die Sammlung mit search_wlo_all und nimm ihre Kennung. Gleiche dann den Entwurf mit ihr ab und zeige das Ergebnis im Modul.",
+                en: "If the person names a collection, find it with search_wlo_all and use its id. Then compare the draft with it and show the result in the module."}
+      zuege: 3
+  - id: ende
+    typ: ende
+    text: {de: "Fertig. Dein Entwurf bleibt gespeichert.", en: "Done. Your draft stays saved."}
+  - id: ohne_ordner
+    typ: ende
+    text: {de: "Ohne Unterordner gibt es noch keinen Themenbaum.",
+           en: "Without subfolders there is no topic tree yet."}
+# Der Entwurf entsteht in den Tests echt aus der Ordnerstruktur (reiner Dienst); nur die Zählung
+# in WLO ist nachgestellt.
+tests:
+  - name: Mit Zahlen bis zum Abgleich
+    ab: entwurf
+    teile: {structure: {struktur: {name: Physik, kinder: [{name: Optik}, {name: Mechanik}]}}}
+    werkzeuge:
+      luecken: {punkte: [], gezaehlt: 2, luecken: 1, filter_unaufgeloest: false}
+    erwartet: {weg: [entwurf, luecken, gezaehlt, zeigen], status: wartet_person}
+  - name: Ohne Unterordner
+    ab: entwurf
+    teile: {structure: {struktur: {name: Physik}}}
+    erwartet: {weg: [entwurf, ohne_ordner], status: fertig}
+  # So sieht ein Ausfall der Zählung im Betrieb aus (Querschnitts-Review AS-8, Befund 1).
+  - name: Zählung ohne Ergebnis
+    ab: entwurf
+    teile: {structure: {struktur: {name: Physik, kinder: [{name: Optik}]}}}
+    werkzeuge:
+      luecken: {punkte: [], gezaehlt: 0, luecken: 0, filter_unaufgeloest: false}
+    erwartet: {weg: [entwurf, luecken, gezaehlt, ohne_zahlen], status: wartet_person}
+  - name: Zählung gesperrt
+    ab: entwurf
+    teile: {structure: {struktur: {name: Physik, kinder: [{name: Optik}]}}}
+    werkzeuge: {luecken: null}
+    erwartet: {weg: [entwurf, luecken, ohne_zahlen], status: wartet_person}
+  - name: Durch den Abgleich bis zum Ende
+    ab: entwurf
+    teile: {structure: {struktur: {name: Physik, kinder: [{name: Optik}]}}}
+    werkzeuge:
+      luecken: {punkte: [], gezaehlt: 1, luecken: 0, filter_unaufgeloest: false}
+    eingaben:
+      - {bei: zeigen, antwort: {titel: Physik, quelle: ordner, knoten: [{id: k1, titel: Optik}], uebernommen: true, bearbeitet: false}}
+      - {bei: abgleich}
+    erwartet: {weg: [entwurf, luecken, gezaehlt, zeigen, weiter_zum_abgleich, abgleich, ende], status: fertig}

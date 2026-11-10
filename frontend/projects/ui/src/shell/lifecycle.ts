@@ -17,6 +17,7 @@ import {
   OWL_HINT_KEY, deleteSessionCookie, generateSessionId, isValidSessionId, sitzungsWache,
   writeSessionEverywhere,
 } from '../session/session-id';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { ChatApiClient } from '../stream/chat-api';
 import { restoreHistory } from './history-restore';
 import { bootSession } from './session-boot';
@@ -60,6 +61,10 @@ export function shouldSendContextPing(pc: Record<string, any>): boolean {
 
 /** Live-Zustand/Aktionen der Shell, die der Lifecycle braucht (deferred Arrows +
  *  die Controller-Instanzen). Muster `ShellHost`/`SendMessageContext`. */
+/** Paket RB-3 (Review, Befund 1): so lange warten Aufträge der Gastseite höchstens auf den Verlauf
+ *  einer fortgesetzten Sitzung — der Abruf selbst hat keine Frist. */
+export const VERLAUF_FRIST_MS = 15_000;
+
 export interface LifecycleContext {
   api: () => ChatApiClient;
   // ── Widget-Inputs (live gelesen) ──
@@ -95,7 +100,7 @@ export interface LifecycleContext {
   // ── Message-API ──
   setMessages: (msgs: ChatMessage[]) => void;
   updateMessages: (updater: (msgs: ChatMessage[]) => ChatMessage[]) => void;
-  addUserMessage: (content: string) => void;
+  addUserMessage: (content: string, fromHost?: boolean) => void;
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: WloCard[], quickReplies?: string[],
     ui?: UiInfo, pagination?: PaginationInfo | null,
@@ -106,9 +111,22 @@ export interface LifecycleContext {
    *  noch ein Zug läuft: der verwirft sein Ergebnis selbst (`send-message.ts`). */
   isLoading: () => boolean;
   setLoading: (v: boolean) => void;
+  /** Paket RB-3: `false`, solange der Verlauf einer fortgesetzten Sitzung lädt — Aufträge der
+   *  Gastseite warten so lange (ihre Blase gehört hinter das alte Gespräch). Eigenes Signal statt
+   *  `isLoading`: das sperrte Eingabe und Knöpfe mit. */
+  setVerlaufBereit?: (v: boolean) => void;
+  /** Wartet ein Auftrag der Gastseite? Dann entfällt nach dem Verlauf der Kontext-Gruß. */
+  gastAuftragWartet?: () => boolean;
   // ── Controller + Scroll ──
   tour: TourController;
   contextGreeting: ContextGreetingController;
+  /** AS-7b (Plan 2026-11-09 §5m, F-4): wartet eine Führung auf die Ankunft, ihr Seiten-Ping —
+   *  `true`, wenn eine Antwort erschien (dann ist sie der Gruß). Ohne Führung `false`. */
+  seitenPing?: (neueSeite?: boolean) => Promise<boolean>;
+  /** AS-7b: wartet gerade eine Führung auf die Ankunft? (ohne Netz) */
+  seitenPingWartet?: () => boolean;
+  /** AS-7b (F-7): Start-Chips passender Führungen für die Begrüßung. */
+  fuehrungsChips?: () => string[];
   scrollToLatest: () => void;
   /** Übersetzer für die Rückfall-Begrüßungen (C1-b4). Sie greifen nur, wenn
    *  Host bzw. Studio-Config nichts liefern — der redaktionelle Regelfall
@@ -158,9 +176,23 @@ export class ShellLifecycle {
       // einem Neustart an, gehören weder er noch Tour-Tick und Kontext-Ping
       // in das frische Gespräch.
       const veraltet = sitzungsWache(() => this.ctx.sessionId());
+      // Paket RB-3: Aufträge der Gastseite warten auf den Verlauf — nie für immer: nach der Frist,
+      // einem Fehler oder einem Neustart gehen sie ohne ihn (Review RB-3, Befund 1).
+      this.ctx.setVerlaufBereit?.(false);
+      const frist = setTimeout(() => this.ctx.setVerlaufBereit?.(true), VERLAUF_FRIST_MS);
       void this._restoreHistory().then((fertig) => {
-        if (fertig && !veraltet()) return this._afterResume();
+        clearTimeout(frist);
+        // Review RB-3, Befund 2 (Entscheid): wartet ein Auftrag der Gastseite, entfällt der
+        // Kontext-Gruß — der Auftrag ist der Zweck der Seite, ein Gruß davor wäre Rauschen.
+        // Vorher entschied das der Zeitplaner (der Gruß fiel am `isLoading`-Tor still weg).
+        const auftragWartet = this.ctx.gastAuftragWartet?.() === true;
+        this.ctx.setVerlaufBereit?.(true);
+        if (fertig && !veraltet()) return this._afterResume(auftragWartet);
         return undefined;
+      }, (err: unknown) => {
+        clearTimeout(frist);
+        this.ctx.setVerlaufBereit?.(true);
+        console.warn('boerdi: Verlauf nicht wiederhergestellt —', fehlerKurz(err));
       });
     } else {
       void this._greetOnFirstLoad();
@@ -194,16 +226,35 @@ export class ShellLifecycle {
 
   /** Das Laden ist zu Ende (Shell-Effect auf `isLoading`). */
   loadingEnded(): void {
+    if (this._seitenPingOffen) void this._seitenPing(this._seitenPingNeueSeite);   // AS-7b, Befund 4
     if (this._neugrussOffen) this.regreetForLocale();
   }
 
   private _neugrussOffen = false;
+  /** AS-7b (Review Befund 4): der Seiten-Ping traf auf einen laufenden Zug — nach dem Laden nach. */
+  private _seitenPingOffen = false;
+  /** Review PR #51 (Widget, Befund 3): ob der vorgemerkte Ping eine neue Seite meldet. */
+  private _seitenPingNeueSeite = false;
+
+  /** AS-7b: der Seiten-Ping einer wartenden Führung — während eines Zugs vorgemerkt. */
+  private async _seitenPing(neueSeite = false): Promise<boolean> {
+    if (!this.ctx.seitenPing) return false;
+    if (this.ctx.isLoading()) {
+      this._seitenPingOffen = true;
+      this._seitenPingNeueSeite ||= neueSeite;
+      return false;
+    }
+    this._seitenPingOffen = false;
+    this._seitenPingNeueSeite = false;
+    try { return (await this.ctx.seitenPing(neueSeite)) === true; } catch { return false; }
+  }
 
   /** Frische Session + Begrüßung (Header-Restart). Verbatim aus ALT 1262-1270,
    *  dazu die Freigabe des Ladens (Befundliste §1.4): ein laufender Zug gehört
    *  der alten Sitzung und verwirft sein Ergebnis (`send-message.ts`). */
   restart(): void {
     this._neugrussOffen = false;  // die neue Sitzung begrüßt sich selbst
+    this.ctx.setVerlaufBereit?.(true);  // ein alter Verlauf zählt nicht mehr (Review RB-3, Befund 1)
     const id = generateSessionId();
     this.ctx.setSessionId(id);
     // Paket 19 (H-4): abgelegt wird nur, wo `persist-session` es erlaubt —
@@ -222,6 +273,7 @@ export class ShellLifecycle {
   async wechseln(id: string): Promise<boolean> {
     if (!isValidSessionId(id)) return false;
     this._neugrussOffen = false;
+    this.ctx.setVerlaufBereit?.(true);  // hier wartet `isLoading` (Review RB-3, Befund 1)
     this.ctx.setSessionId(id);
     if (this._persist()) writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
@@ -243,6 +295,7 @@ export class ShellLifecycle {
     try { localStorage.removeItem(OWL_HINT_KEY); } catch { /* ignore */ }
     deleteSessionCookie(this.ctx.sessionKey(), this.ctx.sessionCookieDomain());
     this._neugrussOffen = false;
+    this.ctx.setVerlaufBereit?.(true);  // Review RB-3, Befund 1
     const id = generateSessionId();
     this.ctx.setSessionId(id);
     if (this._persist()) writeSessionEverywhere(id, this._cookieCfg());
@@ -267,6 +320,11 @@ export class ShellLifecycle {
   onSpaContextChange(newContext: Record<string, any>): void {
     this.ctx.setParsedPageContext({ ...newContext });
     this.ctx.contextGreeting.resetForNewPage();
+    // AS-7b (Review Befund 4): wartet eine Führung, gehört die neue Seite ihr — Ping statt Gruß
+    if (this.ctx.seitenPingWartet?.()) {
+      void this._seitenPing(true);
+      return;
+    }
     // Während einer laufenden Tour gehört jede Station der Tour: der Kontext
     // bleibt aktuell (Ankunftserkennung), nur die Begrüßung schweigt (X1).
     if (this.ctx.tour.isTourFlagSet()) return;
@@ -281,7 +339,7 @@ export class ShellLifecycle {
       sessionId: () => this.ctx.sessionId(),
       showGreeting: () => this.showGreeting(),
       updateMessages: (u) => this.ctx.updateMessages(u),
-      addUserMessage: (content) => this.ctx.addUserMessage(content),
+      addUserMessage: (...args) => this.ctx.addUserMessage(...args),
       addBotMessage: (...args) => this.ctx.addBotMessage(...args),
       scrollToLatest: () => this.ctx.scrollToLatest(),
     });
@@ -290,7 +348,9 @@ export class ShellLifecycle {
   /** Resumed-Pfad: erst Tour prüfen/fortsetzen (Flag ODER ?bsid=-Handoff),
    *  DANACH — nur wenn keine Tour aktiv — die Kontext-Begrüßung. Sequenziert
    *  (await), damit die Pings nicht über `isLoading` kollidieren. Verbatim 733-739. */
-  private async _afterResume(): Promise<void> {
+  private async _afterResume(ohneGruss = false): Promise<void> {
+    // AS-7b: zuerst die Führung — ihre Antwort auf die Ankunft ist der Gruß dieser Seite
+    const gefuehrt = await this._seitenPing();
     // Besitz VOR dem Tick entscheiden: der Abschluss-Tick löscht das Tour-Flag,
     // und eine Kontext-Begrüßung direkt hinter „Fast geschafft" wäre der
     // falsche Abgang (X1, live auf wp-test 2026-08-20).
@@ -302,7 +362,9 @@ export class ShellLifecycle {
       try { await this.ctx.tour.sendTourTick(); } catch { /* Tick-Fehler still */ }
       return;
     }
-    this._maybeSendContextPing();
+    // Browser-Abnahme AS-7, L-3: wartet die Führung noch auf ihre Seite, gehört die Seite
+    // ihr — ein Kontext-Gruß daneben würde die Person vom Weg wegführen.
+    if (!ohneGruss && !gefuehrt && !this.ctx.seitenPingWartet?.()) this._maybeSendContextPing();
   }
 
   /** Nach (Re)Start: läuft eine Tour (Flag) ODER kam die Session per ?bsid=,

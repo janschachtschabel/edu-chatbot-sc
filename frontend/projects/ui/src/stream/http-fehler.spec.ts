@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DE } from '../i18n/de';
 import { EN } from '../i18n/en';
 import { createTranslator } from '../i18n/dictionary';
-import { drosselHinweis, httpFehler } from './http-fehler';
+import { drosselHinweis, httpFehler, probeHinweis } from './http-fehler';
 
 // Paket 18F (3.5): ein nicht-ok-Abruf als Fehler mit Status und Wartezeit — für Verlauf, Strom
 // und POST eine Stelle; ein 429 wird im Widget zum eigenen Satz, mit Wartezeit, wenn sie kommt.
@@ -58,5 +58,22 @@ describe('drosselHinweis', () => {
     expect(drosselHinweis(de, { status: 500 })).toBeNull();
     expect(drosselHinweis(de, new Error('offline'))).toBeNull();
     expect(drosselHinweis(de, null)).toBeNull();
+  });
+});
+
+
+describe('probeHinweis (AS-8b)', () => {
+  const t = createTranslator(DE, DE);
+  const en = createTranslator(EN, DE);
+
+  it('ein 403 in der Probe heißt: keine gültige Studio-Anmeldung', () => {
+    expect(probeHinweis(t, { status: 403 }, true)).toBe(DE['error.probeOhneRecht']);
+    expect(probeHinweis(en, { status: 403 }, true)).toBe(EN['error.probeOhneRecht']);
+  });
+
+  it('außerhalb der Probe oder mit anderem Status nichts', () => {
+    expect(probeHinweis(t, { status: 403 }, false)).toBeNull();
+    expect(probeHinweis(t, { status: 500 }, true)).toBeNull();
+    expect(probeHinweis(t, null, true)).toBeNull();
   });
 });

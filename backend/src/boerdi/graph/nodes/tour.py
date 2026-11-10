@@ -33,12 +33,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatResponse, DebugInfo
 from boerdi.domain import tour as tour_domain
-from boerdi.domain.hintergrund_zug import TOUR_TICK
+from boerdi.domain.hintergrund_zug import TOUR_TICK, ist_seiten_ping
 from boerdi.domain.tour_i18n import localize as localize_tour
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.services.config_loader import load_website_tour_config
-from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.db_sessions import nutzer_debug, save_message, update_session
 from boerdi.services.safety.regex_gate import regex_gate
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,10 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     """Drive the website tour; set ``ctx.early_response`` on a tour turn, else None."""
     req = ctx.req
     env = req.environment
+    # Review AS-7a, Befund 3: der Seiten-Ping eines Ablaufs gehört nicht der Tour — sonst beendete
+    # er eine laufende Tour (weicher Ausstieg) oder zählte als Gruppenantwort
+    if ist_seiten_ping(env.page_event):
+        return ctx
     action = (env.tour_action or "").strip().lower()
 
     state = ctx.session_state.get("tour_state") or {}
@@ -189,7 +193,8 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     await update_session(session, req.session_id, tour_state=state)
     if persist_user:
         try:
-            await save_message(session, req.session_id, "user", req.message)
+            await save_message(session, req.session_id, "user", req.message,
+                               debug=nutzer_debug(req.from_host))
         except Exception:
             # WARNING (Paket 19, N-14): sonst fehlt der Zug still im Verlauf.
             logger.warning("tour: persisting user message failed", exc_info=True)

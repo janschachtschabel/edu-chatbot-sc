@@ -26,15 +26,25 @@ def block(modul: str, daten: dict[str, Any]) -> UiBlock | None:
     return neuer_block(modul, manifest["version"], manifest["art"], daten, text)
 
 
-async def modul_block(modul: str, daten: dict[str, Any]) -> UiBlock | None:
+async def modul_block(modul: str, daten: dict[str, Any], *,
+                      simulation: bool = False) -> UiBlock | None:
     """Erst als fertige Daten, sonst über den Dienst des Moduls — nur für Module ohne Sprachmodell
-    (``ui_upload``: Studio-Schalter). Ein ausgeschaltetes Modul baut kein Block."""
+    (``ui_upload``: Studio-Schalter). Ein ausgeschaltetes Modul baut kein Block.
+
+    ``simulation`` (AS-1): nie über den Dienst — für ein Modul, das der Betrieb über seinen Dienst
+    baut, ein Platzhalter-Block mit der Art des Moduls (ein abfragendes wartet wie im Betrieb). Für
+    jedes andere gilt wie im Betrieb: passen die Daten nicht, kein Block (``bei_fehler``, Review
+    AS-1, Befund 1)."""
     if not schalter.aktiv(modul):
         return None
     if (fertig := block(modul, daten)) is not None:
         return fertig
     if modul not in werkzeuge.MODUL_DIENST_OHNE_MODELL:
         return None
+    if simulation:
+        manifest = katalog.katalog().get(modul)
+        return (None if manifest is None
+                else neuer_block(modul, manifest["version"], manifest["art"], daten, ""))
     from boerdi.ui_module import dienst
     from boerdi.ui_module.aufruf import Umgebung as ModulUmgebung
     from boerdi.ui_module.aufruf import asynchron

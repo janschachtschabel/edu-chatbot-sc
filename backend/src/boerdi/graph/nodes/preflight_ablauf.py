@@ -16,7 +16,7 @@ from boerdi.api.schemas import ChatResponse
 from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
 from boerdi.services import plan_fortsetzen, vorgang_aktion
-from boerdi.services.ablauf import auftrag_zug, freigabe_zug
+from boerdi.services.ablauf import abbruch_zug, auftrag_zug, freigabe_zug, wahl_zug
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.ordner_aktion import ist_ordner_als_entwurf
 
@@ -25,6 +25,7 @@ from boerdi.services.ordner_aktion import ist_ordner_als_entwurf
 _IM_GESPERRTEN_LAUF: frozenset[str] = frozenset({
     auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN,
     vorgang_aktion.AKTION_NEU, vorgang_aktion.AKTION_LOESCHEN,
+    abbruch_zug.AKTION,
 })
 
 
@@ -36,11 +37,14 @@ class Ausloeser:
     per_text: Any
     #: K2b: die Kennung des Ablaufs, dessen wartender Auftragsschritt die Eingabe sperrt.
     gesperrt: str | None = None
+    #: AS-3a: getippter Text ist die Antwort am wartenden Schritt (gleich einem Label oder
+    #: ``freitext``).
+    freitext: bool = False
 
     @property
     def irgendeiner(self) -> bool:
         return bool(self.ordner or self.im_lauf or self.per_modul or self.per_text
-                    or self.gesperrt)
+                    or self.gesperrt or self.freitext)
 
 
 def abgewiesen(aktion: str | None, gesperrt: str | None) -> bool:
@@ -85,7 +89,15 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     if not ist_hintergrund_anfrage(req.environment):
         auftrag_zug.sperre_aufraeumen(req.session_id, ctx.session_state)
         gesperrt = auftrag_zug.gesperrt(req.session_id, ctx.session_state)
-    return Ausloeser(bool(im_lauf), per_modul, bool(ordner), per_text, gesperrt)
+    # Paket AS-3a: getippter Text (kein Knopf, keine Modul-Antwort, kein Hintergrund-Zug) an einem
+    # wartenden Schritt — gleich einem Label oder als Freitext — ist die Antwort, durch dieselbe
+    # Sicherheitsprüfung. Vorher ein Lauf aufräumen, der nicht mehr kann (Review, Befund 3).
+    getippt = (not req.action and ctx.ui_antwort is None and bool((req.message or "").strip())
+               and not ist_hintergrund_anfrage(req.environment))
+    if getippt:
+        await wahl_zug.aufraeumen(session, req.session_id, ctx.session_state)
+    freitext = getippt and wahl_zug.nimmt_getippt(req.session_id, ctx.session_state, req.message)
+    return Ausloeser(bool(im_lauf), per_modul, bool(ordner), per_text, gesperrt, freitext)
 
 
 async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
@@ -98,6 +110,8 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
         return Antwort(await auftrag_zug.gesperrt_antwort(session, req, a.gesperrt or ""))
     if req.action == auftrag_zug.AKTION_ABBRECHEN:
         return Antwort(await auftrag_zug.abbrechen(session, req, state))
+    if req.action == abbruch_zug.AKTION:
+        return Antwort(await abbruch_zug.abbrechen(session, req, state))
     if req.action == ablauf_zug.AKTION:
         return Antwort(await ablauf_zug.starten(session, req, state, blocked_tools=gesperrt))
     if req.action == auftrag_zug.AKTION:
@@ -116,6 +130,11 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
         antwort_plan = await plan_fortsetzen.weiter(session, req, state, blocked_tools=gesperrt)
         return Antwort(await freigabe_zug.nach_plan(session, req, state, vorher, antwort_plan,
                                                     blocked_tools=gesperrt))
+    if req.action == wahl_zug.AKTION:
+        return Antwort(await wahl_zug.waehlen(session, req, state, blocked_tools=gesperrt))
+    if a.freitext:
+        # ``None``: der Lauf wartet nicht mehr auf Text — der Zug geht den gewöhnlichen Weg
+        return Antwort(await wahl_zug.getippt(session, req, state, blocked_tools=gesperrt))
     if req.action == ablauf_zug.AKTION_WEITER:
         return Antwort(await ablauf_zug.weiter_nach_ki(session, req, state,
                                                        blocked_tools=gesperrt))

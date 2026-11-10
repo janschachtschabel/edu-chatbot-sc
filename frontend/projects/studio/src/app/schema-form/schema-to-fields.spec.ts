@@ -292,7 +292,7 @@ describe('rootField — against the real area schemas', () => {
   // Regenerate the fixture after adding or removing one:
   //   cd backend && uv run python scripts/export_area_schemas.py
   // 33 seit Paket 7 (P4): `01-base/rag-retrieval` bekam sein Modell; 34 seit U3-2a
-  // (`01-base/upload-config`); 35 seit A1 (`06-ablaeufe/katalog`).
+  // (`01-base/upload-config`); 35 seit A1 (`06-ablaeufe/katalog`, seit AS-0 die Gruppe `06-ablaeufe`).
   it('covers all 35 distinct area models', () => {
     expect(areas).toHaveLength(35);
   });
@@ -356,9 +356,20 @@ describe('rootField — against the real area schemas', () => {
       '05-knowledge/mcp-servers:servers[].tool_schemas[].input_schema', // dict[str, Any]
       // Paket A1: Daten und Argumente eines Schritts (frei, mit {"$teil": …}) und `weiter`
       // (Schritt-ID oder Regeln) — die Ablauf-Prüfung des Backends hält sie in Form.
-      '06-ablaeufe/katalog:ablaeufe[].schritte[].argumente', // dict[str, Any]
-      '06-ablaeufe/katalog:ablaeufe[].schritte[].daten', // dict[str, Any]
-      '06-ablaeufe/katalog:ablaeufe[].schritte[].weiter', // str | list[Weiter]
+      // Seit AS-0 ein Dokument je Ablauf (`06-ablaeufe`, Gruppe) — der Pfad beginnt am Ablauf.
+      '06-ablaeufe:schritte[].argumente', // dict[str, Any]
+      '06-ablaeufe:schritte[].daten', // dict[str, Any]
+      '06-ablaeufe:schritte[].freitext.ziel', // AS-3a: Zielauswahl (x-widget: schritt-ziel)
+      '06-ablaeufe:schritte[].optionen[].ziel', // AS-3a: Zielauswahl (x-widget: schritt-ziel)
+      '06-ablaeufe:schritte[].weiter', // str | list[Weiter]
+      // AS-1: Testfälle — Teile, Werkzeug-Ergebnisse und Antworten sind frei (jeder Wert, den ein
+      // Ablauf in Wirklichkeit bekäme); die Simulation liest sie wie der Treiber.
+      '06-ablaeufe:tests[].eingaben[].antwort', // dict[str, Any] | None
+      '06-ablaeufe:tests[].eingaben[].ergebnis', // dict[str, Any] | None
+      '06-ablaeufe:tests[].eingaben[].teile', // dict[str, Any]
+      '06-ablaeufe:tests[].start', // dict[str, Any]
+      '06-ablaeufe:tests[].teile', // dict[str, Any]
+      '06-ablaeufe:tests[].werkzeuge', // dict[str, Any]
       'eval/gold-flows:flows[].environment', // dict[str, Any] — AG-5, geprüft serverseitig
       'eval/gold-flows:flows[].turns[].expect', // dict[str, Any]
     ]);

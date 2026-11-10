@@ -14,6 +14,10 @@
  *   - backend/src/boerdi/ui_module/manifeste.json — alle Manifeste vollständig; das Backend
  *     baut daraus die Werkzeugbeschreibungen und prüft gegen das Schema.
  *   - backend/src/boerdi/ui_module/manifest.schema.json — Kopie des Vertrags-Schemas.
+ *   - ui-<name>/ui-<name>.stil.generated.ts (Paket BU-2) — nur für nachgeladene Module mit
+ *     `ui-<name>.element.scss`: die SCSS mit dem dart-sass des Projekts übersetzt (komprimiert)
+ *     als `STIL`. So teilen Element und Komponenten dieselben SCSS-Bausteine (`_baum/`), und das
+ *     Element-Bündel (esbuild, ohne SCSS) setzt den fertigen Text in seinen Shadow Root.
  *
  * Hier wird nur der Aufbau geprüft (Pflichtfelder, Name = Ordner, Komponente vorhanden); die
  * volle Schema-Prüfung samt Beispielen macht das Backend (tests/test_ui_modul_katalog.py).
@@ -24,6 +28,8 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { compile } from 'sass';
 
 const PFLICHT = ['name', 'version', 'art', 'titel', 'beschreibung', 'eingabe', 'textfassung', 'beispiele'];
 const LAUFZEIT = ['name', 'version', 'art', 'titel', 'faehigkeiten', 'darstellung'];
@@ -107,14 +113,44 @@ function quellenText(module) {
   ].join('\n');
 }
 
-/** Erzeugt (oder prüft mit `pruefen`) die Ausgaben; gibt die veralteten Dateinamen zurück. */
-export function erzeuge({ quelle, backend, pruefen = false }) {
+/** BU-2: je nachgeladenem Modul (BU-3: und je Widget-Teil der zweiten Quelle) mit
+ *  `ui-<name>.element.scss` die erzeugte Stil-Datei. `ordner` sind `[wurzel, ordner]`. */
+function stilAusgaben(ordner) {
+  return ordner.flatMap(([wurzel, name]) => {
+    const scss = join(wurzel, name, `${name}.element.scss`);
+    if (!existsSync(scss)) return [];
+    // `charset: false`: sonst setzt dart-sass bei Nicht-ASCII ein BOM davor — im `<style>` Teil des
+    // ersten Selektors (Review BU-2, Befund 3).
+    const css = compile(scss, { style: 'compressed', charset: false }).css;
+    return [[join(wurzel, name, `${name}.stil.generated.ts`), [
+      '// ERZEUGT von `npm run module:register` aus ' + `${name}.element.scss` + ' — nicht von Hand ändern.',
+      `export const STIL = ${JSON.stringify(css)};`,
+      '',
+    ].join('\n')]];
+  });
+}
+
+/** BU-3: Widget-Teile der zweiten Quelle — `ui-*`-Ordner mit Element-Datei, ohne Manifest; sortiert.
+ *  Auch vom Bau-Skript genutzt (`build-nachlade-module.mjs`). */
+export function widgetTeile(teile) {
+  if (!teile || !existsSync(teile)) return [];
+  return readdirSync(teile, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && e.name.startsWith('ui-') && existsSync(join(teile, e.name, `${e.name}.element.ts`)))
+    .map((e) => e.name)
+    .sort();
+}
+
+/** Erzeugt (oder prüft mit `pruefen`) die Ausgaben; gibt die veralteten Dateinamen zurück. `teile`
+ *  (BU-3) ist die zweite Quelle der Widget-Teile — sie bekommen nur ihren Stil, nie einen Eintrag. */
+export function erzeuge({ quelle, backend, teile = null, pruefen = false }) {
   const module = leseModule(quelle);
+  const nachgeladen = module.filter(({ manifest }) => istNachgeladen(manifest)).map(({ ordner }) => [quelle, ordner]);
   const ausgaben = [
     [join(quelle, 'register.generated.ts'), registerText(module)],
     [join(quelle, 'nachlade-quellen.generated.ts'), quellenText(module)],
     [join(backend, 'manifeste.json'), JSON.stringify(module.map((m) => m.manifest), null, 2) + '\n'],
     [join(backend, 'manifest.schema.json'), readFileSync(join(quelle, '_vertrag', 'manifest.schema.json'), 'utf8')],
+    ...stilAusgaben([...nachgeladen, ...widgetTeile(teile).map((name) => [teile, name])]),
   ];
   const veraltet = [];
   for (const [pfad, text] of ausgaben) {
@@ -132,6 +168,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const { veraltet, anzahl } = erzeuge({
     quelle: join(frontend, 'projects', 'ui-module', 'src'),
     backend: join(frontend, '..', 'backend', 'src', 'boerdi', 'ui_module'),
+    teile: join(frontend, 'projects', 'ui', 'src', 'nachgeladen'),
     pruefen,
   });
   console.log(`UI-Module: ${anzahl}`);

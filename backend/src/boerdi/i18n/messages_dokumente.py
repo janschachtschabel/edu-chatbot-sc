@@ -13,7 +13,8 @@ DOKUMENTE: Final[dict[Locale, dict[str, str]]] = {
     "de": {
         # ── Ordner-Dokumente: anlegen, duplizieren, löschen (Paket 6, S1) ──
         "documents.groupInvalid": (
-            "Unbekannter Ordner {group} — anlegen geht in 03-patterns und 04-personas."
+            "Unbekannter Ordner {group} — anlegen geht in 03-patterns, 04-personas und "
+            "06-ablaeufe."
         ),
         "documents.idInvalid": (
             "Die Kennung {id} ist ungültig: Buchstaben, Ziffern, - und _, ohne "
@@ -27,11 +28,19 @@ DOKUMENTE: Final[dict[Locale, dict[str, str]]] = {
             "Die Persona {id} wird unter {expected} gesucht, liegt aber unter {area}. "
             "Bitte die Kennung lassen oder die Persona neu anlegen."
         ),
+        "documents.ablaufIdInvalid": (
+            "Die Kennung {id} passt nicht zu einem Ablauf: Kleinbuchstaben, Ziffern und _, "
+            "am Anfang ein Buchstabe, höchstens 40 Zeichen; „katalog“ ist vergeben."
+        ),
+        "documents.ablaufKey": (
+            "Der Ablauf {id} gehört unter {expected}, nicht unter {area}. Die Kennung eines "
+            "Ablaufs ist sein Schlüssel — zum Umbenennen eine Kopie anlegen."
+        ),
         "documents.sourceMissing": "Die Vorlage {source} gibt es in diesem Ordner nicht.",
         "documents.deleteOnly": (
             "{path} gehört zur festen Konfiguration und lässt sich nicht löschen — "
             "zurücksetzen geht über den Auslieferungsstand. Löschen lassen sich "
-            "Muster, Personas und Bereiche ohne Modell."
+            "Muster, Personas, Abläufe und Bereiche ohne Modell."
         ),
         "documents.notFound": "{path} gibt es nicht.",
         "documents.deleteSafety": (
@@ -82,7 +91,8 @@ DOKUMENTE: Final[dict[Locale, dict[str, str]]] = {
     },
     "en": {
         "documents.groupInvalid": (
-            "Unknown folder {group} — documents can be created in 03-patterns and 04-personas."
+            "Unknown folder {group} — documents can be created in 03-patterns, 04-personas "
+            "and 06-ablaeufe."
         ),
         "documents.idInvalid": (
             "The id {id} is invalid: letters, digits, - and _, no spaces, at most "
@@ -94,11 +104,19 @@ DOKUMENTE: Final[dict[Locale, dict[str, str]]] = {
             "The persona {id} is looked up under {expected} but stored under {area}. "
             "Keep the id or create the persona anew."
         ),
+        "documents.ablaufIdInvalid": (
+            "The id {id} does not fit a workflow: lower-case letters, digits and _, starting "
+            "with a letter, at most 40 characters; “katalog” is taken."
+        ),
+        "documents.ablaufKey": (
+            "The workflow {id} belongs under {expected}, not under {area}. A workflow's id is "
+            "its key — to rename it, create a copy."
+        ),
         "documents.sourceMissing": "The template {source} does not exist in this folder.",
         "documents.deleteOnly": (
             "{path} belongs to the fixed configuration and cannot be deleted — reset "
-            "it via the shipped state. Patterns, personas and areas without a model "
-            "can be deleted."
+            "it via the shipped state. Patterns, personas, workflows and areas without a "
+            "model can be deleted."
         ),
         "documents.notFound": "{path} does not exist.",
         "documents.deleteSafety": (

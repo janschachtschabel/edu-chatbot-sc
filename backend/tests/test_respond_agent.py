@@ -1531,25 +1531,26 @@ async def test_die_kennzeile_des_arbeitsstands_steht_vor_der_nachricht(monkeypat
 async def test_ein_vorschlagbarer_ablauf_wird_angeboten_und_der_vorschlag_gemerkt(monkeypatch):
     from boerdi.services.ablauf import vorschlag
 
-    werkzeug = {"type": "function", "function": {"name": vorschlag.NAME, "parameters": {}}}
-    monkeypatch.setattr(agent_mod.ablauf_vorschlag, "werkzeug", lambda lang: werkzeug)
+    werkzeug = {"type": "function", "function": {"name": "ablauf-baum", "parameters": {}}}
+    monkeypatch.setattr(agent_mod.ablauf_vorschlag, "werkzeuge", lambda lang, **_k: [werkzeug])
     seen: dict = {}
     _patch(monkeypatch, seen, lauf=AgentRun(text="Antwort", stop_reason="text", iterations=1,
-                                            ablauf_vorschlaege=["baum"]))
+                                            ablauf_vorschlaege=[{"ablauf": "baum"}]))
     ctx = await respond_agent(_ctx())
-    assert vorschlag.NAME in _namen(seen["run_agent_loop"]["tools"])
-    assert ctx.session_state[vorschlag.SITZUNG_KEY] == ["baum"]
+    assert "ablauf-baum" in _namen(seen["run_agent_loop"]["tools"])
+    assert ctx.session_state[vorschlag.SITZUNG_KEY] == [{"ablauf": "baum"}]
 
 
 @pytest.mark.anyio
 async def test_ohne_vorschlagbaren_ablauf_kein_werkzeug(monkeypatch):
     from boerdi.services.ablauf import vorschlag
 
-    monkeypatch.setattr(agent_mod.ablauf_vorschlag, "werkzeug", lambda lang: None)
+    monkeypatch.setattr(agent_mod.ablauf_vorschlag, "werkzeuge", lambda lang, **_k: [])
     seen: dict = {}
     _patch(monkeypatch, seen)
     ctx = await respond_agent(_ctx())
-    assert vorschlag.NAME not in _namen(seen["run_agent_loop"]["tools"])
+    namen = _namen(seen["run_agent_loop"]["tools"])
+    assert not any(vorschlag.ist_ablauf_werkzeug(n) for n in namen)
     assert vorschlag.SITZUNG_KEY not in ctx.session_state
 
 
@@ -1604,3 +1605,16 @@ async def test_im_agent_schritt_bleibt_die_sperre_und_kein_wissen(monkeypatch):
     nachricht = seen["run_agent_loop"]["messages"][-1]["content"]
     assert "Nur diese Werkzeuge: get_node_details." in nachricht
     assert WISSENS_REGEL not in seen["run_agent_loop"]["messages"][0]["content"]
+
+
+@pytest.mark.anyio
+async def test_unter_dem_ersatzsatz_kein_ablauf_knopf(monkeypatch):
+    """Review AS-5b, Befund 3 (Agent-Seite): endet der Lauf ohne Antwort, steht der Ersatzsatz da
+    — ein Ablauf-Knopf darunter gehörte zu einem gescheiterten Zug."""
+    from boerdi.services.ablauf import vorschlag
+
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(text="", stop_reason="empty", iterations=1,
+                                            ablauf_vorschlaege=[{"ablauf": "baum"}]))
+    ctx = await respond_agent(_ctx())
+    assert vorschlag.SITZUNG_KEY not in ctx.session_state

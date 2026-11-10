@@ -24,7 +24,7 @@ import type { TranslateFn } from '../i18n/i18n';
 import { sitzungsWache } from '../session/session-id';
 import { fehlerKurz } from '../obs/fehler-kurz';
 import type { UiAntwortAnfrage } from '../stream/chat-api';
-import { drosselHinweis, fristHinweis } from '../stream/http-fehler';
+import { drosselHinweis, fristHinweis, probeHinweis } from '../stream/http-fehler';
 import { ChatStreamEvent } from '../stream/stream-client';
 
 /** Was die Nachfrage im Verlauf braucht (Paket 7, P2; Review C-3/C-4). */
@@ -50,6 +50,9 @@ export interface SendMessageContext {
   isLoading: () => boolean;
   setLoading: (v: boolean) => void;
   addUserMessage: (content: string) => void;
+  /** Paket RB-3: Ist der Zug ein Auftrag der Gastseite? Gelesen, solange die Blase entsteht
+   *  (synchron, wie `addUserMessage`); reist als `from_host` mit. */
+  vomGastgeber?: () => boolean;
   /** Der 10-Positionen-Seam des State-Core (8-4S-b). */
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: ChatResponse['cards'],
@@ -75,11 +78,12 @@ export interface SendMessageContext {
   stream: (
     msg: string, onEvent: (evt: ChatStreamEvent) => void, env: unknown,
     action?: string, actionParams?: Record<string, any>, uiAntwort?: UiAntwortAnfrage,
+    fromHost?: boolean,
   ) => Promise<ChatResponse>;
   /** `postChat` (8-3) Fallback mit LIVE-`sessionId` gebunden. */
   post: (
     msg: string, env: unknown, action?: string, actionParams?: Record<string, any>,
-    uiAntwort?: UiAntwortAnfrage,
+    uiAntwort?: UiAntwortAnfrage, fromHost?: boolean,
   ) => Promise<ChatResponse>;
   /** Tracer-`phase` → Lade-Label (pure); `null` = kein Label. */
   formatPhaseLabel: (evt: ChatStreamEvent) => string | null;
@@ -88,6 +92,8 @@ export interface SendMessageContext {
   onResult: (resp: ChatResponse, userMessage: string) => void;
   /** Übersetzer für Stale- und Fehler-Bubble (C1-b4). */
   t: TranslateFn;
+  /** Paket AS-8b: Probe der Studio-Vorschau — ein 403 heißt dann „keine Studio-Anmeldung“. */
+  probe?: () => boolean;
   /** Paket 7 (P2): die Antwort auf `msg` aus dem gespeicherten Verlauf — `null`,
    *  wenn sie in der Wartezeit nicht kommt (`antwort-aus-verlauf`). */
   answerFromHistory: (msg: string, nachfrage: VerlaufNachfrage) => Promise<ChatResponse | null>;
@@ -102,6 +108,8 @@ interface Zug {
   readonly actionParams?: Record<string, any>;
   /** Antwort auf einen abfragenden UI-Block (U1-d1) — reist auf beiden Wegen mit. */
   readonly uiAntwort?: UiAntwortAnfrage;
+  /** Paket RB-3: Auftrag der Gastseite — reist als `from_host` mit (nur Anzeige im Verlauf). */
+  readonly vomGastgeber: boolean;
   readonly loadingId: string;
   /** Die Frage, wenn sie aus dem Eingabefeld kam — sonst `''` (Chip, Aktion,
    *  Auftrag der Gastseite). Nur sie kehrt bei einem Hinweis ins Feld zurück. */
@@ -141,6 +149,7 @@ export async function runSendMessage(
 
   ctx.clearInput();
   ctx.addUserMessage(msg);
+  const vomGastgeber = ctx.vomGastgeber?.() === true;
   ctx.setLoading(true);
 
   // Der Zug gehört der Sitzung, in der er begann (`sitzungsWache`, Paket 3 T6):
@@ -157,7 +166,8 @@ export async function runSendMessage(
 
   try {
     const zug: Zug = {
-      ctx, msg, env: ctx.pageContextEnv(), action, actionParams, uiAntwort, loadingId, veraltet,
+      ctx, msg, env: ctx.pageContextEnv(), action, actionParams, uiAntwort, vomGastgeber, loadingId,
+      veraltet,
       getippt: !text && !action ? msg : '', angenommen,
     };
     const resp = await antwortHolen(zug);
@@ -235,7 +245,10 @@ async function antwortHolen(zug: Zug): Promise<ChatResponse | null> {
   };
 
   try {
-    return await ctx.stream(zug.msg, onEvent, zug.env, zug.action, zug.actionParams, zug.uiAntwort);
+    // Der Merker nur, wenn gesetzt — so bleibt ein gewöhnlicher Zug unverändert.
+    return await (zug.vomGastgeber
+      ? ctx.stream(zug.msg, onEvent, zug.env, zug.action, zug.actionParams, zug.uiAntwort, true)
+      : ctx.stream(zug.msg, onEvent, zug.env, zug.action, zug.actionParams, zug.uiAntwort));
   } catch (streamErr) {
     if (veraltet()) return null;
     return nachStromFehler(zug, streamErr, angenommen, nachId);
@@ -253,7 +266,8 @@ async function nachStromFehler(
   if ((streamErr as Error)?.name === 'StreamStaleError') return hinweis(zug, t('error.stale'));
   if (istBeschaeftigt(streamErr)) return hinweis(zug, t('error.busy'));
   // Paket 18F: zu viele Anfragen (429) — ein zweiter Versand liefe in dieselbe Grenze.
-  const gedrosselt = drosselHinweis(t, streamErr);
+  const gedrosselt = drosselHinweis(t, streamErr)
+    ?? probeHinweis(t, streamErr, zug.ctx.probe?.() ?? false);
   if (gedrosselt) return hinweis(zug, gedrosselt);
   // Review C-1: jeder `error`-Rahmen ist ein Bescheid des Servers — der Zug
   // ist dort gescheitert, im Verlauf kommt keine Antwort an, und ein zweiter
@@ -307,12 +321,15 @@ async function perPost(zug: Zug, streamErr: unknown): Promise<ChatResponse | nul
   // stünde sonst bis dahin als Antwort da.
   ctx.clearStreamText(loadingId);
   try {
-    return await ctx.post(zug.msg, zug.env, zug.action, zug.actionParams, zug.uiAntwort);
+    return await (zug.vomGastgeber
+      ? ctx.post(zug.msg, zug.env, zug.action, zug.actionParams, zug.uiAntwort, true)
+      : ctx.post(zug.msg, zug.env, zug.action, zug.actionParams, zug.uiAntwort));
   } catch (postErr) {
     if (veraltet()) return null;
     // Paket 19 (M-15): der POST hat jetzt eine Frist — dieselbe ehrliche Blase
     // wie beim Strom, die getippte Frage zurück ins Feld.
-    const gedrosselt = drosselHinweis(ctx.t, postErr) ?? fristHinweis(ctx.t, postErr);
+    const gedrosselt = drosselHinweis(ctx.t, postErr) ?? fristHinweis(ctx.t, postErr)
+      ?? probeHinweis(ctx.t, postErr, ctx.probe?.() ?? false);
     if (gedrosselt) return hinweis(zug, gedrosselt);
     if (!istBeschaeftigt(postErr)) throw postErr;
     return hinweis(zug, ctx.t('error.busy'));

@@ -28,10 +28,19 @@ export function verlaufseintrag(m: any): HistoryMessage {
  *  Liste ist, gilt als leerer Verlauf. */
 export async function verlaufAbrufen(
   doFetch: typeof fetch, baseUrl: string, sessionId: string, limit: number,
-  signal?: AbortSignal,
+  signal?: AbortSignal, sprache?: string, kopfzeilen: Record<string, string> = {},
 ): Promise<HistoryMessage[]> {
   const url = `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}`;
-  const resp = await (signal ? doFetch(url, { signal }) : doFetch(url));
+  // Paket AS-Ub (zweites Review, Befund 6): die Sprache des Widgets — der Stand der Ablauf-Leiste
+  // trägt den Titel in ihr, wie live. `Accept-Language` löst keinen CORS-Preflight aus.
+  // Querschnitts-Review Q-1: dazu der Zugangsblock der Person (`kopfzeilen`) — ihr Verweis gehört
+  // ihr, ohne ihn fehlte die Leiste nach dem Neuladen. Wie bei den Zügen nur, wenn angemeldet.
+  const kopf = { ...(sprache ? { 'Accept-Language': sprache } : {}), ...kopfzeilen };
+  const optionen: RequestInit = {
+    ...(signal ? { signal } : {}),
+    ...(Object.keys(kopf).length ? { headers: kopf } : {}),
+  };
+  const resp = await (Object.keys(optionen).length ? doFetch(url, optionen) : doFetch(url));
   if (!resp.ok) throw httpFehler(resp, 'History error');
   const data = await resp.json();
   return Array.isArray(data) ? data.map(verlaufseintrag) : [];

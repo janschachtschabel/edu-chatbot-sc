@@ -33,6 +33,8 @@ STAEMME = (
     "message", "msg", "nachricht", "thema", "topic", "query", "term", "suchbegriff", "slot",
     "entit", "args", "argument", "signatur", "reasoning", "text", "antwort", "response", "prompt",
     "qrs", "quick_repl", "title", "titel", "sitzung",
+    # Querschnitts-Review AS-4, Befund 7: Kennungen der Wiederkehr, Daten der Gastseite
+    "auftrag", "vorgang", "startdaten",
 )
 #: Ganze Namensteile (zu kurz für einen Stamm). ``nid`` (Paket 19, N-3): ein ``nodeId``-Argument,
 #: das keine UUID ist, ist Freitext aus der Anfrage („Mathe Bruchrechnung“).
@@ -41,7 +43,7 @@ GANZE = frozenset({"q", "sig", "sid", "nid"})
 #: ``content_types`` und ``roh_modus`` dagegen eine Art bzw. einen Konfigurationswert.
 LETZTE = frozenset({"content", "raw", "roh"})
 #: Irgendwo im ganzen Namen.
-FOLGEN = ("session_id", "search_url", "search_link")
+FOLGEN = ("session_id", "search_url", "search_link", "job_id")
 #: ``sessionId`` → ``session_id``: camelCase ergibt dieselben Teile wie snake_case.
 _KAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 #: Schlüssel (``x.get("…")``, ``x["…"]``), die Inhalt halten — genau, nicht als Stamm
@@ -312,3 +314,12 @@ def test_der_waechter_sieht_vorformatierte_texte_und_verschachtelte_schutzbeding
     )
     gefunden = [n for aufruf, args in _logaufrufe(baum) for a in args for n in _verboten(a)]
     assert gefunden == ["arguments", "signature"]
+
+
+def test_kennungen_eines_auftrags_klingen_nach_inhalt():
+    """Nachprüfung Querschnitt AS-4, Befund 5: ``job_id`` griff als Stamm nie (Zerlegung am ``_``,
+    Endung ``_id``)."""
+    from tests.test_log_ohne_inhalt import _klingt_nach_inhalt
+
+    assert _klingt_nach_inhalt("job_id") and _klingt_nach_inhalt("offen_job_id")
+    assert _klingt_nach_inhalt("jobId")

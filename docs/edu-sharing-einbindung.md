@@ -300,6 +300,8 @@ Alle Werte sind HTML-Attribute, also Zeichenketten; boolesche nehmen
 | `emit-guide-suggestion` | `false` | `boerdi:guide-suggestion` einschalten (§7) |
 | `emit-routing-debug` | `false` | `boerdi:routing-debug` einschalten (§7) |
 | `emit-query-meta` | `false` | `boerdi:query-meta` einschalten (§7); bis Paket 19 immer an |
+| `ablauf-start` / `ablauf-start-daten` | — | Einen Ablauf aus dem Studio beim ersten Öffnen starten, etwa mit der gezeigten Sammlung: `ablauf-start="sammlung_pflegen" ablauf-start-daten='{"sammlung": "<nodeId>"}'`. Zur Laufzeit `startAblauf(id, daten)`. Daten nur bei Abläufen mit dem Auslöser „Gastseite“; Eingaben, nie Rechte. Einzelheiten: `browser-plugin-einbindung.md` §5 |
+| `fortsetzen-vorgang` / `fortsetzen-auftrag` | — | Aus einer Benachrichtigung zurück zur Arbeit: öffnet den Chat und führt die angemeldete Besitzerin ins Gespräch des Vorgangs, bei einem Auftrag mit „Stand prüfen“. Eine Kennung ist kein Recht |
 
 ### Was zur Laufzeit noch wirkt
 

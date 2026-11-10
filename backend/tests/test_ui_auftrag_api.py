@@ -222,3 +222,36 @@ def test_befund_2_keine_verbindung_waehrend_der_anmeldung(web, lage, monkeypatch
 def test_eingaben_werden_geprueft(web, lage, feld):
     assert _stand(web, **feld).status_code == 422
     assert lage.abfragen == []
+
+
+# ── Review AS-8a, Befund 2: der Trocken-Auftrag einer Probe — ohne Anmeldung und Schlüssel ──────
+
+def test_review_as8a_2_ein_trockener_auftrag_der_probe(web, lage, monkeypatch):
+    from boerdi.services import probe
+
+    job = "trocken-0123456789abcdef"
+    kennung = f"probe:{_SITZUNG}"
+    lage.person, lage.schluessel = False, False
+    lage.auftrag = SimpleNamespace(job_id=job, schritt="lesen", status="laeuft")
+    lage.stand = client.Stand("fertig")
+    monkeypatch.setattr(lage, "entities", lambda: {
+        probe.ENTITY_KEY: True,
+        arbeitsstand.VERWEIS: arbeitsstand.verweis_fuer(lage.vorgang(), kennung)})
+
+    async def lesen(s, vorgang_id, aufrufer):
+        return lage.vorgang() if vorgang_id == "v-1" and aufrufer == kennung else None
+
+    monkeypatch.setattr(vorgaenge, "lesen", lesen)
+    r = _stand(web, kuerzel=client.kuerzel(job))
+    assert r.status_code == 200, r.text
+    assert lage.abfragen == [job]
+
+
+def test_review_as8a_2_eine_echte_kennung_braucht_weiter_anmeldung(web, lage, monkeypatch):
+    from boerdi.services import probe
+
+    lage.person = False
+    monkeypatch.setattr(lage, "entities", lambda: {probe.ENTITY_KEY: True})
+    r = _stand(web)
+    assert r.status_code in (403, 409)
+    assert lage.abfragen == []

@@ -10,17 +10,25 @@
  * anderer Module geht dabei nicht verloren (Review U1-f, #2).
  *
  * Geladen erst beim Aufklappen, wie die übrigen Panels.
+ *
+ * AS-2c: Je Modul die Abläufe, die es zeigen (aus `GET /config/ablaeufe`), mit Verweis auf den
+ * Ablauf; `?modul=<name>` (vom Ablauf her) wählt das Modul. Fehlt die Liste, sagt die Seite es dort,
+ * der Rest bleibt bedienbar.
  */
 import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked,
 } from '@angular/core';
 
+import { RouterLink } from '@angular/router';
+
+import { type AblaufZeile, AblaufApi } from '../core/ablauf-api.service';
 import { describeApiError } from '../core/async-data';
 import { type AreaDocument, ConfigApi, saveCondition } from '../core/config-api.service';
 import { type SaveConflict, StudioApiError } from '../core/studio-api-error';
 import { UiModuleApi } from '../core/ui-module-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
+import { modulAusAdresse } from './ablauf-sprung';
 import type { CuratedPanelSection } from './curated-views';
 import { SaveConflictComponent } from './save-conflict.component';
 import {
@@ -31,7 +39,7 @@ import { UiModulVorschauComponent } from './ui-modul-vorschau.component';
 
 @Component({
   selector: 'studio-ui-module',
-  imports: [SaveConflictComponent, UiModulVorschauComponent],
+  imports: [RouterLink, SaveConflictComponent, UiModulVorschauComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ui-module.component.html',
   styleUrl: './ui-module.component.scss',
@@ -41,6 +49,7 @@ export class UiModuleComponent {
   private readonly config = inject(ConfigApi);
   private readonly lang = inject(StudioLanguageService);
   private readonly dokument = inject(DOCUMENT);
+  private readonly ablaufApi = inject(AblaufApi);
   protected readonly t = this.lang.t;
 
   readonly section = input.required<CuratedPanelSection>();
@@ -58,6 +67,10 @@ export class UiModuleComponent {
   readonly status = signal('');
   readonly konflikt = signal<SaveConflict | null>(null);
   readonly gewaehlt = signal('');
+  /** AS-2c: die Abläufe — `null` solange sie laden; `fehler`: die Liste kam nicht. */
+  readonly ablaeufe = signal<readonly AblaufZeile[] | null>(null);
+  readonly ablaeufeFehler = signal(false);
+  private readonly gewuenscht = modulAusAdresse();
 
   readonly module = computed(() => this.katalog()?.module ?? []);
   readonly eintrag = computed<UiModulEintrag | null>(
@@ -73,9 +86,23 @@ export class UiModuleComponent {
 
   private gestartet = false;
 
+  /** Die Abläufe, die das gewählte Modul zeigen. */
+  readonly ablaeufeDesModuls = computed(() => {
+    const name = this.eintrag()?.name;
+    return (this.ablaeufe() ?? []).filter((z) => !!name && z.module.includes(name));
+  });
+
   constructor() {
     effect(() => {
       if (this.open()) untracked(() => this.ensureLoaded());
+    });
+    // Review AS-2, Befund 10: einmal — ein neu geladener Katalog springt nicht zurück
+    let angewandt: string | null = null;
+    effect(() => {
+      const name = this.gewuenscht();
+      if (!name || name === angewandt || !this.module().some((m) => m.name === name)) return;
+      angewandt = name;
+      untracked(() => this.gewaehlt.set(name));
     });
   }
 
@@ -87,6 +114,27 @@ export class UiModuleComponent {
     if (this.gestartet) return;
     this.gestartet = true;
     void this.laden();
+    void this.ablaeufeLaden();
+  }
+
+  async ablaeufeLaden(): Promise<void> {
+    this.ablaeufeFehler.set(false);
+    try {
+      this.ablaeufe.set(await this.ablaufApi.liste());
+    } catch {
+      // Die Querverweise sind eine Zugabe: die Seite meldet es an ihrer Stelle, sonst nichts.
+      this.ablaeufeFehler.set(true);
+    }
+  }
+
+  /** „Erneut versuchen“ verschwindet beim Laden — der Fokus geht an die Überschrift (Befund 9). */
+  async ablaeufeErneut(modul: string): Promise<void> {
+    this.dokument.getElementById(`um-ablaeufe-${modul}`)?.focus();
+    await this.ablaeufeLaden();
+  }
+
+  ablaufTitel(z: AblaufZeile): string {
+    return z.titel[this.lang.i18n.locale()] || z.titel['de'] || z.id;
   }
 
   async laden(): Promise<void> {

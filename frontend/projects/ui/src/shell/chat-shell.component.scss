@@ -73,6 +73,10 @@ $border:     var(--mat-sys-outline-variant);
 
 // ── Wrapper ──
 .chat-wrapper {
+  // AS-Ud: Bezug der Fußzeile bei schmaler Breite (`_chat-footer.scss`, `.chat-footer--konto`). Die
+  // Breite des Wrappers hängt nicht von seinem Inhalt ab (Block bis 520 px) — die Eindämmung
+  // ändert also nichts an seinem Maß.
+  container: chat / inline-size;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -86,7 +90,30 @@ $border:     var(--mat-sys-outline-variant);
   border-right: 1px solid $border;
 }
 
+/* Paket AS-8b (Review, Befund 1): Etikett der Probe — dieselben Token wie die Ablauf-Leiste
+   (`--mat-sys-*`, im ausgelieferten Widget gesetzt); Text, nicht nur Farbe. */
+.probe-etikett {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 4px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface-variant);
+  background: color-mix(in srgb, var(--mat-sys-on-surface) 6%, var(--mat-sys-surface));
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
 // ── Messages-Bereich ──
+// Querschnitts-Review AS-U/BU, Q-4: der Bereich über der Eingabe (Debug-Panel, Leiste, „Meine
+// Vorgänge“, Hinweis) — höchstens die halbe Höhe des Wrappers, darüber scrollt er selbst. Prozent der
+// Höhe des Flex-Containers, nicht `vh`: das Widget ist oft niedriger als das Fenster (rahmenlos, Zoom).
+.ueber-eingabe {
+  flex: 0 1 auto;
+  min-block-size: 0;
+  max-block-size: 50%;
+  overflow-y: auto;
+}
+
 .messages-area {
   flex: 1;
   overflow-y: auto;

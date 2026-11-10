@@ -146,6 +146,18 @@ describe("GroupSectionComponent", () => {
     expect(eintraege(el)).toEqual(["Orientierung · M01", "Suche · M02"]);
   });
 
+  it("hält Liste und Editor, wenn ein Neuladen scheitert (Review PR #51, S1)", async () => {
+    const { el, http, fixture } = await mount();
+    void fixture.componentInstance.loadList();
+    http.expectOne("/studio/api/config/elements")
+      .flush({ detail: "weg" }, { status: 500, statusText: "Server Error" });
+    await tick();
+    await fixture.whenStable();
+    expect(eintraege(el)).toEqual(["Orientierung · M01", "Suche · M02"]);
+    expect(el.querySelector(".cs-state--error[role=alert]")).not.toBeNull();
+    expect(el.querySelector(".cs-state--error button")).not.toBeNull();
+  });
+
   it("reads the other group from the same response", async () => {
     const { el } = await mount({
       area: "04-personas",

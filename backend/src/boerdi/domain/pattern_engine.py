@@ -296,6 +296,13 @@ def phase3_modulate(
     if ui_werkzeuge := [t for t in output["tools"] if t in _module]:
         output["tools"] = [t for t in output["tools"] if t not in _module]
         output[UI_WERKZEUGE_KEY] = ui_werkzeuge
+    # Paket AS-5b: Ablauf-Werkzeuge ebenso — angeboten in ``response_tool_selection``, wenn der
+    # Ablauf vorschlagbar ist.
+    from boerdi.domain.ablauf_werkzeug import MUSTER_KEY, ist_ablauf_werkzeug
+
+    if ablauf_werkzeuge := [t for t in output["tools"] if ist_ablauf_werkzeug(t)]:
+        output["tools"] = [t for t in output["tools"] if not ist_ablauf_werkzeug(t)]
+        output[MUSTER_KEY] = ablauf_werkzeuge
 
     # ── Automatic tool-dependency enforcement ──────────────────
     # Helper tools are always required when search tools are active

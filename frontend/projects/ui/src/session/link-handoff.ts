@@ -140,10 +140,15 @@ export function maybeRewriteOutgoingLink(e: Event, ctx: OutgoingLinkContext): vo
  *    auch bei Toggle=aus mitgeschickt.
  *  Beide werden auf der Zielseite gelesen, sofort aus der URL entfernt
  *  (kein Bookmark-Leak) und in Cookie/localStorage übernommen.
+ *
+ *  AS-7b (Plan 2026-11-09 §5m, F-2): mit ``gleicheHerkunft`` (nur der Führungs-Chip eines Ablaufs)
+ *  geht ein Ziel derselben Herkunft auch ohne Eintrag in der Vertrauensliste — sonst führte eine
+ *  Führung auf Seiten außerhalb von WLO ins Leere. Bot-``navigate`` und Lotsen-Chips brauchen die
+ *  Liste weiter (Review AS-7b, Befund 2: eine eingeschleuste Navigation träfe sonst jeden Pfad).
  */
 export function resolveGuideNavUrl(
   url: string,
-  ctx: LinkHandoffContext & { guideMode: boolean },
+  ctx: LinkHandoffContext & { guideMode: boolean; gleicheHerkunft?: boolean },
 ): string | null {
   if (!url) return null;
   let target: URL;
@@ -153,6 +158,8 @@ export function resolveGuideNavUrl(
     return null;  // unparsebar → nicht navigieren
   }
   if (target.protocol !== 'http:' && target.protocol !== 'https:') return null;
+  // AS-7b: dieselbe Seite eines Führungs-Chips braucht weder Liste noch Übergabe
+  if (ctx.gleicheHerkunft && target.origin === window.location.origin) return target.toString();
   if (!isTrustedHost(target.hostname.toLowerCase(), ctx.trustedDomains)) return null;
 
   // Nur Handoff bei echtem Origin-Wechsel — same-origin hat schon Zugriff

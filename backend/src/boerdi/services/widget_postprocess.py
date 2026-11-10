@@ -44,6 +44,7 @@ from boerdi.domain.url_helpers import (
     _extract_web_links_from_text,
     _rewrite_external_urls_to_repo,
 )
+from boerdi.domain.wahl_knopf import ist_wahl_knopf
 from boerdi.domain.widget_modes import _widget_modes
 from boerdi.domain.widget_postprocess import _apply_widget_modes_postprocess
 from boerdi.obs.log_inhalt import inhalt
@@ -69,11 +70,14 @@ _LLM_DELIVERY_CLAIM_RE = _re.compile(
 )
 
 
-def _auftrags_knoepfe_behalten(vorher: list[str], nachher: list[str]) -> list[str]:
+def _auftrags_knoepfe_behalten(vorher: list[str], nachher: list[str],
+                               ist_knopf: Any = None) -> list[str]:
     """Zweites Review K2b, Befund 3: im gesperrten Lauf sind „Stand prüfen“ und „Auftrag
     abbrechen“ der einzige Weg weiter — kein Deckel (``max_count`` bis 0, Muster, Gastgeber) darf
-    sie streichen. Sie stehen vorn; der Rest füllt bis zur alten Länge auf."""
-    from boerdi.services.ablauf.auftrag_zug import ist_knopf
+    sie streichen. Sie stehen vorn; der Rest füllt bis zur alten Länge auf. Mit ``ist_knopf``
+    dasselbe für andere Knöpfe (Querschnitts-Review AS-3: die Chips einer Ablauf-Wahl)."""
+    if ist_knopf is None:
+        from boerdi.services.ablauf.auftrag_zug import ist_knopf
 
     fest = [q for q in vorher if isinstance(q, str) and ist_knopf(q)]
     if all(q in nachher for q in fest):
@@ -807,6 +811,9 @@ async def _postprocess_response_for_widget_modes(
             logger.debug("quick-reply cap enforcement failed", exc_info=True)
         if getattr(resp, "eingabe_gesperrt", False):
             qrs = _auftrags_knoepfe_behalten(list(resp.quick_replies or []), qrs)
+        # Querschnitts-Review AS-3, Befund 1: die Chips einer Ablauf-Wahl übersteht jeder Deckel
+        qrs = _auftrags_knoepfe_behalten(list(resp.quick_replies or []), list(qrs or []),
+                                         ist_wahl_knopf)
 
         # ChatResponse rekonstruieren — Pydantic-Modell aufgrund von
         # Validierungsregeln kopieren wir per model_copy(update=...).

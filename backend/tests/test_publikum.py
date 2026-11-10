@@ -17,6 +17,8 @@ VERTRAG = {
     "pattern", "intent", "state", "tools_called", "modulations",
     "query_metas", "web_links", "type_focus", "dokumente", "topic_page_view", "prepared_write",
     "ui_bloecke",  # Paket U1
+    "from_host",  # Paket RB-3: nur im Verlauf, an einer Nutzernachricht
+    "ablauf", "fester_text",  # Paket AS-Ua: Ablauf-Leiste, kein KI-Etikett an festen Texten
 }
 
 

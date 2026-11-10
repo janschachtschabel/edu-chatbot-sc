@@ -102,6 +102,56 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     expect(api.loadHistory).toHaveBeenCalledWith(VALID_SID, 20);
   });
 
+  it('AS-7b: nach dem Verlauf zuerst der Seiten-Ping — erscheint seine Antwort, entfällt der Kontext-Gruß', async () => {
+    const seite = JSON.stringify({ page_kind: 'collection', collection_id: '9e7ae956-e9df-430f-bace-f3db4b910013' });
+    for (const [gezeigt, gruss] of [[true, 0], [false, 1]] as const) {
+      localStorage.setItem(KEY, VALID_SID);
+      const seitenPing = vi.fn(async () => gezeigt);
+      const { ctx, api, cg } = makeCtx({ persistSession: () => true, pageContextInput: () => seite, seitenPing });
+      api.loadHistory.mockResolvedValue([{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }]);
+      new ShellLifecycle(ctx).init();
+      await vi.waitFor(() => expect(seitenPing).toHaveBeenCalledTimes(1));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(cg.sendContextPing).toHaveBeenCalledTimes(gruss);
+    }
+  });
+
+  it('AS-7b, Review Befund 4: nach einer SPA-Navigation pingt eine wartende Führung neu — statt des Grußes', () => {
+    const seitenPing = vi.fn(async () => false);
+    const { ctx, cg } = makeCtx({ seitenPing, seitenPingWartet: () => true });
+    new ShellLifecycle(ctx).onSpaContextChange({ page_kind: 'collection', collection_id: 'x' });
+    expect(seitenPing).toHaveBeenCalledWith(true);
+    expect(cg.sendContextPing).not.toHaveBeenCalled();
+  });
+
+  it('AS-7b, Review Befund 4: trifft der Ping auf einen laufenden Zug, holt das Ende des Ladens ihn nach', async () => {
+    let laedt = true;
+    const seitenPing = vi.fn(async () => false);
+    const { ctx } = makeCtx({ seitenPing, seitenPingWartet: () => true, isLoading: () => laedt });
+    const lc = new ShellLifecycle(ctx);
+    lc.onSpaContextChange({});
+    expect(seitenPing).not.toHaveBeenCalled();
+    laedt = false;
+    lc.loadingEnded();
+    await Promise.resolve();
+    expect(seitenPing).toHaveBeenCalledTimes(1);
+    // Review PR #51 (Widget, Befund 3): der nachgeholte Ping meldet weiter die neue Seite
+    expect(seitenPing).toHaveBeenCalledWith(true);
+  });
+
+  it('Browser-Abnahme AS-7, L-3: wartet eine Führung auf eine andere Seite, kommt kein Kontext-Gruß', async () => {
+    const seite = JSON.stringify({ page_kind: 'collection', collection_id: '9e7ae956-e9df-430f-bace-f3db4b910013' });
+    localStorage.setItem(KEY, VALID_SID);
+    const seitenPing = vi.fn(async () => false);   // Seite passt nicht — leere Antwort
+    const { ctx, api, cg } = makeCtx({ persistSession: () => true, pageContextInput: () => seite, seitenPing,
+                                       seitenPingWartet: () => true });
+    api.loadHistory.mockResolvedValue([{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }]);
+    new ShellLifecycle(ctx).init();
+    await vi.waitFor(() => expect(seitenPing).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cg.sendContextPing).not.toHaveBeenCalled();
+  });
+
   it('init: laufende Tour (Flag) → Tour-Tick beim Boot', () => {
     vi.useFakeTimers();
     const { ctx, tour } = makeCtx();

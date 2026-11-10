@@ -58,7 +58,7 @@ def aktueller(session_state: dict[str, Any], session_id: str) -> tuple[AblaufAre
     if not isinstance(lauf, dict) or lauf.get("status") != treiber.WARTET_KI:
         return None
     ablauf = ausloeser.laden(lauf.get("ablauf"))
-    if ablauf is None or not ablauf.aktiv or lauf.get("fassung") != treiber.fassung(ablauf):
+    if not treiber.gilt(ablauf, lauf):
         return None
     schritt = next((s for s in ablauf.schritte if s.id == lauf.get("schritt")), None)
     if schritt is None or schritt.typ != "agent" or schritt.agent is None:

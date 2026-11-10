@@ -29,22 +29,26 @@ import { fieldAt } from './field-at';
 import { FORM_BEFUNDE, type FormBefund, type FormBefunde } from './form-befunde';
 import { FORM_DOKUMENT } from './form-dokument';
 import { FORM_EPOCHE } from './form-epoche';
+import { FORM_LISTENWAHL, type FormListenwahl, type ListenWunsch } from './form-listenwahl';
 import { FORM_WIRKUNG } from './form-wirkung';
 import { type FeldGruppe, type FormSection, formSections, gruppenSections } from './form-sections';
 import { removeAt, renameKeyAt, setAt } from './form-value';
 import type { JsonSchema } from './json-schema';
+import { AblaufPruefenComponent } from './ablauf-pruefen.component';
 import { pickFields } from './pick-fields';
 import { type DocumentEdit, type FormEdit, SchemaFieldComponent } from './schema-field.component';
 import { rootField, type SchemaField } from './schema-to-fields';
+import { regelFehlerOrte } from './weiter-regeln';
 
 @Component({
   selector: 'studio-schema-form',
-  imports: [SchemaFieldComponent],
+  imports: [AblaufPruefenComponent, SchemaFieldComponent],
   providers: [
     { provide: FORM_EPOCHE, useFactory: () => inject(SchemaFormComponent).epoche },
     { provide: FORM_WIRKUNG, useFactory: () => inject(SchemaFormComponent).plakette },
     { provide: FORM_DOKUMENT, useFactory: () => inject(SchemaFormComponent).value },
     { provide: FORM_BEFUNDE, useFactory: () => inject(SchemaFormComponent).befunde },
+    { provide: FORM_LISTENWAHL, useFactory: () => inject(SchemaFormComponent).listenwahl },
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -88,6 +92,11 @@ import { rootField, type SchemaField } from './schema-to-fields';
         [problems]="problemTexts()"
         (edit)="apply($event)"
       />
+    }
+    <!-- AS-0: ein Ablauf als ganzes Dokument (06-ablaeufe/<id>) — „Prüfen“ und die Schrittfolge
+         hingen bisher am Listeneintrag des Katalogs, jetzt an der Wurzel. -->
+    @if (istAblauf()) {
+      <studio-ablauf-pruefen [wert]="value()" [pfad]="[]" [idBasis]="idPrefix() + '-ap'" />
     }
     <!-- Eine Vorschlagsliste je KATALOG, hier und nicht am Feld: ein Muster
          nennt bis zu acht Werkzeuge, und jedes Feld mit einer eigenen Liste
@@ -142,6 +151,8 @@ export class SchemaFormComponent {
   readonly gruppen = input<readonly FeldGruppe[] | null>(null);
 
   readonly valueChange = output<Record<string, unknown>>();
+  /** AS-0: das Dokument selbst ist ein Ablauf (`x-widget: ablauf` an der Wurzel des Schemas). */
+  readonly istAblauf = computed(() => this.schema()['x-widget'] === 'ablauf');
   /** Zählt „Verwerfen“ des Editors hoch: JSON-Felder räumen ihren Entwurf (`FORM_EPOCHE`). */
   readonly epoche = input(0);
   /** Rundgang 3: der Bereich dieses Formulars — für die Plakette je Feld (`FORM_WIRKUNG`). */
@@ -157,7 +168,12 @@ export class SchemaFormComponent {
     return area ? feldPlakette(this.effects(), area, pfad, this.ansicht()) : null;
   };
 
-  readonly field = computed<SchemaField>(() => rootField(this.schema()));
+  readonly field = computed<SchemaField>(() => {
+    const feld = rootField(this.schema());
+    // AS-0 (Browser-Abnahme): ist das Dokument selbst ein Ablauf, steht „Prüfen“ genau einmal am Ende
+    // des Formulars (`istAblauf`) — am Wurzelfeld erschiene es in jedem Abschnitt (S5) noch einmal.
+    return feld.widget === 'ablauf' ? { ...feld, widget: undefined } : feld;
+  });
 
   /** Der Ausschnitt, den dieses Formular gerade zeigt. */
   readonly rendered = computed<SchemaField>(() => {
@@ -187,6 +203,17 @@ export class SchemaFormComponent {
       neu.delete(quelle);
       return neu;
     }),
+  };
+
+  /** AS-2b: „diesen Eintrag zeigen“ — das Ablaufbild wählt einen Schritt (`FORM_LISTENWAHL`). */
+  private readonly listenWunsch = signal<ListenWunsch | null>(null);
+  private listenZaehler = 0;
+  readonly listenwahl: FormListenwahl = {
+    wunsch: this.listenWunsch.asReadonly(),
+    waehlen: (pfad, id) => this.listenWunsch.set({ pfad: pathKey(pfad), id, zaehler: ++this.listenZaehler }),
+    erledigt: (zaehler) => {
+      if (this.listenWunsch()?.zaehler === zaehler) this.listenWunsch.set(null);
+    },
   };
 
   /**
@@ -282,6 +309,23 @@ export class SchemaFormComponent {
     });
   });
 
+  /** Review AS-2, Befund 2: halbe Regeln an `weiter` sperren das Speichern — aus dem Dokument
+   *  gerechnet, nicht aus Ereignissen des Editors (der zeigt nacheinander verschiedene Schritte). */
+  // als Text: der Effekt läuft nur, wenn sich die Orte ändern (Pfade ohne Leerzeichen)
+  private readonly regelOrte = computed(() => (this.istAblauf() ? regelFehlerOrte(this.value()) : []).join(' '));
+  private gemeldeteRegelOrte = '';
+  private readonly regelOrteMelden = effect(() => {
+    const orte = this.regelOrte();
+    if (orte === this.gemeldeteRegelOrte) return;   // nichts Neues — auch kein leeres [] beim Start
+    this.gemeldeteRegelOrte = orte;
+    untracked(() => this.fehlerMelden());
+  });
+
+  private fehlerMelden(): void {
+    const regeln = this.regelOrte() ? this.regelOrte().split(' ') : [];
+    this.errorsChange.emit([...new Set([...Object.keys(this.fieldErrors()), ...regeln])]);
+  }
+
   apply(edit: FormEdit): void {
     if (edit.kind === 'field-error') {
       this.setFieldError(edit.path.join('.') || this.lang.t('schemaForm.root'), edit.message,
@@ -299,7 +343,7 @@ export class SchemaFormComponent {
       for (const key of Object.keys(next)) if (key.startsWith(`${where}.`)) delete next[key];
     }
     this.fieldErrors.set(next);
-    this.errorsChange.emit(Object.keys(next));
+    this.fehlerMelden();
   }
 }
 

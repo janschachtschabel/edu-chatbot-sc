@@ -62,7 +62,8 @@ def welt(monkeypatch, db_url):
     katalog = _katalog()
     katalog["ablaeufe"].append(_roh(schritte=[{**_SCHRITTE[0], "argumente": {"text": "fest"}},
                                               *_SCHRITTE[1:]]))
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     staende: list = []
 
     async def starten(flow, eingaben):

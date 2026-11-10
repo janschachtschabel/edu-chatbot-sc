@@ -12,9 +12,14 @@
  * Die Auswahl merkt sich eine Kennung (Index bzw. Schlüssel), nicht das Objekt:
  * nach jeder Änderung reicht das Formular einen neuen Wert herein, und ein
  * gemerktes Objekt wäre dann ein veraltetes.
+ *
+ * AS-2b: Wählt jemand außerhalb der Liste einen Eintrag (das Ablaufbild einen
+ * Schritt, `FORM_LISTENWAHL`), klappt die Liste die Abschnitte um sich auf,
+ * hebt eine Suche auf, die ihn verbergen würde, und setzt den Fokus auf ihn.
  */
 import {
-  ChangeDetectionStrategy, Component, computed, forwardRef, inject, input, output, signal,
+  afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, forwardRef, inject,
+  Injector, input, output, signal, untracked,
 } from '@angular/core';
 
 import { pathKey } from '../core/field-problems';
@@ -22,6 +27,7 @@ import { StudioLanguageService } from '../i18n/studio-language.service';
 import { EntryListComponent, filterEntries } from './entry-list.component';
 import { entryTitle } from './entry-title';
 import { nextFreeKey, safeIdPart } from './field-ids';
+import { FORM_LISTENWAHL } from './form-listenwahl';
 import type { ValuePath } from './form-value';
 import { type FormEdit, SchemaFieldComponent } from './schema-field.component';
 import type { SchemaField } from './schema-to-fields';
@@ -50,6 +56,9 @@ const NO_PROBLEMS: ReadonlyMap<string, string> = new Map();
 })
 export class ObjectListComponent {
   private readonly lang = inject(StudioLanguageService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly listenwahl = inject(FORM_LISTENWAHL, { optional: true });
   protected readonly t = this.lang.t;
 
   /** Das Listen- oder Map-Feld; sein `item` ist eine Gruppe. */
@@ -111,6 +120,30 @@ export class ObjectListComponent {
       ? this.lang.plural('objectList.count', total)
       : this.t('objectList.countFiltered', { shown, count: total });
   });
+
+  /** AS-2b: ein Wunsch von außen, der zu dieser Liste passt. */
+  private readonly wunschAnnehmen = effect(() => {
+    const wunsch = this.listenwahl?.wunsch();
+    if (!wunsch || wunsch.pfad !== pathKey(this.path())) return;
+    untracked(() => {
+      this.listenwahl!.erledigt(wunsch.zaehler);
+      if (!this.entries().some((entry) => entry.id === wunsch.id)) return;
+      this.query.set('');
+      this.select(wunsch.id);
+      afterNextRender(() => this.zeigen(), { injector: this.injector });
+    });
+  });
+
+  /** Die Abschnitte um die Liste aufklappen und den gewählten Eintrag fokussieren. */
+  private zeigen(): void {
+    const host = this.host.nativeElement;
+    for (let d = host.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) {
+      d.open = true;
+    }
+    const eintrag = host.querySelector<HTMLElement>('.ol-side .ol-entry[aria-current="true"]');
+    eintrag?.scrollIntoView?.({ block: 'nearest' });
+    eintrag?.focus();
+  }
 
   select(id: EntryId): void {
     this.chosen.set(id);

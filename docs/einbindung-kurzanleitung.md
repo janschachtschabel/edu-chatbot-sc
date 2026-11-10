@@ -95,6 +95,14 @@ Das war's. Alles Weitere sind Vorgaben, die ihr überschreiben könnt.
 | `emit-query-meta` | `false` | `true` → Ereignis `boerdi:query-meta` (bis Paket 19 immer an) |
 | `intercept-edu-sharing-links` | `false` | `true` → Repo-Links werden abgefangen; **ihr müsst `linkClicked` behandeln**, sonst sind die Klicks tot |
 
+### Abläufe von der Seite (seit 09.11.2026)
+
+| Attribut | Vorgabe | Bedeutung |
+|---|---|---|
+| `ablauf-start` | — | Kennung eines Ablaufs, der beim ersten Öffnen startet (je Tab einmal) |
+| `ablauf-start-daten` | — | Startdaten dazu als JSON-Objekt; nur Abläufe mit dem Auslöser „Gastseite“ nehmen Daten |
+| `fortsetzen-vorgang` / `fortsetzen-auftrag` | — | zurück zur Arbeit aus einer Benachrichtigung; öffnet den Chat, nur für die angemeldete Besitzerin (je Tab einmal). Wirkt eines davon, gilt `ablauf-start` in diesem Aufruf nicht |
+
 ---
 
 ## 3. Begrüßung und Start-Chips hartcodieren
@@ -207,6 +215,8 @@ chat.updateContext({ … });   // Seitenkontext ERGÄNZEN (mergt)
 chat.replaceContext({ … });  // Seitenkontext ERSETZEN (wie eine Navigation)
 
 chat.startTask('…');                 // Zug — SICHTBAR als Auftrags-Blase
+chat.startAblauf('id', { … });       // Ablauf mit Startdaten (Auslöser „Gastseite“)
+chat.vorgangFortsetzen({ auftrag: '…' }); // zurück zur Arbeit (oder { vorgang: '…' })
 chat.setHostInstruction('…');        // Rahmen — UNSICHTBAR, kein Verlaufseintrag
 chat.setQuickReplies([...]);
 chat.setMasterSkill(true|false|null);
@@ -215,7 +225,8 @@ chat.setResultSchema({ … });
 ```
 
 Vor dem Upgrade liefern die Methoden `undefined` statt eines Fehlers — es passiert
-dann nichts. Nur `startTask` und `setHostInstruction` warten auf die Shell.
+dann nichts. Nur `startTask`, `startAblauf`, `vorgangFortsetzen` und `setHostInstruction`
+warten auf die Shell.
 
 ---
 

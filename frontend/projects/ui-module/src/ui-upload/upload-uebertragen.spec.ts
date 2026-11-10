@@ -188,3 +188,14 @@ describe('Rolle im Stapel (W4)', () => {
     expect(planAus(roh, 2)?.eintraege.map((e) => e.rolle)).toEqual(['struktur', 'inhalt']);
   });
 });
+
+
+describe('fehlerSatz — Probe der Studio-Vorschau (AS-8b)', () => {
+  it('nennt den Trockenlauf in beiden Sprachen', async () => {
+    const { fehlerSatz, uebertragenTexte } = await import('./upload-uebertragen-texte');
+    for (const sprache of ['de', 'en'] as const) {
+      const t = uebertragenTexte(sprache);
+      expect(fehlerSatz(t, 'trockenlauf')).not.toBe(t.fehler.fehler);
+    }
+  });
+});

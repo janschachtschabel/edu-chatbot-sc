@@ -274,13 +274,13 @@ describe('Argumente im echten Ablaufschema (K2c-3)', () => {
     TestBed.configureTestingModule({ providers: [
       provideZonelessChangeDetection(), { provide: ChoicesApi, useValue: CHOICES }] });
     const fixture = TestBed.createComponent(SchemaFormComponent);
-    fixture.componentRef.setInput('schema', AREA_SCHEMAS['06-ablaeufe/katalog']);
-    fixture.componentRef.setInput('value', { ablaeufe: [{ id: 'lesen', titel: { de: 'Lesen' }, schritte: [
+    fixture.componentRef.setInput('schema', AREA_SCHEMAS['06-ablaeufe']);
+    fixture.componentRef.setInput('value', { id: 'lesen', titel: { de: 'Lesen' }, schritte: [
       { id: 'lesen', typ: 'auftrag', flow: 'wlo/volltext', schreibt: 'volltext',
-        argumente: { dokument: { $teil: 'document' } } }] }] });
+        argumente: { dokument: { $teil: 'document' } } }] });
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    const tabelle = el.querySelector('.tw[id="sf-ablaeufe.0.schritte.0.argumente"]');
+    const tabelle = el.querySelector('.tw[id="sf-schritte.0.argumente"]');
     expect(tabelle).not.toBeNull();
     expect((tabelle!.querySelector('select') as HTMLSelectElement).value).toBe('teil');
   });
@@ -291,24 +291,24 @@ describe('Argumente im echten Ablaufschema (K2c-3)', () => {
     TestBed.configureTestingModule({ providers: [
       provideZonelessChangeDetection(), { provide: ChoicesApi, useValue: CHOICES }] });
     const fixture = TestBed.createComponent(SchemaFormComponent);
-    fixture.componentRef.setInput('schema', AREA_SCHEMAS['06-ablaeufe/katalog']);
-    fixture.componentRef.setInput('value', { ablaeufe: [{ id: 'lesen', titel: { de: 'Lesen' }, schritte: [
+    fixture.componentRef.setInput('schema', AREA_SCHEMAS['06-ablaeufe']);
+    fixture.componentRef.setInput('value', { id: 'lesen', titel: { de: 'Lesen' }, schritte: [
       { id: 'eins', typ: 'auftrag', argumente: { a: 'x' } },
-      { id: 'zwei', typ: 'auftrag', argumente: { b: 'y' } }] }] });
+      { id: 'zwei', typ: 'auftrag', argumente: { b: 'y' } }] });
     const gesperrt: (readonly string[])[] = [];
     fixture.componentInstance.errorsChange.subscribe((e) => gesperrt.push(e));
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    const tabelle = el.querySelector('.tw[id="sf-ablaeufe.0.schritte.0.argumente"]')!;
+    const tabelle = el.querySelector('.tw[id="sf-schritte.0.argumente"]')!;
     const name = tabelle.querySelector('.tw-name') as HTMLInputElement;
     name.value = ' ';
     name.dispatchEvent(new Event('input'));
     await fixture.whenStable();
-    expect(gesperrt.at(-1)).toEqual(['ablaeufe.0.schritte.0.argumente']);
+    expect(gesperrt.at(-1)).toEqual(['schritte.0.argumente']);
     const zwei = [...el.querySelectorAll<HTMLButtonElement>('.ol-entry')].find((b) => b.textContent?.includes('zwei'))!;
     zwei.click();
     await fixture.whenStable();
-    expect(el.querySelector('.tw[id="sf-ablaeufe.0.schritte.1.argumente"]')).not.toBeNull();
+    expect(el.querySelector('.tw[id="sf-schritte.1.argumente"]')).not.toBeNull();
     expect(gesperrt.at(-1)).toEqual([]);
   });
 });

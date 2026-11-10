@@ -110,7 +110,33 @@ export interface TraceEntry {
  *  Nachricht des Verlaufs; im Verlauf nur gesetzte Felder, daher alles optional.
  *  Die Wiederherstellungsfelder stammen aus gespeicherten Zügen jeder
  *  Backend-Version und bleiben `unknown`: jeder Leser prüft ihre Form selbst. */
+/** Paket AS-Ua/AS-Ub: der Stand des Laufs in diesem Gespräch — für die Ablauf-Leiste. */
+export interface AblaufStand {
+  id: string;
+  titel: string;
+  nr: number;
+  von: number;
+  /** Status des Laufs (`laeuft`, `wartet_wahl`, `wartet_person`, `wartet_ki`, `wartet_auftrag`,
+   *  `wartet_freigabe` …) — die Leiste übersetzt die bekannten, ein neuer zeigt nur den Schritt. */
+  status: string;
+  /** Marke des Laufs — ein neuer Lauf desselben Ablaufs hat eine andere (zweites Review AS-U). */
+  lauf?: string;
+  /** AS-7 (Querschnitts-Review, Befund 1): bei `wartet_seite` der Weg zur Seite — die Leiste zeigt
+   *  ihn als Knopf, auch nach dem Neuladen (die Chips der alten Blase sind dann weg). */
+  weg?: { label: string; url: string };
+  /** Zweites Review, Z-8: der Lauf einer angemeldeten Person — abgemeldet zeigt das Widget ihn nicht. */
+  persoenlich?: boolean;
+  /** Kurztexte des Arbeitsstands (ohne Kennungen, ohne die Startdaten). */
+  teile: { name: string; text: string }[];
+}
+
 export interface UiInfo {
+  /** Paket RB-3: nur im Verlauf, an einer Nutzernachricht — sie kam von der Gastseite. */
+  from_host?: boolean;
+  /** Paket AS-Ua: solange ein Lauf nicht beendet ist, an jeder Antwort (im Verlauf an der letzten). */
+  ablauf?: AblaufStand | null;
+  /** Paket AS-Ua: ein fester Text des Ablaufs — ohne Etikett „KI-generierte Antwort“. */
+  fester_text?: boolean;
   pattern?: string;
   intent?: string;
   state?: string;

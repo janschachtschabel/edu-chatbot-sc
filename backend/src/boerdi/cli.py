@@ -34,6 +34,8 @@ from typing import Any
 
 from boerdi.db.notify import asyncpg_dsn
 from boerdi.db.session import make_engine, make_session_factory
+from boerdi.domain.ablauf_altbestand import katalog_aufteilen
+from boerdi.domain.config_models import GESTRICHENE_BEREICHE
 from boerdi.services import seed_io
 from boerdi.services.config_store import ConfigStore
 from boerdi.services.werkfassung import pruefsumme
@@ -58,7 +60,19 @@ async def _import_config(src: Path, only_missing: bool = False) -> int:
                 return
             items[area] = data
 
-        stats = await seed_io.import_tree(src, put)
+        # Querschnitts-Review AS-0…AS-2: erst einsammeln, damit ein Baum von vor AS-0 seinen
+        # Katalog in Dokumente teilt; gestrichene Bereiche legt kein Import wieder an.
+        gesammelt: dict[str, dict] = {}
+
+        async def sammeln(area: str, data: dict) -> None:
+            gesammelt[area] = data
+
+        stats = await seed_io.import_tree(src, sammeln)
+        for area, data in katalog_aufteilen(gesammelt).items():
+            if area in GESTRICHENE_BEREICHE:
+                kept.append(area)
+                continue
+            await put(area, data)
         # Paket 12 (Review #3): nur ein Import aus dem Seed-Ordner ist Werksfassung und merkt die
         # Basis; ein anderer Baum (Server-Umzug, ALT) gilt als eigen — sonst hielte der nächste
         # Start ihn für unberührt und hübe ihn auf das Werk.

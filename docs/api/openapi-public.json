@@ -1,6 +1,105 @@
 {
   "components": {
     "schemas": {
+      "AblaufStand": {
+        "description": "Paket AS-Ua (Plan 2026-11-09 §5h, U-2): der Stand des Ablaufs, der in diesem Gespräch läuft\n— für die Leiste im Widget. ``nr``/``von``: „Schritt n von m“ (``services/ablauf/fortschritt``).\n``status`` ist der Status des Laufs (``laeuft``, ``wartet_wahl``, ``wartet_person``,\n``wartet_ki``, ``wartet_auftrag``, ``wartet_freigabe`` …).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lauf": {
+            "default": "",
+            "title": "Lauf",
+            "type": "string"
+          },
+          "nr": {
+            "title": "Nr",
+            "type": "integer"
+          },
+          "persoenlich": {
+            "default": false,
+            "title": "Persoenlich",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "teile": {
+            "items": {
+              "$ref": "#/components/schemas/AblaufTeilText"
+            },
+            "title": "Teile",
+            "type": "array"
+          },
+          "titel": {
+            "title": "Titel",
+            "type": "string"
+          },
+          "von": {
+            "title": "Von",
+            "type": "integer"
+          },
+          "weg": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AblaufWeg"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "titel",
+          "nr",
+          "von",
+          "status"
+        ],
+        "title": "AblaufStand",
+        "type": "object"
+      },
+      "AblaufTeilText": {
+        "description": "Paket AS-Ua: ein Teil eines laufenden Ablaufs, als Kurztext (ohne Kennungen).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "text"
+        ],
+        "title": "AblaufTeilText",
+        "type": "object"
+      },
+      "AblaufWeg": {
+        "description": "AS-7 (Querschnitts-Review, Befund 1): der Weg einer wartenden Führung — Aufschrift und Ziel\ndes Chips (``__fuehrung__``). Die Leiste zeigt ihn als Knopf, auch nach dem Neuladen.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "AblaufWeg",
+        "type": "object"
+      },
       "AgentRequest": {
         "description": "Der Auftrag eines Gastgebers.",
         "properties": {
@@ -187,9 +286,19 @@
           "environment": {
             "$ref": "#/components/schemas/Environment"
           },
+          "from_host": {
+            "default": false,
+            "title": "From Host",
+            "type": "boolean"
+          },
           "message": {
             "title": "Message",
             "type": "string"
+          },
+          "probe": {
+            "default": false,
+            "title": "Probe",
+            "type": "boolean"
           },
           "session_id": {
             "pattern": "^[A-Za-z0-9_-]{1,128}$",
@@ -1295,6 +1404,16 @@
       "UiInfo": {
         "description": "Öffentlicher Teil einer Antwort; alle Felder optional, Vorgabe leer.",
         "properties": {
+          "ablauf": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AblaufStand"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "dokumente": {
             "deprecated": true,
             "description": "Veraltet seit U1-b2 — die Boxen stehen als ui_inhaltsrahmen in ui_bloecke.",
@@ -1304,6 +1423,16 @@
             },
             "title": "Dokumente",
             "type": "array"
+          },
+          "fester_text": {
+            "default": false,
+            "title": "Fester Text",
+            "type": "boolean"
+          },
+          "from_host": {
+            "default": false,
+            "title": "From Host",
+            "type": "boolean"
           },
           "intent": {
             "default": "",

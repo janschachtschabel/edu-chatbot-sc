@@ -242,7 +242,9 @@ def test_die_frist_des_blocks_steht_im_zug(monkeypatch):
 def test_eine_bestaetigung_gilt_hoechstens_bis_zur_frist():
     bald = (datetime.now(UTC) + timedelta(seconds=60)).isoformat()
     befund = anmeldung.Befund(person=True, kennung="p:x", ablauf=bald)
-    assert 0 < anmeldung._gueltig_s(befund) <= 60
+    # Toleranz: Testuhr (datetime.now) und die Uhr in ``_gueltig_s`` laufen unter Windows um
+    # Bruchteile auseinander (gesehen 10.11.: 60.0000002)
+    assert 0 < anmeldung._gueltig_s(befund) <= 60 + 1e-3
 
 
 # ── R2: Abmelden ─────────────────────────────────────────────────────────────

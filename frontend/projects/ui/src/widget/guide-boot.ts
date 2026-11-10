@@ -1,3 +1,4 @@
+import type { AblaufSeite } from './fuehrung-angebote';
 import { computed, signal } from '@angular/core';
 
 import { HeaderNavButton, parseGuideModeConfig } from './guide-mode-config';
@@ -58,6 +59,8 @@ export class GuideBoot {
    *  Anlage bietet sie nicht an" — dann öffnet der Anmelde-Chip kein Fenster,
    *  sondern sagt genau das. */
   readonly mcpAuthBase = signal('');
+  /** AS-7b (F-7): Abläufe mit Auslöser `seite` — die Hülle bietet passende unter der Begrüßung an. */
+  readonly ablaufSeiten = signal<AblaufSeite[]>([]);
   /** Hostname-Schnappschuss fürs Guide-Env jeder Anfrage — damit das Backend
    *  weiß, ob es `guide_url` an ausgehende Karten hängen darf (ALT `guideHost`).
    *  Signal, weil die Hülle es erst an die später gemountete Shell weitergibt. */
@@ -106,6 +109,7 @@ export class GuideBoot {
         if (cfg.startRepliesEn !== null) this.startRepliesEn.set(cfg.startRepliesEn);
         if (cfg.tourReplyEn !== null) this.tourReplyEn.set(cfg.tourReplyEn);
         if (cfg.mcpAuthBase !== null) this.mcpAuthBase.set(cfg.mcpAuthBase);
+        if (cfg.ablaufSeiten !== null) this.ablaufSeiten.set(cfg.ablaufSeiten);
       } else {
         console.warn('boerdi: Widget-Konfiguration nicht geladen, es gelten die Vorgaben —',
           `status=${resp.status}`);

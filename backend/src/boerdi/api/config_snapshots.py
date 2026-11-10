@@ -28,6 +28,7 @@ from boerdi.api.config_kennungen import (
     sicherheits_kennungen_aus,
 )
 from boerdi.api.deps import Lang, require_studio_key
+from boerdi.domain.ablauf_altbestand import katalog_aufteilen
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_sync, snapshots
@@ -60,9 +61,11 @@ Wiederherstellen = Literal["merge", "exact"]
 
 
 def _lies_zip(blob: bytes, lang: Locale) -> dict[str, dict]:
-    """The areas of a backup — 413 over the caps, 400 for an unreadable member."""
+    """The areas of a backup — 413 over the caps, 400 for an unreadable member. A workflow
+    catalogue from before AS-0 becomes one document per workflow (``katalog_aufteilen``) before
+    anything is checked, compared or deleted (review AS-0, finding 2)."""
     try:
-        return snapshots.parse_config_zip(blob)
+        return katalog_aufteilen(snapshots.parse_config_zip(blob))
     except snapshots.SnapshotTooLarge as e:
         raise HTTPException(status_code=413, detail=str(e)) from None
     except snapshots.SicherungUngueltig as e:

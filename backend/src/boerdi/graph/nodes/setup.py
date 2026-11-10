@@ -50,9 +50,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest
 from boerdi.db.verbindung import verbindung_freigeben
-from boerdi.domain.hintergrund_zug import ist_automatisches_abholen, ist_hintergrund_anfrage
+from boerdi.domain.hintergrund_zug import (
+    ist_automatisches_abholen,
+    ist_hintergrund_anfrage,
+    ist_seiten_ping,
+)
 from boerdi.graph.state import TurnContext
-from boerdi.services import plan_fortsetzen
+from boerdi.services import plan_fortsetzen, probe
 from boerdi.services.db_sessions import get_messages, get_or_create_session, update_session
 from boerdi.services.ui_antwort import offene_frage_schliessen
 from boerdi.services.write_approval import discard_stale_approval
@@ -73,6 +77,10 @@ def _hintergrund_zug(req: ChatRequest, session_state: dict) -> bool:
     nur ``tour_state`` zurück, nie ``entities``. Also verfällt der Vorgang wie
     bisher sofort — die vorsichtige Richtung.
     """
+    # Review AS-7a, Befund 3: der Seiten-Ping eines Ablaufs bleibt auch während einer Tour ein
+    # Hintergrund-Zug — die Tour lässt ihn durch (``tour``), er wird nie ihr Schritt
+    if ist_seiten_ping(req.environment.page_event):
+        return True
     tour = session_state.get("tour_state")
     if isinstance(tour, dict) and tour.get("active"):
         return False
@@ -100,6 +108,10 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
         "turn_count": row.get("turn_count") or 0,
         "tour_state": row.get("tour_state") or {},
     }
+    # Paket AS-8a: eine Probe der Studio-Vorschau klebt an der Sitzung — gleich festgeschrieben,
+    # damit auch die Ablage-Endpunkte (außerhalb des Graphen) sie sehen.
+    if probe.uebernehmen(ctx.session_state["entities"]):
+        await update_session(session, req.session_id, entities=ctx.session_state["entities"])
     # Paket 19 (Audit 2026-10-31, H-5): die beiden Lesezugriffe abschließen — die
     # Zustimmungs-Prüfung darunter fragt bei offenem Vorgang ein LLM.
     await verbindung_freigeben(session)

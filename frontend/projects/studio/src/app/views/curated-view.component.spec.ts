@@ -146,7 +146,7 @@ describe("CURATED_VIEWS declaration", () => {
     // & Maschine" (D2) ist die erste, die es nicht tut. Eine Erlaubnisliste
     // statt einer gelöschten Zusicherung: ein Tippfehler im Paketnamen soll
     // weiterhin auffallen.
-    const ERLAUBT = ["9-4", "P14", "P15", "U1"];
+    const ERLAUBT = ["9-4", "P14", "P15", "U1", "AS-0"];
     for (const view of CURATED_VIEWS) {
       const registered = STUDIO_VIEWS.find((v) => v.slug === view.slug);
       expect(registered, `slug ${view.slug}`).toBeDefined();
@@ -154,12 +154,13 @@ describe("CURATED_VIEWS declaration", () => {
     }
   });
 
-  it("marks the two folder areas as groups, and nothing else", () => {
+  it("marks the folder areas as groups, and nothing else", () => {
     // `03-patterns` and `04-personas` hold many documents; GET /config/data
     // answers 404 for them, so an unmarked one renders a dead panel. The
     // reverse is just as wrong: a file key rendered as a group asks
     // /config/elements for a list that does not exist.
-    const FOLDERS = new Set(["03-patterns", "04-personas"]);
+    // AS-0: `06-ablaeufe` — ein Dokument je Ablauf.
+    const FOLDERS = new Set(["03-patterns", "04-personas", "06-ablaeufe"]);
     for (const view of AREA_SECTIONS) {
       for (const section of view.sections) {
         expect(section.kind === "group", `${view.slug} → ${section.area}`).toBe(

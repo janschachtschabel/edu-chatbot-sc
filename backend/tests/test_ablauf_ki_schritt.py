@@ -116,7 +116,8 @@ def test_weiter_ki_nur_aus_dem_wartenden_agent_schritt():
 @pytest.fixture
 def im_schritt(monkeypatch):
     katalog = {"ablaeufe": [_ablauf().model_dump(mode="json")]}
-    monkeypatch.setattr(ausloeser, "area", lambda key: katalog if key == ausloeser.BEREICH else {})
+    monkeypatch.setattr(ausloeser, "_roh_liste",
+                        lambda: (katalog).get("ablaeufe") or [])
     monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: True)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
     lauf = asyncio.run(treiber.starten(_ablauf(), _umgebung())).lauf

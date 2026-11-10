@@ -30,10 +30,13 @@
  * `strictTemplates` bleibt für alle anderen Templates das Gate aus 9-2.
  */
 import {
-  CUSTOM_ELEMENTS_SCHEMA, ChangeDetectionStrategy, Component, computed, inject, signal,
+  CUSTOM_ELEMENTS_SCHEMA, ChangeDetectionStrategy, Component, type ElementRef, computed, effect,
+  inject, signal, untracked, viewChild,
 } from '@angular/core';
 
 import { WidgetElementLoader } from '../core/widget-element-loader';
+import { AblaufProbeComponent, type ProbeStart } from './ablauf-probe.component';
+import { ablaufAusAdresse } from './ablauf-sprung';
 import { EinbettungHerkuenfteComponent } from './einbettung-herkuenfte.component';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { PREVIEW_CONTEXT_KINDS, buildPreviewContext } from './preview-embed';
@@ -42,7 +45,7 @@ type LoadState = 'laden' | 'bereit' | 'fehler';
 
 @Component({
   selector: 'studio-widget-preview',
-  imports: [EinbettungHerkuenfteComponent],
+  imports: [AblaufProbeComponent, EinbettungHerkuenfteComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './widget-preview.component.html',
@@ -68,6 +71,13 @@ export class WidgetPreviewComponent {
 
   readonly apiUrl = window.location.origin;
 
+  /** Paket AS-8b: die Probe eines Ablaufs (Knopf am Ablauf → `?ablauf=`) — sonst `null`. */
+  readonly probe = signal<ProbeStart | null>(null);
+  readonly ablaufWunsch = ablaufAusAdresse();
+  private readonly widgetEl = viewChild<ElementRef<HTMLElement>>('widget');
+  /** Für welchen Boot der Ablauf schon gestartet ist — je neues Element genau ein Start. */
+  private gestartetFuer = 0;
+
   private readonly chosen = computed(() => this.kinds.find((k) => k.id === this.kind()));
   readonly field = computed(() => this.chosen()?.field ?? '');
   readonly fieldLabel = computed(() => {
@@ -78,6 +88,22 @@ export class WidgetPreviewComponent {
 
   constructor() {
     void this.load();
+    // Browser-Abnahme AS-8: der Start geht über die Laufzeit-API des Elements, nicht über das
+    // Attribut `ablauf-start` — das liest das Widget nur beim Verbinden (die Bindung setzt es erst
+    // danach) und je Tab nur einmal; ein zweites „Ablauf starten“ bliebe stumm.
+    effect(() => {
+      const el = this.widgetEl()?.nativeElement;
+      const start = this.probe();
+      const boot = this.boot();
+      // nur das Element DIESES Boots: direkt nach `boot++` zeigt viewChild noch auf das alte
+      if (!el || !start || this.gestartetFuer === boot || el.dataset['boot'] !== String(boot)) return;
+      this.gestartetFuer = boot;
+      untracked(() => {
+        const daten = start.daten ? (JSON.parse(start.daten) as Record<string, unknown>) : undefined;
+        (el as unknown as { startAblauf?: (id: string, d?: Record<string, unknown>) => void })
+          .startAblauf?.(start.ablauf, daten);
+      });
+    });
   }
 
   async load(): Promise<void> {
@@ -101,8 +127,17 @@ export class WidgetPreviewComponent {
     this.kind.set(id);
   }
 
+  /** Paket AS-8b: eine Probe starten (oder mit `null` beenden) — ein neues Widget, damit der Start
+   *  wie beim ersten Öffnen läuft. Der Seitenkontext bleibt. */
+  onProbe(start: ProbeStart | null): void {
+    this.probe.set(start);
+    this.boot.update((n) => n + 1);
+  }
+
   /** Kontext übernehmen und die Vorschau neu starten — ein Knopf, weil beides
-   *  ohnehin nur zusammen wirkt. */
+   *  ohnehin nur zusammen wirkt. Während einer Probe startet auch der Ablauf neu (neues Element,
+   *  `startAblauf`) — so lässt sich derselbe Ablauf mit anderem Seitenkontext ausprobieren
+   *  (Entscheid, Review AS-8b, N4). */
   apply(event: Event): void {
     event.preventDefault();
     const context = buildPreviewContext(this.kind(), this.value());

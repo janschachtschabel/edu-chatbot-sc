@@ -22,23 +22,26 @@ the dynamic ``/{session_id}`` routes so FastAPI does not match ``db-stats`` as a
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, Security
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.api.deps import Lang, OriginScope, get_session_factory, require_studio_key
 from boerdi.api.deps import get_session as get_db_session
-from boerdi.api.publikum import verlauf_fuer
+from boerdi.api.publikum import mit_ablauf_stand, verlauf_fuer
 from boerdi.api.ratelimit import public_rate_limit
 from boerdi.api.schemas import SITZUNGSKENNUNG
-from boerdi.api.turn_auth import darf_diagnose
+from boerdi.api.turn_auth import ACCESS_BLOCK_HEADER, adopt_turn_auth_block, darf_diagnose
+from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.write_anzeige import entities_for_display
-from boerdi.i18n import msg
+from boerdi.i18n import msg, resolve_locale
 from boerdi.obs.trace_id import fehlernummer
-from boerdi.services import aufbewahrung
+from boerdi.services import arbeitsstand, aufbewahrung, vorgaenge
+from boerdi.services.ablauf import fortschritt
 from boerdi.services.config_loader import load_privacy_config
 from boerdi.services.config_loader.safety import melde_datenschutz_unlesbar
 from boerdi.services.db_sessions import (
@@ -48,9 +51,11 @@ from boerdi.services.db_sessions import (
     get_or_create_session,
     purge_all,
     save_memory,
+    sitzung_entities,
     zuege_mit_nummer,
 )
 from boerdi.services.db_sessions import delete_session as db_delete_session
+from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.session_admin import db_stats as get_db_stats
 from boerdi.services.session_admin import list_sessions_admin, optimize_database
 from boerdi.services.session_origin import MIN_OEFFENTLICHE_KENNUNG
@@ -309,4 +314,49 @@ async def get_session_messages(
         # Paket 19 (N-9): wie eine unbekannte Sitzung — kein Raten kurzer Kennungen. Das Studio
         # (``intern``) liest auch alte kurze Kennungen weiter.
         return []
-    return verlauf_fuer(await get_messages(session, session_id, limit, zugakte=intern), intern)
+    verlauf = verlauf_fuer(await get_messages(session, session_id, limit, zugakte=intern), intern)
+    return mit_ablauf_stand(verlauf, await _ablauf_stand(session, session_id, request))
+
+
+#: Zweites Review, Z-6: so lange wartet der Verlauf höchstens auf die Bestätigung der Anmeldung.
+_BESTAETIGUNG_S = 1.0
+
+
+async def _ablauf_stand(session: AsyncSession, session_id: str,
+                        request: Request) -> dict[str, Any] | None:
+    """Paket AS-Ua (U-1): der aktuelle Stand des Laufs für die Leiste nach dem Neuladen — aus der
+    Sitzung, ohne sie anzulegen. Wirft nie: ohne Stand zeigt das Widget nur keine Leiste.
+
+    Der Verweis einer angemeldeten Person gehört ihr, nicht der Sitzung (Querschnitts-Review
+    AS-U/BU, Q-1): trägt der Abruf ihren Zugangsblock, wird er übernommen und bestätigt — sonst
+    fehlte die Leiste nach Neuladen, „Fortsetzen“ und Wiederkehr. Ohne Block keine Bestätigung (kein
+    MCP-Rundlauf für anonyme Abrufe); übernommen wird immer, damit keine Anmeldung einer früheren
+    Anfrage gilt."""
+    try:
+        entities = await sitzung_entities(session, session_id) or {}
+        # Review PR #51 (R2): ohne Verweis keine Leiste — dann auch kein Warten auf die Bestätigung
+        if arbeitsstand.VERWEIS not in entities:
+            return None
+        adopt_turn_auth_block(request)
+        if request.headers.get(ACCESS_BLOCK_HEADER):
+            await verbindung_freigeben(session)   # die Bestätigung kann ein MCP-Rundlauf sein
+            try:
+                # Zweites Review, Z-6: der Verlauf hängt nicht an einer Nebenanzeige — nach kurzer
+                # Frist kommt er ohne den persönlichen Stand.
+                await asyncio.wait_for(bestaetige_anmeldung(), timeout=_BESTAETIGUNG_S)
+            except TimeoutError:
+                logger.info("Ablauf-Stand im Verlauf: Anmeldung nicht rechtzeitig bestätigt")
+        aufrufer = arbeitsstand.aufrufer_fuer(session_id, entities)
+        # Zweites Review, Z-5: der Verweis der Sitzung kann veraltet sein (in einem anderen Tab
+        # gelöscht oder beendet) — einmal nachfragen statt eine tote Leiste zu zeigen. Kein
+        # ``auffrischen``: das übernähme den jüngsten Vorgang (das macht erst der nächste Zug).
+        vw = arbeitsstand.verweis(entities, aufrufer)
+        if vw is not None:
+            v = await vorgaenge.lesen(session, str(vw.get("id") or ""), aufrufer)
+            if v is None or v.status in vorgaenge.ABGESCHLOSSEN:
+                return None
+        return fortschritt.stand(entities, aufrufer,
+                                 resolve_locale(request.headers.get("accept-language")))
+    except Exception as fehler:  # noqa: BLE001 — eine Anzeige, nie ein Fehler des Verlaufs
+        logger.warning("Ablauf-Stand im Verlauf nicht bestimmbar (%s)", type(fehler).__name__)
+        return None

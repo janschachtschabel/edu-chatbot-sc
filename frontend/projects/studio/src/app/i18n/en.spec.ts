@@ -45,6 +45,7 @@ describe('STUDIO_EN', () => {
       'nutzung.legende.bereich', // „{von}–{bis}“ ist kein Wort, sondern ein Zahlbereich
       'ltEngstelle.teil.llm',   // Fachkürzel in beiden Sprachen
       'ltEngstelle.teil.rerank', // ebenso
+      'ablaufDaten.typName.text', // „Text“ ist in beiden Sprachen dasselbe Wort (RB-2)
       // Vier Ansichts-/Gruppennamen, die im deutschen Studio bereits das
       // englische Fachwort tragen — eine „Übersetzung" wäre hier eine Erfindung.
       'view.patterns.label',
