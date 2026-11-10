@@ -64,6 +64,9 @@ describe('AnmeldeFrist', () => {
 });
 
 describe('Abmelde-Merker (R2)', () => {
+  // auch davor: die Specs teilen sich `sessionStorage`, und ein Abmelde-Merker einer anderen Spec
+  // ließ den Test im vollen Lauf kippen (offene-befunde §5, 10.11.)
+  beforeEach(() => sessionStorage.removeItem(MCP_SIGNED_OUT_STORAGE_KEY));
   afterEach(() => sessionStorage.removeItem(MCP_SIGNED_OUT_STORAGE_KEY));
 
   it('steht nach dem Abmelden und fällt mit einer neuen Anmeldung', () => {

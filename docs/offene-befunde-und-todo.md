@@ -58,7 +58,8 @@ Die zugehörigen Pläne:
   2 kB gzip kostet oder das Bündel über 190 kB triebe (Plan §5j, Ud-5). Nächster Kandidat mit
   Messung: `ui_themenbaum` (18 kB roh).
 
-- **Wahl mit ≥ 4 Chips schneidet den Ablauf-Knopf ab (offen seit AS-5b, verschoben aus §4):** Wartet
+- ~~**Wahl mit ≥ 4 Chips schneidet den Ablauf-Knopf ab (offen seit AS-5b, verschoben aus §4):**~~
+  **Erledigt 10.11.** (`wahl_zug.platz_fuer_vorschlag`, Notiz `aenderungen/2026-11-10-befunde-nach-pr51.md`): Wartet
   ein Lauf an einer Wahl mit vier oder mehr Chips, schneidet `anhaengen(alle=True)` den Knopf eines
   Ablauf-Werkzeugs ab, obwohl das Werkzeug angeboten wird. In AS-U nicht behoben. Vorschlag: in
   diesem Fall kein Ablauf-Werkzeug anbieten (wie bei Gastgeber-Chips) — eigenes kleines Paket.
@@ -466,7 +467,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 - **Zeitraum-Grenzen in Browser-Zeit** (Review Paket 16, D-5): Kosten und Nutzung bauen `from`/`to` aus dem Kalendertag des Browsers, Tage und Raster rechnet der Server in Europe/Berlin. Außerhalb deutscher Zeit kommt am Rand ein angeschnittener Tag dazu. Hebel: Grenzen als Berliner Mitternacht bauen (`Intl`-Versatz).
 - ~~**Zeitabhängiger Test**~~ erledigt in Paket 20 (B3): wartet jetzt auf den zweiten Lauf. War: `tests/test_aufbewahrung_takt.py::test_der_takt_laeuft_weiter_auch_nach_einem_fehler` (50-ms-Fenster, 5-ms-Takt) kippte im vollen Lauf unter Parallellast (Paket 16, 2026-10-18), allein grün. Fester machen: auf eine Bedingung warten (zweiter Lauf) statt fest 50 ms schlafen.
-- **Uhrenabhängiger Test** (gesehen 2026-11-10 im vollen Lauf zu AS-8a):
+- ~~**Uhrenabhängiger Test**~~ **erledigt 10.11.** (Toleranz), ebenso die zwei Kippler darunter (Zeitfenster vor
+  `_JAN`, Merker vor dem Test löschen). War (gesehen 2026-11-10 im vollen Lauf zu AS-8a):
   `tests/test_anmeldung_status.py::test_eine_bestaetigung_gilt_hoechstens_bis_zur_frist` kippte mit
   `60.00000023841858 <= 60`, allein grün. `datetime.now` (Test) und die Uhr in `_gueltig_s` laufen
   unter Windows um Bruchteile auseinander. Fester machen: eine Toleranz (`<= 60 + 1e-3`) oder eine
