@@ -45,6 +45,7 @@ from collections.abc import Iterable
 import regex
 
 from boerdi.domain import regel_regex
+from boerdi.domain.wahl_knopf import ist_wahl_knopf
 from boerdi.i18n import DEFAULT, Locale, bot_text, pick_localized
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,9 @@ def begrenze_pillen(qrs: list, max_pillen: int) -> list:
     pillen = 0
     behalten = []
     for qr in qrs:
-        if ist_lotse(qr):
+        # Querschnitts-Review AS-3, Befund 1: die Chips einer Ablauf-Wahl zählen auch nicht mit —
+        # sie sind der Weg weiter im Ablauf (``domain/wahl_knopf``)
+        if ist_lotse(qr) or ist_wahl_knopf(qr):
             behalten.append(qr)
         elif pillen < max_pillen:
             behalten.append(qr)
