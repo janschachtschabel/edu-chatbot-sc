@@ -53,6 +53,8 @@ export interface JsonSchema {
   readonly maximum?: number;
   readonly pattern?: string;
   readonly maxLength?: number;
+  /** AS-1: z. B. der Name eines Testfalls — der Server prüft es, das Formular trägt es nur. */
+  readonly minLength?: number;
   readonly maxItems?: number;
   /** Aus einem `Literal` im Modell — geschlossen UND vom Server erzwungen. */
   readonly enum?: readonly string[];
