@@ -969,3 +969,82 @@ def test_neues_vorhaben_und_loeschen_gehen_durch_die_sicherheitspruefung(monkeyp
     _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
     assert asyncio.run(preflight(_ctx("vorgang_neu"), _SESSION)).early_response.content != "NEU"
     assert gerufen == ["neu", "loeschen"]
+
+
+# ── Paket AS-3a: Schnellantworten und Freitext eines wartenden Laufs ──────────────────────────
+
+def _wahl_spione(monkeypatch, *, wartet=True, antwort="FREITEXT"):
+    gerufen: dict[str, list] = {"wahl": [], "freitext": [], "aufgeraeumt": []}
+    monkeypatch.setattr(pf_mod.wahl_zug, "nimmt_getippt", lambda sid, state, text: wartet)
+
+    async def aufraeumen(session, sid, state):
+        gerufen["aufgeraeumt"].append(sid)
+
+    monkeypatch.setattr(pf_mod.wahl_zug, "aufraeumen", aufraeumen)
+
+    async def waehlen(session, req, state, **k):
+        gerufen["wahl"].append((req.action_params, k))
+        return ChatResponse(session_id="bb-1", content="WAHL")
+
+    async def freitext(session, req, state, **k):
+        gerufen["freitext"].append((req.message, k))
+        return ChatResponse(session_id="bb-1", content=antwort) if antwort else None
+
+    monkeypatch.setattr(pf_mod.wahl_zug, "waehlen", waehlen)
+    monkeypatch.setattr(pf_mod.wahl_zug, "getippt", freitext)
+    return gerufen
+
+
+def test_eine_schnellantwort_ist_eine_direktaktion_hinter_der_pruefung(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low", blocked_tools=["x"]))
+    gerufen = _wahl_spione(monkeypatch, wartet=False)
+    out = asyncio.run(preflight(_ctx("ablauf_wahl", ablauf="a", schritt="s", wahl="neu"),
+                                _SESSION))
+    assert out.early_response.content == "WAHL"
+    assert gerufen["wahl"] == [({"ablauf": "a", "schritt": "s", "wahl": "neu"},
+                                {"blocked_tools": ["x"]})]
+
+
+def test_getippter_text_ist_am_freitext_schritt_die_antwort(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    gerufen = _wahl_spione(monkeypatch)
+    out = asyncio.run(preflight(_ctx(None, message="Optik, Klasse 7"), _SESSION))
+    assert out.early_response.content == "FREITEXT"
+    assert gerufen["freitext"] == [("Optik, Klasse 7", {"blocked_tools": []})]
+    # vorher wird ein Lauf aufgeräumt, der nicht mehr kann (Review AS-3a, Befund 3)
+    assert len(gerufen["aufgeraeumt"]) == 1
+    # durch dieselbe Sicherheitsprüfung wie jede Nachricht
+    assert "Optik, Klasse 7" in safety.calls[0]["args"][0]
+
+
+def test_freitext_bei_hohem_risiko_setzt_den_lauf_nicht_fort(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
+    gerufen = _wahl_spione(monkeypatch)
+    out = asyncio.run(preflight(_ctx(None, message="Optik"), _SESSION))
+    assert gerufen["freitext"] == []
+    # Review AS-3a, Befund 1: der gewöhnliche Weg mit der Krisenantwort, keine Abweisung
+    assert out.early_response is None
+
+
+def test_greift_der_freitext_nicht_geht_der_zug_den_gewoehnlichen_weg(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    _wahl_spione(monkeypatch, antwort=None)
+    out = asyncio.run(preflight(_ctx(None, message="Optik"), _SESSION))
+    assert out.early_response is None
+
+
+def test_ohne_freitext_schritt_bleibt_getippter_text_ein_gewoehnlicher_zug(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    gerufen = _wahl_spione(monkeypatch, wartet=False)
+    out = asyncio.run(preflight(_ctx(None, message="Hallo"), _SESSION))
+    assert out.early_response is None and gerufen["freitext"] == [] and safety.calls == []

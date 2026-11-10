@@ -4,8 +4,8 @@ Block — beides ohne Modell, im Preflight hinter derselben Sicherheitsprüfung 
 
 - **Start** per Knopf (``action: ablauf_starten``, ``action_params: {ablauf}``), per Wendung
   (:func:`text_ausloeser`) oder per Modul-Antwort (:func:`modul_ausloeser` — erst übernommen,
-  dann ab dem Schritt nach dem Modul): nur aktive Einträge des Katalogs (``06-ablaeufe/katalog``,
-  ``ausloeser``), jede Voraussetzung erfüllt (``anmeldung``: bestätigte Person;
+  dann ab dem Schritt nach dem Modul): nur aktive Abläufe (``06-ablaeufe/<id>``, seit AS-0 ein
+  Dokument je Ablauf; ``ausloeser``), jede Voraussetzung erfüllt (``anmeldung``: bestätigte Person;
   eine unbekannte gilt als nicht erfüllt). Der Lauf hängt am aktiven Vorgang (sonst einem neuen;
   jedes Anlegen ist festgeschrieben, bevor der Treiber rechnet — so hält keine Sperre die Verbindung
   während der Werkzeugaufrufe).
@@ -28,15 +28,17 @@ eine abfragende Frage gemerkt, Nachricht gespeichert. Der Lauf und neue Teile ge
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Iterable
 from typing import Any, Final
 
 from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.domain.config_models.ablauf import AblaufArea
-from boerdi.i18n import resolve_locale
-from boerdi.services import arbeitsstand, vorgaenge
-from boerdi.services.ablauf import ausloeser, ki_schritt, treiber
+from boerdi.i18n import bot_text, resolve_locale
+from boerdi.services import arbeitsstand, probe, vorgaenge
+from boerdi.services.ablauf import ausloeser, ki_schritt, startdaten, treiber, typen
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden
 from boerdi.ui_module import strukturentwurf_merken
@@ -46,16 +48,144 @@ logger = logging.getLogger(__name__)
 AKTION: Final = "ablauf_starten"
 #: Paket A2b: „Weiter im Ablauf“ am wartenden ``agent``-Schritt.
 AKTION_WEITER: Final = ki_schritt.AKTION
-_BEENDET: Final = ("fertig", "fehler", "abgebrochen")
+_BEENDET: Final = treiber.BEENDET
 
 
 async def starten(session: Any, req: ChatRequest, session_state: dict, *,
                   blocked_tools: Iterable[str] = ()) -> ChatResponse:
-    """Direktaktion ``ablauf_starten`` (Knopf, Schnellantwort)."""
-    ablauf = laden((req.action_params or {}).get("ablauf"))
-    if ablauf is None or not ausloeser.per_knopf(ablauf):
+    """Direktaktion ``ablauf_starten`` (Knopf, Schnellantwort; AS-4a auch die Gastseite mit
+    ``action_params.start``). Startdaten nimmt ein Ablauf mit dem Auslöser ``extern`` oder
+    (AS-5a, Knopf eines KI-Vorschlags) ``agent``.
+
+    Die Herkunft „Gastseite“ (Rechte aus Entscheid AS-4a, Befund 10) wird nur **positiv**
+    festgestellt: ``quelle: "gastseite"`` (die Widget-API schickt es immer) oder die Marke
+    ``start_quelle`` am Knopf „Neu starten“, den nur ein Start der Gastseite erzeugt. Nie allein aus
+    vorhandenen Startdaten (ab AS-5 bringt auch ein Vorschlag der KI Daten) und nie aus
+    ``ChatRequest.from_host`` — das ist nur Anzeige (Querschnitts-Review RB, Befunde 1 und 9)."""
+    params = req.action_params or {}
+    ablauf = laden(params.get("ablauf"))
+    # AS-8a (P-6/P-7): die Probe der Studio-Vorschau startet jeden Ablauf des Katalogs, auch einen
+    # ausgeschalteten, wie von der Gastseite — mit Startdaten nach seinem Startschema.
+    in_probe = probe.recht()          # Review AS-8a, Befund 4: nur mit dem Cookie dieses Zuges
+    extern = ablauf is not None and (in_probe or ausloeser.per_extern(ablauf))
+    if ablauf is None or not (extern or ausloeser.per_knopf(ablauf)):
         return await basis.nur_text(session, req, "action.ablauf.unbekannt")
-    return await starten_mit(session, req, session_state, ablauf, blocked_tools=blocked_tools)
+    roh = params.get("start")
+    # AS-5a (A5-4): Daten auch beim Knopf eines KI-Vorschlags (Auslöser ``agent``) — Eingaben, nie
+    # Rechte: der Knopf kommt vom Client zurück und kann nicht mehr als die Gastseite.
+    if roh is not None and not (in_probe or ausloeser.nimmt_daten(ablauf)):
+        return await basis.nur_text(session, req, "action.ablauf.unbekannt")
+    start = None
+    if ablauf.start or roh is not None:
+        start, fehler = startdaten.pruefen(ablauf, roh)
+        if fehler:
+            # nur die Zahl — die Codes nennen Feldnamen der Gastseite (Log ohne Inhalt)
+            logger.info("Ablauf: Startdaten abgewiesen (%d Befunde)", len(fehler))
+            return await basis.nur_text(session, req, "action.ablauf.startdaten")
+        start = start if ablauf.start else None
+    ersetzt = params.get("ersetzt")
+    # Review AS-5a, Befund 1: nur ein Ablauf mit dem Auslöser „Gastseite“ bekommt deren Rechte;
+    # die Marke ``start_quelle`` gilt nur am Knopf „Neu starten“ (Querschnitt AS-5, Befund 9).
+    von_der_gastseite = extern and (
+        params.get("quelle") == startdaten.QUELLE_GASTSEITE
+        or (ersetzt is not None and params.get("start_quelle") == startdaten.QUELLE_GASTSEITE))
+    # Querschnitts-Review AS-5, Befund 1 (schwer): auch der Knopf eines KI-Vorschlags kommt ohne
+    # Überlegung der Person zustande — er ersetzt nie still einen laufenden Lauf (samt Auftrag).
+    von_der_ki = params.get("start_quelle") == startdaten.QUELLE_KI
+    herkunft = (startdaten.QUELLE_GASTSEITE if von_der_gastseite
+                else startdaten.QUELLE_KI if von_der_ki else None)
+    if params.get("quelle") == "gastseite" or ersetzt is not None or von_der_ki:
+        aktiv = await _aktiver_lauf(session, req, session_state)
+        if aktiv is not None:
+            v, lauf = aktiv
+            if ersetzt is not None:
+                # Der Knopf „Neu starten“ ersetzt nur den Lauf, für den er gefragt hat — hat der
+                # sich bewegt (ein zweiter Klick, weitergeführt), fragt er neu (Nachprüfung
+                # Querschnitt AS-4, Befund 4).
+                if ersetzt != _marke(v, lauf):
+                    return await _ersetzen_fragen(session, req, ablauf, start, v, lauf, herkunft)
+            elif lauf.get("ablauf") == ablauf.id and await _gleiche_startdaten(
+                    session, v, ablauf, start):
+                # Review AS-4b, Befund 1: derselbe Start — es geht weiter, wo er steht
+                return await basis.nur_text(session, req, "action.ablauf.laeuftSchon")
+            else:
+                # Die Gastseite (und der Vorschlag der KI) ersetzt nie still einen Lauf, der noch
+                # nicht beendet ist (Querschnitts-Review AS-4, Befund 1; AS-5, Befund 1).
+                return await _ersetzen_fragen(session, req, ablauf, start, v, lauf, herkunft)
+    # Nur Daten, die ausdrücklich von der Gastseite kommen (oder von ihrem Knopf „Neu starten“),
+    # tragen ihre Rechte; Daten eines KI-Vorschlags heißen ``ki`` (ohne Rechte), alles andere hat
+    # keine Herkunft.
+    quelle = herkunft if roh is not None else None
+    return await starten_mit(session, req, session_state, ablauf, start=start,
+                             start_quelle=quelle, blocked_tools=blocked_tools)
+
+
+async def _gleiche_startdaten(session: Any, v: Any, ablauf: AblaufArea,
+                              start: dict[str, Any] | None) -> bool:
+    """Trägt der Vorgang schon dieselben Startdaten (ohne Startschema: immer)?"""
+    if not ablauf.start:
+        return True
+    return (await vorgaenge.teil_wert(session, v, typen.START_TEIL) or {}) == (start or {})
+
+
+async def _aktiver_lauf(session: Any, req: ChatRequest, session_state: dict
+                        ) -> tuple[Any, dict[str, Any]] | None:
+    """Vorgang und Lauf des Gesprächs, solange der Lauf nicht beendet ist."""
+    entities = session_state.get("entities") or {}
+    aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
+    vw = arbeitsstand.verweis(entities, aufrufer)
+    v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
+    if v is None or v.status in vorgaenge.ABGESCHLOSSEN:
+        return None
+    lauf = (v.akte or {}).get("lauf")
+    if not isinstance(lauf, dict) or lauf.get("status") in _BEENDET:
+        return None
+    return v, lauf
+
+
+#: So groß darf der Knopf „Neu starten“ samt Startdaten werden — das Schema erlaubt 10 Felder zu
+#: höchstens 500 Zeichen (Nachprüfung Querschnitt AS-4, Befund 3).
+_KNOPF_ZEICHEN: Final = 8000
+
+
+def _marke(v: Any, lauf: dict[str, Any]) -> str:
+    """Kurz und ohne Inhalt: welcher Lauf in welchem Stand gemeint ist."""
+    roh = "|".join(str(x) for x in (v.id, lauf.get("ablauf"), lauf.get("schritt"),
+                                    lauf.get("status"), lauf.get("fassung")))
+    return hashlib.sha256(roh.encode("utf-8")).hexdigest()[:16]
+
+
+def _knopf(lang: str, schluessel: str, aktion: str, params: dict[str, Any]) -> str:
+    label = bot_text(lang, schluessel).replace("|", "/")
+    return f"__action__|{label}|{aktion}|" + json.dumps(params, ensure_ascii=False)
+
+
+async def _ersetzen_fragen(session: Any, req: ChatRequest, ablauf: AblaufArea,
+                           start: dict[str, Any] | None, v: Any, lauf: dict[str, Any],
+                           herkunft: str | None = None) -> ChatResponse:
+    """Die Person entscheidet: „Neu starten“ (ohne ``quelle``, gebunden an diesen Lauf) oder,
+    wartet der Lauf auf einen Auftrag, „Stand prüfen“. Beide überstehen jeden Deckel der
+    Schnellantworten (``domain/wahl_knopf``)."""
+    from boerdi.services.ablauf import auftrag_zug
+
+    lang = resolve_locale(req.environment.locale)
+    marke = _marke(v, lauf)
+    # ohne ``quelle`` (sonst bremste der Knopf sich selbst), aber mit der Herkunft der Daten
+    # Die Herkunft reist mit — die Gastseite nur mit Daten, die KI immer (ihr Knopf bremst so
+    # auch beim zweiten Mal).
+    marke_herkunft = ({"start_quelle": herkunft} if herkunft == startdaten.QUELLE_KI
+                      or (herkunft and start) else {})
+    neu = _knopf(lang, "action.ablauf.neuStarten", AKTION,
+                 {"ablauf": ablauf.id, **({"start": start} if start else {}), "ersetzt": marke,
+                  **marke_herkunft})
+    if len(neu) > _KNOPF_ZEICHEN:
+        return await basis.nur_text(session, req, "action.ablauf.ersetzenOhneKnopf")
+    antwort = await basis.nur_text(session, req, "action.ablauf.ersetzen")
+    knoepfe = [neu]
+    if lauf.get("status") == treiber.WARTET_AUFTRAG and isinstance(lauf.get("ablauf"), str):
+        knoepfe.append(_knopf(lang, "action.ablauf.auftragKnopf", auftrag_zug.AKTION,
+                              {"ablauf": lauf["ablauf"], "ersetzt": marke}))
+    return antwort.model_copy(update={"quick_replies": knoepfe})
 
 
 def lauf_wartet(session_id: str, session_state: dict) -> bool:
@@ -63,8 +193,7 @@ def lauf_wartet(session_id: str, session_state: dict) -> bool:
     vw = arbeitsstand.verweis(session_state.get("entities") or {},
                               arbeitsstand.aufrufer_fuer(session_id))
     lauf = (vw or {}).get("lauf")
-    return isinstance(lauf, dict) and lauf.get("status") in (
-        treiber.WARTET, treiber.WARTET_KI, treiber.WARTET_AUFTRAG, treiber.WARTET_FREIGABE)
+    return isinstance(lauf, dict) and lauf.get("status") in treiber.WARTEND
 
 
 def text_ausloeser(nachricht: str | None) -> AblaufArea | None:
@@ -103,15 +232,24 @@ async def per_modul_starten(session: Any, req: ChatRequest, session_state: dict,
 
 async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablauf: AblaufArea,
                       *, ab: int = 0, gewaehlt: list[str] | None = None,
+                      start: dict[str, Any] | None = None, start_quelle: str | None = None,
                       blocked_tools: Iterable[str] = ()) -> ChatResponse:
     if not ausloeser.erfuellt(ablauf):
         return await basis.nur_text(session, req, "action.ablauf.anmeldung")
+    if start is None and startdaten.pflichtfelder(ablauf):
+        # AS-4a: Wendung, Modul oder Knopf bringen keine Startdaten — ohne Pflichtfelder kein Start
+        return await basis.nur_text(session, req, "action.ablauf.startdaten")
+    if start is None and ablauf.start:
+        # Review AS-4a, Befund 5: auch ohne Daten ein (leerer) Teil — sonst gälten im selben
+        # Vorgang die Startdaten eines früheren Laufs
+        start = {}
     entities = session_state.setdefault("entities", {})
     aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
     if not await _ziel_vorbereiten(session, req, entities, ablauf):
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     aus = await basis.rechne(session, ablauf, treiber.starten(
-        ablauf, basis.umgebung(session, req, entities, blocked_tools), ab, gewaehlt))
+        ablauf, basis.umgebung(session, req, entities, blocked_tools), ab, gewaehlt, start,
+        start_quelle))
     if aus is None:
         return await basis.nur_text(session, req, "action.ablauf.fehler", entities)
     vw = arbeitsstand.verweis(entities, aufrufer)
@@ -128,7 +266,7 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
             v = await _anlegen(session, req, aufrufer, ablauf)
         v = await basis.festhalten(session, v, aus, session_id=req.session_id)
         await session.commit()
-    except vorgaenge.VorgangKonflikt:
+    except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
         basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
@@ -234,7 +372,7 @@ async def wartet_auf(session: Any, session_id: str, session_state: dict,
             basis.verweis_auffrischen(entities, v, aufrufer)
             return False
         ablauf = laden(offen.get("ablauf"))
-        if ablauf is not None and ablauf.aktiv and treiber.kann_weiter(ablauf, offen):
+        if treiber.gilt(ablauf, offen) and treiber.kann_weiter(ablauf, offen):
             return True
         await basis.abbrechen(session, v, offen, entities, aufrufer)
     except Exception as fehler:  # noqa: BLE001 — ohne Lesen geht der Zug den gewöhnlichen Weg
@@ -256,7 +394,7 @@ async def fortsetzen(session: Any, req: ChatRequest, session_state: dict,
     lauf = _offener_lauf(v, geprueft)
     ablauf = laden(lauf.get("ablauf")) if lauf else None
     # Review A1, Befund 6: erst prüfen, dann übernehmen — sonst speichert ``persist`` sie doppelt.
-    if lauf is None or ablauf is None or not ablauf.aktiv or not treiber.kann_weiter(ablauf, lauf):
+    if lauf is None or not treiber.gilt(ablauf, lauf) or not treiber.kann_weiter(ablauf, lauf):
         return None
     if not await arbeitsstand.uebernehmen(session, req.session_id, entities, geprueft,
                                           nur_dieser=True):
@@ -274,7 +412,7 @@ async def fortsetzen(session: Any, req: ChatRequest, session_state: dict,
     try:
         v = await basis.festhalten(session, v, aus, session_id=req.session_id)
         await session.commit()
-    except vorgaenge.VorgangKonflikt:
+    except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
         basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
@@ -299,7 +437,7 @@ async def weiter_nach_ki(session: Any, req: ChatRequest, session_state: dict, *,
         basis.verweis_auffrischen(entities, v, aufrufer)
         return await basis.nur_text(session, req, "action.ablauf.unbekannt", entities)
     ablauf = laden(gewollt)
-    if ablauf is None or not ablauf.aktiv or lauf.get("fassung") != treiber.fassung(ablauf):
+    if not treiber.gilt(ablauf, lauf):
         # Review A2b, Befund 7: ein Lauf, der nicht mehr kann, wartet nicht weiter.
         await basis.abbrechen(session, v, lauf, entities, aufrufer)
         return await basis.nur_text(session, req, "action.ablauf.unbekannt", entities)
@@ -315,10 +453,16 @@ async def weiter_nach_ki(session: Any, req: ChatRequest, session_state: dict, *,
     try:
         v = await basis.festhalten(session, v, aus, session_id=req.session_id)
         await session.commit()
-    except vorgaenge.VorgangKonflikt:
+    except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
         basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
     entities.pop(ki_schritt.ZUEGE_KEY, None)
     return await basis.antwort(session, req, session_state, aus, ablauf)
+
+
+# Öffentlich für die anderen Züge (Review AS-Ua, Kleinigkeit 10): ``abbruch_zug``.
+aktiver_lauf = _aktiver_lauf
+lauf_marke = _marke
+rueckfrage_knopf = _knopf

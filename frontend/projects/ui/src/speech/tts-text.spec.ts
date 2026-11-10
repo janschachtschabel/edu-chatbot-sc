@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { splitSentences, stripMarkdown } from './tts-text';
+import { ohneMarkdownEscapes, splitSentences, stripMarkdown } from './tts-text';
 
 /**
  * Charakterisierung der TTS-Text-Helfer — Verbatim-Port aus ALT
@@ -42,5 +42,12 @@ describe('splitSentences', () => {
 
   it('Text ohne Satzende bleibt ein Chunk', () => {
     expect(splitSentences('kein Satzende')).toEqual(['kein Satzende']);
+  });
+});
+
+describe('ohneMarkdownEscapes (AS-3b)', () => {
+  it('löst die Escapes eingesetzter Werte auf — vorgelesen ohne Rückstrich', () => {
+    expect(ohneMarkdownEscapes('https\\:\\/\\/x\\.de \\(a\\)')).toBe('https://x.de (a)');
+    expect(stripMarkdown('Notiert\\: **Optik\\.**')).toBe('Notiert: Optik.');
   });
 });

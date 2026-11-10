@@ -65,9 +65,23 @@ def NurBei(feld: str, *werte: str) -> Any:  # noqa: N802 — s.o.
     return Field(json_schema_extra={"x-nur-bei": {"feld": feld, "werte": sorted(werte)}})
 
 
+def WeiterRegeln() -> Any:  # noqa: N802 — s.o.
+    """``weiter`` eines Ablaufschritts — leer, eine Schritt-Kennung oder Regeln (AS-2a): das Studio
+    zeigt einen Editor (nächster Schritt, bestimmter Schritt, Regeln) statt rohem JSON. Nur eine
+    Bedienhilfe im Schema; die Auszeichnung gehört an die Eigenschaft (außen um ``… | None``)."""
+    return Field(json_schema_extra={"x-widget": "weiter"})
+
+
+def SchrittZiel() -> Any:  # noqa: N802 — s.o.
+    """Ein Schritt desselben Ablaufs als Ziel (AS-3a: Schnellantworten, Freitext) — das Studio
+    zeigt eine Auswahl der Schritte statt eines Textfelds. Nur eine Bedienhilfe im Schema."""
+    return Field(json_schema_extra={"x-widget": "schritt-ziel"})
+
+
 def TeilWerte() -> Any:  # noqa: N802 — s.o.
     """Ein Objekt Name → Wert, dessen Werte ein fester Text, ein Teil des Vorgangs
-    (``{"$teil": "<name>"}``, K2d-1 auch mit ``"pfad"``) oder JSON sind (Paket K2c-3) — das
+    (``{"$teil": "<name>"}``, K2d-1 auch mit ``"pfad"``, AS-Da als Auswahl mit ``liste``/``wo``/
+    ``feld``) oder JSON sind (Paket K2c-3) — das
     Studio zeigt eine Tabelle statt rohem JSON. Die Auszeichnung gehört an das OBJEKT (innen in
     ``… | None``)::
 
