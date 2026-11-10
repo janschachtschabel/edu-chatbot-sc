@@ -9,6 +9,7 @@ sind am Quelltext geprüft.
 |---|---|
 | Plan mit allen Entscheiden und offenen Punkten | [`plans/2026-11-02-paket-u1-ui-module.md`](plans/2026-11-02-paket-u1-ui-module.md) |
 | Paket U2: Bestand und Entwurf, Dienst, Brücke | [`plans/2026-11-04-paket-u2-themenbaum-entwurf.md`](plans/2026-11-04-paket-u2-themenbaum-entwurf.md) |
+| Abläufe, die Module zeigen (Studio-Seite „Abläufe“, Querverweise Modul ↔ Ablauf) | [`plans/2026-11-09-ablaeufe-im-studio.md`](plans/2026-11-09-ablaeufe-im-studio.md) |
 | Regeln für Modul-Autoren (kurz) | [`frontend/projects/ui-module/README.md`](../frontend/projects/ui-module/README.md) |
 | Grafik: Einbindung und Nutzung | [interaktiv](architektur-grafiken/ui-module-einbindung.html) · [Bild (PNG)](architektur-grafiken/png/ui-module-einbindung.png) · [Quelle](architektur-grafiken/quellen/ui-module-einbindung.json) |
 | Gesamtbild | [`architektur.md`](architektur.md) |
@@ -28,9 +29,10 @@ und die Studio-Seite. Ein Modul **zeigt an** (`art: anzeigen`) oder **fragt ab**
 die Antwort der Person geht in den nächsten Zug). Module greifen nie selbst nach außen: Drucken,
 Links, Antworten und Nachladen laufen über einen **Host** je Block, der nur die Fähigkeiten aus
 dem Manifest zulässt. Große Daten (Baum, Trefferliste) laufen nicht durch das Modell: Die KI
-nennt nur Kennungen, das Backend holt die Daten über eine **Datenquelle**. Alle Module liegen im
-einen Widget-Bündel; die Grenze ist **200 kB gzip** (Warnung ab 190 kB; Stand 2026-11-03 nach dem
-Gesamt-Review: 180,52 kB).
+nennt nur Kennungen, das Backend holt die Daten über eine **Datenquelle**. Die meisten Module liegen
+im einen Widget-Bündel; große oder seltene laden nach (§2.5: `ui_upload`, `ui_strukturabgleich`,
+`ui_fortschritt`, `ui_strukturentwurf`, dazu das Debug-Panel als Widget-Teil). Die Grenze ist
+**200 kB gzip** (Warnung ab 190 kB; Stand 2026-11-10: 187,5 kB).
 
 ---
 
@@ -154,7 +156,23 @@ Selten gebrauchte oder große Module kommen deshalb **nicht** ins Haupt-Bündel,
   definieren, wenn der Name frei ist (`if (!customElements.get(name)) customElements.define(…)`) — ein
   Bündel kann zweimal laufen (zwei Widgets mit verschiedener API-Basis, Skript nach Fristablauf). CSS-Dateien werden als
   Text importiert und in den Shadow Root gesetzt. Styles nur über die M3-Tokens (`--mat-sys-*`, erben in
-  den Shadow Root).
+  den Shadow Root). **SCSS (seit Paket BU-2):** eine `ui-<name>.element.scss` übersetzt
+  `npm run module:register` mit dem dart-sass des Projekts nach `ui-<name>.stil.generated.ts` (`STIL`,
+  eingecheckt; `--pruefen` in CI meldet einen veralteten Stand). So nutzt ein Element dieselben
+  SCSS-Bausteine wie die Komponenten (etwa `_baum/_baum.scss`) statt eines Nachbaus als Zeichenkette.
+- **Widget-Teile ohne Manifest (seit Paket BU-3):** Selten gebrauchte Teile des Widgets, die kein
+  UI-Modul sind (kein KI-Werkzeug, nicht im Register), liegen unter
+  `frontend/projects/ui/src/nachgeladen/ui-<name>/ui-<name>.element.ts`. Bau, Index, SRI, Pfad und
+  Stil-Erzeugung sind dieselben wie bei den Modulen. Ein Name darf nur einmal vorkommen. Das erste
+  ist das Debug-Panel (`ui-debug-panel`, Hülle `ui/src/debug/debug-panel-huelle.component.ts`).
+  **Begriffe im Widget (Querschnitts-Review Q-12):** „Vorgang“ ist die gespeicherte Arbeit einer
+  Person (Liste „Meine Vorgänge“); „Ablauf“ ist, was darin läuft (Leiste); „Auftrag“ ist ein Job bei
+  der b-api. „Fortsetzen“ heißt immer: in das Gespräch eines Vorgangs wechseln — die Leiste klappt
+  dagegen nur „Ein“/„Auf“. Die Bot-Texte „Neues Vorhaben“ (beginnt einen neuen Vorgang) und
+  „Arbeitsstand löschen“ (alle Vorgänge **und** das hochgeladene Dokument) bleiben bewusst.
+  **Dev-Server:** `ng serve widget` bindet den leeren `nachlade-index.ts` ein, dort lädt kein
+  nachgeladener Teil (Module zeigen ihre Textfassung, das Debug-Panel seinen Ladefehler). Zum
+  Ausprobieren `npm run build:widget` (tauscht den Index per `fileReplacements`).
 - **Vertrag** (`ui-module/_nachladen/element-vertrag.ts`): Der Platzhalter setzt am Element die
   Eigenschaften `daten`, `kontext`, `host` und `beschaeftigt` — bei jeder Änderung neu, am **selben**
   Element (eigener Zustand bleibt). `host` ist eine eingefrorene Brücke mit den Methoden des Block-Hosts
@@ -354,7 +372,7 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 | [`ui_trefferliste`](../frontend/projects/ui-module/src/ui-trefferliste/README.md) | anzeigen | abgeleitet aus `cards`, `query_metas`, `pagination` | — | oeffnen | unten | U1-c2 |
 | [`ui_entscheidung`](../frontend/projects/ui-module/src/ui-entscheidung/README.md) | abfragen | Modul-Werkzeug (`agent: true`) | — | antworten | oben | U1-d |
 | [`ui_themenbaum`](../frontend/projects/ui-module/src/ui-themenbaum/README.md) | anzeigen | Modul-Werkzeug; Direktaktion `show_collection_tree` | `browse_collection_tree` (`depth: 2`, `maxResults: 31`) | oeffnen, nachladen | oben | U1-e, U1-h |
-| [`ui_strukturentwurf`](../frontend/projects/ui-module/src/ui-strukturentwurf/README.md) | abfragen | Modul-Werkzeug mit **Dienst** `strukturentwurf`; Direktaktion `edit_collection_as_draft` (Brücke aus dem Themenbaum); „Als Themenbaum-Entwurf übernehmen“ in `ui_upload` (`quelle: ordner`) | — | antworten, herunterladen | oben | U2 |
+| [`ui_strukturentwurf`](../frontend/projects/ui-module/src/ui-strukturentwurf/README.md) | abfragen, **nachgeladen** (seit BU-2) | Modul-Werkzeug mit **Dienst** `strukturentwurf`; Direktaktion `edit_collection_as_draft` (Brücke aus dem Themenbaum); „Als Themenbaum-Entwurf übernehmen“ in `ui_upload` (`quelle: ordner`) | — | antworten, herunterladen | oben | U2 |
 | [`ui_upload`](../frontend/projects/ui-module/src/ui-upload/README.md) | abfragen, **nachgeladen** (`laden: bei_bedarf`) | Modul-Werkzeug mit **Dienst** `upload_angebot` | — | antworten, hochladen, oeffnen | oben | U3-1, U3-2, U3-3 |
 | [`ui_strukturabgleich`](../frontend/projects/ui-module/src/ui-strukturabgleich/README.md) | anzeigen, **nachgeladen** | Modul-Werkzeug mit **Dienst** `strukturabgleich` (ohne LLM; liest den Teil `draft`); mit `abdeckung: true` Lücken in ganz WLO | `browse_collection_tree` im Dienst (`depth: 2`, mit Inhaltszahlen; `dienst.braucht`); `count_wlo_content_matches` nur, wenn im Zug angeboten | oeffnen | oben | U4, U5 |
 | [`ui_fortschritt`](../frontend/projects/ui-module/src/ui-fortschritt/README.md) | anzeigen, **nachgeladen** | nur der Ablauf-Treiber, wenn ein `auftrag`-Schritt startet (`agent: false`) | — | auftrag | oben | K1b, K2b (Abbrechen) |
@@ -414,7 +432,7 @@ Evaluation (`ui_any`/`ui_none`, Modul-Nutzung); CI-Wächter.
 | Antwortweg abfragender Module: eine Weiche je Modul in `ui_module/antwort.py` (U2: Entscheidung, Strukturentwurf) | zwei Antwortformen | beim dritten abfragenden Modul ein Verzeichnis der Formen |
 | Allgemeine Textfassung nur für `markdown` und `nummerierte_liste` | Themenbaum und abgeleitete bauen ihre eigene | bei Bedarf weitere Vorlagen umsetzen |
 | `darstellung.breit` wird nirgends ausgewertet | Vertrag vorbereitet, Größer-Knopf nicht angebunden | anbinden, sobald ein Modul es braucht |
-| Alle Module statisch im Haupt-Bündel | Regel „eine Einbettungs-Datei“; Bündel 180,52 von 200 kB gzip (Stand 2026-11-03) | Nachladen großer oder seltener Module (U-F2) — Mechanismus fehlt noch |
+| ~~Alle Module statisch im Haupt-Bündel~~ | erledigt: Nachladen seit U3-0 (§2.5), Widget-Teile ohne Manifest seit BU-3 | — |
 | Studio-Vorschau-Spec importiert Manifeste von Hand | JSON-Import im Test; `module:neu` legt ihn nicht an | Gerüst-Skript erweitern |
 | `tool_mode` am Zweig-Endpunkt kommt vom Aufrufer | Modus der Einbettung, keine Berechtigung; heute sperrt kein Modus `browse_*` | Sperren gegen Missbrauch sind Drosselung, Sitzungsprüfung, Studio-Schalter |
 | Evaluation kann nicht klicken (Aktionen, Aufklappen) | Gold-Züge kennen nur Text und `ui_antwort` | Zug-Schlüssel `aktion` (U1-g, offen) |

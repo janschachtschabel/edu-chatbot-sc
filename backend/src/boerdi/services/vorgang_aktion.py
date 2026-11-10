@@ -14,14 +14,17 @@
 Beide räumen auch den gemerkten Entwurf der Sitzung (``strukturentwurf_merken``) ab. Nur für die
 eigenen Vorgänge (``aufrufer``), ohne Modell, hinter der Sicherheitsprüfung des Preflights wie jede
 Direktaktion. Den Einstieg setzt das Backend: Knöpfe unter einem fertigen Ablauf (:func:`knoepfe`,
-``zug_basis.antwort``) — das Modell schreibt keine ``__action__``-Knöpfe. simplify: ein Einstieg
-außerhalb eines Ablaufs (Menü im Widget) ist eine offene Entscheidung.
+``zug_basis.antwort``) — das Modell schreibt keine ``__action__``-Knöpfe. Außerhalb eines Ablaufs
+zeigt seit AS-Ud „Meine Vorgänge“ im Widget die Vorgänge anderer Gespräche und löscht sie einzeln
+(``api/ui_vorgaenge.py``); „alle löschen“ bleibt diese Direktaktion.
 """
 
 from __future__ import annotations
 
 import json
 from typing import Any, Final
+
+from sqlalchemy.exc import DBAPIError
 
 from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.domain.write_confirm import OFFENER_PLAN_KEY
@@ -103,14 +106,25 @@ async def loeschen(session: Any, req: ChatRequest, session_state: dict) -> ChatR
     hatte = arbeitsstand.verweis(entities, aufrufer) is not None
     # Job-Vertrag 2026-11-07: offene Aufträge gingen per Kaskade mit, liefen bei der b-api aber
     # weiter (Grenze von 20 je Schlüssel) — die Job-IDs vorher lesen, nach dem Festschreiben enden.
-    offene = await auftraege_ablage.offene_job_ids(
-        session, [aufrufer, f"sitzung:{req.session_id}"])
-    zahl = await vorgaenge.alle_loeschen(session, aufrufer)
-    # Nachprüfung, Befund 11: auch die anonymen Vorgänge dieser Sitzung (vor der Anmeldung) und ihr
-    # hochgeladenes Dokument — die Rückfrage nennt beides.
-    zahl += await vorgaenge.anonyme_der_sitzung_loeschen(session, req.session_id)
-    zahl += await dokumente.der_sitzung_loeschen(session, req.session_id)
-    await session.commit()
+    besitz = [aufrufer, f"sitzung:{req.session_id}"]
+    try:
+        # Querschnitts-Review AS-U/BU, Q-5: erst sperren — ein gleichzeitig eingetragener Auftrag
+        # wartet bis zum Festschreiben, statt ungelesen per Kaskade mitzugehen
+        await vorgaenge.alle_sperren(session, besitz)
+        offene = await auftraege_ablage.offene_job_ids(session, besitz)
+        zahl = await vorgaenge.alle_loeschen(session, aufrufer)
+        # Nachprüfung, Befund 11: auch die anonymen Vorgänge dieser Sitzung (vor der Anmeldung) und
+        # ihr hochgeladenes Dokument — die Rückfrage nennt beides.
+        zahl += await vorgaenge.anonyme_der_sitzung_loeschen(session, req.session_id)
+        zahl += await dokumente.der_sitzung_loeschen(session, req.session_id)
+        await session.commit()
+    except DBAPIError as fehler:
+        # Zweites Review, Z-4: ein Deadlock (anderer Zug sperrte zugleich) ist ein Konflikt, kein
+        # Fehler des Zugs — nichts gelöscht, die Person kann es noch einmal versuchen.
+        if not vorgaenge.ist_deadlock(fehler):
+            raise
+        await session.rollback()
+        return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     basis.bei_der_b_api_abbrechen(*offene)
     arbeitsstand.verweis_weg(entities, aufrufer)
     entities.pop(strukturentwurf_merken.KEY, None)

@@ -24,12 +24,16 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
 from sqlalchemy import case, delete, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import DokumentUpload, Vorgang, VorgangAblage
 
 FORMAT: Final = "wlo.vorgang@1"
 MAX_JE_PERSON: Final = 3
+#: „Meine Vorgänge“ (AS-Ud): Sicherung der Liste — wartende Vorgänge können
+#: MAX_JE_PERSON übersteigen.
+LISTE_HOECHSTENS: Final = 20
 #: Größer als das (als JSON, Bytes) wandert ein Teil in die Ablage.
 INLINE_BYTES: Final = 8_000
 #: So viele frühere Fassungen je Teil bleiben.
@@ -54,6 +58,12 @@ HOECHSTENS_TAGE: Final = 30
 
 class VorgangKonflikt(Exception):
     """Ein anderer Zug hat den Vorgang inzwischen geändert."""
+
+
+#: Was beim Festhalten eines Zugs „ein anderer war schneller“ heißt: ein geänderter Vorgang oder ein
+#: inzwischen gelöschter — „Meine Vorgänge“ (AS-Ud) oder „Arbeitsstand löschen“ in einem zweiten
+#: Tab; dann schlägt der Fremdschlüssel eines neuen Auftrags fehl (Review AS-Ud, Befund 2c).
+FESTHALTEN_KONFLIKTE: Final = (VorgangKonflikt, IntegrityError)
 
 
 def _jetzt() -> datetime:
@@ -120,6 +130,21 @@ async def sperren(s: AsyncSession, vorgang_id: str, aufrufer: str) -> None:
                     .with_for_update())
 
 
+async def alle_sperren(s: AsyncSession, aufrufer: list[str]) -> None:
+    """Alle Vorgänge der Besitzerinnen bis zum Festschreiben sperren (``FOR UPDATE``) — vor
+    „Arbeitsstand löschen“ (Querschnitts-Review AS-U/BU, Q-5): ein Zug, der gerade einen Auftrag
+    einträgt, wartet; einer, der schon steht, ist danach lesbar."""
+    # Zweites Review, Z-4: immer in derselben Reihenfolge — sonst können zwei Sperrer verklemmen
+    await s.execute(select(Vorgang.id).where(Vorgang.aufrufer.in_(aufrufer))
+                    .order_by(Vorgang.id).with_for_update())
+
+
+def ist_deadlock(fehler: BaseException) -> bool:
+    """Hat PostgreSQL diese Seite eines Deadlocks abgebrochen (sqlstate ``40P01``)?"""
+    orig = getattr(fehler, "orig", None)
+    return "40P01" in (getattr(orig, "sqlstate", None), getattr(orig, "pgcode", None))
+
+
 async def juengster(s: AsyncSession, aufrufer: str) -> Vorgang | None:
     """Der zuletzt geänderte offene Vorgang der Besitzerin — damit ihn eine neue Sitzung derselben
     Person wiederfindet (Review V1, Befund 1)."""
@@ -141,6 +166,27 @@ async def offene(s: AsyncSession, aufrufer: str, *, ohne: str | None = None) -> 
             .execution_options(populate_existing=True))
     if ohne is not None:
         stmt = stmt.where(Vorgang.session_id != ohne)
+    return list((await s.execute(stmt)).scalars())
+
+
+async def eigene(s: AsyncSession, aufrufer: str, *, ohne: str | None = None,
+                 ohne_id: str | None = None) -> list[Vorgang]:
+    """AS-Ud („Meine Vorgänge“, Plan 2026-11-09 §5j): die nicht abgeschlossenen Vorgänge der
+    Besitzerin mit Gespräch — aktiv und wartend —, außer denen des Gesprächs ``ohne`` und dem
+    Vorgang ``ohne_id`` (auf den das aktuelle Gespräch verweist). Jüngste zuerst.
+
+    Nicht auf :data:`MAX_JE_PERSON` begrenzt (Review AS-Ud, Befund 3): wartende Vorgänge weichen
+    nie, eine Person kann mehr haben — keiner darf aus der Liste fallen. :data:`LISTE_HOECHSTENS`
+    ist nur eine Sicherung."""
+    stmt = (select(Vorgang)
+            .where(Vorgang.aufrufer == aufrufer, Vorgang.verfaellt_am > _jetzt(),
+                   Vorgang.status.not_in(ABGESCHLOSSEN), Vorgang.session_id.is_not(None))
+            .order_by(Vorgang.geaendert.desc()).limit(LISTE_HOECHSTENS)
+            .execution_options(populate_existing=True))
+    if ohne is not None:
+        stmt = stmt.where(Vorgang.session_id != ohne)
+    if ohne_id is not None:
+        stmt = stmt.where(Vorgang.id != ohne_id)
     return list((await s.execute(stmt)).scalars())
 
 
@@ -312,13 +358,16 @@ async def alle_loeschen(s: AsyncSession, aufrufer: str) -> int:
 
 
 async def anonyme_der_sitzung_loeschen(s: AsyncSession, session_id: str) -> int:
-    ergebnis = await s.execute(delete(Vorgang).where(Vorgang.aufrufer == f"sitzung:{session_id}"))
+    # AS-8a (zweites Review, Befund 4): auch die Vorgänge einer Probe gehören der Sitzung
+    ergebnis = await s.execute(delete(Vorgang).where(
+        Vorgang.aufrufer.in_((f"sitzung:{session_id}", f"probe:{session_id}"))))
     return int(ergebnis.rowcount or 0)
 
 
 async def alle_anonymen_loeschen(s: AsyncSession) -> int:
     """Für ``purge_all(sessions=True)``: ohne Sitzungen keine anonymen Besitzerinnen mehr."""
-    ergebnis = await s.execute(delete(Vorgang).where(Vorgang.aufrufer.like("sitzung:%")))
+    ergebnis = await s.execute(delete(Vorgang).where(
+        Vorgang.aufrufer.like("sitzung:%") | Vorgang.aufrufer.like("probe:%")))
     return int(ergebnis.rowcount or 0)
 
 
@@ -328,7 +377,8 @@ async def verfallene_loeschen(sitzungen: async_sessionmaker[AsyncSession], jetzt
         ergebnis = await s.execute(delete(Vorgang).where(
             (Vorgang.verfaellt_am <= jetzt)
             # Review V1, Befund 10: anonyme, deren Sitzung schon weg ist (SET NULL).
-            | (Vorgang.aufrufer.like("sitzung:%") & Vorgang.session_id.is_(None))))
+            | ((Vorgang.aufrufer.like("sitzung:%") | Vorgang.aufrufer.like("probe:%"))
+               & Vorgang.session_id.is_(None))))
         await s.commit()
     return int(ergebnis.rowcount or 0)
 
