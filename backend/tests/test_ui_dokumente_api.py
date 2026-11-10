@@ -155,7 +155,9 @@ def test_ohne_anmeldung_aber_erlaubt_ohne_aufrufer(client, lage):
                                                         "modul": "ui_entscheidung"}}),
      409, "keine_anfrage"),
     (lambda lg: setattr(lg, "cfg", UploadSettings(dokument_im_chat=False)), 403, "aus"),
-    (lambda lg: setattr(lg, "person", False), 403, "nur_angemeldet"),
+    (lambda lg: (setattr(lg, "person", False),
+                 setattr(lg, "cfg", UploadSettings(dokument_ohne_anmeldung=False))),
+     403, "nur_angemeldet"),
 ])
 def test_abweisungen_vor_jeder_arbeit(client, lage, aendern, status, code):
     aendern(lage)

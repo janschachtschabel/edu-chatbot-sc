@@ -195,11 +195,28 @@ def test_agent_ausgelastet_ohne_aufruf_behaelt_die_freigabe():
 
 def test_gesamt_upload_quittung_sagt_was_nicht_geht(monkeypatch):
     """Gesamt-Review U3/M1/U4/U5, Befund 5: die KI erfährt, was im Auswahlfeld nicht geht."""
+    from boerdi.domain.config_models.upload import UploadSettings
     from boerdi.ui_module import dienst_upload
 
     monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: False)
+    # Review Probe 2026-11-10, Befund 1: die Anmeldung nur nennen, wo sie hilft
+    monkeypatch.setattr(dienst_upload, "load_upload_config", lambda: UploadSettings(
+        dokument_ohne_anmeldung=False, ablage_in_wlo=True))
     satz = dienst_upload._was_geht({"dokument_im_chat": False, "ablage_in_wlo": False})
     assert "lesen lassen geht hier nicht ohne WLO-Anmeldung" in satz
     assert "Übertragen nach WLO geht hier nicht ohne WLO-Anmeldung" in satz
     assert dienst_upload._was_geht({"dokument_im_chat": True, "ablage_in_wlo": True}) == ""
+
+
+def test_upload_quittung_nennt_die_anmeldung_nicht_wo_sie_nicht_hilft(monkeypatch):
+    """Review Probe 2026-11-10, Befund 1: im Studio abgeschaltet — eine Anmeldung änderte nichts;
+    der Hinweis darauf schickte die Person in eine Schleife."""
+    from boerdi.domain.config_models.upload import UploadSettings
+    from boerdi.ui_module import dienst_upload
+
+    monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: False)
+    monkeypatch.setattr(dienst_upload, "load_upload_config", lambda: UploadSettings(
+        dokument_im_chat=False, ablage_in_wlo=False))
+    satz = dienst_upload._was_geht({"dokument_im_chat": False, "ablage_in_wlo": False})
+    assert "Anmeldung" not in satz and "abgeschaltet" in satz
 

@@ -42,6 +42,36 @@ def dokument_erlaubt() -> bool:
     return cfg.dokument_im_chat and (cfg.dokument_ohne_anmeldung or has_personal_auth())
 
 
+def nicht_gelesen_satz() -> str:
+    """Satz an die KI, wenn ein Strukturdokument markiert, aber nicht gelesen wurde (Probe
+    2026-11-10): ohne den Grund bat sie, es noch einmal zu wählen — eine Schleife, solange das
+    Lesen an der Anmeldung hing. Gerechnet im laufenden Zug, wie ``schalter()``."""
+    if not load_upload_config().dokument_im_chat:
+        return ("Das Strukturdokument wurde NICHT gelesen: Dokumente lesen ist in diesem Chat "
+                "abgeschaltet. Sag das der Person; biete das Auswahlfeld dafür nicht noch "
+                "einmal an.")
+    if not dokument_erlaubt():
+        return ("Das Strukturdokument wurde NICHT gelesen: das geht nur mit WLO-Anmeldung, und "
+                "die Person ist hier nicht (bestätigt) angemeldet. Sag ihr, dass sie sich zuerst "
+                "mit ihrem WLO-Konto anmelden muss; danach kann sie es im Auswahlfeld lesen "
+                "lassen. Bitte sie bis dahin nicht, es noch einmal auszuwählen oder zu "
+                "markieren.")
+    # Review Probe 2026-11-10, Befund 2: gerechnet mit dem Stand dieses Zugs — beim Zeigen des
+    # Moduls kann der Knopf gefehlt haben (alte Vorgabe, Anmeldung dazwischen); darum nicht
+    # behaupten, sie habe ihn übergangen.
+    return ("Das Strukturdokument wurde NICHT gelesen. Will die Person daraus einen Themenbaum, "
+            "zeige ui_upload noch einmal; dort kann sie jetzt „Themenbaum aus dem "
+            "Strukturdokument erstellen“ wählen.")
+
+
+def _ohne_grund(cfg_an: bool, anmeldung_hilft: bool) -> str:
+    """Der Grund einer Absage für die Quittung (Review Probe 2026-11-10, Befund 1): die Anmeldung
+    nur, wo sie hilft — sonst schickte die KI die Person zur Anmeldung, die nichts ändert."""
+    if not cfg_an:
+        return " (im Chat abgeschaltet)"
+    return "" if has_personal_auth() or not anmeldung_hilft else " ohne WLO-Anmeldung"
+
+
 def schalter() -> dict[str, bool]:
     return {"dokument_im_chat": dokument_erlaubt(),
             "ablage_in_wlo": load_upload_config().ablage_in_wlo and has_personal_auth()}
@@ -65,10 +95,11 @@ def _was_geht(schalter: dict[str, bool]) -> str:
     """Gesamt-Review U3/U4/U5, Befund 5: die KI erfährt, was im Auswahlfeld geht — sonst
     verspräche sie anonym, einen Lehrplan zu lesen oder nach WLO zu übertragen."""
     saetze = []
+    cfg = load_upload_config()
     if not schalter.get("dokument_im_chat"):
         saetze.append("Ein Dokument (z. B. einen Lehrplan) lesen lassen geht hier nicht"
-                      + ("" if has_personal_auth() else " ohne WLO-Anmeldung"))
+                      + _ohne_grund(cfg.dokument_im_chat, not cfg.dokument_ohne_anmeldung))
     if not schalter.get("ablage_in_wlo"):
         saetze.append("Übertragen nach WLO geht hier nicht"
-                      + ("" if has_personal_auth() else " ohne WLO-Anmeldung"))
+                      + _ohne_grund(cfg.ablage_in_wlo, True))
     return (" " + "; ".join(saetze) + " — sag das, wenn es danach fragt.") if saetze else ""
