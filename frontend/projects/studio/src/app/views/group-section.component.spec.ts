@@ -353,6 +353,31 @@ describe("GroupSectionComponent", () => {
     );
   });
 
+  it("holt nach einem abgewiesenen Speichern die Meldung ins Bild (Rückmeldung 11.11.)", async () => {
+    // Die Meldung stand unter den Knöpfen, außer Sicht — der Stand blieb still ungespeichert.
+    const { el, http, fixture } = await mount();
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
+    await fixture.whenStable();
+    answerDoc(http, "03-patterns/m01-orientierung", { frontmatter: {}, body: "alt" });
+    await tick();
+    await fixture.whenStable();
+
+    fixture.componentInstance.editor.setDoc({ frontmatter: {}, body: "neu" });
+    await fixture.whenStable();
+    el.querySelector<HTMLButtonElement>(".gs-save")?.click();
+    await fixture.whenStable();
+    http.expectOne("/studio/api/config/data/03-patterns/m01-orientierung").flush(
+      { detail: "Ablauf nicht ausführbar: Schritt metadaten: Flow nicht freigeschaltet" },
+      { status: 400, statusText: "Bad Request" });
+    await tick();
+    await fixture.whenStable();
+
+    const fehler = el.querySelector<HTMLElement>(".cs-state--error[role=alert]");
+    expect(fehler?.textContent).toContain("nicht freigeschaltet");
+    expect(document.activeElement).toBe(fehler);
+    expect(fixture.componentInstance.editor.verwerfbar()).toBe(true);   // der Entwurf bleibt
+  });
+
   it("fragt beim gesperrten Wechsel an der Liste und wechselt nach „Verwerfen“ (Rückmeldung 11.11.)", async () => {
     // Nach einem abgewiesenen Speichern stand der Hinweis nur unter dem Formular — die Liste
     // reagierte scheinbar nicht mehr.
@@ -370,6 +395,8 @@ describe("GroupSectionComponent", () => {
     expect(frage?.textContent).toContain("speichern oder verwerfen");
     const knoepfe = [...(frage?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
     expect(knoepfe.map((k) => k.textContent?.trim())).toEqual(["Verwerfen und wechseln", "Hier bleiben"]);
+    // Rückmeldung 11.11. (2): bei gescrollter Liste stand sie außer Sicht — der Fokus holt sie her
+    expect(document.activeElement).toBe(knoepfe[0]);
 
     knoepfe[0].click();
     await fixture.whenStable();
