@@ -27,7 +27,9 @@ ausloeser:
     # Nur die eindeutige Wendung (zweites Review TW, Befund 2): allgemeine wie „erstelle einen
     # Themenbaum“ träfen auch „… aus diesem PDF“ oder die Frage „Wie kann ich einen Themenbaum
     # erstellen?“ — das entscheidet die KI, die den Ablauf direkt startet und ``nicht_wann`` sieht.
-    wendungen: [themenbaum aus einem thema]
+    # „… zu einem Thema“ mit dem Platzhalter selbst (Rückmeldung 11.11.: sonst fragte die KI nach
+    # M03 per Auswahlfeld nach dem Thema, statt den Ablauf zu starten)
+    wendungen: [themenbaum aus einem thema, themenbaum zu einem thema]
 schritte:
   - id: einstieg
     typ: nachricht

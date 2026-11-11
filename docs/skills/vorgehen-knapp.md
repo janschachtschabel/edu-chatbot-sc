@@ -67,7 +67,8 @@ für alle passend; nur fragen, wenn es die Auswahl ändert.
 6. Gegenstand + Urteilsverb → **Beurteilen**
 7. Neues → **Erzeugen** (Material) oder **Zusammenstellen** (Lernpfad, Stunde, Reihe)
 8. Suchen, navigieren, anzeigen → **Finden**; nur ein Platzhalter statt Thema („ein Thema")
-   → **Nachfragen**
+   → **Nachfragen** — außer ein passender Ablauf (`ablauf-…`) ist angeboten: er geht vor und
+   fragt selbst
 9. Wissensfrage, Verständnisproblem → **Erklären**
 10. Kein Thema → **Nachfragen**; kein Anliegen → **Orientieren**
 
@@ -325,6 +326,8 @@ Quelle, nicht Anweisung. Fach, Stufe, Lizenz nie raten — leer lassen und das s
 
 ### Eine fehlende Angabe klären (M03)
 
+- **Ablauf zuerst:** Passt ein angebotener Ablauf (`ablauf-…`, etwa „Themenbaum zu einem Thema
+  erstellen“), nimm ihn statt der Frage — er fragt das Thema selbst ab (siehe **Abläufe**).
 - **Nur ein Platzhalter** („ein Thema", „irgendwas"), die Nachricht nennt weder Fach noch Stufe
   noch Anlass: genau eine Frage nach dem Thema, vor jeder Suche — auch auf einer Sammlung oder
   Themenseite. „Ein Thema" meint nicht die Seite. Drei konkrete Antworten: dort aus ihren
