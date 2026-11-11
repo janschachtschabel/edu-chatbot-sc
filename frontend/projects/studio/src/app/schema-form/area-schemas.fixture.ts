@@ -167,6 +167,39 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": 5,
             "title": "Zuege",
             "type": "integer"
+          },
+          "vorgaben": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 2000,
+                  "type": "string",
+                  "x-widget": "textarea"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Vorgaben"
+          },
+          "startknopf": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Startknopf"
           }
         },
         "title": "AgentSchritt",
@@ -485,6 +518,24 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               "feld": "typ",
               "werte": [
                 "auftrag"
+              ]
+            }
+          },
+          "ausstieg": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ausstieg",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "ende"
               ]
             }
           },

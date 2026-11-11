@@ -699,6 +699,37 @@
             ],
             "title": "Hinweis"
           },
+          "startknopf": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startknopf"
+          },
+          "vorgaben": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 2000,
+                  "type": "string",
+                  "x-widget": "textarea"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vorgaben"
+          },
           "werkzeuge": {
             "default": [],
             "items": {
@@ -3047,6 +3078,23 @@
               "werte": [
                 "auftrag",
                 "werkzeug"
+              ]
+            }
+          },
+          "ausstieg": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ausstieg",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "ende"
               ]
             }
           },

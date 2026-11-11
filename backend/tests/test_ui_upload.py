@@ -197,7 +197,8 @@ def test_bei_ordner_als_entwurf_liest_die_sicherheitspruefung_jeden_entwurfspunk
 
 
 # ── Probe 2026-11-10 (Lehrplan-PDF → Themenbaum): markiert, aber nicht gelesen ──
-# Ohne Anmeldung zeigt das Modul nur „Befund senden“. Der Rahmen nannte bloß den Namen des
+# Ohne Anmeldung zeigt das Modul nur „Senden“ (bis TW-5 „Befund senden“). Der Rahmen nannte bloß
+# den Namen des
 # Strukturdokuments; die KI bat darauf, das PDF „noch einmal auszuwählen und zu markieren“ —
 # eine Schleife, weil das Lesen an der Anmeldung hing und sie das nicht wusste.
 
