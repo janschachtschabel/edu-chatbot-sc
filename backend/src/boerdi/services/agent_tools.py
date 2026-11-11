@@ -229,6 +229,8 @@ def build_agent_tools(
     """
     tools = _mcp_werkzeuge(allow_curation=allow_curation, blocked_tools=blocked_tools,
                            tool_mode=tool_mode)
+    # Plan 2026-11-11, TW-3: Abläufe vor den Modulen — ein passender Ablauf geht vor
+    tools.extend(ablauf_tools or [])
     if wissen_tool:
         tools.append(wissen_tool)
     if include_dokument:
@@ -244,5 +246,4 @@ def build_agent_tools(
         tools.append(ergebnis_werkzeug(result_schema))
     if antwort_tool:
         tools.append(antwort_tool)
-    tools.extend(ablauf_tools or [])
     return tools

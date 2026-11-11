@@ -45,7 +45,7 @@ DIREKT_KEY: Final = "_ablauf_direkt"
 MAX_JE_ZUG: Final = 1
 #: A5-7: die Schemas reisen in jedem Agent-Zug mit (Kosten, Cache).
 MAX_WERKZEUGE: Final = 6
-_BESCHREIBUNG_ZEICHEN: Final = 600
+_BESCHREIBUNG_ZEICHEN: Final = 800
 #: A5-7: so lang dürfen die Daten im Knopf werden (als JSON) — sonst kein Knopf.
 MAX_DATEN_ZEICHEN: Final = 2000
 _MAX_SCHNELLANTWORTEN: Final = 4
@@ -74,14 +74,18 @@ def _titel(ablauf: Any, lang: str) -> str:
             or ablauf.id)
 
 
-_SCHLUSS: Final = (". Das Werkzeug startet nichts: unter deiner Antwort erscheint ein Knopf, und "
-                   "die Person entscheidet. Höchstens ein Ablauf je Antwort. Mit Angaben: rufe "
-                   "das Werkzeug allein auf und antworte erst nach der Quittung.")
+#: Plan 2026-11-11, TW-3 (Nutzer N16): ein passender Ablauf geht einzelnen Modulen und
+#: Werkzeugen vor — er stellt die Fragen, die ein gutes Ergebnis braucht.
+_VORRANG: Final = (". Passt er, geht er einzelnen Modulen und Werkzeugen vor; ohne ihn nur auf "
+                   "Wunsch der Person")
+_SCHLUSS: Final = (_VORRANG + ". Das Werkzeug startet nichts: unter deiner Antwort erscheint ein "
+                   "Knopf, und die Person entscheidet. Höchstens ein Ablauf je Antwort. Mit "
+                   "Angaben: rufe das Werkzeug allein auf und antworte erst nach der Quittung.")
 #: Review TB-E3, Befund 1: ein direkter Ablauf startet von selbst — die Beschreibung sagt es, sonst
 #: kündigte das Modell einen Knopf an, und der Ablauf liefe ohne Klick.
-_SCHLUSS_DIREKT: Final = (". Der Ablauf startet gleich nach deiner Antwort von selbst. Höchstens "
-                          "ein Ablauf je Antwort. Rufe das Werkzeug allein auf und sag erst nach "
-                          "der Quittung in einem Satz, was jetzt passiert.")
+_SCHLUSS_DIREKT: Final = (_VORRANG + ". Der Ablauf startet gleich nach deiner Antwort von "
+                          "selbst. Höchstens ein Ablauf je Antwort. Rufe das Werkzeug allein auf "
+                          "und sag erst nach der Quittung in einem Satz, was jetzt passiert.")
 
 
 def _beschreibung(a: Any, lang: str) -> str:
@@ -93,11 +97,21 @@ def _beschreibung(a: Any, lang: str) -> str:
             else f"Schlage der Person den festen Ablauf „{_titel(a, lang)}“ vor")
     schluss = _SCHLUSS_DIREKT if direkt else _SCHLUSS
     rest = max(0, _BESCHREIBUNG_ZEICHEN - len(kopf) - len(schluss))
+    listen = [(m, liste) for m, liste in (("passt, wenn: ", a.wann),
+                                          ("nicht, wenn: ", a.nicht_wann)) if liste]
     teile = [kopf]
-    for marke, liste in (("passt, wenn: ", a.wann), ("nicht, wenn: ", a.nicht_wann)):
-        if liste:
-            teile.append((marke + "; ".join(liste))[:max(0, rest // 2 - 3)])
+    for marke, liste in listen:
+        # Review TW-3, Befund 1: ohne ``nicht_wann`` bekommt ``wann`` den ganzen Rest
+        teile.append(_gekuerzt(marke + "; ".join(liste), max(0, rest // len(listen) - 3)))
     return " — ".join(teile) + schluss
+
+
+def _gekuerzt(text: str, hoechstens: int) -> str:
+    """An der Wortgrenze kürzen, mit „…“ — ein halbes Wort („ohne ei“) führte das Modell irre."""
+    if len(text) <= hoechstens:
+        return text
+    stueck = text[:max(0, hoechstens - 1)]
+    return (stueck.rsplit(" ", 1)[0] if " " in stueck else stueck) + "…"
 
 
 def _schreibt(ablauf: Any) -> bool:
@@ -112,7 +126,7 @@ def _direkt(ablauf: Any) -> bool:
 
 
 def werkzeuge(lang: str, nur: Collection[str] | None = None,
-              tool_mode: str | None = None) -> list[dict[str, Any]]:
+              tool_mode: str | None = None, ohne: str | None = None) -> list[dict[str, Any]]:
     """Je vorschlagbarem Ablauf ein Werkzeug, höchstens :data:`MAX_WERKZEUGE`.
 
     - ``nur``: nur diese Namen (``tools:`` eines Musters) — gefiltert **vor** der Kürzung, sonst
@@ -124,8 +138,10 @@ def werkzeuge(lang: str, nur: Collection[str] | None = None,
     # (zweites Review AS-5, Befund 1).
     modus = (tool_mode or "").strip().lower()
     voll = modus not in MODI or modus == VOLL
+    # ``ohne`` (Review TW-4, Befund 2): der Ablauf, aus dem die Person eben ausgestiegen ist
     passend = [a for a in ausloeser.vorschlaege()
-               if (nur is None or PRAEFIX + a.id in nur) and (voll or not _schreibt(a))]
+               if (nur is None or PRAEFIX + a.id in nur) and (voll or not _schreibt(a))
+               and a.id != ohne]
     return [{"type": "function", "function": {
         "name": PRAEFIX + a.id, "description": _beschreibung(a, lang),
         "parameters": startdaten.werkzeug_schema(a, lang)}}
