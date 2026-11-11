@@ -332,7 +332,7 @@ describe("GroupSectionComponent", () => {
     fixture.componentInstance.editor.setDoc({ frontmatter: {}, body: "neu" });
     el.querySelectorAll<HTMLButtonElement>(".ol-entry")[1].click(); // refused
     await fixture.whenStable();
-    expect(fixture.componentInstance.notice()).not.toBe("");
+    expect(fixture.componentInstance.wechselZu()).not.toBeNull();
 
     el.querySelector<HTMLButtonElement>(".gs-save")?.click();
     await fixture.whenStable();
@@ -347,9 +347,39 @@ describe("GroupSectionComponent", () => {
     await fixture.whenStable();
 
     expect(fixture.componentInstance.notice()).toBe("");
+    expect(fixture.componentInstance.wechselZu()).toBeNull();
     expect(el.querySelector(".cs-status")?.textContent?.trim()).toBe(
       "Gespeichert.",
     );
+  });
+
+  it("fragt beim gesperrten Wechsel an der Liste und wechselt nach „Verwerfen“ (Rückmeldung 11.11.)", async () => {
+    // Nach einem abgewiesenen Speichern stand der Hinweis nur unter dem Formular — die Liste
+    // reagierte scheinbar nicht mehr.
+    const { el, http, fixture } = await mount();
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
+    await fixture.whenStable();
+    answerDoc(http, "03-patterns/m01-orientierung", { frontmatter: {}, body: "alt" });
+    await tick();
+    await fixture.whenStable();
+
+    fixture.componentInstance.editor.setDoc({ frontmatter: {}, body: "neu" });
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[1].click();
+    await fixture.whenStable();
+    const frage = el.querySelector<HTMLElement>(".gs-list [role=alert]");
+    expect(frage?.textContent).toContain("speichern oder verwerfen");
+    const knoepfe = [...(frage?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
+    expect(knoepfe.map((k) => k.textContent?.trim())).toEqual(["Verwerfen und wechseln", "Hier bleiben"]);
+
+    knoepfe[0].click();
+    await fixture.whenStable();
+    settleChoices(http);
+    answerDoc(http, "03-patterns/m02-suche", { frontmatter: {}, body: "zwei" });
+    await tick();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.selected()).toBe("03-patterns/m02-suche");
+    expect(fixture.componentInstance.editor.verwerfbar()).toBe(false);
+    expect(el.querySelector(".gs-list [role=alert]")).toBeNull();
   });
 
   it("refuses a name that would overwrite an existing document", async () => {

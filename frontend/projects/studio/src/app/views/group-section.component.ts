@@ -205,9 +205,13 @@ export class GroupSectionComponent {
     const key = String(id);
     if (key === this.selected() || this.beschaeftigt()) return;
     if (this.editor.verwerfbar()) {
-      this.notice.set(this.t('groupSection.switchBlocked'));
+      // Rückmeldung 11.11.: der Hinweis stand nur unter dem langen Formular — wer in der Liste
+      // klickte, sah nichts und kam nicht weiter (etwa nach einem abgewiesenen Speichern). Jetzt
+      // fragt die Liste selbst und bietet „Verwerfen und wechseln“.
+      this.wechselZu.set(key);
       return;
     }
+    this.wechselZu.set(null);
     this.notice.set('');
     this.rueckfrage.schliessen();
     this.selected.set(key);
@@ -215,11 +219,23 @@ export class GroupSectionComponent {
     this.rag.laden();
   }
 
+  /** Der Eintrag, zu dem die Person wechseln wollte, während ungespeicherte Arbeit offen war. */
+  readonly wechselZu = signal<string | null>(null);
+
+  /** Die offene Arbeit verwerfen und zum gewünschten Eintrag wechseln. */
+  verwerfenUndWechseln(): void {
+    const ziel = this.wechselZu();
+    if (ziel === null) return;
+    this.editor.discard();
+    this.select(ziel);
+  }
+
   /** `force`: „Trotzdem speichern" after a conflict (Paket 4, D5). */
   save(force = false): void {
     // A refusal notice outlives what it referred to unless it is cleared here;
     // the live region would keep announcing "please save first" after saving.
     this.notice.set('');
+    this.wechselZu.set(null);
     // `vomServer` (Review U1-f, #3): die Anrede (`ohneFelder`) pflegt eine andere Seite.
     void this.editor.save(this.selected(), { force, vomServer: this.section().ohneFelder }).then((saved) => {
       if (!saved) return;
