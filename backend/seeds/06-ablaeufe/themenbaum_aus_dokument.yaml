@@ -1,0 +1,158 @@
+# Ablauf „Themenbaum · aus einem Dokument“ (Plan docs/plans/2026-11-11-themenbaum-ausloesen-und-wissen.md,
+# TW-4, Entscheid E6). Die Person lässt ein Dokument lesen (etwa einen Lehrplan) — im Auswahlfeld
+# mit „Themenbaum aus dem Strukturdokument erstellen“ (aktion dokument → Teil document). Der
+# Modul-Auslöser fängt genau diese Antwort und führt durch die Fragen, bevor die KI den Entwurf mit
+# aus_dokument erzeugt. Danach endet der Ablauf — Sammlungen daraus anzulegen, kommt später.
+#
+# - Zuerst die Wahl, den Ablauf zu nutzen (N16); ohne ihn arbeitet die KI frei weiter.
+# - Die Vorgaben am KI-Schritt tragen das Wissen aus dem Gestaltungsleitfaden zu Lehrplänen
+#   (Lernfelder, Themenfelder, was kein Punkt ist) an den Generator (TW-2).
+id: themenbaum_aus_dokument
+titel: {de: "Themenbaum · aus einem Dokument", en: "Topic tree · from a document"}
+beschreibung: >-
+  Ein Dokument wie ein Lehrplan wird gelesen; zwei kurze Fragen (Ordnung, wofür), dann ein
+  bearbeitbarer Themenbaum-Entwurf nach den Lernfeldern oder Themenfeldern des Dokuments.
+wann:
+  - Die Person will einen Themenbaum aus einem Dokument, etwa einem Lehrplan oder Rahmenlehrplan
+nicht_wann:
+  - Die Person will einen Themenbaum nur aus einem Thema, ohne Dokument
+aktiv: false
+ausloeser:
+  - {art: knopf}
+  - {art: agent}
+  - {art: modul, modul: ui_upload, wenn_teil: document}
+  - art: text
+    # Höchstens 10 Wendungen (Prüfung): Weiteres („Kernlehrplan“, „… zu meinem Lehrplan“, das auch
+    # Fragen nach einem vorhandenen Baum träfe) entscheidet die KI über ``wann``/``nicht_wann``
+    wendungen: [themenbaum aus einem lehrplan, themenbaum aus dem lehrplan,
+                themenbaum aus meinem lehrplan, aus meinem lehrplan einen themenbaum,
+                themenbaum aus dem dokument, themenbaum aus dem rahmenlehrplan,
+                themenbaum aus dem bildungsplan, themenbaum aus dem kerncurriculum,
+                themenbaum aus diesem pdf, themenbaum aus einem dokument]
+schritte:
+  - id: hochladen
+    typ: modul
+    modul: ui_upload
+    # Den Ausstieg bietet hier die Ablauf-Leiste („Abbrechen“); die Frage danach erst nach dem
+    # Lesen — der Modul-Auslöser beginnt dort (Review TW-4, Befund 3: bewusst so).
+    text: {de: "Wähle das Dokument (etwa einen Lehrplan), markiere es falls nötig als Strukturdokument und klick auf „Themenbaum aus dem Strukturdokument erstellen“.",
+           en: "Choose the document (such as a curriculum), mark it as structure document if needed and click “Create topic tree from the structure document”."}
+    daten: {zweck: sammlungsstruktur}
+  # Der Modul-Auslöser beginnt hier — nach der Antwort des Auswahlfelds.
+  - id: gelesen
+    typ: verzweigung
+    weiter:
+      - {wenn_teil: document, dann: einstieg}
+      - {sonst: ohne_dokument}
+  - id: einstieg
+    typ: nachricht
+    text: {de: "Ich habe dein Dokument gelesen. Mit zwei kurzen Fragen wird der Themenbaum passender – oder soll ich gleich entwerfen?",
+           en: "I've read your document. Two short questions make the topic tree fit better – or shall I draft it right away?"}
+    optionen:
+      - {id: fragen, label: {de: "Ja, mit Fragen", en: "Yes, with questions"}, ziel: ordnung}
+      - {id: gleich, label: {de: "Gleich entwerfen", en: "Draft right away"}, ziel: entwurf}
+      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
+  - id: ordnung
+    typ: nachricht
+    text: {de: "Wonach soll die erste Ebene geordnet sein?", en: "What should the first level be ordered by?"}
+    schreibt: ordnung
+    optionen:
+      - {id: lernfelder, label: {de: Lernfelder (Berufsschule), en: Learning fields (vocational)}, ziel: wofuer}
+      - {id: themenfelder, label: {de: Themenfelder, en: Topic fields}, ziel: wofuer}
+      - {id: kapitel, label: {de: Wie im Dokument, en: As in the document}, ziel: wofuer}
+  - id: wofuer
+    typ: nachricht
+    text: {de: "Wofür soll der Themenbaum sein?", en: "What is the topic tree for?"}
+    schreibt: zweck
+    optionen:
+      - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: entwurf}
+      - {id: materialpool, label: {de: Materialpool aufbauen, en: Build a material pool}, ziel: entwurf}
+      - {id: redaktion, label: {de: Redaktionelle Sammlung, en: Editorial collection}, ziel: entwurf}
+  - id: entwurf
+    typ: agent
+    text: {de: "Danke! Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder klick auf „Entwurf erstellen“.",
+           en: "Thanks! Any focus areas that must not be missing? Tell me – or click “Create draft”."}
+    agent:
+      werkzeuge: [ui_strukturentwurf]
+      hinweis:
+        de: "Rufe ui_strukturentwurf mit aus_dokument: true auf, thema = Titel des Dokuments; Ordnung, Zweck und Wünsche als hinweise."
+        en: "Call ui_strukturentwurf with aus_dokument: true, thema = the document's title; order, purpose and wishes as hinweise."
+      startknopf: {de: Entwurf erstellen, en: Create draft}
+      vorgaben:
+        de: |-
+          Das Dokument ist meist ein Lehrplan. So wird er ein Themenbaum:
+          - Ebene 1: die Ordnung aus den Hinweisen. „Lernfelder“: je Lernfeld ein Punkt (Berufsschule; die Handlung ist das Ordnungsprinzip). „Themenfelder“: je Themenfeld oder Inhaltsbereich ein Punkt. „Wie im Dokument“: die fachlichen Kapitel. Reihenfolge wie im Dokument, Titel kurz nach dem Thema, ohne Nummern wie „LF 3“ oder „TF 2“.
+          - Ebene 2: Themen des Abschnitts — Fachbegriffe und Inhalte, in der Berufsschule die Inhalte bzw. Handlungsschritte des Lernfelds; Lernsituationen nur, wenn das Dokument sie nennt.
+          - Nach dem Zweck: „Unterricht planen“ übernimmt die Reihenfolge des Dokuments als Unterrichtsfolge, „Materialpool“ sachliche Titel, „Redaktionelle Sammlung“ publikumsnahe Titel.
+          - Keine Punkte: Kompetenzerwartungen, Kompetenzbereiche, Basiskonzepte, Kontexte und Anwendungsbeispiele, Differenzierung, Leistungsbewertung, didaktische Hinweise, Stundentafeln, Zeitrichtwerte, Vorwort, Leitgedanken.
+          - Ohne Fragen: wähle selbst die tragende Ordnung des Dokuments (Lernfelder vor Themenfeldern vor Kapiteln).
+        en: |-
+          The document is usually a curriculum. This is how it becomes a topic tree:
+          - Level 1: the order given in the hints. "Learning fields": one item per learning field (vocational school; the occupational task is the ordering principle). "Topic fields": one item per topic field or content area. "As in the document": the subject chapters. Keep the document's order, short topic titles, no numbers like "LF 3" or "TF 2".
+          - Level 2: the topics of the section — subject terms and content, in vocational school the content or task steps of the learning field; learning situations only if the document names them.
+          - By purpose: "Plan lessons" keeps the document's order as teaching sequence, "Material pool" uses factual titles, "Editorial collection" audience-friendly titles.
+          - Not items: expected competences, competence areas, basic concepts, contexts and application examples, differentiation, assessment, didactic notes, timetables, time guidelines, preface, guiding principles.
+          - Without questions: choose the document's main order yourself (learning fields before topic fields before chapters).
+      ausgabe: draft
+      zuege: 3
+    bei_fehler: ohne_entwurf
+  - id: ende
+    typ: ende
+    text: {de: "Dein Themenbaum-Entwurf ist gespeichert. Du kannst ihn herunterladen oder später weiter bearbeiten.",
+           en: "Your topic tree draft is saved. You can download it or keep editing it later."}
+  - id: frei
+    typ: ende
+    ausstieg: true
+    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei mit deinem Dokument weiter.",
+           en: "Alright, without the workflow – let's carry on freely with your document."}
+  # Review TW-4, Befund 4: ohne gelesenes Dokument ein neuer Versuch statt eines harten Endes
+  - id: ohne_dokument
+    typ: nachricht
+    text: {de: "Es ist kein Dokument gelesen worden. Wähle es noch einmal und klick auf „Themenbaum aus dem Strukturdokument erstellen“ – oder beende den Ablauf.",
+           en: "No document has been read. Choose it again and click “Create topic tree from the structure document” – or end the workflow."}
+    optionen:
+      - {id: nochmal, label: {de: Nochmal wählen, en: Choose again}, ziel: hochladen}
+      - {id: beenden, label: {de: Beenden, en: End}, ziel: beendet}
+  - id: beendet
+    typ: ende
+    text: {de: "Gut, ich höre hier auf.", en: "Alright, I'll stop here."}
+  - id: ohne_entwurf
+    typ: ende
+    text: {de: "Diesmal ist kein Entwurf entstanden. Versuch es gern noch einmal.",
+           en: "No draft came out this time. Feel free to try again."}
+tests:
+  - name: Vom Auswahlfeld bis zum Entwurf
+    ab: gelesen
+    teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf}}
+    eingaben:
+      - {bei: einstieg, option: fragen}
+      - {bei: ordnung, option: lernfelder}
+      - {bei: wofuer, option: materialpool}
+      - bei: entwurf
+        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+    erwartet: {weg: [gelesen, einstieg, ordnung, wofuer, entwurf, ende], status: fertig,
+               teile: [ordnung, zweck, draft]}
+  - name: Ohne Ablauf
+    ab: gelesen
+    teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf}}
+    eingaben:
+      - {bei: einstieg, option: ohne}
+    erwartet: {weg: [gelesen, einstieg, frei], status: fertig}
+  - name: Gleich entwerfen, ohne Entwurf
+    ab: gelesen
+    teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf}}
+    eingaben:
+      - {bei: einstieg, option: gleich}
+      - {bei: entwurf}
+    erwartet: {weg: [gelesen, einstieg, entwurf, ohne_entwurf], status: fertig}
+  - name: Nur erfasst, kein Dokument
+    eingaben:
+      - bei: hochladen
+        antwort:
+          aktion: erfasst
+          struktur: {name: Unterlagen, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+      - {bei: ohne_dokument, option: beenden}
+    erwartet: {weg: [hochladen, gelesen, ohne_dokument, beendet], status: fertig}

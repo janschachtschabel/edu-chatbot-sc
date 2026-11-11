@@ -18,17 +18,29 @@ beschreibung: >-
   entsteht ein bearbeitbarer Themenbaum-Entwurf im Chat.
 wann:
   - Die Person will aus ihren eigenen Dateien oder Materialien einen Themenbaum bauen
+nicht_wann:
+  - Die Person will den Baum aus einem einzelnen Dokument wie einem Lehrplan
 aktiv: false
 voraussetzungen: [anmeldung]
 ausloeser:
   - {art: knopf}
   - {art: agent}
-  - {art: text, wendungen: [themenbaum aus meinen inhalten, themenbaum aus meinen dateien]}
+  - art: text
+    wendungen: [themenbaum aus meinen inhalten, themenbaum aus meinen dateien,
+                aus meinen dateien einen themenbaum, aus meinen inhalten einen themenbaum,
+                themenbaum aus meinen materialien, themenbaum aus meinen unterlagen]
 schritte:
+  # TW-4 (N16): zuerst die Wahl, den Ablauf zu nutzen — ohne ihn geht es frei weiter.
+  - id: einstieg
+    typ: nachricht
+    text: {de: "Gern baue ich aus deinen Inhalten einen Themenbaum. Ich führe dich in wenigen Schritten durch: Fragen, Upload, Metadaten, Entwurf. Einverstanden?",
+           en: "I'll gladly build a topic tree from your content. I'll guide you in a few steps: questions, upload, metadata, draft. All right?"}
+    optionen:
+      - {id: fragen, label: {de: "Ja, los geht's", en: "Yes, let's go"}, ziel: wofuer}
+      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
   - id: wofuer
     typ: nachricht
-    text: {de: "Gern baue ich aus deinen Inhalten einen Themenbaum. Wofür soll er sein?",
-           en: "I'll gladly build a topic tree from your content. What is it for?"}
+    text: {de: "Wofür soll der Themenbaum sein?", en: "What is the topic tree for?"}
     schreibt: zweck
     optionen:
       - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: stufe}
@@ -61,6 +73,8 @@ schritte:
     typ: verzweigung
     weiter:
       - {wenn_teil: ablage, dann: metadaten_frage}
+      # Review TW-4, Befund 9: ein gelesenes Dokument gehört zum Dokument-Ablauf
+      - {wenn_teil: document, dann: nach_dokument}
       - {sonst: ohne_ablage}
   # Die Rückfrage vor dem schreibenden Flow (Prüfung auftrag_rueckfrage, TB-F1).
   - id: metadaten_frage
@@ -104,14 +118,26 @@ schritte:
     bei_fehler: ohne_metadaten
   - id: entwurf
     typ: agent
-    # Ein KI-Schritt antwortet auf den nächsten getippten Zug (Paket A2b).
-    text: {de: "Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder einfach „Los“.",
-           en: "Any focus areas that must not be missing? Tell me – or just say “Go”."}
+    # Ein KI-Schritt antwortet auf die nächste Nachricht (A2b): der Startknopf schickt sie.
+    text: {de: "Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder klick auf „Entwurf erstellen“.",
+           en: "Any focus areas that must not be missing? Tell me – or click “Create draft”."}
     agent:
       werkzeuge: [ui_strukturentwurf]
       hinweis:
         de: "Rufe ui_strukturentwurf mit aus_inhalten: true, Thema, Fach, Stufe aus den Antworten auf; Zweck und Wünsche als hinweise. Ordner, Klassen, Formate, Jahre sind keine Punkte."
         en: "Call ui_strukturentwurf with aus_inhalten: true, topic, subject, level from the answers; purpose and wishes as hinweise. Folders, grades, formats, years are not topics."
+      startknopf: {de: Entwurf erstellen, en: Create draft}
+      vorgaben:
+        de: |-
+          Der Baum entsteht von unten aus den Materialien der Person (ihre Titel, Beschreibungen und Schlagworte):
+          - Ordne nach Themen, worum es in den Materialien geht. Ordnernamen, Jahre, Klassen, Arbeitsstände und Dateiformate sind Herkunft, keine Punkte.
+          - Jeder Punkt soll von mindestens zwei Materialien getragen sein; ein einzelnes Material ist kein eigener Punkt, sondern gehört zum nächsten passenden Thema.
+          - Nach dem Zweck: „Unterricht planen“ als Planungsbaum der eigenen Themen, „Materialpool“ nach der Fachsystematik, „Redaktionelle Sammlung“ mit publikumsnahen Bezeichnungen.
+        en: |-
+          The tree grows bottom-up from the person's materials (their titles, descriptions and keywords):
+          - Order by topics, i.e. what the materials are about. Folder names, years, grades, work states and file formats are provenance, not items.
+          - Each item should be backed by at least two materials; a single material is not an item of its own but belongs to the nearest fitting topic.
+          - By purpose: "Plan lessons" as a planning tree of one's own topics, "Material pool" by subject systematics, "Editorial collection" with audience-friendly labels.
       ausgabe: draft
       zuege: 3
     bei_fehler: ohne_entwurf
@@ -119,6 +145,15 @@ schritte:
     typ: ende
     text: {de: "Dein Themenbaum-Entwurf ist gespeichert. Sammlungen daraus anzulegen, kommt in einem späteren Schritt.",
            en: "Your topic tree draft is saved. Creating collections from it will come in a later step."}
+  - id: frei
+    typ: ende
+    ausstieg: true
+    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei weiter.",
+           en: "Alright, without the workflow – let's carry on freely."}
+  - id: nach_dokument
+    typ: ende
+    text: {de: "Du hast ein Dokument lesen lassen. Für einen Themenbaum daraus starte „Themenbaum · aus einem Dokument“ und wähle das Dokument dort noch einmal.",
+           en: "You had a document read. For a topic tree from it, start “Topic tree · from a document” and choose the document there again."}
   - id: ohne_ablage
     typ: ende
     text: {de: "Ohne Dateien in WLO kann ich keinen Themenbaum aus deinen Inhalten bauen. Probier sonst „Themenbaum · aus einem Thema“.",
@@ -150,6 +185,7 @@ tests:
                          titel: Linsen, beschreibung: "", schlagworte: [], faecher: [],
                          stufen: [], arten: []}]}
     eingaben:
+      - {bei: einstieg, option: fragen}
       - {bei: wofuer, option: unterricht}
       - {bei: stufe, option: sek1}
       - {bei: thema, text: "Physik: Optik"}
@@ -167,7 +203,7 @@ tests:
       - bei: entwurf
         teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
     erwartet:
-      weg: [wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten, zum_lesen,
+      weg: [einstieg, wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten, zum_lesen,
             lesen, entwurf, ende]
       status: fertig
   - name: Flow scheitert, vorhandene Angaben
@@ -180,6 +216,7 @@ tests:
                          titel: Linsen.pdf, beschreibung: "", schlagworte: [], faecher: [],
                          stufen: [], arten: []}]}
     eingaben:
+      - {bei: einstieg, option: fragen}
       - {bei: wofuer, option: materialpool}
       - {bei: stufe, option: sek2}
       - {bei: thema, text: "Physik: Optik"}
@@ -195,7 +232,7 @@ tests:
       - {bei: metadaten_frage, option: ja}
       - {bei: metadaten, fehler: true}
     erwartet:
-      weg: [wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten,
+      weg: [einstieg, wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten,
             metadaten_fehlt, lesen, entwurf]
       status: wartet_ki
   - name: Ohne Metadaten-Flow
@@ -204,6 +241,7 @@ tests:
                node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
     werkzeuge: {lesen: null}
     eingaben:
+      - {bei: einstieg, option: fragen}
       - {bei: wofuer, option: redaktion}
       - {bei: stufe, option: grundschule}
       - {bei: thema, text: "Sachunterricht: Wasser"}
@@ -218,10 +256,11 @@ tests:
                    ordner_verweigert: false, vorgang_abgelegt: false}
       - {bei: metadaten_frage, option: nein}
     erwartet:
-      weg: [wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, lesen, ohne_metadaten]
+      weg: [einstieg, wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, lesen, ohne_metadaten]
       status: wartet_wahl
   - name: Nur erfasst, nichts in WLO
     eingaben:
+      - {bei: einstieg, option: fragen}
       - {bei: wofuer, option: unterricht}
       - {bei: stufe, option: sek1}
       - {bei: thema, text: "Physik: Optik"}
@@ -233,7 +272,7 @@ tests:
           strukturdokument: null
           warnungen: []
     erwartet:
-      weg: [wofuer, stufe, thema, hochladen, uebertragen, ohne_ablage]
+      weg: [einstieg, wofuer, stufe, thema, hochladen, uebertragen, ohne_ablage]
       status: fertig
   # Querschnitts-Review F/T, Befund 1: eine Übertragung ohne abgelegte Datei startet keinen Flow
   # (leere Auswahl → bei_fehler) — dann bleibt nur Beenden.
@@ -243,6 +282,7 @@ tests:
                rolle: inhalt}]}
     werkzeuge: {lesen: null}
     eingaben:
+      - {bei: einstieg, option: fragen}
       - {bei: wofuer, option: unterricht}
       - {bei: stufe, option: sek1}
       - {bei: thema, text: "Physik: Optik"}
@@ -258,6 +298,10 @@ tests:
       - {bei: metadaten_frage, option: ja}
       - {bei: ohne_metadaten, option: beenden}
     erwartet:
-      weg: [wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten,
+      weg: [einstieg, wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten,
             metadaten_fehlt, lesen, ohne_metadaten, abgebrochen]
       status: fertig
+  - name: Ohne Ablauf
+    eingaben:
+      - {bei: einstieg, option: ohne}
+    erwartet: {weg: [einstieg, frei], status: fertig}
