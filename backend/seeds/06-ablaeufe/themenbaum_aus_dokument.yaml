@@ -16,7 +16,8 @@ wann:
   - Die Person will einen Themenbaum aus einem Dokument, etwa einem Lehrplan oder Rahmenlehrplan
 nicht_wann:
   - Die Person will einen Themenbaum nur aus einem Thema, ohne Dokument
-aktiv: false
+# Im Werkszustand an (Nutzer-Entscheid 11.11.): schreibt nichts ins Repositorium.
+aktiv: true
 ausloeser:
   - {art: knopf}
   - {art: agent}

@@ -346,7 +346,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     hat, hat sie damit angepasst. Der Werksabgleich lässt angepasste Bereiche stehen. Deshalb
     unter Sicherung → „Werk und eigene Fassung“ auf die Werksfassung umschalten und danach wieder
     einschalten.
-  - Alle drei Themenbaum-Abläufe sind im Seed aus.
+  - Im Seed an: „aus Ordnern“, „aus einem Thema“, „aus einem Dokument“. „Aus eigenen Inhalten“
+    bleibt aus, bis `B_API_JOBS_FLOWS` den Flow freischaltet; dann im Studio einschalten.
   - Danach den Master-Skill-Knoten nachziehen (siehe §3, TW-Eintrag).
 - **Themenbaum, Gruppen E/F/T (2026-11-10):**
   - Migration 0022 (`sessions.vorschau`, TB-E2) einspielen.

@@ -68,3 +68,40 @@ Thema“).
   Ein Wächter in `test_master_skill_vorlage` hält die Regel.
 - Den WLO-Knoten zieht der Nutzer mit der ganzen Datei nach.
 
+
+## Nachtrag 2: „Themenbaum mit Dateien“ und Werkszustand (11.11.)
+
+„Themenbaum mit Dateien“ startete den Ablauf nicht. Gründe:
+
+- Die Abläufe waren im Studio aus (Werkszustand), damit unsichtbar für Wendung und KI.
+- Keine Wendung kannte „mit … Dateien“.
+- „Aus eigenen Inhalten“ verlangt eine Anmeldung. Ohne sie wurde der Ablauf stumm übergangen.
+
+Behebung:
+
+- **Werkszustand (Nutzer-Entscheid):** Im Seed an sind „aus Ordnern“, „aus einem Thema“ und „aus
+  einem Dokument“. Sie schreiben nichts. „Aus eigenen Inhalten“ bleibt aus: eingeschaltet ohne
+  freigeschalteten Flow sperrte die Prüfung (`auftrag_frei`) den Werksabgleich.
+- **Wendungen:** „themenbaum mit meinen dateien“, „themenbaum mit dateien“, „themenbaum aus
+  dateien“.
+- **Ohne Anmeldung (Nutzer-Entscheid „Hinweis + weiterhelfen“):** Passt die Wendung zu einem
+  Ablauf, dem die Anmeldung fehlt, bekommt die KI die Zeile `[ABLAUF OHNE ANMELDUNG — …]`. Sie sagt
+  es in einem Satz und hilft ohne den Ablauf weiter, in beiden Maschinen
+  (`zug.anmelde_zeile`).
+
+## Nachtrag 3: Studio — Wechsel nach abgewiesenem Speichern (11.11.)
+
+Gemeldet: Nach „Speichern“ ließ sich nicht mehr zwischen Abläufen wechseln.
+
+- **Nachgestellt** im Browser gegen eine Wegwerf-DB:
+  - „Aus eigenen Inhalten“ einschalten und speichern: Die Prüfung weist ab, weil der Flow nicht in
+    `B_API_JOBS_FLOWS` steht. Der Stand bleibt also ungespeichert.
+  - Der Wechsel ist dann absichtlich gesperrt, damit nichts verloren geht. Der Hinweis dazu stand
+    aber unter dem langen Formular. Wer in der Liste klickte, sah ihn nicht.
+- **Behebung** (`group-section`):
+  - Der gesperrte Wechsel fragt jetzt in der Liste selbst (`role="alert"`) mit „Verwerfen und
+    wechseln“ und „Hier bleiben“.
+  - Verwerfen stellt den gespeicherten Stand her und öffnet den gewählten Eintrag.
+- **Speichern ohne Fehler:** Hier verschwindet der Vermerk „Ungespeichert“ wie bisher. Das ist im
+  Browser für „aus einem Thema“ geprüft.
+- **Test:** `group-section.component.spec`.

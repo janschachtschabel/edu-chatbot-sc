@@ -23,11 +23,17 @@ def test_die_beispiele_des_handbuchs_liegen_als_seeds_vor():
     assert {"sammlungsstruktur", "sammlung_pruefen", "fuehrung"} <= namen
 
 
+_AN = {"themenbaum_aus_thema", "themenbaum_aus_dokument", "sammlungsstruktur"}
+
+
 @pytest.mark.parametrize("datei", _BEISPIELE, ids=lambda p: p.stem)
 def test_jedes_beispiel_besteht_pruefung_und_eigene_tests(datei):
     ablauf = AblaufArea.model_validate(yaml.safe_load(datei.read_text(encoding="utf-8")))
     assert ablauf.id == datei.stem
-    assert not ablauf.aktiv                      # aus, bis die Redaktion es einschaltet
+    # Nutzer-Entscheid 11.11.: die Themenbaum-Abläufe ohne Schreiben sind im Werkszustand an, alle
+    # anderen aus, bis die Redaktion sie einschaltet — ein schreibender sperrte sonst den
+    # Werksabgleich, wo sein Flow nicht freigeschaltet ist (``auftrag_frei``)
+    assert ablauf.aktiv is (ablauf.id in _AN)
     assert pruefe(ablauf) == []
     ergebnisse = asyncio.run(simulation.alle(ablauf))
     assert all(e.ok for e in ergebnisse), [(e.name, e.abweichungen) for e in ergebnisse]

@@ -212,6 +212,19 @@ def text_ausloeser(nachricht: str | None, ohne: str | None = None) -> AblaufArea
     return ablauf if ausloeser.erfuellt(ablauf) else None
 
 
+def anmelde_zeile(nachricht: str | None, lang: str, ohne: str | None = None) -> str | None:
+    """Rückmeldung 11.11. (Nutzer-Entscheid „Hinweis + weiterhelfen“): passt eine Wendung zu einem
+    Ablauf, dessen Voraussetzung (Anmeldung) fehlt, startet er nicht (:func:`text_ausloeser`) —
+    die KI erfährt es aber und sagt es in einem Satz, statt den Ablauf stumm zu übergehen."""
+    ablauf = ausloeser.per_text(nachricht)
+    if ablauf is None or ablauf.id == ohne or ausloeser.erfuellt(ablauf):
+        return None
+    titel = (ablauf.titel.get(lang) or ablauf.titel.get("de") or ablauf.id)
+    titel = titel.replace("[", "(").replace("]", ")")[:80]
+    return (f"[ABLAUF OHNE ANMELDUNG — Zur Bitte passt der geführte Ablauf „{titel}“; er braucht "
+            "eine Anmeldung bei WLO. Sag das in einem Satz und hilf ohne ihn weiter.]")
+
+
 def modul_ausloeser(geprueft: dict[str, Any] | None, ohne: str | None = None
                     ) -> tuple[AblaufArea, int] | None:
     """Ablauf und Startschritt für eine Modul-Antwort — nur mit erfüllten Voraussetzungen (sonst

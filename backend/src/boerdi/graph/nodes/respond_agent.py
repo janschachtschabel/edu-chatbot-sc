@@ -379,6 +379,12 @@ async def respond_agent(
         _ki_zeile = ki_schritt.zeile(*_ki, sprache, zuege=_ki_zug, angeboten={
             (t.get("function") or {}).get("name") for t in _werkzeuge})
         _nutzer["content"] = f"{_ki_zeile}\n\n{_nutzer['content']}"
+    elif not ctx.req.action and not ablauf_zug.lauf_wartet(ctx.req.session_id, ctx.session_state) \
+            and (_anmelde := ablauf_zug.anmelde_zeile(
+                ctx.req.message, sprache,
+                ohne=ablauf_zug.abgelehnt(ctx.req.session_id, ctx.session_state))):
+        # Rückmeldung 11.11.: der Ablauf der Wendung braucht eine Anmeldung — sagen, weiterhelfen
+        _nutzer["content"] = f"{_anmelde}\n\n{_nutzer['content']}"
     lauf = await run_agent_loop(
         messages=messages,
         tools=_werkzeuge,

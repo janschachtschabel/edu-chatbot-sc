@@ -119,7 +119,10 @@ antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
 ## Beispiele: Themenbaum mit Kernfragen
 
 Die vier Themenbaum-Abläufe heißen im Studio einheitlich „Themenbaum · aus …“: aus Ordnern, aus
-einem Thema, aus eigenen Inhalten und aus einem Dokument. Alle sind im Werkszustand aus.
+einem Thema, aus eigenen Inhalten und aus einem Dokument. Im Werkszustand an sind „aus Ordnern“,
+„aus einem Thema“ und „aus einem Dokument“ (sie schreiben nichts); „aus eigenen Inhalten“ ist aus,
+bis der Flow freigeschaltet ist. Ohne Anmeldung startet „aus eigenen Inhalten“ nicht: passt die
+Wendung, sagt die KI das in einem Satz und hilft ohne ihn weiter.
 „Aus einem Thema“ und „aus einem Dokument“ beginnen mit der Wahl „mit Fragen / gleich entwerfen /
 ohne Ablauf“, „aus eigenen Inhalten“ mit „Ja, los geht's / ohne Ablauf“.
 „Themenbaum · aus einem Dokument“ startet auch aus dem Auswahlfeld, mit „Themenbaum aus dem

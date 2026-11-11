@@ -53,6 +53,7 @@ from boerdi.obs.zeiten import schritt
 from boerdi.services import arbeitsstand
 from boerdi.services.ablauf import ki_schritt, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
+from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.dokumente.stand import lader as dokument_lader
 from boerdi.services.engine_choice import (
@@ -462,6 +463,12 @@ async def respond(
             _kennzeile = "\n\n".join(t for t in (_kennzeile, ki_schritt.zeile(
                 *_ki, resolve_locale(req.environment.locale),
                 zuege=ki_schritt.zaehlen(_entities, *_ki), eingeengt=False)) if t)
+        elif not req.action and not ablauf_zug.lauf_wartet(req.session_id, session_state) \
+                and (_anmelde := ablauf_zug.anmelde_zeile(
+                    req.message, resolve_locale(req.environment.locale),
+                    ohne=ablauf_zug.abgelehnt(req.session_id, session_state))):
+            # Rückmeldung 11.11.: der Ablauf der Wendung braucht eine Anmeldung (wie im Agent-Weg)
+            _kennzeile = "\n\n".join(t for t in (_kennzeile, _anmelde) if t)
         progress.start("response", "LLM response generation")
         try:
             (

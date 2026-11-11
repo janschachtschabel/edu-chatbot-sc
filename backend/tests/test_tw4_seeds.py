@@ -49,6 +49,9 @@ def alle_an(monkeypatch):
     ("Mach mir einen Themenbaum aus meinen Unterlagen", "themenbaum_aus_inhalten"),
     ("Kannst du aus meinen Dateien einen Themenbaum erstellen?", "themenbaum_aus_inhalten"),
     ("Bitte einen Themenbaum aus meinen Inhalten", "themenbaum_aus_inhalten"),
+    # Rückmeldung 11.11.: „mit“ statt „aus“
+    ("Themenbaum mit Dateien erstellen", "themenbaum_aus_inhalten"),
+    ("Ich möchte einen Themenbaum mit meinen Dateien bauen", "themenbaum_aus_inhalten"),
     # zusammenhängend — „Aus meinem Lehrplan bitte einen …“ trennt die Wendung, das übernimmt
     # der KI-Weg (``nicht_wann``)
     ("Aus meinem Lehrplan einen Themenbaum erstellen", "themenbaum_aus_dokument"),
@@ -129,3 +132,19 @@ def test_review_qtw_9_der_muster_weg_laesst_den_abgelehnten_aus(alle_an, monkeyp
         "de", ohne=generate._abgelehnt(state))]
     assert "ablauf-themenbaum_aus_thema" not in namen and namen
 
+
+
+def test_rueckmeldung_ohne_anmeldung_sagt_die_ki_es_statt_still(alle_an, monkeypatch):
+    """Nutzer-Entscheid 11.11. „Hinweis + weiterhelfen“: passt die Wendung zu einem Ablauf mit
+    fehlender Anmeldung, startet er nicht — die KI bekommt eine Zeile und sagt es in einem Satz."""
+    from boerdi.services.ablauf import zug
+
+    satz = "Themenbaum mit meinen Dateien erstellen"
+    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: False)
+    assert zug.text_ausloeser(satz) is None
+    zeile = zug.anmelde_zeile(satz, "de")
+    assert zeile and zeile.startswith("[ABLAUF OHNE ANMELDUNG") and "aus eigenen Inhalten" in zeile
+    assert zug.anmelde_zeile(satz, "de", ohne="themenbaum_aus_inhalten") is None
+    assert zug.anmelde_zeile("Was ist Photosynthese?", "de") is None
+    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: True)
+    assert zug.anmelde_zeile(satz, "de") is None          # angemeldet: der Ablauf startet selbst
