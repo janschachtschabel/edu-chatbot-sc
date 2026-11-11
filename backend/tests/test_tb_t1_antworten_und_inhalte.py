@@ -159,7 +159,7 @@ def test_die_aufforderung_gruppiert_materialien():
 
     from boerdi.services import strukturentwurf_dokument
 
-    a = SimpleNamespace(thema="Optik", anzahl_oben=5, hinweise="")
+    a = SimpleNamespace(thema="Optik", anzahl_oben=5, hinweise="", vorgaben="")
     nachrichten = strukturentwurf_dokument.aufforderung_oben(
         a, {}, metadaten.als_dokument(_INHALTE))
     text = " ".join(str(n.get("content")) for n in nachrichten)

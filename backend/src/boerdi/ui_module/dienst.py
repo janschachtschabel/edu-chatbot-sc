@@ -180,7 +180,7 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
         thema=" ".join(args["thema"].split()), fach=args.get("fach"),
         bildungsstufe=args.get("bildungsstufe"), anzahl_oben=args.get("anzahl_oben", 10),
         tiefe=args.get("tiefe", 2), hinweise=str(args.get("hinweise") or ""),
-        vertiefen=tuple(args.get("vertiefen") or ()))
+        vertiefen=tuple(args.get("vertiefen") or ()), vorgaben=umgebung.vorgaben)
     t0 = time.monotonic()
     erzeugt = await dienst.erzeugen(
         auftrag, llm=dienst.llm_json(umgebung.usage_acc), frist_ende=_frist(umgebung),

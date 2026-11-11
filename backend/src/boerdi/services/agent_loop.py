@@ -273,6 +273,7 @@ async def run_agent_loop(
     modul_vorlage: dict[str, Any] | None = None,
     modul_dokument: DokumentLader | None = None,
     modul_teile: TeilLader | None = None,
+    modul_vorgaben: str = "",
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -695,7 +696,8 @@ async def run_agent_loop(
                 run.tools_called.append(name)
                 umgebung = ModulUmgebung(usage_acc=acc, frist_ende=ende, vorlage=modul_vorlage,
                                          dokument=modul_dokument, teile=modul_teile,
-                                         verfuegbar=frozenset(angeboten))
+                                         verfuegbar=frozenset(angeboten),
+                                         vorgaben=modul_vorgaben)
                 try:
                     with schritt("respond.werkzeuge"):
                         ergebnis = await innerhalb(ende, modul_asynchron(name, args, umgebung))

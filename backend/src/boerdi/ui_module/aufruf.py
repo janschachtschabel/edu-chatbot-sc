@@ -37,6 +37,9 @@ class Umgebung:
     #: Paket U5 (Review, Befund 5): die in diesem Zug angebotenen Werkzeuge — ein Dienst ruft ein
     #: MCP-Werkzeug, das er nur nebenbei nutzt, nur, wenn es darin steht (``None``: nie).
     verfuegbar: frozenset[str] | None = None
+    #: Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt eines Laufs
+    #: (``ki_schritt.vorgaben``) — ein Dienst setzt sie in seinen Systemteil.
+    vorgaben: str = ""
 
 
 async def asynchron(name: str, args: Any, umgebung: Umgebung | None = None) -> Ergebnis:

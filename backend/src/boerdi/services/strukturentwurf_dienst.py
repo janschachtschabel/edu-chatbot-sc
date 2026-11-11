@@ -90,6 +90,8 @@ class Auftrag:
     tiefe: int = 2
     hinweise: str = ""
     vertiefen: tuple[str, ...] = ()
+    #: TW-2: Vorgaben der Redaktion aus dem Ablauf (Systemteil, nie Daten der Person).
+    vorgaben: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,7 +170,9 @@ class _Lauf:
                            if self.sichtbar is None or k.get("id") in self.sichtbar]
         async with self.sperre:
             platz = min(se.HOECHSTENS_KNOTEN - self.zahl, se.HOECHSTENS_KINDER - len(vorhanden))
-            if self.rest() < MINDEST_REST_S or platz <= 0:
+            # Review TW-1, Befund 2: ohne vorhandene Unterpunkte nie genau einen anfordern
+            if (self.rest() < MINDEST_REST_S or platz <= 0
+                    or (not vorhanden and min(anzahl, platz) < 2)):
                 knoten["ausstehend"] = True
                 return
             try:
@@ -187,7 +191,7 @@ class _Lauf:
                     hinweise=self.auftrag.hinweise, pfad=pfad,
                     knoten=knoten if self.sichtbar is None else {"titel": knoten["titel"]},
                     geschwister=geschwister, anzahl=min(anzahl, platz), letzte_ebene=letzte,
-                    vorhanden=vorhanden_titel, auszug=auszug),
+                    vorhanden=vorhanden_titel, auszug=auszug, vorgaben=self.auftrag.vorgaben),
                     _TOKENS_KINDER)
             except Exception as e:  # noqa: BLE001 — ein Zweig fehlt, der Entwurf bleibt
                 logger.info("Strukturentwurf: Unterpunkte nicht erzeugt (%s)", type(e).__name__)
@@ -248,7 +252,10 @@ async def _obere_ebene(lauf: _Lauf) -> str | None:
         for feld, form in (("fach", se.fach), ("bildungsstufe", se.bildungsstufe)):
             if feld not in d and (wert := form(antwort.get(feld))):
                 d[feld] = wert
-    for p in prompt.punkte(antwort)[:a.anzahl_oben]:
+    # Review TW-1, Befund 1: aus einem Dokument je Ordnungselement ein Punkt (bis zum Deckel) —
+    # ein Lehrplan mit 13 Lernfeldern verlöre sonst drei
+    oben = se.HOECHSTENS_OBEN if lauf.dokument is not None else a.anzahl_oben
+    for p in prompt.punkte(antwort)[:oben]:
         if k := se.knoten_aus(p, se.neue_kennung(None, lauf.vergeben), wurzel=d):
             if lauf.dokument is not None:
                 dokument_teil.fundstelle(k, p, lauf.dokument)
