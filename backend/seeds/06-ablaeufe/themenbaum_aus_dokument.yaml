@@ -4,7 +4,9 @@
 # Modul-Auslöser fängt genau diese Antwort und führt durch die Fragen, bevor die KI den Entwurf mit
 # aus_dokument erzeugt. Danach endet der Ablauf — Sammlungen daraus anzulegen, kommt später.
 #
-# - Zuerst die Wahl, den Ablauf zu nutzen (N16); ohne ihn arbeitet die KI frei weiter.
+# - Zuerst die Wahl, den Ablauf zu nutzen (N16) — vor dem Upload (Rückmeldung 11.11.: die Frage
+#   kam erst nach dem Lesen). Wer im Auswahlfeld selbst „Themenbaum aus dem Strukturdokument“
+#   wählt (Modul-Auslöser, Start bei ``gelesen``), bekommt die Frage nach dem Lesen.
 # - Die Vorgaben am KI-Schritt tragen das Wissen aus dem Gestaltungsleitfaden zu Lehrplänen
 #   (Lernfelder, Themenfelder, was kein Punkt ist) an den Generator (TW-2).
 id: themenbaum_aus_dokument
@@ -20,6 +22,8 @@ nicht_wann:
 aktiv: true
 ausloeser:
   - {art: knopf}
+  # Nur Vorschlag (Knopf): ein Upload-Schritt gilt als schreibend (Review AS-5, Befund 6) — der
+  # Knopf führt seit 11.11. zuerst zur Frage „mit Fragen / gleich / ohne Ablauf“
   - {art: agent}
   - {art: modul, modul: ui_upload, wenn_teil: document}
   - art: text
@@ -31,21 +35,37 @@ ausloeser:
                 themenbaum aus dem bildungsplan, themenbaum aus dem kerncurriculum,
                 themenbaum aus diesem pdf, themenbaum aus einem dokument]
 schritte:
+  - id: einstieg
+    typ: nachricht
+    # Die Wahl wird der Teil ``vorgehen`` (deutsches Label) — nach dem Lesen verzweigt ``nach_lesen``
+    schreibt: vorgehen
+    text: {de: "Gern baue ich aus deinem Dokument einen Themenbaum. Ich führe dich in wenigen Schritten durch: Dokument wählen, zwei kurze Fragen, Entwurf. Mit den Fragen wird er passender – oder soll ich nach dem Lesen gleich entwerfen?",
+           en: "I'll gladly build a topic tree from your document. I'll guide you in a few steps: choose the document, two short questions, draft. The questions make it fit better – or shall I draft right after reading?"}
+    optionen:
+      - {id: fragen, label: {de: "Ja, mit Fragen", en: "Yes, with questions"}, ziel: hochladen}
+      - {id: gleich, label: {de: "Gleich entwerfen", en: "Draft right away"}, ziel: hochladen}
+      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
   - id: hochladen
     typ: modul
     modul: ui_upload
-    # Den Ausstieg bietet hier die Ablauf-Leiste („Abbrechen“); die Frage danach erst nach dem
-    # Lesen — der Modul-Auslöser beginnt dort (Review TW-4, Befund 3: bewusst so).
-    text: {de: "Wähle das Dokument (etwa einen Lehrplan), markiere es falls nötig als Strukturdokument und klick auf „Themenbaum aus dem Strukturdokument erstellen“.",
-           en: "Choose the document (such as a curriculum), mark it as structure document if needed and click “Create topic tree from the structure document”."}
+    # Eine einzeln gewählte Datei markiert das Auswahlfeld selbst als Strukturdokument (11.11.)
+    text: {de: "Wähle das Dokument (etwa einen Lehrplan) und klick auf „Themenbaum aus dem Strukturdokument erstellen“.",
+           en: "Choose the document (such as a curriculum) and click “Create topic tree from the structure document”."}
     daten: {zweck: sammlungsstruktur}
   # Der Modul-Auslöser beginnt hier — nach der Antwort des Auswahlfelds.
   - id: gelesen
     typ: verzweigung
     weiter:
-      - {wenn_teil: document, dann: einstieg}
+      - {wenn_teil: document, dann: nach_lesen}
       - {sonst: ohne_dokument}
-  - id: einstieg
+  # Mit der Wahl vom Anfang weiter; ohne sie (Start per Modul-Auslöser) erst die Frage
+  - id: nach_lesen
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.vorgehen, vergleich: gleich, wert: Gleich entwerfen}, dann: entwurf}
+      - {wenn_wert: {quelle: teil.vorgehen, vergleich: vorhanden}, dann: ordnung}
+      - {sonst: gelesen_frage}
+  - id: gelesen_frage
     typ: nachricht
     text: {de: "Ich habe dein Dokument gelesen. Mit zwei kurzen Fragen wird der Themenbaum passender – oder soll ich gleich entwerfen?",
            en: "I've read your document. Two short questions make the topic tree fit better – or shall I draft it right away?"}
@@ -122,32 +142,67 @@ schritte:
     text: {de: "Diesmal ist kein Entwurf entstanden. Versuch es gern noch einmal.",
            en: "No draft came out this time. Feel free to try again."}
 tests:
+  - name: Vom Start mit Fragen bis zum Entwurf
+    eingaben:
+      - {bei: einstieg, option: fragen}
+      - bei: hochladen
+        antwort: &dokument
+          aktion: dokument
+          struktur: {name: Auswahl, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 0, dateien: 1, inhalte: 0, ignoriert: 0, strukturdokumente: 1, bytes: 1000}
+          strukturdokument: {name: Rahmenlehrplan.pdf, groesse: 1000, endung: pdf}
+          warnungen: []
+          dokument:
+            upload_id: 11111111-1111-4111-8111-111111111111
+            name: Rahmenlehrplan.pdf
+            format: pdf
+            ziel: themenbaum
+            befund: {seiten: 40, woerter: 9000, abschnitte: 12, gliederung_art: ueberschriften, warnungen: []}
+            vorschau: []
+      - {bei: ordnung, option: lernfelder}
+      - {bei: wofuer, option: unterricht}
+      - bei: entwurf
+        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+    erwartet: {weg: [einstieg, hochladen, gelesen, nach_lesen, ordnung, wofuer, entwurf, ende],
+               status: fertig, teile: [vorgehen, document, ordnung, zweck, draft]}
+  - name: Vom Start gleich entwerfen
+    eingaben:
+      - {bei: einstieg, option: gleich}
+      - {bei: hochladen, antwort: *dokument}
+      - bei: entwurf
+        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+    erwartet: {weg: [einstieg, hochladen, gelesen, nach_lesen, entwurf, ende], status: fertig}
+  - name: Ohne Ablauf gleich am Anfang
+    eingaben:
+      - {bei: einstieg, option: ohne}
+    erwartet: {weg: [einstieg, frei], status: fertig}
   - name: Vom Auswahlfeld bis zum Entwurf
     ab: gelesen
     teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf}}
     eingaben:
-      - {bei: einstieg, option: fragen}
+      - {bei: gelesen_frage, option: fragen}
       - {bei: ordnung, option: lernfelder}
       - {bei: wofuer, option: materialpool}
       - bei: entwurf
         teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
-    erwartet: {weg: [gelesen, einstieg, ordnung, wofuer, entwurf, ende], status: fertig,
+    erwartet: {weg: [gelesen, nach_lesen, gelesen_frage, ordnung, wofuer, entwurf, ende], status: fertig,
                teile: [ordnung, zweck, draft]}
   - name: Ohne Ablauf
     ab: gelesen
     teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf}}
     eingaben:
-      - {bei: einstieg, option: ohne}
-    erwartet: {weg: [gelesen, einstieg, frei], status: fertig}
+      - {bei: gelesen_frage, option: ohne}
+    erwartet: {weg: [gelesen, nach_lesen, gelesen_frage, frei], status: fertig}
   - name: Gleich entwerfen, ohne Entwurf
     ab: gelesen
     teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf}}
     eingaben:
-      - {bei: einstieg, option: gleich}
+      - {bei: gelesen_frage, option: gleich}
       - {bei: entwurf}
-    erwartet: {weg: [gelesen, einstieg, entwurf, ohne_entwurf], status: fertig}
+    erwartet: {weg: [gelesen, nach_lesen, gelesen_frage, entwurf, ohne_entwurf], status: fertig}
   - name: Nur erfasst, kein Dokument
     eingaben:
+      - {bei: einstieg, option: fragen}
       - bei: hochladen
         antwort:
           aktion: erfasst
@@ -156,4 +211,4 @@ tests:
           strukturdokument: null
           warnungen: []
       - {bei: ohne_dokument, option: beenden}
-    erwartet: {weg: [hochladen, gelesen, ohne_dokument, beendet], status: fertig}
+    erwartet: {weg: [einstieg, hochladen, gelesen, ohne_dokument, beendet], status: fertig}
