@@ -195,6 +195,9 @@ def _modul(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
 def _schritt(s: Schritt, module: dict[str, Any], lang: str,
              kennungsfelder: frozenset[str] = frozenset()) -> list[str]:
     b: list[str] = []
+    if s.agent and any("|" in t or t.strip().startswith("__")
+                       for t in (s.agent.startknopf or {}).values()):
+        b.append(_t(lang, "startknopf_zeichen", s=s.id))   # Review TW-3, Befund 7
     if s.typ == "nachricht" and s.schreibt and not s.optionen:
         b.append(_t(lang, "wahl_schreibt", s=s.id))   # TB-T1: ohne Wahl entstünde nie ein Teil
     # Review AS-7a, Befund 6: ohne Text bliebe die Antwort auf den Seiten-Ping leer und unsichtbar
@@ -846,8 +849,8 @@ def wendungs_warnungen(
     """AS-0: Wendungen dieses (aktiven) Ablaufs, die sich mit denen eines anderen aktiven Ablaufs
     überschneiden — gleich oder ineinander enthalten, wie ``ausloeser.per_text`` sucht (Review AS-0,
     Befund 5: „themenbaum“ startet auch bei „themenbaum aus meinem ordner“). Je Wendung eine Warnung
-    mit den anderen. Es startet dann der Ablauf mit dem kleinsten Schlüssel; das ist selten gewollt,
-    aber kein Fehler (kein Befund, der das Speichern sperrt)."""
+    mit den anderen. Seit TW-3 gewinnt die längere Wendung, bei gleicher Länge der Ablauf mit dem
+    kleinsten Schlüssel — kein Fehler (kein Befund, der das Speichern sperrt)."""
     if not ablauf.aktiv:
         return []
     fremde: list[tuple[str, str]] = [

@@ -217,10 +217,15 @@ _T: Final[dict[str, dict[str, str]]] = {
               "en": "Step {s}: branch without sonst as the last rule"},
     "ziel": {"de": "Schritt {s}: Ziel {z!r} gibt es nicht",
              "en": "Step {s}: target {z!r} does not exist"},
-    "wendung_doppelt": {"de": "Die Wendung „{w}“ überschneidet sich mit: {andere} — es gilt der "
-                               "Ablauf mit der kleinsten Kennung",
-                        "en": "The phrase “{w}” overlaps with: {andere} — the workflow with the "
-                              "smallest id wins"},
+    "wendung_doppelt": {"de": "Die Wendung „{w}“ überschneidet sich mit: {andere} — es gilt die "
+                               "längere Wendung, bei gleicher Länge der Ablauf mit der kleinsten "
+                               "Kennung",
+                        "en": "The phrase “{w}” overlaps with: {andere} — the longer phrase wins, "
+                              "with equal length the workflow with the smallest id"},
+    "startknopf_zeichen": {"de": "Schritt {s}: der Startknopf darf kein | enthalten und nicht "
+                                 "mit __ beginnen (er erschiene sonst nicht)",
+                           "en": "Step {s}: the start button must not contain | or start with __ "
+                                 "(it would not appear)"},
     "ende": {"de": "Kein Schritt ende — der Lauf hätte kein Ende",
              "en": "No end step — the run would never end"},
     "auslaufen": {"de": "Schritt {s}: der Lauf liefe ohne Ende aus (letzter Schritt ohne weiter)",

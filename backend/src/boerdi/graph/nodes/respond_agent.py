@@ -82,6 +82,7 @@ from boerdi.services import (
 )
 from boerdi.services.ablauf import ki_schritt, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
+from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.agent_abschluss import abschluss_nachholen, antwort_oder_ersatz
 from boerdi.services.agent_deckel import fuer_diesen_zug
 from boerdi.services.agent_knowledge import WISSENS_REGEL, wissen_werkzeug
@@ -371,7 +372,8 @@ async def respond_agent(
             ablauf_tools=None if (_ki or _gastgeber_chips(ctx) or not wahl_zug.platz_fuer_vorschlag(
                 ctx.req.session_id, ctx.session_state, sprache,
                 ctx.req.environment.quick_replies_max)) else ablauf_vorschlag.werkzeuge(
-                sprache, tool_mode=ctx.req.environment.tool_mode))
+                sprache, tool_mode=ctx.req.environment.tool_mode,
+                ohne=ablauf_zug.abgelehnt(ctx.req.session_id, ctx.session_state)))
     if _ki:
         _werkzeuge = ki_schritt.einengen(_werkzeuge, _ki[1])
         _ki_zeile = ki_schritt.zeile(*_ki, sprache, zuege=_ki_zug, angeboten={
@@ -391,6 +393,8 @@ async def respond_agent(
         # U3-2b: das Dokument der Sitzung, gelesen erst, wenn ein Dienst es braucht.
         modul_dokument=dokument_lader(session, ctx.req.session_id),
         modul_teile=arbeitsstand.teil_lader(session, ctx.req.session_id, _entities),
+        # Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt des Laufs
+        modul_vorgaben=ki_schritt.vorgaben(_ki[1], sprache) if _ki else "",
         on_tool_result=lambda name, text: ernten.append(collect_cards(all_cards, name, text)),
         wissen=_wissen if _wissen_tool else None,
         # Paket 2: eine nicht eingelöste Schreib-Vorschau nimmt die Person im

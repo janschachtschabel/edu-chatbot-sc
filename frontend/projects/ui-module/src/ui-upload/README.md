@@ -10,7 +10,7 @@ eigenen Bündel (siehe `docs/ui-module.md` §2.5).
   einzelner Lehrplan in der Wurzel wird vorgeschlagen), ignorieren — je Datei oder je Ordner.
 - **Antwort** (`upload-antwort.ts`): Ordnerbaum mit Zahlen, Zahlen je Rolle, Warnungen, ggf. Name des
   Strukturdokuments — **keine Dateinamen**. Vormerkung mit der getippten Nachricht oder Knopf
-  „Befund senden“ / „Als Themenbaum-Entwurf übernehmen“.
+  „Senden“ / „Als Themenbaum-Entwurf übernehmen“.
 - **Darstellung** (`upload-ansicht.ts` baut die Knoten aus einer Sicht auf den Zustand, `upload-baum.ts`,
   `upload-stil.ts`; das Element behält Zustand, Ereignisse und Fokus): Disclosure-Muster (Ordner = Knopf mit
   `aria-expanded`, Rolle = beschriftetes Auswahlfeld), Fremdtext nur als `textContent`, Fokus bleibt
