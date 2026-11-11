@@ -19,7 +19,8 @@ wann:
 nicht_wann:
   - Die Person hat eigene Dateien oder ein Dokument (Lehrplan), aus dem der Baum entstehen soll
   - Die Person will einen Text, ein Referat oder eine Arbeit gliedern
-aktiv: false
+# Im Werkszustand an (Nutzer-Entscheid 11.11.): schreibt nichts ins Repositorium.
+aktiv: true
 ausloeser:
   - {art: knopf}
   - {art: agent, modus: direkt}

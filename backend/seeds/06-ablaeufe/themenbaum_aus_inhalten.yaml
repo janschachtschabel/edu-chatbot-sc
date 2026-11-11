@@ -28,7 +28,9 @@ ausloeser:
   - art: text
     wendungen: [themenbaum aus meinen inhalten, themenbaum aus meinen dateien,
                 aus meinen dateien einen themenbaum, aus meinen inhalten einen themenbaum,
-                themenbaum aus meinen materialien, themenbaum aus meinen unterlagen]
+                themenbaum aus meinen materialien, themenbaum aus meinen unterlagen,
+                themenbaum mit meinen dateien, themenbaum mit dateien,
+                themenbaum aus dateien]
 schritte:
   # TW-4 (N16): zuerst die Wahl, den Ablauf zu nutzen — ohne ihn geht es frei weiter.
   - id: einstieg

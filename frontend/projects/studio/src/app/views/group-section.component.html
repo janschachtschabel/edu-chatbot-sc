@@ -30,6 +30,18 @@
         <h4 class="gs-list-title" [id]="idPrefix() + '-list'" tabindex="-1" #listTitel>
           {{ t('groupSection.docs') }}
         </h4>
+        @if (wechselZu() !== null) {
+          <!-- Rückmeldung 11.11.: die Rückfrage dort, wo geklickt wurde, nicht unter dem Formular -->
+          <div class="gs-confirm" role="alert">
+            <p>{{ t('groupSection.switchBlocked') }}</p>
+            <div class="gs-actions">
+              <button type="button" class="cs-btn cs-btn--danger" (click)="verwerfenUndWechseln()">
+                {{ t('groupSection.discardAndSwitch') }}</button>
+              <button type="button" class="cs-btn" (click)="wechselZu.set(null)">
+                {{ t('groupSection.stayHere') }}</button>
+            </div>
+          </div>
+        }
         <!-- ST-3d (Paket 6): dieselbe Seitenliste wie jedes Liste│Editor -->
         <studio-entry-list
           [entries]="shown()"

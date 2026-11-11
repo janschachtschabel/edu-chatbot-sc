@@ -10,7 +10,8 @@ id: sammlungsstruktur
 titel: {de: "Themenbaum · aus Ordnern", en: "Topic tree · from folders"}
 beschreibung: Die Person erfasst einen Ordner; daraus entsteht ein bearbeitbarer Themenbaum-Entwurf.
 wann: [Die Person will aus eigenen Ordnern eine Sammlungsstruktur bauen]
-aktiv: false
+# Im Werkszustand an (Nutzer-Entscheid 11.11.): schreibt nichts ins Repositorium.
+aktiv: true
 # knopf: Direktaktion ablauf_starten; agent: die KI schlägt ihn vor (Knopf unter der Antwort);
 # text: eine dieser Wendungen in der Nachricht startet ihn (keine regulären Ausdrücke).
 ausloeser:

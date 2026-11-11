@@ -29,6 +29,8 @@ export const GROUP_SECTION: CataloguePart = {
     'groupSection.switchBlocked':
       'Bitte erst speichern oder verwerfen — sonst gehen die Änderungen an diesem '
       + 'Dokument verloren.',
+    'groupSection.discardAndSwitch': 'Verwerfen und wechseln',
+    'groupSection.stayHere': 'Hier bleiben',
     'groupSection.createBlocked':
       'Erst das offene Dokument speichern oder verwerfen — sonst gehen die Änderungen '
       + 'beim Wechsel verloren.',
@@ -81,6 +83,8 @@ export const GROUP_SECTION: CataloguePart = {
     'groupSection.duplicate': '“{name}” already exists — please pick another name.',
     'groupSection.switchBlocked':
       'Please save or discard first — otherwise the changes to this document would be lost.',
+    'groupSection.discardAndSwitch': 'Discard and switch',
+    'groupSection.stayHere': 'Stay here',
     'groupSection.createBlocked':
       'Save or discard the open document first — otherwise its changes would be lost when '
       + 'switching.',
