@@ -29,9 +29,12 @@
 
 .ol-entry {
   display: flex;
+  // Eine lange Kennzeile (Abläufe: „kennung · aus · Knopf, Seite, Wendung“) rutscht unter
+  // den Titel, statt ihn auf Buchstabenbreite zu drücken; eine kurze bleibt daneben.
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
-  gap: var(--st-2);
+  gap: var(--st-1) var(--st-2);
   inline-size: 100%;
   min-block-size: 2.25rem; // ≥ 24px target (SC 2.5.8)
   padding: var(--st-1) var(--st-2);
@@ -56,13 +59,17 @@
 }
 
 .ol-title {
+  flex: 1 1 8rem; // Mindestbreite vor dem Umbruch der Zeile — nie Buchstabe für Buchstabe
+  min-inline-size: 0;
   overflow-wrap: anywhere;
 }
 
 // Die Kennung eines Dokuments: technischer Name, Schreibmaschinenschrift wie
 // der Rohschlüssel hinter einer Beschriftung (ST-1).
 .ol-note {
-  flex: none;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow-wrap: anywhere; // länger als die ganze Zeile: bricht selbst um, kein Überlauf
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   color: var(--st-text-muted);
