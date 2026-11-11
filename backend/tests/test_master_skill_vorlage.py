@@ -498,6 +498,16 @@ def test_knapp_dokument_weg_und_ablaeufe(knapp: str) -> None:
     assert "`[ABLAUFSCHRITT — …]`" in oberflaeche
 
 
+def test_knapp_ablauf_geht_modul_und_platzhalter_frage_vor(knapp: str) -> None:
+    """TW-3 und Rückmeldung 11.11.: „ich will einen Themenbaum zu einem Thema erstellen“ → die KI
+    fragte nach M03 per Auswahlfeld nach dem Thema, statt den Ablauf zu starten. Ein passender
+    Ablauf geht Modulen und der Platzhalter-Frage vor — er fragt selbst."""
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "geht er einzelnen Modulen und Werkzeugen vor" in oberflaeche
+    assert "**Ablauf zuerst:**" in _abschnitt(knapp, "Nachfragen")
+    assert "er geht vor und fragt selbst" in _unterabschnitt(knapp, "Reihenfolge der Prüfung")
+
+
 def test_formeln_stehen_als_latex_in_den_begrenzern(text: str) -> None:
     r"""Plan 2026-11-10, TB-E4 (Querschnitts-Review Gruppe E, Befund 5): das Widget zeichnet
     LaTeX in ``\( … \)`` und ``\[ … \]`` als Formel — die Regel steht in jeder Fassung."""

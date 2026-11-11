@@ -55,3 +55,16 @@ Dateien, an denen mehrere Pakete arbeiteten, stehen im Commit ihres letzten Pake
 
 Siehe `offene-befunde-und-todo.md`, Eintrag „Themenbaum-Abläufe zuerst“: Grenzen der Wendungen,
 Vorgaben nur am KI-Schritt, das Thema aus einem Wendungs-Start, die Strukturprüfung (TB-4).
+
+## Nachtrag: Rückmeldung nach dem Test (11.11.)
+
+„ich will einen themenbaum zu einem thema erstellen“ startete den Ablauf nicht. Die KI fragte per
+Auswahlfeld nach dem Thema, regelkonform nach M03 („nur ein Platzhalter → eine Frage nach dem
+Thema“).
+
+- **Wendung:** „themenbaum zu einem thema“ startet „aus einem Thema“ ohne die KI.
+- **Master-Skill** (`vorgehen-knapp.md`): Ein passender Ablauf geht der Platzhalter-Frage vor, in
+  „Reihenfolge der Prüfung“ (Punkt 8) und in M03 („Ablauf zuerst“). Er fragt das Thema selbst ab.
+  Ein Wächter in `test_master_skill_vorlage` hält die Regel.
+- Den WLO-Knoten zieht der Nutzer mit der ganzen Datei nach.
+

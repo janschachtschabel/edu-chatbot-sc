@@ -37,6 +37,7 @@ def alle_an(monkeypatch):
 
 @pytest.mark.parametrize(("satz", "erwartet"), [
     ("Bitte einen Themenbaum aus einem Thema", "themenbaum_aus_thema"),
+    ("ich will einen themenbaum zu einem thema erstellen", "themenbaum_aus_thema"),
     # Zweites Review TW, Befund 2: allgemeine Neuanlagen entscheidet die KI (sie sieht
     # ``nicht_wann``), die Quelle in der Bitte führt zum passenden Ablauf
     ("Erstelle einen Themenbaum zu Karate", None),
