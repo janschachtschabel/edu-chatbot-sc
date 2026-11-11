@@ -1006,7 +1006,7 @@
             "type": "integer",
             "minimum": 5,
             "maximum": 20,
-            "description": "Punkte auf der oberen Ebene, 5-20; ohne Angabe 10. Nach den Anforderungen der Person."
+            "description": "Höchstzahl der Punkte auf der oberen Ebene, 5-20; ohne Angabe 10. Nach den Anforderungen der Person; will sie genau so viele, sag es in hinweise."
           },
           "tiefe": {
             "type": "integer",

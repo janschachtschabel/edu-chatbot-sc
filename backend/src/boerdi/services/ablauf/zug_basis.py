@@ -6,6 +6,7 @@ Genutzt von ``zug`` (Start, Fortsetzen, Weiter) und ``auftrag_zug`` (Stand eines
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Awaitable, Iterable
 from typing import Any, Final
@@ -113,6 +114,49 @@ def antwort_text(lang: str, aus: treiber.Ausgabe) -> str:
     return "\n\n".join(texte)
 
 
+#: Querschnitts-Review TW, Befunde 3/4 (N16): der Ablauf, aus dem die Person eben ausgestiegen
+#: ist („Ohne Ablauf“ oder „Abbrechen“), und bis zu welchem Zug er nicht von selbst startet.
+AUSSTIEG_KEY: Final = "_ablauf_ausstieg"
+#: So viele Züge gilt die Marke — kurz genug, dass niemand ausgesperrt bleibt.
+AUSSTIEG_ZUEGE: Final = 3
+#: Die Direktaktion, die einen Ablauf per Knopf startet (``zug.AKTION``; hier ohne Import-Zirkel).
+_START_AKTION: Final = "ablauf_starten"
+
+
+def ausstieg_merken(session_state: dict, ablauf_id: Any) -> None:
+    """Den Ausstieg aus ``ablauf_id`` für die nächsten :data:`AUSSTIEG_ZUEGE` Züge merken."""
+    if isinstance(ablauf_id, str) and ablauf_id:
+        zug_nr = int(session_state.get("turn_count") or 0)
+        session_state.setdefault("entities", {})[AUSSTIEG_KEY] = {
+            "ablauf": ablauf_id, "bis": zug_nr + AUSSTIEG_ZUEGE}
+
+
+def abgelehnt(_session_id: str, session_state: dict) -> str | None:
+    """Der Ablauf, aus dem die Person in den letzten Zügen ausgestiegen ist — er startet nicht von
+    selbst (Wendung, Modul-Antwort, Werkzeug der KI); ``None`` sonst."""
+    marke = (session_state.get("entities") or {}).get(AUSSTIEG_KEY)
+    if not isinstance(marke, dict) or not isinstance(marke.get("ablauf"), str):
+        return None
+    if int(session_state.get("turn_count") or 0) >= int(marke.get("bis") or 0):
+        return None
+    return marke["ablauf"]
+
+
+def _ist_ausstieg(ablauf: AblaufArea, aus: treiber.Ausgabe) -> bool:
+    """Endete der Lauf an einem ``ende`` mit ``ausstieg``?"""
+    if aus.lauf.get("status") != "fertig":
+        return False
+    schritt = next((s for s in ablauf.schritte if s.id == aus.lauf.get("schritt")), None)
+    return schritt is not None and bool(schritt.ausstieg)
+
+
+def doch_knopf(ablauf_id: str, lang: str) -> str:
+    """„Doch mit Ablauf“ — startet ihn per Knopf (der Ausstieg sperrt nur die Selbststarts)."""
+    label = bot_text(lang, "action.ablauf.dochMitAblauf").replace("|", "/")
+    return f"__action__|{label}|{_START_AKTION}|" + json.dumps({"ablauf": ablauf_id},
+                                                              ensure_ascii=False)
+
+
 async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: treiber.Ausgabe,
                    ablauf: AblaufArea) -> ChatResponse:
     text = antwort_text(resolve_locale(req.environment.locale), aus)
@@ -126,6 +170,11 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
 
         aus.bloecke.append(freigabe_zug.merken(entities, aus.freigabe, ablauf.id,
                                                resolve_locale(req.environment.locale)))
+    # Zweites Review TW, Befund 1: der Ausstieg wird gemerkt, BEVOR die Sitzung gespeichert wird —
+    # sonst lädt der nächste Zug die Entities ohne Marke, und die Schleife bliebe
+    ausgestiegen = _ist_ausstieg(ablauf, aus)
+    if ausgestiegen:
+        ausstieg_merken(session_state, ablauf.id)
     await update_session(session, req.session_id, entities=entities)
     # Review S2/S3, Befund 1: ohne ``_``-Schlüssel wie ``turn_persist`` — die offene Abnahme trägt
     # den Schlüssel, ein offener Plan den seinen. Zweite Sicherung neben dem Validator von
@@ -142,6 +191,10 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
     # Paket A2b: hält der Lauf am ``agent``-Schritt, steht „Weiter im Ablauf“ darunter.
     knoepfe = ([ki_schritt.knopf(ablauf.id, resolve_locale(req.environment.locale))]
                if aus.lauf.get("status") == treiber.WARTET_KI else [])
+    if knoepfe and (start := ki_schritt.start_knopf(
+            ablauf, str(aus.lauf.get("schritt")), resolve_locale(req.environment.locale))):
+        # TW-3: beim Eintritt in den KI-Schritt zuerst der Startknopf (sein Text geht an die KI)
+        knoepfe.insert(0, start)
     if aus.lauf.get("status") == treiber.WARTET_AUFTRAG:
         from boerdi.services.ablauf import auftrag_zug
 
@@ -162,6 +215,10 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
         from boerdi.services import vorgang_aktion
 
         knoepfe = vorgang_aktion.knoepfe(resolve_locale(req.environment.locale))
+        if ausgestiegen:
+            # Querschnitts-Review TW, Befund 14: nach „Ohne Ablauf“ der Weg zurück, nicht
+            # „Neues Vorhaben“ (die Marke steht schon, oben vor dem Speichern)
+            knoepfe = [doch_knopf(ablauf.id, resolve_locale(req.environment.locale))]
     if aus.navigation:
         # AS-7a (F-2): die Wege der ``seite``-Schritte — vorn, auch wenn es danach weiterging
         from boerdi.services.ablauf import seite_zug

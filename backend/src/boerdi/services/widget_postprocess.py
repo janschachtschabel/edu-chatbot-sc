@@ -44,7 +44,7 @@ from boerdi.domain.url_helpers import (
     _extract_web_links_from_text,
     _rewrite_external_urls_to_repo,
 )
-from boerdi.domain.wahl_knopf import ist_wahl_knopf
+from boerdi.domain.wahl_knopf import ist_wahl_knopf, ist_weiter_knopf
 from boerdi.domain.widget_modes import _widget_modes
 from boerdi.domain.widget_postprocess import _apply_widget_modes_postprocess
 from boerdi.obs.log_inhalt import inhalt
@@ -812,8 +812,10 @@ async def _postprocess_response_for_widget_modes(
         if getattr(resp, "eingabe_gesperrt", False):
             qrs = _auftrags_knoepfe_behalten(list(resp.quick_replies or []), qrs)
         # Querschnitts-Review AS-3, Befund 1: die Chips einer Ablauf-Wahl übersteht jeder Deckel
+        # Review TW-3, Befund 5: ebenso „Weiter im Ablauf“ — in EINEM Lauf (zweites Review TW,
+        # Befund 5: zwei Läufe verdrängten unter Deckel 1 den Bestätigungsknopf des Abbruchs)
         qrs = _auftrags_knoepfe_behalten(list(resp.quick_replies or []), list(qrs or []),
-                                         ist_wahl_knopf)
+                                         lambda q: ist_wahl_knopf(q) or ist_weiter_knopf(q))
 
         # ChatResponse rekonstruieren — Pydantic-Modell aufgrund von
         # Validierungsregeln kopieren wir per model_copy(update=...).

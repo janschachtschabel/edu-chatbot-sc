@@ -180,6 +180,7 @@ def _select_active_tools(
     ui_module: Collection[str] | None = None,
     sprache: str = "de",
     ohne_ablaeufe: bool = False,
+    ablauf_ohne: str | None = None,
 ) -> tuple[list[dict], Any, bool, bool]:
     """Stellt die aktive Tool-Liste fuer ``generate_response`` zusammen
     (Phasen P10-P11: pattern.tools / tools=[] / mcp-Source / Fallback,
@@ -547,6 +548,21 @@ def _select_active_tools(
     if pattern_output.get("output_mode") != "clarify":
         active_tools.append(dokument_werkzeug())
 
+    # ── Abläufe als Werkzeuge (Paket AS-5b, A5-6) ───────────────────────────
+    # Vor den UI-Modulen (Plan 2026-11-11, TW-3; Review TW-3, Befund 6): ein passender Ablauf
+    # geht vor.
+    # Nur, was das Muster in ``tools:`` nennt UND vorschlagbar ist (aktiv, Auslöser ``agent``,
+    # Voraussetzungen erfüllt) — dieselben Werkzeuge wie im Agent-Modus. Vor dem
+    # Degradations-Wipe: fehlt ein Pflicht-Slot, verlangt der Prompt reinen Text.
+    # Nicht, wo kein Knopf erscheinen kann: ``ohne_ablaeufe`` (Chips des Gastgebers, ein
+    # laufender KI-Schritt — Review AS-5b, Befund 4; Querschnitt AS-5, Befund 2) oder ein Muster
+    # ohne Schnellantworten (``quick_replies_mode: none``).
+    genannt = set(pattern_output.get(ABLAUF_MUSTER_KEY) or ())
+    if (genannt and not ohne_ablaeufe
+            and _qr_policy(pattern_output.get("id") or "")[0] != "none"):
+        active_tools.extend(ablauf_vorschlag.werkzeuge(sprache, nur=genannt, tool_mode=tool_mode,
+                                                       ohne=ablauf_ohne))
+
     # ── UI-Module als Werkzeuge (Paket U1-d2, U-F4) ─────────────────────
     # Nur, was das Muster in ``tools:`` nennt (``phase3_modulate`` legt es unter
     # ``ui_werkzeuge`` ab) UND das Widget meldet (``environment.ui_module``) — dieselbe Regel
@@ -563,18 +579,6 @@ def _select_active_tools(
                                                 tool_mode=tool_mode),
             # U1-f: nur aktive Module; „für den Agenten“ gilt hier nicht (U-F4, Muster-Wahl).
             fuer="muster"))
-
-    # ── Abläufe als Werkzeuge (Paket AS-5b, A5-6) ───────────────────────────
-    # Nur, was das Muster in ``tools:`` nennt UND vorschlagbar ist (aktiv, Auslöser ``agent``,
-    # Voraussetzungen erfüllt) — dieselben Werkzeuge wie im Agent-Modus. Vor dem
-    # Degradations-Wipe: fehlt ein Pflicht-Slot, verlangt der Prompt reinen Text.
-    # Nicht, wo kein Knopf erscheinen kann: ``ohne_ablaeufe`` (Chips des Gastgebers, ein
-    # laufender KI-Schritt — Review AS-5b, Befund 4; Querschnitt AS-5, Befund 2) oder ein Muster
-    # ohne Schnellantworten (``quick_replies_mode: none``).
-    genannt = set(pattern_output.get(ABLAUF_MUSTER_KEY) or ())
-    if (genannt and not ohne_ablaeufe
-            and _qr_policy(pattern_output.get("id") or "")[0] != "none"):
-        active_tools.extend(ablauf_vorschlag.werkzeuge(sprache, nur=genannt, tool_mode=tool_mode))
 
     # Degradation (Pflicht-Slot fehlt): Tool-Liste wirklich leeren statt nur
     # per Prompt-Regel zu bitten — gegen einen Pattern-Body mit

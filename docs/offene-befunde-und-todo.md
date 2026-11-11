@@ -323,8 +323,31 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     - Start aus der Sammlungsseite (Startdaten `sammlung`);
     - Raster-Warnungen (TB-4).
 
+- **Themenbaum-Abläufe zuerst, Wissen aus dem Leitfaden (TW-1…TW-5, 2026-11-11, offen):** Plan
+  [`2026-11-11-themenbaum-ausloesen-und-wissen.md`](plans/2026-11-11-themenbaum-ausloesen-und-wissen.md).
+  - **Master-Skill-Knoten in WLO nachziehen** (Abschnitte „Bestand oder Entwurf“ und „Abläufe“
+    aus `docs/skills/vorgehen-knapp.md`). Ohne das entwirft die KI eine freie Bitte weiter direkt,
+    statt den Ablauf zu starten (Chat-Smoke 11.11.).
+  - **Grenzen:**
+    - Eine Wendung ist eine zusammenhängende Teilzeichenkette.
+    - Die Vorgaben gelten nur am KI-Schritt.
+    - Ein Wendungs-Start übernimmt das Thema der Nachricht nicht in den Teil `thema`, die KI
+      liest es aus dem Verlauf.
+    - Eine Voraussetzung „Dokument lesen“ für den Dokument-Ablauf fehlt.
+  - **Später:** Strukturprüfung des Ergebnisses (TB-4), Sammlungsart, Facetten.
+
 ## 4 Beim nächsten Deploy
 
+- **Themenbaum-Abläufe TW (2026-11-11):**
+  - Keine Migration. Image neu bauen und den Browser hart neu laden (Studio, Widget-Module).
+  - `boerdi import-config --werksabgleich` bringt den neuen Seed `themenbaum_aus_dokument` und
+    hebt unberührte Abläufe auf die neue Werksfassung.
+  - **Achtung:** Wer „aus einem Thema“ oder „aus Inhalten“ seit dem 10.11. im Studio eingeschaltet
+    hat, hat sie damit angepasst. Der Werksabgleich lässt angepasste Bereiche stehen. Deshalb
+    unter Sicherung → „Werk und eigene Fassung“ auf die Werksfassung umschalten und danach wieder
+    einschalten.
+  - Alle drei Themenbaum-Abläufe sind im Seed aus.
+  - Danach den Master-Skill-Knoten nachziehen (siehe §3, TW-Eintrag).
 - **Themenbaum, Gruppen E/F/T (2026-11-10):**
   - Migration 0022 (`sessions.vorschau`, TB-E2) einspielen.
   - Image neu bauen (Widget mit Formeln, Studio, Backend).

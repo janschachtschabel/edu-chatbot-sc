@@ -143,8 +143,12 @@ function befund(s: UploadSicht, e: Erfassung<File>): Node[] {
   const leiste = knoten('div', 'u__knoepfe');
   // Ohne Unterordner gäbe es keinen Entwurf (das Backend antwortete nur „keine Unterordner“).
   if (e.wurzel.ordner.length) leiste.append(knopf(t.alsEntwurf, { antwort: 'ordner_als_entwurf' }, true, gesperrt));
+  // TW-5 (Review, Befund 12): sichtbar „Senden“; der Name sagt, was gesendet wird — der Chat hat
+  // selbst einen Knopf „Senden“ (Label in Name bleibt erfüllt: der Name enthält „senden“).
+  const senden = knopf(t.befundSenden, { antwort: 'erfasst' }, !e.wurzel.ordner.length, gesperrt);
+  senden.setAttribute('aria-label', t.befundSendenName);
   leiste.append(
-    knopf(t.befundSenden, { antwort: 'erfasst' }, !e.wurzel.ordner.length, gesperrt),
+    senden,
     knopf(t.andereAuswahl, { zurueck: '1' }, false, s.dokument.laeuft() || s.uebertragen.laeuft()),
   );
   teile.push(leiste);

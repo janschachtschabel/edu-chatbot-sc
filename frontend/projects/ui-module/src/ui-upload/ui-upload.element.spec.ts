@@ -112,7 +112,7 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     const { el, wurzel } = erzeuge();
     await waehle(wurzel, [datei('P/A/x.pdf')]);
     el.beschaeftigt = true;
-    expect(knopf(wurzel, 'Befund senden')!.disabled).toBe(true);
+    expect(knopf(wurzel, 'Senden')!.disabled).toBe(true);
     expect(knopf(wurzel, 'Als Themenbaum-Entwurf übernehmen')!.disabled).toBe(true);
   });
 
@@ -203,7 +203,7 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     const { wurzel } = erzeuge();
     await waehle(wurzel, [datei('P/a.pdf'), datei('P/b.pdf')]);
     expect(knopf(wurzel, 'Als Themenbaum-Entwurf übernehmen')).toBeUndefined();
-    expect(knopf(wurzel, 'Befund senden')).toBeTruthy();
+    expect(knopf(wurzel, 'Senden')).toBeTruthy();
   });
 
   it('Befund 9: Ablegen außerhalb der Fläche öffnet keine Datei (Vorgabe des Browsers verhindert)', async () => {

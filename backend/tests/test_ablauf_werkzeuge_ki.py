@@ -91,7 +91,8 @@ def test_hoechstens_sechs_werkzeuge_und_kurze_beschreibungen(katalog):
     katalog += [_roh(f"a{i}", wann=["x" * 100] * 5, nicht_wann=["y" * 100] * 5) for i in range(9)]
     werkzeuge = vorschlag.werkzeuge("de")
     assert len(werkzeuge) == vorschlag.MAX_WERKZEUGE == 6
-    assert all(len(w["function"]["description"]) <= 600 for w in werkzeuge)
+    assert all(len(w["function"]["description"]) <= vorschlag._BESCHREIBUNG_ZEICHEN
+               for w in werkzeuge)  # seit Querschnitts-Review TW: 800
 
 
 def test_pflichtfelder_hindern_den_vorschlag_nicht_mehr(katalog):
@@ -278,7 +279,8 @@ def test_die_beschreibung_behaelt_den_schlusssatz(katalog):
     """Befund 4: gekürzt werden ``wann``/``nicht_wann``, nie der feste Satz."""
     katalog.append(_roh("baum", wann=["w" * 200] * 5, nicht_wann=["n" * 200] * 5))
     text = vorschlag.werkzeuge("de")[0]["function"]["description"]
-    assert len(text) <= 600 and "startet nichts" in text and "Titel baum" in text
+    assert len(text) <= vorschlag._BESCHREIBUNG_ZEICHEN
+    assert "startet nichts" in text and "Titel baum" in text
 
 
 def test_dieselben_falschen_angaben_zweimal_sind_stillstand(monkeypatch, katalog):

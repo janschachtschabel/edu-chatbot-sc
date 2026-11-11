@@ -38,6 +38,8 @@ ID_FORM = _ID
 ORDNER = "06-ablaeufe"
 #: Vergeben: so hieß bis AS-0 der Bereich mit allen Abläufen (Migration 0021).
 RESERVIERT = frozenset({"katalog"})
+#: TW-3: höchstens so lang ist der Startknopf eines KI-Schritts (wie ein Chip-Label).
+STARTKNOPF_ZEICHEN = 60
 
 
 def _ohne_leere_saetze(wert: Any) -> Any:
@@ -98,6 +100,16 @@ class AgentSchritt(AreaModel):
     ausgabe: str | None = None
     #: Züge am Schritt, bis die KI auf „Weiter“ verweist (1 bis 20).
     zuege: int = 5
+    #: Plan 2026-11-11, TW-2: Vorgaben der Redaktion für die Module dieses Schritts, je Sprache
+    #: (etwa „bei Lehrplänen Lernfelder als Ebene 1“). Sie gehen in den Systemteil eines Dienstes
+    #: wie ``ui_strukturentwurf`` — Text der Redaktion, nie Eingabe der Person. Vorgabe ``None``
+    #: (wegen ``treiber.fassung``).
+    vorgaben: Annotated[dict[str, Annotated[str, Textarea(), Field(max_length=2000)]] | None,
+                        BeforeValidator(_ohne_leere_saetze)] = None
+    #: Plan 2026-11-11, TW-3: eine Schnellantwort beim Eintritt in den Schritt (je Sprache) — ihr
+    #: Text geht als Nachricht der Person an die KI, die dann loslegt. Vorgabe ``None``.
+    startknopf: Annotated[dict[str, Annotated[str, Field(max_length=STARTKNOPF_ZEICHEN)]] | None,
+                          BeforeValidator(_ohne_leere_saetze)] = None
 
 
 class Schnellantwort(AreaModel):
@@ -157,6 +169,12 @@ class Schritt(AreaModel):
     #: legt es hier fest. Ein Auftrag braucht ohnehin die WLO-Anmeldung; der Vermerk steht im Studio
     #: und im Handbuch. Vorgabe ``None`` (wegen ``treiber.fassung``).
     repo_schreibt: Annotated[bool | None, NurBei("typ", "auftrag")] = None
+    #: ``ende`` (Plan 2026-11-11, Review TW-4, Befund 2; Nutzer N16): hier steigt die Person aus dem
+    #: Ablauf aus. Einige Züge lang startet derselbe Ablauf nicht wieder von selbst (Wendung,
+    #: Modul-Antwort, Werkzeug der KI, ``zug_basis.abgelehnt``); die Antwort bietet „Doch mit
+    #: Ablauf“. Abgewählt (``False``) ist nicht gesetzt — sonst änderte es die Fassung.
+    ausstieg: Annotated[bool | None, BeforeValidator(lambda w: None if w is False else w),
+                        NurBei("typ", "ende")] = None
     #: Wohin das Ergebnis eines Werkzeugs geht (Teil des Vorgangs). An einer ``nachricht`` mit
     #: Schnellantworten (Plan 2026-11-10, TB-T1): das Label der gewählten Option als Text-Teil —
     #: so erreichen die Antworten auf die Kernfragen die Werkzeuge späterer Schritte.

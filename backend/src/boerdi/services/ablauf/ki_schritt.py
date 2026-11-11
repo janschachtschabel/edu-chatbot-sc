@@ -21,7 +21,7 @@ import json
 from typing import Any, Final
 
 from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER
-from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
+from boerdi.domain.config_models.ablauf import STARTKNOPF_ZEICHEN, AblaufArea, Schritt
 from boerdi.domain.inline_documents import INHALTSRAHMEN
 from boerdi.domain.result_delivery import LIEFERE_ERGEBNIS
 from boerdi.i18n import bot_text
@@ -66,6 +66,44 @@ def aktueller(session_state: dict[str, Any], session_id: str) -> tuple[AblaufAre
     return ablauf, schritt
 
 
+def mit_schrittmodulen(pattern_output: dict[str, Any], schritt: Schritt) -> dict[str, Any]:
+    """Querschnitts-Review TW, Befund 5: im Muster-Weg bietet ein Muster nur die UI-Module an, die
+    es unter ``tools:`` nennt — am KI-Schritt kommen die des Schritts dazu (sonst entstünde dort
+    kein Entwurf, und die Vorgaben wirkten nie). Gibt eine Kopie zurück."""
+    from boerdi.ui_module.katalog import katalog
+    from boerdi.ui_module.namen import UI_WERKZEUGE_KEY
+
+    module = [w for w in (schritt.agent.werkzeuge if schritt.agent else []) if w in katalog()]
+    if not module:
+        return pattern_output
+    bisher = list(pattern_output.get(UI_WERKZEUGE_KEY) or [])
+    neu = {**pattern_output, UI_WERKZEUGE_KEY: list(dict.fromkeys([*bisher, *module]))}
+    if pattern_output.get("degradation") and pattern_output.get("missing_slots"):
+        # Zweites Review TW, Befund 3: ein fehlender Slot des Musters (etwa ``thema``) leerte sonst
+        # auch die Module des Schritts — der Hinweis fragt selbst nach. Die übrigen Werkzeuge des
+        # Musters bleiben weg (Nach-Review): sonst suchte die KI ohne Thema.
+        neu.update(degradation=False, missing_slots=[], tools=[])
+    return neu
+
+
+def vorgaben(schritt: Schritt, lang: str) -> str:
+    """TW-2: die Vorgaben der Redaktion für die Module dieses Schritts — in der Sprache, sonst
+    Deutsch, sonst leer."""
+    texte = (schritt.agent.vorgaben if schritt.agent else None) or {}
+    return ((texte.get(lang) or "").strip() or (texte.get("de") or "").strip())
+
+
+def start_knopf(ablauf: AblaufArea, schritt_id: str, lang: str) -> str | None:
+    """TW-3: der Startknopf des KI-Schritts — ein gewöhnliches Label (in der Sprache, sonst
+    Deutsch); nie eine Direktaktion: ``|`` wird ``/``, ein Label mit ``__`` am Anfang zählt
+    nicht."""
+    schritt = next((s for s in ablauf.schritte if s.id == schritt_id), None)
+    texte = (schritt.agent.startknopf if schritt and schritt.agent else None) or {}
+    label = (texte.get(lang) or "").strip() or (texte.get("de") or "").strip()
+    label = " ".join(label.replace("|", "/").split())[:STARTKNOPF_ZEICHEN]
+    return label if label and not label.startswith("__") else None
+
+
 def _ohne_klammern(text: str) -> str:
     """Eine Klammer im Studio-Text schlösse die Zeile vorzeitig (wie Review V1, Befund 6)."""
     return " ".join(text.replace("[", "(").replace("]", ")").split())
@@ -100,6 +138,14 @@ def zeile(ablauf: AblaufArea, schritt: Schritt, lang: str, *, zuege: int,
     kopf = "[ABLAUFSCHRITT — "
     inhalt = _ohne_klammern(" ".join(teile))
     return kopf + inhalt[:_ZEILE_ZEICHEN - len(kopf) - 1] + "]"
+
+
+def zuege_bisher(entities: dict[str, Any], ablauf_id: str, schritt_id: str) -> int:
+    """Review TW-3, Befund 4: wie viele KI-Züge an diesem Schritt schon liefen (0: keiner)."""
+    bisher = entities.get(ZUEGE_KEY)
+    if isinstance(bisher, dict) and bisher.get("schritt") == f"{ablauf_id}/{schritt_id}":
+        return int(bisher.get("zuege") or 0)
+    return 0
 
 
 def zaehlen(entities: dict[str, Any], ablauf: AblaufArea, schritt: Schritt) -> int:

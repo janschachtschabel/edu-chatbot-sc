@@ -143,6 +143,8 @@ async def generate_response(
         sprache=resolve_locale(environment.get("locale")),
         ohne_ablaeufe=ohne_ablaeufe or any(
             c and str(c).strip() for c in environment.get("forced_quick_replies") or []),
+        # Querschnitts-Review TW, Befund 9: wie im Agent-Weg nicht den eben abgelehnten Ablauf
+        ablauf_ohne=_abgelehnt(session_state),
     )
 
     # Phasen-Split Teil 2: Messages-Aufbau + Prefetch-Injektion (P12+P14)
@@ -222,3 +224,11 @@ async def generate_response(
     # ``return await``.
     return await _max_iterations_fallback(
         messages, all_cards, tools_called, outcomes, usage_acc)
+
+
+def _abgelehnt(session_state: dict | None) -> str | None:
+    """Der Ablauf, aus dem die Person eben ausgestiegen ist (``ablauf/zug_basis.abgelehnt``)."""
+    from boerdi.services.ablauf.zug_basis import abgelehnt
+
+    return abgelehnt("", session_state or {})
+

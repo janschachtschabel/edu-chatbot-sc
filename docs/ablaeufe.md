@@ -91,10 +91,39 @@ Der Entwurf entsteht in den Tests echt aus der Ordnerstruktur; nur die Zählung 
 nachgestellt. **Regel für eigene Testfälle:** Stelle ein Werkzeug so nach, wie es im Betrieb
 antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
 
+## Abläufe zuerst, Startknopf, Vorgaben, Ausstieg (Plan 2026-11-11)
+
+- **Abläufe zuerst:** Jedes Ablauf-Werkzeug sagt der KI, dass es einzelnen Modulen und Werkzeugen
+  vorgeht, wenn es passt. Im Angebot stehen die Abläufe vor den Modulen. Der Master-Skill sagt
+  dasselbe.
+- **Wendungen:** Die längste passende Wendung gewinnt, bei gleicher Länge die kleinste Kennung.
+  Eine Wendung ist eine zusammenhängende Teilzeichenkette, ohne reguläre Ausdrücke.
+- **Startknopf** (`agent.startknopf`): eine Schnellantwort beim Eintritt in den KI-Schritt, und
+  nach einem zu frühen „Weiter“. Ihr Text geht als Nachricht an die KI, die dann loslegt. Kein
+  `|`, nicht mit `__` am Anfang, höchstens 60 Zeichen.
+- **Vorgaben** (`agent.vorgaben`): Wissen der Redaktion für die Module des KI-Schritts, je
+  Sprache bis 2000 Zeichen. `ui_strukturentwurf` setzt es in den Systemteil seines Generators.
+- **Ausstieg** (`ausstieg` am `ende`, ebenso „Abbrechen“ in der Leiste):
+  - Die Person arbeitet ohne den Ablauf weiter.
+  - Drei Züge mit der KI lang startet derselbe Ablauf nicht wieder von selbst, weder per Wendung
+    noch per Modul-Antwort noch als Werkzeug der KI. Direktaktionen, Ablauf-Schritte und
+    Kontext-Pings zählen nicht.
+  - Die Antwort bietet „Doch mit Ablauf“ (Knopf). Er startet den Ablauf von vorn, beim
+    Dokument-Ablauf also mit dem Upload; das Dokument wird noch einmal gewählt.
+- **Vorgaben** gehen an den Generator des Moduls. Sie gelten vor seinen allgemeinen Regeln, nicht
+  vor dem Antwortformat. Er sieht nur, was die KI übergibt, Anweisungen an die KI gehören in den
+  Hinweis.
+- **Muster-Maschine:** Am KI-Schritt bietet sie die UI-Module des Schritts an, auch wenn das
+  Muster sie nicht nennt.
+
 ## Beispiele: Themenbaum mit Kernfragen
 
-Die drei Themenbaum-Abläufe heißen im Studio einheitlich „Themenbaum · aus …“: aus Ordnern, aus
-einem Thema, aus eigenen Inhalten. Alle sind im Werkszustand aus.
+Die vier Themenbaum-Abläufe heißen im Studio einheitlich „Themenbaum · aus …“: aus Ordnern, aus
+einem Thema, aus eigenen Inhalten und aus einem Dokument. Alle sind im Werkszustand aus.
+„Aus einem Thema“ und „aus einem Dokument“ beginnen mit der Wahl „mit Fragen / gleich entwerfen /
+ohne Ablauf“, „aus eigenen Inhalten“ mit „Ja, los geht's / ohne Ablauf“.
+„Themenbaum · aus einem Dokument“ startet auch aus dem Auswahlfeld, mit „Themenbaum aus dem
+Strukturdokument erstellen“ (Modul-Auslöser).
 
 **Kernfragen als Teile.** Die Fragen kommen aus dem Gestaltungsleitfaden: wofür, für wen, welches
 Thema, wie tief.

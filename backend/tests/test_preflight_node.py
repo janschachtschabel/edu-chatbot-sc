@@ -768,8 +768,8 @@ def test_ablauf_starten_bei_hohem_risiko_startet_nicht(monkeypatch):
 
 def _ausloeser_spione(monkeypatch, *, text=None, modul=None):
     gerufen: dict[str, list] = {"text": [], "modul": []}
-    monkeypatch.setattr(pf_mod.ablauf_zug, "text_ausloeser", lambda nachricht: text)
-    monkeypatch.setattr(pf_mod.ablauf_zug, "modul_ausloeser", lambda geprueft: modul)
+    monkeypatch.setattr(pf_mod.ablauf_zug, "text_ausloeser", lambda nachricht, ohne=None: text)
+    monkeypatch.setattr(pf_mod.ablauf_zug, "modul_ausloeser", lambda geprueft, ohne=None: modul)
 
     async def starten_mit(session, req, state, ablauf, **k):
         gerufen["text"].append((ablauf, k))

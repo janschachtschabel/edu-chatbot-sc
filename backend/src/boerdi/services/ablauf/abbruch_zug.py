@@ -51,6 +51,9 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     if offen:
         entities.pop(plan_fortsetzen.KEY, None)
+    # Querschnitts-Review TW, Befund 3: „Abbrechen“ ist ein Ausstieg der Person — einige Züge
+    # startet derselbe Ablauf nicht von selbst wieder
+    basis.ausstieg_merken(session_state, lauf.get("ablauf"))
     from boerdi.services import vorgang_aktion
 
     antwort = await basis.nur_text(session, req, _satz(lauf, angelaufen), entities)

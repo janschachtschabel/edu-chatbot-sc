@@ -14,9 +14,10 @@
   wenn die Seite passt — der Abgleich läuft im Widget (Plan 2026-11-09 §5m, F-7).
 - :func:`erfuellt`: die Voraussetzungen (für jeden Auslöser).
 
-Nur aktive Einträge; der erste passende gewinnt (Reihenfolge der Schlüssel — fest, damit dieselbe
-Wendung nicht je nach Ladereihenfolge einen anderen Ablauf startet; das Studio warnt bei gleichen
-Wendungen, ``pruefung.wendungs_warnungen``). Voraussetzungen prüft der Start (``zug``).
+Nur aktive Einträge. Bei Wendungen gewinnt die längste passende (TW-3), bei gleicher Länge der
+erste in der Reihenfolge der Schlüssel — fest, damit dieselbe Wendung nicht je nach Ladereihenfolge
+einen anderen Ablauf startet; das Studio warnt bei Überschneidungen
+(``pruefung.wendungs_warnungen``). Voraussetzungen prüft der Start (``zug``).
 """
 
 from __future__ import annotations
@@ -120,13 +121,19 @@ def nimmt_daten(ablauf: AblaufArea) -> bool:
 
 
 def per_text(nachricht: str | None) -> AblaufArea | None:
+    """Plan 2026-11-11, TW-3: der Ablauf mit dem **längsten** passenden Treffer — der genauere
+    gewinnt („themenbaum aus meinen dateien“ vor „themenbaum“); bei gleicher Länge die Reihenfolge
+    der Schlüssel."""
     text = wendung((nachricht or "")[:_TEXT_ZEICHEN])
     if not text:
         return None
+    bester: tuple[int, AblaufArea] | None = None
     for ablauf, aus in _aktive("text"):
-        if any((w := wendung(roh)) and w in text for roh in aus.wendungen):
-            return ablauf
-    return None
+        laenge = max((len(w) for roh in aus.wendungen if (w := wendung(roh)) and w in text),
+                     default=0)
+        if laenge and (bester is None or laenge > bester[0]):
+            bester = (laenge, ablauf)
+    return bester[1] if bester else None
 
 
 def per_modul(geprueft: dict[str, Any] | None) -> tuple[AblaufArea, int] | None:

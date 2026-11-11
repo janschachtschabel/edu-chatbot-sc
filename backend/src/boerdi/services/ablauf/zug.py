@@ -196,19 +196,30 @@ def lauf_wartet(session_id: str, session_state: dict) -> bool:
     return isinstance(lauf, dict) and lauf.get("status") in treiber.WARTEND
 
 
-def text_ausloeser(nachricht: str | None) -> AblaufArea | None:
+# Querschnitts-Review TW, Befunde 3/4: der Ausstieg ist eine kurze Marke (``zug_basis``).
+abgelehnt = basis.abgelehnt
+ausstieg_merken = basis.ausstieg_merken
+AUSSTIEG_ZUEGE = basis.AUSSTIEG_ZUEGE
+
+
+def text_ausloeser(nachricht: str | None, ohne: str | None = None) -> AblaufArea | None:
     """Der Ablauf, dessen Wendung in ``nachricht`` vorkommt (für den Preflight) — nur mit erfüllten
     Voraussetzungen: sonst bekäme eine anonyme Frage mit der Wendung nur „bitte anmelden“ und bliebe
-    unbeantwortet (Querschnitts-Review)."""
+    unbeantwortet (Querschnitts-Review). Nie ``ohne`` (der eben abgelehnte, :func:`abgelehnt`)."""
     ablauf = ausloeser.per_text(nachricht)
-    return ablauf if ablauf is not None and ausloeser.erfuellt(ablauf) else None
+    if ablauf is None or ablauf.id == ohne:
+        return None
+    return ablauf if ausloeser.erfuellt(ablauf) else None
 
 
-def modul_ausloeser(geprueft: dict[str, Any] | None) -> tuple[AblaufArea, int] | None:
+def modul_ausloeser(geprueft: dict[str, Any] | None, ohne: str | None = None
+                    ) -> tuple[AblaufArea, int] | None:
     """Ablauf und Startschritt für eine Modul-Antwort — nur mit erfüllten Voraussetzungen (sonst
-    geht die Antwort still den gewöhnlichen Weg)."""
+    geht die Antwort still den gewöhnlichen Weg), nie ``ohne`` (:func:`abgelehnt`)."""
     treffer = ausloeser.per_modul(geprueft)
-    return treffer if treffer is not None and ausloeser.erfuellt(treffer[0]) else None
+    if treffer is None or treffer[0].id == ohne:
+        return None
+    return treffer if ausloeser.erfuellt(treffer[0]) else None
 
 
 async def per_modul_starten(session: Any, req: ChatRequest, session_state: dict,
@@ -245,6 +256,9 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
         start = {}
     entities = session_state.setdefault("entities", {})
     aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
+    # Zweites Review TW, Befund 8: „Doch mit Ablauf“ (oder ein anderer Start) hebt den Ausstieg auf
+    if (entities.get(basis.AUSSTIEG_KEY) or {}).get("ablauf") == ablauf.id:
+        entities.pop(basis.AUSSTIEG_KEY, None)
     # Querschnitts-Review F/T, Befund 1: ein Ablauf, der ins Repositorium schreibt, beginnt immer
     # in einem frischen Vorgang — eine alte Ablage ginge sonst als „frisch hochgeladen“ an einen
     # schreibenden Flow (N14). Der Modul-Auslöser (``frisch=False``) bleibt: er hat sein Ziel schon
@@ -456,8 +470,12 @@ async def weiter_nach_ki(session: Any, req: ChatRequest, session_state: dict, *,
         return await basis.nur_text(session, req, "action.ablauf.fehler", entities)
     if aus.fehlt_teil:
         antwort = await basis.nur_text(session, req, "action.ablauf.fehltNoch")
-        antwort.quick_replies = [ki_schritt.knopf(ablauf.id,
-                                                  resolve_locale(req.environment.locale))]
+        lang = resolve_locale(req.environment.locale)
+        antwort.quick_replies = [ki_schritt.knopf(ablauf.id, lang)]
+        # Review TW-3, Befund 4: hat die KI am Schritt noch nichts getan, wieder der Startknopf
+        if not ki_schritt.zuege_bisher(entities, ablauf.id, str(lauf.get("schritt"))) and (
+                start := ki_schritt.start_knopf(ablauf, str(lauf.get("schritt")), lang)):
+            antwort.quick_replies.insert(0, start)
         return antwort
     try:
         v = await basis.festhalten(session, v, aus, session_id=req.session_id)

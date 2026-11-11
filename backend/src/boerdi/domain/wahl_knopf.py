@@ -25,9 +25,19 @@ _RUECKFRAGE_AKTIONEN: Final = frozenset({"ablauf_starten", "ablauf_auftrag_pruef
 #: den Chips des wartenden Schritts verdrängten diese ihn unter ``max_count: 2`` (Browser-Abnahme
 #: AS-U, L-2). Der Leisten-Knopf ohne ``bestaetigt`` gehört nicht dazu.
 _ABBRUCH_AKTION: Final = "ablauf_abbrechen"
+#: Review TW-3, Befund 5: „Weiter im Ablauf“ (``ki_schritt.AKTION``) — kein Wahl-Chip (er zählt
+#: nicht als solcher), aber jeder Deckel muss ihn stehen lassen (:func:`ist_weiter_knopf`).
+_WEITER_AKTION: Final = "ablauf_weiter"
 #: AS-7a (F-2): der Navigations-Chip eines ``seite``-Schritts (``ablauf/seite_zug``) — der Weg zum
 #: Ziel einer Führung; er übersteht jeden Deckel wie die Chips einer Wahl.
 FUEHRUNG_PRAEFIX: Final = "__fuehrung__|"
+
+
+def ist_weiter_knopf(qr: Any) -> bool:
+    """Review TW-3, Befund 5: der Knopf „Weiter im Ablauf“ — neben dem Startknopf strich ein Deckel
+    von 1 oder 2 sonst gerade ihn."""
+    return isinstance(qr, str) and qr.split("|", 3)[2:3] == [_WEITER_AKTION] \
+        and qr.startswith("__action__|")
 
 
 def ist_wahl_knopf(qr: Any) -> bool:

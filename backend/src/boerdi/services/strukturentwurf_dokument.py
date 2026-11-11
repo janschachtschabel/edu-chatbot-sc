@@ -25,15 +25,17 @@ def aufforderung_oben(a: Any, d: dict[str, Any], dokument: DokumentStand | None
     gemeinsam = {"thema": a.thema, "fach": d.get("fach"), "bildungsstufe": d.get("bildungsstufe"),
                  "anzahl_oben": a.anzahl_oben, "hinweise": a.hinweise}
     if dokument is None:
-        return prompt.oben(**gemeinsam)
+        return prompt.oben(**gemeinsam, vorgaben=a.vorgaben)
     gliederung, _ = uebersicht(dokument.abschnitte, DOKUMENT_GLIEDERUNG)
     from boerdi.services.ablauf.metadaten import DOKUMENT_FORMAT
 
     if getattr(dokument, "format", None) == DOKUMENT_FORMAT:   # TB-T1: gruppieren, nicht gliedern
         return prompt.oben_aus_inhalten(**gemeinsam, gliederung=gliederung,
-                                        anfang=dokument.markdown[:DOKUMENT_ANFANG])
+                                        anfang=dokument.markdown[:DOKUMENT_ANFANG],
+                                        vorgaben=a.vorgaben)
     return prompt.oben_aus_dokument(**gemeinsam, gliederung=gliederung,
-                                    anfang=dokument.markdown[:DOKUMENT_ANFANG])
+                                    anfang=dokument.markdown[:DOKUMENT_ANFANG],
+                                    vorgaben=a.vorgaben)
 
 
 def fundstelle(knoten: dict[str, Any], roh: dict[str, Any], dokument: DokumentStand) -> None:

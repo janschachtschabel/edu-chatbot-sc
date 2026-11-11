@@ -110,6 +110,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AgentSchritt.zuege.label': 'Züge',
     'feld.AgentSchritt.zuege.hint':
       '1 bis 20: danach bittet die KI die Person, mit „Weiter im Ablauf“ fortzufahren.',
+    'feld.AgentSchritt.vorgaben.label': 'Vorgaben für die Module',
+    'feld.AgentSchritt.vorgaben.hint':
+      'Je Sprache, höchstens 2000 Zeichen: redaktionelles Wissen für Module dieses Schritts, etwa wie der Strukturentwurf gliedern soll. Geht an den Generator des Moduls (vor dessen allgemeinen Regeln, nicht vor dem Antwortformat); er sieht nur, was die KI ihm übergibt — Anweisungen an die KI gehören in den Hinweis.',
+    'feld.AgentSchritt.startknopf.label': 'Startknopf',
+    'feld.AgentSchritt.startknopf.hint':
+      'Je Sprache, höchstens 60 Zeichen, ohne | und nicht mit __ am Anfang: eine Schnellantwort beim Eintritt in den Schritt (und wenn „Weiter“ zu früh kam). Ihr Text geht als Nachricht der Person an die KI.',
     'feld.Schritt.typ.wahl.nachricht': 'Nachricht',
     'feld.Schritt.typ.wahl.modul': 'Modul',
     'feld.Schritt.typ.wahl.werkzeug': 'Werkzeug',
@@ -131,6 +137,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.freigabe.label': 'Freigabe (Satz über der Vorschau)',
     'feld.Schritt.freigabe.hint':
       'Nur bei einem schreibenden WLO-Werkzeug: der Schritt zeigt diesen Satz und die Vorschau des Servers und wartet, bis die Person zustimmt. Mindestens auf Deutsch. Platzhalter wie {teil.name} gehen auch hier.',
+    'feld.Schritt.ausstieg.label': 'Ausstieg aus dem Ablauf',
+    'feld.Schritt.ausstieg.hint':
+      'Ankreuzen, wenn die Person hier ohne den Ablauf weiterarbeiten will. Danach startet er nicht wieder von selbst (Wendung, Modul, KI) — ein Knopf startet ihn weiter.',
     'feld.Schritt.repo_schreibt.label': 'Flow schreibt ins Repositorium',
     'feld.Schritt.repo_schreibt.hint':
       'Ankreuzen, wenn der Flow in WLO schreibt (Metadaten, Sammlungen …). Der Chatbot sieht nicht in '
@@ -325,6 +334,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AgentSchritt.zuege.label': 'Turns',
     'feld.AgentSchritt.zuege.hint':
       '1 to 20: then the AI asks the person to go on with “Continue workflow”.',
+    'feld.AgentSchritt.vorgaben.label': 'Guidance for modules',
+    'feld.AgentSchritt.vorgaben.hint':
+      'Per language, at most 2000 characters: editorial knowledge for the modules of this step, e.g. how the structure draft should organise. Goes to the module\'s generator (before its general rules, not before the answer format); it only sees what the AI passes on — instructions to the AI belong in the hint.',
+    'feld.AgentSchritt.startknopf.label': 'Start button',
+    'feld.AgentSchritt.startknopf.hint':
+      'Per language, at most 60 characters, no | and not starting with __: a quick reply when the step is entered (and when “Continue” came too early). Its text is sent to the AI as the person’s message.',
     'feld.Schritt.typ.wahl.nachricht': 'Message',
     'feld.Schritt.typ.wahl.modul': 'Module',
     'feld.Schritt.typ.wahl.werkzeug': 'Tool',
@@ -346,6 +361,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.freigabe.label': 'Approval (sentence above the preview)',
     'feld.Schritt.freigabe.hint':
       'Only for a writing WLO tool: the step shows this sentence and the server preview and waits until the person agrees. At least in German. Placeholders such as {teil.name} work here too.',
+    'feld.Schritt.ausstieg.label': 'Exit from the workflow',
+    'feld.Schritt.ausstieg.hint':
+      'Tick if the person wants to continue without the workflow here. It then does not start again by itself (phrase, module, AI) — a button still starts it.',
     'feld.Schritt.repo_schreibt.label': 'Flow writes to the repository',
     'feld.Schritt.repo_schreibt.hint':
       'Tick if the flow writes to WLO (metadata, collections …). The chatbot cannot see into the flow — '

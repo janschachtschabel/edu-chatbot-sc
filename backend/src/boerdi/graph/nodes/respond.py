@@ -69,6 +69,7 @@ from boerdi.services.tool_loop_module import (
     DOKUMENT_LADER_KEY,
     MODUL_BLOECKE_KEY,
     TEIL_LADER_KEY,
+    VORGABEN_KEY,
 )
 from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
 from boerdi.ui_module.antwort import frage_satz, merke_frage
@@ -453,6 +454,11 @@ async def respond(
         # Nicht unter einem von der Sicherheitsprüfung vorgegebenen Muster (Review A2b, Befund 1).
         _ki = ki_schritt.fuer_zug(session_state, req.session_id, safety)
         if _ki:
+            # Plan 2026-11-11, TW-2: die Vorgaben des Schritts für die Module dieses Zugs
+            # (Review TW-2, Befund 4: nur für die Werkzeuge des Schritts — wie im Agent-Weg)
+            session_state[VORGABEN_KEY] = (
+                ki_schritt.vorgaben(_ki[1], resolve_locale(req.environment.locale)),
+                frozenset(_ki[1].agent.werkzeuge if _ki[1].agent else ()))
             _kennzeile = "\n\n".join(t for t in (_kennzeile, ki_schritt.zeile(
                 *_ki, resolve_locale(req.environment.locale),
                 zuege=ki_schritt.zaehlen(_entities, *_ki), eingeengt=False)) if t)
@@ -465,7 +471,9 @@ async def respond(
                 message=req.message,
                 history=history,
                 classification=classification_dict,
-                pattern_output=pattern_output,
+                # Querschnitts-Review TW, Befund 5: am KI-Schritt auch dessen Module
+                pattern_output=(ki_schritt.mit_schrittmodulen(pattern_output, _ki[1]) if _ki
+                                else pattern_output),
                 pattern_label=ctx.winner_label,
                 session_state=session_state,
                 environment=env,
@@ -549,6 +557,7 @@ async def respond(
         # Gemerkt wird nur eine Frage, die die Regeln je Antwort übersteht (Review U1 gesamt).
         session_state.pop(DOKUMENT_LADER_KEY, None)
         session_state.pop(TEIL_LADER_KEY, None)
+        session_state.pop(VORGABEN_KEY, None)
         ctx.ui_bloecke = regeln_anwenden(list(session_state.pop(MODUL_BLOECKE_KEY, None) or []))
         entwurf_merken.aus_bloecken(session_state.setdefault("entities", {}), ctx.ui_bloecke)
         if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):

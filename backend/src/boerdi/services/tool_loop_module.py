@@ -54,6 +54,9 @@ MODUL_BLOECKE_KEY: Final = "_modul_bloecke_zug"
 DOKUMENT_LADER_KEY: Final = "_dokument_lader_zug"
 #: Paket V1: der Teil-Lader des aktiven Vorgangs — wie der Dokument-Lader nur für diesen Zug.
 TEIL_LADER_KEY: Final = "_teil_lader_zug"
+#: Plan 2026-11-11, TW-2: die Vorgaben des KI-Schritts eines Laufs (``ki_schritt.vorgaben``) und
+#: die Werkzeuge des Schritts, für die sie gelten — nur für diesen Zug.
+VORGABEN_KEY: Final = "_modul_vorgaben_zug"
 
 
 @dataclass(slots=True)
@@ -68,6 +71,13 @@ def offene_frage(session_state: dict) -> UiBlock | None:
     """Der abfragende Block dieses Zugs — oder ``None``."""
     return next((b for b in session_state.get(MODUL_BLOECKE_KEY) or []
                  if b.art == "abfragen"), None)
+
+
+def _vorgaben_fuer(name: str, eintrag: Any) -> str:
+    """Review TW-2, Befund 4: die Vorgaben nur für ein Modul, das der KI-Schritt nennt."""
+    if isinstance(eintrag, tuple) and len(eintrag) == 2 and name in eintrag[1]:
+        return str(eintrag[0] or "")
+    return ""
 
 
 def _anzeigende(session_state: dict) -> int:
@@ -107,7 +117,8 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
             ergebnis = await asynchron(name, args, Umgebung(
                 usage_acc=usage_acc, vorlage=entwurf_vorlage(session_state.get("entities") or {}),
                 dokument=session_state.get(DOKUMENT_LADER_KEY),
-                teile=session_state.get(TEIL_LADER_KEY), verfuegbar=frozenset(angeboten)))
+                teile=session_state.get(TEIL_LADER_KEY), verfuegbar=frozenset(angeboten),
+                vorgaben=_vorgaben_fuer(name, session_state.get(VORGABEN_KEY))))
         outcomes.append(ergebnis.outcome)
         if ergebnis.block is not None:
             session_state.setdefault(MODUL_BLOECKE_KEY, []).append(ergebnis.block)

@@ -1,29 +1,45 @@
 # Ablauf „Themenbaum · aus einem Thema“ (Plan docs/plans/2026-11-10-themenbaum-aus-inhalten.md,
-# TB-T2, Nutzer-Auftrag N15). Ohne eigene Inhalte: die Kernfragen aus dem Gestaltungsleitfaden
-# (wofür, für wen, welches Thema, wie tief) grenzen den Entwurf ein, dann erzeugt die KI ihn mit
-# ui_strukturentwurf und zeigt ihn im Chat. Danach endet der Ablauf — Sammlungen daraus anzulegen,
-# kommt später (N15).
+# TB-T2; Plan docs/plans/2026-11-11-themenbaum-ausloesen-und-wissen.md, TW-4). Ohne eigene Inhalte:
+# die Kernfragen aus dem Gestaltungsleitfaden (wofür, für wen, welches Thema, wie tief) grenzen den
+# Entwurf ein, dann erzeugt die KI ihn mit ui_strukturentwurf und zeigt ihn im Chat. Danach endet
+# der Ablauf — Sammlungen daraus anzulegen, kommt später.
 #
-# Die Antworten werden Teile (TB-T1): eine Wahl schreibt ihr Label (schreibt an der Nachricht),
-# getippter Text den Teil von freitext.schreibt. Die KI sieht sie in der Arbeitsstands-Zeile und im
-# Verlauf; der Hinweis an die KI setzt bewusst nichts ein (getippter Text wäre ein Einfallstor).
+# - Zuerst angeboten (N16): die KI startet ihn direkt (modus direkt, er schreibt nichts), die erste
+#   Frage lässt aussteigen — dann arbeitet die KI frei mit ui_strukturentwurf weiter.
+# - Die Antworten werden Teile (TB-T1); die KI sieht sie in der Arbeitsstands-Zeile und im Verlauf.
+# - Der Startknopf am KI-Schritt schickt „Entwurf erstellen“ an die KI (TW-3); die Vorgaben gehen
+#   als Wissen der Redaktion an den Generator (TW-2).
 id: themenbaum_aus_thema
 titel: {de: "Themenbaum · aus einem Thema", en: "Topic tree · from a topic"}
 beschreibung: >-
   Vier kurze Fragen (wofür, für wen, welches Thema, wie tief), dann ein bearbeitbarer
   Themenbaum-Entwurf im Chat. Ohne eigene Dateien.
 wann:
-  - Die Person will einen Themenbaum zu einem Fach oder Thema, ohne eigene Dateien
+  - Die Person will einen Themenbaum, eine Gliederung oder Sammlungsstruktur zu einem Thema, ohne eigene Dateien
+nicht_wann:
+  - Die Person hat eigene Dateien oder ein Dokument (Lehrplan), aus dem der Baum entstehen soll
+  - Die Person will einen Text, ein Referat oder eine Arbeit gliedern
 aktiv: false
 ausloeser:
   - {art: knopf}
-  - {art: agent}
-  - {art: text, wendungen: [themenbaum zu einem thema, themenbaum aus einem thema]}
+  - {art: agent, modus: direkt}
+  - art: text
+    # Nur die eindeutige Wendung (zweites Review TW, Befund 2): allgemeine wie „erstelle einen
+    # Themenbaum“ träfen auch „… aus diesem PDF“ oder die Frage „Wie kann ich einen Themenbaum
+    # erstellen?“ — das entscheidet die KI, die den Ablauf direkt startet und ``nicht_wann`` sieht.
+    wendungen: [themenbaum aus einem thema]
 schritte:
+  - id: einstieg
+    typ: nachricht
+    text: {de: "Gern baue ich dir einen Themenbaum. Mit vier kurzen Fragen wird er passender – oder soll ich gleich entwerfen?",
+           en: "I'll gladly build you a topic tree. Four short questions make it fit better – or shall I draft it right away?"}
+    optionen:
+      - {id: fragen, label: {de: "Ja, mit Fragen", en: "Yes, with questions"}, ziel: wofuer}
+      - {id: gleich, label: {de: "Gleich entwerfen", en: "Draft right away"}, ziel: entwurf}
+      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
   - id: wofuer
     typ: nachricht
-    text: {de: "Gern baue ich dir einen Themenbaum. Wofür soll er sein?",
-           en: "I'll gladly build you a topic tree. What is it for?"}
+    text: {de: "Wofür soll der Themenbaum sein?", en: "What is the topic tree for?"}
     schreibt: zweck
     optionen:
       - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: stufe}
@@ -53,17 +69,31 @@ schritte:
     optionen:
       - {id: ueberblick, label: {de: Überblick (2 Ebenen), en: Overview (2 levels)}, ziel: entwurf}
       - {id: ausfuehrlich, label: {de: Ausführlich (3 Ebenen), en: Detailed (3 levels)}, ziel: entwurf}
+  # Ein KI-Schritt antwortet auf die nächste Nachricht (A2b): der Startknopf schickt sie mit einem
+  # Klick, Schwerpunkte kann die Person stattdessen tippen.
   - id: entwurf
     typ: agent
-    # Ein KI-Schritt antwortet auf den nächsten getippten Zug (Paket A2b) — die Frage nach
-    # Schwerpunkten ist zugleich die präzisierende Frage des Leitfadens.
-    text: {de: "Danke! Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder einfach „Los“.",
-           en: "Thanks! Any focus areas that must not be missing? Tell me – or just say “Go”."}
+    text: {de: "Danke! Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder klick auf „Entwurf erstellen“.",
+           en: "Thanks! Any focus areas that must not be missing? Tell me – or click “Create draft”."}
     agent:
       werkzeuge: [ui_strukturentwurf]
       hinweis:
-        de: "Rufe ui_strukturentwurf mit Thema, Fach, Stufe, Tiefe aus den Antworten auf; Zweck und Wünsche als hinweise. Klassen, Formate, Jahre sind keine Punkte."
-        en: "Call ui_strukturentwurf with topic, subject, level, depth from the answers; purpose and wishes as hinweise. Grades, formats, years are not topics."
+        de: "Rufe ui_strukturentwurf mit Thema, Fach, Stufe, Tiefe aus den Antworten, sonst aus dem Verlauf, auf; Zweck und Wünsche als hinweise. Fehlt das Thema, frag einmal nach."
+        en: "Call ui_strukturentwurf with topic, subject, level, depth from the answers, else from the conversation; purpose and wishes as hinweise. If the topic is missing, ask once."
+      startknopf: {de: Entwurf erstellen, en: Create draft}
+      vorgaben:
+        de: |-
+          Baue den Baum nach dem Zweck in den Hinweisen:
+          - „Unterricht planen“: Planungsbaum für Lehrende. Oben die Themen des Fachs in einer sinnvollen Unterrichtsreihenfolge; nur wenn die Person es wünscht, Unterrichtsreihen oder Halbjahre.
+          - „Materialpool aufbauen“: Ordnung nach Themen der Fachsystematik (Fach → Themenfeld → Thema), länderneutral, oben 6 bis 12 Punkte.
+          - „Redaktionelle Sammlung“: Themenwelt → Themenseite → Abschnitt, publikumsnahe Bezeichnungen; Fragen nur, wenn alle Geschwister als Frage stehen.
+          Die Stufe bestimmt Wortwahl und Tiefe der Begriffe, sie ist nie ein Punkt. In der Beruflichen Bildung ordnen Lernfelder bzw. berufliche Handlungen die obere Ebene. Kompetenzen, Methoden und Formate gehören in Schlagworte, nicht in den Baum.
+        en: |-
+          Build the tree according to the purpose given in the hints:
+          - "Plan lessons": a planning tree for teachers. At the top the topics of the subject in a sensible teaching order; teaching units or terms only if the person asks for them.
+          - "Build a material pool": order by topics of the subject (subject → topic field → topic), independent of any state curriculum, 6 to 12 top-level items.
+          - "Editorial collection": theme world → theme page → section, audience-friendly labels; questions only if all siblings are questions.
+          The level shapes wording and depth of the terms; it is never an item. In vocational training, learning fields or occupational tasks order the top level. Competences, methods and formats belong in keywords, not in the tree.
       ausgabe: draft
       zuege: 3
     bei_fehler: ohne_entwurf
@@ -71,6 +101,12 @@ schritte:
     typ: ende
     text: {de: "Dein Themenbaum-Entwurf ist gespeichert. Du kannst ihn herunterladen oder später weiter bearbeiten.",
            en: "Your topic tree draft is saved. You can download it or keep editing it later."}
+  # Ausstieg (N16): danach startet dieser Ablauf nicht wieder von selbst, die KI arbeitet frei.
+  - id: frei
+    typ: ende
+    ausstieg: true
+    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei weiter.",
+           en: "Alright, without the workflow – let's carry on freely."}
   - id: ohne_entwurf
     typ: ende
     text: {de: "Diesmal ist kein Entwurf entstanden. Versuch es gern noch einmal.",
@@ -78,26 +114,39 @@ schritte:
 tests:
   - name: Alle Fragen beantwortet
     eingaben:
+      - {bei: einstieg, option: fragen}
       - {bei: wofuer, option: unterricht}
       - {bei: stufe, option: sek1}
       - {bei: thema, text: "Physik: Optik"}
       - {bei: tiefe, option: ueberblick}
       - bei: entwurf
         teile: {draft: {titel: Optik, quelle: ki, knoten: [{titel: Linsen}, {titel: Spiegel}]}}
-    erwartet: {weg: [wofuer, stufe, thema, tiefe, entwurf, ende], status: fertig,
+    erwartet: {weg: [einstieg, wofuer, stufe, thema, tiefe, entwurf, ende], status: fertig,
                teile: [zweck, stufe, thema, tiefe, draft]}
+  - name: Ohne Ablauf
+    eingaben:
+      - {bei: einstieg, option: ohne}
+    erwartet: {weg: [einstieg, frei], status: fertig}
+  - name: Gleich entwerfen
+    eingaben:
+      - {bei: einstieg, option: gleich}
+      - bei: entwurf
+        teile: {draft: {titel: Karate, quelle: ki, knoten: [{titel: Kata}, {titel: Kumite}]}}
+    erwartet: {weg: [einstieg, entwurf, ende], status: fertig}
   - name: Zielgruppe getippt
     eingaben:
+      - {bei: einstieg, option: fragen}
       - {bei: wofuer, option: materialpool}
       - {bei: stufe, text: Erwachsenenbildung}
       - {bei: thema, text: "Geschichte: Römer"}
       - {bei: tiefe, option: ausfuehrlich}
-    erwartet: {weg: [wofuer, stufe, thema, tiefe, entwurf], status: wartet_ki}
+    erwartet: {weg: [einstieg, wofuer, stufe, thema, tiefe, entwurf], status: wartet_ki}
   - name: Ohne Entwurf
     eingaben:
+      - {bei: einstieg, option: fragen}
       - {bei: wofuer, option: redaktion}
       - {bei: stufe, option: sek2}
       - {bei: thema, text: "Chemie: Säuren"}
       - {bei: tiefe, option: ueberblick}
       - {bei: entwurf}
-    erwartet: {weg: [wofuer, stufe, thema, tiefe, entwurf, ohne_entwurf], status: fertig}
+    erwartet: {weg: [einstieg, wofuer, stufe, thema, tiefe, entwurf, ohne_entwurf], status: fertig}

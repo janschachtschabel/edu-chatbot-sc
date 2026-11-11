@@ -74,14 +74,16 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     # sie weiter) oder eine Wendung in einer getippten Nachricht.
     # Nicht, solange ein Lauf wartet (Review A2b, Befund 2): eine Modul-Antwort im agent-Schritt
     # ersetzte ihn sonst still.
-    per_modul = (ablauf_zug.modul_ausloeser(ctx.ui_antwort)
+    # Review TW-4, Befund 2: der eben abgelehnte Ablauf startet nicht wieder von selbst
+    abgelehnt = ablauf_zug.abgelehnt(req.session_id, ctx.session_state)
+    per_modul = (ablauf_zug.modul_ausloeser(ctx.ui_antwort, ohne=abgelehnt)
                  if not req.action and not im_lauf and ctx.ui_antwort is not None
                  and not ablauf_zug.lauf_wartet(req.session_id, ctx.session_state) else None)
     ordner = (not req.action and not im_lauf and per_modul is None
               and ist_ordner_als_entwurf(ctx.ui_antwort))
     # Review A2a, Befund 1: getippter Text während eines wartenden Laufs ist ein gewöhnlicher Zug
     # (F1) — eine Wendung ersetzte sonst still den Lauf.
-    per_text = (ablauf_zug.text_ausloeser(req.message)
+    per_text = (ablauf_zug.text_ausloeser(req.message, ohne=abgelehnt)
                 if not req.action and ctx.ui_antwort is None
                 and not ablauf_zug.lauf_wartet(req.session_id, ctx.session_state) else None)
     # Paket K2b: ein Zug der Person (kein Kontext-Ping, kein Tour-Tick) im gesperrten Lauf.
