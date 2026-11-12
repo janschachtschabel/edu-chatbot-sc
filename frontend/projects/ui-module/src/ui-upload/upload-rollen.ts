@@ -22,14 +22,17 @@ function mitRollen<T>(e: Erfassung<T>, neu: (d: ErfassteDatei<T>, i: number) => 
 }
 
 /**
- * Genau ein Lehrplan-Kandidat direkt in der Wurzel → Strukturdokument; ebenso eine **einzelne** Datei
- * ohne Ordner, die ein Strukturdokument sein kann (Rückmeldung 11.11.: wer nur ein Dokument wählt,
- * will es lesen lassen — sonst blieb „Senden“ der Hauptknopf, und es wurde nur gezählt). Sonst
- * bleibt alles, wie es ist.
+ * Genau ein Lehrplan-Kandidat direkt in der Wurzel → Strukturdokument. Mit `einzelneAlsStruktur`
+ * (der Block verlangt es, `einzeldatei_als_struktur` — nur der Ablauf „Themenbaum aus einem
+ * Dokument“) ebenso eine **einzelne** Datei ohne Ordner, die ein Strukturdokument sein kann
+ * (Rückmeldung 11.11.: dort blieb sonst „Senden“ der Hauptknopf). Review 12.11., Befund 1: nicht in
+ * jedem Upload-Feld — beim Übertragen nach WLO wäre die Datei sonst still als Strukturdokument
+ * markiert. Sonst bleibt alles, wie es ist.
  */
-export function vorschlagen<T>(e: Erfassung<T>): Erfassung<T> {
+export function vorschlagen<T>(e: Erfassung<T>, einzelneAlsStruktur = false): Erfassung<T> {
   const nutzbar = e.dateien.filter((d) => d.rolle === 'inhalt');
-  if (!e.wurzel.ordner.length && nutzbar.length === 1 && kannStrukturSein(nutzbar[0])) {
+  if (einzelneAlsStruktur && !e.wurzel.ordner.length && nutzbar.length === 1
+      && kannStrukturSein(nutzbar[0])) {
     return setzeRolle(e, e.dateien.indexOf(nutzbar[0]), 'struktur');
   }
   const kandidaten = e.wurzel.dateien.filter((i) => {

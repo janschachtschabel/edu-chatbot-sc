@@ -344,3 +344,18 @@ def test_ablage_ohne_kennungen_im_schema():
     daten = _ablage_daten()
     daten["ablage"]["node_ids"] = ["n-1"]
     assert _pruefe(daten) is None
+
+
+def test_review_1211_einzeldatei_als_struktur_nur_auf_wunsch_des_blocks():
+    """Review 12.11., Befund 1: nur der Dokument-Ablauf will eine Einzeldatei als Strukturdokument —
+    das Feld reicht den Wunsch durch, ohne ihn gibt es ihn nicht."""
+    ohne = asyncio.run(dienst.aufruf(_manifest(), {"zweck": "sammlungsstruktur"}, Umgebung()))
+    assert "einzeldatei_als_struktur" not in ohne.block.daten
+    # Review TW-6, Befund 7: nur aus einem Ablauf-Schritt — die KI sieht das Feld, es wirkt nicht
+    von_der_ki = asyncio.run(dienst.aufruf(
+        _manifest(), {"zweck": "sammlungsstruktur", "einzeldatei_als_struktur": True}, Umgebung()))
+    assert "einzeldatei_als_struktur" not in von_der_ki.block.daten
+    mit = asyncio.run(dienst.aufruf(
+        _manifest(), {"zweck": "sammlungsstruktur", "einzeldatei_als_struktur": True},
+        Umgebung(aus_ablauf=True)))
+    assert mit.block.daten["einzeldatei_als_struktur"] is True

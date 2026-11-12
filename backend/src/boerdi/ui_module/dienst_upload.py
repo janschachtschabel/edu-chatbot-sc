@@ -84,6 +84,10 @@ async def upload_angebot(manifest: Manifest, args: dict[str, Any], umgebung: Umg
     daten: dict[str, Any] = {"zweck": args["zweck"], "grenzen": grenzen, "schalter": schalter()}
     if hinweis := " ".join(str(args.get("hinweis") or "").split()):
         daten["hinweis"] = hinweis[:300]
+    # Review 12.11., Befund 1: nur der Dokument-Ablauf will eine Einzeldatei als Strukturdokument —
+    # und nur aus dem Ablauf heraus (Review TW-6, Befund 7: die KI sieht das Feld, es wirkt nicht)
+    if args.get("einzeldatei_als_struktur") is True and umgebung.aus_ablauf:
+        daten["einzeldatei_als_struktur"] = True
     if katalog.daten_fehler(manifest, daten):
         return Ergebnis(None, FEHLER, ToolOutcome(tool=modul, status="error", error="abweichung"))
     block = neuer_block(modul, manifest["version"], manifest["art"], daten, TEXTFASSUNG)

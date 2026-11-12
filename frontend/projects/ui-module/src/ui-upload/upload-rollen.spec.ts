@@ -15,13 +15,18 @@ describe('Rollen (U3-1a)', () => {
     expect(e.dateien.find((d) => d.name === 'blatt.pdf')?.rolle).toBe('inhalt');
   });
 
-  it('eine einzeln gewählte Datei wird Strukturdokument, auch ohne Lehrplan-Namen (Rückmeldung 11.11.)', () => {
-    expect(vorschlagen(erfasse([q('Ausbildung_Augenoptik.pdf')])).dateien[0].rolle).toBe('struktur');
+  it('eine einzeln gewählte Datei wird Strukturdokument, wenn der Block es verlangt (Rückmeldung 11.11.)', () => {
+    expect(vorschlagen(erfasse([q('Ausbildung_Augenoptik.pdf')]), true).dateien[0].rolle).toBe('struktur');
     // zwei Dateien, ein Bild oder ein Ordner bleiben ohne Vorschlag
-    const zwei = vorschlagen(erfasse([q('a.pdf'), q('b.pdf')]));
+    const zwei = vorschlagen(erfasse([q('a.pdf'), q('b.pdf')]), true);
     expect(zwei.dateien.every((d) => d.rolle === 'inhalt')).toBe(true);
-    expect(vorschlagen(erfasse([q('foto.png', 10, 'image/png')])).dateien[0].rolle).toBe('inhalt');
-    expect(vorschlagen(erfasse([q('P/A/notizen.pdf')])).dateien[0].rolle).toBe('inhalt');
+    expect(vorschlagen(erfasse([q('foto.png', 10, 'image/png')]), true).dateien[0].rolle).toBe('inhalt');
+    expect(vorschlagen(erfasse([q('P/A/notizen.pdf')]), true).dateien[0].rolle).toBe('inhalt');
+  });
+
+  it('ohne Wunsch des Blocks bleibt eine Einzeldatei Inhalt (Review 12.11., Befund 1)', () => {
+    // sonst wäre sie beim Übertragen nach WLO still als Strukturdokument markiert
+    expect(vorschlagen(erfasse([q('Ausbildung_Augenoptik.pdf')])).dateien[0].rolle).toBe('inhalt');
   });
 
   it('bei zwei Kandidaten, tief liegenden oder Bildern kein Vorschlag', () => {

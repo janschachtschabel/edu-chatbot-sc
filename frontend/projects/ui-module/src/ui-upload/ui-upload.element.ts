@@ -188,7 +188,8 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     // Während einer Übertragung bleibt die Auswahl, wie sie ist (Review U3-3b, Befund 3).
     if (this.uebertragen.laeuft()) return;
     this.uebertragen.zuruecksetzen();
-    const e = vorschlagen(erfasse(quellen, grenzenAus(this._daten)));
+    const e = vorschlagen(erfasse(quellen, grenzenAus(this._daten)),
+      this._daten['einzeldatei_als_struktur'] === true);
     this.offen = new Set([e.wurzel.pfad]);
     this.zustand = e.dateien.length ? 'erfasst' : 'fehler';
     this.neu(e);
