@@ -63,6 +63,9 @@
     max-width: 100vw;
     max-height: 100vh;
     max-height: 100dvh;
+    // Review 12.11. (#57): auf dem iPhone mit `viewport-fit=cover` läge die Eingabezeile sonst
+    // unter der Home-Leiste (0 ohne Aussparung)
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     border-radius: 0;
     position: fixed;
     inset: 0;
