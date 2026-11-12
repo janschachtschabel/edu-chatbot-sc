@@ -79,8 +79,15 @@ Abläufe-Oberfläche und ist dort klar als Kestra-Flow-Freigabe erkennbar.
   - angepasst `test_ablauf_studio_k2c1`, `test_ablauf_auftrag` (Prüftext) und `test_config_models`
     (neuer Bereich);
   - breiter Satz zu Ablauf, Auftrag, Konfiguration, Wächtern und Seeds: 1670 grün.
-  - Nur `test_health_nennt_das_repositorium` lief in eine Zeitüberschreitung, weil lokal keine
-    Datenbank lief (Docker aus). Die CI prüft ihn.
+  - Mit Datenbank: `test_repo_config`, `test_config_choices` (HTTP mit Studio-Schlüssel) und
+    `test_kf_kestra_flows` grün, 40 Tests.
+- **Browser-Abnahme** (Wegwerf-DB, Studio-Dev-Server, lokales Backend gegen die Staging-b-api):
+  - Der Abschnitt „Kestra-Flows freigeben“ steht unter „Abläufe“.
+  - Die Vorschlagsliste zeigt `edusharing.chatbot/node-metadata-write — Generates metadata for
+    repository nodes`.
+  - Nach Eintragen und Speichern trägt der Katalog `ablauf_flows` den Flow.
+  - Danach lässt sich „Themenbaum · aus eigenen Inhalten“ einschalten und speichern, ohne Fehler
+    und ohne Vermerk „Ungespeichert“; die Liste zeigt „an“. Ohne Umgebungsvariablen.
 - **Studio:**
   - Tests angepasst: 36 Bereiche, Abschnitte der Seite „Abläufe“; neu: Kataloge nach dem
     Speichern;
