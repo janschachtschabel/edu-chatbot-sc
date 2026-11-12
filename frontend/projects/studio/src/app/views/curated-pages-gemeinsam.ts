@@ -70,6 +70,13 @@ export const GEMEINSAME_SEITEN: readonly CuratedView[] = [
         labelKey: 'curated.ablaeufe.liste.label',
         hintKey: 'curated.ablaeufe.liste.hint',
       },
+      {
+        // Paket KF (Plan 2026-11-12): welche Kestra-Flows ein Ablauf starten darf — im Studio
+        // statt nur über B_API_JOBS_FLOWS (die bleibt optionale Obergrenze).
+        area: '01-base/kestra-flows',
+        labelKey: 'curated.ablaeufe.kestra.label',
+        hintKey: 'curated.ablaeufe.kestra.hint',
+      },
     ],
   },
   {

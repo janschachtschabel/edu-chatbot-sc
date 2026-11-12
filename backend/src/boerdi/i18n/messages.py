@@ -93,6 +93,8 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
         ),
         # Paket A1: ein Ablauf, den der Treiber nicht sicher ausführen könnte.
         "ablaeufe.ungueltig": "Ablauf nicht ausführbar: {value}",
+        "kestra.ausserhalb": "Außerhalb der Freigabe des Servers (B_API_JOBS_FLOWS): {value}. "
+                             "Erlaubt sind: {erlaubt}.",
         # Paket 8 (A): der Lauf läuft schon — auf dieser oder einer anderen Kopie.
         "retention.busy": "Die Bereinigung läuft gerade schon. Gleich noch einmal versuchen.",
         # ── Sicherung: Snapshots + Werksstand (C1-e2) ──────────────────
@@ -237,6 +239,8 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
             "The pattern id {value} is reserved: it marks the turns of the agent loop."
         ),
         "ablaeufe.ungueltig": "Workflow cannot be run: {value}",
+        "kestra.ausserhalb": "Outside the server's release (B_API_JOBS_FLOWS): {value}. "
+                             "Allowed: {erlaubt}.",
         "retention.busy": "Cleanup is already running. Try again in a moment.",
         "upload.tooLarge": "File too large (max {mb} MB).",
         "snapshots.notFound": "Snapshot not found.",

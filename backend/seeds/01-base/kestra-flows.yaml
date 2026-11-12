@@ -1,0 +1,9 @@
+# Kestra-Flows, die ein Ablauf starten darf (Paket KF, Plan docs/plans/2026-11-12-kestra-flow-freigabe.md).
+# Im Studio: Abläufe → „Kestra-Flows freigeben“. Wirkt ohne Neustart.
+#
+# - Freigegeben: diese Flows (namespace/flowId). Ist B_API_JOBS_FLOWS gesetzt, ist sie die Obergrenze.
+# - Leer: es gelten die Flows aus B_API_JOBS_FLOWS (wie vor dem Paket).
+# - Datenschutz: Eingaben und Ausgaben eines Auftrags liegen bei Kestra 30 Tage im Klartext.
+#   Nur Flows freigeben, deren Eingaben (Teile des Vorgangs, etwa ein Dokument) dort liegen dürfen.
+kestra:
+  flows: []

@@ -54,7 +54,7 @@ def test_ein_gueltiger_auftrag_schritt(freigeschaltet):
 
 @pytest.mark.parametrize(("aenderung", "erwartet"), [
     ({"flow": None}, "Flow"),
-    ({"flow": "wlo/nicht-frei"}, "freigeschaltet"),
+    ({"flow": "wlo/nicht-frei"}, "nicht freigegeben"),
     ({"schreibt": None}, "Ergebnis"),
 ])
 def test_befunde_am_auftrag_schritt(freigeschaltet, aenderung, erwartet):
@@ -72,7 +72,7 @@ def test_ein_auftrag_braucht_die_anmeldung(freigeschaltet):
 def test_ohne_einrichtung_ist_jeder_flow_ein_befund(monkeypatch):
     monkeypatch.delenv("B_API_JOBS_START_PATH", raising=False)
     get_settings.cache_clear()
-    assert any("freigeschaltet" in b for b in pruefe(AblaufArea.model_validate(_roh())))
+    assert any("nicht freigegeben" in b for b in pruefe(AblaufArea.model_validate(_roh())))
 
 
 # ── Treiber ────────────────────────────────────────────────────────────────────────────────

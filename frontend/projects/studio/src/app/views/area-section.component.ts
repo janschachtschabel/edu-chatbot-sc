@@ -22,6 +22,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
+import { ChoicesApi } from '../core/choices-api.service';
 import { ConfigApi } from '../core/config-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor } from '../schema-form/area-doc-editor';
@@ -50,6 +51,7 @@ export class AreaSectionComponent {
   readonly changed = output<void>();
 
   private readonly config = inject(ConfigApi);
+  private readonly choices = inject(ChoicesApi);
   protected readonly t = inject(StudioLanguageService).t;
   readonly editor = new AreaDocEditor(this.config, this.t);
 
@@ -103,7 +105,11 @@ export class AreaSectionComponent {
     // Review U1-f, #3: was dieser Abschnitt nicht zeigt, pflegt eine andere Seite.
     const vomServer = this.section().ohneFelder;
     void this.editor.save(this.area(), { force, vomServer }).then((saved) => {
-      if (saved) this.changed.emit();
+      if (!saved) return;
+      this.changed.emit();
+      // Review KF, Befund 6: Kataloge entstehen aus Bereichen (etwa die freigegebenen Kestra-Flows
+      // für das Feld „Flow“) — nach dem Speichern neu, sonst erst nach dem Neuladen der Seite.
+      void this.choices.neuLaden();
     });
   }
 }

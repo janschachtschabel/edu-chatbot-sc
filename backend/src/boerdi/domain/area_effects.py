@@ -91,6 +91,9 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     # Paket U3-2a: liest ``upload_angebot`` (Block von ui_upload) und ``/api/ui/dokumente`` —
     # unabhängig von der Maschine.
     "01-base/upload-config": _e("voll", "voll"),
+    # Paket KF: der Auftrags-Client liest sie bei jedem Start und jeder Prüfung — in Abläufen,
+    # unabhängig von der Maschine.
+    "01-base/kestra-flows": _e("voll", "voll"),
     "01-base/website-tour": _e("voll", "voll"),
     "01-base/welcome-config": _e("voll", "voll"),
     # Der einzige Leser steckt in einem Zweig, der nie läuft (ST-9).

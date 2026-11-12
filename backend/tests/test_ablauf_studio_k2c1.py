@@ -151,15 +151,23 @@ def test_gegliedert_und_flach_sagen_dasselbe():
 
 
 def test_der_flow_katalog_ist_leer_ohne_eingerichtete_auftraege(monkeypatch):
-    """Review K2c-1, Befund 3: ohne Startpfad keine Vorschläge (sonst meldete „Prüfen“ danach
-    „nicht freigeschaltet“ und wiese auf die falsche Variable)."""
+    """Review K2c-1, Befund 3: ohne eingerichtete Aufträge keine Vorschläge (sonst meldete „Prüfen“
+    danach „nicht freigeschaltet“). Seit Paket KF (K-E3) hat ein leerer Start-Pfad eine Vorgabe —
+    aus sind Aufträge ohne freigegebenen Flow oder mit unsicherem Pfad."""
     from boerdi.api import config_choices
 
-    monkeypatch.setenv("B_API_JOBS_FLOWS", "wlo/volltext")
+    monkeypatch.delenv("B_API_JOBS_FLOWS", raising=False)
     monkeypatch.setenv("B_API_JOBS_START_PATH", "")
     get_settings.cache_clear()
     try:
         assert config_choices._SOURCES["ablauf_flows"]() == []
+        monkeypatch.setenv("B_API_JOBS_FLOWS", "wlo/volltext")
+        monkeypatch.setenv("B_API_JOBS_START_PATH", "//boese.example/{flow}")
+        get_settings.cache_clear()
+        assert config_choices._SOURCES["ablauf_flows"]() == []
+        monkeypatch.setenv("B_API_JOBS_START_PATH", "")          # Vorgabe greift
+        get_settings.cache_clear()
+        assert [e["value"] for e in config_choices._SOURCES["ablauf_flows"]()] == ["wlo/volltext"]
     finally:
         get_settings.cache_clear()
 
@@ -177,13 +185,14 @@ def test_doppelte_kennungen_tragen_ihren_index(studio):
 _GOLD = {
     "A/de": [
         "Schritt-IDs doppelt: fertig",
-        "Schritt lesen: Flow 'wlo/volltext' ist im Betrieb nicht freigeschaltet (B_API_JOBS_FLOWS)",
+        "Schritt lesen: Flow 'wlo/volltext' ist nicht freigegeben "
+        "(Abläufe → Kestra-Flows freigeben)",
         "Schritt lesen: Ziel 'nirgends' gibt es nicht",
         "Aufträge brauchen die Voraussetzung Anmeldung"
     ],
     "A/en": [
         "Duplicate step ids: fertig",
-        "Step lesen: flow 'wlo/volltext' is not enabled by operations (B_API_JOBS_FLOWS)",
+        "Step lesen: flow 'wlo/volltext' is not enabled (Workflows → Enable Kestra flows)",
         "Step lesen: target 'nirgends' does not exist",
         "Jobs need the requirement sign-in"
     ],

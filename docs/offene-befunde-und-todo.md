@@ -313,7 +313,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - **F7:** Ob ein `FAILED` des Flows einen Bericht trägt, ist offen. Der Ablauf geht dann ohne
     Bericht zu `metadaten_fehlt`.
   - **Staging-Probe:**
-    - Der Flow muss in `B_API_JOBS_FLOWS` stehen.
+    - Der Flow muss im Studio freigegeben sein (Abläufe → „Kestra-Flows freigeben“, Paket KF).
     - Der B-API-Schlüssel muss ihn starten dürfen (F9).
     - Testperson, eigene Testknoten, danach entfernen; den Umfang klein halten.
   - **`language: de`** ist im Seed fest. Für englischsprachige Personen schreibt der Flow deutsche
@@ -347,7 +347,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     unter Sicherung → „Werk und eigene Fassung“ auf die Werksfassung umschalten und danach wieder
     einschalten.
   - Im Seed an: „aus Ordnern“, „aus einem Thema“, „aus einem Dokument“. „Aus eigenen Inhalten“
-    bleibt aus, bis `B_API_JOBS_FLOWS` den Flow freischaltet; dann im Studio einschalten.
+    bleibt aus, bis der Flow im Studio freigegeben ist (Abläufe → „Kestra-Flows freigeben“);
+    dann den Ablauf einschalten.
   - Danach den Master-Skill-Knoten nachziehen (siehe §3, TW-Eintrag).
 - **Themenbaum, Gruppen E/F/T (2026-11-10):**
   - Migration 0022 (`sessions.vorschau`, TB-E2) einspielen.
@@ -356,7 +357,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     `themenbaum_aus_inhalten` (beide aus), neuer Titel von `sammlungsstruktur`.
   - Für „aus eigenen Inhalten“ zusätzlich:
     - Ablage in WLO im Studio unter „Datei-Upload“;
-    - den Flow in `B_API_JOBS_FLOWS`;
+    - den Flow im Studio freigeben (Abläufe → „Kestra-Flows freigeben“);
     - die Rechte des B-API-Schlüssels.
 - **Abläufe im Studio AS-1…AS-3 (2026-11-09):** keine Migration, keine neue Variable. Das Image neu
   bauen (Widget, Studio, Backend in einem `Dockerfile`): Die Bibliothek `ui` hat sich geändert
@@ -471,7 +472,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   `0019` (`vorgang_auftraege`) laufen im `migrate`-Dienst. Abläufe liegen seit AS-0 (2026-11-09) je als
   Dokument `06-ablaeufe/<id>` (Werksfassung: Ablauf `sammlungsstruktur`, aus; Migration `0021` teilt den
   alten Bereich `06-ablaeufe/katalog` auf) und `privacy-config.logging.vorgang_tage` kommen mit dem Werksabgleich.
-  Aufträge bleiben aus, bis `B_API_JOBS_START_PATH` und `B_API_JOBS_FLOWS` gesetzt sind (K16).
+  Aufträge bleiben aus, bis ein Flow freigegeben ist (seit Paket KF im Studio; Start-Pfad mit Vorgabe).
 - **Migration `0013` (Review PR #18):** Teilindex `ix_quality_logs_text_offen` für den Text-Schritt der Aufbewahrung; wird `CONCURRENTLY` gebaut (sperrt das Schreiben nicht) und läuft im `migrate`-Dienst mit `alembic upgrade head`.
 - **Paket 16 — Plattform-Wissen neu einlesen:** der RAG-Seed `Plattformwissen.jsonl` folgt jetzt dem Domänen-Dokument 2.0 (13 Abschnitte). Nur diesen Bereich ersetzen: die Datei allein in ein Verzeichnis legen und `boerdi import-rag --seed <verz> --force` (leert nur die Bereiche dieses Seeds; Einbettung von 13 Abschnitten). Ohne den Schritt bleibt in bestehenden Datenbanken die Fassung 1.0.
 - **Paket 12 — Werk und eigene Fassung:** Migration `0011` (läuft im `migrate`-Dienst), der

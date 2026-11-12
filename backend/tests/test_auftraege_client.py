@@ -2,8 +2,9 @@
 
 Bekannt (Team-Info 2026-11-03, Konzept §16.15): Abfrage ``GET /api/v1/jobs/{jobId}`` → ``status``,
 ``outputs``, ``files``; 20 offene Jobs je Schlüssel (dann 429). Offen (K16): der Start-Pfad — daher
-``B_API_JOBS_START_PATH`` (leer = Aufträge aus). Der Betrieb schaltet Flows frei
-(``B_API_JOBS_FLOWS``); der Schlüssel ist der des Zuges (nie gespeichert), kein ``X-Edu-User-Id``
+``B_API_JOBS_START_PATH`` (seit Paket KF leer = Vorgabe; Flows gibt das Studio frei, mit
+``B_API_JOBS_FLOWS`` als Obergrenze, ohne Studio-Freigabe wie bisher); der Schlüssel ist der
+des Zuges (nie gespeichert), kein ``X-Edu-User-Id``
 (K18 offen).
 """
 
@@ -38,7 +39,8 @@ def betrieb(monkeypatch):
     get_settings.cache_clear()
 
 
-def test_ohne_start_pfad_sind_auftraege_aus(monkeypatch):
+def test_ohne_freigegebenen_flow_sind_auftraege_aus(monkeypatch):
+    # Paket KF: ein leerer Start-Pfad hat eine Vorgabe — aus sind Aufträge ohne Freigabe
     monkeypatch.delenv("B_API_JOBS_START_PATH", raising=False)
     get_settings.cache_clear()
     assert client.freigeschaltet() is False

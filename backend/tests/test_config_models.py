@@ -59,6 +59,10 @@ NEUE_BEREICHE = {
         "Paket U3-2a: Schalter und Grenzen für Dokumente, die die Person ins Widget "
         "hochlädt. ALT kannte kein Hochladen in den Chat, hat also kein Gegenstück."
     ),
+    "01-base/kestra-flows": (
+        "Paket KF: welche Kestra-Flows ein Ablauf starten darf, im Studio statt nur über "
+        "B_API_JOBS_FLOWS. ALT kannte weder Abläufe noch Aufträge, hat also kein Gegenstück."
+    ),
 }
 
 # Bereiche aus ALT, die NEU bewusst streicht — je mit Grund, als Gegenstück zu

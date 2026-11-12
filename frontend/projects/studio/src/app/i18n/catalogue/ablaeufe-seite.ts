@@ -14,6 +14,20 @@ export const ABLAEUFE_SEITE: CataloguePart = {
       + 'wer einen speichert, ändert die anderen nicht. Ein neuer Ablauf und jede Kopie sind aus, '
       + 'bis du sie einschaltest; beim Speichern wird geprüft, ob er sicher läuft.',
     'curated.ablaeufe.liste.label': 'Abläufe',
+    'curated.ablaeufe.kestra.label': 'Kestra-Flows freigeben',
+    'curated.ablaeufe.kestra.hint':
+      'Welche Kestra-Flows ein Auftragsschritt starten darf. Vorgeschlagen werden die Flows, die '
+      + 'die b-api für den Schlüssel der Anlage meldet. Datenschutz: Eingaben und Ausgaben eines '
+      + 'Auftrags liegen bei Kestra 30 Tage im Klartext — nur Flows freigeben, deren Eingaben dort '
+      + 'liegen dürfen. Wirkt ohne Neustart.',
+    'feld.KestraFlowsArea.kestra.label': 'Freigabe',
+    'feld.KestraFlowsArea.kestra.hint':
+      'Gilt für alle Abläufe, sobald gespeichert.',
+    'feld.KestraFlowsSettings.flows.label': 'Freigegebene Flows',
+    'feld.KestraFlowsSettings.flows.hint':
+      'Je Eintrag namespace/flowId, etwa edusharing.chatbot/node-metadata-write. Leer: es gelten '
+      + 'die Flows des Servers (B_API_JOBS_FLOWS), sonst keine. Ist B_API_JOBS_FLOWS gesetzt, '
+      + 'wirken hier nur Flows aus dieser Liste.',
     'curated.ablaeufe.liste.hint':
       'Gestartet per Knopf (Direktaktion ablauf_starten), auf Vorschlag der KI, durch eine Wendung '
       + 'oder die Antwort eines Moduls. Daten gehen als Teile des Vorgangs weiter '
@@ -151,6 +165,20 @@ export const ABLAEUFE_SEITE: CataloguePart = {
       + 'untouched. A new workflow and every copy are off until you switch them on; saving checks '
       + 'that it runs safely.',
     'curated.ablaeufe.liste.label': 'Workflows',
+    'curated.ablaeufe.kestra.label': 'Enable Kestra flows',
+    'curated.ablaeufe.kestra.hint':
+      'Which Kestra flows a job step may start. Suggested are the flows the b-api reports for the '
+      + 'installation key. Data protection: a job’s inputs and outputs stay with Kestra for 30 days '
+      + 'in plain text — only enable flows whose inputs may be stored there. Takes effect without '
+      + 'a restart.',
+    'feld.KestraFlowsArea.kestra.label': 'Release',
+    'feld.KestraFlowsArea.kestra.hint':
+      'Applies to all workflows once saved.',
+    'feld.KestraFlowsSettings.flows.label': 'Enabled flows',
+    'feld.KestraFlowsSettings.flows.hint':
+      'One namespace/flowId per entry, such as edusharing.chatbot/node-metadata-write. Empty: the '
+      + 'server’s flows apply (B_API_JOBS_FLOWS), otherwise none. If B_API_JOBS_FLOWS is set, only '
+      + 'flows from that list take effect here.',
     'curated.ablaeufe.liste.hint':
       'Started by a button (direct action ablauf_starten), on the AI’s suggestion, by a phrase or '
       + 'by a module answer. Data passes on as parts of the work item ({"$teil": "name"}). The id '

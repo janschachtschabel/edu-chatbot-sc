@@ -293,8 +293,9 @@ describe('rootField — against the real area schemas', () => {
   //   cd backend && uv run python scripts/export_area_schemas.py
   // 33 seit Paket 7 (P4): `01-base/rag-retrieval` bekam sein Modell; 34 seit U3-2a
   // (`01-base/upload-config`); 35 seit A1 (`06-ablaeufe/katalog`, seit AS-0 die Gruppe `06-ablaeufe`).
-  it('covers all 35 distinct area models', () => {
-    expect(areas).toHaveLength(35);
+  // Paket KF: + 01-base/kestra-flows (Freigabe der Kestra-Flows)
+  it('covers all 36 distinct area models', () => {
+    expect(areas).toHaveLength(36);
   });
 
   it.each(areas)('maps %s without throwing', (area) => {

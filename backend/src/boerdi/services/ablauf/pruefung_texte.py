@@ -248,9 +248,10 @@ _T: Final[dict[str, dict[str, str]]] = {
                        "en": "Trigger: part {t!r} has no valid form"},
     "auftrag_flow": {"de": "Schritt {s}: Art auftrag braucht einen Flow",
                      "en": "Step {s}: kind auftrag needs a flow"},
-    "auftrag_frei": {"de": "Schritt {s}: Flow {f!r} ist im Betrieb nicht freigeschaltet "
-                           "(B_API_JOBS_FLOWS)",
-                     "en": "Step {s}: flow {f!r} is not enabled by operations (B_API_JOBS_FLOWS)"},
+    # Paket KF: freigegeben wird im Studio (Abläufe → Kestra-Flows freigeben)
+    "auftrag_frei": {"de": "Schritt {s}: Flow {f!r} ist nicht freigegeben (Abläufe → "
+                           "Kestra-Flows freigeben)",
+                     "en": "Step {s}: flow {f!r} is not enabled (Workflows → Enable Kestra flows)"},
     "auftrag_schreibt": {"de": "Schritt {s}: Ergebnis-Teil (schreibt) fehlt",
                          "en": "Step {s}: result part (schreibt) missing"},
     "bei_fehler_typ": {"de": "Schritt {s}: bei_fehler wirkt bei der Art {typ} nicht (nur bei "

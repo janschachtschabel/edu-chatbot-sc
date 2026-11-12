@@ -2,8 +2,9 @@
 
 Vertrag (B-API-Handbuch 2026-11-07, am Staging gemessen):
 
-- Start ``POST /api/v1/jobs/flows/{ns}/{id}`` → 202 mit ``jobId``. ``B_API_JOBS_START_PATH`` ist
-  ``/api/v1/jobs/flows/{flow}``, leer = aus. ``Authorization: Bearer`` geht auch beim Start.
+- Start ``POST /api/v1/jobs/flows/{ns}/{id}`` → 202 mit ``jobId``. ``B_API_JOBS_START_PATH``
+  leer = Vorgabe ``/api/v1/jobs/flows/{flow}`` (Paket KF); ein Wert ohne führendes ``/`` (etwa
+  ``aus``) schaltet Aufträge ab. ``Authorization: Bearer`` geht auch beim Start.
 - Abfrage ``GET /api/v1/jobs/{jobId}`` → ``status`` (``QUEUED``, ``RUNNING``, ``SUCCEEDED``,
   ``FAILED``, ``CANCELLED``), ``outputs``, ``files`` (``available``/``reason``), ``warnings``,
   ``error.code``. Abbrechen ``DELETE /api/v1/jobs/{jobId}``.
@@ -11,7 +12,9 @@ Vertrag (B-API-Handbuch 2026-11-07, am Staging gemessen):
 
 Regeln dieses Clients:
 
-- **Betrieb schaltet frei:** nur Flows aus ``B_API_JOBS_FLOWS`` (:func:`erlaubt`).
+- **Freigabe** (Paket KF, Plan 2026-11-12): die Flows aus dem Studio (``01-base/kestra-flows``),
+  mit ``B_API_JOBS_FLOWS`` als Obergrenze; ohne Studio-Freigabe die Umgebung wie bisher
+  (:func:`erlaubt`). Der Start-Pfad hat die Vorgabe :data:`START_PFAD_VORGABE`.
 - **Schlüssel des Zuges** (``llm_auth.b_api_schluessel``) — nie gespeichert, nie geloggt. Deshalb
   fragt nur ein Zug der Person ab, kein Hintergrund-Wächter. Dass es der **durchgereichte**
   Schlüssel der Person ist (nicht ``B_API_KEY`` aller), prüft ``auftrag_zug`` (Review K1a, 1).
@@ -40,7 +43,9 @@ from typing import Any, Final
 
 import httpx
 
+from boerdi.domain.config_models.kestra_flows import ist_flow
 from boerdi.obs.trace_id import ausgehende_koepfe
+from boerdi.services.config_loader.kestra_flows import load_kestra_flows
 from boerdi.services.llm_auth import b_api_schluessel
 from boerdi.settings import get_settings
 
@@ -50,7 +55,6 @@ logger = logging.getLogger(__name__)
 _transport: httpx.AsyncBaseTransport | None = None
 _FRIST: Final = httpx.Timeout(20.0, connect=5.0)
 _ID: Final = re.compile(r"^(?!\.+$)[A-Za-z0-9_.\-]{1,200}$")
-_FLOW: Final = re.compile(r"^[A-Za-z0-9_.\-]{1,100}(/[A-Za-z0-9_.\-]{1,100})?$")
 #: Die Statuswerte der B-API (``QUEUED``, ``RUNNING``, ``SUCCEEDED``, ``FAILED``,
 #: ``CANCELLED``) — dazu die Kestra-Namen, gegen die K1a vor dem Vertrag gebaut war
 #: (unschädlich, falls einer durchkommt).
@@ -108,8 +112,34 @@ class Stand:
     fehlercode: str | None = None
 
 
+#: Paket KF (K-E3): der Start-Pfad der b-api (Handbuch 2026-11-07, am Staging gemessen) — gilt,
+#: wenn ``B_API_JOBS_START_PATH`` leer ist.
+START_PFAD_VORGABE: Final = "/api/v1/jobs/flows/{flow}"
+
+
+def _obergrenze() -> frozenset[str] | None:
+    """``B_API_JOBS_FLOWS`` — ``None``, wenn nicht gesetzt."""
+    roh = frozenset(f.strip() for f in get_settings().b_api_jobs_flows.split(",") if f.strip())
+    return roh or None
+
+
 def _flows() -> frozenset[str]:
-    return frozenset(f.strip() for f in get_settings().b_api_jobs_flows.split(",") if f.strip())
+    """Paket KF (K-E2): die wirksam freigegebenen Flows."""
+    obergrenze = _obergrenze()
+    studio = studio_flows()
+    if studio is None:
+        return obergrenze or frozenset()
+    return frozenset(studio) if obergrenze is None else frozenset(studio) & obergrenze
+
+
+def studio_flows() -> list[str] | None:
+    """Die im Studio freigegebenen Flows (``01-base/kestra-flows``), ``None`` ohne Freigabe."""
+    return load_kestra_flows()
+
+
+def obergrenze() -> frozenset[str] | None:
+    """Für den Katalog (``flow_katalog``): die Obergrenze der Umgebung, ``None`` ohne."""
+    return _obergrenze()
 
 
 def freigeschaltete_flows() -> list[str]:
@@ -118,7 +148,7 @@ def freigeschaltete_flows() -> list[str]:
     einen Flow vor, den „Prüfen“ danach als nicht freigeschaltet meldet)."""
     if not freigeschaltet():
         return []
-    return sorted(f for f in _flows() if _FLOW.fullmatch(f))
+    return sorted(f for f in _flows() if ist_flow(f))
 
 
 def _vorlage(roh: str) -> str | None:
@@ -129,14 +159,21 @@ def _vorlage(roh: str) -> str | None:
     return vorlage
 
 
+def _start_pfad() -> str | None:
+    """Die Start-Vorlage — leer: die Vorgabe; ein unsicherer Wert schaltet aus (``None``)."""
+    roh = get_settings().b_api_jobs_start_path.strip()
+    return _vorlage(roh or START_PFAD_VORGABE)
+
+
 def freigeschaltet() -> bool:
-    """Sind Aufträge in dieser Anlage eingerichtet (gültiger Start-Pfad gesetzt)?"""
-    return _vorlage(get_settings().b_api_jobs_start_path) is not None
+    """Sind Aufträge eingerichtet: ein gültiger Start-Pfad und mindestens ein freigegebener Flow
+    (Paket KF, K-E3; vorher genügte der gesetzte Pfad)?"""
+    return _start_pfad() is not None and any(ist_flow(f) for f in _flows())
 
 
 def erlaubt(flow: str) -> bool:
     """Darf ein Ablauf diesen Flow starten? (eingerichtet, Form, freigeschaltet)"""
-    return freigeschaltet() and bool(_FLOW.fullmatch(flow or "")) and flow in _flows()
+    return freigeschaltet() and bool(ist_flow(flow or "")) and flow in _flows()
 
 
 def _wurzel() -> str:
@@ -200,7 +237,7 @@ async def starten(flow: str, eingaben: dict[str, Any]) -> str:
         raise AuftragFehler("aus")
     if not erlaubt(flow):
         raise AuftragFehler("nicht_erlaubt")
-    pfad = (_vorlage(get_settings().b_api_jobs_start_path) or "").replace("{flow}", flow)
+    pfad = (_start_pfad() or "").replace("{flow}", flow)
     from boerdi.services.mcp import auth
 
     # TB-F1: im Namen der angemeldeten Person (Weg A) — nur beim Start, nie geloggt
