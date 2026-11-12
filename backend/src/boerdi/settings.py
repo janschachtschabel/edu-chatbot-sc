@@ -193,13 +193,15 @@ class Settings(BaseSettings):
         "", validation_alias=_env("B_API_ROUTE"),
         description="b-api router route name for the chat model (b-api-openai only)",
     )
-    # Paket K1a (Plan 2026-11-05 §5/§9): Aufträge (Kestra-Flows hinter der b-api). Der Start-Pfad
-    # ist noch offen (K16) — leer = Aufträge aus (Vorgabe). Pfade gelten ab der Wurzel der b-api
-    # (``B_API_BASE_URL`` ohne ``/api/v1/llm``). Nur die hier freigeschalteten Flows startet ein
-    # Ablauf; die Redaktion kann keinen weiteren eintragen.
+    # Paket K1a (Plan 2026-11-05 §5/§9): Aufträge (Kestra-Flows hinter der b-api). Pfade gelten ab
+    # der Wurzel der b-api (``B_API_BASE_URL`` ohne ``/api/v1/llm``). Seit Paket KF (2026-11-12):
+    # leerer Start-Pfad = Vorgabe ``/api/v1/jobs/flows/{flow}``; die Flows gibt das Studio frei
+    # (``01-base/kestra-flows``), ``B_API_JOBS_FLOWS`` ist dann Obergrenze — ohne Studio-Freigabe
+    # gilt sie wie bisher.
     b_api_jobs_start_path: str = Field(
         "", validation_alias=_env("B_API_JOBS_START_PATH"),
-        description="b-api path template to start a flow job, with {flow}; empty = jobs off",
+        description="b-api path template to start a flow job, with {flow}; empty = "
+                    "/api/v1/jobs/flows/{flow}",
     )
     b_api_jobs_status_path: str = Field(
         "/api/v1/jobs/{job_id}", validation_alias=_env("B_API_JOBS_STATUS_PATH"),
@@ -207,8 +209,8 @@ class Settings(BaseSettings):
     )
     b_api_jobs_flows: str = Field(
         "", validation_alias=_env("B_API_JOBS_FLOWS"),
-        description="comma-separated flows a workflow may start (writing ones are marked "
-                    "repo_schreibt at the step)",
+        description="comma-separated flows: upper bound for the Studio release "
+                    "(01-base/kestra-flows); without a Studio release, these flows apply",
     )
     # Paket 17 (AB2, Nutzer 2026-10-20): woher der b-api-Schlüssel eines Zuges kommt.
     # ``auto`` (Vorgabe, auch leer/unbekannt): ``Authorization: Bearer`` vom b-api-Proxy, sonst

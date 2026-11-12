@@ -86,8 +86,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
       'Pfadmuster mit *. Gesetzt: der Ablauf wartet, bis die Person dort ist. Leer: der Chip steht da, und es geht gleich weiter.',
     'feld.Schritt.flow.label': 'Flow',
     'feld.Schritt.flow.hint':
-      'Bei „Auftrag“: der Kestra-Flow hinter der b-api — nur Flows, die der Betrieb freischaltet '
-      + '(B_API_JOBS_FLOWS). Braucht die Voraussetzung Anmeldung; „Stand prüfen“ holt das Ergebnis.',
+      'Bei „Auftrag“: der Kestra-Flow hinter der b-api — nur freigegebene Flows '
+      + '(unten: „Kestra-Flows freigeben“). Braucht die Voraussetzung Anmeldung; „Stand prüfen“ '
+      + 'holt das Ergebnis.',
     'feld.Schritt.warten.label': 'Während der Auftrag läuft',
     'feld.Schritt.warten.hint':
       'Nur bei „Auftrag“. „Frei“: das Gespräch geht weiter. „Gesperrt“: bis der Auftrag fertig ist, '
@@ -310,8 +311,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
       'Path patterns with *. Set: the workflow waits until the person is there. Empty: the chip is shown and it continues right away.',
     'feld.Schritt.flow.label': 'Kestra flow',
     'feld.Schritt.flow.hint':
-      'For “job”: the Kestra flow behind the b-api — only flows enabled by operations '
-      + '(B_API_JOBS_FLOWS). Needs the sign-in requirement; “Check status” fetches the result.',
+      'For “job”: the Kestra flow behind the b-api — only enabled flows '
+      + '(below: “Enable Kestra flows”). Needs the sign-in requirement; “Check status” fetches '
+      + 'the result.',
     'feld.Schritt.warten.label': 'While the job runs',
     'feld.Schritt.warten.hint':
       'Only for “job”. “Open”: the conversation goes on. “Locked”: until the job is done, the widget '

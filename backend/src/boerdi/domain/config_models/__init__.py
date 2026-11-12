@@ -41,6 +41,7 @@ from boerdi.domain.config_models.dimensions import (
     StatesArea,
 )
 from boerdi.domain.config_models.engine import EngineArea
+from boerdi.domain.config_models.kestra_flows import KestraFlowsArea
 from boerdi.domain.config_models.knowledge import (
     GoldFlowsArea,
     GuideRulesArea,
@@ -58,6 +59,8 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
     "01-base/base-persona": LayerDocArea,
     "01-base/guardrails": LayerDocArea,
     "01-base/card-pipeline": CardPipelineArea,
+    # Paket KF (Plan 2026-11-12): Freigabe der Kestra-Flows für Abläufe, im Studio statt nur Env.
+    "01-base/kestra-flows": KestraFlowsArea,
     "01-base/classify-overrides": ClassifyOverridesArea,
     "01-base/context-actions": ContextActionsArea,
     "01-base/device-config": DeviceConfigArea,

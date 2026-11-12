@@ -19,7 +19,7 @@ der Speicherreihenfolge abhängen.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import APIRouter, Security
@@ -142,13 +142,23 @@ def _ui_module() -> list[Choice]:
 
 
 def _ablauf_flows() -> list[Choice]:
-    """Paket K2c-1: die Flows, die der Betrieb für Abläufe freischaltet (``B_API_JOBS_FLOWS``).
+    """Paket K2c-1: die Flows, die ein Ablauf starten darf (seit Paket KF die Freigabe im Studio,
+    ``B_API_JOBS_FLOWS`` als Obergrenze).
     Ohne Abruf bei der b-api — dieser Endpunkt lädt alle Kataloge in einem Zug und ruft keinen
     Fremddienst."""
     from boerdi.services.auftraege import client
 
     # Kein Sprungziel: ein Flow wird in Kestra gepflegt, nicht im Studio.
     return _sorted([_entry(f, f, "") for f in client.freigeschaltete_flows()])
+
+
+async def _kestra_flows() -> list[Choice]:
+    """Paket KF (K-E4): Vorschläge für die Freigabe der Kestra-Flows — die aktiven Flows der b-api
+    für ``B_API_KEY`` (zwischengespeichert, mit Zeitlimit) und die schon freigegebenen. Der einzige
+    Katalog mit Abruf eines Fremddienstes; scheitert er, bleiben nur die freigegebenen."""
+    from boerdi.services.auftraege import flow_katalog
+
+    return _sorted([_entry(wert, label, "") for wert, label in await flow_katalog.vorschlaege()])
 
 
 def _ablauf_werkzeuge() -> list[Choice]:
@@ -202,15 +212,22 @@ _SOURCES: dict[str, Callable[[], list[Choice]]] = {
     "vorgang_teile": _vorgang_teile,
     "guardrails": _guardrails,
 }
+#: Paket KF: Kataloge, die etwas abrufen (asynchron).
+_ASYNC_SOURCES: dict[str, Callable[[], Awaitable[list[Choice]]]] = {
+    "kestra_flows": _kestra_flows,
+}
 
 #: Die Namen, auf die ein Modellfeld mit ``x-catalog`` zeigen darf. Ein Wächter
 #: (``test_config_choices_annotations``) hält fest, dass kein Modell einen Namen
 #: nennt, den es hier nicht gibt — ein Tippfehler bliebe sonst still: das Feld
 #: sähe aus wie immer, nur ohne Vorschläge.
-CATALOG_NAMES: tuple[str, ...] = tuple(_SOURCES)
+CATALOG_NAMES: tuple[str, ...] = (*_SOURCES, *_ASYNC_SOURCES)
 
 
 @router.get("/choices")
 async def get_choices() -> dict[str, list[Choice]]:
     """Alle Kataloge in einem Zug — ein Formular braucht sie gemeinsam."""
-    return {name: quelle() for name, quelle in _SOURCES.items()}
+    katalog = {name: quelle() for name, quelle in _SOURCES.items()}
+    for name, abruf in _ASYNC_SOURCES.items():
+        katalog[name] = await abruf()
+    return katalog

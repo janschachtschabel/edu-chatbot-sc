@@ -104,6 +104,30 @@ def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
         _assert_policy_patterns_compile(data.get("rules"), lang)
     if key.startswith(_ABLAEUFE_ORDNER) and isinstance(data, dict):
         _assert_ablauf_ausfuehrbar(data, lang)
+    if key == _KESTRA_AREA and isinstance(data, dict):
+        _assert_flows_in_obergrenze(data, lang)
+
+
+#: Paket KF: die Freigabe der Kestra-Flows (``01-base/kestra-flows``).
+_KESTRA_AREA = "01-base/kestra-flows"
+
+
+def _assert_flows_in_obergrenze(data: dict, lang: Locale) -> None:
+    """Review KF, Befund 4: ein Flow außerhalb von ``B_API_JOBS_FLOWS`` wirkte still nicht — und
+    „Prüfen“ meldete ihn als „nicht freigegeben“, obwohl er hier steht. Deshalb gleich beim
+    Speichern abweisen, mit der Obergrenze im Text."""
+    from boerdi.services.auftraege import client
+
+    obergrenze = client.obergrenze()
+    kestra = data.get("kestra")
+    flows = kestra.get("flows") if isinstance(kestra, dict) else None
+    if obergrenze is None or not isinstance(flows, list):
+        return
+    draussen = [f.strip() for f in flows if isinstance(f, str) and f.strip()
+                and f.strip() not in obergrenze]
+    if draussen:
+        raise HTTPException(400, msg(lang, "kestra.ausserhalb", value=", ".join(draussen)[:300],
+                                     erlaubt=", ".join(sorted(obergrenze))[:300]))
 
 
 def _assert_ablauf_ausfuehrbar(data: dict, lang: Locale) -> None:

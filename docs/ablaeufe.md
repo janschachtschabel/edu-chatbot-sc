@@ -166,9 +166,9 @@ Anmeldung):
    liest den Teil `metadaten` selbst und gruppiert die Materialien zu Themen.
 8. `ende`. Sammlungen daraus anzulegen, kommt später.
 
-Damit der Auftrag im Betrieb läuft, muss der Flow in `B_API_JOBS_FLOWS` stehen, und der
-B-API-Schlüssel muss ihn starten dürfen. Solange der Ablauf aus ist, ist eine fehlende
-Freischaltung nur ein Hinweis.
+Damit der Auftrag im Betrieb läuft, muss der Flow im Studio freigegeben sein (Abläufe →
+„Kestra-Flows freigeben“, siehe unten), und der B-API-Schlüssel muss ihn starten dürfen. Solange
+der Ablauf aus ist, ist eine fehlende Freigabe nur ein Hinweis.
 
 **Grenzen des Flows `node-metadata-write`** (Plan §5b):
 
@@ -312,6 +312,21 @@ ihren Rechten. Ohne WLO-Anmeldung startet kein Auftrag.
   startet nie direkt.
 - Vor einem schreibenden Auftrag gehört eine Wahl, die sagt, was geschieht. Zum Beispiel: „Ich
   erzeuge jetzt Metadaten für deine N Dateien und schreibe sie hinein. Weiter?“
-- Ein Flow, den der Betrieb nicht in `B_API_JOBS_FLOWS` freischaltet, sperrt nur einen
-  **eingeschalteten** Ablauf. Bei einem ausgeschalteten erscheint er als Hinweis.
+- Ein Flow, der nicht freigegeben ist, sperrt nur einen **eingeschalteten** Ablauf. Bei einem
+  ausgeschalteten erscheint er als Hinweis.
+
+### Kestra-Flows freigeben (Paket KF)
+
+Auf der Seite „Abläufe“ steht unter der Liste der Abschnitt **„Kestra-Flows freigeben“**
+(`01-base/kestra-flows`). Dort trägt die Redaktion die Flows ein, die ein Auftragsschritt starten
+darf (`namespace/flowId`). Die Änderung wirkt ohne Neustart.
+
+- **Vorschläge:** die aktiven Flows, die die b-api für den Schlüssel der Anlage meldet
+  (`GET /api/v1/jobs/flows`, `B_API_KEY`, 5 Minuten zwischengespeichert). Freitext geht auch.
+- **Obergrenze:** Ist `B_API_JOBS_FLOWS` gesetzt, wirken nur Flows aus dieser Liste. Ist im Studio
+  nichts freigegeben, gelten ihre Flows wie vor dem Paket.
+- **Start-Pfad:** Leer heißt Vorgabe `/api/v1/jobs/flows/{flow}`. Aufträge sind an, sobald
+  ein Flow wirksam freigegeben ist.
+- **Datenschutz:** Eingaben und Ausgaben liegen bei Kestra 30 Tage im Klartext. Nur Flows
+  freigeben, deren Eingaben dort liegen dürfen.
 

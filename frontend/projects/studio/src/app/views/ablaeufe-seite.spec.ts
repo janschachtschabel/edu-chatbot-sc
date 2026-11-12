@@ -71,7 +71,11 @@ function eintraege(el: HTMLElement): string[] {
 describe("Seite „Abläufe“ (AS-0)", () => {
   it("steht als eigene Seite mit dem Ordner 06-ablaeufe", () => {
     const seite = CURATED_VIEWS.find((v) => v.slug === "ablaeufe");
-    expect(seite?.sections).toEqual([expect.objectContaining({ area: "06-ablaeufe", kind: "group" })]);
+    // Paket KF: darunter die Freigabe der Kestra-Flows — als eigener Abschnitt, klar benannt
+    expect(seite?.sections).toEqual([
+      expect.objectContaining({ area: "06-ablaeufe", kind: "group" }),
+      expect.objectContaining({ area: "01-base/kestra-flows", labelKey: "curated.ablaeufe.kestra.label" }),
+    ]);
     const uiModule = CURATED_VIEWS.find((v) => v.slug === "ui-module")!;
     expect(JSON.stringify(uiModule.sections)).not.toContain("06-ablaeufe");
   });

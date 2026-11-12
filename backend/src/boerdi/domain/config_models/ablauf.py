@@ -149,7 +149,7 @@ class Schritt(AreaModel):
     werkzeug: Annotated[Annotated[str, Catalog("ablauf_werkzeuge")] | None,
                         NurBei("typ", "werkzeug")] = None
     #: ``auftrag`` (Paket K1a): der Kestra-Flow hinter der b-api — nur, was der Betrieb
-    #: freischaltet (K2c-1: Auswahl aus ``B_API_JOBS_FLOWS``).
+    #: freischaltet (K2c-1; seit Paket KF die Freigabe im Studio, ``01-base/kestra-flows``).
     flow: Annotated[Annotated[str, Catalog("ablauf_flows")] | None,
                     NurBei("typ", "auftrag")] = None
     argumente: Annotated[Annotated[dict[str, Any], TeilWerte()] | None,

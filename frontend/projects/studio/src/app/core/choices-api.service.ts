@@ -47,6 +47,16 @@ export class ChoicesApi {
     return this.inFlight;
   }
 
+  /**
+   * Neu holen, etwa nach dem Speichern eines Bereichs, aus dem ein Katalog entsteht (Review KF,
+   * Befund 6: eine eben freigegebene Kestra-Flow-Freigabe fehlte sonst bis zum Neuladen im Feld
+   * „Flow“). Die alten Vorschläge bleiben stehen, bis die neuen da sind.
+   */
+  neuLaden(): Promise<void> {
+    this.inFlight = null;
+    return this.prime();
+  }
+
   entries(catalog: string | undefined): readonly ChoiceEntry[] {
     return catalog ? (this.catalogs()[catalog] ?? []) : [];
   }

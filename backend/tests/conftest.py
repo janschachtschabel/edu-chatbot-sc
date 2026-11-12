@@ -227,3 +227,19 @@ def _drossel_frisch():
     drossel.zuruecksetzen()
     yield
     drossel.zuruecksetzen()
+
+
+@pytest.fixture(autouse=True)
+def _kein_netz_fuer_auftraege(monkeypatch):
+    """Review KF, Befund 2: der Auftrags-Client (und der Katalog der Kestra-Flows, der ihn nutzt)
+    geht in Tests nie ins Netz — wer ihn braucht, setzt ``client._transport`` selbst. Der
+    Zwischenspeicher des Katalogs gilt nur je Test."""
+    import httpx
+
+    from boerdi.services.auftraege import client, flow_katalog
+
+    monkeypatch.setattr(client, "_transport", httpx.MockTransport(
+        lambda _anfrage: httpx.Response(503, json={"error": "kein Netz in Tests"})))
+    flow_katalog.leeren()
+    yield
+    flow_katalog.leeren()

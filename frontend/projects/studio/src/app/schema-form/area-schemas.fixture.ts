@@ -2893,6 +2893,41 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
     "title": "IntentsArea",
     "type": "object"
   },
+  "01-base/kestra-flows": {
+    "$defs": {
+      "KestraFlowsSettings": {
+        "additionalProperties": true,
+        "description": "Die freigegebenen Flows — leer: es gelten die der Server-Umgebung (``B_API_JOBS_FLOWS``).",
+        "properties": {
+          "flows": {
+            "default": [],
+            "items": {
+              "maxLength": 201,
+              "pattern": "^[A-Za-z0-9_.\\-]{1,100}(/[A-Za-z0-9_.\\-]{1,100})?$",
+              "type": "string",
+              "x-catalog": "kestra_flows"
+            },
+            "maxItems": 50,
+            "title": "Flows",
+            "type": "array"
+          }
+        },
+        "title": "KestraFlowsSettings",
+        "type": "object"
+      }
+    },
+    "additionalProperties": true,
+    "properties": {
+      "kestra": {
+        "$ref": "#/$defs/KestraFlowsSettings",
+        "default": {
+          "flows": []
+        }
+      }
+    },
+    "title": "KestraFlowsArea",
+    "type": "object"
+  },
   "01-base/base-persona": {
     "$defs": {
       "LayerDocFrontmatter": {
@@ -5431,6 +5466,7 @@ export const AREA_KEYS: readonly string[] = [
   "01-base/guardrails",
   "01-base/guide-mode",
   "01-base/header-nav",
+  "01-base/kestra-flows",
   "01-base/placeholder-topics",
   "01-base/policy",
   "01-base/pricing",

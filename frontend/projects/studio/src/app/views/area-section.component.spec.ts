@@ -172,3 +172,28 @@ describe("AreaSectionComponent — Trotzdem speichern mit verborgenen Feldern (R
     expect(el.querySelector("studio-save-conflict")).toBeNull();
   });
 });
+
+describe("AreaSectionComponent — Kataloge nach dem Speichern (Review KF, Befund 6)", () => {
+  it("holt die Vorschlagslisten nach einem Speichern neu, nicht nach einem gescheiterten", async () => {
+    // Eine eben freigegebene Kestra-Flow-Freigabe fehlte sonst bis zum Neuladen im Feld „Flow“.
+    const h = await mount();
+    h.fixture.componentInstance.editor.setDoc({ welcome: { greeting: "Neu" } });
+    await h.fixture.whenStable();
+    h.el.querySelector<HTMLButtonElement>(".cs-save")?.click();
+    await h.fixture.whenStable();
+    h.http.expectOne(DATA_URL).flush(
+      { detail: "kaputt" }, { status: 400, statusText: "Bad Request" });
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.http.match("/studio/api/config/choices")).toHaveLength(0);
+
+    h.el.querySelector<HTMLButtonElement>(".cs-save")?.click();
+    await h.fixture.whenStable();
+    h.http.expectOne(DATA_URL).flush({
+      area: AREA, data: { welcome: { greeting: "Neu" } }, type: "yaml", version: 3,
+    });
+    await tick();
+    await h.fixture.whenStable();
+    h.http.expectOne("/studio/api/config/choices").flush({});
+  });
+});
