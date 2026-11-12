@@ -40,6 +40,11 @@ MAX_FLOWS: Final = 50
 class KestraFlowsSettings(AreaModel):
     """Die freigegebenen Flows — leer: es gelten die der Server-Umgebung (``B_API_JOBS_FLOWS``)."""
 
+    #: Review 12.11., Befund 7: aus = keine Aufträge, auch nicht die der Umgebung — sonst ließ sich
+    #: „keiner“ nicht ausdrücken, solange ``B_API_JOBS_FLOWS`` gesetzt ist (eine leere Liste fällt
+    #: auf die Umgebung zurück).
+    an: bool = True
+
     flows: list[Annotated[str, Catalog("kestra_flows"),
                           Field(pattern=FLOW_FORM, max_length=201), AfterValidator(_flow)]] = Field(
         default_factory=list, max_length=MAX_FLOWS)

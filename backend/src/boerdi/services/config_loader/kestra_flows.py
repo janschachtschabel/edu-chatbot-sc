@@ -22,7 +22,10 @@ def load_kestra_flows() -> list[str] | None:
     """Die im Studio freigegebenen Flows — ``None``, wenn dort nichts freigegeben ist."""
     roh = area(BEREICH)
     try:
-        return list(KestraFlowsArea.model_validate(roh).kestra.flows) or None
+        kestra = KestraFlowsArea.model_validate(roh).kestra
+        if not kestra.an:
+            return []                      # Review 12.11., Befund 7: ausdrücklich keine
+        return list(kestra.flows) or None
     except Exception:
         logger.warning("kestra-flows: %s ist unlesbar — nur gültige Einträge gelten", BEREICH,
                        exc_info=True)

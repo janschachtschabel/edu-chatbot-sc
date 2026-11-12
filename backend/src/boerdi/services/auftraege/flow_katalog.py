@@ -12,6 +12,7 @@ Beschreibung der b-api ist Text Dritter: nur die erste Zeile, gekürzt, als Besc
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import unicodedata
@@ -75,9 +76,11 @@ async def _von_der_bapi() -> dict[str, str]:
     if _gemerkt is not None and jetzt - _gemerkt[0] < _gemerkt[1]:
         return _gemerkt[2]
     try:
-        antwort = await client._anfrage("GET", _PFAD, timeout=_ZEITLIMIT)
+        # Review 12.11., Befund 9: das Zeitlimit gilt je Phase — dazu eine Gesamtfrist
+        antwort = await asyncio.wait_for(client._anfrage("GET", _PFAD, timeout=_ZEITLIMIT),
+                                         timeout=_ZEITLIMIT.read)
         daten = antwort.json() if antwort.status_code == 200 else None
-    except (client.AuftragFehler, ValueError):
+    except (client.AuftragFehler, ValueError, TimeoutError):
         daten = None
     if not isinstance(daten, list):
         logger.info("Kestra-Flows: keine Liste von der b-api — nur die Freigabe")

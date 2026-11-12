@@ -259,3 +259,83 @@ def test_review_7_8_nur_aktive_und_ohne_steuerzeichen(umgebung, monkeypatch):
     werte = dict(asyncio.run(flow_katalog.vorschlaege()))
     assert "wlo/ohne-angabe" not in werte and "wlo/alt" not in werte
     assert "‮" not in werte["edusharing.chatbot/node-metadata-write"]
+
+
+def test_review_1211_7_aus_heisst_keine_auftraege(monkeypatch):
+    """Befund 7: mit gesetzter Umgebung ließ sich „keiner“ nicht ausdrücken."""
+    from boerdi.services.config_loader import kestra_flows as lader
+
+    monkeypatch.setattr(lader, "area", lambda _k: {"kestra": {"an": False, "flows": ["wlo/a"]}})
+    assert lader.load_kestra_flows() == []
+    monkeypatch.setenv("B_API_JOBS_FLOWS", "wlo/a")
+    get_settings.cache_clear()
+    monkeypatch.setattr(client, "load_kestra_flows", lader.load_kestra_flows)
+    try:
+        assert not client.erlaubt("wlo/a") and not client.freigeschaltet()
+    finally:
+        get_settings.cache_clear()
+
+
+def test_review_1211_8_ein_genutzter_flow_laesst_sich_nicht_entziehen(monkeypatch):
+    from fastapi import HTTPException
+
+    from boerdi.api.config_guards import _assert_area_document_safe
+    from boerdi.domain.config_models.ablauf import AblaufArea
+    from boerdi.services.ablauf import ausloeser
+
+    def ablauf(aktiv):
+        return AblaufArea.model_validate({
+            "id": "mit_auftrag", "titel": {"de": "A"}, "aktiv": aktiv,
+            "voraussetzungen": ["anmeldung"], "ausloeser": [{"art": "knopf"}],
+            "schritte": [{"id": "lauf", "typ": "auftrag", "flow": "wlo/volltext",
+                          "schreibt": "text", "weiter": "ende"},
+                         {"id": "ende", "typ": "ende", "text": {"de": "fertig"}}]})
+
+    monkeypatch.delenv("B_API_JOBS_FLOWS", raising=False)
+    get_settings.cache_clear()
+    monkeypatch.setattr(ausloeser, "katalog", lambda: [ablauf(True)])
+    # heute freigegeben (Review TW-6, Befund 5: nur Entzogenes zählt)
+    monkeypatch.setattr(client, "load_kestra_flows", lambda: ["wlo/volltext"])
+    with pytest.raises(HTTPException) as fehler:
+        _assert_area_document_safe("01-base/kestra-flows",
+                                   {"kestra": {"flows": ["wlo/anderer"]}}, "de")
+    assert "mit_auftrag" in fehler.value.detail and "wlo/volltext" in fehler.value.detail
+    with pytest.raises(HTTPException):
+        _assert_area_document_safe("01-base/kestra-flows",
+                                   {"kestra": {"an": False, "flows": ["wlo/volltext"]}}, "de")
+    _assert_area_document_safe("01-base/kestra-flows",           # behält ihn: in Ordnung
+                               {"kestra": {"flows": ["wlo/volltext"]}}, "de")
+    monkeypatch.setattr(ausloeser, "katalog", lambda: [ablauf(False)])
+    _assert_area_document_safe("01-base/kestra-flows",           # ausgeschaltet: darf weg
+                               {"kestra": {"flows": []}}, "de")
+
+
+def test_review_1211_9_gesamtfrist_des_abrufs(umgebung, monkeypatch):
+    async def haengt(*_a, **_k):
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(client, "_anfrage", haengt)
+    monkeypatch.setattr(flow_katalog, "_ZEITLIMIT", httpx.Timeout(0.05))
+    umgebung.append("wlo/volltext")
+    assert asyncio.run(flow_katalog.vorschlaege()) == [("wlo/volltext", "wlo/volltext")]
+
+
+def test_review_tw6_5_der_waechter_nur_einzeln_und_nur_fuer_entzogenes(monkeypatch):
+    from boerdi.api.config_guards import _assert_area_document_safe, pruefe_bereiche
+    from boerdi.domain.config_models.ablauf import AblaufArea
+    from boerdi.services.ablauf import ausloeser
+
+    nutzer = AblaufArea.model_validate({
+        "id": "nutzer", "titel": {"de": "N"}, "aktiv": True, "voraussetzungen": ["anmeldung"],
+        "ausloeser": [{"art": "knopf"}],
+        "schritte": [{"id": "lauf", "typ": "auftrag", "flow": "wlo/nie-frei", "schreibt": "t",
+                      "weiter": "ende"}, {"id": "ende", "typ": "ende", "text": {"de": "x"}}]})
+    monkeypatch.delenv("B_API_JOBS_FLOWS", raising=False)
+    get_settings.cache_clear()
+    monkeypatch.setattr(ausloeser, "katalog", lambda: [nutzer])
+    monkeypatch.setattr(client, "load_kestra_flows", lambda: None)
+    # ein nie freigegebener Flow sperrt das Speichern nicht
+    _assert_area_document_safe("01-base/kestra-flows", {"kestra": {"flows": ["wlo/a"]}}, "de")
+    # ein Satz Bereiche (Werksabgleich, Wiederherstellen) prüft den Wächter nicht
+    monkeypatch.setattr(client, "load_kestra_flows", lambda: ["wlo/nie-frei"])
+    pruefe_bereiche({"01-base/kestra-flows": {"kestra": {"flows": []}}}, "de")

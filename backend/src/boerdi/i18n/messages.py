@@ -95,6 +95,8 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
         "ablaeufe.ungueltig": "Ablauf nicht ausführbar: {value}",
         "kestra.ausserhalb": "Außerhalb der Freigabe des Servers (B_API_JOBS_FLOWS): {value}. "
                              "Erlaubt sind: {erlaubt}.",
+        "kestra.genutzt": "Eingeschaltete Abläufe nutzen diese Flows noch: {value}. Erst die "
+                          "Abläufe ausschalten oder ändern.",
         # Paket 8 (A): der Lauf läuft schon — auf dieser oder einer anderen Kopie.
         "retention.busy": "Die Bereinigung läuft gerade schon. Gleich noch einmal versuchen.",
         # ── Sicherung: Snapshots + Werksstand (C1-e2) ──────────────────
@@ -241,6 +243,8 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
         "ablaeufe.ungueltig": "Workflow cannot be run: {value}",
         "kestra.ausserhalb": "Outside the server's release (B_API_JOBS_FLOWS): {value}. "
                              "Allowed: {erlaubt}.",
+        "kestra.genutzt": "Enabled workflows still use these flows: {value}. Switch the "
+                          "workflows off or change them first.",
         "retention.busy": "Cleanup is already running. Try again in a moment.",
         "upload.tooLarge": "File too large (max {mb} MB).",
         "snapshots.notFound": "Snapshot not found.",
