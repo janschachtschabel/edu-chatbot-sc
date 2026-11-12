@@ -223,8 +223,9 @@ class Ausloeser(AreaModel):
         pattern=r"^(knopf|agent|text|modul|extern|seite)$")
     #: ``agent``: ``vorschlagen`` (die KI schlägt per Knopf vor, AS-5a) oder ``direkt`` (Plan
     #: 2026-11-10, TB-E3: der Ablauf startet nach der Antwort von selbst — derselbe Knopf, das
-    #: Widget drückt ihn). ``direkt`` gilt nur für Abläufe, die nichts schreiben; sonst bleibt es
-    #: ein Vorschlag (``werkzeuge.ablauf_schreibt``), und die Prüfung meldet es.
+    #: Widget drückt ihn). ``direkt`` gilt nur für Abläufe, die nicht selbst schreiben; sonst
+    #: bleibt es ein Vorschlag (``werkzeuge.ablauf_schreibt_selbst``; ein Upload-Feld zählt seit
+    #: TW-6 nicht), und die Prüfung meldet es.
     #: Ohne ``pattern`` wie bisher: ein unbekannter Modus lädt und wird ein Prüfbefund.
     modus: Annotated[str, Choices("vorschlagen", "direkt")] = "vorschlagen"
     #: ``text``: Wendungen (keine regulären Ausdrücke) — kommt eine in der Nachricht vor, startet

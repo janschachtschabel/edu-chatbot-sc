@@ -34,6 +34,7 @@ from boerdi.domain.ui_bloecke import GENUG_BLOECKE, platz_fuer_anzeige
 from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
 from boerdi.obs.zeiten import schritt
 from boerdi.services import teil_verweise
+from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.ui_module.antwort import ZWEITE_FRAGE, frage_quittung
 from boerdi.ui_module.aufruf import Umgebung, asynchron
 from boerdi.ui_module.strukturentwurf_merken import vorlage as entwurf_vorlage
@@ -65,6 +66,8 @@ class Vorrunde:
 
     erledigt: set[str] = field(default_factory=set)
     ohne_block: bool = False
+    #: Zweites Review TW-6, Befund 1: ein Modul dieser Runde wurde auf einen Ablauf umgelenkt.
+    umgelenkt: bool = False
 
 
 def offene_frage(session_state: dict) -> UiBlock | None:
@@ -102,6 +105,10 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
         args = json.loads(roh_args or "{}")
     except (json.JSONDecodeError, TypeError):
         args = None   # → die Prüfung gegen ``eingabe`` meldet die fehlenden Felder
+    # TW-6: ohne Arbeitsgrundlage geht ein passender Ablauf vor (``vorschlag.umlenkung``)
+    if hinweis := ablauf_vorschlag.umlenkung(name, args, angeboten, session_state):
+        vorrunde.umgelenkt = True
+        return hinweis
     if isinstance(args, dict):
         # Paket V2 (Review, Befund 2): wie in der Agent-Schleife — nur Teile, die das Modul liest.
         args, fehlt = await teil_verweise.einsetzen(args, session_state.get(TEIL_LADER_KEY), name)

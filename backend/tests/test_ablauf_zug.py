@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import pathlib
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -20,7 +21,7 @@ from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.i18n import bot_text
 from boerdi.services import arbeitsstand, vorgaenge
-from boerdi.services.ablauf import ausloeser, zug, zug_basis
+from boerdi.services.ablauf import ausloeser, wahl_zug, zug, zug_basis
 from boerdi.services.ablauf.pruefung import pruefe
 from boerdi.ui_module.namen import STRUKTURENTWURF, UPLOAD
 
@@ -169,9 +170,20 @@ def _req(**mehr):
         ui_module=[UPLOAD, STRUKTURENTWURF]), **mehr)
 
 
+def _ja(antwort, state):
+    """TW-6: der Ablauf fragt zuerst (``einstieg``) — „Ja, Ordner wählen“ führt zum Upload-Feld.
+    Ohne die Frage (kein Start) bleibt die Antwort, wie sie ist."""
+    for chip in antwort.quick_replies:
+        _praefix, _label, aktion, params = chip.split("|", 3)
+        if aktion == wahl_zug.AKTION and json.loads(params)["wahl"] == "ja":
+            return asyncio.run(wahl_zug.waehlen(
+                _S(), _req(action=wahl_zug.AKTION, action_params=json.loads(params)), state))
+    return antwort
+
+
 def _start(state):
     anfrage = _req(action=zug.AKTION, action_params={"ablauf": "sammlungsstruktur"})
-    return asyncio.run(zug.starten(_S(), anfrage, state))
+    return _ja(asyncio.run(zug.starten(_S(), anfrage, state)), state)
 
 
 def test_der_start_zeigt_das_erste_modul_und_haelt_den_lauf(umgebung):
@@ -346,8 +358,10 @@ def test_eine_wendung_startet_den_ablauf(umgebung):
                                                     "wendungen": ["themenbaum aus meinem ordner"]}])
     ablauf = zug.text_ausloeser("Bitte einen Themenbaum aus meinem Ordner")
     assert ablauf is not None and zug.text_ausloeser("Hallo") is None
-    antwort = asyncio.run(zug.starten_mit(_S(), _req(), {"entities": {}}, ablauf))
-    assert antwort.ui.ui_bloecke[0].modul == UPLOAD
+    state: dict = {"entities": {}}
+    antwort = asyncio.run(zug.starten_mit(_S(), _req(), state, ablauf))
+    assert "Einverstanden?" in antwort.content and not antwort.ui.ui_bloecke   # TW-6: Einstieg
+    assert _ja(antwort, state).ui.ui_bloecke[0].modul == UPLOAD
 
 
 def _geprueft_daten():

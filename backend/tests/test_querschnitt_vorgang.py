@@ -279,20 +279,29 @@ def test_ohne_vorgang_ein_hinweis(umgebung):  # noqa: F811
 
 # ── Querschnitts-Review F/T (2026-11-10), Befund 1 ─────────────────────────────────────────────
 
+#: TW-6: ein Upload-Feld allein schreibt nicht von selbst — der Ablauf schreibt erst mit dem Auftrag
+#: danach, der die hochgeladenen Dateien bekommt (N14).
 _HOCHLADEN = {"id": "hoch", "titel": {"de": "Hoch"}, "aktiv": True, "voraussetzungen": [],
               "ausloeser": [{"art": "knopf"}],
               "schritte": [{"id": "h", "typ": "modul", "modul": "ui_upload",
-                            "text": {"de": "Wähle."}, "daten": {"zweck": "sammlungsstruktur"}}]}
+                            "text": {"de": "Wähle."}, "daten": {"zweck": "sammlungsstruktur"}},
+                           {"id": "a", "typ": "auftrag", "flow": "wlo/volltext", "schreibt": "t",
+                            "weiter": "e"},
+                           {"id": "e", "typ": "ende"}]}
+#: nur das Upload-Feld: schreibt nicht selbst
+_NUR_FELD = {**_HOCHLADEN, "id": "feld", "schritte": [_HOCHLADEN["schritte"][0],
+                                                      {"id": "e", "typ": "ende"}]}
 
 
 def _mit_hochladen(umgebung):  # noqa: F811
     umgebung.katalog["wert"] = {**umgebung.katalog["wert"],
-                                "ablaeufe": [*umgebung.katalog["wert"]["ablaeufe"], _HOCHLADEN]}
+                                "ablaeufe": [*umgebung.katalog["wert"]["ablaeufe"], _HOCHLADEN,
+                                             _NUR_FELD]}
 
 
-def _hoch(state):
+def _hoch(state, ablauf="hoch"):
     return asyncio.run(zug.starten(_S(), _req(action=zug.AKTION,
-                                              action_params={"ablauf": "hoch"}), state))
+                                              action_params={"ablauf": ablauf}), state))
 
 
 def test_ft1_ein_schreibender_ablauf_beginnt_ohne_alte_ablage(umgebung):  # noqa: F811
@@ -316,3 +325,16 @@ def test_ft1_auch_ein_neustart_desselben_schreibenden_ablaufs(umgebung):  # noqa
     _hoch(state)
     alt, neu = _vorgaenge(umgebung)
     assert alt.status == "fertig" and neu.akte["lauf"]["ablauf"] == "hoch"
+
+
+def test_tw6_ein_ablauf_nur_mit_upload_feld_behaelt_die_freie_arbeit(umgebung):  # noqa: F811
+    """TW-6 (Review MAJOR 4): das Feld schreibt nur nach eigenem Klick — der Start schließt die
+    freie Arbeit samt Entwurf nicht."""
+    _mit_hochladen(umgebung)
+    state: dict = {"entities": {}}
+    asyncio.run(arbeitsstand.teile_speichern(_S(), _SID, state["entities"],
+                                             [("ablage", "t", {"inhalte": []}, "z")]))
+    _hoch(state, "feld")
+    (einziger,) = _vorgaenge(umgebung)
+    assert einziger.status != "fertig" and "ablage" in einziger.akte["teile"]
+    assert einziger.akte["lauf"]["ablauf"] == "feld"

@@ -185,7 +185,8 @@ Alle Fächer → `get_subject_portals`, kein Drilldown.
   angeboten ist. „Themenbaum für“ ein Fachportal oder eine
   Sammlung ohne solchen Hinweis → Bestand mit `ui_themenbaum` und die Schnellantwort „Neue
   Gliederung dazu entwerfen“. Bringt die Person eigene Dateien, einen Ordner oder einen Lehrplan ein,
-  zuerst `ui_upload` (siehe „Oberfläche ansteuern“).
+  zuerst `ui_upload` (siehe „Oberfläche ansteuern“) — außer ein passender Ablauf (`ablauf-…`)
+  ist angeboten: der geht vor.
 - `browse_collection_tree` nur, wenn du die Unterthemen selbst auswertest (Prüfen, Lücken,
   Lernpfad) oder der Themenbaum nicht angeboten ist. Einen ersten Überblick über eine Sammlung
   (Pfad, Gliederung, Zahlen, Skills, erste Inhalte) gibt `get_collection_overview` in einem Aufruf.
@@ -375,7 +376,9 @@ Geschichts- und Politikfragen sind Wissensfragen.
   `vorlage` und erneut_zeigen. Nie für den Bestand.
 - **Ordner oder Lehrplan:** Bringt die Person eigene Dateien, einen Ordner oder einen Lehrplan als
   Grundlage ein („Ich habe einen Ordner mit Materialien“, „Mach mir aus meinem Lehrplan eine
-  Struktur“) → `ui_upload` mit `zweck: sammlungsstruktur` und einem Satz, was sie wählen soll
+  Struktur“) → `ui_upload` mit `zweck: sammlungsstruktur` — außer ein passender Ablauf
+  (`ablauf-…`, etwa „aus einem Dokument“, „aus Ordnern“, „aus eigenen Inhalten“) ist angeboten:
+  der geht vor (siehe **Abläufe**). Sonst `ui_upload` mit einem Satz, was sie wählen soll
   (Ordner oder ein Dokument wie ein Lehrplan als PDF oder Word) — das Feld zeigen, nicht nur
   beschreiben. Nach ihrer Antwort nur mit dem Befund arbeiten (Ordnernamen, Zahlen). Hat sie ein
   Dokument lesen lassen (`[DOKUMENT DER PERSON]`): den Themenbaum mit `ui_strukturentwurf` und
@@ -392,7 +395,10 @@ Geschichts- und Politikfragen sind Wissensfragen.
 - **Abläufe:** Werkzeuge `ablauf-…` sind geführte Abläufe der Redaktion (etwa vom Ordner zum
   Themenbaum). Passt einer zum Anliegen, geht er einzelnen Modulen und Werkzeugen vor, auch
   `ui_strukturentwurf`: nimm ihn, statt seine Schritte selbst nachzubauen — höchstens einen je Zug.
-  Ohne Ablauf nur, wenn keiner passt oder die Person ausdrücklich ohne arbeiten will. Ob das
+  Ohne Ablauf nur, wenn keiner passt oder die Person ausdrücklich ohne arbeiten will. Bringt sie
+  eigene Dateien ein und passt keiner genau (etwa ohne Anmeldung), nimm den nächstliegenden: ein
+  Dokument → „aus einem Dokument“, Ordner oder mehrere Dateien → „aus Ordnern“ — nie nur „lade
+  hoch“, ohne dass ein Feld oder Ablauf erscheint. Ob das
   Werkzeug einen Knopf zeigt oder den Ablauf selbst startet, sagt seine Beschreibung; ein Satz, was
   der Ablauf tut und mit welchen Angaben, keine Schritte im Voraus. Läuft ein Ablauf
   (Zeile `[ABLAUFSCHRITT — …]`), bleib bei seinem Schritt und nur bei dessen Werkzeugen; tippt die

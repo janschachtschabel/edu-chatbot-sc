@@ -111,7 +111,7 @@ from boerdi.services.tool_loop_module import (
 )
 from boerdi.services.zustimmung_pruefen import zugestimmt
 from boerdi.ui_module.antwort import NACH_DER_FRAGE
-from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
+from boerdi.ui_module.datenquelle import ANTWORT_UMGELENKT, ANTWORT_VERWORFEN
 from boerdi.ui_module.werkzeuge import ist_abfragendes_modul, ist_modul_werkzeug
 
 if TYPE_CHECKING:
@@ -644,6 +644,13 @@ async def _run_tool_loop(
                 # of a finish_reason == "stop" with the extracted text. Count and
                 # length are capped at assembly (``filtere_vorschlaege``), where
                 # the pattern's count is known.
+                if tool_name == RESPOND_TO_USER and _vorrunde.umgelenkt:
+                    # Zweites Review TW-6, Befund 1: das Modul lief nicht — sonst endete der Zug
+                    # mit „lade hier hoch“ ohne Feld und ohne Ablauf
+                    messages.append({
+                        "role": "tool", "tool_call_id": tc.id, "content": ANTWORT_UMGELENKT,
+                    })
+                    continue
                 if tool_name == RESPOND_TO_USER and _vorrunde.ohne_block:
                     # Review U1-e, Befund 1 (wie in der Agent-Schleife): einem Modul mit
                     # Datenquelle fehlt der Block — die Antwort dieser Runde verwiese womöglich

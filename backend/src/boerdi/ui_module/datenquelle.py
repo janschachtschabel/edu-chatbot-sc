@@ -61,6 +61,10 @@ _UNERREICHBAR: Final = frozenset({"transport", "timeout", "auth", "busy"})
 ANTWORT_VERWORFEN: Final = ("Nicht übernommen: Ein UI-Modul dieser Runde ließ sich nicht laden "
                             "(siehe sein Ergebnis). Antworte noch einmal, ohne auf seine Anzeige "
                             "zu verweisen.")
+#: Zweites Review TW-6, Befund 1: die Antwort derselben Runde nach einer Umlenkung — sonst stünde
+#: „hier kannst du hochladen“ ohne Feld und ohne Ablauf da.
+ANTWORT_UMGELENKT: Final = ("Nicht übernommen: Das Modul dieser Runde lief nicht (siehe sein "
+                            "Ergebnis). Rufe zuerst den genannten Ablauf auf, dann antworte.")
 
 
 class Ergebnis(NamedTuple):

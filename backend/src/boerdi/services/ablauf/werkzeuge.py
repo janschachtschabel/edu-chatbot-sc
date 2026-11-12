@@ -102,6 +102,19 @@ def ablauf_schreibt(ablauf: Any) -> bool:
                for s in ablauf.schritte)
 
 
+def ablauf_schreibt_selbst(ablauf: Any) -> bool:
+    """TW-6 (Rückmeldung 12.11.): schreibt der Ablauf **von sich aus** — ein Auftrag oder ein
+    schreibendes Werkzeug (auch am KI-Schritt)? Das Upload-Feld zählt hier nicht: es überträgt nur
+    nach einem eigenen Klick der Person, mit Anmeldung und eingeschaltetem Studio-Schalter. Maßstab
+    für den Direktstart (``vorschlag._direkt``); für die Erlaubnis der Einbettung bleibt
+    :func:`ablauf_schreibt` (mit Upload)."""
+    return any(s.typ == "auftrag"
+               or (s.typ == "werkzeug" and schreibend(s.werkzeug or ""))
+               or (s.typ == "agent" and s.agent is not None
+                   and any(schreibend(w) for w in s.agent.werkzeuge))
+               for s in ablauf.schritte)
+
+
 def schreibend(name: str) -> bool:
     return name in CURATION_TOOLS
 

@@ -219,10 +219,27 @@ def anmelde_zeile(nachricht: str | None, lang: str, ohne: str | None = None) -> 
     ablauf = ausloeser.per_text(nachricht)
     if ablauf is None or ablauf.id == ohne or ausloeser.erfuellt(ablauf):
         return None
-    titel = (ablauf.titel.get(lang) or ablauf.titel.get("de") or ablauf.id)
-    titel = titel.replace("[", "(").replace("]", ")")[:80]
+    titel = _titel_ohne_klammern(ablauf, lang)
+    # TW-6: den Satz zur Anmeldung hängt das System an (:func:`anmelde_satz`) — die KI ließ ihn im
+    # Durchtest weg und öffnete nur das Upload-Feld
     return (f"[ABLAUF OHNE ANMELDUNG — Zur Bitte passt der geführte Ablauf „{titel}“; er braucht "
-            "eine Anmeldung bei WLO. Sag das in einem Satz und hilf ohne ihn weiter.]")
+            "eine Anmeldung bei WLO. Der Hinweis steht schon unter deiner Antwort; hilf ohne den "
+            "Ablauf weiter.]")
+
+
+def _titel_ohne_klammern(ablauf: AblaufArea, lang: str) -> str:
+    titel = ablauf.titel.get(lang) or ablauf.titel.get("de") or ablauf.id
+    return titel.replace("[", "(").replace("]", ")")[:80]
+
+
+def anmelde_satz(nachricht: str | None, lang: str, ohne: str | None = None) -> str | None:
+    """TW-6: der Satz unter der Antwort, wenn eine Wendung zu einem Ablauf passt, dem die
+    Anmeldung fehlt (dieselbe Bedingung wie :func:`anmelde_zeile`)."""
+    ablauf = ausloeser.per_text(nachricht)
+    if ablauf is None or ablauf.id == ohne or ausloeser.erfuellt(ablauf):
+        return None
+    return bot_text(lang, "action.ablauf.anmeldungHinweis",
+                    titel=_titel_ohne_klammern(ablauf, lang))
 
 
 def modul_ausloeser(geprueft: dict[str, Any] | None, ohne: str | None = None
@@ -277,7 +294,10 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
     # schreibenden Flow (N14). Der Modul-Auslöser (``frisch=False``) bleibt: er hat sein Ziel schon
     # vorbereitet und die Antwort dort gespeichert.
     if not await _ziel_vorbereiten(session, req, entities, ablauf,
-                                   frisch=frisch and werkzeuge.ablauf_schreibt(ablauf)):
+                                   # Review TW-6, Befund 4: nur, wer selbst schreibt (N14) —
+                                   # ein Upload-Feld schloss sonst beim Direktstart ohne Klick
+                                   # die freie Arbeit samt Entwurf
+                                   frisch=frisch and werkzeuge.ablauf_schreibt_selbst(ablauf)):
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     aus = await basis.rechne(session, ablauf, treiber.starten(
         ablauf, basis.umgebung(session, req, entities, blocked_tools), ab, gewaehlt, start,

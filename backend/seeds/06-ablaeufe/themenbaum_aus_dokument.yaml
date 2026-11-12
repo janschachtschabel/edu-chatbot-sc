@@ -22,9 +22,9 @@ nicht_wann:
 aktiv: true
 ausloeser:
   - {art: knopf}
-  # Nur Vorschlag (Knopf): ein Upload-Schritt gilt als schreibend (Review AS-5, Befund 6) — der
-  # Knopf führt seit 11.11. zuerst zur Frage „mit Fragen / gleich / ohne Ablauf“
-  - {art: agent}
+  # TW-6 (Rückmeldung 12.11.): direkt — der Ablauf beginnt mit einer Frage, und ein Upload-Feld
+  # allein schreibt nichts (``werkzeuge.ablauf_schreibt_selbst``)
+  - {art: agent, modus: direkt}
   - {art: modul, modul: ui_upload, wenn_teil: document}
   - art: text
     # Höchstens 10 Wendungen (Prüfung): Weiteres („Kernlehrplan“, „… zu meinem Lehrplan“, das auch
@@ -44,14 +44,14 @@ schritte:
     optionen:
       - {id: fragen, label: {de: "Ja, mit Fragen", en: "Yes, with questions"}, ziel: hochladen}
       - {id: gleich, label: {de: "Gleich entwerfen", en: "Draft right away"}, ziel: hochladen}
-      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
+      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei_anfang}
   - id: hochladen
     typ: modul
     modul: ui_upload
     # Eine einzeln gewählte Datei markiert das Auswahlfeld selbst als Strukturdokument (11.11.)
     text: {de: "Wähle das Dokument (etwa einen Lehrplan) und klick auf „Themenbaum aus dem Strukturdokument erstellen“.",
            en: "Choose the document (such as a curriculum) and click “Create topic tree from the structure document”."}
-    daten: {zweck: sammlungsstruktur}
+    daten: {zweck: sammlungsstruktur, einzeldatei_als_struktur: true}
   # Der Modul-Auslöser beginnt hier — nach der Antwort des Auswahlfelds.
   - id: gelesen
     typ: verzweigung
@@ -121,6 +121,12 @@ schritte:
     typ: ende
     text: {de: "Dein Themenbaum-Entwurf ist gespeichert. Du kannst ihn herunterladen oder später weiter bearbeiten.",
            en: "Your topic tree draft is saved. You can download it or keep editing it later."}
+  # Review 12.11., Befund 3: Ausstieg vor dem Upload — noch ohne Dokument
+  - id: frei_anfang
+    typ: ende
+    ausstieg: true
+    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei weiter.",
+           en: "Alright, without the workflow – let's carry on freely."}
   - id: frei
     typ: ende
     ausstieg: true
@@ -175,7 +181,32 @@ tests:
   - name: Ohne Ablauf gleich am Anfang
     eingaben:
       - {bei: einstieg, option: ohne}
-    erwartet: {weg: [einstieg, frei], status: fertig}
+    erwartet: {weg: [einstieg, frei_anfang], status: fertig}
+  # Review 12.11., Befund 4: die Wahl vom Anfang trägt über „Nochmal wählen“ hinweg
+  - name: Gleich entwerfen über Nochmal wählen
+    eingaben:
+      - {bei: einstieg, option: gleich}
+      - bei: hochladen
+        antwort:
+          aktion: erfasst
+          struktur: {name: Unterlagen, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+      - {bei: ohne_dokument, option: nochmal}
+      - {bei: hochladen, antwort: *dokument}
+      - bei: entwurf
+        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+    erwartet: {weg: [einstieg, hochladen, gelesen, ohne_dokument, hochladen, gelesen, nach_lesen,
+                     entwurf, ende], status: fertig}
+  # … und eine Wahl, die schon im Vorgang steht, gilt auch beim Start über den Modul-Auslöser
+  - name: Modul-Auslöser mit gesetztem vorgehen
+    ab: gelesen
+    teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf},
+            vorgehen: Gleich entwerfen}
+    eingaben:
+      - {bei: entwurf}
+    erwartet: {weg: [gelesen, nach_lesen, entwurf, ohne_entwurf], status: fertig}
   - name: Vom Auswahlfeld bis zum Entwurf
     ab: gelesen
     teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf}}

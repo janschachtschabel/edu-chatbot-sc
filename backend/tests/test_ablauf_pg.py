@@ -11,6 +11,7 @@ zugleich auf einem Stapel, die Grenze je Person samt Kaskade der Aufträge.
 from __future__ import annotations
 
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -19,7 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from boerdi.i18n import bot_text
 from boerdi.services import arbeitsstand, vorgaenge
-from boerdi.services.ablauf import auftrag_zug, ausloeser, zug, zug_basis
+from boerdi.services.ablauf import auftrag_zug, ausloeser, wahl_zug, zug, zug_basis
 from boerdi.services.auftraege import client
 from tests import pg_utils
 from tests.test_ablauf_auftrag import _SCHRITTE, _roh
@@ -100,11 +101,22 @@ async def _vorgaenge(s):
     return [(z.status, z.akte) for z in zeilen]
 
 
+async def _start_ja(s, state):
+    """TW-6: „aus Ordnern“ fragt zuerst (``einstieg``); „Ja, Ordner wählen“ zeigt das Feld."""
+    start = await zug.starten(s, _req(action=zug.AKTION,
+                                      action_params={"ablauf": "sammlungsstruktur"}), state)
+    for chip in start.quick_replies:
+        _praefix, _label, aktion, params = chip.split("|", 3)
+        if aktion == wahl_zug.AKTION and json.loads(params)["wahl"] == "ja":
+            return await wahl_zug.waehlen(
+                s, _req(action=wahl_zug.AKTION, action_params=json.loads(params)), state)
+    raise AssertionError(start.quick_replies)
+
+
 def test_start_und_fortsetzen_mit_echtem_vorgang(welt):
     async def ablauf(s, _sitzungen):
         state: dict = {"entities": {}}
-        start = await zug.starten(s, _req(action=zug.AKTION,
-                                          action_params={"ablauf": "sammlungsstruktur"}), state)
+        start = await _start_ja(s, state)
         geprueft = _geprueft(start.ui.ui_bloecke[0], "erfasst")
         assert await zug.wartet_auf(s, _SID, state, geprueft) is True
         await zug.fortsetzen(s, _req(), state, geprueft)
@@ -133,8 +145,7 @@ def test_ein_anderer_ablauf_schliesst_den_vorgang_und_beginnt_einen_neuen(welt):
 def test_eine_zweite_sitzung_waehrend_des_treibers_ist_ein_konflikt(welt, monkeypatch):
     async def ablauf(s, sitzungen):
         state: dict = {"entities": {}}
-        start = await zug.starten(s, _req(action=zug.AKTION,
-                                          action_params={"ablauf": "sammlungsstruktur"}), state)
+        start = await _start_ja(s, state)
         echt = zug_basis.rechne
 
         async def und_daneben(*a, **k):

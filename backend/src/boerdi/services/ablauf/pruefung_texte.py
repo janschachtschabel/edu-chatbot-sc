@@ -75,11 +75,11 @@ _T: Final[dict[str, dict[str, str]]] = {
                                  "leading to it, or an approval)"},
     "direkt_nur_agent": {"de": "Auslöser {a}: modus direkt gibt es nur am Auslöser agent",
                          "en": "Trigger {a}: mode direkt exists only for the trigger agent"},
-    "direkt_schreibt": {"de": "Auslöser agent mit modus direkt: der Ablauf schreibt (Werkzeug, "
-                              "Auftrag oder Upload) — er startet daher nie direkt, die KI schlägt "
-                              "ihn per Knopf vor",
-                        "en": "Trigger agent with mode direkt: the workflow writes (tool, job or "
-                              "upload) — so it never starts directly, the AI offers a button"},
+    "direkt_schreibt": {"de": "Auslöser agent mit modus direkt: der Ablauf schreibt (Werkzeug "
+                              "oder Auftrag) — er startet daher nie direkt, die KI schlägt ihn per "
+                              "Knopf vor",
+                        "en": "Trigger agent with mode direkt: the workflow writes (tool or job) "
+                              "— so it never starts directly, the AI offers a button"},
     "start_doppelt": {"de": "Startdaten: Feld doppelt: {f}",
                       "en": "Start data: duplicate field: {f}"},
     "start_pflicht_ausloeser": {"de": "Auslöser {a} startet nie: Pflichtfelder in den Startdaten "

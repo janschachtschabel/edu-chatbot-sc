@@ -14,7 +14,8 @@
 ``direkt`` (Plan 2026-11-10, TB-E3, Nutzer-Entscheid N4): kein Treiber mitten in der Antwort —
 der Knopf entsteht wie beim Vorschlag, die Zusammenstellung merkt ihn (:data:`DIREKT_KEY`), die
 Antwort trägt ihn in ``ui.direkt_start`` (:func:`direkt_fuer_antwort`) und das Widget drückt ihn
-nach dem Zug. Nur für Abläufe, die nichts schreiben (``werkzeuge.ablauf_schreibt``).
+nach dem Zug. Nur für Abläufe, die nicht selbst schreiben (``werkzeuge.ablauf_schreibt_selbst``;
+seit TW-6 zählt ein Upload-Feld nicht — es überträgt nur nach eigenem Klick).
 """
 
 from __future__ import annotations
@@ -120,9 +121,9 @@ def _schreibt(ablauf: Any) -> bool:
 
 def _direkt(ablauf: Any) -> bool:
     """TB-E3: startet die KI diesen Ablauf direkt? Nur mit ``modus: direkt`` am Auslöser ``agent``
-    und nur, wenn er nichts schreibt."""
+    und nur, wenn er nicht selbst schreibt (TW-6: ein Upload-Feld allein zählt nicht)."""
     return (any(a.art == "agent" and a.modus == "direkt" for a in ablauf.ausloeser)
-            and not _schreibt(ablauf))
+            and not werkzeuge_mod.ablauf_schreibt_selbst(ablauf))
 
 
 def werkzeuge(lang: str, nur: Collection[str] | None = None,
@@ -146,6 +147,79 @@ def werkzeuge(lang: str, nur: Collection[str] | None = None,
         "name": PRAEFIX + a.id, "description": _beschreibung(a, lang),
         "parameters": startdaten.werkzeug_schema(a, lang)}}
         for a in passend[:MAX_WERKZEUGE]]
+
+
+#: TW-6: Argumente, die eine Arbeitsgrundlage nennen — dann nie umlenken (Weiterbearbeiten,
+#: Bestand, Dokument, eigene Inhalte, erneut zeigen).
+_MIT_GRUNDLAGE: Final = ("vorlage", "vertiefen", "wurzel_wlo_id", "aus_dokument", "aus_inhalten",
+                         "erneut_zeigen")
+#: TW-6: welche Module ein Ablauf statt der KI anbietet.
+UMLENKBAR: Final = frozenset({"ui_strukturentwurf", "ui_upload"})
+#: Im ``session_state`` (nur dieser Zug): eine Arbeitsgrundlage liegt vor (``respond`` setzt es)
+#: bzw. ein Modul wurde in diesem Zug schon einmal umgelenkt.
+GRUNDLAGE_KEY: Final = "_ablauf_grundlage"
+UMGELENKT_KEY: Final = "_ablauf_umgelenkt"
+
+
+def arbeitsgrundlage(entities: dict[str, Any], aufrufer: str) -> bool:
+    """TW-6 (Review, Befund 2): hat die Sitzung schon etwas, woran die KI weiterarbeitet — einen
+    gemerkten Entwurf oder im Vorgang einen Teil ``draft`` oder ``document`` (auch Tage später,
+    Paket V1)? Dann lenkt :func:`umlenkung` nie um."""
+    from boerdi.services.arbeitsstand_verweis import verweis
+    from boerdi.ui_module import strukturentwurf_merken
+
+    if strukturentwurf_merken.vorlage(entities) is not None:
+        return True
+    vw = verweis(entities, aufrufer)
+    teile = vw.get("teile") if isinstance(vw, dict) and isinstance(vw.get("teile"), dict) else {}
+    return bool({"draft", "document"} & set(teile))
+
+
+def umlenkung(modul: str, args: Any, angeboten: Collection[str],
+              session_state: dict[str, Any] | None, *, merken: bool = True,
+              lang: str = "de") -> str | None:
+    """TW-6 (Durchtest 12.11.): die KI griff trotz Regel meist direkt zum Modul. Ruft sie
+    ``ui_strukturentwurf`` oder ``ui_upload`` **ohne Arbeitsgrundlage** auf, während ein passender
+    Ablauf angeboten ist, läuft das Modul nicht — die Antwort sagt ihr, welchen Ablauf sie nehmen
+    soll. ``None``: ausführen.
+
+    Nie umgelenkt (Review TW-6, Befunde 1–3): nach einem Ausstieg („Ohne Ablauf“), mit
+    Arbeitsgrundlage (:func:`arbeitsgrundlage`, Argumente wie ``vorlage`` oder
+    ``wurzel_wlo_id``), und beim zweiten Versuch im selben Zug — ein Fluchtweg: die KI entscheidet
+    ihn, etwa weil die Nachricht dieses Zugs ausdrücklich „ohne Ablauf“ sagt (zweites Review
+    TW-6, Befund 8). Für ``ui_strukturentwurf`` zählen nur Abläufe ohne Upload-Schritt (ein
+    Thema), für ``ui_upload`` die mit. ``merken=False`` prüft nur (ohne den Versuch zu zählen).
+    """
+    from boerdi.services.ablauf.zug_basis import abgelehnt
+
+    zustand = session_state if isinstance(session_state, dict) else {}
+    if modul not in UMLENKBAR or zustand.get(GRUNDLAGE_KEY) or abgelehnt(None, zustand):
+        return None
+    if isinstance(args, dict) and any(args.get(k) for k in _MIT_GRUNDLAGE):
+        return None
+    if modul in (zustand.get(UMGELENKT_KEY) or []):
+        return None
+    katalog = {a.id: a for a in ausloeser.vorschlaege()}
+    ziele: list[str] = []
+    for name in angeboten:
+        if not ist_ablauf_werkzeug(name) or (a := katalog.get(kennung(name))) is None:
+            continue
+        mit_upload = any(s.typ == "modul" and s.modul == "ui_upload" for s in a.schritte)
+        nutzt = any((s.typ == "modul" and s.modul == modul)
+                    or (s.typ == "agent" and s.agent and modul in s.agent.werkzeuge)
+                    for s in a.schritte)
+        if nutzt and (modul == "ui_upload") == mit_upload:
+            ziele.append(f"{name} („{_titel(a, lang)}“)")
+    if not ziele:
+        return None
+    if merken:
+        zustand.setdefault(UMGELENKT_KEY, []).append(modul)
+    # Durchtest 12.11.: ohne klare Anweisung schrieb die KI danach Prosa („wähle hier aus“) ohne
+    # Feld — deshalb ausdrücklich: jetzt einen Ablauf aufrufen, nichts versprechen
+    return ("Nicht ausgeführt: Für diese Bitte gibt es einen geführten Ablauf — rufe JETZT "
+            + " oder ".join(sorted(ziele)) + " auf (der nächstliegende, wenn keiner genau passt); "
+            "er fragt selbst nach, was fehlt. Versprich kein Auswahlfeld ohne Aufruf. Nur wenn die "
+            "Person ausdrücklich ohne Ablauf arbeiten will, rufe das Modul noch einmal auf.")
 
 
 def ist_quittung(text: str) -> bool:

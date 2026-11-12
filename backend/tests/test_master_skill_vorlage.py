@@ -506,6 +506,12 @@ def test_knapp_ablauf_geht_modul_und_platzhalter_frage_vor(knapp: str) -> None:
     assert "geht er einzelnen Modulen und Werkzeugen vor" in oberflaeche
     assert "**Ablauf zuerst:**" in _abschnitt(knapp, "Nachfragen")
     assert "er geht vor und fragt selbst" in _unterabschnitt(knapp, "Reihenfolge der Prüfung")
+    # TW-6 (Durchtest 12.11.): auch vor dem Upload-Feld — die KI öffnete es sonst bei „aus meinem
+    # Lehrplan“, „aus meinen Ordnern“ und „aus meinen Dateien“ direkt
+    finden = _abschnitt(knapp, "Finden")
+    assert "ansteuern“) — außer ein passender Ablauf" in finden
+    assert "`zweck: sammlungsstruktur` — außer ein passender Ablauf" in oberflaeche
+    assert "nie nur „lade" in oberflaeche                 # keine Sackgasse ohne Feld
 
 
 def test_formeln_stehen_als_latex_in_den_begrenzern(text: str) -> None:
