@@ -35,7 +35,8 @@
           <div class="gs-confirm" role="alert">
             <p>{{ t('groupSection.switchBlocked') }}</p>
             <div class="gs-actions">
-              <button type="button" class="cs-btn cs-btn--danger" (click)="verwerfenUndWechseln()">
+              <button #wechselKnopf type="button" class="cs-btn cs-btn--danger"
+                      (click)="verwerfenUndWechseln()">
                 {{ t('groupSection.discardAndSwitch') }}</button>
               <button type="button" class="cs-btn" (click)="wechselZu.set(null)">
                 {{ t('groupSection.stayHere') }}</button>
@@ -222,7 +223,9 @@
             />
           }
           @if (editor.saveError()) {
-            <p class="cs-state cs-state--error" role="alert">{{ editor.saveError() }}</p>
+            <!-- Rückmeldung 11.11. (2): tabindex -1 — nach einem abgewiesenen Speichern holt der
+                 Fokus die Meldung ins Bild (sie stand unter den Knöpfen, außer Sicht) -->
+            <p class="cs-state cs-state--error" role="alert" tabindex="-1" #speicherFehler>{{ editor.saveError() }}</p>
           }
         }
       </div>

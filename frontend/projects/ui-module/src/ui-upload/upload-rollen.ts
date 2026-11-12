@@ -21,8 +21,17 @@ function mitRollen<T>(e: Erfassung<T>, neu: (d: ErfassteDatei<T>, i: number) => 
   }) };
 }
 
-/** Genau ein Lehrplan-Kandidat direkt in der Wurzel → Strukturdokument; sonst bleibt alles, wie es ist. */
+/**
+ * Genau ein Lehrplan-Kandidat direkt in der Wurzel → Strukturdokument; ebenso eine **einzelne** Datei
+ * ohne Ordner, die ein Strukturdokument sein kann (Rückmeldung 11.11.: wer nur ein Dokument wählt,
+ * will es lesen lassen — sonst blieb „Senden“ der Hauptknopf, und es wurde nur gezählt). Sonst
+ * bleibt alles, wie es ist.
+ */
 export function vorschlagen<T>(e: Erfassung<T>): Erfassung<T> {
+  const nutzbar = e.dateien.filter((d) => d.rolle === 'inhalt');
+  if (!e.wurzel.ordner.length && nutzbar.length === 1 && kannStrukturSein(nutzbar[0])) {
+    return setzeRolle(e, e.dateien.indexOf(nutzbar[0]), 'struktur');
+  }
   const kandidaten = e.wurzel.dateien.filter((i) => {
     const d = e.dateien[i];
     return d.rolle === 'inhalt' && kannStrukturSein(d) && LEHRPLAN.test(d.name);

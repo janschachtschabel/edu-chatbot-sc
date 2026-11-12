@@ -202,7 +202,14 @@ jobs:
       - name: Build studio SPA (P9-2)
         run: npm run build:studio
       - name: Chromium für Playwright
-        run: npx playwright install --with-deps chromium
+        # `--with-deps` holt Systempakete per apt. Sind die Ubuntu-Quellen vom Runner aus nicht
+        # erreichbar (2026-11-11: „Temporary failure resolving archive.ubuntu.com“), nur den Browser
+        # laden — die Bibliotheken bringt das Runner-Image mit (Chrome ist dort vorinstalliert).
+        run: |
+          npx playwright install --with-deps chromium || {
+            echo "::warning::apt nicht erreichbar — Chromium ohne Systempakete"
+            npx playwright install chromium
+          }
       # `npx playwright test` statt `npm run e2e`: das Bundle ist zwei Schritte
       # weiter oben schon gebaut, und `npm run e2e` baut es (bewusst) selbst.
       - name: E2E (Playwright gegen das gebaute Bundle)

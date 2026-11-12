@@ -101,6 +101,8 @@ export class GroupSectionComponent {
   private readonly loeschKnopf = viewChild<ElementRef<HTMLElement>>('loeschKnopf');
   private readonly abbrechenKnopf = viewChild<ElementRef<HTMLElement>>('abbrechenKnopf');
   private readonly listTitel = viewChild<ElementRef<HTMLElement>>('listTitel');
+  private readonly wechselKnopf = viewChild<ElementRef<HTMLElement>>('wechselKnopf');
+  private readonly speicherFehler = viewChild<ElementRef<HTMLElement>>('speicherFehler');
 
   readonly area = computed(() => this.section().area);
   /** Auch ein nicht lesbarer Feld-Entwurf ist ungespeicherte Arbeit (Review-Runde 2). */
@@ -209,6 +211,13 @@ export class GroupSectionComponent {
       // klickte, sah nichts und kam nicht weiter (etwa nach einem abgewiesenen Speichern). Jetzt
       // fragt die Liste selbst und bietet „Verwerfen und wechseln“.
       this.wechselZu.set(key);
+      // Rückmeldung 11.11. (2): die Rückfrage steht über der Liste — bei gescrollter Liste
+      // außer Sicht. Der Fokus holt sie ins Bild und sagt sie an.
+      afterNextRender(() => {
+        const knopf = this.wechselKnopf()?.nativeElement;
+        knopf?.scrollIntoView?.({ block: 'center' });
+        knopf?.focus();
+      }, { injector: this.injector });
       return;
     }
     this.wechselZu.set(null);
@@ -238,7 +247,18 @@ export class GroupSectionComponent {
     this.wechselZu.set(null);
     // `vomServer` (Review U1-f, #3): die Anrede (`ohneFelder`) pflegt eine andere Seite.
     void this.editor.save(this.selected(), { force, vomServer: this.section().ohneFelder }).then((saved) => {
-      if (!saved) return;
+      if (!saved) {
+        // Rückmeldung 11.11. (2): abgewiesen (etwa „Ablauf nicht ausführbar“) — sonst blieb der Stand
+        // still ungespeichert, und Wechsel und Verlassen schienen zu hängen.
+        if (this.editor.saveError()) {
+          afterNextRender(() => {
+            const fehler = this.speicherFehler()?.nativeElement;
+            fehler?.scrollIntoView?.({ block: 'center' });
+            fehler?.focus();
+          }, { injector: this.injector });
+        }
+        return;
+      }
       this.changed.emit();
       // Review AS-0, Befund 7: bei Abläufen ist der Zusatz der Liste ein Stand (an/aus, Befunde).
       if (this.docs.istAblauf) void this.loadList();

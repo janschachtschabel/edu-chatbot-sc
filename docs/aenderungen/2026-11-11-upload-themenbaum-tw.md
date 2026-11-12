@@ -105,3 +105,27 @@ Gemeldet: Nach „Speichern“ ließ sich nicht mehr zwischen Abläufen wechseln
 - **Speichern ohne Fehler:** Hier verschwindet der Vermerk „Ungespeichert“ wie bisher. Das ist im
   Browser für „aus einem Thema“ geprüft.
 - **Test:** `group-section.component.spec`.
+
+## Nachtrag 4: Studio hängt nach dem Einschalten, Dokument-Ablauf ohne Einstieg (11.11.)
+
+Rückmeldungen nach dem Image `sha-fb6da8f`:
+
+- **Studio:** Nach dem Einschalten von „aus eigenen Inhalten“ ließ sich nicht wechseln, und beim
+  Menüwechsel fragte der Verlassen-Schutz nach.
+  - Der Server wies das Speichern ab (Flow nicht freigeschaltet), der Stand blieb ungespeichert.
+  - Meldung und Rückfrage aus #55 standen außer Sicht, unter den Knöpfen bzw. über der
+    gescrollten Liste.
+  - Jetzt holt der Fokus beides ins Bild: die Meldung nach einem abgewiesenen Speichern und
+    „Verwerfen und wechseln“ beim gesperrten Wechsel.
+- **Dokument-Ablauf:** Die Wahl „mit Fragen / gleich entwerfen / ohne Ablauf“ kommt jetzt **vor**
+  dem Upload (`einstieg`, Teil `vorgehen`).
+  - Nach dem Lesen verzweigt `nach_lesen` danach.
+  - Ein Start über den Modul-Auslöser (ohne Wahl) fragt nach dem Lesen (`gelesen_frage`).
+  - Die KI bietet den Ablauf weiter per Knopf an, nicht direkt: ein Upload-Schritt gilt als
+    schreibend (Review AS-5, Befund 6). Der Knopf führt jetzt zuerst zur Frage.
+- **Upload-Modul:** Eine einzeln gewählte Datei (PDF, DOCX, TXT, MD) wird sofort
+  Strukturdokument. Sonst blieb „Senden“ der Hauptknopf, und das Dokument wurde nur gezählt
+  („0 Ordner, 1 Datei“), nicht gelesen.
+- **Grenze:** Ein Teil `vorgehen` aus einem früheren Lauf im selben Vorgang kann beim Start über
+  den Modul-Auslöser die Frage nach dem Lesen überspringen.
+
