@@ -29,20 +29,27 @@ export class ChoicesApi {
   private readonly api = inject(StudioApi);
   private readonly loaded = signal<ChoiceCatalogs>({});
   private inFlight: Promise<void> | null = null;
+  /** Review 12.11., Befund 10: nur die Antwort des jüngsten Abrufs zählt. */
+  private generation = 0;
 
   /** Leer, solange nichts geladen ist — nie `undefined`. */
   readonly catalogs = this.loaded.asReadonly();
 
   /** Holt die Kataloge einmal. Mehrfach zu rufen ist erlaubt und billig. */
   prime(): Promise<void> {
+    const meine = this.generation;
     this.inFlight ??= this.api
       .get<ChoiceCatalogs>('/config/choices')
-      .then((katalog) => this.loaded.set(katalog))
+      .then((katalog) => {
+        if (meine === this.generation) this.loaded.set(katalog);
+      })
       .catch(() => {
         // Bewusst still: das Feld fällt auf Freitext zurück, und ein Formular
         // mit einer roten Meldung über eine fehlende Vorschlagsliste wäre
         // lauter als der Schaden.
-        this.inFlight = null; // ein späterer Versuch darf es nochmal probieren
+        // ein späterer Versuch darf es nochmal probieren — nicht, wenn längst ein neuerer läuft
+        // (Review TW-6, Befund 9)
+        if (meine === this.generation) this.inFlight = null;
       });
     return this.inFlight;
   }
@@ -53,6 +60,7 @@ export class ChoicesApi {
    * „Flow“). Die alten Vorschläge bleiben stehen, bis die neuen da sind.
    */
   neuLaden(): Promise<void> {
+    this.generation += 1;
     this.inFlight = null;
     return this.prime();
   }
