@@ -90,4 +90,13 @@ test('im schwebenden Modus bleibt das Vollbild bei schmaler Weite erhalten', asy
   expect(stil.top).toBe(0);
   expect(stil.breite).toBe(sicht.width);
   expect(stil.radius).toBe('0px');
+
+  // Gemeldet 2026-11-12 (Android/Chrome): die Eingabezeile lag unter dem Bildrand, weil `100vh`
+  // dort die Höhe bei eingeklappter Adressleiste ist. Die Regel nutzt jetzt `100dvh`. Die
+  // Adressleiste kann Playwright nicht nachbilden (hier ist vh = dvh) — geprüft wird, dass die
+  // Eingabezeile ganz im sichtbaren Bereich liegt und das Panel nicht über ihn hinausragt.
+  const unten = await page.locator('.chat-input').evaluate((el) => el.getBoundingClientRect().bottom);
+  const panelUnten = await page.locator('.boerdi-panel').evaluate((el) => el.getBoundingClientRect().bottom);
+  expect(unten).toBeLessThanOrEqual(sicht.height);
+  expect(panelUnten).toBeLessThanOrEqual(sicht.height);
 });

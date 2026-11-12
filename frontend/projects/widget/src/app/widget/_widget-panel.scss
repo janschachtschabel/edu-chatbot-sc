@@ -31,8 +31,10 @@
 .boerdi-panel {
   width: 420px;
   height: min(820px, calc(100vh - 40px));
+  height: min(820px, calc(100dvh - 40px)); // sichtbare Höhe, siehe 480-px-Regel
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   background: var(--mat-sys-surface);
   // U4c: 16px → `medium` (12px). Nutzer-Vorgabe „weniger runde Ecken außen
   // rum". Bewusste Abweichung von M3, das großen Flächen große Ecken gibt —
@@ -65,6 +67,7 @@
   // nicht mehr sinnvoll, über 1280px reißt die Zeilenlänge des Fließtexts.
   width: clamp(480px, 56vw, 1280px);
   height: min(960px, calc(100vh - 40px));
+  height: min(960px, calc(100dvh - 40px));
 }
 /* …und der INHALT muss mitwachsen. `chat-shell.component.scss` deckelt
    `.chat-wrapper` auf 520px, zentriert sie (`margin: 0 auto`) und setzt Linien

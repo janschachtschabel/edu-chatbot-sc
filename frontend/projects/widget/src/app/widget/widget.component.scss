@@ -55,9 +55,14 @@
 @media (max-width: 480px) {
   .boerdi-panel {
     width: 100vw;
+    // `dvh` nach `vh` (Rückfall für Browser ohne dvh): in Chrome auf Android ist `100vh` die
+    // Höhe bei EINGEKLAPPTER Adressleiste — bei sichtbarer ragte das Panel um deren Höhe unter
+    // den Bildrand, und genau dort lag die Eingabezeile (gemeldet 2026-11-12, Android/Chrome).
     height: 100vh;
+    height: 100dvh;
     max-width: 100vw;
     max-height: 100vh;
+    max-height: 100dvh;
     border-radius: 0;
     position: fixed;
     inset: 0;
