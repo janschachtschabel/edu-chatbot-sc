@@ -35,6 +35,8 @@ export class EntwurfZustand {
   /** Der Stand der Person. */
   struktur: Baum = [];
   offen: ReadonlySet<string> = new Set();
+  /** R4: ist der Abschnitt „Hinweise zur Struktur“ aufgeklappt? (das Element zeichnet neu) */
+  hinweiseOffen = false;
   /** Das Schlagwort-Feld, solange es bearbeitet wird (sonst sprängen Komma und Leerzeichen weg). */
   kwText: string | null = null;
   private aktivId: string | null = null;

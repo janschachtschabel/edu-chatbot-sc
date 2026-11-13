@@ -1,4 +1,5 @@
 /** Die Texte des Strukturentwurfs, de und en (Plan U1 §3.5: eigene Texte im Modul). */
+import { type Hinweis, KINDER_MAX, OBEN_MAX, OBEN_MIN } from './entwurf-pruefung';
 import type { Grund } from './entwurf-regeln';
 
 const zahl = (n: number, eins: string, viele: string, ort: string) =>
@@ -9,6 +10,19 @@ export const TEXTE = {
     marke: { ki: 'Entwurf (KI)', wlo: 'Entwurf (aus WLO)', ordner: 'Entwurf (aus Ordnern)', dokument: 'Entwurf (aus Dokument)' },
     punkte: (n: number) => zahl(n, 'Punkt', 'Punkte', 'de-DE'),
     gekuerzt: 'Die Sammlung in WLO hat mehr Punkte, als der Entwurf übernommen hat.',
+    // R4: Hinweise nach dem Leitfaden — Richtwerte, keine Sperre
+    hinweiseTitel: (n: number) => `Hinweise zur Struktur (${n.toLocaleString('de-DE')})`,
+    strukturHinweis: (h: Hinweis): string => {
+      switch (h.code) {
+        case 'oben': return `Oben stehen ${h.anzahl} Punkte – üblich sind ${OBEN_MIN} bis ${OBEN_MAX}.`;
+        case 'tief': return `Der Baum geht ${h.anzahl} Ebenen tief – flacher ist übersichtlicher.`;
+        case 'einzelkind': return `„${h.titel}“ hat genau einen Unterpunkt – fasse ihn mit dem Punkt zusammen oder ergänze weitere.`;
+        case 'breit': return `„${h.titel}“ hat ${h.anzahl} Unterpunkte – üblich sind höchstens ${KINDER_MAX}.`;
+        case 'name': return `„${h.titel}“: Jahreszahl, Klasse, Format oder Sammelbegriff im Namen – das beschreibt Inhalte, ist aber kein Thema.`;
+        case 'doppelt': return `„${h.titel}“ steht zweimal auf derselben Ebene.`;
+        case 'weitere': return `… und ${h.anzahl} weitere.`;
+      }
+    },
     gekuerztOrdner: 'Der Ordner hat mehr Ebenen oder Unterordner, als der Entwurf übernommen hat.',
     leer: 'Der Entwurf ist leer.',
     ausstehend: 'Unterthemen fehlen noch',
@@ -71,6 +85,18 @@ export const TEXTE = {
     marke: { ki: 'Draft (AI)', wlo: 'Draft (from WLO)', ordner: 'Draft (from folders)', dokument: 'Draft (from document)' },
     punkte: (n: number) => zahl(n, 'item', 'items', 'en-GB'),
     gekuerzt: 'The WLO collection has more items than the draft took over.',
+    hinweiseTitel: (n: number) => `Notes on the structure (${n.toLocaleString('en-GB')})`,
+    strukturHinweis: (h: Hinweis): string => {
+      switch (h.code) {
+        case 'oben': return `There are ${h.anzahl} items at the top – ${OBEN_MIN} to ${OBEN_MAX} is usual.`;
+        case 'tief': return `The tree is ${h.anzahl} levels deep – flatter is clearer.`;
+        case 'einzelkind': return `“${h.titel}” has exactly one sub-item – merge it with the item or add more.`;
+        case 'breit': return `“${h.titel}” has ${h.anzahl} sub-items – at most ${KINDER_MAX} is usual.`;
+        case 'name': return `“${h.titel}”: year, grade, format or catch-all in the name – that describes content, not a topic.`;
+        case 'doppelt': return `“${h.titel}” appears twice on the same level.`;
+        case 'weitere': return `… and ${h.anzahl} more.`;
+      }
+    },
     gekuerztOrdner: 'The folder has more levels or subfolders than the draft took over.',
     leer: 'The draft is empty.',
     ausstehend: 'subtopics still missing',
