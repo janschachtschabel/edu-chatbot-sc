@@ -38,7 +38,7 @@ tools:
   - wlo_list_suggestions
   - wlo_decide_suggestion
   # ── Lesend, aber hier unentbehrlich ───────────────────────────────
-  # Kuratieren heisst fast immer: erst den Gegenstand finden und seinen
+  # Kuratieren heisst fast immer: erst den Gegenstand finden, bei Bedarf seinen
   # IST-Stand lesen, dann ändern. Ohne sie müsste das Modell mit geratenen IDs
   # schreiben — genau der Fehler, den die Vorschau abfängt, aber erst NACH
   # einem überflüssigen Zug.
@@ -168,13 +168,13 @@ liefert, was der nächste als Argument braucht.
 | Vorhaben | Reihenfolge |
 |---|---|
 | Material in eine Sammlung legen | `search_wlo_content` (Material finden) → `search_wlo_collections` bzw. `browse_collection_tree` (Ziel finden) → `wlo_add_to_collection` |
-| Metadaten ändern | `get_node_details` (IST-Stand lesen) → `lookup_wlo_vocabulary` (Fach/Stufe/Typ belegen) → `wlo_update_content` |
+| Metadaten ändern | `wlo_update_content` direkt, mit den Bezeichnungen (Fach, Stufe, Typ, Zielgruppe). Schlagwörter werden ergänzt; Fach, Stufe, Typ und Zielgruppe ersetzt — alle bisherigen Werte fallen weg. Soll ein Wert hinzukommen, das Werkzeug dafür nicht aufrufen: sagen, dass es nur ersetzen kann, und einen Vorschlag anbieten (`wlo_suggest_metadata`; Annehmen ergänzt). Davor `get_node_details` nur, wenn die Kennung nicht aus dem Gespräch stammt oder die Änderung auf dem bisherigen Wert aufbaut (Text ergänzen, korrigieren); `lookup_wlo_vocabulary` erst, wenn der Server Fach, Stufe oder Zielgruppe ablehnt — beim Typ stattdessen einen Vorschlag aus der Ablehnung nehmen |
 | Neues Material zu einer Adresse anlegen (und einsortieren) | `find_content_by_url` (Dublette per Adresse; vorhanden → `wlo_add_to_collection` mit seiner nodeId) → `search_wlo_collections` bzw. `browse_collection_tree` (Ziel finden) → `wlo_create_content` mit `addToCollectionId` — EINE Bestätigung für beides |
 | Neue Sammlung anlegen und füllen | `search_wlo_collections` (Dublette ausschliessen) → `wlo_create_collection` → `wlo_add_to_collection` |
 | Untersammlungen als Baum anlegen | `browse_collection_tree` (was gibt es schon) → `wlo_create_collection_tree` — EINE Bestätigung für den ganzen Baum; ist er groß, setzt „Plan fortsetzen“ fort |
 | Viele Materialien einsortieren | `search_wlo_content` / `find_content_by_url` (nodeIds) → `wlo_add_to_collections` — EINE Bestätigung für alle Paare |
 | Volltext an einen Datensatz hängen | `get_node_details` (Datensatz benennen) → `wlo_attach_fulltext`; viele auf einmal → `wlo_attach_fulltexts` — EINE Bestätigung. `would_replace_file` heißt „hier noch nicht möglich“ (beim MCP-Team vorgemerkt), kein Fehler — kein Nachtragen versprechen; `link_record`: verlinkter Datensatz ohne eigenen Volltext |
-| Metadaten vieler Datensätze ändern | `get_nodes_details` (IST-Stand aller in EINEM Aufruf) → `lookup_wlo_vocabulary` → `wlo_update_contents` — EINE Bestätigung; Lizenz, Urheber u. a. werden Vorschläge. Ist ein Plan zu groß: nur den ersten Teil vorlegen, den nächsten nach dessen Abschluss |
+| Metadaten vieler Datensätze ändern | `wlo_update_contents` mit den Bezeichnungen — EINE Bestätigung; davor `get_nodes_details` (alle in EINEM Aufruf) nur, wenn die Änderung auf den bisherigen Werten aufbaut, `lookup_wlo_vocabulary` erst nach einer Ablehnung; Lizenz, Urheber u. a. werden Vorschläge. Ist ein Plan zu groß: nur den ersten Teil vorlegen, den nächsten nach dessen Abschluss |
 | Redaktionstext schreiben | `get_compendium_text`¹ (was steht schon da) → `wlo_update_compendium` |
 | Etwas löschen | `get_node_details` (benennen, was verschwindet) → `wlo_delete_content` / `wlo_delete_collection`. Ordner lassen sich so nicht löschen |
 | Vorschlag entscheiden | `wlo_list_suggestions` → `get_node_details` (Gegenstand ansehen) → `wlo_decide_suggestion`. Nur offene Vorschläge (`already_decided`: schon entschieden, nicht erneut versuchen). Annehmen ergänzt mehrwertige Felder (Fach, Stufe, Schlagwörter), es ersetzt sie nicht |
@@ -183,12 +183,17 @@ liefert, was der nächste als Argument braucht.
 
 Drei Regeln über alle Zeilen:
 
-* **Erst lesen, dann schreiben.** Ohne `get_node_details` schreibt das Modell
-  gegen eine geratene ID — die Vorschau fängt das ab, aber erst nach einem
-  überflüssigen Zug.
-* **Werte belegen, nicht raten.** Fach, Stufe und Typ kommen aus
-  `lookup_wlo_vocabulary`, der Anbieter aus `lookup_wlo_publishers`. Ein
-  erfundener Wert wird still verworfen.
+* **Nie gegen eine geratene Kennung schreiben.** Sie muss aus dem Gespräch
+  stammen (Treffer, Seite, Angabe der Person), sonst erst suchen oder
+  `get_node_details`. Die Vorschau einer Metadaten-Änderung nennt den Datensatz
+  und zeigt alt und neu — stimmt der Titel nicht mit dem gemeinten überein, das
+  sagen statt einzuordnen.
+* **Werte nicht raten.** Nennt die Person Fach, Stufe oder Zielgruppe, die
+  Bezeichnung direkt übergeben. Der Server gleicht ab, auch über Teilwörter
+  („Wirtschaft“ wird „Agrarwirtschaft“): weicht der Wert in der Vorschau vom
+  genannten ab, das sagen. Erst nach einer Ablehnung `lookup_wlo_vocabulary`.
+  Werte, die du selbst aus einem Text ableitest (M20), vorher nachschlagen; der
+  Anbieter aus `lookup_wlo_publishers`.
 * **Vor dem Ankündigen einer Änderung** beantwortet `wlo_auth_status`, unter
   welchem Namen geschrieben würde — die ehrlichere Auskunft als eine Vermutung.
 

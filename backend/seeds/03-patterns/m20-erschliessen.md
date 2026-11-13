@@ -109,15 +109,17 @@ werden, ob sie das werden sollte.
      Server-Einstellung, kein Problem der Seite — und es wird so gesagt.
    Ohne Text geht es nicht weiter mit dem Anlegen; dann bleibt der Vorschlag,
    die Angaben von Hand zu nennen.
-2. **Dublette ausschliessen** — zuerst die Adresse mit `find_content_by_url`
-   prüfen (genau, auch bereinigt), dann mit dem Titel in `search_wlo_content`
+2. **Dublette ausschliessen** — die Adresse mit `find_content_by_url` prüfen
+   (genau, auch bereinigt; am besten schon zusammen mit Schritt 1, der Aufruf
+   braucht nur die Adresse), dann mit dem Titel in `search_wlo_content`
    bzw. `search_wlo_all` suchen. `match: exact` heißt: es gibt ihn schon;
    `normalized` und Titeltreffer sind Kandidaten — gezeigt und gefragt, ob er
    gemeint ist. Gibt es ihn schon und soll er in eine Sammlung, wird er mit
    `wlo_add_to_collection` (seine nodeId) einsortiert, nicht neu angelegt.
 3. **Metadaten ableiten** — Titel, Beschreibung, Schlagworte aus dem gelesenen
    Text. Fach und Bildungsstufe über `lookup_wlo_vocabulary` gegen die echten
-   Vokabulare belegen; Anbieter über `lookup_wlo_publishers`. Was sich nicht
+   Vokabulare belegen (die Listen hängen nicht vom Text ab und können schon mit
+   Schritt 1 kommen); Anbieter über `lookup_wlo_publishers`. Was sich nicht
    belegen lässt, bleibt leer — mit einem Satz dazu.
 4. **Vorlegen** — `wlo_create_content` mit allen Angaben aufrufen; war ein
    Ablageort genannt, mit `addToCollectionId`. Der Aufruf schreibt noch nichts:
@@ -131,20 +133,23 @@ werden, ob sie das werden sollte.
 
 ## Werkzeuge in der Reihenfolge
 
-Der Ablauf oben als Kette. Jeder Pfeil trägt etwas weiter: der Text liefert die
-Suchbegriffe, die Suche das Dublettenurteil, die Vokabulare die belegten Werte.
+Der Ablauf oben als Kette, gebündelt nach dem, was ein Aufruf braucht. Jeder Pfeil
+trägt etwas weiter: der Text liefert die Suchbegriffe, die Suche das Dublettenurteil,
+die Vokabulare die belegten Werte.
 
 ```
-get_url_text  →  find_content_by_url + search_wlo_content  →  lookup_wlo_vocabulary
-     ↓                     ↓                                    ↓
-  Titel/Text          Dublette ja/nein                  Fach · Stufe · Typ
-                                                        lookup_wlo_publishers
-                                                             ↓
-              wlo_create_content (mit addToCollectionId) → Vorschau des Servers
-                                                             ↓
-                              Zug endet · „ja" · der Chat löst die Abnahme ein
+get_url_text + find_content_by_url + lookup_wlo_vocabulary (Fach, Stufe)
+     ↓            brauchen nur die Adresse: Text · Dublette per Adresse · Vokabulare
+search_wlo_content bzw. search_wlo_all (Titel) + lookup_wlo_publishers
+     ↓            brauchen den Text: Dublette per Titel · Anbieter
+wlo_create_content (mit addToCollectionId) → Vorschau des Servers
+     ↓
+Zug endet · „ja" · der Chat löst die Abnahme ein
 ```
 
+* Zusammen aufrufen, was dieselbe Eingabe braucht — jede eigene Runde kostet Zeit.
+* Die Vorschau von `wlo_create_content` prüft die Adresse selbst, aber nur ihre genaue
+  Schreibweise — bereinigte Schreibweisen findet allein `find_content_by_url`.
 * `get_wikipedia_summary` ist ein Seitenweg, kein Glied der Kette: nützlich, wenn
   der Seitentext einen Begriff voraussetzt, den die Beschreibung erklären soll.
 * `wlo_suggest_metadata` nur für einen schon VORHANDENEN Datensatz (seine nodeId aus

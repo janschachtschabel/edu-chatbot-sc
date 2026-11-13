@@ -367,7 +367,7 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "lookup_wlo_vocabulary",
-            "description": "Gueltige Werte eines WLO-Vokabulars nachschlagen (Eintraege mit URI). Noetig, wenn echte Vokabularwerte gebraucht werden: (1) Schreibvorgaenge (wlo_create_content, wlo_update_content, Metadaten-Vorschlaege) — sie brauchen die echten URIs fuer Fach, Bildungsstufe und Inhaltstyp; (2) Metadaten pruefen oder einordnen (z.B. eine taxonid gegen das Faecher-Vokabular); (3) die Werte auflisten, wenn jemand wissen will, welche es gibt. Fuer die SUCHE NICHT noetig — weder fuer Fach, Bildungsstufe, Inhaltstyp und Zielgruppe noch fuer die Lizenz: die gaengige Bezeichnung direkt uebergeben (z.B. 'Mathematik', 'Sekundarstufe I', 'Video', 'Lehrer/in', 'CC BY-SA') — sie wird automatisch abgeglichen.",
+            "description": "Gueltige Werte eines WLO-Vokabulars nachschlagen (Eintraege mit URI). Sinnvoll: (1) beim Schreiben (wlo_create_content, wlo_update_content, Metadaten-Vorschlaege), wenn du Fach, Bildungsstufe oder Zielgruppe selbst aus einem Text ableitest (Erschliessen) oder der Server eine Bezeichnung abgelehnt hat — nennt die Person den Wert, ihn direkt uebergeben: die Schreibwerkzeuge nehmen die Bezeichnung und gleichen selbst ab, auch ueber Teilwoerter (die Vorschau zeigt das Ergebnis). Den Inhaltstyp fuers Schreiben NICHT hier nachschlagen: die Schreibwerkzeuge pruefen ihn gegen ein feineres Vokabular und nennen bei einer Ablehnung selbst Vorschlaege; (2) Metadaten pruefen oder einordnen (z.B. eine taxonid gegen das Faecher-Vokabular); (3) die Werte auflisten, wenn jemand wissen will, welche es gibt. Fuer die SUCHE NICHT noetig — weder fuer Fach, Bildungsstufe, Inhaltstyp und Zielgruppe noch fuer die Lizenz: die gaengige Bezeichnung direkt uebergeben (z.B. 'Mathematik', 'Sekundarstufe I', 'Video', 'Lehrer/in', 'CC BY-SA') — sie wird automatisch abgeglichen.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -477,7 +477,7 @@ TOOL_DEFINITIONS = [
             "description": (
                 "Gibt es zu diesen Webadressen schon Datensaetze in WLO? Genauer als eine "
                 "Volltextsuche: vergleicht die Adresse (auch bereinigt). Vor jedem Anlegen zu einer "
-                "URL fragen. Liefert je Adresse die Treffer mit nodeId und Titel, mit "
+                "URL fragen — gleichzeitig mit get_url_text, beides braucht nur die Adresse. Liefert je Adresse die Treffer mit nodeId und Titel, mit "
                 "includeCollections auch, in wie vielen Sammlungen sie liegen. match=exact heisst: "
                 "dieser Datensatz IST es (nicht neu anlegen); match=normalized: wahrscheinlich, die "
                 "Person fragen — nie still als Dublette werten."

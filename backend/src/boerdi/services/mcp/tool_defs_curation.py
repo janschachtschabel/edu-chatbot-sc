@@ -96,7 +96,7 @@ _TEXTFELDER = {
     "description": {"type": "string", "description": "Kurzbeschreibung."},
     "keywords": {
         "type": "array", "items": {"type": "string"},
-        "description": "Schlagworte.",
+        "description": "Schlagworte; beim Aendern werden sie zu den vorhandenen ergaenzt.",
     },
     "url": {"type": "string", "description": "Quell-URL des Materials."},
     "language": {"type": "string", "description": "Sprache, z.B. 'de'."},
@@ -104,10 +104,17 @@ _TEXTFELDER = {
     "publisher": {"type": "string", "description": "Anbieter."},
     "licenseKey": {"type": "string", "description": "Lizenz, z.B. 'CC_BY'."},
     "licenseVersion": {"type": "string", "description": "Lizenzversion, z.B. '4.0'."},
-    "contentType": {"type": "string", "description": "Inhaltstyp/Medientyp."},
-    "educationalContext": {"type": "string", "description": "Bildungsstufe."},
-    "discipline": {"type": "string", "description": "Fach."},
-    "userRole": {"type": "string", "description": "Zielgruppe, z.B. 'Lehrer'."},
+    "contentType": {"type": "string",
+                    "description": "Inhaltstyp als Bezeichnung, z.B. 'Arbeitsblatt' oder 'Audio'. "
+                                   "Lehnt der Server sie ab, einen Vorschlag aus seiner "
+                                   "Ablehnung nehmen (nicht nachschlagen)."},
+    "educationalContext": {"type": "string",
+                           "description": "Bildungsstufe als Bezeichnung, z.B. 'Sekundarstufe I'."},
+    "discipline": {"type": "string",
+                   "description": "Fach als Bezeichnung, z.B. 'Mathematik'. Der Server gleicht ab, "
+                                  "auch ueber Teilwoerter ('Wirtschaft' wird 'Agrarwirtschaft') — "
+                                  "die Vorschau zeigt den Wert, der geschrieben wuerde."},
+    "userRole": {"type": "string", "description": "Zielgruppe als Bezeichnung, z.B. 'Lehrer'."},
     "content": {"type": "string", "description": "Der Inhalt selbst, als Text."},
     "contentFormat": {
         "type": "string", "enum": ["markdown", "text"],
@@ -162,7 +169,9 @@ CURATION_TOOL_DEFINITIONS = [
         "Legt ein NEUES Material im WLO-Repositorium an. Nutze das erst, wenn "
         "die Suche belegt hat, dass es das Material noch nicht gibt — WLO ist "
         "ein kuratierter Bestand, kein Ablageort fuer Duplikate. Zu einer Adresse "
-        "zuerst find_content_by_url fragen. Soll das Material in eine Sammlung, "
+        "zuerst find_content_by_url fragen (die Vorschau prueft nur die genaue "
+        "Schreibweise der Adresse, bereinigte findet allein find_content_by_url). "
+        "Soll das Material in eine Sammlung, "
         "addToCollectionId mitgeben — dann genuegt EINE Bestaetigung fuer Anlegen "
         "und Einsortieren (kein wlo_add_to_collection hinterher)."
         + _ZWEISTUFIG,
@@ -181,7 +190,15 @@ CURATION_TOOL_DEFINITIONS = [
         "wlo_update_content",
         "Aendert die Metadaten oder den Inhalt eines vorhandenen Materials. Nur "
         "die Felder angeben, die sich aendern sollen; alles andere bleibt "
-        "stehen. Fuer das blosse Vorschlagen einer Korrektur ohne eigene "
+        "stehen. Schlagworte werden ergaenzt; Fach, Bildungsstufe, Inhaltstyp und "
+        "Zielgruppe werden ERSETZT: alle bisherigen Werte fallen weg. Soll ein Wert "
+        "HINZUKOMMEN, dieses Werkzeug dafuer nicht aufrufen: sag, dass es nur ersetzen "
+        "kann, und biete einen Vorschlag an (wlo_suggest_metadata; Annehmen ergaenzt). "
+        "Die Vorschau nennt den Datensatz und zeigt je Feld alt und neu. Weicht ein Wert "
+        "der Vorschau vom genannten ab, sag das. get_node_details davor nur, wenn die "
+        "nodeId nicht aus dem Gespraech stammt oder die Aenderung auf dem bisherigen "
+        "Wert aufbaut (Text ergaenzen, korrigieren). "
+        "Fuer das blosse Vorschlagen einer Korrektur ohne eigene "
         "Schreibhoheit ist wlo_suggest_metadata der richtige Weg."
         + _ZWEISTUFIG,
         {
