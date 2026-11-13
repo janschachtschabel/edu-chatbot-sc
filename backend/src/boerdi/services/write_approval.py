@@ -59,6 +59,7 @@ Tests patchen die drei Aussenkanten (MCP, Sitzung, Nachricht) auf DIESEM Modul.
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -445,6 +446,17 @@ async def redeem_write_approval(
         await _persist(session, req, session_state, antwort.content, debug)
         return antwort
 
+    if is_mcp_error(rohtext) and (antwort_mcp.fehler or {}).get("recordExists") is True:
+        # MCP-Stand nach dem Audit (Plan 2026-11-13, C2): der Datensatz IST angelegt, ein Schritt
+        # danach blieb ohne Antwort. Weder „abgelehnt, nichts geändert“ noch „ob es ankam, weiß
+        # ich nicht“ — beides lüde zu einer Dublette ein.
+        # nur der Code des Servers (eine feste Kennung), nie der Text der Antwort
+        fehlercode = antwort_mcp.code or "ohne Code"
+        logger.warning("Abnahme für %s (Sitzung %s): angelegt, aber unvollständig (%s)",
+                       tool, kennung(req.session_id), fehlercode)
+        return await _angelegt_unvollstaendig(session, req, session_state, lang, debug,
+                                              antwort_mcp.fehler or {})
+
     if is_mcp_error(rohtext) and fehlerart in ("tool", "auth"):
         # Der Server hat GEANTWORTET und abgelehnt — damit steht fest, dass er
         # nichts geschrieben hat (``auth``: den Zugang schon vor dem Werkzeug).
@@ -583,6 +595,19 @@ _GRUND_ZEIGEN = frozenset({"refused", "invalid_input", "not_found", "not_a_colle
                            "not_checked",
                            # Paket K2d-3 (Review, Befund 6): Volltexte — der Grund sagt, warum
                            "would_replace_file", "link_record", "exists"})
+#: MCP-Stand nach dem Audit (Plan 2026-11-13, C2): Gründe mit EIGENEM Satz. Der Text des Servers
+#: ist an die KI gerichtet und nennt Werkzeuge und Status-Kennungen („ist wlo_update_content das
+#: Werkzeug“, „Status 200_tocheck“) — das gehört nicht vor die Person (Review C2). So gibt es den
+#: Grund auch auf Englisch. ``suggestion_not_marked`` fehlt bewusst: es kommt nur nach der
+#: Einlösung und wird dort neu vorgelegt oder „bitte nachsehen“.
+_EIGENER_GRUND = {"already_decided": "write.grund.alreadyDecided",
+                  "already_submitted": "write.grund.alreadySubmitted",
+                  "is_a_folder": "write.grund.isAFolder",
+                  "is_a_collection": "write.grund.isACollection",
+                  "not_a_record": "write.grund.notARecord"}
+#: Eine Knoten-Kennung, wie sie in einen Satz an die Person darf — ohne Satz- und
+#: Markdown-Zeichen.
+_KENNUNG = re.compile(r"[A-Za-z0-9-]{8,64}")
 _GRUND_ZEICHEN = 300
 
 
@@ -599,6 +624,9 @@ def abgelehnt_text(lang: Locale, antwort: McpAntwort) -> str:
         return f"{text}\n\n" + bot_text(lang, "write.existsHint",
                                          titel=str(vorhanden["title"]).strip()[:200],
                                          kennung=str(vorhanden.get("nodeId") or "")[:80])
+    if antwort.code in _EIGENER_GRUND:
+        return f"{text}\n\n" + bot_text(lang, "write.rejectedReason",
+                                         grund=bot_text(lang, _EIGENER_GRUND[antwort.code]))
     if antwort.code not in _GRUND_ZEIGEN or lang != "de":
         return text           # der Grund des Servers ist deutsch — in EN nur der Satz
     grund = " ".join(redact_confirm_token(str(fehler.get("message") or "")).split())
@@ -706,6 +734,24 @@ async def _zustimmung_unklar(
         ui=UiInfo(ui_bloecke=[als_inhaltsrahmen(box)]),
         debug=debug,
     )
+    await _persist(session, req, session_state, antwort.content, debug)
+    return antwort
+
+
+async def _angelegt_unvollstaendig(
+    session: AsyncSession | None, req: ChatRequest, session_state: dict, lang: Locale,
+    debug: DebugInfo, fehler: dict,
+) -> ChatResponse:
+    """Der Datensatz existiert, ein Schritt nach dem Anlegen ist offen (``recordExists``): der
+    Satz nennt die Kennung (``error.nodeId``), damit die Person oder der Folgezug nachträgt statt
+    neu anzulegen. Für einen Ablauf bleibt es ein offener Ausgang (``reason: mcp_error``)."""
+    debug.entities["reason"] = "mcp_error"
+    debug.entities["record_exists"] = True
+    roh = fehler.get("nodeId")
+    node_id = roh if isinstance(roh, str) and _KENNUNG.fullmatch(roh) else None
+    text = (bot_text(lang, "write.recordExists", kennung=node_id) if node_id
+            else bot_text(lang, "write.recordExistsOhneKennung"))
+    antwort = ChatResponse(session_id=req.session_id, content=text, debug=debug)
     await _persist(session, req, session_state, antwort.content, debug)
     return antwort
 

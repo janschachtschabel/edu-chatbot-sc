@@ -88,6 +88,7 @@ from boerdi.services.agent_write import WriteGate
 from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
+from boerdi.services.master_skill import keine_anleitung
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.ui_module.antwort import NACH_DER_FRAGE, ZWEITE_FRAGE, frage_quittung
 from boerdi.ui_module.aufruf import Umgebung as ModulUmgebung
@@ -798,7 +799,10 @@ async def run_agent_loop(
             # eines Belegs. Dieselbe Bedingung wie im Bestandsweg. Ein
             # MCP-Fehler kommt als gewoehnlicher Text zurueck, deshalb zaehlt
             # der Befund und nicht nur ein nichtleerer Text (Review 2026-09-26).
-            if name == "get_skill" and beobachtet and outcome.status == "success":
+            # Plan 2026-11-13, C4 (Review): eine abgelehnte Datei (zu groß, kein Text) kommt als
+            # Erfolgstext — auch sie ist keine geholte Anleitung.
+            if (name == "get_skill" and beobachtet and outcome.status == "success"
+                    and not keine_anleitung(beobachtet)):
                 run.anleitungen.append({
                     "node_id": str(args.get("nodeId") or ""),
                     "titel": skill_titel(beobachtet),
