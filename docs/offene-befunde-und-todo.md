@@ -346,6 +346,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Fix Rückmeldung Abläufe (2026-11-13):** keine Migration. Image neu bauen (Backend, Widget), `import-config
+  --werksabgleich` (drei Themenbaum-Abläufe: Freitext an jeder Frage, „aus einem Thema“ fragt das
+  Thema zuerst; wartende Läufe dieser Abläufe enden). Masterskill-Knoten mit
+  `docs/skills/vorgehen-knapp.md` ersetzen. Notiz `aenderungen/2026-11-13-fix-ablauf-rueckmeldung.md`.
 - **Restpakete R1–R4 (2026-11-13):** keine Migration. Image neu bauen (Backend, Studio, Widget samt
   nachgeladener Module), `import-config --werksabgleich` (Seeds „aus eigenen Inhalten“: `aufteilen`
   und `$sprache`; „aus einem Dokument“: Voraussetzung `dokument_lesen`). Notizen
