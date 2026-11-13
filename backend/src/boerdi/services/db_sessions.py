@@ -231,6 +231,45 @@ async def save_message(
     return obj.id
 
 
+async def an_letzte_antwort_anhaengen(session: AsyncSession, session_id: str, text: str,
+                                      debug: dict) -> bool:
+    """Paket R2-f: ``text`` an die jüngste Assistenten-Nachricht der Sitzung hängen, ihre UI-Blöcke
+    (``ui_bloecke.DEBUG_KEY``) dazu — live ist es EINE Blase (das „ja“ einer Freigabe: Einlösen
+    und Fortgang des Laufs). Die Sitzungssperre hält andere Züge fern. ``False``: nichts zum
+    Anhängen (oder Verlauf aus) — dann speichert der Aufrufer selbst."""
+    from boerdi.domain.ui_bloecke import DEBUG_KEY
+
+    if not messages_enabled():
+        return False
+    # Review R2, Befund 3: nur eine Antwort DIESES Zugs (Trace-ID) — fehlte die des Einlösens
+    # (Speichern gescheitert), hinge der Text sonst an der Vorschau des vorigen Zugs
+    bedingungen = [ChatMessage.session_id == session_id, ChatMessage.role == "assistant"]
+    if (zug := trace_id.fuer_db()) is not None:
+        bedingungen.append(ChatMessage.trace_id == zug)
+    zeile = (await session.execute(
+        select(ChatMessage).where(*bedingungen)
+        .order_by(ChatMessage.id.desc()).limit(1))).scalar_one_or_none()
+    if zeile is None:
+        return False
+    alt = dict(zeile.debug or {})
+    bloecke = [*(alt.get(DEBUG_KEY) or []), *(debug.get(DEBUG_KEY) or [])]
+    if bloecke:
+        alt[DEBUG_KEY] = bloecke
+    if not debug.get(FESTER_TEXT_KEY):
+        # ein nicht fester Teil (KI) — dann ist es nicht mehr nur fester Text (NIT 9: zwei feste
+        # Teile bleiben ohne KI-Etikett)
+        alt.pop(FESTER_TEXT_KEY, None)
+    zeile.content = "\n\n".join(t for t in (zeile.content, text) if t)
+    # Review R2, Befund 4: die Zugakte mit allem, was der Lauf danach tat
+    zeile.debug = mit_zugakte(alt)
+    try:
+        await session.commit()
+    except Exception:
+        await _zurueckrollen(session)
+        raise
+    return True
+
+
 async def finalize_message(
     session: AsyncSession, message_id: int, *, cards: list, debug: dict
 ) -> bool:

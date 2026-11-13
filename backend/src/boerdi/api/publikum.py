@@ -145,12 +145,14 @@ def _ui_fuer_den_verlauf(debug: Any, cards: Any = None,
     return aus
 
 
-def mit_ablauf_stand(nachrichten: list[dict[str, Any]],
-                     stand: dict[str, Any] | None) -> list[dict[str, Any]]:
+def mit_ablauf_stand(nachrichten: list[dict[str, Any]], stand: dict[str, Any] | None, *,
+                     unbestimmt: bool = False) -> list[dict[str, Any]]:
     """Paket AS-Ua (U-1): der aktuelle Stand des Laufs an der letzten Bot-Nachricht des Verlaufs —
-    so zeigt das Widget die Leiste auch nach dem Neuladen. Ohne Stand unverändert."""
-    if not stand:
+    so zeigt das Widget die Leiste auch nach dem Neuladen. Ohne Stand unverändert; Paket R2-c:
+    ``unbestimmt`` (Anmeldung nicht rechtzeitig bestätigt) steht dann als Marke dort."""
+    if not stand and not unbestimmt:
         return nachrichten
+    eintrag = {"ablauf": stand} if stand else {"ablauf_unbestimmt": True}
 
     def wiederhergestellt(n: dict[str, Any]) -> bool:
         # Review AS-Ub, Befund 4: nur Antworten, die das Widget wiederherstellt — mit Text oder
@@ -166,5 +168,5 @@ def mit_ablauf_stand(nachrichten: list[dict[str, Any]],
     if not ziele:
         ziele = [n for n in nachrichten if wiederhergestellt(n)][-1:]
     for n in ziele:
-        n["ui"] = {**(n.get("ui") or {}), "ablauf": stand}
+        n["ui"] = {**(n.get("ui") or {}), **eintrag}
     return nachrichten

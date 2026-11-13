@@ -20,6 +20,8 @@ nicht_wann:
   - Die Person will einen Themenbaum nur aus einem Thema, ohne Dokument
 # Im Werkszustand an (Nutzer-Entscheid 11.11.): schreibt nichts ins Repositorium.
 aktiv: true
+# Paket R2-b: ohne „Dokument im Chat“ (Studio) kann der Ablauf nichts lesen — dann startet er nicht
+voraussetzungen: [dokument_lesen]
 ausloeser:
   - {art: knopf}
   # TW-6 (Rückmeldung 12.11.): direkt — der Ablauf beginnt mit einer Frage, und ein Upload-Feld

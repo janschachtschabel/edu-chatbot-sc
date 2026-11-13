@@ -147,13 +147,13 @@ def test_rueckmeldung_ohne_anmeldung_sagt_die_ki_es_statt_still(alle_an, monkeyp
     from boerdi.services.ablauf import zug
 
     satz = "Themenbaum mit meinen Dateien erstellen"
-    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: False)
+    monkeypatch.setattr(ausloeser, "fehlt", lambda _a: "anmeldung")  # R2-b
     assert zug.text_ausloeser(satz) is None
     zeile = zug.anmelde_zeile(satz, "de")
     assert zeile and zeile.startswith("[ABLAUF OHNE ANMELDUNG") and "aus eigenen Inhalten" in zeile
     assert zug.anmelde_zeile(satz, "de", ohne="themenbaum_aus_inhalten") is None
     assert zug.anmelde_zeile("Was ist Photosynthese?", "de") is None
-    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: True)
+    monkeypatch.setattr(ausloeser, "fehlt", lambda _a: None)
     assert zug.anmelde_zeile(satz, "de") is None          # angemeldet: der Ablauf startet selbst
 
 
@@ -168,11 +168,11 @@ def test_tw6_ein_upload_feld_allein_schreibt_nicht(alle_an):
 def test_tw6_der_satz_zur_anmeldung_kommt_vom_system(alle_an, monkeypatch):
     from boerdi.services.ablauf import zug
 
-    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: False)
+    monkeypatch.setattr(ausloeser, "fehlt", lambda _a: "anmeldung")
     satz = zug.anmelde_satz("Themenbaum mit meinen Dateien erstellen", "de")
     assert satz and "aus eigenen Inhalten" in satz and "melde dich" in satz
     assert zug.anmelde_satz("Wie geht es dir?", "de") is None
-    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: True)
+    monkeypatch.setattr(ausloeser, "fehlt", lambda _a: None)
     assert zug.anmelde_satz("Themenbaum mit meinen Dateien erstellen", "de") is None
 
 

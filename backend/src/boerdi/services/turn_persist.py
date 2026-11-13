@@ -80,7 +80,7 @@ from boerdi.domain.ui_bloecke import ANZEIGE_TEXT_KEY as UI_ANZEIGE_TEXT_KEY
 from boerdi.domain.ui_bloecke import DEBUG_KEY as UI_BLOECKE_KEY
 from boerdi.domain.ui_bloecke import fuer_den_debug_block as ui_bloecke_fuer_debug
 from boerdi.domain.ui_bloecke import regeln_anwenden as ui_bloecke_regeln
-from boerdi.domain.wahl_knopf import ist_wahl_knopf, ist_weiter_knopf, wahl_zuerst
+from boerdi.domain.wahl_knopf import ist_steuer_knopf, wahl_zuerst
 from boerdi.domain.write_anzeige import preview_for_display
 from boerdi.domain.write_confirm import TOKEN_TTL_SECONDS
 from boerdi.domain.zustimmung import is_affirmation
@@ -570,8 +570,7 @@ async def persist_and_build_response(
         if quick_replies:
             # ``0`` heißt keine Pillen — die Chips einer Ablauf-Wahl bleiben (Befund 1)
             _gekuerzt = (begrenze_pillen(quick_replies, _qr_trim_max) if _qr_trim_max
-                         else [q for q in quick_replies
-                               if ist_wahl_knopf(q) or ist_weiter_knopf(q)])
+                         else [q for q in quick_replies if ist_steuer_knopf(q)])  # R2-e
             if len(_gekuerzt) < len(quick_replies):
                 logger.info(
                     "quick_replies.max_count: trimmed %d → %d",

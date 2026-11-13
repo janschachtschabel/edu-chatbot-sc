@@ -281,4 +281,13 @@ describe("ablaufNotiz (AS-0)", () => {
     expect(ablaufNotiz(zeile("a", { aktiv: false, ausloeser: ["extern", "seite"] }), lang.t, lang.plural))
       .toBe("a · aus · Gastseite, Seite");
   });
+
+  it("R2-a: nennt den Direktstart der KI", () => {
+    TestBed.resetTestingModule();
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const lang = TestBed.inject(StudioLanguageService);
+    expect(ablaufNotiz(zeile("a", { aktiv: true, ausloeser: ["knopf", "agent"], direkt: true }), lang.t, lang.plural))
+      .toBe("a · an · Knopf, KI (startet direkt)");
+  });
 });

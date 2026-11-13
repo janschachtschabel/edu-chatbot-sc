@@ -61,6 +61,8 @@ def im_zug(monkeypatch):
     for modul in (zug_basis, wa_mod):
         monkeypatch.setattr(modul, "save_message", nichts)
         monkeypatch.setattr(modul, "update_session", nichts)
+    monkeypatch.setattr(zug_basis, "an_letzte_antwort_anhaengen", nichts)   # R2-f
+    monkeypatch.setattr(freigabe_zug, "an_letzte_antwort_anhaengen", nichts)
     monkeypatch.setattr(freigabe_zug, "update_session", nichts)
     monkeypatch.setattr(freigabe_zug, "save_message", nichts)
     katalog = {"ablaeufe": [{"id": "anhaengen", "titel": {"de": "Anhängen"}, "aktiv": True,
@@ -440,3 +442,69 @@ def test_gesamt_nur_vorbereitet_beendet_den_lauf(im_zug, monkeypatch):
     assert "Angehängt." not in antwort.content
     [v] = im_zug.speicher.v.values()
     assert v.akte["lauf"]["status"] == "fehler" and "angehaengt" not in (v.akte.get("teile") or {})
+
+
+def test_r2f_ein_ja_wird_eine_nachricht_im_verlauf(im_zug, monkeypatch):
+    """Paket R2-f: live ist das „ja“ EINE Blase (Einlösen + Fortgang des Laufs) — gespeichert
+    waren es zwei Assistenten-Nachrichten. Jetzt hängt der Lauf an die Antwort des Einlösens an."""
+    gespeichert: list[str] = []
+    angehaengt: list[str] = []
+
+    async def speichere(_s, _sid, rolle, text, *_a, **_k):
+        gespeichert.append(text)
+
+    async def anhaengen(_s, _sid, text, debug):
+        angehaengt.append(text)
+        return True
+
+    for modul in (zug_basis, wa_mod):
+        monkeypatch.setattr(modul, "save_message", speichere)
+    monkeypatch.setattr(zug_basis, "an_letzte_antwort_anhaengen", anhaengen)
+    state: dict = {"entities": {}}
+    _starte(state)
+    gespeichert.clear()
+    im_zug.antworten.append(McpAntwort("Volltext angehängt.",
+                                       strukturiert={"nodeId": "n-1", "ok": True}))
+    antwort = _ja(state)
+    assert "Volltext angehängt." in antwort.content and "Angehängt." in antwort.content
+    assert len(gespeichert) == 1 and "Volltext angehängt." in gespeichert[0]
+    assert angehaengt == ["Angehängt."]
+
+
+# ── Review R2, Befunde 2 und 5: was live steht, steht auch im Verlauf ───────────────────────────
+
+@pytest.fixture
+def angehaengt(monkeypatch):
+    liste: list[str] = []
+
+    async def anhaengen(_s, _sid, text, debug):
+        liste.append(text)
+        return True
+
+    monkeypatch.setattr(zug_basis, "an_letzte_antwort_anhaengen", anhaengen)
+    monkeypatch.setattr(freigabe_zug, "an_letzte_antwort_anhaengen", anhaengen)
+    return liste
+
+
+def test_review_r2_2_nur_vorbereitet_steht_so_im_verlauf(im_zug, monkeypatch, angehaengt):
+    state: dict = {"entities": {}}
+    _starte(state)
+    monkeypatch.setattr(freigabe_zug, "_nur_vorbereitet", lambda einloesung: True)
+    im_zug.antworten.append(McpAntwort("Vorbereitet."))
+    antwort = _ja(state)
+    satz = bot_text("de", "action.ablauf.freigabeVorbereitet")
+    assert satz in antwort.content and angehaengt == [satz]
+
+
+def test_review_r2_5_ein_konflikt_steht_auch_im_verlauf(im_zug, monkeypatch, angehaengt):
+    state: dict = {"entities": {}}
+    _starte(state)
+
+    async def konflikt(*_a, **_k):
+        raise vorgaenge.VorgangKonflikt()
+
+    monkeypatch.setattr(zug_basis, "festhalten", konflikt)
+    im_zug.antworten.append(McpAntwort("MCP error [refused]: nein", "tool", "refused",
+                                       {"code": "refused", "message": "nein"}))
+    _ja(state)
+    assert angehaengt == [bot_text("de", "action.ablauf.konflikt")]

@@ -20,6 +20,7 @@ VERTRAG = {
     "from_host",  # Paket RB-3: nur im Verlauf, an einer Nutzernachricht
     "ablauf", "fester_text",  # Paket AS-Ua: Ablauf-Leiste, kein KI-Etikett an festen Texten
     "direkt_start",  # Plan 2026-11-10, TB-E3: nur live — der Knopf eines direkt startenden Ablaufs
+    "ablauf_unbestimmt",  # Paket R2-c: nur im Verlauf — Stand unbestimmt, das Widget pingt
 }
 
 

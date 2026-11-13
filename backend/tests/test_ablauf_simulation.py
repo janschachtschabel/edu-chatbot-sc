@@ -361,3 +361,17 @@ def test_eine_antwort_die_der_betrieb_verwuerfe_ist_eine_abweichung():
     gut = _lauf(_test(eingaben=[{"bei": "frage", "antwort": {"gewaehlt": ["zaehlen"]}}],
                       werkzeuge={"zaehlen": {"n": 1}}))
     assert "zaehlen" in gut.weg
+
+
+def test_review_r2_7_dokument_lesen_wie_im_betrieb(monkeypatch):
+    """Review R2, Befund 7: die Voraussetzung ``dokument_lesen`` gilt im Testfall wie live
+    (``ausloeser.fehlt`` mit ``angemeldet`` des Testfalls statt der echten Anmeldung)."""
+    from boerdi.domain.config_models.upload import UploadSettings
+    from boerdi.services.ablauf import ausloeser
+
+    ablauf = _ablauf(voraussetzungen=["dokument_lesen"])
+    monkeypatch.setattr(ausloeser, "load_upload_config",
+                        lambda: UploadSettings(dokument_ohne_anmeldung=False))
+    nicht = _lauf(_test(angemeldet=False, erwartet={"status": "nicht_gestartet"}), ablauf)
+    assert nicht.ok and nicht.weg == []
+    assert _lauf(_test(angemeldet=True), ablauf).weg

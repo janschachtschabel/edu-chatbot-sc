@@ -71,7 +71,7 @@ import {
   themenbaumZweig,
 } from '../controllers/collection-actions';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
-import { SeitenPing } from '../controllers/seiten-ping';
+import { SeitenPing, seitenPingNoetig, UnbestimmtMarke } from '../controllers/seiten-ping';
 import { type AblaufSeite, fuehrungsChips } from '../widget/fuehrung-angebote';
 
 /** AS-7b: der Pfad der Gastseite (ohne Fenster: die Wurzel). */
@@ -191,6 +191,17 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     // Z-8: abgemeldet ist die Leiste eines persönlichen Laufs weg (ihr Abbruch liefe anonym ins Leere)
     return stand?.persoenlich && !this._hasAccessBlock() ? null : stand;
   });
+  /** Paket R2-c: die Kennung der jüngsten Serverantwort, wenn sie sagt, der Stand blieb unbestimmt
+   *  (nur im Verlauf) — sonst `null`. Verbraucht wird die Marke beim ersten Ping (Review R2, 1). */
+  private readonly _ablaufUnbestimmt = computed(() => {
+    let id: string | null = null;
+    for (const m of this.messages()) {
+      if (m.sender !== 'bot' || m.isLoading || !m.ui) continue;
+      id = m.ui.ablauf_unbestimmt === true ? m.id : null;
+    }
+    return id;
+  });
+  private readonly _unbestimmtMarke = new UnbestimmtMarke();
   /** Z-1: der Stand aus dem Nachladen nach einer Anmeldung, mit der Zahl der Serverantworten zu
    *  diesem Zeitpunkt — eine spätere Antwort gilt vor ihm. */
   private readonly _standNachAnmeldung = signal<{ stand: AblaufStand | null; antworten: number } | null>(null);
@@ -563,7 +574,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     greeting: () => this.greeting(),
     startReplies: () => this.startReplies(),
     fuehrungsChips: () => fuehrungsChips(this.fuehrungsAngebote(), _aktuellerPfad(), this.locale()),
-    seitenPingWartet: () => this.ablaufStand()?.status === 'wartet_seite',
+    seitenPingWartet: () => seitenPingNoetig(this.ablaufStand(), this._unbestimmtMarke.gilt(this._ablaufUnbestimmt())),
     showWelcome: () => _attrIsTrue(this.showWelcome()),
     sessionId: () => this.sessionId,
     setSessionId: (id) => { this.sessionId = id; },
@@ -586,7 +597,11 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     contextGreeting: this._contextGreeting,
     seitenPing: (neueSeite) => {
       if (neueSeite) this._seitenPing.zuruecksetzen();
-      return this.ablaufStand()?.status === 'wartet_seite' ? this._seitenPing.senden() : Promise.resolve(false);
+      const stand = this.ablaufStand();
+      const unbestimmt = this._ablaufUnbestimmt();
+      if (!seitenPingNoetig(stand, this._unbestimmtMarke.gilt(unbestimmt))) return Promise.resolve(false);
+      if (!stand) this._unbestimmtMarke.verbrauchen(unbestimmt);   // einmal, auch wenn leer
+      return this._seitenPing.senden();
     },
     scrollToLatest: () => this._scroll.scrollToLatest(),
     t: (key, params) => this.t(key, params),
@@ -616,7 +631,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private readonly _sendCtx: SendMessageContext = {
     currentInput: () => this.userInput(),
     vomGastgeber: () => this._hostTurn,
-    clearInput: () => this.userInput.set(''),
+    clearInput: () => {
+      this.userInput.set('');
+      // Durchtest 13.11.: kam Enter im selben Frame wie die letzte Eingabe, hatte `[value]` noch ''
+      // gerendert — das Signal änderte für Angular nichts, der Text blieb im Feld stehen
+      const feld = this._inputField()?.nativeElement;
+      if (feld) feld.value = '';
+    },
     setInput: (text) => this.userInput.set(text),
     sessionId: () => this.sessionId,
     isLoading: () => this.isLoading(),

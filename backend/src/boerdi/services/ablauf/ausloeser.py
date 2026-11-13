@@ -32,6 +32,7 @@ from boerdi.services.ablauf import startdaten
 from boerdi.services.ablauf.pruefung import VORAUSSETZUNGEN, modul_start, wendung
 from boerdi.services.arbeitsstand import teile_aus_antwort
 from boerdi.services.config_loader._store import area, cached_keys
+from boerdi.services.config_loader.upload import load_upload_config
 from boerdi.services.mcp.auth import has_personal_auth
 
 logger = logging.getLogger(__name__)
@@ -85,12 +86,42 @@ def _pruefe(roh_liste: list[Any]) -> list[AblaufArea]:
     return eintraege
 
 
-def erfuellt(ablauf: AblaufArea) -> bool:
-    """Sind die Voraussetzungen erfüllt? Eine unbekannte gilt als nicht erfüllt (Review A1, 8)."""
+def fehlt(ablauf: AblaufArea, *, person: bool | None = None) -> str | None:
+    """Welche Voraussetzung fehlt — ``None``: alle erfüllt. ``"anmeldung"`` heißt: die Anmeldung
+    würde helfen (auch bei ``dokument_lesen``, das nur Angemeldeten erlaubt ist);
+    ``"dokument_lesen"``: Lesen ist im Studio aus (Paket R2-b); ``"unbekannt"``: eine Voraussetzung,
+    die das Studio nicht kennt, gilt als nicht erfüllt (Review A1, 8). ``person``: statt der
+    bestätigten Anmeldung (Studio-Testfälle, Review R2, Befund 7)."""
     if any(v not in VORAUSSETZUNGEN for v in ablauf.voraussetzungen):
         logger.warning("Ablauf: unbekannte Voraussetzung — startet nicht")
-        return False
-    return "anmeldung" not in ablauf.voraussetzungen or has_personal_auth()
+        return "unbekannt"
+    if person is None:
+        person = has_personal_auth()
+    if "dokument_lesen" in ablauf.voraussetzungen:
+        cfg = load_upload_config()
+        if not cfg.dokument_im_chat:
+            return "dokument_lesen"
+        if not (cfg.dokument_ohne_anmeldung or person):
+            return "anmeldung"
+    if "anmeldung" in ablauf.voraussetzungen and not person:
+        return "anmeldung"
+    return None
+
+
+def erfuellt(ablauf: AblaufArea) -> bool:
+    """Sind die Voraussetzungen erfüllt (:func:`fehlt`)?"""
+    return fehlt(ablauf) is None
+
+
+def nur_angemeldet(ablauf: AblaufArea) -> bool:
+    """Braucht der Ablauf eine Anmeldung, die das Boot-Bündel nicht kennt? (``anmeldung``, oder
+    ``dokument_lesen`` ohne Lesen für alle — Paket R2-b)."""
+    if "anmeldung" in ablauf.voraussetzungen:
+        return True
+    if "dokument_lesen" in ablauf.voraussetzungen:
+        cfg = load_upload_config()
+        return not (cfg.dokument_im_chat and cfg.dokument_ohne_anmeldung)
+    return False
 
 
 def laden(ablauf_id: Any) -> AblaufArea | None:
@@ -167,7 +198,7 @@ def seiten_angebote() -> list[dict[str, Any]]:
     Angebot gemeint hat, keine Schritte."""
     angebote: dict[str, dict[str, Any]] = {}
     for ablauf, aus in _aktive("seite"):
-        if "anmeldung" in ablauf.voraussetzungen:
+        if nur_angemeldet(ablauf):
             # Querschnitts-Review AS-7, Befund 5: das Boot-Bündel kennt die Anmeldung nicht — ein
             # Chip, der anonym nur abgewiesen würde, steht gar nicht erst da
             continue

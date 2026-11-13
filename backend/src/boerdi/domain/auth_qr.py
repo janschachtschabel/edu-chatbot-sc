@@ -35,7 +35,7 @@ Zugangsblock und gehört damit in die Dienst-Schicht, nicht hierher.
 
 from __future__ import annotations
 
-from boerdi.domain.wahl_knopf import ist_wahl_knopf
+from boerdi.domain.wahl_knopf import ist_steuer_knopf
 from boerdi.i18n import DEFAULT, Locale, bot_text
 
 # Der Marker, den das Widget erkennt (``ui/src/chips/auth-qr.ts``). MUSS dort
@@ -69,7 +69,8 @@ def inject_auth_qr(
     if max_qrs >= 0:
         # Querschnitts-Review AS-3, Befund 1: die Chips einer Ablauf-Wahl fallen nie weg — sie
         # stehen hinter dem Anmelde-Paar, der Rest füllt bis ``max_qrs`` auf
-        fest = [q for q in qrs if ist_wahl_knopf(q)]
-        andere = [q for q in qrs if not ist_wahl_knopf(q)][:max_qrs]
+        # Paket R2-e: ebenso jeder Steuer-Knopf
+        fest = [q for q in qrs if ist_steuer_knopf(q)]
+        andere = [q for q in qrs if not ist_steuer_knopf(q)][:max_qrs]
         qrs = [*andere[:2], *fest, *andere[2:]]
     return qrs

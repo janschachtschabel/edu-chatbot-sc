@@ -62,6 +62,8 @@ export interface AblaufZeile {
   readonly befunde: number;
   /** `false`: das Dokument besteht das Modell nicht — es bleibt erreichbar, um es zu reparieren. */
   readonly lesbar: boolean;
+  /** R2-a: die KI startet den Ablauf direkt (`modus: direkt` am Auslöser `agent`). */
+  readonly direkt?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

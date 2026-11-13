@@ -140,6 +140,9 @@ export interface UiInfo {
   /** Plan 2026-11-10, TB-E3: nur live — dieser Knopf aus `quick_replies` startet einen Ablauf,
    *  den die KI direkt startet; das Widget drückt ihn nach dem Zug. */
   direkt_start?: string | null;
+  /** Paket R2-c: nur im Verlauf — der Stand eines persönlichen Laufs blieb unbestimmt (die
+   *  Anmeldung kam nicht rechtzeitig); das Widget pingt dann einmal. */
+  ablauf_unbestimmt?: boolean;
   pattern?: string;
   intent?: string;
   state?: string;

@@ -559,6 +559,32 @@ def test_offen_fuehrt_eine_direktaktion_ohne_moderation_aus(monkeypatch):
     assert len(browse.calls) == 1
 
 
+@pytest.mark.parametrize(("aktion", "gesperrt"), [
+    ("ablauf_auftrag_pruefen", False), ("ablauf_auftrag_abbrechen", False),
+    ("ablauf_abbrechen", False), ("ablauf_freigabe_abbrechen", False),
+    ("ablauf_freigabe_erneut", False), ("vorgang_neu", False), ("vorgang_loeschen", False),
+    ("ablauf_weiter", True), ("ablauf_wahl", True), ("ablauf_starten", True),
+])
+def test_r2g_steuer_aktionen_ohne_text_laufen_auch_geschlossen(monkeypatch, aktion, gesperrt):
+    """Paket R2-g (Entscheid R-E3): „Stand prüfen“, „Abbrechen“, „Neues Vorhaben“ … tragen keinen
+    Text der Person — ohne Moderation säße die Person sonst fest. „Weiter“, eine Wahl und ein
+    Start führen zur KI bzw. tragen Freitext: die bleiben gesperrt."""
+    from boerdi.graph.nodes import preflight_ablauf
+
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    monkeypatch.setattr(pf_mod, "_log_early_quality", _Spy())
+    _moderation_fehlt(monkeypatch, "closed")
+
+    async def antwort(*_a, **_k):
+        return preflight_ablauf.Antwort(ChatResponse(session_id="bb-1", content="STEUER-OK"))
+
+    monkeypatch.setattr(preflight_ablauf, "antwort", antwort)
+    monkeypatch.setattr(preflight_ablauf, "abgewiesen", lambda *_a: False)
+    out = asyncio.run(preflight(_ctx(aktion, ablauf="a"), _SESSION))
+    assert ("nicht prüfen" in out.early_response.content) is gesperrt
+
+
 # ── C1-f2b6b: die Abweisung folgt der Widget-Sprache ─────────────
 
 def test_high_risk_block_message_english(monkeypatch):

@@ -14,7 +14,9 @@ export function ablaufNotiz(zeile: AblaufZeile, t: T, plural: Plural): string {
   if (!zeile.lesbar) return `${zeile.id} · ${t('ablaeufe.notiz.unlesbar')}`;
   const teile = [zeile.id, t(zeile.aktiv ? 'ablaeufe.notiz.an' : 'ablaeufe.notiz.aus')];
   const arten = zeile.ausloeser.map((art) =>
-    (AUSLOESER as readonly string[]).includes(art) ? t(`ablaeufe.ausloeser.${art}`) : art);
+    // R2-a: der Direktstart der KI steht als Text dabei, nicht nur im Dokument
+    art === 'agent' && zeile.direkt ? t('ablaeufe.ausloeser.agentDirekt')
+      : (AUSLOESER as readonly string[]).includes(art) ? t(`ablaeufe.ausloeser.${art}`) : art);
   if (arten.length) teile.push(arten.join(', '));
   // Review AS-0, Befund 8: welche Module der Ablauf zeigt — für den Weg von einem Modul zu seinen
   // Abläufen (die Suche der Liste findet sie).

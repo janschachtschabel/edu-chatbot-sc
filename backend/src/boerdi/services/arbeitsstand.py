@@ -8,7 +8,8 @@ KI sieht davon je Zug die :func:`kennzeile`, nie die Daten. Dienste lesen den Vo
 :func:`lader` (einmal je Zug, erst bei Bedarf).
 
 Besitzerin ist die bestätigte Person, sonst die Sitzung (``sitzung:<id>``). Meldet sich die Person
-später an, gehört ihr der anonyme Vorgang nicht — sie bekommt beim nächsten Teil einen eigenen.
+später an, geht der offene Vorgang des Verweises dieser Sitzung auf sie über (Paket R2-d,
+:func:`anonymen_uebernehmen`); andere anonyme Vorgänge bleiben der Sitzung.
 Fehler beim Speichern beenden nie den Zug: zurückrollen, protokollieren (ohne Inhalte), weiter.
 
 simplify: V1 verdrahtet die drei Module fest (:func:`teile_aus_antwort`); V2 liest dasselbe aus dem
@@ -95,6 +96,24 @@ def ist_persoenlich(aufrufer: str) -> bool:
 _verweis_aus = verweis_fuer
 
 
+async def anonymen_uebernehmen(s: Any, session_id: str, entities: dict[str, Any],
+                               aufrufer: str) -> bool:
+    """Paket R2-d: zeigt der Verweis auf den Vorgang der anonymen Sitzung und ist die Person jetzt
+    angemeldet, gehört er ab hier ihr (nur derselben Sitzung, nur ein offener). ``True``: übernommen
+    (der Verweis in ``entities`` ist neu — der Aufrufer speichert die Sitzung, wenn nötig)."""
+    anonym = f"sitzung:{session_id}"
+    roh = entities.get(VERWEIS)
+    if (aufrufer == anonym or not ist_persoenlich(aufrufer) or not isinstance(roh, dict)
+            or roh.get("b") != _besitz(anonym) or not isinstance(roh.get("id"), str)):
+        return False
+    if (v := await vorgaenge.uebernehmen(s, roh["id"], von=anonym, an=aufrufer)) is None:
+        return False
+    await s.commit()
+    entities[VERWEIS] = _verweis_aus(v, aufrufer)
+    logger.info("Arbeitsstand: anonymer Vorgang nach der Anmeldung übernommen")
+    return True
+
+
 async def auffrischen(s: Any, session_id: str, entities: dict[str, Any]) -> None:
     """Der Verweis folgt einmal je Zug dem Vorgang — im Preflight, vor den Prüfungen, die nur ihn
     lesen (wartet ein Lauf? Auslöser?; Querschnitts-Review 2026-11-06, Review Q3, Befund 10): Frist,
@@ -104,6 +123,7 @@ async def auffrischen(s: Any, session_id: str, entities: dict[str, Any]) -> None
     V1, Befund 1). Wirft nie; die Verbindung geht danach frei."""
     aufrufer = aufrufer_fuer(session_id)
     try:
+        await anonymen_uebernehmen(s, session_id, entities, aufrufer)
         roh = entities.get(VERWEIS)
         if isinstance(roh, dict) and roh.get("b") == _besitz(aufrufer) \
                 and isinstance(roh.get("id"), str):
