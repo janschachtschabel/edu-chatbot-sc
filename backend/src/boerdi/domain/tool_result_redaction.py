@@ -44,6 +44,7 @@ import json
 import logging as _log
 import re
 
+from boerdi.domain import mcp_unvollstaendig
 from boerdi.domain.inline_grouping import _is_einzelinhalt_card
 
 _logger = _log.getLogger(__name__)
@@ -231,6 +232,8 @@ def _redigiere_kombi_suche(raw_text: str, *, mit_einzelinhalten: bool = False) -
                if isinstance(topf.get("licenseFilter"), dict) else {}),
             "results": [_kurzfassung(r) for r in (topf.get("results") or [])
                         if isinstance(r, dict)],
+            # Plan 2026-11-13, C1: der Topf einer Quelle, die nicht (ganz) geantwortet hat
+            **mcp_unvollstaendig.kennzeichen(topf),
         }
     return json.dumps(gezeigt, ensure_ascii=False)
 
@@ -369,6 +372,7 @@ def _redigiere_sammlungs_suche(raw_text: str) -> str | None:
     gezeigt: dict = {
         **{k: env[k] for k in ("total", "count") if isinstance(env.get(k), int)},
         "results": [_kurzfassung(r) for r in env["results"] if isinstance(r, dict)],
+        **mcp_unvollstaendig.kennzeichen(env),
     }
     return json.dumps(gezeigt, ensure_ascii=False)
 
@@ -389,13 +393,15 @@ def redigiere_strukturell(tool_name: str, raw_text: str) -> str:
     """
     if tool_name == _KATALOG_WERKZEUG:
         return _redigiere_katalog_antwort(raw_text, deckel=False)
+    kurz = None
     if tool_name == _KOMBI_WERKZEUG:
         kurz = _redigiere_kombi_suche(raw_text, mit_einzelinhalten=True)
-        return kurz if kurz is not None else raw_text
-    if tool_name == _SAMMLUNGS_SUCHE:
+    elif tool_name == _SAMMLUNGS_SUCHE:
         kurz = _redigiere_sammlungs_suche(raw_text)
-        return kurz if kurz is not None else raw_text
-    return raw_text
+    # Plan 2026-11-13, C1 (Review): der Hinweissatz „Quelle hat nicht geantwortet“ steht HINTER
+    # dem Umschlag — die Kurzfassung trüge ihn sonst nicht.
+    return raw_text if kurz is None else mcp_unvollstaendig.mit_hinweissaetzen(
+        tool_name, kurz, raw_text)
 
 
 def katalog_aus_markdown(raw_text: str) -> list[dict]:
@@ -503,6 +509,17 @@ def _redigiere_skill_registry(raw_text: str) -> str | None:
 
 
 def _redact_search_content_for_llm(
+    name: str, raw_text: str, parsed_cards: list[dict],
+    _inline_grouping_mode: bool,
+) -> str:
+    """:func:`_gekuerzt_fuer_llm` — und die Hinweissätze des Servers bleiben (Plan 2026-11-13, C1,
+    Review): „diese Quelle hat nicht geantwortet“ darf weder dem Deckel noch dem Ersatz durch
+    eine Ansage zum Opfer fallen, sonst liest die KI einen Ausfall als „nichts gefunden“."""
+    return mcp_unvollstaendig.mit_hinweissaetzen(
+        name, _gekuerzt_fuer_llm(name, raw_text, parsed_cards, _inline_grouping_mode), raw_text)
+
+
+def _gekuerzt_fuer_llm(
     name: str, raw_text: str, parsed_cards: list[dict],
     _inline_grouping_mode: bool,
 ) -> str:

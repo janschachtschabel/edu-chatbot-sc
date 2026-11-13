@@ -37,6 +37,14 @@ _TOOL_META_CACHE: dict[tuple[str, str], list[dict[str, Any]]] = {}
 _TOOL_CACHE_MAX_ENTRIES = 1024  # was 256 — Multi-User-Sessions füllen die alte Größe schnell
 _TOOL_CACHE_TTL_DEFAULT_SECONDS = 300  # 5 Min — fallback, wenn das Tool keine spezifische TTL hat
 _TOOL_CACHE_TTL_NEGATIVE_SECONDS = 60  # Empty-Result-Hits werden nur kurz cached
+#: Plan 2026-11-13, C1: eine Antwort, zu der eine Quelle nicht (vollständig) geantwortet hat
+#: (``domain/mcp_unvollstaendig``). Kurz statt gar nicht (zweites Review): bei Überlast träfe sonst
+#: jeder Wiederholversuch den MCP, und wo der Server einen dauerhaften Zustand so meldet (eine
+#: nicht lesbare Unterliste), würde bei jedem Aufruf neu geholt. Nie die Frist des Werkzeugs —
+#: der Sammlungsbaum hätte einen Ausfall 30 Minuten gehalten.
+_TOOL_CACHE_TTL_UNVOLLSTAENDIG_SECONDS = 30
+_NEG = "__NEG__::"
+_KURZ = "__KURZ__::"
 _TOOL_CACHE_HITS = 0
 _TOOL_CACHE_MISSES = 0
 _TOOL_CACHE_NEG_HITS = 0  # Hits auf empty-result-Cache-Einträge
@@ -179,8 +187,10 @@ def _cache_get(key: tuple[str, str]) -> str | None:
         _TOOL_CACHE_MISSES += 1
         return None
     ts, value = entry
-    is_negative = value.startswith("__NEG__::")
-    ttl = _TOOL_CACHE_TTL_NEGATIVE_SECONDS if is_negative else _ttl_for_tool(key[0])
+    is_negative = value.startswith(_NEG)
+    ist_kurz = value.startswith(_KURZ)
+    ttl = (_TOOL_CACHE_TTL_NEGATIVE_SECONDS if is_negative
+           else _TOOL_CACHE_TTL_UNVOLLSTAENDIG_SECONDS if ist_kurz else _ttl_for_tool(key[0]))
     if _time.time() - ts > ttl:
         # expired — drop it, with its metas (Paket 10, Audit M-4)
         _entfernen(key)
@@ -191,8 +201,8 @@ def _cache_get(key: tuple[str, str]) -> str | None:
     _TOOL_CACHE_HITS += 1
     if is_negative:
         _TOOL_CACHE_NEG_HITS += 1
-        return value[len("__NEG__::"):]
-    return value
+        return value[len(_NEG):]
+    return value[len(_KURZ):] if ist_kurz else value
 
 
 def _entfernen(key: tuple[str, str]) -> None:
@@ -210,10 +220,11 @@ def _grenzen() -> tuple[int, int]:
     return cfg.mcp_tool_cache_max_chars, cfg.mcp_tool_cache_max_entry_chars
 
 
-def _cache_set(key: tuple[str, str], value: str) -> None:
+def _cache_set(key: tuple[str, str], value: str, *, unvollstaendig: bool = False) -> None:
     """Cache a tool response. Empty responses get a short-TTL marker prefix
     so the same empty-result query within ~1 min reuses the cached miss
-    instead of round-tripping to MCP again.
+    instead of round-tripping to MCP again. ``unvollstaendig`` (Plan 2026-11-13, C1): eine
+    Quelle hat nicht (ganz) geantwortet — die kürzeste Frist, ob leer oder nicht.
 
     Paket 19 (M-11): ein Wert über ``MCP_TOOL_CACHE_MAX_ENTRY_CHARS`` wird nicht
     gespeichert (ein alter Eintrag unter demselben Schlüssel fällt mit); über
@@ -226,9 +237,11 @@ def _cache_set(key: tuple[str, str], value: str) -> None:
     # Die Metas gehören zum alten Wert (Paket 10, Audit M-4): wer neue hat, setzt
     # sie danach (``client.call_mcp_tool``); ohne neue gälten sonst die alten.
     _entfernen(key)
-    if _is_empty_response(value):
+    if unvollstaendig:
+        stored = _KURZ + value
+    elif _is_empty_response(value):
         # Mark as negative cache entry; _cache_get strips the prefix.
-        stored = "__NEG__::" + value
+        stored = _NEG + value
     else:
         stored = value
     if max_eintrag and len(stored) > max_eintrag:
@@ -257,6 +270,7 @@ def get_tool_cache_stats() -> dict[str, Any]:
         "ttl_per_tool": dict(_TOOL_CACHE_TTL_PER_TOOL),
         "ttl_default_seconds": _TOOL_CACHE_TTL_DEFAULT_SECONDS,
         "ttl_negative_seconds": _TOOL_CACHE_TTL_NEGATIVE_SECONDS,
+        "ttl_unvollstaendig_seconds": _TOOL_CACHE_TTL_UNVOLLSTAENDIG_SECONDS,
     }
 
 

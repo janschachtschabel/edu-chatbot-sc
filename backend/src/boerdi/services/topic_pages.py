@@ -22,8 +22,9 @@ import json
 import logging
 from typing import Any
 
+from boerdi.domain import mcp_unvollstaendig
 from boerdi.obs.log_inhalt import inhalt
-from boerdi.services.mcp.client import call_mcp_tool
+from boerdi.services.mcp.client import call_mcp_tool_status
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,18 @@ logger = logging.getLogger(__name__)
 # dessen Bedeutung nicht dokumentiert ist — beide bleiben bewusst draußen, damit
 # der Fallback-Text im Zweifel die vorsichtigere Aussage trifft.
 _M16_REASONS_NO_TOPIC_PAGE = frozenset({"no_page_config_ref", "node_not_found"})
+#: Fehlerarten des Clients, die ein Ausfall sind: keine Antwort, Frist, ausgelastet. Eine
+#: Ablehnung (``tool``: ungültige Eingabe, unbekanntes Werkzeug; ``auth``) ist keiner — „noch
+#: einmal versuchen“ hülfe dort nicht (Reviews C1: Positivliste statt Sperrliste).
+_M16_AUSFALL_ARTEN = frozenset({"transport", "timeout", "busy"})
+_M16_AUSFALL_CODES = ("[upstream_error]", "[upstream_unreachable]")
+
+
+def _m16_ist_ausfall(roh: str, art: str) -> bool:
+    """Plan 2026-11-13, C1: hat das Werkzeug nicht geantwortet (statt über die Themenseite zu
+    urteilen)?"""
+    return art in _M16_AUSFALL_ARTEN or (
+        art == "tool" and any(code in roh[:120] for code in _M16_AUSFALL_CODES))
 
 
 def _is_empty_topic_pages_response(raw: str) -> bool:
@@ -213,6 +226,7 @@ async def _resolve_m16_topic_page_view(
     # Gründe, die der Server für leere Antworten mitschickt (W2-3). Wird VOR dem
     # try gebunden, weil der Fallback-Zweig unten sie auch nach einem Abbruch liest.
     _m16_reasons: list[str] = []
+    _m16_ausfall = False
     if winner_id == "M16":
         try:
             from boerdi.api.schemas import (
@@ -257,7 +271,12 @@ async def _resolve_m16_topic_page_view(
                 _m16_args["collectionId"] = _m16_known_cid
             else:
                 _m16_args["query"] = _m16_thema
-            _m16_raw_tc = await call_mcp_tool("get_topic_page_content", _m16_args)
+            # Plan 2026-11-13, C1 (Review): wirft der Aufruf, ist das ein Ausfall — danach
+            # entscheidet die Antwort (ein Fehler des Parsers ist keiner).
+            _m16_ausfall = True
+            _m16_raw_tc, _m16_art = await call_mcp_tool_status(
+                "get_topic_page_content", _m16_args)
+            _m16_ausfall = _m16_ist_ausfall(_m16_raw_tc, _m16_art)
             _m16_parsed = _m16_psl(_m16_raw_tc)
             _m16_fields = _M16Card.model_fields
             _m16_boxes = []
@@ -314,7 +333,15 @@ async def _resolve_m16_topic_page_view(
             _m16_keine_tp = bool(_m16_reasons) and all(
                 r in _M16_REASONS_NO_TOPIC_PAGE for r in _m16_reasons
             )
-            if _m16_label and _m16_keine_tp:
+            if _m16_ausfall or mcp_unvollstaendig.GRUND_AUSFALL in _m16_reasons:
+                # Plan 2026-11-13, C1: die Quelle hat nicht geantwortet — weder „keine
+                # Themenseite“ noch „noch leer“ wäre wahr.
+                _final_text = (
+                    (f"Zur Themenseite »{_m16_label}« hat WLO gerade nicht geantwortet. "
+                     if _m16_label else "WLO hat zu den Themenseiten gerade nicht geantwortet. ")
+                    + "Versuch es bitte in einem Moment noch einmal, oder such über die normale "
+                    "Suche zum Thema.")
+            elif _m16_label and _m16_keine_tp:
                 _final_text = (
                     f"Zu »{_m16_label}« habe ich keine Themenseite gefunden. "
                     "Magst du es über die normale Suche zum Thema versuchen?"
