@@ -101,7 +101,10 @@ schritte:
            en: "I'm having the metadata created. This can take a few minutes."}
     argumente:
       node_ids: {$teil: ablage, liste: inhalte, wo: {stand: stored}, feld: node_id}
-      language: de
+      # Paket R1: die Sprache der Person (de/en), nicht fest deutsch
+      language: {$sprache: true}
+    # Paket R1 (N14): höchstens 50 Dateien je Job, die Teile laufen nacheinander
+    aufteilen: {argument: node_ids, hoechstens: 50}
     schreibt: metadatenlauf
     bei_fehler: metadaten_fehlt
   # Schritte folgen der Liste; diese Verzweigung springt über metadaten_fehlt hinweg.

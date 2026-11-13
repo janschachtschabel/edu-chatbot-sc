@@ -96,9 +96,9 @@
               (reload)="neuLaden()" (force)="erzwingen()" />
           }
           @if (fehler(); as grund) {
-            <p class="cs-state cs-state--error" role="alert">{{ grund }}</p>
+            <p class="cs-state cs-state--error mf-speicherfehler" role="alert" tabindex="-1">{{ grund }}</p>
           }
-          <p class="mf-meldung" role="status">{{ meldung() }}</p>
+          <p class="mf-meldung" role="status" tabindex="-1">{{ meldung() }}</p>
         </div>
       </div>
     }

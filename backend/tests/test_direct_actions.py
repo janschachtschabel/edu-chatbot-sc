@@ -96,6 +96,9 @@ def _patch_browse_boundaries(monkeypatch, *, cards, total, qr=None):
     monkeypatch.setattr(direct_actions, "parse_total_count", lambda text: total)
     monkeypatch.setattr(direct_actions, "generate_quick_replies", fake_qr)
     monkeypatch.setattr(direct_actions, "save_message", save)
+    # R3-a: das Werkzeug ist angeboten (die Prüfung selbst testet ``test_r3a_…``)
+    monkeypatch.setattr(direct_actions, "angebotene_mcp_werkzeuge",
+                        lambda **_k: frozenset({"get_collection_contents"}))
     return fake_mcp, save
 
 
@@ -224,6 +227,25 @@ async def test_browse_collection_missing_id_short_circuits(monkeypatch) -> None:
     assert resp.content == "Keine Sammlungs-ID angegeben."
     assert fake_mcp.calls == []  # never touched MCP
     assert save.calls == []
+
+
+async def test_r3a_ohne_angebot_kein_aufruf(monkeypatch) -> None:
+    """Paket R3-a (Plan U1 §15 „Offen (U1-e)“): wie ``show_collection_tree`` läuft das Werkzeug
+    nur, wenn ein Zug es angeboten bekäme — Studio-Schalter, Sperren, Modus der Einbettung."""
+    fake_mcp, save = _patch_browse_boundaries(monkeypatch, cards=_raw_cards(3), total=3)
+    gesehen: dict = {}
+
+    def angebot(**k):
+        gesehen.update(k)
+        return frozenset()
+
+    monkeypatch.setattr(direct_actions, "angebotene_mcp_werkzeuge", angebot)
+    resp = await direct_actions._handle_browse_collection(
+        object(), _req("browse_collection", collection_id="col-1", title="Bio"), _state(),
+        blocked_tools=["get_collection_contents"])
+    assert fake_mcp.calls == [] and resp.cards == []
+    assert "nicht anzeigen" in resp.content and len(save.calls) == 1
+    assert gesehen["blocked_tools"] == ["get_collection_contents"]
 
 
 # ── curate_collection ───────────────────────────────────────────

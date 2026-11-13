@@ -224,6 +224,23 @@ def test_z6_eine_langsame_bestaetigung_haelt_den_verlauf_nicht_auf(
     r = client.get(f"/api/sessions/{_SID}/messages", headers={"WLO-Access-Block": "wloTestBlock"})
     # Spielraum für eine ausgelastete Maschine (die volle Suite kippte bei 2,5 s)
     assert r.status_code == 200 and time.monotonic() - anfang < 10
+    # Paket R2-c: ohne Bestätigung und ohne Stand ist er unbestimmt — das Widget pingt einmal
+    monkeypatch.setattr(chat_api.fortschritt, "stand", lambda *_a: None)
+    r = client.get(f"/api/sessions/{_SID}/messages", headers={"WLO-Access-Block": "wloTestBlock"})
+    assert r.json()[-1]["ui"]["ablauf_unbestimmt"] is True
+
+
+def test_r2c_ohne_verweis_ist_nichts_unbestimmt(client, monkeypatch, mit_stand):  # noqa: F811
+    async def nachrichten(*_a, **_k):
+        return [{"id": 2, "role": "assistant", "content": "Hallo", "debug": {}}]
+
+    async def sitzung(*_a, **_k):
+        return {}
+
+    monkeypatch.setattr(sessions_api, "get_messages", nachrichten)
+    monkeypatch.setattr(sessions_api, "sitzung_entities", sitzung)
+    r = client.get(f"/api/sessions/{_SID}/messages", headers={"WLO-Access-Block": "wloTestBlock"})
+    assert not r.json()[-1].get("ui", {}).get("ablauf_unbestimmt")
 
 
 def test_pr51_ohne_verweis_keine_bestaetigung_und_kein_stand(client, monkeypatch, mit_stand):  # noqa: F811
@@ -246,3 +263,62 @@ def test_pr51_ohne_verweis_keine_bestaetigung_und_kein_stand(client, monkeypatch
     r = client.get(f"/api/sessions/{_SID}/messages", headers={"WLO-Access-Block": "wloTestBlock"})
     assert r.status_code == 200 and "ablauf" not in r.json()[0]["ui"]
     assert bestaetigt == [] and mit_stand == []
+
+
+def test_review_r2_6_der_verlauf_uebernimmt_den_anonymen_vorgang(
+        client, monkeypatch, mit_stand):  # noqa: F811
+    """Review R2, Befund 6: gleich nach der Anmeldung lädt das Widget den Verlauf — dort schon
+    übernehmen (und die Sitzung speichern), sonst fehlte die Leiste bis zum nächsten Zug."""
+    from boerdi.services import arbeitsstand
+
+    gerufen: list = []
+
+    async def uebernehmen(_s, sid, entities, _aufrufer):
+        gerufen.append(sid)
+        return True
+
+    async def speichern(_s, sid, **k):
+        gerufen.append(("gespeichert", sid))
+
+    async def nachrichten(*_a, **_k):
+        return [{"id": 2, "role": "assistant", "content": "Weiter?", "debug": {}}]
+
+    async def sitzung(*_a, **_k):
+        return {arbeitsstand.VERWEIS: {"id": "v-1"}}
+
+    monkeypatch.setattr(arbeitsstand, "anonymen_uebernehmen", uebernehmen)
+    monkeypatch.setattr(sessions_api, "update_session", speichern)
+    monkeypatch.setattr(sessions_api, "get_messages", nachrichten)
+    monkeypatch.setattr(sessions_api, "sitzung_entities", sitzung)
+    client.get(f"/api/sessions/{_SID}/messages")
+    assert gerufen == [_SID, ("gespeichert", _SID)]
+
+
+def test_review_r1_r4_4_nur_der_verweis_wird_zurueckgeschrieben(
+        client, monkeypatch, mit_stand):  # noqa: F811
+    """Querschnitts-Review R1–R4, Befund 4: der GET schreibt nicht den alten Stand zurück."""
+    from boerdi.services import arbeitsstand
+
+    geschrieben: list = []
+    lesungen = [{arbeitsstand.VERWEIS: {"id": "alt"}},
+                {arbeitsstand.VERWEIS: {"id": "alt"}, "_neu_aus_tab_2": 1}]
+
+    async def sitzung(*_a, **_k):
+        return dict(lesungen.pop(0)) if lesungen else {}
+
+    async def uebernehmen(_s, _sid, entities, _aufrufer):
+        entities[arbeitsstand.VERWEIS] = {"id": "neu"}
+        return True
+
+    async def speichern(_s, _sid, **k):
+        geschrieben.append(k["entities"])
+
+    async def nachrichten(*_a, **_k):
+        return [{"id": 2, "role": "assistant", "content": "Weiter?", "debug": {}}]
+
+    monkeypatch.setattr(arbeitsstand, "anonymen_uebernehmen", uebernehmen)
+    monkeypatch.setattr(sessions_api, "update_session", speichern)
+    monkeypatch.setattr(sessions_api, "get_messages", nachrichten)
+    monkeypatch.setattr(sessions_api, "sitzung_entities", sitzung)
+    client.get(f"/api/sessions/{_SID}/messages")
+    assert geschrieben == [{arbeitsstand.VERWEIS: {"id": "neu"}, "_neu_aus_tab_2": 1}]

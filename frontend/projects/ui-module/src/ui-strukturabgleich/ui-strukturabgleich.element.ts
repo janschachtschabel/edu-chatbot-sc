@@ -29,6 +29,17 @@ function liste<T>(wert: unknown): T[] {
   return Array.isArray(wert) ? (wert as T[]) : [];
 }
 
+/** R3-c: der Titel des Punkts (Ebene 1) über jeder Zeile der Ebene 2 — wie in {@link punkte}. */
+function elternTitel(zeilen: Zeile[]): Map<Zeile, string> {
+  const eltern = new Map<Zeile, string>();
+  let punkt: Zeile | null = null;
+  for (const z of zeilen) {
+    if (z.ebene === 1) punkt = z;
+    else if (z.ebene === 2 && punkt && text(punkt.titel)) eltern.set(z, text(punkt.titel));
+  }
+  return eltern;
+}
+
 function zahl(wert: unknown): number {
   return typeof wert === 'number' && Number.isFinite(wert) && wert >= 0 ? wert : 0;
 }
@@ -164,11 +175,14 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
       return details;
     }
     const ul = this.el('ul', 'a__liste');
+    const eltern = elternTitel(zeilen);
     for (const z of luecken) {
       const li = this.el('li', 'a__eintrag');
       const kopf = this.el('div', 'a__zeile');
+      // R3-c: ohne seinen Punkt ist ein Unterpunkt („Grundlagen“) in der Liste nicht zuzuordnen
+      const name = eltern.has(z) ? `${eltern.get(z)} › ${text(z.titel)}` : text(z.titel);
       kopf.append(this.el('span', 'a__art a__art--luecke', t.trefferKurz(zahl(z.abdeckung?.total))),
-        this.el('span', 'a__name', text(z.titel)));
+        this.el('span', 'a__name', name));
       const top = liste<Treffer>(z.abdeckung?.top).filter((x) => text(x?.titel));
       if (top.length) {
         const p = this.el('p', 'a__wlo', `${t.beispiele} `);

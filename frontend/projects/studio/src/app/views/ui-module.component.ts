@@ -24,6 +24,7 @@ import { RouterLink } from '@angular/router';
 
 import { type AblaufZeile, AblaufApi } from '../core/ablauf-api.service';
 import { describeApiError } from '../core/async-data';
+import { injectFocus } from '../core/inject-focus';
 import { type AreaDocument, ConfigApi, saveCondition } from '../core/config-api.service';
 import { type SaveConflict, StudioApiError } from '../core/studio-api-error';
 import { UiModuleApi } from '../core/ui-module-api.service';
@@ -47,6 +48,9 @@ import { UiModulVorschauComponent } from './ui-modul-vorschau.component';
 export class UiModuleComponent {
   private readonly api = inject(UiModuleApi);
   private readonly config = inject(ConfigApi);
+  /** R3-g (WCAG 2.4.3): nach dem Speichern auf Statuszeile bzw. Fehler — nur, wenn der Fokus mit den
+   *  gesperrten Knöpfen verloren ging; in einer zerstörten Ansicht gar nicht (NG0911). */
+  private readonly fokusNachSpeichern = injectFocus({ nurWennVerloren: true });
   private readonly lang = inject(StudioLanguageService);
   private readonly dokument = inject(DOCUMENT);
   private readonly ablaufApi = inject(AblaufApi);
@@ -248,11 +252,13 @@ export class UiModuleComponent {
       this.uebernehmen(await this.config.saveData(bereich, { ...daten }, saveCondition(version)));
       this.konflikt.set(null);
       this.status.set(this.t('uiModule.gespeichert'));
+      this.fokusNachSpeichern('.cs-status');
     } catch (err) {
       if (err instanceof StudioApiError && err.status === 409) {
         this.konflikt.set(err.conflict ?? { version: null, updatedBy: null, updatedAt: null });
       } else {
         this.fehler.set(describeApiError(err, this.t));
+        this.fokusNachSpeichern('.um-speicherfehler');
       }
     } finally {
       this.busy.set(false);

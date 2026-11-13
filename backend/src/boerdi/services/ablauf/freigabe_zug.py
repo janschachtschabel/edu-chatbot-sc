@@ -55,7 +55,12 @@ from boerdi.services import arbeitsstand, plan_fortsetzen, vorgaenge
 from boerdi.services.ablauf import freigabe_ergebnis, treiber
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden
-from boerdi.services.db_sessions import FESTER_TEXT_KEY, save_message, update_session
+from boerdi.services.db_sessions import (
+    FESTER_TEXT_KEY,
+    an_letzte_antwort_anhaengen,
+    save_message,
+    update_session,
+)
 from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.schreibrecht import schreiben_erlaubt
 
@@ -266,7 +271,8 @@ async def _laden(session: Any, req: ChatRequest, entities: dict[str, Any], gewol
 
 
 async def _festhalten(session: Any, req: ChatRequest, session_state: dict, v: Any,
-                      aus: treiber.Ausgabe, ablauf: Any, aufrufer: str) -> ChatResponse | None:
+                      aus: treiber.Ausgabe, ablauf: Any, aufrufer: str, *,
+                      anhaengen: bool = False) -> ChatResponse | None:
     """Lauf und Teile festschreiben und antworten — ``None`` bei einem Konflikt (zurückgerollt)."""
     entities = session_state.setdefault("entities", {})
     try:
@@ -276,7 +282,7 @@ async def _festhalten(session: Any, req: ChatRequest, session_state: dict, v: An
         await session.rollback()
         return None
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
-    return await basis.antwort(session, req, session_state, aus, ablauf)
+    return await basis.antwort(session, req, session_state, aus, ablauf, anhaengen=anhaengen)
 
 
 async def erneut(session: Any, req: ChatRequest, session_state: dict, *,
@@ -344,6 +350,16 @@ def _zusammen(einloesung: ChatResponse, ablauf: ChatResponse | None = None, *,
     return einloesung.model_copy(update=update)
 
 
+async def _satz(session: Any, req: ChatRequest, antwort: ChatResponse, satz: str) -> ChatResponse:
+    """Review R2, Befund 5: ein Satz nach dem Einlösen steht live UND im Verlauf — an der eben
+    gespeicherten Antwort (Paket R2-f), sonst als eigene Nachricht."""
+    if not await an_letzte_antwort_anhaengen(session, req.session_id, satz,
+                                             {FESTER_TEXT_KEY: True}):
+        await save_message(session, req.session_id, "assistant", satz,
+                           debug={FESTER_TEXT_KEY: True})
+    return _zusammen(antwort, satz=satz)
+
+
 _ohne_schluessel = freigabe_ergebnis.ohne_schluessel
 
 
@@ -407,7 +423,7 @@ async def nach_einloesen(session: Any, req: ChatRequest, session_state: dict, vo
                                              vorgelegt=False))})
     geladen = await _laden(session, req, entities, marke.get("ablauf"), stumm=True)
     if geladen == "abgebrochen":
-        return _zusammen(einloesung, satz=bot_text(lang, "action.ablauf.unbekannt"))
+        return await _satz(session, req, einloesung, bot_text(lang, "action.ablauf.unbekannt"))
     if geladen is None:
         return einloesung
     v, lauf, ablauf, aufrufer = geladen
@@ -427,9 +443,14 @@ async def nach_einloesen(session: Any, req: ChatRequest, session_state: dict, vo
         # Gesamt-Review, Befund 2 (E3): der Server beschreibt die Änderung nur, die Seite führt
         # sie danach aus — oder gar nicht. Kein Folgeschritt auf einer Änderung, die noch fehlt.
         logger.info("Ablauf %s: Änderung nur vorbereitet — der Lauf endet", ablauf.id)
-        aus_vorbereitet = treiber.Ausgabe(lauf={**lauf, "status": "fehler", "freigabe_id": None})
-        await _festhalten(session, req, session_state, v, aus_vorbereitet, ablauf, aufrufer)
-        return _zusammen(einloesung, satz=bot_text(lang, "action.ablauf.freigabeVorbereitet"))
+        # Review R2, Befund 2: der Satz ist der Text des Laufs — im Verlauf steht dasselbe wie live
+        satz = bot_text(lang, "action.ablauf.freigabeVorbereitet")
+        aus_vorbereitet = treiber.Ausgabe(lauf={**lauf, "status": "fehler", "freigabe_id": None},
+                                          texte=[satz])
+        vorbereitet = await _festhalten(session, req, session_state, v, aus_vorbereitet, ablauf,
+                                        aufrufer, anhaengen=True)
+        return (_zusammen(einloesung, vorbereitet) if vorbereitet is not None
+                else await _satz(session, req, einloesung, satz))
     if grund == "mcp_error":
         # FS-7: es KANN geschrieben sein — kein Folgeschritt auf dieser Annahme
         logger.warning("Ablauf %s: Ausgang der Freigabe offen — der Lauf endet", ablauf.id)
@@ -440,15 +461,17 @@ async def nach_einloesen(session: Any, req: ChatRequest, session_state: dict, vo
             ablauf, dict(lauf), weiter, basis.umgebung(session, req, entities, blocked_tools)))
     if aus is None:
         return einloesung
-    antwort = await _festhalten(session, req, session_state, v, aus, ablauf, aufrufer)
+    # Paket R2-f: live EINE Blase — also auch im Verlauf eine Nachricht
+    antwort = await _festhalten(session, req, session_state, v, aus, ablauf, aufrufer,
+                                anhaengen=True)
     if antwort is None:
         if grund == "rejected":
             # nichts geschrieben — der Lauf wartet weiter (Gesamt-Review, Befund 1)
-            return _zusammen(einloesung, satz=bot_text(lang, "action.ablauf.konflikt"))
+            return await _satz(session, req, einloesung, bot_text(lang, "action.ablauf.konflikt"))
         await _konflikt_nach_schreiben(session, req, entities, marke)
         satz = ("action.ablauf.fehler" if grund == "mcp_error"
                 else "action.ablauf.freigabeKonflikt")
-        return _zusammen(einloesung, satz=bot_text(lang, satz))
+        return await _satz(session, req, einloesung, bot_text(lang, satz))
     return _zusammen(einloesung, antwort)
 
 
@@ -522,7 +545,7 @@ async def nach_plan(session: Any, req: ChatRequest, session_state: dict, vorher:
             str(marke.get("ablauf") or ""), lang, vorgelegt=False))})
     geladen = await _laden(session, req, entities, marke.get("ablauf"), stumm=True)
     if geladen == "abgebrochen":
-        return _zusammen(antwort, satz=bot_text(lang, "action.ablauf.unbekannt"))
+        return await _satz(session, req, antwort, bot_text(lang, "action.ablauf.unbekannt"))
     if geladen is None:
         return antwort
     v, lauf, ablauf, aufrufer = geladen
@@ -538,10 +561,13 @@ async def nach_plan(session: Any, req: ChatRequest, session_state: dict, vorher:
         ablauf, dict(lauf), ergebnis, basis.umgebung(session, req, entities, blocked_tools)))
     if aus is None:
         return antwort
-    weiter = await _festhalten(session, req, session_state, v, aus, ablauf, aufrufer)
+    # Paket R2-f: auch nach „Plan fortsetzen“ EINE Blase im Verlauf
+    weiter = await _festhalten(session, req, session_state, v, aus, ablauf, aufrufer,
+                               anhaengen=True)
     if weiter is None:
         await _konflikt_nach_schreiben(session, req, entities, marke)
-        return _zusammen(antwort, satz=bot_text(lang, "action.ablauf.freigabeKonflikt"))
+        return await _satz(session, req, antwort,
+                           bot_text(lang, "action.ablauf.freigabeKonflikt"))
     return _zusammen(antwort, weiter)
 
 

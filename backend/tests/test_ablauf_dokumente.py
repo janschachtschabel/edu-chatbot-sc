@@ -198,7 +198,7 @@ def test_die_liste_fasst_jeden_ablauf_zusammen(cfg) -> None:
     assert zeigen == {"key": "06-ablaeufe/zeigen", "id": "zeigen",
                       "titel": {"de": "Zeigen", "en": "Show"}, "aktiv": True,
                       "ausloeser": ["knopf", "text"], "module": ["ui_entscheidung"],
-                      "befunde": 0, "lesbar": True}
+                      "befunde": 0, "lesbar": True, "direkt": False}
     assert liste[0]["befunde"] >= 1 and liste[0]["lesbar"] is True
     assert liste[1]["lesbar"] is False and liste[1]["befunde"] == 0
 
@@ -217,6 +217,18 @@ def test_die_liste_nennt_module_aus_agent_schritt_und_ausloeser(cfg) -> None:
     assert r.status_code == 200, r.text
     (ki,) = [a for a in r.json()["ablaeufe"] if a["id"] == "ki"]
     assert ki["module"] == ["ui_entscheidung", "ui_upload"]
+
+
+def test_r2a_die_liste_nennt_den_direktstart(cfg) -> None:
+    """Paket R2-a: ob die KI den Ablauf direkt startet (``modus: direkt`` am Auslöser ``agent``),
+    steht in der Liste — sonst sah man es erst im Dokument."""
+    client, seed = cfg
+    seed("06-ablaeufe/direkt", ablauf(
+        "direkt", ausloeser=[{"art": "agent", "modus": "direkt"}],
+        schritte=[{"id": "ende", "typ": "ende", "text": {"de": "Fertig."}}]))
+    r = client.get("/api/config/ablaeufe", headers=_AUTH)
+    (zeile,) = [a for a in r.json()["ablaeufe"] if a["id"] == "direkt"]
+    assert zeile["direkt"] is True and zeile["ausloeser"] == ["agent"]
 
 
 def test_die_liste_braucht_den_studio_schluessel(cfg) -> None:

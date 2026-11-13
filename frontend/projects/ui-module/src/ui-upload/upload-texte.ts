@@ -11,6 +11,7 @@ export type Sprache = 'de' | 'en';
 const DE = {
   titel: 'Ordner und Dateien',
   hinweisLeer: 'Ziehe einen Ordner hierher oder wähle ihn aus. Dabei wird noch nichts hochgeladen.',
+  lesenNachAnmeldung: 'Ein Dokument lesen lassen geht erst, wenn du bei WLO angemeldet bist.',
   ablage: 'Ordner oder Dateien hier ablegen',
   ordnerWaehlen: 'Ordner wählen',
   dateienWaehlen: 'Dateien wählen',
@@ -87,6 +88,7 @@ const DE = {
 const EN: typeof DE = {
   titel: 'Folders and files',
   hinweisLeer: 'Drop a folder here or choose one. Nothing is uploaded yet.',
+  lesenNachAnmeldung: 'Having a document read only works once you are signed in to WLO.',
   ablage: 'Drop folders or files here',
   ordnerWaehlen: 'Choose folder',
   dateienWaehlen: 'Choose files',

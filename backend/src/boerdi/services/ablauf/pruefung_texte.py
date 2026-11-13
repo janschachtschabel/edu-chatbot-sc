@@ -254,6 +254,23 @@ _T: Final[dict[str, dict[str, str]]] = {
                      "en": "Step {s}: flow {f!r} is not enabled (Workflows → Enable Kestra flows)"},
     "auftrag_schreibt": {"de": "Schritt {s}: Ergebnis-Teil (schreibt) fehlt",
                          "en": "Step {s}: result part (schreibt) missing"},
+    # Paket R1: Teilaufträge
+    "aufteilen_argument": {"de": "Schritt {s}: aufteilen nennt das Argument {a!r}, das es unter "
+                                 "argumente nicht gibt",
+                           "en": "Step {s}: aufteilen names argument {a!r}, which is not among "
+                                 "argumente"},
+    "aufteilen_liste": {"de": "Schritt {s}: aufteilen braucht unter {a!r} eine Liste oder einen "
+                              "$teil-Verweis — ein fester Wert teilt nie",
+                        "en": "Step {s}: aufteilen needs a list or a $teil reference under {a!r} — "
+                              "a fixed value never splits"},
+    "sprache_ort": {"de": "Schritt {s}: {{\"$sprache\": true}} wirkt nur auf oberster Ebene der "
+                          "argumente eines auftrag-Schritts",
+                    "en": "Step {s}: {{\"$sprache\": true}} only works at the top level of the "
+                          "argumente of an auftrag step"},
+    "aufteilen_dateien": {"de": "Schritt {s}: aufteilen geht nicht zusammen mit dateien_holen "
+                                "(die Dateien gleicher Kennung der Teile überschrieben einander)",
+                          "en": "Step {s}: aufteilen does not work together with dateien_holen "
+                                "(files of the parts with the same id would overwrite each other)"},
     "bei_fehler_typ": {"de": "Schritt {s}: bei_fehler wirkt bei der Art {typ} nicht (nur bei "
                              "modul, werkzeug, agent und auftrag)",
                        "en": "Step {s}: bei_fehler has no effect on kind {typ} (only on modul, "

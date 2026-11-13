@@ -20,13 +20,23 @@ import { DestroyRef, ElementRef, Injector, afterNextRender, inject } from '@angu
 
 export type FocusAfterRender = (...selectors: string[]) => void;
 
-export function injectFocus(): FocusAfterRender {
+/** Paket R3-g: ging der Fokus verloren (auf `body` oder einem gesperrten Element)? Nach dem
+ *  Speichern sind „Speichern“/„Verwerfen“ gesperrt — wer inzwischen woanders arbeitet, bleibt dort. */
+export function fokusVerloren(aktiv: Element | null): boolean {
+  if (!aktiv || aktiv === document.body || aktiv === document.documentElement) return true;
+  return (aktiv as HTMLButtonElement).disabled === true;
+}
+
+/** `nurWennVerloren` (Paket R3-g, WCAG 2.4.3): nur springen, wenn der Fokus verloren ging —
+ *  für die Statuszeile nach dem Speichern. */
+export function injectFocus(optionen: { readonly nurWennVerloren?: boolean } = {}): FocusAfterRender {
   const host = inject<ElementRef<HTMLElement>>(ElementRef);
   const injector = inject(Injector);
   const destroyRef = inject(DestroyRef);
   return (...selectors) => {
     if (destroyRef.destroyed) return;
     afterNextRender(() => {
+      if (optionen.nurWennVerloren && !fokusVerloren(document.activeElement)) return;
       for (const selector of selectors) {
         const target = host.nativeElement.querySelector<HTMLElement>(selector);
         if (target && !target.matches(':disabled')) {

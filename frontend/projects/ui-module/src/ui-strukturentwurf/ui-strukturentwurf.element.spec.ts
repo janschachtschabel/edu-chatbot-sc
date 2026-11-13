@@ -558,3 +558,32 @@ describe('ui_strukturentwurf (Element) — Review BU-2', () => {
     expect(el.querySelector('.ui-strukturentwurf__marke')?.textContent).toBe('');
   });
 });
+
+describe('R4: Hinweise zur Struktur (Leitfaden, nur Warnungen)', () => {
+  it('nennt Abweichungen in einem zugeklappten Abschnitt', async () => {
+    const daten = { ...BEISPIEL, knoten: [
+      { id: 'a', titel: 'Optik', kinder: [{ id: 'a1', titel: 'Linsen' }] },
+      { id: 'b', titel: 'Arbeitsblätter' },
+    ] } as unknown as EntwurfDaten;
+    const { el } = await render(daten);
+    const abschnitt = el.querySelector('details.ui-strukturentwurf__hinweise') as HTMLDetailsElement;
+    expect(abschnitt).toBeTruthy();
+    expect(abschnitt.open).toBe(false);
+    expect(abschnitt.querySelector('summary')?.textContent).toBe('Hinweise zur Struktur (3)');
+    const saetze = [...abschnitt.querySelectorAll('li')].map((li) => li.textContent);
+    expect(saetze).toContain('„Optik“ hat genau einen Unterpunkt – fasse ihn mit dem Punkt zusammen oder ergänze weitere.');
+    expect(saetze.some((s) => s?.startsWith('Oben stehen 2 Punkte'))).toBe(true);
+  });
+
+  it('Querschnitts-Review, Befund 5: die Überschrift nennt ALLE Hinweise, nicht nur die gezeigten', async () => {
+    const knoten = Array.from({ length: 14 }, (_v, i) => ({ id: `k${i}`, titel: `Klasse ${i + 1}` }));
+    const { el } = await render({ ...BEISPIEL, knoten } as unknown as EntwurfDaten);
+    expect(el.querySelector('details.ui-strukturentwurf__hinweise summary')?.textContent).toBe('Hinweise zur Struktur (14)');
+  });
+
+  it('ohne Abweichung kein Abschnitt', async () => {
+    const knoten = ['A', 'B', 'C', 'D', 'E'].map((t) => ({ id: t, titel: `Thema ${t}` }));
+    const { el } = await render({ ...BEISPIEL, knoten } as unknown as EntwurfDaten);
+    expect(el.querySelector('details.ui-strukturentwurf__hinweise')).toBeNull();
+  });
+});

@@ -103,7 +103,13 @@ async def anlegen(s: AsyncSession, *, aufrufer: str, session_id: str | None, tit
     )).all()
     weichen = [z.id for z in vorhanden if z.status != WARTET_AUFTRAG]
     if (zu_viel := len(vorhanden) - MAX_JE_PERSON + 1) > 0 and weichen:
-        await s.execute(delete(Vorgang).where(Vorgang.id.in_(weichen[:zu_viel])))
+        opfer = weichen[:zu_viel]
+        # Paket R2-h: erst in derselben Reihenfolge sperren wie ``dokument_teile_entfernen`` (nach
+        # Kennung), dann löschen — ein ``DELETE … IN`` sperrt in Plan-Reihenfolge und konnte sich
+        # mit der sortierten Sperre verklemmen
+        await s.execute(select(Vorgang.id).where(Vorgang.id.in_(opfer))
+                        .order_by(Vorgang.id).with_for_update())
+        await s.execute(delete(Vorgang).where(Vorgang.id.in_(opfer)))
     jetzt = _jetzt()
     v = Vorgang(id=str(uuid.uuid4()), aufrufer=aufrufer, session_id=session_id,
                 titel=titel[:120], zweck=zweck, status="aktiv", akte=leere_akte(), akte_version=0,
@@ -111,6 +117,20 @@ async def anlegen(s: AsyncSession, *, aufrufer: str, session_id: str | None, tit
     s.add(v)
     await s.flush()
     return v
+
+
+async def uebernehmen(s: AsyncSession, vorgang_id: str, *, von: str, an: str) -> Vorgang | None:
+    """Paket R2-d: einen offenen Vorgang von ``von`` (der anonymen Sitzung) auf ``an`` (die eben
+    angemeldete Person) übertragen — wie das Dokument der Sitzung seit TB-E1. ``None``: keiner
+    (schon übernommen, abgeschlossen, abgelaufen). Der Aufrufer schreibt fest. Bewusst ohne die
+    Grenze :data:`MAX_JE_PERSON` (Review R2, NIT 9): die Person kann kurz einen Vorgang mehr haben,
+    das nächste :func:`anlegen` stutzt wieder."""
+    neu = await s.execute(
+        update(Vorgang)
+        .where(Vorgang.id == vorgang_id, Vorgang.aufrufer == von,
+               Vorgang.verfaellt_am > _jetzt(), Vorgang.status.not_in(ABGESCHLOSSEN))
+        .values(aufrufer=an).returning(Vorgang.id))
+    return await lesen(s, vorgang_id, an) if neu.scalar_one_or_none() is not None else None
 
 
 async def lesen(s: AsyncSession, vorgang_id: str, aufrufer: str) -> Vorgang | None:

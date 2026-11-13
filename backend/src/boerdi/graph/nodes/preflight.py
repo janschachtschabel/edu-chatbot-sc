@@ -113,6 +113,17 @@ _DIRECT_ACTIONS = {
 }
 
 
+#: Paket R2-g (Entscheid R-E3): Steuer-Aktionen, deren Parameter nur Kennungen und Wahrheitswerte
+#: tragen — kein Text der Person. Ohne Moderation (``MODERATION_FAILURE_MODE=closed``) laufen sie
+#: trotzdem; sonst säße die Person fest. „Weiter“, eine Wahl oder ein Start führen zur KI bzw.
+#: tragen Freitext und bleiben gesperrt.
+_STEUER_OHNE_TEXT = frozenset({
+    auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN, abbruch_zug.AKTION,
+    freigabe_zug.AKTION_ABBRECHEN, freigabe_zug.AKTION_ERNEUT,
+    vorgang_aktion.AKTION_NEU, vorgang_aktion.AKTION_LOESCHEN,
+})
+
+
 async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     """Throttle, then screen + dispatch direct actions; set ``ctx.early_response``.
 
@@ -216,7 +227,8 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
 
     # Paket 18A: mit ``MODERATION_FAILURE_MODE=closed`` gilt eine Direkt-Aktion
     # ohne Moderation wie ein freier Zug (``pruefung_fehlt``) — keine Antwort.
-    ohne_pruefung = decision.risk_level != "high" and sperrt_ohne_moderation(decision)
+    ohne_pruefung = (decision.risk_level != "high" and sperrt_ohne_moderation(decision)
+                     and req.action not in _STEUER_OHNE_TEXT)
     # Review A2a, Befund 2: eine getippte Nachricht, die nur zufällig eine Wendung trägt, geht bei
     # hohem Risiko (Krise) oder ohne Prüfung den gewöhnlichen Weg — samt Krisenantwort M01 — statt
     # die Abweisung einer Direktaktion zu bekommen.
@@ -271,7 +283,8 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
         ctx.early_response = gesperrt_antwort.antwort if gesperrt_antwort else None
     elif req.action == "browse_collection":
         ctx.early_response = await _handle_browse_collection(
-            session, req, ctx.session_state, usage_acc=ctx.usage)
+            session, req, ctx.session_state, usage_acc=ctx.usage,
+            blocked_tools=decision.blocked_tools)
     elif req.action == "generate_learning_path":
         # Der Zug-Merkposten muss mit: die Direkt-Aktion ruft dieselben
         # LLM-Generatoren wie der Hauptweg, und weil sie den Zug hier beendet,

@@ -100,7 +100,8 @@
             "items": {
               "type": "string",
               "x-choices": [
-                "anmeldung"
+                "anmeldung",
+                "dokument_lesen"
               ]
             },
             "title": "Voraussetzungen",
@@ -492,6 +493,11 @@
             "title": "Befunde",
             "type": "integer"
           },
+          "direkt": {
+            "default": false,
+            "title": "Direkt",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -775,6 +781,29 @@
           "data"
         ],
         "title": "AreaData",
+        "type": "object"
+      },
+      "Aufteilen": {
+        "additionalProperties": true,
+        "description": "Paket R1 (Plan 2026-11-12, R-E13, N14): eine lange Liste im Argument ``argument`` geht in\nTeilaufträgen zu je höchstens ``hoechstens`` Einträgen an die B-API — nacheinander, je\n„Stand prüfen“ der nächste. Mehr als ``auftrag_teile.MAX_TEILE`` Teile werden nie gestartet;\ndie Teile werden dann größer (nichts fällt weg).",
+        "properties": {
+          "argument": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+            "title": "Argument",
+            "type": "string"
+          },
+          "hoechstens": {
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Hoechstens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "argument",
+          "hoechstens"
+        ],
+        "title": "Aufteilen",
         "type": "object"
       },
       "Ausloeser": {
@@ -3081,6 +3110,22 @@
               ]
             }
           },
+          "aufteilen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Aufteilen"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
+          },
           "ausstieg": {
             "anyOf": [
               {
@@ -4176,6 +4221,11 @@
                 "type": "null"
               }
             ]
+          },
+          "ablauf_unbestimmt": {
+            "default": false,
+            "title": "Ablauf Unbestimmt",
+            "type": "boolean"
           },
           "direkt_start": {
             "anyOf": [

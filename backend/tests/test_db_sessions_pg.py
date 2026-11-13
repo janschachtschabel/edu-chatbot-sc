@@ -309,3 +309,61 @@ def test_purge_all_default_and_sessions_flag_forcing(test_db) -> None:
     assert counts2["sessions"] == 2
     assert counts2["messages"] == 2 and counts2["memory"] == 2
     assert (sessions_left, msgs_left) == (0, 0)
+
+
+def test_r2f_an_die_letzte_antwort_anhaengen(test_db) -> None:
+    """Paket R2-f: der Fortgang eines Laufs hängt an die eben gespeicherte Antwort — Text und
+    UI-Blöcke, ohne Marke „fester Text“; ohne Assistenten-Nachricht nichts (False)."""
+    from boerdi.services.db_sessions import (
+        FESTER_TEXT_KEY,
+        an_letzte_antwort_anhaengen,
+        get_messages,
+        get_or_create_session,
+        save_message,
+    )
+
+    async def scenario(session):
+        await get_or_create_session(session, "bb-r2f")
+        leer = await an_letzte_antwort_anhaengen(session, "bb-r2f", "x", {})
+        await save_message(session, "bb-r2f", "user", "ja")
+        await save_message(session, "bb-r2f", "assistant", "Eingelöst.",
+                           debug={"_ui_bloecke": [{"a": 1}], FESTER_TEXT_KEY: True})
+        dran = await an_letzte_antwort_anhaengen(session, "bb-r2f", "Weiter.",
+                                                 {"_ui_bloecke": [{"b": 2}]})
+        return leer, dran, await get_messages(session, "bb-r2f")
+
+    leer, dran, nachrichten = _run(scenario)
+    assert leer is False and dran is True
+    assert [n["role"] for n in nachrichten] == ["user", "assistant"]
+    assert nachrichten[1]["content"] == "Eingelöst.\n\nWeiter."
+
+
+def test_review_nit9_fest_bleibt_fest_wenn_beide_fest_sind(test_db) -> None:
+    """Querschnitts-Review, NIT 9: ein fester Satz an einer festen Antwort bleibt ohne KI-Etikett;
+    ein nicht fester Teil nimmt die Marke weg."""
+    from sqlalchemy import select
+
+    from boerdi.db.models import ChatMessage
+    from boerdi.services.db_sessions import (
+        FESTER_TEXT_KEY,
+        an_letzte_antwort_anhaengen,
+        get_or_create_session,
+        save_message,
+    )
+
+    async def scenario(session):
+        await get_or_create_session(session, "bb-nit9")
+        await save_message(session, "bb-nit9", "assistant", "A", debug={FESTER_TEXT_KEY: True})
+        await an_letzte_antwort_anhaengen(session, "bb-nit9", "B", {FESTER_TEXT_KEY: True})
+        frage = select(ChatMessage.debug).where(ChatMessage.session_id == "bb-nit9")
+        fest = (await session.execute(frage)).scalar_one()
+        await an_letzte_antwort_anhaengen(session, "bb-nit9", "C", {})
+        danach = (await session.execute(
+            frage.execution_options(populate_existing=True))).scalar_one()
+        return dict(fest), dict(danach)
+
+    fest, danach = _run(scenario)
+    assert fest.get(FESTER_TEXT_KEY_NAME) is True and FESTER_TEXT_KEY_NAME not in danach
+
+
+FESTER_TEXT_KEY_NAME = "_fester_text"

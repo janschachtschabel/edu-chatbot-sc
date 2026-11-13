@@ -217,7 +217,8 @@ def anmelde_zeile(nachricht: str | None, lang: str, ohne: str | None = None) -> 
     Ablauf, dessen Voraussetzung (Anmeldung) fehlt, startet er nicht (:func:`text_ausloeser`) —
     die KI erfährt es aber und sagt es in einem Satz, statt den Ablauf stumm zu übergehen."""
     ablauf = ausloeser.per_text(nachricht)
-    if ablauf is None or ablauf.id == ohne or ausloeser.erfuellt(ablauf):
+    # R2-b: nur, wenn die Anmeldung hilft — ist Lesen im Studio aus, wäre der Satz falsch
+    if ablauf is None or ablauf.id == ohne or ausloeser.fehlt(ablauf) != "anmeldung":
         return None
     titel = _titel_ohne_klammern(ablauf, lang)
     # TW-6: den Satz zur Anmeldung hängt das System an (:func:`anmelde_satz`) — die KI ließ ihn im
@@ -236,7 +237,8 @@ def anmelde_satz(nachricht: str | None, lang: str, ohne: str | None = None) -> s
     """TW-6: der Satz unter der Antwort, wenn eine Wendung zu einem Ablauf passt, dem die
     Anmeldung fehlt (dieselbe Bedingung wie :func:`anmelde_zeile`)."""
     ablauf = ausloeser.per_text(nachricht)
-    if ablauf is None or ablauf.id == ohne or ausloeser.erfuellt(ablauf):
+    # R2-b: nur, wenn die Anmeldung hilft — ist Lesen im Studio aus, wäre der Satz falsch
+    if ablauf is None or ablauf.id == ohne or ausloeser.fehlt(ablauf) != "anmeldung":
         return None
     return bot_text(lang, "action.ablauf.anmeldungHinweis",
                     titel=_titel_ohne_klammern(ablauf, lang))
@@ -275,8 +277,10 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
                       *, ab: int = 0, gewaehlt: list[str] | None = None,
                       start: dict[str, Any] | None = None, start_quelle: str | None = None,
                       blocked_tools: Iterable[str] = (), frisch: bool = True) -> ChatResponse:
-    if not ausloeser.erfuellt(ablauf):
-        return await basis.nur_text(session, req, "action.ablauf.anmeldung")
+    if (fehlt := ausloeser.fehlt(ablauf)) is not None:
+        # R2-b: ist Lesen im Studio aus, hilft keine Anmeldung — dann ein eigener Satz
+        return await basis.nur_text(session, req, "action.ablauf.dokumentLesenAus"
+                                    if fehlt == "dokument_lesen" else "action.ablauf.anmeldung")
     if start is None and startdaten.pflichtfelder(ablauf):
         # AS-4a: Wendung, Modul oder Knopf bringen keine Startdaten — ohne Pflichtfelder kein Start
         return await basis.nur_text(session, req, "action.ablauf.startdaten")

@@ -80,16 +80,16 @@ Die zugehörigen Pläne:
     („Wähle die PDF … aus“). Die Regel „Lehrplan → `ui_upload`“ steht im Master-Skill
     `docs/skills/vorgehen-knapp.md` (U3-5). Im WLO-Knoten fehlt sie noch; der Nutzer aktualisiert den
     Master-Skill. Danach Golden GV-UI-13/14 (startet der Nutzer).
-  - **Versprechen vor dem Auswahlfeld (nur noch bei „Aus“ im Studio):** Den `hinweis` schreibt die KI, bevor
+  - **Erledigt 13.11. (R3-b, `aenderungen/2026-11-13-paket-r3-ui-module.md`).** **Versprechen vor dem Auswahlfeld (nur noch bei „Aus“ im Studio):** Den `hinweis` schreibt die KI, bevor
     sie die Schalter kennt. Ist Lesen nur für Angemeldete eingestellt, verspricht er zu viel; das Modul sagt
     es danach richtig. Kandidat: Das Modul nennt die Anmeldung gleich unter dem Hinweis.
   - ~~**Lesen, dann anmelden:**~~ **Erledigt 10.11. mit TB-E1** (`ablage.fuer_aufrufer`, Notiz
-    `aenderungen/2026-11-10-paket-tb-e1-dokument-besitz.md`). Offen bleibt nur: Ein anonym begonnener
-    **Vorgang** gehört weiter der Sitzung und ist nach der Anmeldung nicht der der Person.
+    `aenderungen/2026-11-10-paket-tb-e1-dokument-besitz.md`). Seit R2-d (13.11.) geht auch ein anonym begonnener
+    **Vorgang** nach der Anmeldung auf die Person über (nur der offene Vorgang des Verweises).
   - Die Zeile „[ edu-sharing Skill ] Chatbot Masterskill - aktiv“ über den Antworten ist **gewollt**
     (Aktivierungszeile des Master-Skills im WLO-Knoten, Nutzer 10.11.).
 
-- **Führungen (AS-7, 10.11.) — Grenze aus dem Querschnitts-Review, Befund 4:** Bei angemeldeten Personen
+- **Erledigt 13.11. (R2-c, `aenderungen/2026-11-13-paket-r2-ablaeufe.md`).** **Führungen (AS-7, 10.11.) — Grenze aus dem Querschnitts-Review, Befund 4:** Bei angemeldeten Personen
   holt der Verlauf den Stand nur, wenn der MCP die Anmeldung binnen 1 s bestätigt (Z-6). Sonst fehlt nach
   einem Seitenaufruf der Stand, und es geht kein Seiten-Ping hinaus. Die Ankunft kommt dieses eine Mal
   nicht an; der nächste getippte Satz holt den Chip zurück, der nächste Seitenaufruf pingt wieder.
@@ -134,7 +134,7 @@ Die zugehörigen Pläne:
 - **Querschnitts-Review 2026-11-06** (Pakete V1 … U3-3b, K1b): alle 7 MAJOR und die MINOR/NIT behoben in den
   Paketen Q1–Q4 (Plan [`plans/2026-11-06-querschnitts-befunde.md`](plans/2026-11-06-querschnitts-befunde.md),
   Notizen `aenderungen/2026-11-06-paket-q{1,2,3,4}-*.md`). Beim Deploy: Migration **0020**, Widget-Bündel neu.
-  Noch offen daraus: ein Einstieg zu „Arbeitsstand löschen“ außerhalb eines Ablaufs (Entscheid);
+  Seit 13.11.: kein weiterer Einstieg zu „Arbeitsstand löschen“ (Entscheid R-E2); erledigt (R1-d, R2-h):
   `ui_auftrag._wartender_auftrag` liest den Verweis ohne Auffrischen; theoretische Verklemmung Verdrängen in
   `vorgaenge.anlegen` gegen die sortierte Sperre in `dokument_teile_entfernen`; Bestands-Brücke und alter
   `draft` (bewusst, Q4-Notiz); `Teil` doppelt definiert. Nicht in diesem Plan: markitdown-Update/`pip-audit`,
@@ -163,14 +163,14 @@ Die zugehörigen Pläne:
   - Beobachtet, nicht geändert: bei „Bruchrechnen für Eltern“ setzte der Agent `Sekundarstufe I` ohne Stufenangabe; bei unklarer Zielgruppe duzt er auf einer Sammlung meist; im Muster-Modus suchte eine Folgesuche einmal mit dem ganzen Nutzersatz (Muster-Prompts, nicht der Master-Skill).
   - Dritte Runde (gleicher Tag), Beobachtungen gelöst: Vorabsuche übernimmt die Entität `lizenz` (Programmfehler, `prefetch`); Beispiel `Alle OER` → `OER` in `04-entities` (Server ignoriert „Alle OER“: 3 616 Treffer wie ungefiltert, „OER“ 941); Domänenregeln (`02-domain/domain-rules.md`, Muster-Modus): `query` nur Kernbegriff auch in Folge- und Rettungssuchen, Filter sparsam, verlangte Lizenz bleibt gesetzt; Master-Skill: Stufe und Fach nie aus dem Thema erschließen, Anleitungen/Kompendium/Seitentext geben keine Anrede vor, Rettung lockert zuerst Inhaltstyp und Stufe, eine verlangte Lizenz nur mit Hinweis. `quick_replies.max_count` bleibt 2 (Studio-Einstellung); der Master-Skill verlangt keine drei Vorschläge mehr.
   - Vierte Runde (Master-Skill 22/22 im Knoten): keine erfundene Stufe mehr (Bruchrechnen für Eltern); verlangte OER-Lizenz bleibt im Muster-Modus gesetzt, der Agent lockert sie nur mit Hinweis; Anrede bei unklarer Zielgruppe in allen Rückfragen „Sie“; Platzhalter auf der Sammlung 3/4 erst Rückfrage (zusammen mit Runde 2: 8/9); Quiz verteilt die richtige Antwort, die Begründung fehlte in 1 von 2 Läufen — Kandidat: Format-Beispiel „1. B – weil …“ in M10.
-- **Paket U1 — Direktaktion „Inhalte anzeigen“ ohne Angebotsprüfung** (Plan §15 „Offen (U1-e)“): `_handle_browse_collection` ruft `get_collection_contents`, ohne zu prüfen, ob das Werkzeug angeboten ist (Studio-Schalter, Sperren, Modus der Einbettung). `themenbaum_aktion` prüft seit Review U1-e #3 über `agent_tools.angebotene_mcp_werkzeuge`; hier fehlt das Gegenstück. Bestand vor U1-e.
+- **Erledigt 13.11. (R3-a).** **Paket U1 — Direktaktion „Inhalte anzeigen“ ohne Angebotsprüfung** (Plan §15 „Offen (U1-e)“): `_handle_browse_collection` ruft `get_collection_contents`, ohne zu prüfen, ob das Werkzeug angeboten ist (Studio-Schalter, Sperren, Modus der Einbettung). `themenbaum_aktion` prüft seit Review U1-e #3 über `agent_tools.angebotene_mcp_werkzeuge`; hier fehlt das Gegenstück. Bestand vor U1-e.
 - **Zweites Review K2b (2026-11-08), älter als K2b:**
-  - Der Deckel der Schnellantworten (`widget_postprocess`, `max_count`, Muster, Gastgeber) streicht auch
+  - **Erledigt 13.11. (R2-e: alle Steuer-Knöpfe, alle Deckel).** Der Deckel der Schnellantworten (`widget_postprocess`, `max_count`, Muster, Gastgeber) streicht auch
     System-Knöpfe (`__action__`: „Weiter im Ablauf“, „Stand prüfen“, „Neues Vorhaben“ …), sobald er kleiner ist als
     ihre Zahl. Im gesperrten Lauf behält er seit K2b die beiden Auftrags-Knöpfe; allgemein offen.
-  - Mit `MODERATION_FAILURE_MODE=closed` ist jede Direktaktion gesperrt, solange die Moderation ausfällt — auch
+  - **Erledigt 13.11. (R2-g, Entscheid R-E3).** Mit `MODERATION_FAILURE_MODE=closed` ist jede Direktaktion gesperrt, solange die Moderation ausfällt — auch
     „Stand prüfen“ und „Abbrechen“, deren Parameter keinen Text der Person tragen.
-  - Die Seitenwege `/api/ui/*` (Ablage, Upload, Themenbaum) sind keine Chat-Züge und kennen die Sperre nicht —
+  - **Entschieden 13.11. (R-E4): gewollt.** Die Seitenwege `/api/ui/*` (Ablage, Upload, Themenbaum) sind keine Chat-Züge und kennen die Sperre nicht —
     vermutlich gewollt, zu bestätigen.
 - **Pakete M1, U4, U5, U3-5 (2026-11-08), offen:** Plan
   [`plans/2026-11-08-pakete-m1-u4-u5-u3-5.md`](plans/2026-11-08-pakete-m1-u4-u5-u3-5.md), Notizen
@@ -178,23 +178,23 @@ Die zugehörigen Pläne:
   - Master-Skill (`docs/skills/vorgehen-knapp.md`) in den WLO-Knoten übertragen (Nutzer), dann Golden-Lauf
     GV-UI-13 … 16 (Nutzer).
   - Messen: Kostet `includeContentCounts` bei Tiefe 2 zu viel (ein Aufruf je Sammlung)? Reicht `contentsCount`?
-  - Der Lücken-Abschnitt nennt bei Ebene 2 den Elternpunkt nicht; die Blockgröße steigt mit Abdeckung um
+  - **Erledigt 13.11. (R3-c).** Der Lücken-Abschnitt nennt bei Ebene 2 den Elternpunkt nicht; die Blockgröße steigt mit Abdeckung um
     höchstens etwa 60 kB.
   - M2 (`browse_collection_tree` Tiefe 3) bewusst nicht umgesetzt (E-10); O-13 („reicht Tiefe 2?“) bleibt bis
     zur Messung offen.
   - Browser-Abnahme der Module `ui_strukturabgleich` (mit und ohne Abdeckung) offen.
 - **Paket S (2026-11-08), offen:**
   [`aenderungen/2026-11-08-paket-s-schreibende-schritte.md`](aenderungen/2026-11-08-paket-s-schreibende-schritte.md)
-  - Ein Ablauf löscht nicht (`wlo_delete_content`, `wlo_delete_collection` ausgeschlossen, eigener Entscheid —
+  - **Entschieden 13.11. (R-E1): bleibt gesperrt.** Ein Ablauf löscht nicht (`wlo_delete_content`, `wlo_delete_collection` ausgeschlossen, eigener Entscheid —
     bei Bedarf umstellbar in `werkzeuge._NICHT_IM_ABLAUF`).
   - Pläne als Ablaufschritt: erledigt mit S4
     ([`aenderungen/2026-11-08-paket-s4-plaene-als-schritt.md`](aenderungen/2026-11-08-paket-s4-plaene-als-schritt.md)).
   - Ein „ja“ zu einer Freigabe, deren Lauf nicht mehr wartet, schreibt nicht (eigener Entscheid, Gesamt-Review).
-  - `freigabe` an `auftrag`, sobald die B-API schreibende Flows kennt.
+  - **Überholt (TB-F1: `repo_schreibt` mit Rückfrage).** `freigabe` an `auftrag`, sobald die B-API schreibende Flows kennt.
   - Der Nachlauf nach dem „ja“ läuft vor der Sicherheitsprüfung mit leeren Sperren. Vertretbar, weil die
     Nachricht ein kurzes, geprüftes Ja ist.
-  - Ein „ja“ speichert zwei Assistenten-Nachrichten (Einlösen und Ablauf); live ist es eine Blase.
-  - Unter gewöhnlichen Antworten steht nur „Vorschau erneut zeigen“, ohne „Ablauf abbrechen“ (Deckel der
+  - **Erledigt 13.11. (R2-f).** Ein „ja“ speichert zwei Assistenten-Nachrichten (Einlösen und Ablauf); live ist es eine Blase.
+  - **Erledigt (Ablauf-Leiste AS-Ub, R2-e).** Unter gewöhnlichen Antworten steht nur „Vorschau erneut zeigen“, ohne „Ablauf abbrechen“ (Deckel der
     Schnellantworten).
   - Browser-Abnahme (Studio-Formular, Widget-Box) offen.
 - **Review K2c-1/K2c-4 (2026-11-08), älter:** erledigt — `bei_fehler` nur bei `modul`, `werkzeug`, `agent`,
@@ -216,10 +216,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Paket 19 (Audit N-8) — PII im Sicherheitsprotokoll:** Erkannte personenbezogene Daten (E-Mail, Telefon, IBAN …) heben die Stufe auf `medium`; genau diese Nachrichten stehen mit den ersten 500 Zeichen im Klartext und der IP in `safety_logs` (`obs/quality_events.py:77`). Die Frist ist seit Paket 19 (P19-E4) 30 statt 90 Tage. Offen: die PII-Treffer geschwärzt speichern? Abzuwägen ist die Nachvollziehbarkeit von Verstößen (P19-E1) gegen die Datensparsamkeit. **Nutzer-Entscheid 2026-10-31: bleibt lesbar, wird nicht anonymisiert.** Zweck und Frist gehören in die Datenschutzerklärung.
 - **Paket 19 (Review 19-1) — Titel fremder Seiten im Metadaten-Cache:** Für eine nicht auflösbare Seite cacht `services/page_context.resolve_page_context` den Tab-Titel als `entities._page_metadata.title` (Gruß und Prompt der Folgezüge lesen ihn) — bei fremden Seiten ein Stück Browserverlauf, 30 Tage. Titel und Suchbegriff als eigene Entities fallen seit Paket 19 weg; ob auch der Cache bei `external` ohne Titel auskommt (der Gruß nennt dort den Host), ist zu prüfen. **Nutzer-Entscheid 2026-10-31: bleibt so.** Der Titel ist Kontext für Seitenerkennung und Aktionen; der Chatbot ist nicht für fremde Seiten gedacht. Eine Lösung „im Zug nutzen, vor dem Speichern entfernen“ erst nach gründlicher Folgenprüfung (nachgelagerte Aktionen, Auswertungen).
 
-- **Paket U1 — offene Entscheide** (Plan [`2026-11-02-paket-u1-ui-module.md`](plans/2026-11-02-paket-u1-ui-module.md)):
+- **Paket U1 — offene Entscheide** (13.11. selbst entschieden, Plan `plans/2026-11-12-restpakete-ablaeufe-kestra-ui.md` R-E5 … R-E10; Plan [`2026-11-02-paket-u1-ui-module.md`](plans/2026-11-02-paket-u1-ui-module.md)):
   - `ui_upload` (§13, „Konzept `ui_upload`“): wer darf hochladen (**entschieden 10.11.:** Dokument lesen und
     Entwurf auch anonym, Ablage in WLO nur angemeldet) und mit welchen Grenzen; Aufbewahrung samt Datenschutz-Hinweis; Ziel (nur Kontext im Chat, edu-sharing, Kestra); Virenprüfung; Formate über MarkItDown hinaus (OCR). Die übrigen vorgeschlagenen Module (`ui_freigabe`, `ui_fortschritt`, `ui_befund`, `ui_themenbaum_auswahl`) sind nicht freigegeben. `ui_freigabe` entfällt seit Paket S: ein schreibender Ablaufschritt zeigt die Vorschau-Box und den Chip des Chats.
-  - Themenbaum statt `browse_collection_tree`: die Master-Skill-Kurzfassung (`docs/skills/vorgehen-knapp.md`, live) ist seit 2026-11-03 auf `ui_themenbaum` umgestellt. Offen: `docs/skills/vorgehen.md`, `docs/skills/vorgehen-kompakt.md`, `services/response_prompt_tools_text.py` und die Muster, die `browse_collection_tree` nennen — umstellen oder so lassen (§15 „Offen (U1-e)“).
+  - Themenbaum statt `browse_collection_tree`: die Master-Skill-Kurzfassung (`docs/skills/vorgehen-knapp.md`, live) ist seit 2026-11-03 auf `ui_themenbaum` umgestellt. **13.11. (R3-h, R-E5):** `docs/skills/vorgehen.md` und `vorgehen-kompakt.md` umgestellt. `services/response_prompt_tools_text.py` und die Muster (Muster-Maschine) bleiben bewusst so — sie nennen das Werkzeug zum eigenen Auswerten, und Gold-Läufe der Muster blieben vergleichbar.
   - Textfassung im Verlauf für abgeschaltete Module (§16, F-2 und „Offen (U1-f)“): heute bleiben gespeicherte Blöcke, wie sie gezeigt wurden; rückwirkend verschwinden bräuchte eine Widget-Regel „leere Daten → Textfassung“.
   - Themenbaum: Nachgeladenes (U1-h, §18 H-8) gilt nur bis zum Neuladen der Seite; der Verlauf zeigt den ursprünglichen Baum. In die gespeicherte Nachricht schreiben hieße einen Schreibweg ohne Zug (und `eingabe` kennt nur eine Ebene Kinder) — ja oder nein?
   - **Golden-Lauf 2026-11-03 (Agent, gpt-6-luna, Testcontainer `ui-abstaende-5659fed`)** — Reports `evals/reports/golden-20261103-112633-u1-ui-agent.json`, `…-113227-u1-seed-agent.json`, `…-113234-u1-ui7-muster.json`. Seed-Suite 90/91 hart (98,9 %); UI-Abläufe 28/32 (87,5 %); GV-UI-7 Muster 4/4. Befunde zum Entscheiden:
@@ -271,7 +271,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Einen Screenreader-Test gab es bisher nicht.
   - Den Start-Knopf des generativen Laufs hat niemand im Browser gesehen. Sein CSS gleicht dem gemessenen Gold-Knopf, und der Kontrast-Wächter deckt ihn ab.
 
-- **Vorgänge und Abläufe (2026-11-06) — Frist eines Vorgangs mit laufendem Auftrag (Plan V-4):** Heute gilt
+- **Erledigt (K2a: mindestens bis zum Abholen, höchstens 30 Tage).** **Vorgänge und Abläufe (2026-11-06) — Frist eines Vorgangs mit laufendem Auftrag (Plan V-4):** Heute gilt
   auch dann `vorgang_tage` (Vorgabe 3), die b-api hält den Auftrag 30 Tage. Empfehlung: solange der Lauf auf
   einen Auftrag wartet, mindestens bis zum Abholen, höchstens 30 Tage (Aufbewahrung und `beruehren` müssen
   den Stand kennen). Entscheid steht aus; bis dahin geht ein nicht abgeholter Auftrag mit dem Vorgang
@@ -287,17 +287,17 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     dahin auf die Grenze von 20 je Schlüssel):
     - ~~Verdrängen in `vorgaenge.anlegen` nimmt einen wartenden Lauf per Kaskade mit.~~ Erledigt in K2a:
       ein Vorgang mit wartendem Auftrag weicht nie.
-    - „Arbeitsstand löschen“ liest die Job-IDs vor der Kaskade; ein Auftrag, den ein zweiter Tab genau
+    - **Erledigt (Q-5, `FOR UPDATE`).** „Arbeitsstand löschen“ liest die Job-IDs vor der Kaskade; ein Auftrag, den ein zweiter Tab genau
       dazwischen festschreibt, fehlt darin.
     - Aufbewahrung und `purge_all` laufen ohne Schlüssel der Person; ein `DELETE` bekäme dort 404.
-- **K1b `ui_fortschritt` (2026-11-06):** fertig und reviewt (Notiz
+- **403 `abgewiesen` erledigt 13.11. (R1-e, `aenderungen/2026-11-13-paket-r1-kestra-auftraege.md`).** **K1b `ui_fortschritt` (2026-11-06):** fertig und reviewt (Notiz
   [`aenderungen/2026-11-06-paket-k1b-fortschritt.md`](aenderungen/2026-11-06-paket-k1b-fortschritt.md)). Offen:
   403 `abgewiesen` zeigt das Modul wie „nicht angemeldet“ (der Client reicht nur den Status durch).
 - **Übertragen in den persönlichen Bereich (U3-3a/b, 2026-11-06):** fertig und reviewt, wirkt aber erst,
   wenn (1) im MCP `WLO_BATCH_UPLOAD_ENABLED` an ist (die Werkzeuge sind seit dem MCP-Stand 07.11. verdrahtet,
   inklusive `wlo_list_my_batches`), (2) MA-0 (Messung mit dem
   Testkonto) gelaufen ist und (3) im Studio „Inhalte in WLO ablegen“ eingeschaltet wird (Vorgabe aus).
-  Offen im Paket: „Vorgang herunterladen“, Neu-Vorbereiten nach
+  **Zurückgestellt 13.11. (R3-e, extern: Batch-Upload am MCP, MA-0):** „Vorgang herunterladen“, Neu-Vorbereiten nach
   abgelaufener Freigabe (Gefahr doppelter Ablage — seit M6 zeigt das Modul neben der Vorschau die letzten
   eigenen Ablagen). T1b erledigt in M6 (`aenderungen/2026-11-07-paket-m6-letzte-ablagen.md`). (`ui-upload.element.ts` ist seit Q4 geteilt.) Bewusst
   angehoben: Budget je nachgeladenem Modul 15 → 20 kB gzip (`ui-upload` 17,9 kB seit dem Review vom 07.11.).
@@ -305,9 +305,9 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Themenbaum aus Inhalten, Gruppen F/T (2026-11-10, offen):** Plan
   [`2026-11-10-themenbaum-aus-inhalten.md`](plans/2026-11-10-themenbaum-aus-inhalten.md), Notizen
   `aenderungen/2026-11-10-paket-tb-{f1,f2,t1,t2}*.md` und `…-querschnitt-gruppe-ft.md`.
-  - **Limit je Job (N14):** fehlt. Der Auftrag schickt alle abgelegten nodeIds eines Stapels (bis
+  - **Erledigt 13.11. (R1-a, `aufteilen`).** **Limit je Job (N14):** fehlt. Der Auftrag schickt alle abgelegten nodeIds eines Stapels (bis
     200). `metadaten_lesen` liest 50, der Rest steht in `fehlend`.
-  - **`X-Edu-User-Id`** geht nur beim Start mit, nicht bei „Stand prüfen“, Abbruch und Datei. Ob
+  - **Erledigt 13.11. (R1-c: auch bei Abfrage, Abbruch, Datei).** **`X-Edu-User-Id`** geht nur beim Start mit, nicht bei „Stand prüfen“, Abbruch und Datei. Ob
     die B-API ihn dort braucht, klärt die Staging-Probe. Bei einer 400 käme „Stand prüfen“ ohne
     Ende.
   - **F7:** Ob ein `FAILED` des Flows einen Bericht trägt, ist offen. Der Ablauf geht dann ohne
@@ -316,12 +316,12 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     - Der Flow muss im Studio freigegeben sein (Abläufe → „Kestra-Flows freigeben“, Paket KF).
     - Der B-API-Schlüssel muss ihn starten dürfen (F9).
     - Testperson, eigene Testknoten, danach entfernen; den Umfang klein halten.
-  - **`language: de`** ist im Seed fest. Für englischsprachige Personen schreibt der Flow deutsche
+  - **Erledigt 13.11. (R1-b, `{"$sprache": true}`).** **`language: de`** ist im Seed fest. Für englischsprachige Personen schreibt der Flow deutsche
     Metadaten.
   - **Noch nicht gebaut:**
     - Sammlungen aus dem Entwurf anlegen (TB-3 Schritt 6);
     - Start aus der Sammlungsseite (Startdaten `sammlung`);
-    - Raster-Warnungen (TB-4).
+    - **Erledigt 13.11. als Hinweise (R4, `aenderungen/2026-11-13-paket-r4-strukturhinweise.md`).** Raster-Warnungen (TB-4).
 
 - **Themenbaum-Abläufe zuerst, Wissen aus dem Leitfaden (TW-1…TW-5, 2026-11-11, offen):** Plan
   [`2026-11-11-themenbaum-ausloesen-und-wissen.md`](plans/2026-11-11-themenbaum-ausloesen-und-wissen.md).
@@ -333,7 +333,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     - Die Vorgaben gelten nur am KI-Schritt.
     - Ein Wendungs-Start übernimmt das Thema der Nachricht nicht in den Teil `thema`, die KI
       liest es aus dem Verlauf.
-    - Eine Voraussetzung „Dokument lesen“ für den Dokument-Ablauf fehlt.
+    - **Erledigt 13.11. (R2-b, `dokument_lesen`).** Eine Voraussetzung „Dokument lesen“ für den Dokument-Ablauf fehlt.
   - **Später:** Strukturprüfung des Ergebnisses (TB-4), Sammlungsart, Facetten.
   - **TW-6 (2026-11-12):** Ruft die KI das Upload-Feld oder den Strukturentwurf ohne
     Arbeitsgrundlage, lenkt der Chatbot auf den passenden Ablauf um. Notiz
@@ -346,6 +346,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Restpakete R1–R4 (2026-11-13):** keine Migration. Image neu bauen (Backend, Studio, Widget samt
+  nachgeladener Module), `import-config --werksabgleich` (Seeds „aus eigenen Inhalten“: `aufteilen`
+  und `$sprache`; „aus einem Dokument“: Voraussetzung `dokument_lesen`). Notizen
+  `aenderungen/2026-11-13-paket-r{1,2,3,4}-*.md`.
 - **TW-6 (2026-11-12):** keine Migration. Image neu bauen, `import-config --werksabgleich`
   (Seeds „aus Ordnern“ mit Einstiegsfrage, „aus einem Dokument“ direkt). Wartende Läufe dieser
   zwei Abläufe enden (neue Fassung). Danach den Master-Skill-Knoten ersetzen.
@@ -584,7 +588,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Reiter-Namen der Muster fest deutsch** (`views/pattern-field-tabs.ts`, `views/feld-reiter.ts`): „Identität“, „Tools & Wissen“ … und der Satz „Reiter „…““ stehen auch in der englischen Oberfläche. Älter als Paket 6 (A7), dort nur verschoben.
 - ~~**Blockierendes `getaddrinfo` in der Restore-Prüfung**~~ erledigt in Paket 20 (B1): alle Adressprüfungen laufen per `asyncio.to_thread`. War: (`api/config_guards.py`): Für jeden weiteren MCP-Server eines hochgeladenen ZIPs löst die Prüfung den Namen im Ereignis-Loop auf. Selten, aber ein langsamer DNS hält dabei den ganzen Prozess an.
 - **E2E-Kippler `frontend/e2e/auth-button.spec.ts:95`** (Tab-Reihenfolge, 2026-10-31 einmal rot, während die Backend-Suite parallel lief; isoliert 3× grün). Nicht in Paket 20: erst nachstellen (Vorgehen in der Erinnerung „E2E-Kippler“: alte Reihenfolge rot, neue grün), dann ändern.
-- **`runCardAction` bei gewechselter Sitzung** (`frontend/projects/ui/src/controllers/collection-actions.ts`,
+- **Geprüft 13.11. (R3-f): kein Fehler — `restart`/`wechseln` setzen den Ladezustand zurück.** **`runCardAction` bei gewechselter Sitzung** (`frontend/projects/ui/src/controllers/collection-actions.ts`,
   gesehen im Review K1b): kehrt bei `veraltet()` zurück, ohne `setLoading(false)` — der Laden-Zustand bleibt
   stehen, bis der nächste Zug ihn setzt. Älter als K1b (Frontend-Split); prüfen, ob der Sitzungswechsel ihn
   ohnehin zurücksetzt.
@@ -622,13 +626,13 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 - ~~**Master-Skill: Erstabruf nicht gebündelt**~~ erledigt in Paket 20 (B2): gleichzeitige Erstzüge teilen einen Abruf. War: (Review 2026-10-18, Befund 5): Direkt nach einem Neustart, solange der erste Takt-Abruf noch läuft (bis 23 s), holt jeder Zug ohne Stand den Text selbst — N gleichzeitige Erstzüge, N MCP-Sitzungen. Das gab es schon beim alten Ablauf-Verfahren. Hebel: den laufenden Abruf je Kennung merken und abwarten (Single-Flight).
 
-- **Fokus nach dem Speichern** (studioweit, WCAG 2.4.3; gesehen im Review U1-f): In „Werkzeuge“ (`agent-tools.component.html`), „Materialformate“ (`material-typen.component.html`) und „UI-Module“ (`ui-module.component.html`) sind „Speichern“ und „Verwerfen“ während des Speicherns und danach `disabled` (gebunden an „speichert“ bzw. „nichts geändert“); der Fokus fällt dabei auf `body`, Tastatur- und Screenreader-Nutzer stehen danach am Seitenanfang. Hebel: den Fokus nach dem Speichern bewusst setzen (Statuszeile mit `tabindex="-1"` oder Abschnittstitel) oder die Knöpfe mit `aria-disabled` statt `disabled` führen. Einmal für alle Panels lösen.
+- **Erledigt 13.11. (R3-g, `core/inject-focus.ts`, Option `nurWennVerloren`).** **Fokus nach dem Speichern** (studioweit, WCAG 2.4.3; gesehen im Review U1-f): In „Werkzeuge“ (`agent-tools.component.html`), „Materialformate“ (`material-typen.component.html`) und „UI-Module“ (`ui-module.component.html`) sind „Speichern“ und „Verwerfen“ während des Speicherns und danach `disabled` (gebunden an „speichert“ bzw. „nichts geändert“); der Fokus fällt dabei auf `body`, Tastatur- und Screenreader-Nutzer stehen danach am Seitenanfang. Hebel: den Fokus nach dem Speichern bewusst setzen (Statuszeile mit `tabindex="-1"` oder Abschnittstitel) oder die Knöpfe mit `aria-disabled` statt `disabled` führen. Einmal für alle Panels lösen.
 - **Paket U1, Review U1-f — gleiche Lücke wie #3 an anderen Schreibern:** Abschnitte mit `felder` (nur ein Ausschnitt sichtbar: `01-base/engine` auf „Betrieb“ und im Agent-Bereich, `01-base/device-config` auf „Anzeige“) und die Anrede-Tabelle (`views/anrede.component.ts`) senden beim „Trotzdem speichern“ die verborgenen Teile im geladenen Stand und drehen eine Änderung der anderen Seite zurück. Für `ohneFelder` ist das seit Review U1-f behoben (`AreaDocEditor.save` mit `vomServer`); für `felder` wäre es die Umkehrung (Serverstand plus sichtbare Pfade aus dem Entwurf). Plan §16 „Offen (U1-f)“.
 - **Paket U1, kleinere Reste** (Plan §15/§16 „Offen“):
   - Kein Studio-E2E mit gemocktem Backend; die Sichtprüfung der Seite „UI-Module“ war einmalig.
-  - `npm run module:neu` legt den Manifest-Import in `views/ui-modul-vorschau.component.spec.ts` nicht an (der Test verlangt ihn für jedes Modul).
+  - **Erledigt 13.11. (R3-g).** `npm run module:neu` legt den Manifest-Import in `views/ui-modul-vorschau.component.spec.ts` nicht an (der Test verlangt ihn für jedes Modul).
   - Vorschau-Bühne `lang="de"`: im englischen Studio stehen die englischen Bedienwörter der Module darin (bewusst, Review U1-f #5).
-  - Der Studio-Probelauf meldet keine Module (U1-d1) — die Schalter wirken dort nicht sichtbar. (Die Evaluation meldet sie seit U1-g.)
+  - **Zurückgestellt 13.11. (R3, geringer Nutzen).** Der Studio-Probelauf meldet keine Module (U1-d1) — die Schalter wirken dort nicht sichtbar. (Die Evaluation meldet sie seit U1-g.)
   - `structuredContent` für Werkzeuge ohne JSON-Text verwirft der MCP-Client weiter (U1-e, E-2); ein Seitenkanal wäre ein eigener Schritt.
   - `views/group-section.component.ts` steht jetzt bei 318 Zeilen (Review U1-f +1).
 - **Paket U1, Gesamt-Review Frontend (2026-11-03), bewusst nicht geändert**
@@ -649,7 +653,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Paket U1-g, Reste aus dem Review** (Plan §17 „Offen (U1-g)“):
   - Ein Gold-Zug kann einen Knoten im Themenbaum nur getippt öffnen (die Quittung nennt dem Agenten keine Knoten); später ein Zug-Schlüssel `aktion` für Direktaktionen.
   - Ob der Server eine Auswahlfeld-Antwort annahm, zeigt die Chat-Antwort nicht (`gesendet`); dafür bräuchte es ein neues Debug-Feld.
-  - Studio-Vergleich (`eval-compare`) und Messbedingungen nennen `ui_module`/`ui_module_wirksam` im Gruppentext nicht; die Gruppen trennen die Läufe trotzdem.
+  - **Erledigt 13.11. (R3-g).** Studio-Vergleich (`eval-compare`) und Messbedingungen nennen `ui_module`/`ui_module_wirksam` im Gruppentext nicht; die Gruppen trennen die Läufe trotzdem.
   - `services/eval/runner.py` 703 Zeilen (ALT-Abbild, über der Schwelle).
 - **„coroutine … was never awaited“ in älteren Start-Tests:** `tests/test_eval_router.py::_patch_guard_and_spawn` schließt nur die äußere Koroutine (`mit_herzschlag`), die innere `_execute_…_run` bleibt offen — im vollen Lauf 2026-11-03: `test_eval_router.py` (4 Tests), `test_eval_pg.py` (1); dazu, anderer Ursache, `test_startup_warmup.py` (2 Tests, je 4). In `test_eval_ui_module.py` behoben (Attrappe `_ohne_start`, Review U1-g #14); gleiche Abhilfe für die älteren Tests: `mit_herzschlag` mit ersetzen und die innere Koroutine schließen.
 - ~~**Paket U1 — vier Postgres-Tests veraltet**~~ erledigt 2026-11-03 ([`aenderungen/2026-11-03-paket-u1-db-tests.md`](aenderungen/2026-11-03-paket-u1-db-tests.md)): alle vier Tests veraltet, der Code entsprach dem Plan; ganze Suite mit Postgres grün (7786 bestanden, 4 übersprungen).

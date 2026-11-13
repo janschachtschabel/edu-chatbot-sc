@@ -19,7 +19,12 @@ from boerdi.domain.ui_bloecke import DEBUG_KEY, fuer_den_debug_block
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.services import arbeitsstand, probe, vorgaenge
 from boerdi.services.ablauf import ki_schritt, treiber
-from boerdi.services.db_sessions import FESTER_TEXT_KEY, save_message, update_session
+from boerdi.services.db_sessions import (
+    FESTER_TEXT_KEY,
+    an_letzte_antwort_anhaengen,
+    save_message,
+    update_session,
+)
 from boerdi.ui_module.antwort import merke_frage
 
 logger = logging.getLogger(__name__)
@@ -158,7 +163,9 @@ def doch_knopf(ablauf_id: str, lang: str) -> str:
 
 
 async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: treiber.Ausgabe,
-                   ablauf: AblaufArea) -> ChatResponse:
+                   ablauf: AblaufArea, *, anhaengen: bool = False) -> ChatResponse:
+    """Die Antwort des Laufs — gespeichert als eigene Nachricht, mit ``anhaengen`` (Paket R2-f)
+    an die eben gespeicherte Antwort desselben Zuges (das Einlösen einer Freigabe)."""
     text = antwort_text(resolve_locale(req.environment.locale), aus)
     entities = session_state.setdefault("entities", {})
     for block in aus.bloecke:
@@ -185,9 +192,11 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
     # AS-Ua (U-7, Review Befund 2): fest nur ohne eingesetzten KI-Inhalt und ohne Modul-Blöcke —
     # ein Block kann einen Entwurf der KI zeigen. Ein Etikett zu viel ist hinnehmbar.
     fest = not aus.ki_inhalt and not aus.bloecke
-    await save_message(session, req.session_id, "assistant", text,
-                       debug={**debug.model_dump(), DEBUG_KEY: fuer_den_debug_block(aus.bloecke),
-                              **({FESTER_TEXT_KEY: True} if fest else {})})
+    gespeichert = {**debug.model_dump(), DEBUG_KEY: fuer_den_debug_block(aus.bloecke),
+                   **({FESTER_TEXT_KEY: True} if fest else {})}
+    if not (anhaengen and await an_letzte_antwort_anhaengen(session, req.session_id, text,
+                                                            gespeichert)):
+        await save_message(session, req.session_id, "assistant", text, debug=gespeichert)
     # Paket A2b: hält der Lauf am ``agent``-Schritt, steht „Weiter im Ablauf“ darunter.
     knoepfe = ([ki_schritt.knopf(ablauf.id, resolve_locale(req.environment.locale))]
                if aus.lauf.get("status") == treiber.WARTET_KI else [])

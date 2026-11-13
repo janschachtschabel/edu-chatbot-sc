@@ -73,8 +73,14 @@ def _ohne_grund(cfg_an: bool, anmeldung_hilft: bool) -> str:
 
 
 def schalter() -> dict[str, bool]:
-    return {"dokument_im_chat": dokument_erlaubt(),
-            "ablage_in_wlo": load_upload_config().ablage_in_wlo and has_personal_auth()}
+    cfg = load_upload_config()
+    werte = {"dokument_im_chat": dokument_erlaubt(),
+             "ablage_in_wlo": cfg.ablage_in_wlo and has_personal_auth()}
+    if cfg.dokument_im_chat and not cfg.dokument_ohne_anmeldung and not has_personal_auth():
+        # Paket R3-b: den Hinweis schreibt die KI, bevor sie die Schalter kennt — das Modul nennt
+        # gleich darunter, dass Lesen erst nach der Anmeldung geht
+        werte["lesen_nach_anmeldung"] = True
+    return werte
 
 
 async def upload_angebot(manifest: Manifest, args: dict[str, Any], umgebung: Umgebung

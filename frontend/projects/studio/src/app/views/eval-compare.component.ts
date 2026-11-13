@@ -145,6 +145,7 @@ export class EvalCompareComponent {
         : this.t('evalCompare.skill.unknown');
     const limits = condition.agent_limits;
     const number = (v: unknown): string => (typeof v === 'number' ? this.fmt.whole(v) : '–');
+    // R3-g: die Gruppen trennten die Läufe schon nach UI-Modulen — jetzt steht es auch im Text
     return this.t('evalCompare.condition', {
       runs: this.lang.list(condition.runs),
       provider: condition.provider || '–',
@@ -156,6 +157,24 @@ export class EvalCompareComponent {
         seconds: number(limits['deadline_s']),
         tokens: number(limits['token_budget']),
       }) : '–',
+      module: this.moduleText(condition),
     });
+  }
+
+  /** Querschnitts-Review R1–R4, Befund 1: `ui_module_wirksam` ist ein Objekt (Backend
+   *  `run_conditions._wirksame_module`), keine Liste. */
+  private moduleText(condition: CompareCondition): string {
+    const gemeldet = condition.ui_module;
+    const wirksam = condition.ui_module_wirksam;
+    if (gemeldet == null && wirksam == null) return '–';
+    const liste = (namen: readonly string[]): string => namen.join(', ') || this.t('evalCompare.module.keine');
+    if (wirksam?.fehler !== undefined) {
+      return this.t('evalCompare.module.unbekannt', { module: liste(gemeldet ?? []) });
+    }
+    const module = wirksam?.module ?? gemeldet ?? [];
+    const agentAus = new Set(wirksam?.agent_aus ?? []);
+    const text = liste(module.map((n) => (agentAus.has(n) ? this.t('evalCompare.module.agentAus', { name: n }) : n)));
+    const abweichend = gemeldet != null && (gemeldet.length !== module.length || gemeldet.some((n) => !module.includes(n)));
+    return abweichend ? this.t('evalCompare.module.gemeldet', { module: text, gemeldet: liste(gemeldet) }) : text;
   }
 }

@@ -129,6 +129,16 @@ class Freitext(AreaModel):
     schreibt: str = Field(max_length=40)
 
 
+class Aufteilen(AreaModel):
+    """Paket R1 (Plan 2026-11-12, R-E13, N14): eine lange Liste im Argument ``argument`` geht in
+    Teilaufträgen zu je höchstens ``hoechstens`` Einträgen an die B-API — nacheinander, je
+    „Stand prüfen“ der nächste. Mehr als ``auftrag_teile.MAX_TEILE`` Teile werden nie gestartet;
+    die Teile werden dann größer (nichts fällt weg)."""
+
+    argument: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    hoechstens: int = Field(ge=1, le=200)
+
+
 class Schritt(AreaModel):
     id: str = Field(pattern=_ID)
     typ: Annotated[str, Choices("nachricht", "modul", "werkzeug", "verzweigung", "agent",
@@ -190,6 +200,9 @@ class Schritt(AreaModel):
     #: Kennungen ohne Punkt (sie sind ein Glied eines ``$teil``-Pfads).
     dateien_holen: Annotated[list[Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")]] | None,
                              Field(max_length=3), NurBei("typ", "auftrag")] = None
+    #: ``auftrag`` (Paket R1): die Liste eines Arguments auf mehrere Aufträge verteilen. Vorgabe
+    #: ``None`` (wegen ``treiber.fassung``); nicht zusammen mit ``dateien_holen`` (``pruefung``).
+    aufteilen: Annotated[Aufteilen | None, NurBei("typ", "auftrag")] = None
     #: Nächster Schritt (Vorgabe: der folgende) bzw. die Regeln einer Verzweigung.
     weiter: Annotated[str | list[Weiter] | None,
                       NurBei("typ", "nachricht", "modul", "werkzeug", "verzweigung", "agent",
@@ -351,7 +364,7 @@ class AblaufArea(AreaModel):
     #: Vorgabe aus: ein neuer Ablauf wirkt erst, wenn die Redaktion ihn einschaltet.
     aktiv: bool = False
     ausloeser: list[Ausloeser] = []
-    voraussetzungen: list[Annotated[str, Choices("anmeldung")]] = []
+    voraussetzungen: list[Annotated[str, Choices("anmeldung", "dokument_lesen")]] = []
     #: AS-4a: die Startdaten (höchstens 10 Felder) — Vorgabe ``None``; eine geleerte Liste zählt
     #: wie nicht gesetzt.
     start: Annotated[Annotated[list[StartFeld], Field(max_length=10)] | None,

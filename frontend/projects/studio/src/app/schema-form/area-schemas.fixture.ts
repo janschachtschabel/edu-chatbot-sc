@@ -205,6 +205,29 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "title": "AgentSchritt",
         "type": "object"
       },
+      "Aufteilen": {
+        "additionalProperties": true,
+        "description": "Paket R1 (Plan 2026-11-12, R-E13, N14): eine lange Liste im Argument ``argument`` geht in\nTeilaufträgen zu je höchstens ``hoechstens`` Einträgen an die B-API — nacheinander, je\n„Stand prüfen“ der nächste. Mehr als ``auftrag_teile.MAX_TEILE`` Teile werden nie gestartet;\ndie Teile werden dann größer (nichts fällt weg).",
+        "properties": {
+          "argument": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+            "title": "Argument",
+            "type": "string"
+          },
+          "hoechstens": {
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Hoechstens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "argument",
+          "hoechstens"
+        ],
+        "title": "Aufteilen",
+        "type": "object"
+      },
       "Ausloeser": {
         "additionalProperties": true,
         "properties": {
@@ -596,6 +619,23 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ],
             "default": null,
             "title": "Dateien Holen",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
+          },
+          "aufteilen": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Aufteilen"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
             "x-nur-bei": {
               "feld": "typ",
               "werte": [
@@ -1198,7 +1238,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "items": {
           "type": "string",
           "x-choices": [
-            "anmeldung"
+            "anmeldung",
+            "dokument_lesen"
           ]
         },
         "title": "Voraussetzungen",

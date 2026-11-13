@@ -615,6 +615,16 @@ describe('UiThemenbaum — Nachladen im Baum (U1-h)', () => {
     expect(h.zweig.mock.calls.filter(([id]) => id === 'dddd-4444').length).toBe(1);
   });
 
+  for (const status of [404, 422]) {
+    it(`R3-d: ${status} (Sitzung weg bzw. keine gültige Kennung): kein „Erneut laden“`, async () => {
+      const { f, el } = await termeAktiv();
+      await taste(f, el, 'ArrowRight');
+      await offene.at(-1)!.ablehnen(status);
+      await f.whenStable();
+      expect(knopf(el, 'Erneut laden')).toBeUndefined();
+    });
+  }
+
   it('während des Ladens löst ein zweites Aufklappen keinen zweiten Abruf aus', async () => {
     const { f, el } = await termeAktiv();
     await taste(f, el, 'ArrowRight');

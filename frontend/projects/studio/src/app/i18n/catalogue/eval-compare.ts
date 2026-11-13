@@ -95,7 +95,11 @@ export const EVAL_COMPARE: CataloguePart = {
     // ── Messbedingungen ─────────────────────────────────────────────
     'evalCompare.conditions.title': 'Messbedingungen',
     'evalCompare.condition':
-      '{runs}: {provider} · {model} · Judge {judge} · Master-Skill {skill} · Deckel {limits}',
+      '{runs}: {provider} · {model} · Judge {judge} · Master-Skill {skill} · Deckel {limits} · UI-Module {module}',
+    'evalCompare.module.keine': 'keine',
+    'evalCompare.module.agentAus': '{name} (für den Agenten aus)',
+    'evalCompare.module.unbekannt': '{module} (Wirkung unbekannt)',
+    'evalCompare.module.gemeldet': '{module} (gemeldet: {gemeldet})',
     'evalCompare.skill.on': 'an ({sha})',
     'evalCompare.skill.off': 'aus ({sha})',
     'evalCompare.skill.unknown': 'unbekannt',
@@ -179,7 +183,11 @@ export const EVAL_COMPARE: CataloguePart = {
 
     'evalCompare.conditions.title': 'Measurement conditions',
     'evalCompare.condition':
-      '{runs}: {provider} · {model} · judge {judge} · master skill {skill} · caps {limits}',
+      '{runs}: {provider} · {model} · judge {judge} · master skill {skill} · caps {limits} · UI modules {module}',
+    'evalCompare.module.keine': 'none',
+    'evalCompare.module.agentAus': '{name} (off for the agent)',
+    'evalCompare.module.unbekannt': '{module} (effect unknown)',
+    'evalCompare.module.gemeldet': '{module} (reported: {gemeldet})',
     'evalCompare.skill.on': 'on ({sha})',
     'evalCompare.skill.off': 'off ({sha})',
     'evalCompare.skill.unknown': 'unknown',

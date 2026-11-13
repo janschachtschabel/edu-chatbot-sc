@@ -52,6 +52,7 @@ from boerdi.services.db_sessions import (
     purge_all,
     save_memory,
     sitzung_entities,
+    update_session,
     zuege_mit_nummer,
 )
 from boerdi.services.db_sessions import delete_session as db_delete_session
@@ -315,7 +316,8 @@ async def get_session_messages(
         # (``intern``) liest auch alte kurze Kennungen weiter.
         return []
     verlauf = verlauf_fuer(await get_messages(session, session_id, limit, zugakte=intern), intern)
-    return mit_ablauf_stand(verlauf, await _ablauf_stand(session, session_id, request))
+    stand, unbestimmt = await _ablauf_stand(session, session_id, request)
+    return mit_ablauf_stand(verlauf, stand, unbestimmt=unbestimmt)
 
 
 #: Zweites Review, Z-6: so lange wartet der Verlauf höchstens auf die Bestätigung der Anmeldung.
@@ -323,7 +325,7 @@ _BESTAETIGUNG_S = 1.0
 
 
 async def _ablauf_stand(session: AsyncSession, session_id: str,
-                        request: Request) -> dict[str, Any] | None:
+                        request: Request) -> tuple[dict[str, Any] | None, bool]:
     """Paket AS-Ua (U-1): der aktuelle Stand des Laufs für die Leiste nach dem Neuladen — aus der
     Sitzung, ohne sie anzulegen. Wirft nie: ohne Stand zeigt das Widget nur keine Leiste.
 
@@ -331,12 +333,16 @@ async def _ablauf_stand(session: AsyncSession, session_id: str,
     AS-U/BU, Q-1): trägt der Abruf ihren Zugangsblock, wird er übernommen und bestätigt — sonst
     fehlte die Leiste nach Neuladen, „Fortsetzen“ und Wiederkehr. Ohne Block keine Bestätigung (kein
     MCP-Rundlauf für anonyme Abrufe); übernommen wird immer, damit keine Anmeldung einer früheren
-    Anfrage gilt."""
+    Anfrage gilt.
+
+    Paket R2-c: das zweite Ergebnis sagt, ob der Stand unbestimmt blieb (Bestätigung zu langsam,
+    kein Stand) — dann pingt das Widget einmal (sonst fehlte die Ankunft auf einer Seite)."""
+    unbestimmt = False
     try:
         entities = await sitzung_entities(session, session_id) or {}
         # Review PR #51 (R2): ohne Verweis keine Leiste — dann auch kein Warten auf die Bestätigung
         if arbeitsstand.VERWEIS not in entities:
-            return None
+            return None, False
         adopt_turn_auth_block(request)
         if request.headers.get(ACCESS_BLOCK_HEADER):
             await verbindung_freigeben(session)   # die Bestätigung kann ein MCP-Rundlauf sein
@@ -346,7 +352,17 @@ async def _ablauf_stand(session: AsyncSession, session_id: str,
                 await asyncio.wait_for(bestaetige_anmeldung(), timeout=_BESTAETIGUNG_S)
             except TimeoutError:
                 logger.info("Ablauf-Stand im Verlauf: Anmeldung nicht rechtzeitig bestätigt")
+                unbestimmt = True
         aufrufer = arbeitsstand.aufrufer_fuer(session_id, entities)
+        # Review R2, Befund 6: gleich nach der Anmeldung lädt das Widget den Verlauf — ohne die
+        # Übernahme (sonst erst im nächsten Zug) verschwände die Leiste eines anonym begonnenen
+        # Laufs. Ein Lesepfad mit Schreibwirkung wie TB-E1 (Dokument der Sitzung).
+        if await arbeitsstand.anonymen_uebernehmen(session, session_id, entities, aufrufer):
+            # Querschnitts-Review R1–R4, Befund 4: frisch lesen und nur den Verweis setzen — ein
+            # gleichzeitiger Zug (zweiter Tab) behält so seine übrigen Schlüssel
+            frisch = await sitzung_entities(session, session_id) or {}
+            frisch[arbeitsstand.VERWEIS] = entities[arbeitsstand.VERWEIS]
+            await update_session(session, session_id, entities=frisch)
         # Zweites Review, Z-5: der Verweis der Sitzung kann veraltet sein (in einem anderen Tab
         # gelöscht oder beendet) — einmal nachfragen statt eine tote Leiste zu zeigen. Kein
         # ``auffrischen``: das übernähme den jüngsten Vorgang (das macht erst der nächste Zug).
@@ -354,9 +370,10 @@ async def _ablauf_stand(session: AsyncSession, session_id: str,
         if vw is not None:
             v = await vorgaenge.lesen(session, str(vw.get("id") or ""), aufrufer)
             if v is None or v.status in vorgaenge.ABGESCHLOSSEN:
-                return None
-        return fortschritt.stand(entities, aufrufer,
-                                 resolve_locale(request.headers.get("accept-language")))
+                return None, False
+        stand = fortschritt.stand(entities, aufrufer,
+                                  resolve_locale(request.headers.get("accept-language")))
+        return stand, unbestimmt and stand is None
     except Exception as fehler:  # noqa: BLE001 — eine Anzeige, nie ein Fehler des Verlaufs
         logger.warning("Ablauf-Stand im Verlauf nicht bestimmbar (%s)", type(fehler).__name__)
-        return None
+        return None, False

@@ -52,6 +52,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Collection
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,6 +72,7 @@ from boerdi.domain.inline_rendering import _build_inline_document
 from boerdi.domain.quick_reply_policy import _qr_default_count, _qr_policy
 from boerdi.domain.url_helpers import _extract_web_links_from_text
 from boerdi.i18n import Locale, bot_text, resolve_locale
+from boerdi.services.agent_tools import angebotene_mcp_werkzeuge
 from boerdi.services.config_loader import load_context_actions, load_display_rules_config
 from boerdi.services.db_sessions import save_message, update_session
 from boerdi.services.fehlertext import ausgelastet_text
@@ -124,7 +126,7 @@ def _direct_action_safety_text(req: ChatRequest) -> str:
 # ── Action: Browse collection contents ────────────────────────────
 async def _handle_browse_collection(
     session: AsyncSession, req: ChatRequest, session_state: dict,
-    usage_acc: dict[str, Any] | None = None,
+    usage_acc: dict[str, Any] | None = None, *, blocked_tools: Collection[str] = (),
 ) -> ChatResponse:
     """Directly call ``get_collection_contents`` and page its items into the canvas.
 
@@ -142,6 +144,16 @@ async def _handle_browse_collection(
             session_id=req.session_id,
             content=bot_text(lang, "action.missingCollectionId"),
         )
+
+    # Paket R3-a (Plan U1 §15 „Offen (U1-e)“): das Werkzeug läuft nur, wenn ein Zug es angeboten
+    # bekäme — Studio-Schalter, Sperren dieses Zugs, Modus der Einbettung (wie der Themenbaum)
+    if "get_collection_contents" not in angebotene_mcp_werkzeuge(
+            allow_curation=False, blocked_tools=list(blocked_tools),
+            tool_mode=req.environment.tool_mode):
+        logger.info("browse_collection: Werkzeug in diesem Zug nicht angeboten")
+        text = bot_text(lang, "action.browse.unavailable", title=title)
+        await save_message(session, req.session_id, "assistant", text)
+        return ChatResponse(session_id=req.session_id, content=text)
 
     tools_called = ["get_collection_contents"]
     pagination = None

@@ -112,6 +112,17 @@ describe('ui_strukturabgleich', () => {
     expect([...ohne.querySelectorAll('summary')].map((x) => x.textContent)).toEqual(['Nur in WLO (2)']);
   });
 
+  it('R3-c: eine Lücke der Ebene 2 nennt ihren Punkt', () => {
+    const mit = manifest.beispiele[1].daten as Record<string, unknown>;
+    const zeilen = [
+      { id: 'a', titel: 'Optik', ebene: 1, art: 'neu', abdeckung: { total: 90, luecke: false } },
+      { id: 'b', titel: 'Linsen', ebene: 2, art: 'neu', abdeckung: { total: 0, luecke: true } },
+    ];
+    const { wurzel } = erzeuge({ ...mit, zeilen, abdeckung: { gezaehlt: 2, luecken: 1 } });
+    const abschnitt = [...wurzel.querySelectorAll('details')].find((d) => d.querySelector('summary')?.textContent === 'Lücken (1)');
+    expect(abschnitt?.querySelector('.a__name')?.textContent).toBe('Optik › Linsen');
+  });
+
   it('U5: Filter unbekannt und keine Lücken', () => {
     const mit = manifest.beispiele[1].daten as Record<string, unknown>;
     const { wurzel } = erzeuge({ ...mit, abdeckung: { gezaehlt: 0, luecken: 0, filter_unaufgeloest: true } });
