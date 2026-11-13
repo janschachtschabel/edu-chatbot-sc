@@ -11,7 +11,7 @@
  *   Warten wie vor „Ergebnis abholen“ wird **erst neu gefragt** (`nachpruefen`, Review K1b, Befund 1): der
  *   Zug dazwischen kann den Auftrag schon abgeholt haben (Knopf „Stand prüfen“, zweiter Tab) — dann
  *   antwortet das Backend 409 statt eines zweiten Abholens.
- * - Fehler nach Status: 409/404/400/422 → abgeschlossen (kein wartender Auftrag mehr — etwa ein alter
+ * - Fehler nach Status (403 mit `code` `abgewiesen` → eigener Halt, R1-e): 409/404/400/422 → abgeschlossen (kein wartender Auftrag mehr — etwa ein alter
  *   Block im Verlauf); 401/403 → Halt; AbortError → still Schluss; alles andere → Störung, weiter.
  * - `trennen()` (Element entfernt) beendet alles; eine späte Antwort ändert nichts (Lauf-Nummer).
  * - `abbrechen()` (K2b) schickt „Auftrag abbrechen“ als Zug; das Backend fragt erst nach. Das Nachfragen
@@ -22,7 +22,7 @@ import type { ElementHost } from '../_nachladen/element-vertrag';
 export const ABSTAENDE_MS: readonly number[] = [5_000, 10_000, 20_000, 30_000, 60_000];
 export const AUTOMATISCH_MS = 30 * 60_000;
 
-export type Phase = 'wartet' | 'prueft' | 'fertig' | 'abgeholt' | 'abgeschlossen' | 'halt' | 'manuell';
+export type Phase = 'wartet' | 'prueft' | 'fertig' | 'abgeholt' | 'abgeschlossen' | 'halt' | 'abgewiesen' | 'manuell';
 
 export interface FortschrittDaten {
   readonly ablauf: string;
@@ -192,6 +192,9 @@ export class FortschrittAblauf {
     const status = (fehler as { status?: unknown } | null)?.status;
     if (typeof status === 'number' && ENDGUELTIG.has(status)) {
       this.phase = 'abgeschlossen';
+    } else if (status === 403 && (fehler as { code?: unknown }).code === 'abgewiesen') {
+      // R1-e: die B-API weist den Schlüssel ab — „nur angemeldet“ wäre hier falsch
+      this.phase = 'abgewiesen';
     } else if (status === 401 || status === 403) {
       this.phase = 'halt';
     } else {

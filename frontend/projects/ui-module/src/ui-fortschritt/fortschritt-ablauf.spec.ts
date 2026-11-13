@@ -112,6 +112,15 @@ describe('FortschrittAblauf', () => {
     expect(auftrag).toHaveBeenCalledTimes(1);
   });
 
+  it('R1-e: 403 `abgewiesen` (die B-API weist den Schlüssel ab) → eigener Halt', async () => {
+    const { ablauf, auftrag } = lage([Object.assign(fehler(403), { code: 'abgewiesen' })]);
+    ablauf.verbinden();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(ablauf.phase).toBe('abgewiesen');
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(auftrag).toHaveBeenCalledTimes(1);
+  });
+
   it('503 oder Netz → Störung, weiter mit dem nächsten Abstand', async () => {
     const { ablauf, auftrag } = lage([fehler(503), new Error('netz')]);
     ablauf.verbinden();

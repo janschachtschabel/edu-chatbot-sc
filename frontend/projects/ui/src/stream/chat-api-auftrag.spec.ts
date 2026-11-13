@@ -32,6 +32,14 @@ describe('ChatApiClient.auftragStand', () => {
     await expect(api.auftragStand('bb-1', 'lesen', '0123456789ab')).rejects.toMatchObject({ status: 409 });
   });
 
+  it('R1-e: der Fehler trägt auch den Grund aus `detail` (`code`)', async () => {
+    const api = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: false, status: 403, json: { detail: 'abgewiesen' } }) });
+    await expect(api.auftragStand('bb-1', 'lesen', '0123456789ab')).rejects.toMatchObject({ status: 403, code: 'abgewiesen' });
+    const ohne = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: false, status: 403, json: { detail: { x: 1 } } }) });
+    const fehler = await ohne.auftragStand('bb-1', 'lesen', '0123456789ab').catch((e: unknown) => e);
+    expect((fehler as { code?: unknown }).code).toBeUndefined();
+  });
+
   it('ein unbekannter Stand ist ein Fehler, kein „fertig“', async () => {
     const api = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: true, status: 200, json: { stand: 'irgendwas' } }) });
     await expect(api.auftragStand('bb-1', 'lesen', '0123456789ab')).rejects.toThrow();

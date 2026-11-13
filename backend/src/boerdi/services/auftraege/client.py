@@ -18,9 +18,10 @@ Regeln dieses Clients:
 - **Schlüssel des Zuges** (``llm_auth.b_api_schluessel``) — nie gespeichert, nie geloggt. Deshalb
   fragt nur ein Zug der Person ab, kein Hintergrund-Wächter. Dass es der **durchgereichte**
   Schlüssel der Person ist (nicht ``B_API_KEY`` aller), prüft ``auftrag_zug`` (Review K1a, 1).
-- **``X-Edu-User-Id`` beim Start** (Plan 2026-11-10, TB-F1, Nutzer-Entscheid N13): der
-  Benutzername der bestätigten Person (``auth.benutzername``) — der Job arbeitet im Repositorium mit
-  ihren Rechten (B-API-Leitfaden §9.1, Weg A). Ohne bestätigte Anmeldung fehlt der Kopf.
+- **``X-Edu-User-Id``** (Plan 2026-11-10, TB-F1, Nutzer-Entscheid N13): der Benutzername der
+  bestätigten Person (``auth.benutzername``) — der Job arbeitet im Repositorium mit ihren Rechten
+  (B-API-Leitfaden §9.1, Weg A). Seit Paket R1 (R-E12) auch bei Abfrage, Abbruch und Datei:
+  derselbe Job, dieselbe Identität. Ohne bestätigte Anmeldung fehlt der Kopf.
 - **Schreibende Flows** sind erlaubt (N15); der Schritt trägt dann den Vermerk ``repo_schreibt``.
 - **Dateien** nur als Name und Größe: die Adresse kann ein Token tragen. Paket K2d-2: dazu die
   Kennung (``outputId``); geholt wird über eine Adresse, die der Client aus Job-ID und Kennung
@@ -189,6 +190,13 @@ def _wurzel() -> str:
     return basis
 
 
+def _person() -> dict[str, str]:
+    """``X-Edu-User-Id`` der bestätigten Person — nie geloggt; ohne Anmeldung leer."""
+    from boerdi.services.mcp import auth
+
+    return {"X-Edu-User-Id": name} if (name := auth.benutzername()) else {}
+
+
 def _koepfe() -> dict[str, str]:
     koepfe = dict(ausgehende_koepfe())
     if schluessel := b_api_schluessel():
@@ -243,11 +251,8 @@ async def starten(flow: str, eingaben: dict[str, Any]) -> str:
     if not erlaubt(flow):
         raise AuftragFehler("nicht_erlaubt")
     pfad = (_start_pfad() or "").replace("{flow}", flow)
-    from boerdi.services.mcp import auth
-
-    # TB-F1: im Namen der angemeldeten Person (Weg A) — nur beim Start, nie geloggt
-    person = {"X-Edu-User-Id": name} if (name := auth.benutzername()) else {}
-    daten = _pruefe_antwort(await _anfrage("POST", pfad, json=eingaben, extra_koepfe=person))
+    # TB-F1: im Namen der angemeldeten Person (Weg A), nie geloggt
+    daten = _pruefe_antwort(await _anfrage("POST", pfad, json=eingaben, extra_koepfe=_person()))
     job = next((daten[k] for k in ("jobId", "job_id", "id") if isinstance(daten.get(k), str)), "")
     if not _ID.fullmatch(job):
         logger.warning("Auftrag: Start ohne brauchbare Job-ID")
@@ -290,7 +295,8 @@ async def stand(job_id: str) -> Stand:
         raise AuftragFehler("unbekannt")
     if (vorlage := _vorlage(get_settings().b_api_jobs_status_path)) is None:
         raise AuftragFehler("aus")
-    daten = _pruefe_antwort(await _anfrage("GET", vorlage.replace("{job_id}", job_id)))
+    daten = _pruefe_antwort(await _anfrage("GET", vorlage.replace("{job_id}", job_id),
+                                           extra_koepfe=_person()))
     roh = str(daten.get("status") or "").upper()
     if roh in _LAEUFT:
         return Stand("laeuft")
@@ -320,7 +326,8 @@ async def abbrechen(job_id: str) -> str:
         raise AuftragFehler("unbekannt")
     if (vorlage := _vorlage(get_settings().b_api_jobs_status_path)) is None:
         raise AuftragFehler("aus")
-    antwort = await _anfrage("DELETE", vorlage.replace("{job_id}", job_id))
+    antwort = await _anfrage("DELETE", vorlage.replace("{job_id}", job_id),
+                             extra_koepfe=_person())
     if antwort.status_code in (200, 202, 204):
         logger.info("Auftrag bei der b-api abgebrochen")
         return "abgebrochen"
@@ -345,7 +352,8 @@ async def datei(job_id: str, kennung: str, max_bytes: int) -> bytes:
     try:
         async with httpx.AsyncClient(timeout=_FRIST, transport=_transport) as http:
             async with http.stream("GET", _wurzel() + pfad,
-                                   headers={**_koepfe(), "Accept-Encoding": "identity"},
+                                   headers={**_koepfe(), **_person(),
+                                            "Accept-Encoding": "identity"},
                                    follow_redirects=False) as antwort:
                 if antwort.status_code == 404:
                     raise AuftragFehler("unbekannt")

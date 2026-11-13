@@ -35,7 +35,14 @@ from boerdi.domain import seiten_muster
 from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
 from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 from boerdi.services import teil_verweise
-from boerdi.services.ablauf import platzhalter, startdaten, typen, vergleich, werkzeuge
+from boerdi.services.ablauf import (
+    auftrag_teile,
+    platzhalter,
+    startdaten,
+    typen,
+    vergleich,
+    werkzeuge,
+)
 from boerdi.services.ablauf.pruefung import (
     RECHENSCHRITTE,
     mit_wahl,
@@ -45,6 +52,7 @@ from boerdi.services.ablauf.pruefung import (
 )
 from boerdi.services.ablauf.treiber_bloecke import fortschritt as _fortschritt
 from boerdi.services.ablauf.treiber_bloecke import modul_block as _modul_block
+from boerdi.services.arbeitsstand_teile import Teil  # R2-h: eine Definition
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +76,6 @@ WARTEND: Final = (WARTET, WARTET_KI, WARTET_AUFTRAG, WARTET_FREIGABE, WARTET_WAH
 #: AS-3a: so lang wird ein getippter Freitext höchstens als Teil gemerkt.
 FREITEXT_ZEICHEN: Final = 2000
 
-Teil = tuple[str, str, Any, str]
 
 
 @dataclass(frozen=True)
@@ -350,10 +357,14 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                 teile.neu[s.schreibt] = wert
                 aus.neue_teile.append((s.schreibt, typ, wert, _zusammenfassung(wert)))
         elif s.typ == "auftrag":
-            args, fehlt = await teil_verweise.einsetzen(dict(s.argumente or {}), teile)
-            fehlt = fehlt or _leere_auswahl(s.argumente, args)
+            args, stuecke, fehlt = await _auftrag_stuecke(s, teile, umgebung.sprache)
+            stapel = None
+            if len(stuecke) > 1 and (
+                    stapel := auftrag_teile.neuer_stapel(args, len(stuecke))) is None:
+                logger.warning("Auftrag: Argumente zu groß zum Aufteilen — Schritt scheitert")
+                fehlt = True
             job = (None if fehlt or umgebung.auftrag_starten is None
-                   else await umgebung.auftrag_starten(s.flow or "", args))
+                   else await umgebung.auftrag_starten(s.flow or "", stuecke[0]))
             if job is None:
                 fehler = True
             else:
@@ -361,10 +372,18 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                 if text := _text(s, umgebung.sprache):
                     text = await _einsetzen(aus, text, teile, lauf)
                     aus.texte.append(text)
+                if stapel is not None:
+                    # Review R1, NIT 8: dass es mehrere Teile werden, steht gleich am Anfang
+                    aus.texte.append(_teil_text(umgebung.sprache, "action.ablauf.auftragTeile",
+                                                n=stapel["n"]))
                 aus.auftrag = {"flow": s.flow or "", "job_id": job, "schritt": s.id}
                 if (block := _fortschritt(ablauf.id, job, text, umgebung.sprache)) is not None:
                     aus.bloecke.append(block)
                 lauf["status"] = WARTET_AUFTRAG
+                # Paket R1: mehrere Teile — der Stapel zählt, „Stand prüfen“ startet den nächsten
+                lauf.pop(auftrag_teile.STAPEL, None)
+                if stapel is not None:
+                    lauf[auftrag_teile.STAPEL] = stapel
                 return aus
         elif s.typ == "verzweigung":
             naechster = await _waehle(s, teile, list(lauf.get("gewaehlt") or []),
@@ -638,6 +657,51 @@ async def weiter_ki(ablauf: AblaufArea, lauf: dict[str, Any], umgebung: Umgebung
     return await _rechne(ablauf, neu, index[ziel], umgebung)
 
 
+async def _auftrag_stuecke(s: Schritt, teile: Any, sprache: str
+                           ) -> tuple[dict[str, Any], list[dict[str, Any]], bool]:
+    """Die eingesetzten Argumente, die Argumente je (Teil-)Auftrag und ob etwas fehlt (Paket R1:
+    Sprache der Person, ``aufteilen``)."""
+    args, fehlt = await teil_verweise.einsetzen(dict(s.argumente or {}), teile)
+    args = auftrag_teile.sprache_einsetzen(args, sprache)
+    fehlt_etwas = bool(fehlt) or _leere_auswahl(s.argumente, args)
+    if s.aufteilen is None:
+        return args, [args], fehlt_etwas
+    return (args, auftrag_teile.teilen(args, s.aufteilen.argument, s.aufteilen.hoechstens),
+            fehlt_etwas)
+
+
+def _teil_text(sprache: str, schluessel: str, **werte: Any) -> str:
+    from boerdi.i18n import bot_text  # nur für Teilaufträge gebraucht
+
+    return bot_text(sprache, schluessel, **werte)
+
+
+async def _naechster_teil(ablauf: AblaufArea, s: Schritt, lauf: dict[str, Any],
+                          stapel: dict[str, Any], umgebung: Umgebung, *,
+                          gescheitert: bool) -> Ausgabe | None:
+    """Paket R1: den nächsten Teilauftrag starten — aus den beim ersten Teil eingefrorenen
+    Argumenten (Review R1, Befund 1). ``None``, wenn keiner mehr kommt oder der Start scheitert
+    (dann zählen die übrigen als gescheitert, ``stapel["offen"]``)."""
+    naechster = stapel["i"] + 1
+    if naechster >= stapel["n"] or s.aufteilen is None:
+        return None
+    args = auftrag_teile.stueck(stapel, s.aufteilen.argument, s.aufteilen.hoechstens, naechster)
+    job = (None if args is None or umgebung.auftrag_starten is None
+           else await umgebung.auftrag_starten(s.flow or "", args))
+    if job is None:
+        stapel["offen"] = stapel["n"] - naechster
+        return None
+    text = _teil_text(umgebung.sprache, "action.ablauf.auftragTeilGescheitert" if gescheitert
+                      else "action.ablauf.auftragTeil", fertig=naechster, n=stapel["n"],
+                      naechster=naechster + 1)
+    neu = {**lauf, "status": WARTET_AUFTRAG, auftrag_teile.STAPEL: {**stapel, "i": naechster}}
+    aus = Ausgabe(lauf=neu, texte=[text],
+                  auftrag={"flow": s.flow or "", "job_id": job, "schritt": s.id})
+    if (block := _fortschritt(ablauf.id, job, text, umgebung.sprache)) is not None:
+        aus.bloecke.append(block)
+    return aus
+
+
 async def weiter_auftrag(ablauf: AblaufArea, lauf: dict[str, Any], ergebnis: dict[str, Any] | None,
                          umgebung: Umgebung) -> Ausgabe | None:
     """Paket K1a: der Auftrag des wartenden ``auftrag``-Schritts ist fertig (``ergebnis``) oder
@@ -650,7 +714,15 @@ async def weiter_auftrag(ablauf: AblaufArea, lauf: dict[str, Any], ergebnis: dic
     if i is None or ablauf.schritte[i].typ != "auftrag":
         return None
     s = ablauf.schritte[i]
+    if auftrag_teile.ist_stapel(stapel := lauf.get(auftrag_teile.STAPEL)):
+        stapel = auftrag_teile.mit_ergebnis(stapel, ergebnis)
+        if (weiter := await _naechster_teil(ablauf, s, lauf, stapel, umgebung,
+                                            gescheitert=ergebnis is None)) is not None:
+            return weiter
+        ergebnis = auftrag_teile.zusammenfuehren(
+            stapel, nicht_gestartet=int(stapel.get("offen") or 0))
     neu = {**lauf, "status": "laeuft"}
+    neu.pop(auftrag_teile.STAPEL, None)
     teil: Teil | None = None
     if ergebnis is None:
         if not s.bei_fehler:

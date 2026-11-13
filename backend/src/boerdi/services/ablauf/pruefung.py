@@ -27,7 +27,14 @@ from urllib.parse import urlsplit
 from boerdi.domain import seiten_muster
 from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
 from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
-from boerdi.services.ablauf import platzhalter, startdaten, typen, vergleich, werkzeuge
+from boerdi.services.ablauf import (
+    auftrag_teile,
+    platzhalter,
+    startdaten,
+    typen,
+    vergleich,
+    werkzeuge,
+)
 from boerdi.services.ablauf.pruefung_texte import t as _t
 from boerdi.services.teil_verweise import (
     NAME,
@@ -43,7 +50,8 @@ from boerdi.ui_module import katalog
 MAX_SCHRITTE: Final = 40
 #: So viele Schritte rechnet der Treiber höchstens je Zug, bis ein Schritt wartet oder endet.
 RECHENSCHRITTE: Final = 25
-VORAUSSETZUNGEN: Final = frozenset({"anmeldung"})
+#: Paket R2-b: ``dokument_lesen`` — das Studio-Recht „Dokument im Chat“ für diese Person.
+VORAUSSETZUNGEN: Final = frozenset({"anmeldung", "dokument_lesen"})
 MAX_WENDUNGEN: Final = 10
 MAX_AGENT_WERKZEUGE: Final = 10
 MAX_AGENT_ZUEGE: Final = 20
@@ -231,6 +239,8 @@ def _schritt(s: Schritt, module: dict[str, Any], lang: str,
         b.append(_t(lang, "dateien_holen", s=s.id))
     if s.typ != "werkzeug" and s.freigabe is not None:
         b.append(_t(lang, "freigabe_typ", s=s.id))
+    if _sprache_falsch(s):
+        b.append(_t(lang, "sprache_ort", s=s.id))
     if s.typ in ("werkzeug", "auftrag") and (fest := sorted(
             set(s.argumente or {}) & SCHLUESSEL_FELDER)):
         # Paket S (Review S1, Befund 1): ein fest eingetragener Schlüssel schriebe ohne Vorschau —
@@ -639,7 +649,32 @@ def _auftrag(s: Schritt, lang: str) -> list[str]:
     # „nicht freigeschaltet“ prüft ``pruefe`` nur bei eingeschalteten Abläufen (TB-F1)
     if not s.schreibt:
         b.append(_t(lang, "auftrag_schreibt", s=s.id))
+    if s.aufteilen is not None:
+        if s.aufteilen.argument not in (s.argumente or {}):
+            b.append(_t(lang, "aufteilen_argument", s=s.id, a=s.aufteilen.argument))
+        if s.dateien_holen:
+            b.append(_t(lang, "aufteilen_dateien", s=s.id))
+        wert = (s.argumente or {}).get(s.aufteilen.argument)
+        if wert is not None and not (isinstance(wert, list)
+                                     or verweis(wert) is not None):
+            # Review R1, NIT 10: ein fester Wert teilt nie — still ein einziger Auftrag
+            b.append(_t(lang, "aufteilen_liste", s=s.id, a=s.aufteilen.argument))
     return b
+
+
+def _sprache_falsch(s: Schritt) -> bool:
+    """Review R1, Befund 5: ``{"$sprache": true}`` wirkt nur auf oberster Ebene der Argumente eines
+    ``auftrag`` — anderswo ginge das Objekt still als Wert hinaus."""
+    def tief(wert: Any, ebene: int) -> bool:
+        if isinstance(wert, dict):
+            if auftrag_teile.SPRACHE in wert:
+                return ebene > 0 or s.typ != "auftrag" or not auftrag_teile.ist_sprache(wert)
+            return any(tief(v, ebene + 1) for v in wert.values())
+        if isinstance(wert, list):
+            return any(tief(v, ebene + 1) for v in wert)
+        return False
+
+    return any(tief(v, 0) for v in (s.argumente or {}).values())
 
 
 def agent_werkzeug(name: str, module: dict[str, Any]) -> bool:

@@ -24,8 +24,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AblaufArea.ausloeser.label': 'Auslöser',
     'feld.AblaufArea.ausloeser.hint': 'Womit der Ablauf startet: Knopf, Vorschlag der KI, Wendung, Modul-Antwort, Gastseite (mit Startdaten) oder Seite (Angebot unter der Begrüßung).',
     'feld.AblaufArea.voraussetzungen.label': 'Voraussetzungen',
-    'feld.AblaufArea.voraussetzungen.hint': 'Anmeldung: nur für angemeldete WLO-Personen.',
+    'feld.AblaufArea.voraussetzungen.hint': 'Anmeldung: nur für angemeldete WLO-Personen. Dokument im Chat: nur, wenn „Datei-Upload“ das Lesen erlaubt (ist es dort nur für Angemeldete, braucht es auch die Anmeldung).',
     'feld.AblaufArea.voraussetzungen.wahl.anmeldung': 'WLO-Anmeldung',
+    'feld.AblaufArea.voraussetzungen.wahl.dokument_lesen': 'Dokument im Chat (Datei-Upload)',
     'feld.AblaufArea.schritte.label': 'Schritte',
     'feld.AblaufArea.schritte.hint': '1 bis 40 Schritte, der Reihe nach, wenn kein „weiter“ etwas anderes sagt.',
     'feld.Ausloeser.art.label': 'Art',
@@ -131,7 +132,7 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.werkzeug.label': 'Werkzeug',
     'feld.Schritt.werkzeug.hint': 'Ein Dienst (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen) oder ein WLO-Werkzeug — ein schreibendes nur mit Freigabe.',
     'feld.Schritt.argumente.label': 'Argumente',
-    'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} setzt einen Teil des Vorgangs ein. Eine Auswahl filtert eine Liste und zieht ein Feld heraus: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}.',
+    'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} setzt einen Teil des Vorgangs ein. Eine Auswahl filtert eine Liste und zieht ein Feld heraus: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}. {"$sprache": true} (nur am Auftrag, oberste Ebene) wird die Sprache der Person (de/en).',
     'feld.Schritt.schreibt.label': 'Ergebnis als Teil',
     'feld.Schritt.schreibt.hint':
       'Name des Teils, unter dem das Ergebnis gespeichert wird. An einer Nachricht mit Schnellantworten: das Label der gewählten Antwort.',
@@ -150,6 +151,14 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.dateien_holen.hint':
       'Bis zu drei Dateien des Ergebnisses (ihre outputId), die beim Abholen geholt und wie ein Upload '
       + 'geprüft werden. Ihr Text steht im Teil unter texte.<outputId> — etwa volltext.texte.report.',
+    'feld.Schritt.aufteilen.label': 'Aufteilen',
+    'feld.Schritt.aufteilen.hint':
+      'Eine lange Liste in Teilaufträgen schicken (nacheinander, je „Stand prüfen“ der nächste, '
+      + 'höchstens 20 Teile). Nicht zusammen mit „Dateien holen“.',
+    'feld.Aufteilen.argument.label': 'Argument mit der Liste',
+    'feld.Aufteilen.argument.hint': 'Der Name unter „Argumente“, etwa node_ids.',
+    'feld.Aufteilen.hoechstens.label': 'Höchstens je Auftrag',
+    'feld.Aufteilen.hoechstens.hint': 'Einträge je Teilauftrag (1 bis 200).',
     'feld.Schritt.weiter.label': 'Weiter',
     'feld.Schritt.weiter.hint': 'Nächster Schritt — oder bei einer Verzweigung Regeln (gewählt ist, Teil vorhanden, Wert vergleichen → Ziel, zuletzt sonst).',
     'feld.Schritt.optionen.label': 'Schnellantworten',
@@ -250,8 +259,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AblaufArea.ausloeser.label': 'Triggers',
     'feld.AblaufArea.ausloeser.hint': 'What starts the workflow: button, AI suggestion, phrase, module answer or host page (with start data) or page (offer below the greeting).',
     'feld.AblaufArea.voraussetzungen.label': 'Requirements',
-    'feld.AblaufArea.voraussetzungen.hint': 'Sign-in: only for people signed in to WLO.',
+    'feld.AblaufArea.voraussetzungen.hint': 'Sign-in: only for people signed in to WLO. Document in chat: only if “File upload” allows reading (if only for signed-in people there, sign-in is needed too).',
     'feld.AblaufArea.voraussetzungen.wahl.anmeldung': 'WLO sign-in',
+    'feld.AblaufArea.voraussetzungen.wahl.dokument_lesen': 'Document in chat (file upload)',
     'feld.AblaufArea.schritte.label': 'Steps',
     'feld.AblaufArea.schritte.hint': '1 to 40 steps, in order unless “next” says otherwise.',
     'feld.Ausloeser.art.label': 'Kind',
@@ -356,7 +366,7 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.werkzeug.label': 'Tool',
     'feld.Schritt.werkzeug.hint': 'A service (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen) or a WLO tool — a writing one only with approval.',
     'feld.Schritt.argumente.label': 'Arguments',
-    'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} inserts a part of the work item. A selection filters a list and extracts a field: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}.',
+    'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} inserts a part of the work item. A selection filters a list and extracts a field: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}. {"$sprache": true} (auftrag only, top level) becomes the language of the person (de/en).',
     'feld.Schritt.schreibt.label': 'Result as part',
     'feld.Schritt.schreibt.hint':
       'Name of the part the result is stored under. On a message with quick replies: the label of the chosen reply.',
@@ -375,6 +385,14 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.dateien_holen.hint':
       'Up to three files of the result (their outputId), fetched on pick-up and checked like an upload. '
       + 'Their text is in the part under texte.<outputId> — e.g. volltext.texte.report.',
+    'feld.Schritt.aufteilen.label': 'Split',
+    'feld.Schritt.aufteilen.hint':
+      'Send a long list in partial jobs (one after another, the next on each “Check status”, '
+      + 'at most 20 parts). Not together with “Fetch files”.',
+    'feld.Aufteilen.argument.label': 'Argument holding the list',
+    'feld.Aufteilen.argument.hint': 'The name under “Arguments”, e.g. node_ids.',
+    'feld.Aufteilen.hoechstens.label': 'At most per job',
+    'feld.Aufteilen.hoechstens.hint': 'Entries per partial job (1 to 200).',
     'feld.Schritt.weiter.label': 'Next',
     'feld.Schritt.weiter.hint': 'Next step — or for a branch, rules (chosen is, part exists, compare value → target, otherwise last).',
     'feld.Schritt.optionen.label': 'Quick replies',

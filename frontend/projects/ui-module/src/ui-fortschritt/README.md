@@ -21,7 +21,7 @@ weiter darunter (ohne JavaScript, Modul aus, Bündel nicht ladbar).
   `ablauf_auftrag_abbrechen` als Zug ohne Nutzerblase; das Backend fragt erst nach („Ja, abbrechen“). Das
   Nachfragen läuft weiter: nach dem bestätigten Abbruch antwortet der Stand mit 409 → „abgeschlossen“.
 - **Fehler nach Status**: 409/404/400/422 → „abgeschlossen“ (etwa ein alter Block im Verlauf);
-  401/403 → Hinweis auf die Anmeldung; sonst (503, Netz) → Hinweis und weiter mit dem nächsten Abstand.
+  401/403 → Hinweis auf die Anmeldung, 403 `abgewiesen` (die B-API weist den Schlüssel ab, R1-e) → eigener Satz; sonst (503, Netz) → Hinweis und weiter mit dem nächsten Abstand.
 - **Darstellung** (`fortschritt-stil.ts`, `fortschritt-texte.ts`): Gerüst einmal gebaut, `zeichne()` setzt
   nur Texte und `hidden` — der Fokus bleibt stehen; verschwindet ein fokussierter Knopf, geht er auf den
   Rahmen. „Jetzt prüfen“ ist während einer Frage `aria-disabled` (nicht `disabled`, sonst fiele der Fokus
