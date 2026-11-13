@@ -3,11 +3,11 @@ chat_topic_pages.py CHARACTERIZATION tests (test_chat_topic_pages.py).
 
 Pins the IST-behaviour of the two pure helpers ``_is_empty_topic_pages_response``
 + ``_filter_topic_pages_by_title`` (offline, run for real), the async
-``_topic_pages_with_warmup`` (MCP warmup → primary call → global-list fallback)
+``_topic_pages_with_fallback`` (primary call → global-list fallback)
 and — R6-wired (2026-07-24) — the M16 view resolver
 ``_resolve_m16_topic_page_view`` (M16-only Themenseiten-content → swimlane boxes).
 
-Boundaries for the warmup: ``boerdi.services.mcp.client.call_mcp_tool`` (lazy-
+Boundaries for the fallback search: ``boerdi.services.mcp.client.call_mcp_tool`` (lazy-
 imported inside the function → patched at the source module); the two pure
 helpers run for real. For the M16 resolver: ``call_mcp_tool`` is a top-import →
 patched on THIS module; ``parse_wlo_cards``/``parse_topic_page_swimlanes`` stay
@@ -26,7 +26,7 @@ from boerdi.services.topic_pages import (
     _filter_topic_pages_by_title,
     _is_empty_topic_pages_response,
     _resolve_m16_topic_page_view,
-    _topic_pages_with_warmup,
+    _topic_pages_with_fallback,
 )
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -180,33 +180,27 @@ class TestFilterTopicPagesByTitle:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# _topic_pages_with_warmup
-# Warmup (verworfen) → Primary-Call; bei 0 Treffern Global-List-Fallback:
-# erst Titel-Filter, sonst bis zu 5 globale TPs, sonst Primary. Einzige
-# Boundary = call_mcp_tool; die reinen Helfer laufen echt.
+# _topic_pages_with_fallback
+# Primary-Call; bei 0 Treffern Global-List-Fallback: erst Titel-Filter, sonst
+# bis zu 5 globale TPs, sonst Primary. Einzige Boundary = call_mcp_tool; die
+# reinen Helfer laufen echt. Den Aufwärm-Aufruf des ALT-Servers gibt es nicht
+# mehr (2026-11-13): der MCP ist zustandslos.
 # ══════════════════════════════════════════════════════════════════════════
 
 @pytest.fixture
-def warmup_mcp(monkeypatch):
+def fallback_mcp(monkeypatch):
     calls: list[tuple] = []
     rec = {
-        "warmup": '{"results": []}',
         "primary": '{"results": [{"title": "Mathematik"}]}',
         "global": '{"results": []}',
-        "warmup_raises": False,
         "global_raises": False,
     }
 
     async def _call(tool, args):
         calls.append((tool, dict(args)))
-        n = len(calls)
-        if n == 1:                       # Warmup (search_wlo_collections)
-            if rec["warmup_raises"]:
-                raise RuntimeError("warmup boom")
-            return rec["warmup"]
-        if n == 2:                       # Primary (search_wlo_topic_pages, extra_args)
+        if len(calls) == 1:              # Primary (search_wlo_topic_pages, extra_args)
             return rec["primary"]
-        if rec["global_raises"]:         # n == 3: Global-List-Fallback
+        if rec["global_raises"]:         # zweiter Aufruf: Global-List-Fallback
             raise RuntimeError("global boom")
         return rec["global"]
 
@@ -214,84 +208,79 @@ def warmup_mcp(monkeypatch):
     return calls, rec
 
 
-def _warm(query="Mathematik", extra=None):
-    return asyncio.run(_topic_pages_with_warmup(query, extra or {"query": query}))
+def _suche(query="Mathematik", extra=None):
+    return asyncio.run(_topic_pages_with_fallback(query, extra or {"query": query}))
 
 
-class TestTopicPagesWithWarmup:
-    def test_primary_hit_returns_primary_and_skips_global(self, warmup_mcp):
-        calls, rec = warmup_mcp
-        out = _warm()
+class TestTopicPagesWithFallback:
+    def test_primary_hit_is_one_call_without_warmup(self, fallback_mcp):
+        calls, rec = fallback_mcp
+        out = _suche()
         assert out == rec["primary"]
-        assert len(calls) == 2                     # Warmup + Primary, KEIN Global-Call
-        assert calls[0][0] == "search_wlo_collections"
-        assert calls[1][0] == "search_wlo_topic_pages"
+        # Genau EIN Aufruf: kein Aufwärmen über search_wlo_collections, kein Global-Call.
+        assert [tool for tool, _ in calls] == ["search_wlo_topic_pages"]
+        assert calls[0][1] == {"query": "Mathematik"}
 
-    def test_warmup_failure_is_best_effort(self, warmup_mcp):
-        _calls, rec = warmup_mcp
-        rec["warmup_raises"] = True
-        assert _warm() == rec["primary"]           # Warmup-Fehler bricht den Flow nicht ab
-
-    def test_empty_primary_uses_global_title_match(self, warmup_mcp):
-        calls, rec = warmup_mcp
+    def test_empty_primary_uses_global_title_match(self, fallback_mcp):
+        calls, rec = fallback_mcp
         rec["primary"] = '{"results": []}'
         rec["global"] = '{"results": [{"title": "Mathematik Grundlagen"}]}'
-        out = _warm(query="Mathematik")
+        out = _suche(query="Mathematik")
         assert "Mathematik Grundlagen" in out
         assert "_query_fallback" in out            # _filter_topic_pages_by_title-Marker
-        assert len(calls) == 3
+        assert len(calls) == 2
 
-    def test_no_title_match_returns_global_fallback(self, warmup_mcp):
-        _calls, rec = warmup_mcp
+    def test_no_title_match_returns_global_fallback(self, fallback_mcp):
+        _calls, rec = fallback_mcp
         rec["primary"] = '{"results": []}'
         rec["global"] = json.dumps({"results": [{"title": "Nachhaltigkeit"},
                                                  {"title": "Klimawandel"}]})
-        out = _warm(query="Mathematik")            # kein Titel enthält "Mathematik"
+        out = _suche(query="Mathematik")            # kein Titel enthält "Mathematik"
         assert "_global_fallback" in out
         assert "Nachhaltigkeit" in out
 
-    def test_both_empty_returns_primary(self, warmup_mcp):
-        _calls, rec = warmup_mcp
+    def test_both_empty_returns_primary(self, fallback_mcp):
+        _calls, rec = fallback_mcp
         rec["primary"] = "Keine Themenseiten gefunden"
         rec["global"] = '{"results": []}'
-        assert _warm(query="Nichtsda") == "Keine Themenseiten gefunden"
+        assert _suche(query="Nichtsda") == "Keine Themenseiten gefunden"
 
-    def test_global_call_error_returns_primary(self, warmup_mcp):
-        _calls, rec = warmup_mcp
+    def test_global_call_error_returns_primary(self, fallback_mcp):
+        _calls, rec = fallback_mcp
         rec["primary"] = "Keine Themenseiten gefunden"
         rec["global_raises"] = True
-        assert _warm(query="Nichtsda") == "Keine Themenseiten gefunden"
+        assert _suche(query="Nichtsda") == "Keine Themenseiten gefunden"
 
     # ── W2-2: Filter-Hinweis des Global-Fallbacks ───────────────────────
     # ALT reichte ``discipline`` durch — ein Parameter, den das Schema von
     # ``search_wlo_topic_pages`` nicht kennt (Server verwirft ihn stumm) —
     # und warf ``educationalContext`` weg, den einzigen Filter, den das Tool
     # dort tatsächlich auswertet.
-    def test_global_fallback_forwards_educational_context(self, warmup_mcp):
-        calls, rec = warmup_mcp
+    def test_global_fallback_forwards_educational_context(self, fallback_mcp):
+        calls, rec = fallback_mcp
         rec["primary"] = '{"results": []}'
-        _warm(query="Mathematik", extra={
+        _suche(query="Mathematik", extra={
             "query": "Mathematik",
             "educationalContext": "Sekundarstufe I",
         })
-        _tool, global_args = calls[2]
+        _tool, global_args = calls[1]
         assert global_args.get("educationalContext") == "Sekundarstufe I"
 
-    def test_global_fallback_drops_unsupported_discipline(self, warmup_mcp):
-        calls, rec = warmup_mcp
+    def test_global_fallback_drops_unsupported_discipline(self, fallback_mcp):
+        calls, rec = fallback_mcp
         rec["primary"] = '{"results": []}'
-        _warm(query="Mathematik", extra={"query": "Mathematik", "discipline": "Mathematik"})
-        _tool, global_args = calls[2]
+        _suche(query="Mathematik", extra={"query": "Mathematik", "discipline": "Mathematik"})
+        _tool, global_args = calls[1]
         assert "discipline" not in global_args
 
-    def test_global_fallback_keeps_full_result_window(self, warmup_mcp):
+    def test_global_fallback_keeps_full_result_window(self, fallback_mcp):
         # Bewusst NICHT verkleinert: der Fallback existiert, um eine Themenseite
         # zu finden, die der Server-Matcher übersehen hat — der Titel-Filter
         # danach lebt von der Breite des Fensters (Server-Obergrenze ist 20).
-        calls, rec = warmup_mcp
+        calls, rec = fallback_mcp
         rec["primary"] = '{"results": []}'
-        _warm(query="Mathematik")
-        _tool, global_args = calls[2]
+        _suche(query="Mathematik")
+        _tool, global_args = calls[1]
         assert global_args["maxResults"] == 20
 
 
