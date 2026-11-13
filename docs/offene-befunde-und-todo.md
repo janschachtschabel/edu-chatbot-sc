@@ -346,6 +346,15 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Ketten kürzen (2026-11-13):** keine Migration, keine neue Variable. Image neu bauen,
+  `import-config --werksabgleich` (M18, M20 und die Domänenregeln geändert), Master-Skill-Knoten in WLO mit
+  `docs/skills/vorgehen-knapp.md` ersetzen (Abschnitte M18 und M20). Notiz
+  `aenderungen/2026-11-13-ketten-kuerzen.md`; Wünsche an den MCP
+  `mcp-werkzeug-wuensche-2026-11-13.md` (Z1–Z5, B1, B2). Offen: die geänderte Kette im Chat mit
+  Anmeldung ansehen (gemessen nur am Modell mit Attrappen); „Wert hinzufügen“ öffnet eine
+  Ersetzen-Vorschau mit Warnsatz (lösbar nur im MCP, B1); GV-RED-1 beim nächsten Golden-Lauf ansehen; parallele Ausführung mehrerer
+  Aufrufe einer Runde bleibt zurückgestellt, bis der MCP die Stapel-Suche (Z3) hat oder die
+  Zugakte zeigt, dass es oft vorkommt.
 - **MCP nach dem Audit, C1/C2/C4 (2026-11-13):** keine Migration, keine neue Variable. Image neu
   bauen, `import-config --werksabgleich` (M18 „Kuration“: zwei Zeilen). Verträgt sich mit dem
   alten und dem neuen MCP-Stand. Plan `plans/2026-11-13-mcp-nach-audit.md`, Notiz
