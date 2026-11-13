@@ -34,7 +34,7 @@ jeder Punkt im Code gegengeprüft).
 | R-E10 | `ui_upload`-Konzept (U1, §13) | Gilt als umgesetzt durch U2–U5, TB-E1, TW. Virenprüfung/OCR: nein. | Kein Speichern roher Dateien außer der Ablage in WLO. |
 | R-E11 | TB-4 Raster (L5) | Nur als Warnung im Entwurf, nie als Sperre. | Ein Baum darf vom Raster abweichen. |
 | R-E12 | `X-Edu-User-Id` bei Abfrage, Abbruch, Datei | Mitsenden, wenn die Person angemeldet ist. | Gleiche Identität für denselben Job; eine fehlende Kennung wäre das größere Risiko (400 → „Stand prüfen“ ohne Ende). |
-| R-E13 | Limit je Job (N14) | Feld `hoechstens_je_auftrag` am Schritt `auftrag` (Vorgabe leer = alles in einem Job); mehr IDs → Teilaufträge nacheinander. | Grenze der B-API (20 Jobs je Schlüssel) schonen; nacheinander ist einfacher als parallel. |
+| R-E13 | Limit je Job (N14) | Feld `aufteilen: {argument, hoechstens}` am Schritt `auftrag` (Vorgabe leer = alles in einem Job); mehr IDs → Teilaufträge nacheinander, Argumente beim ersten Teil eingefroren, höchstens 20 Teile. | Grenze der B-API (20 Jobs je Schlüssel) schonen; nacheinander ist einfacher als parallel. |
 | R-E14 | `language: de` im Seed | Platzhalter für die Sprache der Person. | Englischsprachige Personen bekämen sonst deutsche Metadaten. |
 
 ## 3 Pakete
@@ -46,7 +46,7 @@ Review mit Befundbehebung, Änderungsnotiz unter `docs/aenderungen/`.
 - R1-a Limit je Job (R-E13).
 - R1-b Sprache der Person als Flow-Eingabe (R-E14).
 - R1-c `X-Edu-User-Id` bei Abfrage, Abbruch und Datei (R-E12).
-- R1-d `ui_auftrag._wartender_auftrag` frischt den Verweis auf.
+- R1-d `ui_auftrag._wartender_auftrag`: fehlt der Verweis oder ist sein Vorgang weg, gilt der jüngste offene Vorgang (wie der Preflight des nächsten Zuges). Er liest nur.
 - R1-e `ui_fortschritt`: 403 `abgewiesen` eigener Text, nicht „nicht angemeldet“.
 
 ### R2 Abläufe

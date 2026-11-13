@@ -1419,6 +1419,11 @@
               }
             ]
           },
+          "ablauf_unbestimmt": {
+            "default": false,
+            "title": "Ablauf Unbestimmt",
+            "type": "boolean"
+          },
           "direkt_start": {
             "anyOf": [
               {
