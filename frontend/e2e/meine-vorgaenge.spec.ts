@@ -51,6 +51,7 @@ test('bei 320 px bricht die Zeile um: das Feld oben in voller Breite, die Knöpf
   await vorgaengeStubben(page);
   await w.open();
   await expect(page.locator('.btn-vorgaenge')).toBeVisible();
+  await w.ohneMikrofon();
   const zeile = await page.locator('.chat-footer').evaluate((el) => {
     const kinder = Array.from(el.children).map((k) => {
       const r = k.getBoundingClientRect();
@@ -100,6 +101,7 @@ test('ab 364 px bleibt es auch angemeldet eine Zeile mit mindestens 120 px Feld'
   const w = await mount(page, MIT_ANMELDUNG);
   await vorgaengeStubben(page);
   await w.open();
+  await w.ohneMikrofon();
   const oben = await page.locator('.chat-footer').evaluate((el) =>
     Array.from(el.children).map((k) => Math.round(k.getBoundingClientRect().top + k.getBoundingClientRect().height / 2)));
   expect(Math.max(...oben) - Math.min(...oben)).toBeLessThanOrEqual(4);
