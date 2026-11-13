@@ -104,7 +104,7 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
           limits=None, usage_acc=None, progress=None, clock=None, raises=None,
           echter_transport=False, on_tool_result=None, wissen=None,
           on_offene_abnahme=None, tools=None, modul_vorlage=None, modul_dokument=None,
-          modul_teile=None):
+          modul_teile=None, modul_umlenkung=None):
     """``echter_transport=True`` fälscht eine Ebene tiefer (``llm._acompletion``).
 
     Nötig für alles, was die **Buchung** prüft: die Schleife reicht ``usage_acc``
@@ -139,6 +139,8 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
         kwargs["modul_dokument"] = modul_dokument
     if modul_teile is not None:
         kwargs["modul_teile"] = modul_teile
+    if modul_umlenkung is not None:
+        kwargs["modul_umlenkung"] = modul_umlenkung
     if tools is None:
         # Angeboten ist, was das Modell im Skript ruft: so rufen die Tests nur
         # Angebotenes, wie im Betrieb. Wer die Sperre fuer nicht Angebotenes
@@ -1556,3 +1558,27 @@ def test_ein_voruebergehender_anbieterfehler_ist_eine_gedrosselte_warnung(monkey
             assert run.stop_reason == "error"
     zeilen = [r for r in caplog.records if r.levelno >= logging.WARNING]
     assert [r.levelname for r in zeilen] == ["WARNING"] and not zeilen[0].exc_info
+
+
+def test_tw6_nach_einer_umlenkung_ist_derselbe_aufruf_kein_stillstand(monkeypatch):
+    """Durchtest 12.11.: die KI rief das Modul nach der Umlenkung noch einmal (die Person wollte es
+    ohne Ablauf) — der Stillstand-Wächter brach das ab, obwohl der erste Aufruf nie lief."""
+    args = {"frage": "Welches Fach?", "optionen": [{"text": "Physik"}, {"text": "Chemie"}]}
+    umgelenkt: list[str] = []
+
+    def umlenkung(name, _args, _angeboten, merken=True):
+        if name == "ui_entscheidung" and not umgelenkt:
+            if merken:                  # die Vorprüfung der Runde zählt keinen Versuch
+                umgelenkt.append(name)
+            return "Nicht ausgeführt: nimm den Ablauf."
+        return None
+
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("ui_entscheidung", args, "c1")]),
+        _resp_tools([_tool_call("ui_entscheidung", args, "c2")]),
+        _resp_text("fertig"),
+    ], modul_umlenkung=umlenkung)
+    assert run.stop_reason != "no_progress"
+    assert any(m.get("content") == "Nicht ausgeführt: nimm den Ablauf." for m in msgs
+               if m.get("role") == "tool")
+

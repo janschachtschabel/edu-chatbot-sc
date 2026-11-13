@@ -40,6 +40,9 @@ class Umgebung:
     #: Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt eines Laufs
     #: (``ki_schritt.vorgaben``) — ein Dienst setzt sie in seinen Systemteil.
     vorgaben: str = ""
+    #: Review TW-6, Befund 7: der Aufruf kommt aus einem Ablauf-Schritt (``treiber_bloecke``) — nur
+    #: dort gelten Schalter, die die KI nicht setzen soll (``einzeldatei_als_struktur``).
+    aus_ablauf: bool = False
 
 
 async def asynchron(name: str, args: Any, umgebung: Umgebung | None = None) -> Ergebnis:

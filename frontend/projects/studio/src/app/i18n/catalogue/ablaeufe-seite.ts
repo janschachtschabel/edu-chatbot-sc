@@ -23,6 +23,10 @@ export const ABLAEUFE_SEITE: CataloguePart = {
     'feld.KestraFlowsArea.kestra.label': 'Freigabe',
     'feld.KestraFlowsArea.kestra.hint':
       'Gilt für alle Abläufe, sobald gespeichert.',
+    'feld.KestraFlowsSettings.an.label': 'Aufträge an',
+    'feld.KestraFlowsSettings.an.hint':
+      'Aus = kein Ablauf startet einen Kestra-Flow, auch nicht die des Servers (B_API_JOBS_FLOWS). '
+      + 'Eingeschaltete Abläufe mit Auftrag müssen vorher aus sein.',
     'feld.KestraFlowsSettings.flows.label': 'Freigegebene Flows',
     'feld.KestraFlowsSettings.flows.hint':
       'Je Eintrag namespace/flowId, etwa edusharing.chatbot/node-metadata-write. Leer: es gelten '
@@ -174,6 +178,10 @@ export const ABLAEUFE_SEITE: CataloguePart = {
     'feld.KestraFlowsArea.kestra.label': 'Release',
     'feld.KestraFlowsArea.kestra.hint':
       'Applies to all workflows once saved.',
+    'feld.KestraFlowsSettings.an.label': 'Jobs on',
+    'feld.KestraFlowsSettings.an.hint':
+      'Off = no workflow starts a Kestra flow, not even the server’s (B_API_JOBS_FLOWS). Enabled '
+      + 'workflows with a job must be switched off first.',
     'feld.KestraFlowsSettings.flows.label': 'Enabled flows',
     'feld.KestraFlowsSettings.flows.hint':
       'One namespace/flowId per entry, such as edusharing.chatbot/node-metadata-write. Empty: the '

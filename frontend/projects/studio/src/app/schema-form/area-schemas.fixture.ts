@@ -2899,6 +2899,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "additionalProperties": true,
         "description": "Die freigegebenen Flows — leer: es gelten die der Server-Umgebung (``B_API_JOBS_FLOWS``).",
         "properties": {
+          "an": {
+            "default": true,
+            "title": "An",
+            "type": "boolean"
+          },
           "flows": {
             "default": [],
             "items": {
@@ -2921,6 +2926,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "kestra": {
         "$ref": "#/$defs/KestraFlowsSettings",
         "default": {
+          "an": true,
           "flows": []
         }
       }

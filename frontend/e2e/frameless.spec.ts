@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 /**
  * Rahmenloser Einbau (U1, `embed-mode="frameless"`) in einem SCHMALEN
  * Container — der Fall, den ein Browser-Plugin baut: eine Seitenleiste von
@@ -100,3 +102,20 @@ test('im schwebenden Modus bleibt das Vollbild bei schmaler Weite erhalten', asy
   expect(unten).toBeLessThanOrEqual(sicht.height);
   expect(panelUnten).toBeLessThanOrEqual(sicht.height);
 });
+
+test('die Vollbild-Regel nutzt die sichtbare Höhe (dvh) und die Aussparung unten', () => {
+  // Review 12.11. (#57): Playwright kann die Adressleiste von Android nicht nachbilden (vh = dvh),
+  // der Test oben unterschiede den Fehler also nicht. Dieser hält die Regel selbst fest — eine
+  // Rückkehr zu `100vh` allein fiele hier auf.
+  const scss = readFileSync(
+    join(__dirname, '..', 'projects', 'widget', 'src', 'app', 'widget', 'widget.component.scss'),
+    'utf8');
+  const regel = scss.slice(scss.indexOf('@media (max-width: 480px)'));
+  // Ende der Regel: die erste Zeile, die nur aus `}` besteht (Zeilenende LF oder CRLF)
+  const ende = regel.search(/\r?\n\}\r?\n/);
+  const block = ende < 0 ? regel : regel.slice(0, ende);
+  expect(block).toMatch(/height:\s*100dvh/);
+  expect(block).toMatch(/max-height:\s*100dvh/);
+  expect(block).toMatch(/padding-bottom:\s*env\(safe-area-inset-bottom/);
+});
+

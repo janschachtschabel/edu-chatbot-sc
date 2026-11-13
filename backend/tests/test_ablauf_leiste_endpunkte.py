@@ -205,7 +205,7 @@ def test_z6_eine_langsame_bestaetigung_haelt_den_verlauf_nicht_auf(
     from boerdi.services import arbeitsstand
 
     async def langsam():
-        await asyncio.sleep(3)
+        await asyncio.sleep(30)        # weit über der Frist: misst nur, ob der Verlauf wartet
 
     async def nachrichten(*_a, **_k):
         return [{"id": 2, "role": "assistant", "content": "Weiter?", "debug": {}}]
@@ -222,7 +222,8 @@ def test_z6_eine_langsame_bestaetigung_haelt_den_verlauf_nicht_auf(
     monkeypatch.setattr(sessions_api, "verbindung_freigeben", frei)
     anfang = time.monotonic()
     r = client.get(f"/api/sessions/{_SID}/messages", headers={"WLO-Access-Block": "wloTestBlock"})
-    assert r.status_code == 200 and time.monotonic() - anfang < 2.5
+    # Spielraum für eine ausgelastete Maschine (die volle Suite kippte bei 2,5 s)
+    assert r.status_code == 200 and time.monotonic() - anfang < 10
 
 
 def test_pr51_ohne_verweis_keine_bestaetigung_und_kein_stand(client, monkeypatch, mit_stand):  # noqa: F811

@@ -92,7 +92,7 @@ from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.ui_module.antwort import NACH_DER_FRAGE, ZWEITE_FRAGE, frage_quittung
 from boerdi.ui_module.aufruf import Umgebung as ModulUmgebung
 from boerdi.ui_module.aufruf import asynchron as modul_asynchron
-from boerdi.ui_module.datenquelle import ANTWORT_VERWORFEN
+from boerdi.ui_module.datenquelle import ANTWORT_UMGELENKT, ANTWORT_VERWORFEN
 
 if TYPE_CHECKING:
     from boerdi.services.arbeitsstand import TeilLader
@@ -274,6 +274,7 @@ async def run_agent_loop(
     modul_dokument: DokumentLader | None = None,
     modul_teile: TeilLader | None = None,
     modul_vorgaben: str = "",
+    modul_umlenkung: Callable[..., str | None] | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -468,8 +469,12 @@ async def run_agent_loop(
         # Querschnitts-Review AS-5, Befunde 4 und 10: ob die Runde eine Antwort oder eine Frage
         # enthält, gilt für jeden Ablauf-Vorschlag der Runde — unabhängig von der Reihenfolge.
         runde_mit_antwort = any(_name_von(c) == RESPOND_TO_USER for c in calls)
+        # Zweites Review TW-6, Befund 2: ein Modul, das gleich umgelenkt wird, stellt keine Frage
         runde_mit_frage = any(ist_abfragendes_modul(n := _name_von(c)) and n in angeboten
+                              and not (modul_umlenkung is not None and modul_umlenkung(
+                                  n, _arguments(c.function.arguments)[0], angeboten, False))
                               for c in calls)
+        umgelenkt = False
         antwort_id = ""
         frage: UiBlock | None = None
         # Ein Modul mit Datenquelle dieser Runde hat keinen Block geliefert (Review U1-e).
@@ -680,6 +685,15 @@ async def run_agent_loop(
             # Ein anzeigender Aufruf ohne Platz wird nicht ausgeführt — die Frage behält ihren
             # (Review U1 gesamt, Befund 3); eine Antwort derselben Runde gilt wie bei einem
             # fehlenden Block nicht.
+            # TW-6: ohne Arbeitsgrundlage geht ein passender Ablauf vor (``vorschlag.umlenkung``)
+            if (ist_modul_werkzeug(name) and modul_umlenkung is not None
+                    and (hinweis := modul_umlenkung(name, args, angeboten))):
+                messages.append(_tool_turn(tc.id, hinweis))
+                # nicht ausgeführt — ein zweiter Aufruf (Fluchtweg „ohne Ablauf“) ist dann kein
+                # Stillstand; eine Antwort derselben Runde gilt nicht (zweites Review, Befund 1)
+                last_call = None
+                umgelenkt = True
+                continue
             if (ist_modul_werkzeug(name) and not ist_abfragendes_modul(name)
                     and not platz_fuer_anzeige(_anzeigende(run))):
                 logger.info("Modul-Werkzeug %s: kein Platz mehr in dieser Antwort", name)
@@ -809,6 +823,10 @@ async def run_agent_loop(
                 + skill_registry_note(beobachtet, tool_name=name, args=args),
             ))
 
+        if antwort is not None and umgelenkt:
+            # Zweites Review TW-6, Befund 1: sonst endete der Zug mit „lade hier hoch“ ohne Feld
+            _ersetze_werkzeug_text(messages, antwort_id, ANTWORT_UMGELENKT)
+            antwort = None
         if antwort is not None and ohne_block:
             # Review U1-e, Befund 1: Modul-Werkzeuge laufen auch nach der Antwort (oben); fehlt
             # einem mit Datenquelle der Block, verwiese die Antwort derselben Runde womöglich auf

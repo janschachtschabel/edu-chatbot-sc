@@ -89,9 +89,16 @@ def test_der_modul_ausloeser_des_dokument_ablaufs(alle_an):
 
 
 def test_nur_der_ablauf_ohne_schreiben_startet_direkt(alle_an):
+    """TW-6 (Durchtest 12.11.): auch Dokument und Ordner starten direkt — sie beginnen mit einer
+    Frage, und ein Upload-Feld allein schreibt nichts. „Aus eigenen Inhalten“ startet einen
+    schreibenden Auftrag und bleibt ein Vorschlag."""
     assert vorschlag._direkt(alle_an["themenbaum_aus_thema"])
+    assert vorschlag._direkt(alle_an["themenbaum_aus_dokument"])
+    assert vorschlag._direkt(alle_an["sammlungsstruktur"])
     assert not vorschlag._direkt(alle_an["themenbaum_aus_inhalten"])
-    assert not vorschlag._direkt(alle_an["themenbaum_aus_dokument"])
+    for ablauf in alle_an.values():                 # jeder Themenbaum-Ablauf fragt zuerst
+        if ablauf.id.startswith("themenbaum") or ablauf.id == "sammlungsstruktur":
+            assert ablauf.schritte[0].optionen, ablauf.id
 
 
 def test_review_qtw_2_keine_beschreibung_wird_gekuerzt(alle_an, monkeypatch):
@@ -148,3 +155,69 @@ def test_rueckmeldung_ohne_anmeldung_sagt_die_ki_es_statt_still(alle_an, monkeyp
     assert zug.anmelde_zeile("Was ist Photosynthese?", "de") is None
     monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: True)
     assert zug.anmelde_zeile(satz, "de") is None          # angemeldet: der Ablauf startet selbst
+
+
+def test_tw6_ein_upload_feld_allein_schreibt_nicht(alle_an):
+    from boerdi.services.ablauf import werkzeuge
+
+    assert werkzeuge.ablauf_schreibt(alle_an["themenbaum_aus_dokument"])          # Einbettung
+    assert not werkzeuge.ablauf_schreibt_selbst(alle_an["themenbaum_aus_dokument"])
+    assert werkzeuge.ablauf_schreibt_selbst(alle_an["themenbaum_aus_inhalten"])    # Auftrag
+
+
+def test_tw6_der_satz_zur_anmeldung_kommt_vom_system(alle_an, monkeypatch):
+    from boerdi.services.ablauf import zug
+
+    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: False)
+    satz = zug.anmelde_satz("Themenbaum mit meinen Dateien erstellen", "de")
+    assert satz and "aus eigenen Inhalten" in satz and "melde dich" in satz
+    assert zug.anmelde_satz("Wie geht es dir?", "de") is None
+    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: True)
+    assert zug.anmelde_satz("Themenbaum mit meinen Dateien erstellen", "de") is None
+
+
+def test_tw6_ohne_arbeitsgrundlage_lenkt_ein_modul_auf_den_ablauf_um(alle_an, monkeypatch):
+    """Durchtest 12.11.: die KI griff trotz Regel meist direkt zum Modul. Ohne Arbeitsgrundlage
+    läuft ``ui_strukturentwurf``/``ui_upload`` nicht, die Antwort nennt den passenden Ablauf
+    (Review TW-6, Befunde 1–3: kein pauschales Verdecken)."""
+    monkeypatch.setattr(ausloeser, "erfuellt", lambda _a: True)
+    angeboten = {w["function"]["name"] for w in vorschlag.werkzeuge("de")}
+    zustand: dict = {"entities": {}, "turn_count": 1}
+    entwurf = vorschlag.umlenkung("ui_strukturentwurf", {"thema": "Optik"}, angeboten, zustand)
+    assert entwurf and "ablauf-themenbaum_aus_thema" in entwurf
+    assert "aus_dokument" not in entwurf and "sammlungsstruktur" not in entwurf  # nur ohne Upload
+    upload = vorschlag.umlenkung("ui_upload", {"zweck": "sammlungsstruktur"}, angeboten, zustand)
+    assert upload and "ablauf-themenbaum_aus_dokument" in upload and "sammlungsstruktur" in upload
+    # der zweite Versuch im selben Zug läuft durch (die Person will es ausdrücklich ohne)
+    assert vorschlag.umlenkung("ui_strukturentwurf", {"thema": "Optik"}, angeboten, zustand) is None
+    # nie mit Arbeitsgrundlage: Argumente, gemerkte Grundlage, Ausstieg, kein Ablauf angeboten
+    for args in ({"thema": "x", "vorlage": {"knoten": []}}, {"thema": "x", "wurzel_wlo_id": "n"},
+                 {"thema": "x", "aus_dokument": True}):
+        assert vorschlag.umlenkung("ui_strukturentwurf", args, angeboten, {"entities": {}}) is None
+    assert vorschlag.umlenkung("ui_strukturentwurf", {"thema": "x"}, angeboten,
+                               {"entities": {}, vorschlag.GRUNDLAGE_KEY: True}) is None
+    ausgestiegen: dict = {"entities": {}, "turn_count": 1}
+    zug_basis = __import__("boerdi.services.ablauf.zug_basis", fromlist=["x"])
+    zug_basis.ausstieg_merken(ausgestiegen, "themenbaum_aus_dokument")
+    assert vorschlag.umlenkung("ui_upload", {"zweck": "sammlungsstruktur"}, angeboten,
+                               ausgestiegen) is None
+    ohne_ablauf: set[str] = set()
+    assert vorschlag.umlenkung("ui_strukturentwurf", {"thema": "x"}, ohne_ablauf,
+                               {"entities": {}}) is None
+    assert vorschlag.umlenkung("ui_entscheidung", {}, angeboten, {"entities": {}}) is None
+
+
+def test_tw6_arbeitsgrundlage(monkeypatch):
+    from boerdi.services import arbeitsstand_verweis
+
+    assert not vorschlag.arbeitsgrundlage({}, "a")
+    from boerdi.ui_module import strukturentwurf_merken
+
+    assert vorschlag.arbeitsgrundlage(
+        {strukturentwurf_merken.KEY: {"daten": {"knoten": []}, "zuege": 3}}, "a") is True
+    monkeypatch.setattr(arbeitsstand_verweis, "verweis",
+                        lambda _e, _a: {"teile": {"draft": {"v": 1}}})
+    assert vorschlag.arbeitsgrundlage({}, "a")
+    monkeypatch.setattr(arbeitsstand_verweis, "verweis",
+                        lambda _e, _a: {"teile": {"zweck": {"v": 1}}})
+    assert not vorschlag.arbeitsgrundlage({}, "a")

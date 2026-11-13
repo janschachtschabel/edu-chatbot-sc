@@ -137,6 +137,11 @@ def studio_flows() -> list[str] | None:
     return load_kestra_flows()
 
 
+def freigegebene_flows() -> frozenset[str]:
+    """Die heute wirksam freigegebenen Flows (Review TW-6, Befund 5: für den Wächter)."""
+    return _flows()
+
+
 def obergrenze() -> frozenset[str] | None:
     """Für den Katalog (``flow_katalog``): die Obergrenze der Umgebung, ``None`` ohne."""
     return _obergrenze()

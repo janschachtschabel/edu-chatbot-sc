@@ -335,8 +335,20 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
       liest es aus dem Verlauf.
     - Eine Voraussetzung „Dokument lesen“ für den Dokument-Ablauf fehlt.
   - **Später:** Strukturprüfung des Ergebnisses (TB-4), Sammlungsart, Facetten.
+  - **TW-6 (2026-11-12):** Ruft die KI das Upload-Feld oder den Strukturentwurf ohne
+    Arbeitsgrundlage, lenkt der Chatbot auf den passenden Ablauf um. Notiz
+    [`2026-11-12-paket-tw-6-ablaeufe-zuverlaessig.md`](aenderungen/2026-11-12-paket-tw-6-ablaeufe-zuverlaessig.md).
+    - Offen: „Aus eigenen Inhalten“ **mit** WLO-Anmeldung auf Staging durchtesten (lokal fehlt
+      die Anmeldung am MCP).
+    - Offen: Master-Skill-Knoten erneut ersetzen (Upload-Ausnahme „Ablauf geht vor“,
+      Sackgassen-Regel).
+    - Die KI schwankt von Lauf zu Lauf; die festen Wendungen bleiben der sichere Weg.
 
 ## 4 Beim nächsten Deploy
+
+- **TW-6 (2026-11-12):** keine Migration. Image neu bauen, `import-config --werksabgleich`
+  (Seeds „aus Ordnern“ mit Einstiegsfrage, „aus einem Dokument“ direkt). Wartende Läufe dieser
+  zwei Abläufe enden (neue Fassung). Danach den Master-Skill-Knoten ersetzen.
 
 - **Themenbaum-Abläufe TW (2026-11-11):**
   - Keine Migration. Image neu bauen und den Browser hart neu laden (Studio, Widget-Module).

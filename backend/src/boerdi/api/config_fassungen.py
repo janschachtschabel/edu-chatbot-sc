@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import functools
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Security
@@ -114,7 +115,9 @@ async def umschalten(payload: Umschalten, lang: Lang) -> dict:
     except werkfassung.UmschaltEinwand as e:
         status = 404 if e.meldung == "fassung.keinWerk" else 400
         raise HTTPException(status, msg(lang, e.meldung, area=area)) from None
-    await asyncio.to_thread(pruefe_bereiche, {area: neu.data}, lang)
+    # Zweites Review TW-6, Befund 3: ein Bereich allein — der Flow-Wächter gilt wie beim Speichern
+    await asyncio.to_thread(functools.partial(pruefe_bereiche, einzeln=True), {area: neu.data},
+                            lang)
     einwand = kennungs_einwand({area: neu.data}, await cl.current_config(),
                                await sicherheits_kennungen())
     if einwand:

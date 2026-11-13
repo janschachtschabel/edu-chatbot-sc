@@ -395,8 +395,9 @@ describe("GroupSectionComponent", () => {
     expect(frage?.textContent).toContain("speichern oder verwerfen");
     const knoepfe = [...(frage?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
     expect(knoepfe.map((k) => k.textContent?.trim())).toEqual(["Verwerfen und wechseln", "Hier bleiben"]);
-    // Rückmeldung 11.11. (2): bei gescrollter Liste stand sie außer Sicht — der Fokus holt sie her
-    expect(document.activeElement).toBe(knoepfe[0]);
+    // Rückmeldung 11.11. (2): bei gescrollter Liste stand sie außer Sicht — der Fokus holt sie her,
+    // auf „Hier bleiben“ (Review 12.11., Befund 2: nie auf die zerstörerische Wahl)
+    expect(document.activeElement).toBe(knoepfe[1]);
 
     knoepfe[0].click();
     await fixture.whenStable();

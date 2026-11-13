@@ -9,16 +9,29 @@
 id: sammlungsstruktur
 titel: {de: "Themenbaum · aus Ordnern", en: "Topic tree · from folders"}
 beschreibung: Die Person erfasst einen Ordner; daraus entsteht ein bearbeitbarer Themenbaum-Entwurf.
-wann: [Die Person will aus eigenen Ordnern eine Sammlungsstruktur bauen]
+wann: [Die Person hat eigene Ordner auf ihrem Rechner und will daraus einen Themenbaum oder eine Sammlungsstruktur bauen]
+# TW-6 (Durchtest 12.11.): die KI schlug ihn für „Themenbaum zum Thema Photosynthese“ vor
+nicht_wann:
+  - Die Person nennt nur ein Thema, ohne eigene Ordner (dafür „Themenbaum · aus einem Thema“)
+  - Die Person will den Baum aus einem einzelnen Dokument wie einem Lehrplan
 # Im Werkszustand an (Nutzer-Entscheid 11.11.): schreibt nichts ins Repositorium.
 aktiv: true
 # knopf: Direktaktion ablauf_starten; agent: die KI schlägt ihn vor (Knopf unter der Antwort);
 # text: eine dieser Wendungen in der Nachricht startet ihn (keine regulären Ausdrücke).
 ausloeser:
   - {art: knopf}
-  - {art: agent}
+  # TW-6: direkt — er beginnt mit einer Frage; das Upload-Feld allein schreibt nichts
+  - {art: agent, modus: direkt}
   - {art: text, wendungen: [themenbaum aus meinem ordner, themenbaum aus meinen ordnern]}
 schritte:
+  # TW-6: zuerst die Wahl, den Ablauf zu nutzen (wie die anderen Themenbaum-Abläufe)
+  - id: einstieg
+    typ: nachricht
+    text: {de: "Gern mache ich aus deiner Ordnerstruktur einen Themenbaum-Entwurf: Ordner wählen, Entwurf ansehen und bearbeiten. Einverstanden?",
+           en: "I'll gladly turn your folder structure into a topic tree draft: choose the folder, view and edit the draft. All right?"}
+    optionen:
+      - {id: ja, label: {de: "Ja, Ordner wählen", en: "Yes, choose folder"}, ziel: erfassen}
+      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
   - id: erfassen
     typ: modul
     modul: ui_upload
@@ -43,3 +56,26 @@ schritte:
     typ: ende
     text: {de: "Ohne Unterordner gibt es noch keinen Themenbaum.",
            en: "Without subfolders there is no topic tree yet."}
+  - id: frei
+    typ: ende
+    ausstieg: true
+    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei weiter.",
+           en: "Alright, without the workflow – let's carry on freely."}
+tests:
+  - name: Vom Ordner zum Entwurf
+    eingaben:
+      - {bei: einstieg, option: ja}
+      - bei: erfassen
+        antwort:
+          aktion: erfasst
+          struktur: {name: Physik, dateien: 0, alle_dateien: 6, kinder: [
+            {name: Optik, dateien: 3, alle_dateien: 3, kinder: []},
+            {name: Mechanik, dateien: 3, alle_dateien: 3, kinder: []}]}
+          zahlen: {ordner: 3, dateien: 6, inhalte: 6, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+    erwartet: {weg: [einstieg, erfassen, entwurf, bearbeiten], status: wartet_person}
+  - name: Ohne Ablauf
+    eingaben:
+      - {bei: einstieg, option: ohne}
+    erwartet: {weg: [einstieg, frei], status: fertig}

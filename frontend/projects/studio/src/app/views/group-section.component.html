@@ -35,10 +35,13 @@
           <div class="gs-confirm" role="alert">
             <p>{{ t('groupSection.switchBlocked') }}</p>
             <div class="gs-actions">
-              <button #wechselKnopf type="button" class="cs-btn cs-btn--danger"
+              <button type="button" class="cs-btn cs-btn--danger"
                       (click)="verwerfenUndWechseln()">
                 {{ t('groupSection.discardAndSwitch') }}</button>
-              <button type="button" class="cs-btn" (click)="wechselZu.set(null)">
+              <!-- Review 12.11., Befund 2: der Fokus auf der harmlosen Wahl (wie beim Muster
+                   alertdialog; das Element ist role="alert") — ein
+                   gehaltenes Enter verwarf sonst gleich den Entwurf -->
+              <button #wechselKnopf type="button" class="cs-btn" (click)="wechselZu.set(null)">
                 {{ t('groupSection.stayHere') }}</button>
             </div>
           </div>

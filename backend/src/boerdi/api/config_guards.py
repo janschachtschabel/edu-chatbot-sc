@@ -70,7 +70,8 @@ def url_einwand(fehler: UnsafeUrlError, lang: Locale) -> str:
     return msg(lang, "url.notAllowed")
 
 
-def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
+def _assert_area_document_safe(key: str, data: object, lang: Locale, *,
+                                einzeln: bool = True) -> None:
     """Per-area document checks the GENERIC write paths must not skip.
 
     ``PUT /config/data/{area}`` and ``PUT /config/file`` accept any area, so
@@ -106,6 +107,10 @@ def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
         _assert_ablauf_ausfuehrbar(data, lang)
     if key == _KESTRA_AREA and isinstance(data, dict):
         _assert_flows_in_obergrenze(data, lang)
+        # Review TW-6, Befund 5: nur beim Speichern dieses einen Bereichs — ein Satz Bereiche
+        # (Werksabgleich, Wiederherstellen) ändert die Abläufe womöglich mit
+        if einzeln:
+            _assert_aktive_ablaeufe_behalten_ihre_flows(data, lang)
 
 
 #: Paket KF: die Freigabe der Kestra-Flows (``01-base/kestra-flows``).
@@ -128,6 +133,35 @@ def _assert_flows_in_obergrenze(data: dict, lang: Locale) -> None:
     if draussen:
         raise HTTPException(400, msg(lang, "kestra.ausserhalb", value=", ".join(draussen)[:300],
                                      erlaubt=", ".join(sorted(obergrenze))[:300]))
+
+
+def _assert_aktive_ablaeufe_behalten_ihre_flows(data: dict, lang: Locale) -> None:
+    """Review 12.11., Befund 8: wer einen Flow aus der Freigabe nimmt, den ein **eingeschalteter**
+    Ablauf nutzt, bräche ihn still (zur Laufzeit ``nicht_erlaubt``) — also beim Speichern abweisen
+    und die Abläufe nennen."""
+    from boerdi.domain.config_models.kestra_flows import KestraFlowsArea
+    from boerdi.services.ablauf import ausloeser
+    from boerdi.services.auftraege import client
+
+    try:
+        kestra = KestraFlowsArea.model_validate(data).kestra
+    except ValidationError:
+        return   # die Modellprüfung meldet das
+    obergrenze = client.obergrenze()
+    if not kestra.an:
+        frei: frozenset[str] = frozenset()
+    elif kestra.flows:
+        frei = frozenset(kestra.flows) & obergrenze if obergrenze is not None \
+            else frozenset(kestra.flows)
+    else:
+        frei = obergrenze or frozenset()
+    # Review TW-6, Befund 5: nur, was heute freigegeben ist und jetzt wegfiele — ein Flow, der
+    # nie freigegeben war, sperrt das Speichern nicht
+    entzogen = client.freigegebene_flows() - frei
+    betroffen = sorted({f"{a.id} ({s.flow})" for a in ausloeser.katalog() if a.aktiv
+                        for s in a.schritte if s.typ == "auftrag" and s.flow in entzogen})
+    if betroffen:
+        raise HTTPException(400, msg(lang, "kestra.genutzt", value=", ".join(betroffen)[:400]))
 
 
 def _assert_ablauf_ausfuehrbar(data: dict, lang: Locale) -> None:
@@ -278,7 +312,8 @@ def is_restorable_area_key(key: str) -> bool:
     return _single_group_leaf(key) is not False
 
 
-def pruefe_bereiche(areas: dict[str, dict], lang: Locale) -> dict[str, dict]:
+def pruefe_bereiche(areas: dict[str, dict], lang: Locale, *,
+                    einzeln: bool = False) -> dict[str, dict]:
     """Die Prüfung vor einem Schreiben vieler Bereiche — Wiederherstellen und
     Auslieferungsstand (Paket 6, W2) — über ALLE Bereiche, bevor etwas
     geschrieben wird. Gibt die schreibbaren Bereiche zurück.
@@ -296,7 +331,7 @@ def pruefe_bereiche(areas: dict[str, dict], lang: Locale) -> dict[str, dict]:
         if not is_restorable_area_key(key):
             logger.warning("skipping %r, not a valid config area path", key)
             continue
-        _assert_area_document_safe(key, data, lang)
+        _assert_area_document_safe(key, data, lang, einzeln=einzeln)
         einwaende += [{"area": key, **f} for f in modell_fehler(key, data)]
         gueltig[key] = data
     if einwaende:

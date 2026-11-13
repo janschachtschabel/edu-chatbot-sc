@@ -88,6 +88,7 @@ from boerdi.i18n import CLAIM_WORDS, DEFAULT, resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.zeiten import spur_zeilen
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
+from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.agent_zugblock import DOKUMENTE_DEBUG_KEY, dokumente_fuer_die_nachricht
 from boerdi.services.config_loader import load_display_rules_config
 from boerdi.services.db_sessions import finalize_message, save_message, update_session
@@ -386,6 +387,16 @@ async def persist_and_build_response(
         _final_text = "\n\n".join(
             [_final_text.strip(), *(d.get("content", "") for d in gelieferte_dokumente)]
         ).strip()
+
+    # TW-6: passt die Wendung zu einem Ablauf ohne erfüllte Anmeldung, steht der Hinweis darunter —
+    # vor dem Speichern (Review TW-6, Befund 6: sonst fehlte er nach dem Neuladen)
+    # (Nutzer-Entscheid „Hinweis + weiterhelfen“) — nicht nur als Bitte an die KI
+    if not req.action and not ablauf_zug.lauf_wartet(req.session_id, session_state):
+        _anmelde = ablauf_zug.anmelde_satz(
+            req.message, _lang, ohne=ablauf_zug.abgelehnt(req.session_id, session_state))
+        if _anmelde and _anmelde not in (_final_text or ""):
+            _final_text = ((_final_text.rstrip() + "\n\n" + _anmelde) if _final_text
+                           else _anmelde)
 
     # ``_final_text`` ist hier noch das ungestrippte Roh-Markdown (das Inline-
     # Document-Routing kürzt es erst weiter unten auf den Intro-Text) → wir

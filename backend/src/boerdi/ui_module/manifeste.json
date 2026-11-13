@@ -2065,6 +2065,10 @@
             "type": "string",
             "maxLength": 300,
             "description": "Kurzer Satz an die Person, was sie auswaehlen soll (z. B. 'Waehle den Ordner mit deinen Physik-Materialien.')."
+          },
+          "einzeldatei_als_struktur": {
+            "type": "boolean",
+            "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer den Ablauf 'Themenbaum aus einem Dokument'. Sonst bleibt sie Inhalt."
           }
         }
       }
@@ -2134,6 +2138,10 @@
               "description": "Duerfen Inhalte in WLO abgelegt werden."
             }
           }
+        },
+        "einzeldatei_als_struktur": {
+          "type": "boolean",
+          "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer den Ablauf 'Themenbaum aus einem Dokument'. Sonst bleibt sie Inhalt."
         }
       }
     },

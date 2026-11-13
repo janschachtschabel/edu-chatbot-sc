@@ -61,11 +61,18 @@ def test_ein_kaputtes_dokument_wird_uebersprungen(monkeypatch):
 
 def test_die_fassung_eines_laufs_bleibt_beim_umzug_gleich():
     """Der Seed vor AS-0 (Katalog mit Liste) und danach (ein Dokument je Ablauf) beschreiben
-    denselben Ablauf — die Fassung, an der ein wartender Lauf hängt, ist dieselbe."""
-    dokument = yaml.safe_load((_SEEDS / "sammlungsstruktur.yaml").read_text(encoding="utf-8"))
+    denselben Ablauf — die Fassung, an der ein wartender Lauf hängt, ist dieselbe.
+
+    TW-6 hat die Schritte von „aus Ordnern“ später bewusst geändert (Einstiegsfrage): der heutige
+    Seed hat darum eine neue Fassung. Geprüft wird die Umstellung selbst — Felder nur des
+    Dokuments (``tests``, ``aktiv``, ``wann``) ändern die Fassung nicht."""
     vorher = yaml.safe_load(_KATALOG_VOR_AS0)["ablaeufe"][0]
-    assert fassung(AblaufArea.model_validate(dokument)) == fassung(
+    als_dokument = {**vorher, "aktiv": True, "wann": ["anders"],
+                    "tests": [{"name": "t", "eingaben": [], "erwartet": {"weg": ["erfassen"]}}]}
+    assert fassung(AblaufArea.model_validate(als_dokument)) == fassung(
         AblaufArea.model_validate(vorher))
+    heute = yaml.safe_load((_SEEDS / "sammlungsstruktur.yaml").read_text(encoding="utf-8"))
+    assert fassung(AblaufArea.model_validate(heute)) != fassung(AblaufArea.model_validate(vorher))
     assert not (_SEEDS / "katalog.yaml").exists()
 
 

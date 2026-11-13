@@ -148,6 +148,9 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.wahlVeraltet": (
             "Diese Wahl gilt nicht mehr — der Ablauf steht inzwischen woanders."),
         "action.ablauf.anmeldung": "Für diesen Ablauf melde dich bitte bei WLO an.",
+        "action.ablauf.anmeldungHinweis": (
+            "Für den geführten Ablauf „{titel}“ melde dich bitte bei WLO an — dann führt er dich "
+            "Schritt für Schritt."),
         "action.ablauf.startdaten": (
             "Dieser Ablauf braucht passende Startdaten von der Seite, in die der Chat eingebettet "
             "ist — so kann er nicht starten."),
@@ -705,6 +708,9 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.unbekannt": "This workflow does not exist here or is switched off.",
         "action.ablauf.wahlVeraltet": "This choice no longer applies — the workflow has moved on.",
         "action.ablauf.anmeldung": "Please sign in to WLO for this workflow.",
+        "action.ablauf.anmeldungHinweis": (
+            "For the guided workflow “{titel}”, please sign in to WLO — it then leads you step by "
+            "step."),
         "action.ablauf.startdaten": (
             "This workflow needs suitable start data from the page that embeds the chat — it "
             "cannot start like this."),

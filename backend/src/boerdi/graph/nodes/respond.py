@@ -451,6 +451,10 @@ async def respond(
         session_state[TEIL_LADER_KEY] = arbeitsstand.teil_lader(session, req.session_id, _entities)
         # Den Verweis hat der Preflight aufgefrischt (``arbeitsstand.auffrischen``).
         _kennzeile = arbeitsstand.kennzeile(_entities, arbeitsstand.aufrufer_fuer(req.session_id))
+        # TW-6: ohne Arbeitsgrundlage lenkt ein Modul-Aufruf auf einen passenden Ablauf um
+        session_state[ablauf_vorschlag.GRUNDLAGE_KEY] = ablauf_vorschlag.arbeitsgrundlage(
+            _entities, arbeitsstand.aufrufer_fuer(req.session_id))
+        session_state.pop(ablauf_vorschlag.UMGELENKT_KEY, None)
         # Paket A2b: am agent-Schritt eines Laufs die Zeile dazu (Werkzeuge engt nur der Agent ein).
         # Nicht unter einem von der Sicherheitsprüfung vorgegebenen Muster (Review A2b, Befund 1).
         _ki = ki_schritt.fuer_zug(session_state, req.session_id, safety)

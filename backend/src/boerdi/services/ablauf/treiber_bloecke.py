@@ -52,7 +52,7 @@ async def modul_block(modul: str, daten: dict[str, Any], *,
     manifest = katalog.katalog().get(modul)
     if manifest is None or not dienst.name(manifest):
         return None
-    return (await asynchron(modul, daten, ModulUmgebung())).block
+    return (await asynchron(modul, daten, ModulUmgebung(aus_ablauf=True))).block
 
 
 def fortschritt(ablauf_id: str, job_id: str, text: str, sprache: str) -> UiBlock | None:

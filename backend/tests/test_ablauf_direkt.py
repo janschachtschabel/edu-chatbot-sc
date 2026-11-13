@@ -22,6 +22,9 @@ from boerdi.services.ablauf import ausloeser, pruefung, vorschlag
 from tests.test_ablauf_vorschlag import _SCHRITTE, _roh
 
 _UPLOAD = [{"id": "u", "typ": "modul", "modul": "ui_upload"}, {"id": "e", "typ": "ende"}]
+#: TW-6: ein Ablauf, der selbst schreibt (Auftrag) — anders als ein bloßes Upload-Feld.
+_AUFTRAG = [{"id": "a", "typ": "auftrag", "flow": "wlo/volltext", "schreibt": "t", "weiter": "e"},
+            {"id": "e", "typ": "ende"}]
 
 
 @pytest.fixture
@@ -57,17 +60,27 @@ def test_der_direktknopf_ist_der_knopf_des_vorschlags(katalog):
 
 
 def test_ein_schreibender_ablauf_startet_nie_direkt(katalog):
+    katalog.append(_direkt("auftrag", schritte=_AUFTRAG))
+    assert vorschlag.merken([], "ablauf-auftrag", {}) == vorschlag.QUITTUNG
+    assert vorschlag.direkt_knopf([{"ablauf": "auftrag"}], "de") is None
+
+
+def test_tw6_ein_upload_feld_allein_hindert_den_direktstart_nicht(katalog):
+    """TW-6 (Durchtest 12.11.): das Upload-Feld überträgt nur nach eigenem Klick, mit Anmeldung
+    und Studio-Schalter — ein Ablauf damit darf direkt starten (er beginnt mit einer Frage)."""
     katalog.append(_direkt("upload", schritte=_UPLOAD))
-    assert vorschlag.merken([], "ablauf-upload", {}) == vorschlag.QUITTUNG
-    assert vorschlag.direkt_knopf([{"ablauf": "upload"}], "de") is None
+    assert vorschlag.merken([], "ablauf-upload", {}) == vorschlag.QUITTUNG_DIREKT
+    assert vorschlag.direkt_knopf([{"ablauf": "upload"}], "de") is not None
 
 
 def test_die_pruefung_meldet_direkt_bei_einem_schreibenden_ablauf(katalog):
     from boerdi.domain.config_models.ablauf import AblaufArea
 
-    roh = _direkt("upload", schritte=_UPLOAD)
+    roh = _direkt("auftrag", schritte=_AUFTRAG)
     befunde = pruefung.pruefe(AblaufArea.model_validate(roh), "de")
     assert any("direkt" in b for b in befunde)
+    upload = _direkt("upload", schritte=_UPLOAD)               # TW-6: kein Befund mehr
+    assert not any("direkt" in b for b in pruefung.pruefe(AblaufArea.model_validate(upload), "de"))
     assert not any("direkt" in b for b in pruefung.pruefe(
         AblaufArea.model_validate(_direkt("baum")), "de"))
 
@@ -135,9 +148,11 @@ def test_review_3_ein_agent_schritt_mit_upload_schreibt(katalog):
     schritte = [{"id": "k", "typ": "agent", "agent": {"werkzeuge": ["ui_upload"]},
                  "text": {"de": "Lade hoch."}}, {"id": "e", "typ": "ende"}]
     ablauf = AblaufArea.model_validate(_direkt("upload", schritte=schritte))
-    assert werkzeuge.ablauf_schreibt(ablauf)
+    assert werkzeuge.ablauf_schreibt(ablauf)              # für die Erlaubnis der Einbettung
+    # TW-6: für den Direktstart zählt nur, was selbst schreibt — ein Upload-Feld nicht
+    assert not werkzeuge.ablauf_schreibt_selbst(ablauf)
     katalog.append(_direkt("upload", schritte=schritte))
-    assert vorschlag.direkt_knopf([{"ablauf": "upload"}], "de") is None
+    assert vorschlag.direkt_knopf([{"ablauf": "upload"}], "de") is not None
 
 
 def test_review_4_die_api_grenze_streicht_einen_knopf_der_nicht_mehr_steht():

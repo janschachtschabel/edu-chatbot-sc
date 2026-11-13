@@ -348,6 +348,21 @@ async def respond_agent(
     # Angebot — dessen Text ist das Einzige, was hinausgeht (E-S1).
     _strom = strom_fuer_agent_zug(on_token, ctx, antwort_werkzeug=_antwort_tool is not None)
     progress.start("response", "LLM response generation")
+    # Paket A2a: nur mit vorschlagbarem Ablauf (Auslöser ``agent``) im Angebot — nicht im
+    # agent-Schritt eines Laufs (dort zählen nur dessen Werkzeuge).
+    # Kein Ablauf-Werkzeug, wo kein Knopf erscheinen kann (Chips des Gastgebers, Review
+    # AS-5b, Befund 4); die Erlaubnis der Einbettung gilt auch hier (Querschnitt AS-5, 6).
+    # Kein Ablauf-Werkzeug, wo die Chips einer wartenden Wahl den Platz füllen (sonst fiele
+    # der Knopf weg, den die KI ankündigt — offen seit AS-5b).
+    _ablauf_werkzeuge = None if (_ki or _gastgeber_chips(ctx) or not wahl_zug.platz_fuer_vorschlag(
+        ctx.req.session_id, ctx.session_state, sprache,
+        ctx.req.environment.quick_replies_max)) else ablauf_vorschlag.werkzeuge(
+        sprache, tool_mode=ctx.req.environment.tool_mode,
+        ohne=ablauf_zug.abgelehnt(ctx.req.session_id, ctx.session_state))
+    # TW-6: ohne Arbeitsgrundlage lenkt ein Modul-Aufruf auf einen passenden Ablauf um
+    ctx.session_state[ablauf_vorschlag.GRUNDLAGE_KEY] = ablauf_vorschlag.arbeitsgrundlage(
+        _entities, arbeitsstand.aufrufer_fuer(ctx.req.session_id))
+    ctx.session_state.pop(ablauf_vorschlag.UMGELENKT_KEY, None)
     _werkzeuge = build_agent_tools(
             allow_curation=_darf_schreiben,
             blocked_tools=ctx.safety.blocked_tools,
@@ -363,17 +378,7 @@ async def respond_agent(
             tool_mode=ctx.req.environment.tool_mode,
             wissen_tool=_wissen_tool,
             antwort_tool=_antwort_tool,
-            # Paket A2a: nur mit vorschlagbarem Ablauf (Auslöser ``agent``) im Angebot — nicht im
-            # agent-Schritt eines Laufs (dort zählen nur dessen Werkzeuge).
-            # Kein Ablauf-Werkzeug, wo kein Knopf erscheinen kann (Chips des Gastgebers, Review
-            # AS-5b, Befund 4); die Erlaubnis der Einbettung gilt auch hier (Querschnitt AS-5, 6).
-            # Kein Ablauf-Werkzeug, wo die Chips einer wartenden Wahl den Platz füllen (sonst fiele
-            # der Knopf weg, den die KI ankündigt — offen seit AS-5b).
-            ablauf_tools=None if (_ki or _gastgeber_chips(ctx) or not wahl_zug.platz_fuer_vorschlag(
-                ctx.req.session_id, ctx.session_state, sprache,
-                ctx.req.environment.quick_replies_max)) else ablauf_vorschlag.werkzeuge(
-                sprache, tool_mode=ctx.req.environment.tool_mode,
-                ohne=ablauf_zug.abgelehnt(ctx.req.session_id, ctx.session_state)))
+            ablauf_tools=_ablauf_werkzeuge)
     if _ki:
         _werkzeuge = ki_schritt.einengen(_werkzeuge, _ki[1])
         _ki_zeile = ki_schritt.zeile(*_ki, sprache, zuege=_ki_zug, angeboten={
@@ -401,6 +406,10 @@ async def respond_agent(
         modul_teile=arbeitsstand.teil_lader(session, ctx.req.session_id, _entities),
         # Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt des Laufs
         modul_vorgaben=ki_schritt.vorgaben(_ki[1], sprache) if _ki else "",
+        # TW-6: ohne Arbeitsgrundlage geht ein passender Ablauf vor (``vorschlag.umlenkung``)
+        modul_umlenkung=None if _ki else (
+            lambda name, args, angeboten, merken=True: ablauf_vorschlag.umlenkung(
+                name, args, angeboten, ctx.session_state, merken=merken, lang=sprache)),
         on_tool_result=lambda name, text: ernten.append(collect_cards(all_cards, name, text)),
         wissen=_wissen if _wissen_tool else None,
         # Paket 2: eine nicht eingelöste Schreib-Vorschau nimmt die Person im

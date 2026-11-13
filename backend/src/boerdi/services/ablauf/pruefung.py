@@ -806,7 +806,7 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
     for a in ablauf.ausloeser:
         befunde += [(None, text) for text in _ausloeser(ablauf, a, module, lang)]
         # TB-E3: ``direkt`` nur ohne Schreiben — sonst bleibt es ein Vorschlag
-        if a.art == "agent" and a.modus == "direkt" and werkzeuge.ablauf_schreibt(ablauf):
+        if a.art == "agent" and a.modus == "direkt" and werkzeuge.ablauf_schreibt_selbst(ablauf):
             befunde.append((None, _t(lang, "direkt_schreibt")))
     befunde += [(None, text) for text in _startschema(ablauf, lang)]
     return befunde
