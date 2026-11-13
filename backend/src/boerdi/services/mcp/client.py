@@ -45,6 +45,7 @@ from boerdi.domain.fremdwerkzeug import ist_fremd
 from boerdi.domain.mcp_unvollstaendig import ist_unvollstaendig
 from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
 from boerdi.domain.werkzeug_freigabe import uebernommen
+from boerdi.domain.write_anzeige import ziel_zeile
 from boerdi.domain.write_confirm import (
     CONFIRM_TOKEN_FIELD,
     SCHLUESSEL_FELDER,
@@ -754,6 +755,11 @@ async def _einzelaufruf(
             "Schreibzugriff — verworfen", tool_name)
 
     response = "\n".join(texts) if texts else json.dumps(result_data)
+    # Review 2026-11-13 (M1): der Vorschautext einer Metadaten-Änderung nennt den Datensatz
+    # nicht — Titel und Kennung stehen nur im strukturierten Teil. Die Zeile gilt der Person
+    # (Abnahme-Box) wie der KI (ihr einordnender Satz).
+    if is_confirmable(tool_name) and (ziel := ziel_zeile(bestaetigung, response)):
+        response = f"{ziel}\n{response}"
 
     # Slim ``get_subject_portals``: the raw API ships rich marketing
     # descriptions for every Fachportal (~50 KB total). The LLM only
