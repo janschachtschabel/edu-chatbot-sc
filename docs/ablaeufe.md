@@ -128,20 +128,43 @@ ohne Ablauf“, „aus eigenen Inhalten“ mit „Ja, los geht's / ohne Ablauf�
 „Themenbaum · aus einem Dokument“ startet auch aus dem Auswahlfeld, mit „Themenbaum aus dem
 Strukturdokument erstellen“ (Modul-Auslöser).
 
-**Kernfragen als Teile.** Die Fragen kommen aus dem Gestaltungsleitfaden: wofür, für wen, welches
-Thema, wie tief.
+**Kernfragen als Teile.** Die Fragen kommen aus dem Gestaltungsleitfaden. „Aus einem Thema“ fragt
+seit 13.11. zuerst das Thema, dann wofür, für wen und wie tief: Das Thema trägt den Baum.
+
+- **Jede Frage nimmt auch getippten Text** (`freitext` mit demselben Teil wie `schreibt`). Ohne
+  ihn geht eine getippte Antwort an die KI, und die kann den Ablauf nicht weiterschalten: Er
+  bleibt stehen. Ausgenommen sind Steuerfragen mit Ausstieg („Ohne Ablauf“). Ein Test wacht über
+  die Seeds (`tests/test_ablauf_frageschritte_freitext.py`).
 
 - Eine Nachricht mit Schnellantworten und `schreibt: zweck` legt das Label der gewählten Antwort
   als Teil `zweck` ab. In der Zeile für die KI steht dann „Wahl: Unterricht planen“.
 - Getippter Text geht wie bisher über `freitext.schreibt` in einen Teil. Tragen beide denselben
   Namen (etwa `stufe`), ergeben Wahl und Tippen denselben Teil.
 - Der Hinweis an die KI setzt nichts ein. Die KI sieht eine Wahl in der Arbeitsstands-Zeile
-  („Wahl: …“). Getippten Text sieht sie im Verlauf; in der Zeile steht davon nur der Name des
-  Teils.
+  („Wahl: …“); von getipptem Text steht dort nur der Name des Teils.
+- **Am KI-Schritt bekommt die KI die Antworten als Daten** (seit 13.11.): Die Zeile
+  `[ABLAUFDATEN — …]` nennt, was die Person auf die Fragen dieses Ablaufs geantwortet hat, gewählt
+  oder getippt (`services/ablauf/ki_schritt.daten_zeile`). Vorher stand getippter Text nur im
+  Verlauf. Die KI sieht davon die letzten 10 Nachrichten, bei einem längeren Dialog ging das
+  Thema verloren.
+  - Die Zeile gilt dem **Lauf**: Er merkt sich, welche Fragen in ihm beantwortet wurden
+    (`lauf.antworten`, nur Namen). Nach einem Neustart im selben Vorgang stehen dort keine
+    Antworten des vorigen Laufs.
+  - Keine Antwort ist die Wahl an einer Steuerfrage mit Ausstieg („Gleich entwerfen“) und ein
+    Teil, den auch ein Werkzeug, ein Auftrag, die KI oder ein Modul schreibt.
+  - Jede Antwort ist auf höchstens 200 Zeichen gekürzt, als Daten gerahmt und entschärft (keine
+    Anführungszeichen, eckigen Klammern, Steuerzeichen).
+  - Das ist eine bewusste Ausnahme von „keine Eingaben der Person in KI-Zeilen“ (Review AS-3a,
+    Befund 11). Die Zeile `[ARBEITSSTAND — …]` bleibt ohne Inhalt.
+- **Der Stand des Ablaufs steht in `[ARBEITSSTAND — …]` vor den Teilen** (seit 13.11.). Am Ende
+  der auf 300 Zeichen gedeckelten Zeile fiel er bei vielen Teilen weg.
+- **Zusammenfassung vor dem Entwurf:** Eine `nachricht` ohne Schnellantworten wartet nicht, ihr
+  Satz steht über dem des nächsten Schritts. So zeigt `notiert` mit Platzhaltern
+  (`{teil.thema}` …), was der Ablauf verstanden hat.
 
 **`06-ablaeufe/themenbaum_aus_thema`** („Themenbaum · aus einem Thema“):
 
-1. `wofuer`, `stufe`, `thema` (Freitext) und `tiefe`.
+1. `thema` (Freitext), `wofuer`, `stufe` und `tiefe`, dann `notiert` (Zusammenfassung).
 2. `entwurf` (`agent` mit `ui_strukturentwurf`, `ausgabe: draft`): Der Schritt fragt nach
    Schwerpunkten. Ein KI-Schritt antwortet erst auf den nächsten getippten Zug, darum diese
    Frage („oder einfach ‚Los‘“). Dann erzeugt die KI den Entwurf nach den Antworten und zeigt ihn.

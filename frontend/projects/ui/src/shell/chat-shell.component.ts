@@ -811,10 +811,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       () => this.sendMessage(this.t('chat.hostAblauf'), 'ablauf_starten', params));
   }
 
-  /** Paket AS-Ub: „Abbrechen“ in der Ablauf-Leiste — eine Direktaktion; das Backend fragt nach,
-   *  bevor es den Lauf (samt Auftrag) beendet (U-5). */
+  /** Paket AS-Ub: „Abbrechen“ in der Ablauf-Leiste — eine Direktaktion. Seit 13.11. bricht das
+   *  Backend sofort ab; es fragt nur noch nach, wenn ein Auftrag oder eine Freigabe daran hängt.
+   *  Die Marke des angezeigten Laufs geht mit (Review 13.11.): eine veraltete Leiste (zweiter Tab)
+   *  bricht so keinen anderen Lauf still ab — dann fragt das Backend erst. */
   onAblaufAbbrechen(): void {
-    void this.sendMessage(this.t('ablauf.leiste.abbrechen'), 'ablauf_abbrechen', {});
+    const lauf = this.ablaufStand()?.lauf;
+    void this.sendMessage(this.t('ablauf.leiste.abbrechen'), 'ablauf_abbrechen', lauf ? { lauf } : {});
   }
 
   /** Ein Auftrag der Gastseite wartet während eines Zugs und, in einer fortgesetzten Sitzung, bis

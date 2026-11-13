@@ -72,8 +72,23 @@ describe('ChatShellComponent — Ablauf-Leiste (AS-Ub)', () => {
     api.stream = vi.fn(async () => resp);
     c.onAblaufAbbrechen();
     await vi.waitFor(() => expect(api.stream).toHaveBeenCalled());
-    const [, nachricht, , , aktion] = api.stream.mock.calls[0] as unknown[];
+    const [, nachricht, , , aktion, params] = api.stream.mock.calls[0] as unknown[];
     expect(aktion).toBe('ablauf_abbrechen');
     expect(nachricht).toBe('Ablauf abbrechen');
+    expect(params).toEqual({});                 // ohne Stand keine Marke
+  });
+
+  it('„Abbrechen“ schickt die Marke des angezeigten Laufs mit (Review 13.11.)', async () => {
+    const { f, c, store } = bauen();
+    store.addBotMessage('Los.', false, [], undefined, { ablauf: { ...STAND, lauf: 'ab12cd34' } });
+    f.detectChanges();
+    const resp = { content: 'Der Ablauf ist abgebrochen.', session_id: 's', cards: [], quick_replies: [] } as unknown as ChatResponse;
+    const api = (c as unknown as { _api: { stream: ReturnType<typeof vi.fn> } })._api;
+    api.stream = vi.fn(async () => resp);
+    c.onAblaufAbbrechen();
+    await vi.waitFor(() => expect(api.stream).toHaveBeenCalled());
+    const [, , , , aktion, params] = api.stream.mock.calls[0] as unknown[];
+    expect(aktion).toBe('ablauf_abbrechen');
+    expect(params).toEqual({ lauf: 'ab12cd34' });
   });
 });

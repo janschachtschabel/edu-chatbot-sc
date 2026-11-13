@@ -73,18 +73,25 @@ def test_der_ausstieg_merkt_sich_den_ablauf_und_bietet_doch_mit_ablauf(umgebung)
     assert (praefix, aktion) == ("__action__", zug.AKTION) and '"tb"' in params
 
 
-def test_abbrechen_in_der_leiste_ist_auch_ein_ausstieg(umgebung):  # noqa: F811
-    """Querschnitts-Review TW, Befund 3: sonst startete die nächste Wendung ihn gleich wieder."""
+def test_abbrechen_in_der_leiste_ist_auch_ein_ausstieg(umgebung, monkeypatch):  # noqa: F811
+    """Querschnitts-Review TW, Befund 3: sonst startete die nächste Wendung ihn gleich wieder.
+    Seit 13.11. fragt der Zug nur noch an Auftrag und Freigabe nach — dort sperrt die Rückfrage
+    allein nichts; an einer Frage bricht der Knopf sofort ab, und auch das ist ein Ausstieg."""
     import json
 
-    from tests.test_ablauf_leiste import _WARTET, _abbrechen, _gestartet
+    from tests.test_ablauf_leiste import _WARTET, _abbrechen, _gestartet, _wartet_auftrag
     from tests.test_ablauf_leiste import _ablauf as _leisten_ablauf
 
-    zustand = _gestartet(umgebung, _leisten_ablauf(_WARTET).model_dump(exclude_none=True))
+    zustand = _wartet_auftrag(umgebung, monkeypatch)
     params = json.loads(_abbrechen(zustand).quick_replies[0].split("|", 3)[3])
     assert zug.abgelehnt("s", zustand) is None            # die Rückfrage allein sperrt nichts
     _abbrechen(zustand, **params)
     assert zug.abgelehnt("s", zustand) is not None
+
+    umgebung.speicher.v.clear()
+    sofort = _gestartet(umgebung, _leisten_ablauf(_WARTET).model_dump(exclude_none=True))
+    _abbrechen(sofort)
+    assert zug.abgelehnt("s", sofort) is not None
 
 
 def test_zweites_review_1_die_marke_wird_mit_der_sitzung_gespeichert(umgebung, monkeypatch):  # noqa: F811

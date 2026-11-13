@@ -1,18 +1,19 @@
 # Ablauf „Themenbaum · aus einem Thema“ (Plan docs/plans/2026-11-10-themenbaum-aus-inhalten.md,
 # TB-T2; Plan docs/plans/2026-11-11-themenbaum-ausloesen-und-wissen.md, TW-4). Ohne eigene Inhalte:
-# die Kernfragen aus dem Gestaltungsleitfaden (wofür, für wen, welches Thema, wie tief) grenzen den
+# die Kernfragen aus dem Gestaltungsleitfaden (welches Thema, wofür, für wen, wie tief) grenzen den
 # Entwurf ein, dann erzeugt die KI ihn mit ui_strukturentwurf und zeigt ihn im Chat. Danach endet
 # der Ablauf — Sammlungen daraus anzulegen, kommt später.
 #
 # - Zuerst angeboten (N16): die KI startet ihn direkt (modus direkt, er schreibt nichts), die erste
 #   Frage lässt aussteigen — dann arbeitet die KI frei mit ui_strukturentwurf weiter.
-# - Die Antworten werden Teile (TB-T1); die KI sieht sie in der Arbeitsstands-Zeile und im Verlauf.
+# - Die Antworten werden Teile (TB-T1); am KI-Schritt stehen sie in der Zeile [ABLAUFDATEN — …]
+#   (13.11., ``ki_schritt.daten_zeile``) — vorher nur im Verlauf, wo getippte verloren gingen.
 # - Der Startknopf am KI-Schritt schickt „Entwurf erstellen“ an die KI (TW-3); die Vorgaben gehen
 #   als Wissen der Redaktion an den Generator (TW-2).
 id: themenbaum_aus_thema
 titel: {de: "Themenbaum · aus einem Thema", en: "Topic tree · from a topic"}
 beschreibung: >-
-  Vier kurze Fragen (wofür, für wen, welches Thema, wie tief), dann ein bearbeitbarer
+  Vier kurze Fragen (welches Thema, wofür, für wen, wie tief), dann ein bearbeitbarer
   Themenbaum-Entwurf im Chat. Ohne eigene Dateien.
 wann:
   - Die Person will einen Themenbaum, eine Gliederung oder Sammlungsstruktur zu einem Thema, ohne eigene Dateien
@@ -37,52 +38,68 @@ schritte:
     text: {de: "Gern baue ich dir einen Themenbaum. Mit vier kurzen Fragen wird er passender – oder soll ich gleich entwerfen?",
            en: "I'll gladly build you a topic tree. Four short questions make it fit better – or shall I draft it right away?"}
     optionen:
-      - {id: fragen, label: {de: "Ja, mit Fragen", en: "Yes, with questions"}, ziel: wofuer}
+      - {id: fragen, label: {de: "Ja, mit Fragen", en: "Yes, with questions"}, ziel: thema}
       - {id: gleich, label: {de: "Gleich entwerfen", en: "Draft right away"}, ziel: entwurf}
       - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
+  # Rückmeldung 13.11.: das Thema zuerst und ohne „Fach“ in der Frage — sonst antwortete die Person
+  # „Sport“, und der Baum galt dem ganzen Fach statt „Karate“.
+  - id: thema
+    typ: nachricht
+    text: {de: "Zu welchem Thema soll der Baum sein? Schreib es kurz, gern mit Fach, zum Beispiel „Optik (Physik)“ oder „Karate“.",
+           en: "What topic is the tree about? Keep it short, with the subject if you like, for example “Optics (physics)” or “Karate”."}
+    freitext: {ziel: wofuer, schreibt: thema}
+  # Rückmeldung 13.11.: jede Frage nimmt auch getippte Antworten (``freitext``) — sonst ging der
+  # Text an die KI, die den Ablauf nicht weiterschalten kann, und der Lauf stand.
   - id: wofuer
     typ: nachricht
-    text: {de: "Wofür soll der Themenbaum sein?", en: "What is the topic tree for?"}
+    text: {de: "Wofür soll der Themenbaum sein? Wähle aus oder schreib es in eigenen Worten.",
+           en: "What is the topic tree for? Pick one or tell me in your own words."}
     schreibt: zweck
     optionen:
       - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: stufe}
       - {id: materialpool, label: {de: Materialpool aufbauen, en: Build a material pool}, ziel: stufe}
       - {id: redaktion, label: {de: Redaktionelle Sammlung, en: Editorial collection}, ziel: stufe}
+      - {id: ueberblick, label: {de: "Überblick, etwa für eine Webseite", en: "Overview, e.g. for a website"}, ziel: stufe}
+    freitext: {ziel: stufe, schreibt: zweck}
   - id: stufe
     typ: nachricht
-    text: {de: "Für wen ist er gedacht?", en: "Who is it for?"}
+    text: {de: "Für wen ist er gedacht? Wähle aus oder schreib es mir.",
+           en: "Who is it for? Pick one or tell me."}
     schreibt: stufe
     optionen:
-      - {id: grundschule, label: {de: Grundschule, en: Primary school}, ziel: thema}
-      - {id: sek1, label: {de: Sekundarstufe I, en: Lower secondary}, ziel: thema}
-      - {id: sek2, label: {de: Sekundarstufe II, en: Upper secondary}, ziel: thema}
-      - {id: beruf, label: {de: Berufliche Bildung, en: Vocational training}, ziel: thema}
-      - {id: hochschule, label: {de: Hochschule, en: Higher education}, ziel: thema}
+      - {id: grundschule, label: {de: Grundschule, en: Primary school}, ziel: tiefe}
+      - {id: sek1, label: {de: Sekundarstufe I, en: Lower secondary}, ziel: tiefe}
+      - {id: sek2, label: {de: Sekundarstufe II, en: Upper secondary}, ziel: tiefe}
+      - {id: beruf, label: {de: Berufliche Bildung, en: Vocational training}, ziel: tiefe}
+      - {id: hochschule, label: {de: Hochschule, en: Higher education}, ziel: tiefe}
+      - {id: allgemein, label: {de: "Alle, ohne Bildungsstufe", en: "Everyone, no school level"}, ziel: tiefe}
     # andere Zielgruppe getippt: derselbe Teil
-    freitext: {ziel: thema, schreibt: stufe}
-  - id: thema
-    typ: nachricht
-    text: {de: "Zu welchem Fach und Thema? Schreib es kurz, zum Beispiel „Physik: Optik“.",
-           en: "Which subject and topic? Keep it short, for example “Physics: optics”."}
-    freitext: {ziel: tiefe, schreibt: thema}
+    freitext: {ziel: tiefe, schreibt: stufe}
   - id: tiefe
     typ: nachricht
     text: {de: "Wie ausführlich soll der Baum werden?", en: "How detailed should the tree be?"}
     schreibt: tiefe
     optionen:
-      - {id: ueberblick, label: {de: Überblick (2 Ebenen), en: Overview (2 levels)}, ziel: entwurf}
-      - {id: ausfuehrlich, label: {de: Ausführlich (3 Ebenen), en: Detailed (3 levels)}, ziel: entwurf}
+      - {id: ueberblick, label: {de: Überblick (2 Ebenen), en: Overview (2 levels)}, ziel: notiert}
+      - {id: ausfuehrlich, label: {de: Ausführlich (3 Ebenen), en: Detailed (3 levels)}, ziel: notiert}
+    freitext: {ziel: notiert, schreibt: tiefe}
+  # Rückmeldung 13.11.: vor dem Entwurf sagen, was notiert ist — ein falsches Thema fällt sofort
+  # auf. Ohne Schnellantworten wartet der Schritt nicht; sein Satz steht über dem des KI-Schritts.
+  - id: notiert
+    typ: nachricht
+    text: {de: "Danke! Notiert: Thema „{teil.thema}“ · wofür: „{teil.zweck}“ · für wen: „{teil.stufe}“ · Umfang: „{teil.tiefe}“.",
+           en: "Thanks! Noted: topic “{teil.thema}” · purpose: “{teil.zweck}” · audience: “{teil.stufe}” · scope: “{teil.tiefe}”."}
   # Ein KI-Schritt antwortet auf die nächste Nachricht (A2b): der Startknopf schickt sie mit einem
   # Klick, Schwerpunkte kann die Person stattdessen tippen.
   - id: entwurf
     typ: agent
-    text: {de: "Danke! Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder klick auf „Entwurf erstellen“.",
-           en: "Thanks! Any focus areas that must not be missing? Tell me – or click “Create draft”."}
+    text: {de: "Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder klick auf „Entwurf erstellen“.",
+           en: "Any focus areas that must not be missing? Tell me – or click “Create draft”."}
     agent:
       werkzeuge: [ui_strukturentwurf]
       hinweis:
-        de: "Rufe ui_strukturentwurf mit Thema, Fach, Stufe, Tiefe aus den Antworten, sonst aus dem Verlauf, auf; Zweck und Wünsche als hinweise. Fehlt das Thema, frag einmal nach."
-        en: "Call ui_strukturentwurf with topic, subject, level, depth from the answers, else from the conversation; purpose and wishes as hinweise. If the topic is missing, ask once."
+        de: "Auf eine Frage erst antworten. Sonst ui_strukturentwurf mit den Antworten aus ABLAUFDATEN: thema ist der Gegenstand (etwa „Karate“), nie nur das Fach; Zweck, Wünsche als hinweise. Ohne Thema fragen."
+        en: "Answer a question first. Otherwise ui_strukturentwurf with the answers from ABLAUFDATEN: thema is the subject matter, never just the school subject; purpose, wishes as hinweise. No topic: ask."
       startknopf: {de: Entwurf erstellen, en: Create draft}
       vorgaben:
         de: |-
@@ -90,12 +107,18 @@ schritte:
           - „Unterricht planen“: Planungsbaum für Lehrende. Oben die Themen des Fachs in einer sinnvollen Unterrichtsreihenfolge; nur wenn die Person es wünscht, Unterrichtsreihen oder Halbjahre.
           - „Materialpool aufbauen“: Ordnung nach Themen der Fachsystematik (Fach → Themenfeld → Thema), länderneutral, oben 6 bis 12 Punkte.
           - „Redaktionelle Sammlung“: Themenwelt → Themenseite → Abschnitt, publikumsnahe Bezeichnungen; Fragen nur, wenn alle Geschwister als Frage stehen.
+          - „Überblick“ (etwa für eine Webseite): die Hauptaspekte des Themas für ein breites Publikum, verständliche Bezeichnungen, oben 5 bis 10 Punkte.
+          - Ein eigener Zweck: richte den Baum nach ihm, im Zweifel wie „Überblick“.
+          Der Baum gilt immer dem Thema aus dem Auftrag, nie dem ganzen Fach.
           Die Stufe bestimmt Wortwahl und Tiefe der Begriffe, sie ist nie ein Punkt. In der Beruflichen Bildung ordnen Lernfelder bzw. berufliche Handlungen die obere Ebene. Kompetenzen, Methoden und Formate gehören in Schlagworte, nicht in den Baum.
         en: |-
           Build the tree according to the purpose given in the hints:
           - "Plan lessons": a planning tree for teachers. At the top the topics of the subject in a sensible teaching order; teaching units or terms only if the person asks for them.
           - "Build a material pool": order by topics of the subject (subject → topic field → topic), independent of any state curriculum, 6 to 12 top-level items.
           - "Editorial collection": theme world → theme page → section, audience-friendly labels; questions only if all siblings are questions.
+          - "Overview" (e.g. for a website): the main aspects of the topic for a broad audience, plain labels, 5 to 10 top-level items.
+          - A purpose of their own: follow it, if in doubt like "Overview".
+          The tree is always about the topic in the request, never the whole school subject.
           The level shapes wording and depth of the terms; it is never an item. In vocational training, learning fields or occupational tasks order the top level. Competences, methods and formats belong in keywords, not in the tree.
       ausgabe: draft
       zuege: 3
@@ -118,14 +141,14 @@ tests:
   - name: Alle Fragen beantwortet
     eingaben:
       - {bei: einstieg, option: fragen}
+      - {bei: thema, text: "Optik (Physik)"}
       - {bei: wofuer, option: unterricht}
       - {bei: stufe, option: sek1}
-      - {bei: thema, text: "Physik: Optik"}
       - {bei: tiefe, option: ueberblick}
       - bei: entwurf
         teile: {draft: {titel: Optik, quelle: ki, knoten: [{titel: Linsen}, {titel: Spiegel}]}}
-    erwartet: {weg: [einstieg, wofuer, stufe, thema, tiefe, entwurf, ende], status: fertig,
-               teile: [zweck, stufe, thema, tiefe, draft]}
+    erwartet: {weg: [einstieg, thema, wofuer, stufe, tiefe, notiert, entwurf, ende], status: fertig,
+               teile: [thema, zweck, stufe, tiefe, draft]}
   - name: Ohne Ablauf
     eingaben:
       - {bei: einstieg, option: ohne}
@@ -139,17 +162,27 @@ tests:
   - name: Zielgruppe getippt
     eingaben:
       - {bei: einstieg, option: fragen}
+      - {bei: thema, text: "Römer (Geschichte)"}
       - {bei: wofuer, option: materialpool}
       - {bei: stufe, text: Erwachsenenbildung}
-      - {bei: thema, text: "Geschichte: Römer"}
       - {bei: tiefe, option: ausfuehrlich}
-    erwartet: {weg: [einstieg, wofuer, stufe, thema, tiefe, entwurf], status: wartet_ki}
+    erwartet: {weg: [einstieg, thema, wofuer, stufe, tiefe, notiert, entwurf], status: wartet_ki}
+  # Rückmeldung 13.11.: getippte Antworten schalten weiter, statt bei der KI liegen zu bleiben
+  - name: Zweck und Tiefe getippt
+    eingaben:
+      - {bei: einstieg, option: fragen}
+      - {bei: thema, text: Karate}
+      - {bei: wofuer, text: "für eine Webseite über Karate"}
+      - {bei: stufe, option: allgemein}
+      - {bei: tiefe, text: "nur grob"}
+    erwartet: {weg: [einstieg, thema, wofuer, stufe, tiefe, notiert, entwurf], status: wartet_ki,
+               teile: [thema, zweck, stufe, tiefe]}
   - name: Ohne Entwurf
     eingaben:
       - {bei: einstieg, option: fragen}
+      - {bei: thema, text: "Säuren (Chemie)"}
       - {bei: wofuer, option: redaktion}
       - {bei: stufe, option: sek2}
-      - {bei: thema, text: "Chemie: Säuren"}
       - {bei: tiefe, option: ueberblick}
       - {bei: entwurf}
-    erwartet: {weg: [einstieg, wofuer, stufe, thema, tiefe, entwurf, ohne_entwurf], status: fertig}
+    erwartet: {weg: [einstieg, thema, wofuer, stufe, tiefe, notiert, entwurf, ohne_entwurf], status: fertig}

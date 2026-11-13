@@ -171,13 +171,14 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.keinLauf": "In diesem Gespräch läuft gerade kein Ablauf.",
         "action.ablauf.abbrechenFrage": (
             "Den Ablauf wirklich abbrechen? Das lässt sich nicht zurücknehmen; ein Auftrag, auf "
-            "den er wartet, endet mit. Was schon gesammelt ist, bleibt im Arbeitsstand."),
+            "den er wartet, endet mit, eine offene Freigabe verfällt. Was schon gesammelt ist, "
+            "bleibt im Arbeitsstand."),
         # Browser-Abnahme AS-U, L-2: neben den Chips des Schritts muss der Satz sagen, wofür sie
         # stehen, und der Knopf darf nicht wie eine zweite Zusage („Ja, …“) klingen.
         "action.ablauf.abbrechenFrageZurueck": (
             "Den Ablauf wirklich abbrechen? Das lässt sich nicht zurücknehmen; ein Auftrag, auf "
-            "den er wartet, endet mit. Was schon gesammelt ist, bleibt im Arbeitsstand. Willst du "
-            "lieber weitermachen, wähle eine andere Antwort."),
+            "den er wartet, endet mit, eine offene Freigabe verfällt. Was schon gesammelt ist, "
+            "bleibt im Arbeitsstand. Willst du lieber weitermachen, wähle eine andere Antwort."),
         "action.ablauf.abbrechenJa": "Ablauf abbrechen",
         "action.ablauf.abgebrochenPerson": "Der Ablauf ist abgebrochen.",
         "action.ablauf.neuStarten": "Neu starten",
@@ -742,11 +743,12 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.keinLauf": "No workflow is running in this conversation right now.",
         "action.ablauf.abbrechenFrage": (
             "Really cancel the workflow? This cannot be undone; a job it is waiting for ends "
-            "too. What has been collected so far stays in your work state."),
+            "too, an open approval lapses. What has been collected so far stays in your work "
+            "state."),
         "action.ablauf.abbrechenFrageZurueck": (
             "Really cancel the workflow? This cannot be undone; a job it is waiting for ends "
-            "too. What has been collected so far stays in your work state. To carry on instead, "
-            "pick another answer."),
+            "too, an open approval lapses. What has been collected so far stays in your work "
+            "state. To carry on instead, pick another answer."),
         "action.ablauf.abbrechenJa": "Cancel workflow",
         "action.ablauf.abgebrochenPerson": "The workflow has been cancelled.",
         "action.ablauf.neuStarten": "Restart",

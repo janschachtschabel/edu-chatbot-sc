@@ -377,3 +377,19 @@ def test_ein_neuer_vorgang_bekommt_die_gepflegte_frist(ablage, monkeypatch):
             "name": "P", "dateien": 0, "alle_dateien": 0, "kinder": []}}}))
     [v] = ablage.vorgaenge.values()
     assert (v.verfaellt_am - datetime.now(UTC)).days in (8, 9)
+
+
+def test_review_13_11_der_stand_des_ablaufs_steht_vor_den_teilen():
+    """Der Masterskill richtet sich nach dem Status („wartet_wahl“). Am Ende der gedeckelten Zeile
+    fiel er bei vielen Teilen weg — jetzt steht er vor der Liste."""
+    teile = {f"teil_{i}": {"v": 1, "z": "Text: eine längere Zusammenfassung " + "x" * 30}
+             for i in range(8)}
+    entities = {arbeitsstand.VERWEIS: _vw(teile=teile, lauf={
+        "ablauf": "themenbaum_aus_inhalten", "schritt": "metadaten_frage",
+        "status": "wartet_wahl"})}
+    zeile = arbeitsstand.kennzeile(entities, "person-a")
+    assert len(zeile) <= 300 and "(wartet_wahl)" in zeile
+    assert zeile.index("Ablauf themenbaum_aus_inhalten") < zeile.index("Teile:")
+    # ohne Lauf wie bisher
+    ohne = arbeitsstand.kennzeile({arbeitsstand.VERWEIS: _vw()}, "person-a")
+    assert "Vorgang „Physik“; Teile: noch keine." in ohne
