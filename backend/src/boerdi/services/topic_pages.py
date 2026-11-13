@@ -1,19 +1,19 @@
 """Topic-pages MCP-search helpers (P5-6b, port of ALT chat_topic_pages.py):
-the stateless emptiness/title-filter helpers, the async warmup+global-fallback
-search and — R6-wired — the M16 view resolver
+the stateless emptiness/title-filter helpers, the async search with its
+global-list fallback and — R6-wired — the M16 view resolver
 (``_resolve_m16_topic_page_view``). They form one cohesive topic-pages concern
-(the warmup consumes both pure helpers; the resolver drives the M16 Themenseiten-
+(the search consumes both pure helpers; the resolver drives the M16 Themenseiten-
 content view), so they land together in ``services/`` — the same pure+async
 grouping as ``outcome_service.py`` / sibling ``card_pipeline.py``.
 
 Deviations vs ALT:
-- the warmup's lazy MCP import points at the NEU leaf module
+- the search's lazy MCP import points at the NEU leaf module
   (``boerdi.services.mcp.client``, no facade);
 - the M16 resolver takes ``winner_id: str`` (ALT passed a ``winner`` object and
   read only ``winner.id``) and drops the tracer (project-wide in NEU); its MCP/
   schema seams point at ``boerdi.services.mcp.{client,parsers}`` +
   ``boerdi.api.schemas``. ``call_mcp_tool`` is a top-import so the resolver's
-  tests patch it on THIS module (the warmup keeps its own lazy alias).
+  tests patch it on THIS module (the search keeps its own lazy alias).
 """
 
 from __future__ import annotations
@@ -100,41 +100,28 @@ def _filter_topic_pages_by_title(raw: str, needle: str) -> str | None:
     return json.dumps(out, ensure_ascii=False)
 
 
-async def _topic_pages_with_warmup(
+async def _topic_pages_with_fallback(
     query: str,
     extra_args: dict[str, Any],
 ) -> str:
-    # Sprint K (rev3) — Forced module reload signature
-    """Run search_wlo_topic_pages with a dedicated collections warmup
-    AND a global-list fallback when the server's tight query matcher
-    fails to find a topic page that actually exists.
+    """Run search_wlo_topic_pages with a global-list fallback when the
+    server's query matcher finds no topic page.
 
-    Two empirical quirks of the WLO MCP server:
+    Fallback: if the call returned no results, fetch the global list (no
+    query) and filter client-side by title-contains-query; without a title
+    match, up to five global topic pages are offered instead.
 
-    1. Session-state: the topic-page index only populates after a
-       ``search_wlo_collections`` call with small ``maxResults`` and no
-       discipline filter. We run a dedicated warmup before the actual
-       call so this state is always in place.
+    No warmup call any more (2026-11-13). ALT sent ``search_wlo_collections``
+    first, because the old server filled its topic-page index per session.
+    Today's MCP is stateless (a fresh server per request) and its query mode
+    searches the collections itself — measured against staging for eight
+    topics: the same result with and without the warmup
+    (``docs/aenderungen/2026-11-13-ketten-kuerzen.md``).
 
-    2. Tight query matcher: ``search_wlo_topic_pages(query="Mathematik")``
-       returns "Keine Themenseiten gefunden" even though a topic page
-       titled exactly "Mathematik" exists in the unfiltered global list.
-       The server seems to search inside topic-page CONTENT but ignores
-       the topic-page title for the query match. Fallback: if the
-       initial call returned no results, fetch the global list (no
-       query) and filter client-side by title-contains-query.
-
-    Tradeoff: 1 extra MCP roundtrip per turn that requests topic pages,
-    plus 1 more if the query-fallback triggers. Mitigated by Phase-A3
-    tool cache (TTL 300s) — repeat queries hit the cache for free.
+    Tradeoff: 1 more MCP roundtrip when the query finds nothing. Mitigated
+    by the tool cache (300s for results, 60s for an empty answer).
     """
     from boerdi.services.mcp.client import call_mcp_tool as _ct
-    try:
-        # Fire-and-forget warmup — its cards are discarded; only the
-        # session-state side effect on the MCP server matters.
-        await _ct("search_wlo_collections", {"query": query, "maxResults": 5})
-    except Exception:
-        logger.debug("collections warmup call failed (best-effort)", exc_info=True)
     primary = await _ct("search_wlo_topic_pages", extra_args)
     if not _is_empty_topic_pages_response(primary):
         return primary

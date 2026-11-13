@@ -8,6 +8,8 @@ Schlüssel —, und lassen den Rest stehen.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import Any
 
 from boerdi.domain.write_confirm import (
@@ -56,6 +58,70 @@ def preview_for_display(text: str) -> str:
     if stelle < 0:
         return (text or "").rstrip()
     return text[:stelle].rstrip()
+
+
+#: Deckel für den Titel in :func:`ziel_zeile` — ihn hat jemand anderes geschrieben.
+_TITEL_ZEICHEN = 120
+
+
+#: Was als Kennung in die Zeile darf: Buchstaben, Ziffern, Bindestrich (eine nodeId).
+_KENNUNG = re.compile(r"[0-9A-Za-z-]{8,64}")
+#: Anführungszeichen, die im Titel die Klammer der Zeile vorzeitig schlössen.
+_ANFUEHRUNG = str.maketrans({z: "'" for z in "„“”\"«»"})
+
+
+def _einzeilig(wert: object) -> str:
+    """Fremdtext als eine Zeile ohne Steuer- und Formatzeichen — sonst ``""``."""
+    if not isinstance(wert, str):
+        return ""
+    # Formatzeichen (weiches Trennzeichen, Breitenlose) fallen weg, statt Wörter zu trennen.
+    ohne = "".join(z for z in wert if unicodedata.category(z) != "Cf")
+    return " ".join("".join(z if z.isprintable() else " " for z in ohne).split())
+
+
+def _titel_fuer_die_zeile(titel: str) -> str:
+    """Der Titel so, dass er die Zeile nicht umdeuten kann: keine schließenden
+    Anführungszeichen, kein klickbarer Markdown-Link, gedeckelt."""
+    sicher = titel.translate(_ANFUEHRUNG).replace("](", "] (")
+    if len(sicher) <= _TITEL_ZEICHEN:
+        return sicher
+    return sicher[:_TITEL_ZEICHEN - 1].rstrip() + "…"
+
+
+def ziel_zeile(bestaetigung: object, text: str) -> str | None:
+    """Die Zeile, die sagt, WAS sich ändert — ``Geändert wird (Kennung): „Titel“`` — oder ``None``.
+
+    Der Vorschautext des Servers besteht bei einer Metadaten-Änderung nur aus den Feldzeilen
+    (``Fach: „…“ → „…“``): weder Titel noch Kennung. Beides steht im strukturierten Teil
+    (``confirm.preview.target``). Ohne die Zeile sähe vor dem Ja niemand, woran sich etwas
+    ändert, sobald die KI den Datensatz nicht vorher gelesen hat (Review 2026-11-13, M1).
+
+    * Keine Zeile, wenn der Server das Ziel selbst benennt — in seiner Form ``„Titel“
+      (Kennung)`` (Einreichen, Vorschlagen, Entscheiden). Der Titel irgendwo im Text genügt
+      nicht: als Feldwert oder Schlagwort benennt er nichts (zweites Review, M-1).
+    * Keine Zeile beim Löschen (der Server schreibt ``Löscht: …``) und ohne Titel (Anlegen:
+      den Datensatz gibt es noch nicht).
+    * Die Kennung steht VOR dem Titel und muss wie eine aussehen; der Titel ist Fremdtext und
+      könnte sonst eine falsche Kennung vortäuschen.
+    * „Datensatz“ oder „Sammlung“ sagt die Zeile nicht: der Server meldet eine Sammlung, die
+      über ``wlo_update_content`` geändert wird, als ``content``.
+
+    Der Wortlaut ist deutsch wie der Servertext, vor dem er steht.
+    """
+    if not isinstance(bestaetigung, dict):
+        return None
+    vorschau = bestaetigung.get("preview")
+    if not isinstance(vorschau, dict) or vorschau.get("action") != "change":
+        return None
+    ziel = vorschau.get("target")
+    if not isinstance(ziel, dict):
+        return None
+    titel, kennung = _einzeilig(ziel.get("title")), ziel.get("nodeId")
+    if not titel or not isinstance(kennung, str) or not _KENNUNG.fullmatch(kennung):
+        return None
+    if f"„{titel}“ ({kennung})" in (text or ""):
+        return None
+    return f"Geändert wird ({kennung}): „{_titel_fuer_die_zeile(titel)}“"
 
 
 def merke_vorschau(merkposten: dict[str, Any], vorschau: str) -> dict[str, Any]:

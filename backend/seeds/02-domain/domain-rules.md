@@ -47,7 +47,7 @@ für alle Bildungsstufen.
 - Filter sparsam: `discipline` / `educationalContext` / `learningResourceType` setzen, wenn die Person sie nennt (Klasse oder Schulform zählt); `userRole` / `license` / `publisher` nur auf ausdrücklichen Wunsch — selten getaggt, sie leeren sonst die Trefferliste
 - Eine verlangte Lizenz bleibt auch in Folgesuchen gesetzt; wer sie lockert, sagt es — Treffer ohne diese Lizenz nie als passend ausgeben
 - Filter als Bezeichnung setzen — der Client gleicht sie ab, kein Nachschlagen davor
-- `lookup_wlo_vocabulary` nur für Schreibvorgänge (echte URIs für Metadaten) und zum Prüfen von Metadaten
+- `lookup_wlo_vocabulary` nur für Schreibvorgänge (selbst abgeleitete oder abgelehnte Werte für Metadaten) und zum Prüfen von Metadaten
 - `get_node_details(outputFormat="json")` für Detail-Metadaten
 - `get_nodes_details(nodeIds)` Bulk statt N einzelne Calls
 

@@ -139,7 +139,7 @@ def rerank_gate_envelope(
     threshold = threshold_for_tool(tool_name)
 
     # Vorschlags-/Fallback-Sets (Themenseiten 'global-fallback' bzw.
-    # 'query-fallback' aus _topic_pages_with_warmup) NICHT hart auf 0 gaten —
+    # 'query-fallback' aus _topic_pages_with_fallback) NICHT hart auf 0 gaten —
     # ABER nur bei einer echten Browse-Anfrage ("zeige mir alle themenseiten",
     # allow_soft_fallback=True). Dann gibt es kein Thema, zu dem etwas relevant
     # sein müsste, also nur ranken + Top-N statt leeren.

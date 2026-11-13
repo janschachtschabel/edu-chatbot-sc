@@ -9,7 +9,9 @@ Latenz-Optimierung). Landeort ``services/`` (async MCP-I/O).
 unter ihrem ALT-Namen importiert, sodass der Body AST-identisch bleibt.
 Dokumentierte Deviationen (der AST-Diff-Gate beweist 0 Logik-Divergenz):
 - Import-Roots — ``call_mcp_tool`` aus ``services/mcp/client``,
-  ``_topic_pages_with_warmup`` aus ``services/topic_pages``,
+  ``_topic_pages_with_fallback`` aus ``services/topic_pages`` (bis 2026-11-13
+  ``_topic_pages_with_warmup``: der Aufwärm-Aufruf ist entfallen — die einzige
+  Stelle, an der der Body nicht mehr den ALT-Namen trägt),
   ``_retrieve_task_exception`` aus ``obs/tasks`` (statt der ALT-Router-Module);
 - **Bare-7-Tupel → ``SpeculativePrefetch``-NamedTuple** (Feld-Reihenfolge =
   ALT-Tupel → ALT-Positional-Asserts halten, ALT-Default-Tupel == Defaults);
@@ -37,7 +39,7 @@ from boerdi.domain.content_types import als_liste
 from boerdi.obs.log_inhalt import filterwerte, inhalt
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.mcp.client import call_mcp_tool
-from boerdi.services.topic_pages import _topic_pages_with_warmup
+from boerdi.services.topic_pages import _topic_pages_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -256,10 +258,12 @@ async def run_speculative_prefetch(req, classification, safety):
                     spec_tool_name = "search_wlo_topic_pages"
 
                 # Primary collections requests get capped at maxResults=5
-                # whenever a topic_pages-search is also expected: the WLO MCP
+                # whenever a topic_pages-search is also expected: the OLD WLO MCP
                 # server's session-state index for ``search_wlo_topic_pages``
-                # is determined by the LAST collections call, and only sticks
-                # for small result sets.
+                # was determined by the LAST collections call, and only stuck
+                # for small result sets. Today's MCP is stateless (2026-11-13,
+                # see ``topic_pages._topic_pages_with_fallback``); the cap is
+                # kept as it is — nobody has measured the prefetch without it.
                 _primary_max = 10
                 if spec_tool_name == "search_wlo_collections" and (
                     _wants_topic
@@ -328,7 +332,7 @@ async def run_speculative_prefetch(req, classification, safety):
                     )
                 elif spec_tool_name == "search_wlo_topic_pages":
                     spec_task = asyncio.create_task(
-                        _topic_pages_with_warmup(spec_query, spec_tool_args),
+                        _topic_pages_with_fallback(spec_query, spec_tool_args),
                     )
                 else:
                     spec_task = asyncio.create_task(
@@ -399,12 +403,11 @@ async def run_speculative_prefetch(req, classification, safety):
                     if _stufe:
                         extra_args["educationalContext"] = _stufe
 
-                    # search_wlo_topic_pages is session-stateful on the
-                    # WLO MCP server. Run a dedicated warmup before the
-                    # topic_pages call (unless we already are the primary).
+                    # Topic pages go through the helper with the global-list
+                    # fallback (unless we already are the primary).
                     if extra_name == "search_wlo_topic_pages":
                         t = asyncio.create_task(
-                            _topic_pages_with_warmup(spec_query, extra_args),
+                            _topic_pages_with_fallback(spec_query, extra_args),
                         )
                     else:
                         t = asyncio.create_task(call_mcp_tool(extra_name, extra_args))

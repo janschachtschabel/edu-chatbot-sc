@@ -5,7 +5,9 @@ Fach, Bildungsstufe, Inhaltstyp und Zielgruppe gleicht der Client selbst ab
 sonst LLM-Rückfall). Das Nachschlagen davor kostete einen Modell-Umlauf je Suche — im
 Muster-Modus in gut der Hälfte der Suchzüge (Golden-Läufe Aug./Sep. 2026). Die Lizenz gleicht
 der Client seit Paket 11 L ebenfalls ab (``lizenz_abgleich``). Die Schreibwerkzeuge laufen nicht
-durch den Abgleich — dort bleibt das Nachschlagen.
+durch den Abgleich — dort bleibt das Nachschlagen, seit 2026-11-13 aber nur noch, wenn das Modell
+die Werte selbst aus einem Text ableitet oder der Server eine Bezeichnung abgelehnt hat (der MCP
+nimmt Bezeichnungen und gleicht selbst ab; ``test_werkzeug_ketten_kurz``).
 
 Die Empfehlung stand an fünf Stellen; Code und Konfiguration müssen dasselbe sagen.
 """
@@ -20,7 +22,7 @@ from boerdi.services.response_prompt_tools_text import render_tools_block
 
 _SEEDS = Path(__file__).resolve().parents[1] / "seeds"
 _ABGEGLICHEN = ("discipline", "educationalContext", "userRole", "learningResourceType", "license")
-#: Muster, die Metadaten schreiben — dort braucht es echte URIs aus dem Vokabular.
+#: Muster, die Metadaten schreiben — dort darf das Nachschlagen ohne Zusatz stehen.
 _SCHREIB_MUSTER = {"m18-kuration.md", "m20-erschliessen.md"}
 
 

@@ -2,7 +2,7 @@
 
 Port des ``_launch_speculative_prefetch``-Charakterisierungsnetzes aus ALT
 ``test_chat_prefetch.py`` auf ``run_speculative_prefetch``. Pinnt das IST-Verhalten
-mit Boundary-Mocks: ``call_mcp_tool`` + ``_topic_pages_with_warmup`` sind
+mit Boundary-Mocks: ``call_mcp_tool`` + ``_topic_pages_with_fallback`` sind
 Top-Imports in ``services/prefetch.py`` (bare names im Body) → am Modul patchen
 (Fixture ``spec_mcp``). ``_retrieve_task_exception`` läuft ECHT als done_callback
 mit (räumt die Fake-Tasks beim Drain ab).
@@ -35,9 +35,9 @@ _SPEC_DEFAULTS = (None, None, None, "", [], False, [])
 def spec_mcp(monkeypatch):
     """Boundary-Fakes für ``run_speculative_prefetch``.
 
-    ``call_mcp_tool`` und ``_topic_pages_with_warmup`` sind Top-Imports in
+    ``call_mcp_tool`` und ``_topic_pages_with_fallback`` sind Top-Imports in
     ``services/prefetch.py`` (bare names im Body) → Patch auf ``prefetch``.
-    ``calls`` protokolliert ``("call", tool, args)`` bzw. ``("warmup", query,
+    ``calls`` protokolliert ``("call", tool, args)`` bzw. ``("themenseiten", query,
     args)`` in Task-Scheduling-Reihenfolge (= Start-Reihenfolge, da die Fakes
     keine Awaits vor dem Protokollieren haben).
     """
@@ -47,12 +47,12 @@ def spec_mcp(monkeypatch):
         calls.append(("call", tool, dict(args)))
         return "RAW"
 
-    async def _warmup(query, args):
-        calls.append(("warmup", query, dict(args)))
+    async def _themenseiten(query, args):
+        calls.append(("themenseiten", query, dict(args)))
         return "RAW"
 
     monkeypatch.setattr(prefetch, "call_mcp_tool", _call)
-    monkeypatch.setattr(prefetch, "_topic_pages_with_warmup", _warmup)
+    monkeypatch.setattr(prefetch, "_topic_pages_with_fallback", _themenseiten)
     return calls
 
 
@@ -148,8 +148,8 @@ def test_spec_i03_topic_first_uses_the_combo_tool(spec_mcp):
     assert args["includeFacets"] is True
     # … deshalb entfällt die Staircase, die vorher zwei Extra-Calls startete.
     assert [n for n, _t in extras] == []
-    # und kein Warmup mehr: der galt allein dem session-stateful Tool.
-    assert [c[0] for c in spec_mcp] != ["warmup"]
+    # und kein eigener Themenseiten-Aufruf daneben.
+    assert "themenseiten" not in [c[0] for c in spec_mcp]
 
 
 def test_spec_i04_generic_search_becomes_search_wlo_all(spec_mcp):
@@ -214,7 +214,7 @@ def test_spec_explicit_topic_page_wish_beats_search_all_hint(spec_mcp):
     assert is_all is False
 
 
-def test_spec_llm_tool_hint_topic_pages_wins_and_keeps_warmup(spec_mcp):
+def test_spec_llm_tool_hint_topic_pages_wins_and_uses_fallback_helper(spec_mcp):
     # LLM-Hint search_wlo_topic_pages überstimmt die Heuristik (die für
     # I04+fach collections→search_all gewählt hätte) und blockt search_all.
     out = _launch(intent="I04", entities={"fach": "Chemie"},
@@ -229,7 +229,7 @@ def test_spec_llm_tool_hint_topic_pages_wins_and_keeps_warmup(spec_mcp):
     # search_wlo_content bleibt als Extra.
     assert [n for n, _t in extras] == ["search_wlo_content"]
     assert spec_mcp == [
-        ("warmup", "Chemie", args),
+        ("themenseiten", "Chemie", args),
         ("call", "search_wlo_content",
          {"query": "Chemie", "maxResults": 5, "discipline": "Chemie"}),
     ]
