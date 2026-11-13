@@ -83,14 +83,18 @@ schritte:
       - {id: lernfelder, label: {de: Lernfelder (Berufsschule), en: Learning fields (vocational)}, ziel: wofuer}
       - {id: themenfelder, label: {de: Themenfelder, en: Topic fields}, ziel: wofuer}
       - {id: kapitel, label: {de: Wie im Dokument, en: As in the document}, ziel: wofuer}
+    # Rückmeldung 13.11.: getippte Antworten schalten weiter (sonst lagen sie bei der KI)
+    freitext: {ziel: wofuer, schreibt: ordnung}
   - id: wofuer
     typ: nachricht
-    text: {de: "Wofür soll der Themenbaum sein?", en: "What is the topic tree for?"}
+    text: {de: "Wofür soll der Themenbaum sein? Wähle aus oder schreib es in eigenen Worten.",
+           en: "What is the topic tree for? Pick one or tell me in your own words."}
     schreibt: zweck
     optionen:
       - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: entwurf}
       - {id: materialpool, label: {de: Materialpool aufbauen, en: Build a material pool}, ziel: entwurf}
       - {id: redaktion, label: {de: Redaktionelle Sammlung, en: Editorial collection}, ziel: entwurf}
+    freitext: {ziel: entwurf, schreibt: zweck}
   - id: entwurf
     typ: agent
     text: {de: "Danke! Gibt es Schwerpunkte, die nicht fehlen dürfen? Schreib sie mir – oder klick auf „Entwurf erstellen“.",

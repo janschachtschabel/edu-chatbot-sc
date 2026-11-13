@@ -42,15 +42,19 @@ schritte:
       - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
   - id: wofuer
     typ: nachricht
-    text: {de: "Wofür soll der Themenbaum sein?", en: "What is the topic tree for?"}
+    text: {de: "Wofür soll der Themenbaum sein? Wähle aus oder schreib es in eigenen Worten.",
+           en: "What is the topic tree for? Pick one or tell me in your own words."}
     schreibt: zweck
     optionen:
       - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: stufe}
       - {id: materialpool, label: {de: Materialpool aufbauen, en: Build a material pool}, ziel: stufe}
       - {id: redaktion, label: {de: Redaktionelle Sammlung, en: Editorial collection}, ziel: stufe}
+    # Rückmeldung 13.11.: getippte Antworten schalten weiter (sonst lagen sie bei der KI)
+    freitext: {ziel: stufe, schreibt: zweck}
   - id: stufe
     typ: nachricht
-    text: {de: "Für wen ist er gedacht?", en: "Who is it for?"}
+    text: {de: "Für wen ist er gedacht? Wähle aus oder schreib es mir.",
+           en: "Who is it for? Pick one or tell me."}
     schreibt: stufe
     optionen:
       - {id: grundschule, label: {de: Grundschule, en: Primary school}, ziel: thema}
