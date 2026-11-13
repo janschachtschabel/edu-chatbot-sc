@@ -65,6 +65,25 @@ def ist_wahl_knopf(qr: Any) -> bool:
     return isinstance(params.get("ersetzt"), str)
 
 
+#: Paket R2-e: die Steuer-Knöpfe — der Weg weiter in einem Lauf, einem Auftrag, einer Freigabe oder
+#: einem Plan. Kein Deckel streicht sie (``widget_postprocess``). Vorschläge wie „Ablauf starten“
+#: der KI oder „Arbeitsstand löschen“ gehören nicht dazu.
+_STEUER_AKTIONEN: Final = frozenset({
+    "ablauf_auftrag_pruefen", "ablauf_auftrag_abbrechen", "ablauf_freigabe_erneut",
+    "ablauf_freigabe_abbrechen", "vorgang_neu", "plan_weiter", _WEITER_AKTION})
+
+
+def ist_steuer_knopf(qr: Any) -> bool:
+    """Ist ``qr`` ein Steuer-Knopf (Wahl-Chip, „Weiter im Ablauf“, Auftrag, Freigabe, „Neues
+    Vorhaben“, Plan)? Paket R2-e: diese übersteht jeder Deckel der Schnellantworten."""
+    if ist_wahl_knopf(qr):
+        return True
+    if not isinstance(qr, str) or not qr.startswith("__action__|"):
+        return False
+    teile = qr.split("|", 3)
+    return len(teile) == 4 and teile[2] in _STEUER_AKTIONEN
+
+
 def wahl_zuerst(qrs: list[Any]) -> list[Any]:
     """Die Wahl-Chips vorn, der Rest in seiner Reihenfolge dahinter."""
     return [q for q in qrs if ist_wahl_knopf(q)] + [q for q in qrs if not ist_wahl_knopf(q)]

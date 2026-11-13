@@ -402,7 +402,7 @@ def test_der_deckel_laesst_im_gesperrten_lauf_die_auftrags_knoepfe_stehen(im_zug
         return asyncio.run(wp._postprocess_response_for_widget_modes(_req(), resp)).quick_replies
 
     assert nach(True) == knoepfe
-    assert nach(False) == []             # ohne Sperre gilt der Deckel wie bisher
+    assert nach(False) == knoepfe        # R2-e: auch ohne Sperre übersteht sie jeder Deckel
 
 
 def test_neues_vorhaben_fragt_bei_laufendem_auftrag_erst_nach(im_zug, abbrueche):

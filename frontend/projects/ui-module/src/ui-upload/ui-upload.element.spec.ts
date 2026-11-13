@@ -362,6 +362,20 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     expect(h.antworten).not.toHaveBeenCalled();
   });
 
+  it('R3-b: hilft die Anmeldung beim Lesen, steht das gleich unter dem Hinweis', () => {
+    const { wurzel } = erzeuge({}, host(), {
+      ...DATEN, hinweis: 'Lade deinen Lehrplan hoch.',
+      schalter: { dokument_im_chat: false, ablage_in_wlo: false, lesen_nach_anmeldung: true },
+    });
+    const saetze = [...wurzel.querySelectorAll('.u__hinweis')].map((p) => p.textContent);
+    const i = saetze.indexOf('Lade deinen Lehrplan hoch.');
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(saetze[i + 1]).toBe('Ein Dokument lesen lassen geht erst, wenn du bei WLO angemeldet bist.');
+    const ohne = erzeuge({}, host(), { ...DATEN, hinweis: 'X.' }).wurzel;
+    expect([...ohne.querySelectorAll('.u__hinweis')].map((p) => p.textContent))
+      .not.toContain('Ein Dokument lesen lassen geht erst, wenn du bei WLO angemeldet bist.');
+  });
+
   it('Datenschutz-Hinweis sagt, dass nur ein Strukturdokument hochgeladen wird', () => {
     const { wurzel } = erzeuge({}, host(), MIT_DOKUMENT);
     expect(wurzel.textContent).toContain('erst hochgeladen, wenn du es lesen lässt');

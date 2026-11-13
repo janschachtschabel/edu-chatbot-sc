@@ -208,6 +208,22 @@ describe('EvalCompareComponent (ST-7c)', () => {
     expect(bedingung).toContain('Master-Skill an (abc123def456)');
   });
 
+  it('R3-g: nennt die wirksamen UI-Module der Gruppe (Form des Backends)', async () => {
+    const basis = vergleich().conditions[0];
+    const h = await mount(vergleich({ conditions: [{
+      ...basis, ui_module: ['ui_upload', 'ui_themenbaum'],
+      ui_module_wirksam: { module: ['ui_upload', 'ui_themenbaum'], agent_aus: ['ui_themenbaum'] },
+    }] }));
+    const bedingung = h.el.querySelector('.cmp-conditions li')?.textContent?.replace(/\s+/g, ' ');
+    expect(bedingung).toContain('UI-Module ui_upload, ui_themenbaum (für den Agenten aus)');
+    const leer = await mount(vergleich({ conditions: [{ ...basis, ui_module: [], ui_module_wirksam: { module: [], agent_aus: [] } }] }));
+    expect(leer.el.querySelector('.cmp-conditions li')?.textContent).toContain('UI-Module keine');
+    const kaputt = await mount(vergleich({ conditions: [{ ...basis, ui_module: ['ui_upload'], ui_module_wirksam: { fehler: 'X' } }] }));
+    expect(kaputt.el.querySelector('.cmp-conditions li')?.textContent).toContain('UI-Module ui_upload (Wirkung unbekannt)');
+    const alt = await mount(vergleich());
+    expect(alt.el.querySelector('.cmp-conditions li')?.textContent).toContain('UI-Module –');
+  });
+
   it('zeigt eine Abweisung des Servers mit seinem Satz', async () => {
     const h = await mount(null);
     expect(text(h)).toContain('mindestens zwei verschiedene Läufe');

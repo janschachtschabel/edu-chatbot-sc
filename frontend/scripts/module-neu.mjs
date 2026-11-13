@@ -10,13 +10,31 @@
  * Danach: manifest.json ausfüllen (Beschreibung, Eingabe mit description je Feld, Beispiele),
  * Komponente bauen, `npm run module:register`, Tests.
  */
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { erzeuge, pascal } from './module-register.mjs';
 
-export function geruest({ quelle, backend, kurzname, abfragen = false }) {
+/** Paket R3-g: die Vorschau-Spec des Studios verlangt den Manifest-Import JEDES Moduls — das Gerüst
+ *  trägt ihn ein (Import vor dem Register, Name in `MANIFESTE`). Fehlt die Stelle, bleibt es beim
+ *  Hinweis: der Test der Vorschau sagt dann, was fehlt. */
+export function inVorschauEintragen(specPfad, ordner) {
+  const text = readFileSync(specPfad, 'utf8');
+  const kurz = ordner.slice(3).replace(/-([a-z0-9])/g, (_m, c) => c.toUpperCase());
+  // Querschnitts-Review, NIT 11: trägt die Spec den Namen schon (etwa `function text`), ein Präfix
+  const name = new RegExp(`\\b${kurz}\\b`).test(text) ? `manifest${pascal(ordner).slice(2)}` : kurz;
+  const anker = "import { MODUL_REGISTER } from '@boerdi/ui-module/register.generated';";
+  const liste = /const MANIFESTE = \[([^\]]*)\] as unknown/;
+  if (!text.includes(anker) || !liste.test(text)) return false;
+  const neu = text
+    .replace(anker, `import ${name} from '@boerdi/ui-module/${ordner}/manifest.json';\n${anker}`)
+    .replace(liste, (_m, alt) => `const MANIFESTE = [${alt}, ${name}] as unknown`);
+  writeFileSync(specPfad, neu);
+  return true;
+}
+
+export function geruest({ quelle, backend, kurzname, abfragen = false, vorschauSpec = null }) {
   if (!/^[a-z][a-z0-9-]{1,38}$/.test(kurzname)) {
     throw new Error(`Name „${kurzname}“: Kleinbuchstaben, Ziffern, Bindestriche, ohne Präfix ui-`);
   }
@@ -105,7 +123,8 @@ TODO: Wofür ist das Modul da, was zeigt es, wo sind seine Grenzen?
 - Beispiele: \`manifest.json\` → \`beispiele\` (Vorschau, Vertragstests, Studio).
 - Nach jeder Manifest-Änderung: \`npm run module:register\`.
 `);
-  return { ordner, register: erzeuge({ quelle, backend }) };
+  const vorschau = vorschauSpec !== null && inVorschauEintragen(vorschauSpec, ordner);
+  return { ordner, register: erzeuge({ quelle, backend }), vorschau };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -115,10 +134,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exit(1);
   }
   const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  const { ordner } = geruest({
+  const { ordner, vorschau } = geruest({
     quelle: join(frontend, 'projects', 'ui-module', 'src'),
     backend: join(frontend, '..', 'backend', 'src', 'boerdi', 'ui_module'),
     kurzname, abfragen: process.argv.includes('--abfragen'),
+    vorschauSpec: join(frontend, 'projects', 'studio', 'src', 'app', 'views',
+                       'ui-modul-vorschau.component.spec.ts'),
   });
-  console.log(`angelegt: projects/ui-module/src/${ordner}/ — Register erneuert.`);
+  console.log(`angelegt: projects/ui-module/src/${ordner}/ — Register erneuert`
+    + (vorschau ? ', Vorschau-Spec ergänzt.' : '; Vorschau-Spec bitte von Hand ergänzen.'));
 }

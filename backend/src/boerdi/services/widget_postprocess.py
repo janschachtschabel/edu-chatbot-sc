@@ -44,7 +44,7 @@ from boerdi.domain.url_helpers import (
     _extract_web_links_from_text,
     _rewrite_external_urls_to_repo,
 )
-from boerdi.domain.wahl_knopf import ist_wahl_knopf, ist_weiter_knopf
+from boerdi.domain.wahl_knopf import ist_steuer_knopf
 from boerdi.domain.widget_modes import _widget_modes
 from boerdi.domain.widget_postprocess import _apply_widget_modes_postprocess
 from boerdi.obs.log_inhalt import inhalt
@@ -809,13 +809,11 @@ async def _postprocess_response_for_widget_modes(
                     qrs = qrs[:_qr_max]
         except Exception:
             logger.debug("quick-reply cap enforcement failed", exc_info=True)
-        if getattr(resp, "eingabe_gesperrt", False):
-            qrs = _auftrags_knoepfe_behalten(list(resp.quick_replies or []), qrs)
-        # Querschnitts-Review AS-3, Befund 1: die Chips einer Ablauf-Wahl übersteht jeder Deckel
-        # Review TW-3, Befund 5: ebenso „Weiter im Ablauf“ — in EINEM Lauf (zweites Review TW,
-        # Befund 5: zwei Läufe verdrängten unter Deckel 1 den Bestätigungsknopf des Abbruchs)
+        # Querschnitts-Review AS-3, Befund 1: die Chips einer Ablauf-Wahl übersteht jeder Deckel;
+        # Review TW-3, Befund 5: ebenso „Weiter im Ablauf“; K2b: die Auftrags-Knöpfe. Paket R2-e:
+        # alle Steuer-Knöpfe, auch ohne gesperrten Lauf (``wahl_knopf.ist_steuer_knopf``).
         qrs = _auftrags_knoepfe_behalten(list(resp.quick_replies or []), list(qrs or []),
-                                         lambda q: ist_wahl_knopf(q) or ist_weiter_knopf(q))
+                                         ist_steuer_knopf)
 
         # ChatResponse rekonstruieren — Pydantic-Modell aufgrund von
         # Validierungsregeln kopieren wir per model_copy(update=...).

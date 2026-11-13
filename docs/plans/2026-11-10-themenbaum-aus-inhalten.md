@@ -279,10 +279,10 @@ Reihenfolge nach Abhängigkeit. Jedes Paket bekommt ein Review mit Befundbehebun
     Anmeldung kein Start.
   - Die nodeIds kommen nur aus dem Teil `ablage` desselben Vorgangs (die Person hat sie angelegt), nie
     aus dem Modell.
-  - **Limit je Job (N14):** am Schritt `auftrag` ein optionales Feld `hoechstens_je_auftrag`
-    (Studio, leer = kein Limit). Mehr nodeIds werden auf mehrere Jobs verteilt, nacheinander
-    gestartet (wegen der 20 offenen Jobs je Schlüssel). Der Teil `wlo.metadaten-bericht@1` fasst alle
-    Jobs zusammen.
+  - **Limit je Job (N14):** ~~Feld `hoechstens_je_auftrag`, Teil `wlo.metadaten-bericht@1`~~
+    **Umgesetzt 13.11. (Paket R1)** als `aufteilen: {argument, hoechstens}`: Teilaufträge
+    nacheinander, das Ergebnis bleibt ein Teil `wlo.auftrag@1` (Listen wie `report` aneinander).
+    Notiz `aenderungen/2026-11-13-paket-r1-kestra-auftraege.md`.
   - **Nur für frisch hochgeladene Dateien (N14, F2):** Der Schritt nimmt nodeIds nur aus dem Teil
     `ablage` desselben Vorgangs, also nur Dateien, die die Person in diesem Lauf hochgeladen hat.
     Vorhandene Materialien gehören nicht dazu.

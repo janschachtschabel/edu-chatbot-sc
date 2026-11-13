@@ -46,6 +46,8 @@ class _Lage:
         self.abfragen: list[str] = []
         self.geschrieben: list[str] = []
         self.sitzung = True
+        #: R1-d: der jüngste offene Vorgang der Person (``vorgaenge.juengster``)
+        self.juengster: SimpleNamespace | None = None
 
     def vorgang(self) -> SimpleNamespace:
         return SimpleNamespace(id="v-1", titel="Lesen", akte={"lauf": copy.deepcopy(self.lauf)},
@@ -71,6 +73,9 @@ def lage(monkeypatch) -> _Lage:
     async def offen(s, vorgang_id):
         return lg.auftrag
 
+    async def juengster(s, aufrufer):
+        return lg.juengster if aufrufer == "person-a" else None
+
     async def stand(job_id):
         lg.abfragen.append(job_id)
         if isinstance(lg.stand, Exception):
@@ -92,6 +97,7 @@ def lage(monkeypatch) -> _Lage:
     monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: lg.person)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
     monkeypatch.setattr(vorgaenge, "lesen", lesen)
+    monkeypatch.setattr(vorgaenge, "juengster", juengster)
     monkeypatch.setattr(ablage, "offen", offen)
     monkeypatch.setattr(client, "stand", stand)
     monkeypatch.setattr(api, "laden", lambda ablauf_id: lg.ablauf if ablauf_id == "lesen"
@@ -255,3 +261,40 @@ def test_review_as8a_2_eine_echte_kennung_braucht_weiter_anmeldung(web, lage, mo
     r = _stand(web)
     assert r.status_code in (403, 409)
     assert lage.abfragen == []
+
+
+def test_r1d_ein_verweis_ins_leere_nimmt_den_juengsten_vorgang(web, lage, monkeypatch):
+    """Paket R1-d: der Vorgang des Verweises ist weg (ein anderer Tab hat ihn ersetzt) — wie der
+    Preflight des nächsten Zuges gilt der jüngste offene Vorgang; das Kürzel muss passen."""
+    monkeypatch.setattr(lage, "entities", lambda: {arbeitsstand.VERWEIS: arbeitsstand.verweis_fuer(
+        SimpleNamespace(id="v-alt", titel="Alt", akte={}, verfaellt_am=datetime.now(UTC)
+                        + timedelta(days=3)), "person-a")})
+    lage.juengster = lage.vorgang()
+    r = _stand(web)
+    assert r.status_code == 200, r.text
+    assert lage.abfragen == ["job-1"] and lage.geschrieben == []
+    lage.abfragen.clear()
+    assert _stand(web, kuerzel="0" * 12).status_code == 409 and lage.abfragen == []
+
+
+def test_r1d_ohne_verweis_auch(web, lage, monkeypatch):
+    monkeypatch.setattr(lage, "entities", lambda: {})
+    lage.juengster = lage.vorgang()
+    assert _stand(web).status_code == 200
+
+
+def test_review_r1_2_ein_lebender_verweis_auf_einen_anderen_vorgang_bleibt_409(web, lage,
+                                                                                monkeypatch):
+    """Review R1, Befund 2: zeigt der Verweis auf einen anderen, offenen Vorgang, holte das
+    Abholen dort ab — also meldet ``/stand`` nichts von einem fremden Vorgang."""
+    anderer = SimpleNamespace(id="v-2", titel="Frei", akte={"lauf": None}, status="aktiv",
+                              verfaellt_am=datetime.now(UTC) + timedelta(days=3))
+
+    async def lesen(s, vorgang_id, aufrufer):
+        return anderer if vorgang_id == "v-2" else None
+
+    monkeypatch.setattr(vorgaenge, "lesen", lesen)
+    monkeypatch.setattr(lage, "entities", lambda: {
+        arbeitsstand.VERWEIS: arbeitsstand.verweis_fuer(anderer, "person-a")})
+    lage.juengster = lage.vorgang()
+    assert _stand(web).status_code == 409 and lage.abfragen == []

@@ -5,7 +5,8 @@ nicht in den Flow).
 
 - Den Benutzernamen (``authority`` aus ``/auth/status``) hält der Chatbot nur im Zug: nie
   gespeichert, nie geloggt, nie im ``repr``.
-- ``X-Edu-User-Id`` geht nur mit bestätigter Anmeldung mit, und nur beim Start.
+- ``X-Edu-User-Id`` geht nur mit bestätigter Anmeldung mit (seit R1 auch bei Abfrage, Abbruch
+  und Datei).
 - Ein Flow, den der Betrieb nicht freischaltet, sperrt nur einen **eingeschalteten** Ablauf; bei
   einem ausgeschalteten (etwa einem Seed) ist es ein Hinweis — sonst bräche der Werksabgleich.
 """
@@ -199,3 +200,29 @@ def test_ft1_eine_leere_auswahl_startet_keinen_auftrag():
                                                                auftrag_starten=starten)))
     assert gestartet == [] and aus.texte == ["Nichts zu tun."]
 
+
+
+def test_r1_abfrage_abbruch_und_datei_tragen_dieselbe_person(betrieb, monkeypatch):
+    """Paket R1 (R-E12): derselbe Job, dieselbe Identität — fehlte der Kopf bei der Abfrage und
+    verlangte die B-API ihn, käme „Stand prüfen“ nie zu einem Ende."""
+    monkeypatch.setenv("B_API_JOBS_STATUS_PATH", "/api/v1/jobs/{job_id}")
+    get_settings.cache_clear()
+
+    def behandle(request: httpx.Request) -> httpx.Response:
+        betrieb.append(request)
+        if request.url.path.endswith("/files/bericht"):
+            return httpx.Response(200, content=b"ok")
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(200, json={"status": "RUNNING"})
+
+    monkeypatch.setattr(client, "_transport", httpx.MockTransport(behandle))
+    monkeypatch.setattr(auth, "benutzername", lambda: "jan.test")
+    asyncio.run(client.stand("job-123"))
+    asyncio.run(client.abbrechen("job-123"))
+    asyncio.run(client.datei("job-123", "bericht", 100))
+    assert [r.headers.get("X-Edu-User-Id") for r in betrieb] == ["jan.test"] * 3
+    betrieb.clear()
+    monkeypatch.setattr(auth, "benutzername", lambda: "")
+    asyncio.run(client.stand("job-123"))
+    assert "X-Edu-User-Id" not in betrieb[0].headers

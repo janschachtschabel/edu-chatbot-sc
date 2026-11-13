@@ -47,7 +47,14 @@ from typing import Any, Final
 
 from boerdi.api.schemas_ui import UiAntwort
 from boerdi.domain.config_models.ablauf import AblaufArea, AblaufTest, TestEingabe
-from boerdi.services.ablauf import freigabe_ergebnis, pruefung, startdaten, treiber, werkzeuge
+from boerdi.services.ablauf import (
+    ausloeser,
+    freigabe_ergebnis,
+    pruefung,
+    startdaten,
+    treiber,
+    werkzeuge,
+)
 from boerdi.services.arbeitsstand_teile import teile_aus_antwort
 from boerdi.ui_module.antwort import OFFENE_FRAGE, antwort_pruefen, merke_frage
 
@@ -317,7 +324,8 @@ async def testen(ablauf: AblaufArea, test: AblaufTest, lang: str = "de",
     abweichungen: list[str] = []
     eingaben = list(test.eingaben)
     index = {s.id: i for i, s in enumerate(ablauf.schritte)}
-    if "anmeldung" in ablauf.voraussetzungen and not test.angemeldet:
+    # Review R2, Befund 7: alle Voraussetzungen wie im Betrieb, mit der Anmeldung des Testfalls
+    if ausloeser.fehlt(ablauf, person=test.angemeldet) is not None:
         lauf: dict[str, Any] = {"status": NICHT_GESTARTET, "schritt": ""}
     elif test.ab is not None and test.ab not in index:
         abweichungen.append(_t(lang, "ab", ab=test.ab))

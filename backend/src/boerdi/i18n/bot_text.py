@@ -98,6 +98,9 @@ BOT_TEXT: Final[Catalogue] = {
         # ── Direkt-Aktionen auf einer Sammlung ─────────────────────────
         "action.collectionFallbackTitle": "Sammlung",
         "action.missingCollectionId": "Keine Sammlungs-ID angegeben.",
+        # Paket R3-a: das Werkzeug ist in diesem Zug nicht angeboten (Studio, Sperre, Einbettung)
+        "action.browse.unavailable": (
+            "Die Inhalte von „{title}“ kann ich hier gerade nicht anzeigen."),
         "action.browse.header": "**{title}** — Ergebnisse {range}{total}:",
         "action.browse.ofTotal": " von {total}",
         "action.browse.empty": 'In der Sammlung "{title}" habe ich leider keine Inhalte gefunden.',
@@ -148,6 +151,10 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.wahlVeraltet": (
             "Diese Wahl gilt nicht mehr — der Ablauf steht inzwischen woanders."),
         "action.ablauf.anmeldung": "Für diesen Ablauf melde dich bitte bei WLO an.",
+        # Paket R2-b: die Voraussetzung dokument_lesen, und Lesen ist im Studio aus
+        "action.ablauf.dokumentLesenAus": (
+            "Dieser Ablauf liest ein Dokument – das ist hier gerade nicht eingeschaltet. Ich helfe "
+            "dir gern ohne ihn weiter."),
         "action.ablauf.anmeldungHinweis": (
             "Für den geführten Ablauf „{titel}“ melde dich bitte bei WLO an — dann führt er dich "
             "Schritt für Schritt."),
@@ -247,6 +254,14 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragLaeuft": (
             "Der Auftrag läuft noch. Schau gern später wieder nach — tippe dann auf "
             "„Stand prüfen“."),
+        # Paket R1: ein Auftrag in Teilen — der nächste läuft
+        "action.ablauf.auftragTeil": (
+            "Teil {fertig} von {n} ist erledigt, Teil {naechster} läuft. Tippe später auf "
+            "„Stand prüfen“."),
+        "action.ablauf.auftragTeile": "Das geht in {n} Teilen, einer nach dem anderen.",
+        "action.ablauf.auftragTeilGescheitert": (
+            "Teil {fertig} von {n} hat nicht geklappt, Teil {naechster} läuft trotzdem. Tippe "
+            "später auf „Stand prüfen“."),
         "action.ablauf.auftragNichtAbrufbar": (
             "Den Stand des Auftrags kann ich gerade nicht abrufen. Versuch es bitte gleich noch "
             "einmal."),
@@ -671,6 +686,7 @@ BOT_TEXT: Final[Catalogue] = {
         "content.qr.similar": "Show similar materials",
         "action.collectionFallbackTitle": "Collection",
         "action.missingCollectionId": "No collection ID was given.",
+        "action.browse.unavailable": "I can't show the contents of “{title}” here right now.",
         "action.browse.header": "**{title}** — results {range}{total}:",
         "action.browse.ofTotal": " of {total}",
         "action.browse.empty": 'I found no content in the collection "{title}".',
@@ -708,6 +724,9 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.unbekannt": "This workflow does not exist here or is switched off.",
         "action.ablauf.wahlVeraltet": "This choice no longer applies — the workflow has moved on.",
         "action.ablauf.anmeldung": "Please sign in to WLO for this workflow.",
+        "action.ablauf.dokumentLesenAus": (
+            "This workflow reads a document – that is not switched on here right now. I'm happy "
+            "to help you without it."),
         "action.ablauf.anmeldungHinweis": (
             "For the guided workflow “{titel}”, please sign in to WLO — it then leads you step by "
             "step."),
@@ -799,6 +818,13 @@ BOT_TEXT: Final[Catalogue] = {
             "again and start the workflow once more."),
         "action.ablauf.auftragLaeuft": (
             "The job is still running. Feel free to check back later — then tap “Check status”."),
+        "action.ablauf.auftragTeil": (
+            "Part {fertig} of {n} is done, part {naechster} is running. Tap “Check status” "
+            "later."),
+        "action.ablauf.auftragTeile": "This runs in {n} parts, one after the other.",
+        "action.ablauf.auftragTeilGescheitert": (
+            "Part {fertig} of {n} did not work, part {naechster} is running anyway. Tap “Check "
+            "status” later."),
         "action.ablauf.auftragNichtAbrufbar": (
             "I can't fetch the status of the job right now. Please try again in a moment."),
         "action.ablauf.dateienSpaeter": (

@@ -121,6 +121,12 @@ describe('<boerdi-ui-fortschritt> (K1b)', () => {
     expect(stand(wurzel)).toBe('Den Stand sehe ich nur, solange du in WLO angemeldet bist.');
   });
 
+  it('R1-e: 403 abgewiesen → eigener Satz, nicht „nur angemeldet“', async () => {
+    const { wurzel } = erzeuge(host([Object.assign(new Error('x'), { status: 403, code: 'abgewiesen' })]));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(stand(wurzel)).toBe('Den Stand dieses Auftrags darf ich mit deiner Anmeldung nicht abrufen – melde dich neu an und starte den Ablauf noch einmal.');
+  });
+
   it('503 → Störung sichtbar, es geht weiter', async () => {
     const { wurzel, h } = erzeuge(host([Object.assign(new Error('x'), { status: 503 })]));
     await vi.advanceTimersByTimeAsync(5_000);

@@ -119,6 +119,8 @@ class AblaufZeile(BaseModel):
     #: Wie viele Befunde „Prüfen“ hätte (0 bei einem unlesbaren Dokument — dort zählt ``lesbar``).
     befunde: int
     lesbar: bool
+    #: Paket R2-a: die KI startet den Ablauf direkt (``modus: direkt`` am Auslöser ``agent``).
+    direkt: bool = False
 
 
 class AblaufListe(BaseModel):
@@ -161,4 +163,5 @@ def _zeile(key: str, data: Any, lang: str) -> AblaufZeile:
         key=key, id=ablauf.id, titel=dict(ablauf.titel), aktiv=ablauf.aktiv,
         ausloeser=list(dict.fromkeys(a.art for a in ablauf.ausloeser)),
         module=_module(ablauf),
-        befunde=len(pruefung.pruefe_gegliedert(ablauf, lang)), lesbar=True)
+        befunde=len(pruefung.pruefe_gegliedert(ablauf, lang)), lesbar=True,
+        direkt=any(a.art == "agent" and a.modus == "direkt" for a in ablauf.ausloeser))

@@ -12,6 +12,7 @@
  * und der folgende Klick fiele ins Leere; Vorleser sagten den Eintrag nach jedem Aufklappen neu an.
  */
 import type { EntwurfEintrag } from './entwurf-ansicht';
+import { strukturHinweise } from './entwurf-pruefung';
 import { BESCHREIBUNG_ZEICHEN, TITEL_ZEICHEN } from './entwurf-regeln';
 import { PFEIL, SYMBOL, svgSymbol, type Zeichen } from './entwurf-symbole';
 import type { EntwurfZustand } from './entwurf-zustand';
@@ -63,6 +64,24 @@ export function vorDemBaum(z: EntwurfZustand, k: Kennung): Node[] {
   return teile;
 }
 
+/** R4: Hinweise nach dem Leitfaden — zugeklappt, nach jeder Bearbeitung neu gerechnet; ob der
+ *  Abschnitt offen ist, merkt sich der Zustand (das Element zeichnet neu). */
+function hinweise(z: EntwurfZustand): Node[] {
+  const liste = strukturHinweise(z.struktur);
+  if (!liste.length) return [];
+  const t = z.texte;
+  const abschnitt = el('details', `${P}__hinweise`);
+  abschnitt.open = z.hinweiseOffen;
+  abschnitt.addEventListener('toggle', () => { z.hinweiseOffen = abschnitt.open; });
+  const ul = el('ul');
+  for (const h of liste) ul.append(el('li', '', t.strukturHinweis(h)));
+  // Querschnitts-Review, Befund 5: die Überschrift zählt ALLE Hinweise, auch die nicht gezeigten
+  const letzter = liste.at(-1);
+  const gesamt = letzter?.code === 'weitere' ? liste.length - 1 + letzter.anzahl : liste.length;
+  abschnitt.append(el('summary', '', t.hinweiseTitel(gesamt)), ul);
+  return [abschnitt];
+}
+
 /** Leer-Hinweis, Statuszeile und Leiste bzw. Leseansicht des aktiven Punkts. */
 export function nachDemBaum(z: EntwurfZustand, k: Kennung): Node[] {
   const t = z.texte;
@@ -74,6 +93,7 @@ export function nachDemBaum(z: EntwurfZustand, k: Kennung): Node[] {
     s.dataset['fokus'] = 'status';
     teile.push(s);
   }
+  teile.push(...hinweise(z));
   const a = z.aktiv;
   if (!z.nurLesen && a) {
     const leiste = el('div', `${P}__aktionen`);

@@ -205,6 +205,31 @@ describe('UiModuleComponent (Paket U1-f)', () => {
     expect(norm(eintraege()[0].textContent)).toContain(t('uiModule.zustand.ohneAgent'));
   });
 
+  it('R3-g (WCAG 2.4.3): nach dem Speichern steht der Fokus auf der Statuszeile, nicht auf body', async () => {
+    await laden();
+    await klick(schalter('agent')!);
+    const speichern = knopf(t('editor.save'));
+    speichern.focus();
+    speichern.click();
+    const req = http.expectOne(BEREICH);
+    req.flush({ area: '01-base/display-rules', type: 'yaml', version: 8, data: req.request.body.data });
+    await settle();
+    expect(document.activeElement?.classList.contains('cs-status')).toBe(true);
+    expect(document.activeElement?.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('Querschnitts-Review R1–R4, Befund 3: nach einem Fehler steht der Fokus auf der Meldung', async () => {
+    await laden();
+    await klick(schalter('agent')!);
+    const speichern = knopf(t('editor.save'));
+    speichern.focus();
+    speichern.click();
+    speichern.blur();      // „focus fixup“ des Browsers: der gesperrte Knopf verliert den Fokus (jsdom nicht)
+    http.expectOne(BEREICH).flush({ detail: 'kaputt' }, { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(document.activeElement?.classList.contains('um-speicherfehler')).toBe(true);
+  });
+
   it('aktiv aus sperrt den Agent-Schalter und sagt warum', async () => {
     await laden();
     await klick(schalter('aktiv')!);

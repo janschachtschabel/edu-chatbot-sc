@@ -124,6 +124,9 @@ class UiInfo(BaseModel):
     # Paket AS-Ua (U-1): solange im Gespräch ein Lauf nicht beendet ist, an jeder Antwort (im
     # Verlauf an der letzten Bot-Nachricht).
     ablauf: AblaufStand | None = None
+    # Paket R2-c: nur im Verlauf — die Anmeldung ließ sich nicht rechtzeitig bestätigen, der Stand
+    # eines persönlichen Laufs ist also unbekannt; das Widget schickt dann einmal den Seiten-Ping.
+    ablauf_unbestimmt: bool = False
     # Paket AS-Ua (U-7): ein fester, redaktioneller Text des Ablaufs — kein Etikett „KI-generiert“.
     fester_text: bool = False
     # Plan 2026-11-10, TB-E3: nur live — dieser Knopf aus ``quick_replies`` startet einen Ablauf,

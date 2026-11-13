@@ -11,7 +11,7 @@
  */
 
 import { fehlerKurz, fehlernummer } from '../obs/fehler-kurz';
-import { httpFehler, wartezeitMs } from './http-fehler';
+import { httpFehlerMitCode, wartezeitMs } from './http-fehler';
 import { accessBlockHeaders } from '../session/mcp-access';
 
 /** Server-Sent-Event-Payload aus POST /api/chat/stream. `event` = SSE-Name
@@ -332,11 +332,17 @@ export async function postChat<T = unknown>(opts: PostChatOptions): Promise<T> {
       signal: abort.signal,
     });
     // Der Status reist mit (Paket 7, P1): ein 409 heißt „Sitzung beschäftigt“.
-    if (!resp.ok) throw httpFehler(resp, 'Chat error');
+    // R1-e: mit dem Grund aus `detail` (etwa 403 `abgewiesen` gegen `nur_angemeldet`)
+    if (!resp.ok) throw await httpFehlerMitCode(resp, 'Chat error');
     // Auch der Rumpf liegt in der Frist — er kann nach den Kopfzeilen hängen.
     return (await resp.json()) as T;
   } catch (e) {
-    throw abgelaufen ? new StreamStaleError() : e;
+    // Review R1, Befund 7: ein Fehler mit Status bleibt dieser Fehler, auch wenn die Frist während
+    // seines Rumpfs ablief (409 „beschäftigt“, 403 `probe_ohne_recht` …)
+    if (abgelaufen && typeof (e as { status?: unknown } | null)?.status !== 'number') {
+      throw new StreamStaleError();
+    }
+    throw e;
   } finally {
     clearTimeout(uhr);
     opts.signal?.removeEventListener('abort', vonAussen);

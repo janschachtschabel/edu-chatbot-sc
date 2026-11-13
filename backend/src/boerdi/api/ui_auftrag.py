@@ -65,25 +65,42 @@ def _kein_auftrag() -> HTTPException:
     return HTTPException(status_code=409, detail="kein_auftrag")
 
 
-async def _wartender_auftrag(session: AsyncSession, anfrage: StandAnfrage,
-                             entities: dict[str, Any]) -> Any:
-    """Der offene Auftrag, auf den der Lauf dieser Person wartet — sonst 409. Prüft dasselbe wie
-    ``auftrag_zug.pruefen``, bricht aber nichts ab (dieser Abruf schreibt nie)."""
-    aufrufer = arbeitsstand.aufrufer_fuer(anfrage.session_id, entities)
-    vw = arbeitsstand.verweis(entities, aufrufer)
-    v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
+async def _auftrag_von(session: AsyncSession, v: Any, anfrage: StandAnfrage) -> Any:
+    """Der offene Auftrag von ``v``, wenn sein Lauf auf genau diesen wartet — sonst ``None``.
+    Prüft dasselbe wie ``auftrag_zug.pruefen``, bricht aber nichts ab."""
     lauf = (v.akte or {}).get("lauf") if v is not None else None
     if (not isinstance(lauf, dict) or lauf.get("ablauf") != anfrage.ablauf
             or lauf.get("status") != treiber.WARTET_AUFTRAG):
-        raise _kein_auftrag()
-    ablauf = laden(anfrage.ablauf)
-    if not treiber.gilt(ablauf, lauf):
-        raise _kein_auftrag()
+        return None
+    if not treiber.gilt(laden(anfrage.ablauf), lauf):
+        return None
     auftrag = await ablage.offen(session, v.id)
     if (auftrag is None or auftrag.schritt != lauf.get("schritt")
             or client.kuerzel(auftrag.job_id) != anfrage.kuerzel):
-        raise _kein_auftrag()
+        return None
     return auftrag
+
+
+async def _wartender_auftrag(session: AsyncSession, anfrage: StandAnfrage,
+                             entities: dict[str, Any]) -> Any:
+    """Der offene Auftrag, auf den der Lauf dieser Person wartet — sonst 409. Dieser Abruf schreibt
+    nie. Paket R1-d: fehlt der Verweis der Sitzung oder ist sein Vorgang weg bzw. abgeschlossen,
+    gilt der jüngste offene Vorgang der angemeldeten Person — genau den nimmt der Preflight des
+    nächsten Zuges (``arbeitsstand.auffrischen``), so landet auch das Abholen bei diesem Auftrag
+    (Review R1, Befund 2: ein beliebiger wartender Vorgang hätte „fertig“ gemeldet, das Abholen
+    aber am Verweis vorbei). Das Kürzel muss passen."""
+    aufrufer = arbeitsstand.aufrufer_fuer(anfrage.session_id, entities)
+    vw = arbeitsstand.verweis(entities, aufrufer)
+    v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
+    if (auftrag := await _auftrag_von(session, v, anfrage)) is not None:
+        return auftrag
+    weg = v is None or getattr(v, "status", None) in vorgaenge.ABGESCHLOSSEN
+    if weg and has_personal_auth():
+        juengster = await vorgaenge.juengster(session, aufrufer)
+        if juengster is not None and (
+                auftrag := await _auftrag_von(session, juengster, anfrage)) is not None:
+            return auftrag
+    raise _kein_auftrag()
 
 
 @public_router.post("/stand")

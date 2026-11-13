@@ -282,6 +282,25 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     sessionStorage.clear();
   });
 
+  // Durchtest 13.11.: Enter im selben Frame wie die letzte Eingabe — `[value]` vergleicht mit dem zuletzt
+  // gerenderten Wert (noch ''), `userInput.set('')` änderte für Angular nichts, der Text blieb im Feld.
+  it('ein schnelles Enter nach dem Tippen leert das Feld trotzdem', async () => {
+    const f = TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).createComponent(ChatShellComponent);
+    f.componentRef.setInput('translate', createTranslator(DE, DE));
+    f.detectChanges();
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi({ resp: RESP });
+    const feld = f.nativeElement.querySelector('.chat-input') as HTMLInputElement;
+    feld.value = 'Schnell getippt';
+    feld.dispatchEvent(new Event('input'));     // kein Rendern dazwischen
+    await c.sendMessage();
+    f.detectChanges();
+    expect(feld.value).toBe('');
+  });
+
   // K2b: ein Auftragsschritt mit `warten: gesperrt` — das Feld zeigt den Hinweis, bis eine Antwort
   // ohne die Marke kommt; ein Neustart nimmt ihn weg. Weiche Sperre (zweites Review K2b): das Feld
   // bleibt bedienbar — eine Krisennachricht muss sich immer tippen lassen.

@@ -9,10 +9,33 @@
  */
 import { fehlerKurz } from '../obs/fehler-kurz';
 import { sitzungsWache } from '../session/session-id';
+import type { AblaufStand } from '../grouping/message-types';
 import type { ContextGreetingContext } from './context-greeting.controller';
 
 /** Das `page_event` des Pings (Backend: `domain/hintergrund_zug.ABLAUF_SEITE`). */
 export const SEITEN_PING = 'ablauf_seite';
+
+/** Paket R2-c: pingt das Widget nach einem Seitenaufruf? Bei `wartet_seite` — und wenn der Verlauf
+ *  den Stand nicht bestimmen konnte (`ui.ablauf_unbestimmt`: die Anmeldung kam nicht rechtzeitig);
+ *  ohne wartenden Lauf antwortet das Backend leer. */
+export function seitenPingNoetig(stand: AblaufStand | null, unbestimmt: boolean): boolean {
+  return stand?.status === 'wartet_seite' || (!stand && unbestimmt);
+}
+
+/** Review R2, Befund 1: die Marke `ablauf_unbestimmt` gilt für EINEN Ping — sonst pingte das Widget
+ *  bei jeder SPA-Navigation und unterdrückte den Kontext-Gruß. Gebunden an die Kennung der Nachricht,
+ *  die sie trägt: ein neuer Verlauf (neue Kennung) bringt eine neue Marke. */
+export class UnbestimmtMarke {
+  private _verbraucht: string | null = null;
+
+  gilt(id: string | null): boolean {
+    return id !== null && id !== this._verbraucht;
+  }
+
+  verbrauchen(id: string | null): void {
+    if (id) this._verbraucht = id;
+  }
+}
 
 export class SeitenPing {
   private _gesendet = false;

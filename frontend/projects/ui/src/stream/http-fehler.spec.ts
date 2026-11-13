@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DE } from '../i18n/de';
 import { EN } from '../i18n/en';
 import { createTranslator } from '../i18n/dictionary';
-import { drosselHinweis, httpFehler, probeHinweis } from './http-fehler';
+import { drosselHinweis, httpFehler, httpFehlerMitCode, probeHinweis } from './http-fehler';
 
 // Paket 18F (3.5): ein nicht-ok-Abruf als Fehler mit Status und Wartezeit — für Verlauf, Strom
 // und POST eine Stelle; ein 429 wird im Widget zum eigenen Satz, mit Wartezeit, wenn sie kommt.
@@ -75,5 +75,21 @@ describe('probeHinweis (AS-8b)', () => {
     expect(probeHinweis(t, { status: 403 }, false)).toBeNull();
     expect(probeHinweis(t, { status: 500 }, true)).toBeNull();
     expect(probeHinweis(t, null, true)).toBeNull();
+  });
+});
+
+describe('httpFehlerMitCode (R1-e, Review R1 Befund 7)', () => {
+  it('ein hängender Rumpf hält den Fehler nicht auf — der Status bleibt', async () => {
+    vi.useFakeTimers();
+    try {
+      const resp = { ...antwort(409), json: () => new Promise(() => undefined) } as unknown as Response;
+      const warten = httpFehlerMitCode(resp, 'Chat error');
+      await vi.advanceTimersByTimeAsync(2_500);
+      const e = await warten;
+      expect(e.status).toBe(409);
+      expect(e.code).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

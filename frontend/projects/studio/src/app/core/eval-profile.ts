@@ -110,6 +110,15 @@ export interface CompareCondition {
   readonly judge_model: string | null;
   readonly master_skill: { readonly enabled: boolean | null; readonly sha256: string | null };
   readonly agent_limits: Readonly<Record<string, unknown>> | null;
+  /** R3-g (U1-g): die gemeldeten UI-Module und was davon wirkte (Studio-Schalter) — wie
+   *  `services/eval/run_conditions._wirksame_module`: Module samt den nur für den Agenten
+   *  abgeschalteten, oder `fehler`, wenn die Schalter nicht lesbar waren. */
+  readonly ui_module?: readonly string[] | null;
+  readonly ui_module_wirksam?: {
+    readonly module?: readonly string[];
+    readonly agent_aus?: readonly string[];
+    readonly fehler?: string;
+  } | null;
   readonly runs: readonly string[];
 }
 

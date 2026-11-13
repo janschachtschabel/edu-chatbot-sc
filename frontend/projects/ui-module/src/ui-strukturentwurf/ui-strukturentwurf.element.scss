@@ -43,6 +43,20 @@
   font-weight: 600;
 }
 
+// R4: Hinweise nach dem Leitfaden — zurückhaltend, zugeklappt; Text statt Farbe
+.ui-strukturentwurf__hinweise {
+  font-size: .8rem;
+
+  summary {
+    cursor: pointer;
+  }
+
+  ul {
+    margin: 4px 0 0;
+    padding-inline-start: 18px;
+  }
+}
+
 .ui-strukturentwurf__details {
   display: grid;
   gap: 6px;

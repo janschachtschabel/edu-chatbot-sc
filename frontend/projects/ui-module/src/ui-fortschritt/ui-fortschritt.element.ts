@@ -21,7 +21,7 @@ import { type Sprache, texte, uhrzeit } from './fortschritt-texte';
 export const ELEMENT = 'boerdi-ui-fortschritt';
 
 /** Wechsel, die ein Screenreader hören soll — nicht jedes „wird geprüft“; eine Störung immer (Befund 3). */
-const ANSAGEN: ReadonlySet<Phase> = new Set<Phase>(['fertig', 'abgeholt', 'abgeschlossen', 'halt', 'manuell']);
+const ANSAGEN: ReadonlySet<Phase> = new Set<Phase>(['fertig', 'abgeholt', 'abgeschlossen', 'halt', 'abgewiesen', 'manuell']);
 
 export class UiFortschrittElement extends HTMLElement implements NachladeElement {
   private _daten: Record<string, unknown> = {};
@@ -140,6 +140,7 @@ export class UiFortschrittElement extends HTMLElement implements NachladeElement
       case 'abgeholt': return t.abgeholt;
       case 'abgeschlossen': return t.abgeschlossen;
       case 'halt': return t.halt;
+      case 'abgewiesen': return t.abgewiesen;
       case 'manuell': return this.ablauf.stoerung ? t.stoerungManuell : t.manuell;
       default: return this.ablauf.stoerung ? t.stoerung : t.laeuft;
     }

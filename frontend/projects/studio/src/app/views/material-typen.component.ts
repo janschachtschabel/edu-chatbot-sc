@@ -43,6 +43,9 @@ type Filter = 'alle' | 'didaktisch' | 'analytisch';
 })
 export class MaterialTypenComponent {
   private readonly config = inject(ConfigApi);
+  /** R3-g (WCAG 2.4.3): nach dem Speichern auf Statuszeile bzw. Fehler — nur, wenn der Fokus mit den
+   *  gesperrten Knöpfen verloren ging; in einer zerstörten Ansicht gar nicht (NG0911). */
+  private readonly fokusNachSpeichern = injectFocus({ nurWennVerloren: true });
   protected readonly t = inject(StudioLanguageService).t;
 
   readonly section = input.required<CuratedPanelSection>();
@@ -205,6 +208,7 @@ export class MaterialTypenComponent {
     if (await this.schreibe(liste, 'speichern')) {
       this.zuruecksetzen(entwurf.id);
       this.meldung.set(this.t('materialFormate.gespeichert'));
+      this.fokusNachSpeichern('.mf-meldung');
     }
   }
 
@@ -245,6 +249,7 @@ export class MaterialTypenComponent {
         this.unterbrochen = aktion;
       } else {
         this.fehler.set(describeApiError(err, this.t));
+        this.fokusNachSpeichern('.mf-speicherfehler');
       }
       return false;
     } finally {

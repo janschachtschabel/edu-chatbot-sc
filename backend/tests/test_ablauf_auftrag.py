@@ -664,3 +664,65 @@ def test_review_as8a_6_ein_trockener_auftrag_endet_ohne_hinweis_auf_die_b_api(im
                    action_params={"ablauf": "lesen", "bestaetigt": True, "kuerzel": kuerzel})
     antwort = asyncio.run(auftrag_zug.abbrechen(_S(), anfrage, state))
     assert antwort.content == bot_text("de", "action.ablauf.auftragAbgebrochen")
+
+
+# ── Review R1, Befund 6: Teilaufträge über den Zug (Stand prüfen, Abbruch, Konflikt) ───────────
+
+@pytest.fixture
+def in_teilen(im_zug, monkeypatch):
+    schritt = {**_SCHRITTE[0], "argumente": {"text": ["a", "b", "c"]},
+               "aufteilen": {"argument": "text", "hoechstens": 1}}
+    katalog = {"ablaeufe": [_roh(schritte=[schritt, *_SCHRITTE[1:]])]}
+    monkeypatch.setattr(ausloeser, "_roh_liste", lambda: katalog["ablaeufe"])
+
+    async def starten(flow, eingaben):
+        im_zug.gestartet.append((flow, eingaben))
+        return f"job-{len(im_zug.gestartet)}"
+
+    monkeypatch.setattr(client, "starten", starten)
+    return im_zug
+
+
+def test_r1_teile_im_zug_bis_zum_ende(in_teilen):
+    state: dict = {"entities": {}}
+    _starte(state)
+    for out in ({"n": 1}, {"n": 2}):
+        in_teilen.staende.append(client.Stand("fertig", out, []))
+        antwort = _pruefe(state)
+        assert "läuft" in antwort.content
+    assert [e["text"] for _f, e in in_teilen.gestartet] == [["a"], ["b"], ["c"]]
+    assert [(a.job_id, a.status) for a in in_teilen.ablage.auftraege] == [
+        ("job-1", "fertig"), ("job-2", "fertig"), ("job-3", "laeuft")]
+    in_teilen.staende.append(client.Stand("fertig", {"n": 3}, []))
+    assert _pruefe(state).content == "Gelesen."
+    [v] = in_teilen.speicher.v.values()
+    assert v.akte["teile"]["volltext"]["wert"]["outputs"] == {"n": 3}
+    assert v.akte["teile"]["volltext"]["wert"]["teile"] == 3
+    assert "auftrag_teile" not in v.akte["lauf"]
+
+
+def test_r1_abbruch_in_teil_2_startet_keinen_weiteren(in_teilen, abbrueche):
+    state: dict = {"entities": {}}
+    _starte(state)
+    in_teilen.staende.append(client.Stand("fertig", {"n": 1}, []))
+    _pruefe(state)
+    anfrage = _req(action=auftrag_zug.AKTION_ABBRECHEN, action_params={
+        "ablauf": "lesen", "bestaetigt": True, "kuerzel": client.kuerzel("job-2")})
+    asyncio.run(auftrag_zug.abbrechen(_S(), anfrage, state))
+    assert abbrueche == ["job-2"] and len(in_teilen.gestartet) == 2
+    assert in_teilen.ablage.auftraege[-1].status == "abgebrochen"
+
+
+def test_r1_konflikt_beim_festhalten_beendet_den_naechsten_teil(in_teilen, monkeypatch,
+                                                                abbrueche):
+    state: dict = {"entities": {}}
+    _starte(state)
+
+    async def konflikt(*_a, **_k):
+        raise vorgaenge.VorgangKonflikt("v-1")
+
+    monkeypatch.setattr(zug_basis, "festhalten", konflikt)
+    in_teilen.staende.append(client.Stand("fertig", {"n": 1}, []))
+    assert _pruefe(state).content == bot_text("de", "action.ablauf.konflikt")
+    # das Abschließen von Teil 1 rollt die echte Datenbank mit zurück (die Attrappe kann das nicht)
+    assert "job-2" in abbrueche

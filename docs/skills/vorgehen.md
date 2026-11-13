@@ -295,8 +295,11 @@ nacheinander statt der einen breiten.
 („Bereiche unter X", „was ist in dieser Sammlung?").
 **Wie:** Den ersten Überblick über eine Sammlung gibt `get_collection_overview` in einem Aufruf
 (Pfad, Gliederung, Zahlen, Skills, Untersammlungen, erste Inhalte); gezielt weiter mit
-`browse_collection_tree`, `get_collection_contents`, `get_collection_stats`,
-`get_node_breadcrumb`, `search_wlo_within_collection`, `get_compendium_text`.
+`get_collection_contents`, `get_collection_stats`, `get_node_breadcrumb`,
+`search_wlo_within_collection`, `get_compendium_text`.
+Die Unterthemen **zeigen** mit `ui_themenbaum` (Fach als `subject`, Sammlung als `nodeId`), nicht
+abtippen; `browse_collection_tree` nur, wenn du sie selbst auswertest (Prüfen, Lücken). Ohne
+UI-Module: `browse_collection_tree` und die Themen knapp nennen.
 Genau **eine** Ebene: Untersammlungen plus enthaltene Inhalte.
 
 ### Themenseite öffnen (M16)
