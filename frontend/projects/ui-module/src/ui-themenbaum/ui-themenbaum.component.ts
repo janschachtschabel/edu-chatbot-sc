@@ -191,10 +191,12 @@ export class UiThemenbaum {
     }
     const t = this.texte();
     if (!liste) {
-      // 403: hier nicht angeboten oder abgeschaltet — ein neuer Versuch hülfe nicht. 429: zu viele
-      // Anfragen — eigener Text; neu versucht wird nur auf Wunsch der Person (Review U1-h, 10).
+      // 403: hier nicht angeboten oder abgeschaltet — ein neuer Versuch hülfe nicht; R3-d: ebenso
+      // 404 (Sitzung weg) und 422 (keine gültige Kennung). 429: zu viele Anfragen — eigener Text;
+      // neu versucht wird nur auf Wunsch der Person (Review U1-h, 10).
       const gedrosselt = status === 429;
-      this.setzeZweig(knoten.id, { status: 'fehler', nochmal: status !== 403, gedrosselt });
+      const nochmal = status !== 403 && status !== 404 && status !== 422;
+      this.setzeZweig(knoten.id, { status: 'fehler', nochmal, gedrosselt });
       // Review U1-h, Befund 2: ohne bekannte Kinder wieder zu — sonst stünde „offen“ ohne Gruppe
       // da, und →/Enter/Klick klappten zu statt neu zu laden.
       if (!this.sichtbar().find((s) => s.knoten.id === knoten.id)?.kinder.length) this.setzeOffen(knoten.id, false);

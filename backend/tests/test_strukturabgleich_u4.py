@@ -455,3 +455,17 @@ def test_gesamt_persoenliches_geht_nicht_in_die_suche(monkeypatch):
     assert fehlt == {"a": None, "b": "persoenlich", "c": "persoenlich", "d": "persoenlich"}
     assert not abdeckung.persoenlich("Optik Klasse 8 Linsen 2024")
 
+
+
+def test_r3c_die_textfassung_nennt_den_punkt_einer_luecke():
+    """Paket R3-c: wie das Modul — ein Unterpunkt einer Lücke steht mit seinem Punkt."""
+    from boerdi.ui_module import dienst_strukturabgleich as d
+
+    daten = {"sammlung": {"titel": "Physik"},
+             "zahlen": {"vorhanden": 0, "aehnlich": 0, "neu": 2, "nur_in_wlo": 0},
+             "zeilen": [{"titel": "Optik", "ebene": 1, "art": "neu",
+                         "abdeckung": {"total": 90, "luecke": False}},
+                        {"titel": "Linsen", "ebene": 2, "art": "neu",
+                         "abdeckung": {"total": 0, "luecke": True}}],
+             "abdeckung": {"gezaehlt": 2}}
+    assert "- Optik › Linsen (0 Treffer in WLO)" in d.textfassung(daten)

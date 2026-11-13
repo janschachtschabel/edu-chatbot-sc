@@ -18,6 +18,7 @@ import { RouterLink } from '@angular/router';
 import type { AgentTool, AgentToolLock } from '../core/agent-center-api.service';
 import { AgentCenterApi } from '../core/agent-center-api.service';
 import { AsyncData } from '../core/async-data';
+import { injectFocus } from '../core/inject-focus';
 import { McpRegistryStore } from '../core/mcp-registry-store';
 import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioApi } from '../core/studio-api.service';
@@ -56,6 +57,9 @@ export class AgentToolsComponent {
   readonly list = new AsyncData(() => this.api.tools(), this.t);
   /** Paket 15: die Server-Liste, deren `werkzeuge_aus` die Schalter schreiben. */
   readonly reg = new McpRegistryStore(inject(StudioApi), this.t);
+  /** R3-g (WCAG 2.4.3): nach dem Speichern auf Statuszeile bzw. Fehler — nur, wenn der Fokus mit den
+   *  gesperrten Knöpfen verloren ging; in einer zerstörten Ansicht gar nicht (NG0911). */
+  private readonly fokusNachSpeichern = injectFocus({ nurWennVerloren: true });
   readonly dirty = this.reg.dirty;
   readonly groups = computed(() => groupTools(this.list.value()?.tools ?? []));
   readonly summary = computed(() => {
@@ -128,6 +132,9 @@ export class AgentToolsComponent {
   async speichern(force = false): Promise<void> {
     await this.reg.save(force);
     if (!this.reg.dirty()) void this.list.reload();
+    // R3-g (WCAG 2.4.3): die Knöpfe sind gesperrt — der Fokus fiele sonst auf body; nach einem
+    // Fehler auf die Meldung (die Statuszeile bliebe leer, Querschnitts-Review Befund 3)
+    this.fokusNachSpeichern(this.reg.saveError() ? '.at-speicherfehler' : '.cs-status');
   }
 
   lockText(lock: AgentToolLock): string {

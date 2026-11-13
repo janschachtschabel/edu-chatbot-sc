@@ -107,6 +107,10 @@
             "type": "boolean",
             "description": "Darf ein Dokument im Chat gelesen werden."
           },
+          "lesen_nach_anmeldung": {
+            "type": "boolean",
+            "description": "Ein Dokument liesse sich nach der WLO-Anmeldung lesen (R3-b)."
+          },
           "ablage_in_wlo": {
             "type": "boolean",
             "description": "Duerfen Inhalte in WLO abgelegt werden."

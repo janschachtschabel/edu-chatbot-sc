@@ -101,6 +101,38 @@ test('module:neu legt ein Gerüst an, das das Register annimmt', async () => {
   assert.throws(() => geruest({ quelle, backend, kurzname: 'Ui_X' }), /Kleinbuchstaben/);
 });
 
+test('R3-g: module:neu trägt das Manifest in die Vorschau-Spec des Studios ein', async () => {
+  const { geruest } = await import('./module-neu.mjs');
+  const { quelle, backend } = aufbau([]);
+  const vorschau = join(quelle, 'vorschau.spec.ts');
+  writeFileSync(vorschau, [
+    "import alpha from '@boerdi/ui-module/ui-alpha/manifest.json';",
+    "import { MODUL_REGISTER } from '@boerdi/ui-module/register.generated';",
+    '',
+    'const MANIFESTE = [alpha] as unknown as UiModulManifest[];',
+    '',
+  ].join('\n'));
+  geruest({ quelle, backend, kurzname: 'probe-box', vorschauSpec: vorschau });
+  const text = readFileSync(vorschau, 'utf8');
+  assert.match(text, /import probeBox from '@boerdi\/ui-module\/ui-probe-box\/manifest\.json';\nimport \{ MODUL_REGISTER \}/);
+  assert.match(text, /const MANIFESTE = \[alpha, probeBox\] as unknown/);
+});
+
+test('Querschnitts-Review, NIT 11: ein Name, den die Spec schon trägt, bekommt ein Präfix', async () => {
+  const { inVorschauEintragen } = await import('./module-neu.mjs');
+  const { quelle } = aufbau([]);
+  const vorschau = join(quelle, 'vorschau2.spec.ts');
+  writeFileSync(vorschau, [
+    "import { MODUL_REGISTER } from '@boerdi/ui-module/register.generated';",
+    'const MANIFESTE = [alpha] as unknown as UiModulManifest[];',
+    'function text(e: Element | null): string { return String(e); }',
+  ].join('\n'));
+  assert.equal(inVorschauEintragen(vorschau, 'ui-text'), true);
+  const neu = readFileSync(vorschau, 'utf8');
+  assert.match(neu, /import manifestText from '@boerdi\/ui-module\/ui-text\/manifest\.json';/);
+  assert.match(neu, /\[alpha, manifestText\]/);
+});
+
 test('sortiert nach Codepunkten, unabhängig von der Sprachumgebung', () => {
   // localeCompare stellt `_` vor Ziffern, Codepunkte (und Pythons sorted) umgekehrt.
   const { quelle, backend } = aufbau([

@@ -80,7 +80,10 @@ def test_die_schalter_folgen_studio_und_anmeldung(monkeypatch, im_chat, ohne, pe
     monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: person)
     erg = asyncio.run(dienst.aufruf(_manifest(), {"zweck": "sammlungsstruktur"}, Umgebung()))
     # U3-3b: die Ablage in WLO folgt dem Studio UND der bestätigten Anmeldung (nie ohne sie).
-    assert erg.block.daten["schalter"] == {"dokument_im_chat": erwartet, "ablage_in_wlo": person}
+    # R3-b: hilft die Anmeldung beim Lesen, sagt der Schalter es dem Modul
+    hilft = im_chat and not ohne and not person
+    assert erg.block.daten["schalter"] == {"dokument_im_chat": erwartet, "ablage_in_wlo": person,
+                                           **({"lesen_nach_anmeldung": True} if hilft else {})}
 
 
 def test_der_dienst_lehnt_falsche_argumente_ab():

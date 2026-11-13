@@ -66,7 +66,11 @@ export function ansichtTeile(s: UploadSicht): Node[] {
     zone.append(knoten('p', 'u__hinweis', s.zustand === 'liest' ? t.liest : t.ablage));
     const hinweis = typeof s.daten['hinweis'] === 'string' && s.daten['hinweis'].trim()
       ? s.daten['hinweis'] : t.hinweisLeer;
-    teile.push(knoten('p', 'u__hinweis', hinweis), zone, waehler(s));
+    teile.push(knoten('p', 'u__hinweis', hinweis));
+    // R3-b: der Hinweis der KI kann Lesen versprechen, das erst nach der Anmeldung geht
+    const schalter = s.daten['schalter'] as Record<string, unknown> | undefined;
+    if (schalter?.['lesen_nach_anmeldung'] === true) teile.push(knoten('p', 'u__hinweis', t.lesenNachAnmeldung));
+    teile.push(zone, waehler(s));
     if (s.zustand === 'fehler') {
       const meldung = knoten('p', 'u__hinweis', s.erfassung ? t.nichtsGefunden : t.leseFehler);
       meldung.tabIndex = -1;

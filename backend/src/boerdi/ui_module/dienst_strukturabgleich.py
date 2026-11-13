@@ -94,8 +94,17 @@ def textfassung(daten: dict[str, Any]) -> str:
             f"{z['vorhanden']} vorhanden, {z['aehnlich']} ähnlich, {z['neu']} neu, "
             f"{z['nur_in_wlo']} nur in WLO.")
     neu = [f"- {_md(zl['titel'])}" for zl in daten["zeilen"] if zl["art"] == "neu"][:20]
-    alle = [f"- {_md(zl['titel'])} ({zl['abdeckung']['total']} Treffer in WLO)"
-            for zl in daten["zeilen"] if (zl.get("abdeckung") or {}).get("luecke")]
+    # Paket R3-c: ein Unterpunkt steht mit seinem Punkt (wie im Modul) — sonst nicht zuzuordnen
+    eltern: dict[int, str] = {}
+    punkt = ""
+    for i, zl in enumerate(daten["zeilen"]):
+        if zl.get("ebene") == 1:
+            punkt = str(zl.get("titel") or "")
+        elif zl.get("ebene") == 2 and punkt:
+            eltern[i] = punkt
+    alle = [f"- {_md(eltern[i]) + ' › ' if i in eltern else ''}{_md(zl['titel'])} "
+            f"({zl['abdeckung']['total']} Treffer in WLO)"
+            for i, zl in enumerate(daten["zeilen"]) if (zl.get("abdeckung") or {}).get("luecke")]
     luecken = alle[:20] + ([f"- … und {len(alle) - 20} weitere"] if len(alle) > 20 else [])
     ab = daten.get("abdeckung") if isinstance(daten.get("abdeckung"), dict) else None
     ohne = ("\n\nTreffer in WLO ließen sich nicht zählen." if ab and not ab["gezaehlt"] else "")

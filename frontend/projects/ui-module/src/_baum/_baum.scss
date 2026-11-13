@@ -109,7 +109,12 @@
     }
   }
 
+  // R3-d: ein langer Titel bricht in seiner eigenen Spalte um, statt als Ganzes unter den Pfeil zu
+  // rutschen (die Zeile ist ein umbrechender Flex-Container). Höchstens so breit wie der Text
+  // (Durchtest 13.11.): sonst schob ein kurzer Titel die Zahl der Inhalte ganz nach rechts.
   .#{$p}__titel {
+    flex: 1 1 10rem;
+    max-width: max-content;
     min-width: 0;
     overflow-wrap: anywhere;
   }

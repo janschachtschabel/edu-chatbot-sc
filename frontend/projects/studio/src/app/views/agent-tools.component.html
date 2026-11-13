@@ -102,9 +102,9 @@
           (reload)="neuLaden()" (force)="speichern(true)" />
       }
       @if (reg.saveError() || reg.loadError(); as fehler) {
-        <p class="cs-state cs-state--error" role="alert">{{ fehler }}</p>
+        <p class="cs-state cs-state--error at-speicherfehler" role="alert" tabindex="-1">{{ fehler }}</p>
       }
-      <p class="cs-status" aria-live="polite">{{ reg.status() }}</p>
+      <p class="cs-status" aria-live="polite" tabindex="-1">{{ reg.status() }}</p>
     } @else {
       <p class="cs-state" aria-busy="true">{{ t('agentTools.loading') }}</p>
     }
