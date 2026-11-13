@@ -346,6 +346,11 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **MCP nach dem Audit, C1/C2/C4 (2026-11-13):** keine Migration, keine neue Variable. Image neu
+  bauen, `import-config --werksabgleich` (M18 „Kuration“: zwei Zeilen). Verträgt sich mit dem
+  alten und dem neuen MCP-Stand. Plan `plans/2026-11-13-mcp-nach-audit.md`, Notiz
+  `aenderungen/2026-11-13-mcp-nach-audit.md`, Rückmeldung an den MCP
+  `mcp-rueckmeldung-2026-11-13.md`.
 - **Fix Rückmeldung Abläufe (2026-11-13):** keine Migration. Image neu bauen (Backend, Widget), `import-config
   --werksabgleich` (drei Themenbaum-Abläufe: Freitext an jeder Frage, „aus einem Thema“ fragt das
   Thema zuerst; wartende Läufe dieser Abläufe enden). Masterskill-Knoten mit
@@ -396,7 +401,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     Uploads, Messung auf dem vServer.
   - **An das MCP-Team:** ein Endpunkt bzw. Werkzeug für die Bytes einer privaten Datei
     (`eduservlet/download` 403, `GET …/content` 405 mit Basic); `get_skill` lädt jede nodeId ohne
-    Größengrenze als Text herunter.
+    Größengrenze als Text herunter (**erledigt im MCP-Stand nach dem Audit, 13.11.:** über 2 MiB
+    und Binärdateien werden abgelehnt; der Chatbot erkennt die Ablehnung, Paket C4).
 
   Notizen unter `aenderungen/2026-11-09-paket-as-da…as-dd`.
 - **Restbefunde RB-1 (2026-11-09):** keine Migration, keine neue Variable; Studio- und Backend-Image
