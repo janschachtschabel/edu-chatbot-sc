@@ -149,6 +149,11 @@ def unterthemen(*, entwurf: str, thema: str, fach: str | None, bildungsstufe: st
         "\"anzahl\" Punkte, die nur ihn ausfüllen (nicht seine Geschwister, nicht die Punkte über "
         "ihm) und die schon vorhandenen Unterpunkte \"vorhanden\" ergänzen, ohne sie zu "
         f"wiederholen. Antwort: {{\"knoten\": [Punkte]}}. \"unterthemen\" je Punkt {grenze}.")
+    if not letzte_ebene:
+        # Rückmeldung 13.11.: nur bei drei Ebenen ist dies nicht die letzte — ohne den Satz setzte
+        # das Modell fast überall 0, und „Ausführlich (3 Ebenen)“ ergab zwei.
+        aufgabe += (" Eine weitere Ebene ist gewünscht: gib jedem Punkt, der sich in 2 oder mehr "
+                    "Unterpunkte teilen lässt, deren Zahl; 0 nur, wenn er für sich steht.")
     if auszug:
         aufgabe += (" Leite die Unterpunkte aus \"auszug\" ab, dem Text des Dokuments der Person "
                     "zu diesem Punkt; erfinde nichts hinzu, was dort nicht angelegt ist.")

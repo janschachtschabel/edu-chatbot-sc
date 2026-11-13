@@ -121,6 +121,12 @@ def entschaerfe_endmarken(text: str) -> str:
     return _eckige_klammern_rund(text)
 
 
+def klammern_rund(text: str) -> str:
+    """Öffentlich (Review 13.11., ``ablauf/ki_schritt.daten_zeile``): jede eckige Klammer rund,
+    auch ihre Doppelgänger — für Eingaben, die in einer ``[…]``-Zeile für die KI stehen."""
+    return _eckige_klammern_rund(text)
+
+
 def _eckige_klammern_rund(text: str) -> str:
     """Jede eckige Klammer rund, auch jede, die das Modell als eine liest — in einem
     Durchgang, gleich wie tief verschachtelt."""

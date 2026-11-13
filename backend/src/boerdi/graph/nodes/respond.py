@@ -466,7 +466,14 @@ async def respond(
                 frozenset(_ki[1].agent.werkzeuge if _ki[1].agent else ()))
             _kennzeile = "\n\n".join(t for t in (_kennzeile, ki_schritt.zeile(
                 *_ki, resolve_locale(req.environment.locale),
-                zuege=ki_schritt.zaehlen(_entities, *_ki), eingeengt=False)) if t)
+                zuege=ki_schritt.zaehlen(_entities, *_ki), eingeengt=False,
+                nachricht=req.message),
+                # Rückmeldung 13.11.: die Antworten des Laufs aus dem Vorgang (wie im Agent-Weg).
+                # Ein eigener Lader (Review 13.11.): der geteilte merkt sich den Vorgang — vor
+                # der Werkzeug-Schleife gelesen, sähe ein späteres ``$teil`` neue Teile nicht.
+                await ki_schritt.daten_zeile(
+                    _ki[0], arbeitsstand.teil_lader(session, req.session_id, _entities),
+                    ki_schritt.beantwortet(session_state, req.session_id))) if t)
         elif not req.action and not ablauf_zug.lauf_wartet(req.session_id, session_state) \
                 and (_anmelde := ablauf_zug.anmelde_zeile(
                     req.message, resolve_locale(req.environment.locale),

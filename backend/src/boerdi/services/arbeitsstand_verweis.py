@@ -13,6 +13,7 @@ from typing import Any, Final
 
 from boerdi.db.models import Vorgang
 from boerdi.domain.endmarken import entschaerfe_endmarken
+from boerdi.services.teil_verweise import NAME as _TEIL_NAME
 from boerdi.ui_module.rahmen import zeile
 
 #: In ``session_state["entities"]``: der Verweis auf den aktiven Vorgang (keine Daten).
@@ -45,6 +46,11 @@ def verweis_fuer(v: Vorgang, aufrufer: str) -> dict[str, Any]:
         # sie auch aus dem Verweis (Leiste, wartende Schritte); ``zeile`` machte daraus Text.
         if lauf.get("probe") is True:
             vw["lauf"]["probe"] = True
+        # Review 13.11.: welche Fragen in diesem Lauf beantwortet sind — nur die Namen der Teile
+        # (``treiber.weiter_wahl``), für ``ki_schritt.daten_zeile``; keine Inhalte.
+        if isinstance(antworten := lauf.get("antworten"), list):
+            vw["lauf"]["antworten"] = [n for n in antworten
+                                       if isinstance(n, str) and _TEIL_NAME.match(n)][:20]
     return vw
 
 
@@ -77,10 +83,13 @@ def kennzeile(entities: dict[str, Any], aufrufer: str) -> str:
 
     lauf = vw.get("lauf") if isinstance(vw.get("lauf"), dict) else None
     # Review AS-7a, Befund 8: die gemeinsame Liste — ein neuer Wartestatus fehlte hier
-    ablauf = (f" Ablauf {lauf.get('ablauf')}: Schritt {lauf.get('schritt')} ({lauf.get('status')})."
-              if lauf and lauf.get("status") in (*WARTEND, "laeuft") else "")
+    ablauf = (f"; Ablauf {lauf.get('ablauf')}: Schritt {lauf.get('schritt')} "
+              f"({lauf.get('status')});"
+              if lauf and lauf.get("status") in (*WARTEND, "laeuft") else ";")
+    # Review 13.11.: der Stand des Ablaufs vor den Teilen — am Ende der gedeckelten Zeile fiel er
+    # bei vielen Teilen weg, und der Masterskill richtet sich nach ihm („wartet_wahl“).
     inhalt = entschaerfe_endmarken(
-        f"Vorgang „{zeile(vw.get('titel'), TITEL_ZEICHEN)}“; Teile: {liste}.{ablauf}")
+        f"Vorgang „{zeile(vw.get('titel'), TITEL_ZEICHEN)}“{ablauf} Teile: {liste}.")
     # Review V1, Befund 6: eine Klammer im Fremdtext schlösse die Zeile vorzeitig.
     inhalt = inhalt.replace("[", "(").replace("]", ")")
     # Paket V2: wie die KI einen Teil weitergibt, ohne ihn zu kennen (``services/teil_verweise``).

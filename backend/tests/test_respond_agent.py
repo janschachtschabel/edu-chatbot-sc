@@ -1578,6 +1578,35 @@ async def test_am_agent_schritt_engt_der_lauf_die_werkzeuge_ein(monkeypatch):
     assert ctx.session_state["entities"][ki_schritt.ZUEGE_KEY]["zuege"] == 1
 
 
+@pytest.mark.anyio
+async def test_am_agent_schritt_stehen_die_antworten_des_ablaufs_in_der_nachricht(monkeypatch):
+    """Rückmeldung 13.11.: das getippte Thema stand nur im Verlauf (10 Nachrichten) und ging
+    verloren — am KI-Schritt nennt ``[ABLAUFDATEN — …]`` die Antworten aus dem Vorgang."""
+    from boerdi.domain.config_models.ablauf import AblaufArea
+
+    ablauf = AblaufArea.model_validate({
+        "id": "baum", "titel": {"de": "Baum"}, "aktiv": True, "schritte": [
+            {"id": "thema", "typ": "nachricht", "text": {"de": "Thema?"},
+             "freitext": {"ziel": "k", "schreibt": "thema"}},
+            {"id": "k", "typ": "agent", "agent": {"werkzeuge": ["search_wlo_all"]}},
+            {"id": "e", "typ": "ende"}]})
+    monkeypatch.setattr(agent_mod.ki_schritt, "aktueller",
+                        lambda state, sid: (ablauf, ablauf.schritte[1]))
+
+    def lader(_session, _sid, _entities):
+        async def teil(name):
+            return {"thema": "Karate"}.get(name)
+        return teil
+
+    monkeypatch.setattr(agent_mod.arbeitsstand, "teil_lader", lader)
+    monkeypatch.setattr(agent_mod.ki_schritt, "beantwortet", lambda state, sid: ["thema"])
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    await respond_agent(_ctx())
+    nachricht = seen["run_agent_loop"]["messages"][-1]["content"]
+    assert "[ABLAUFDATEN — " in nachricht and "thema: „Karate“" in nachricht
+    assert nachricht.index("[ABLAUFSCHRITT — ") < nachricht.index("[ABLAUFDATEN — ")
+
 
 @pytest.mark.anyio
 async def test_im_agent_schritt_bleibt_die_sperre_und_kein_wissen(monkeypatch):

@@ -382,8 +382,16 @@ async def respond_agent(
     if _ki:
         _werkzeuge = ki_schritt.einengen(_werkzeuge, _ki[1])
         _ki_zeile = ki_schritt.zeile(*_ki, sprache, zuege=_ki_zug, angeboten={
-            (t.get("function") or {}).get("name") for t in _werkzeuge})
-        _nutzer["content"] = f"{_ki_zeile}\n\n{_nutzer['content']}"
+            (t.get("function") or {}).get("name") for t in _werkzeuge},
+            nachricht=ctx.req.message)
+        # Rückmeldung 13.11.: die Antworten der Person auf die Fragen des Ablaufs aus dem Vorgang
+        # — getippte standen sonst nur im Verlauf (10 Nachrichten) und gingen verloren
+        # (ein eigener Lader: der der Module liest erst in der Schleife, nach neuen Teilen)
+        _ki_daten = await ki_schritt.daten_zeile(
+            _ki[0], arbeitsstand.teil_lader(session, ctx.req.session_id, _entities),
+            ki_schritt.beantwortet(ctx.session_state, ctx.req.session_id))
+        _nutzer["content"] = "\n\n".join(
+            t for t in (_ki_zeile, _ki_daten, _nutzer["content"]) if t)
     elif not ctx.req.action and not ablauf_zug.lauf_wartet(ctx.req.session_id, ctx.session_state) \
             and (_anmelde := ablauf_zug.anmelde_zeile(
                 ctx.req.message, sprache,

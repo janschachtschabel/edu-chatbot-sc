@@ -571,7 +571,9 @@ async def weiter_wahl(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None
         neu["gewaehlt"] = []
         # nur „Text“ und der Name des Teils in der Kennzeile — der Inhalt (Eingabe der Person)
         # bleibt im Teil (Befund 11); der Name kommt von der Redaktion und sagt der Person in
-        # „Gesammelte Daten“, was gesammelt ist (Browser-Abnahme AS-U, L-1)
+        # „Gesammelte Daten“, was gesammelt ist (Browser-Abnahme AS-U, L-1). Bewusste Ausnahme
+        # seit 13.11.: am ``agent``-Schritt desselben Laufs liest ``ki_schritt.daten_zeile`` den
+        # Wert aus dem Vorgang — der Verlauf (10 Nachrichten) trug ihn nicht verlässlich.
         neue_teile.append((name, typen.TEXT, wert, f"Text: {name}"))
         lader = umgebung.teile
         # Review TB-T1, Befund 3: eine Wahl aus einem früheren Durchgang (anderer Teil) gilt nach
@@ -589,6 +591,11 @@ async def weiter_wahl(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None
         umgebung = replace(umgebung, teile=mit_freitext)
     else:
         return None
+    # Review 13.11.: der Lauf merkt sich, welche Teile in IHM beantwortet wurden (nur Namen) —
+    # ``ki_schritt.daten_zeile`` zeigt der KI nur diese; ein Neustart im selben Vorgang trüge
+    # sonst die Antworten des vorigen Laufs weiter.
+    if beantwortet := [n for n, _typ, wert_neu, _kurz in neue_teile if wert_neu != ""]:
+        neu["antworten"] = list(dict.fromkeys([*(lauf.get("antworten") or []), *beantwortet]))
     if ziel not in index:
         neu["status"] = "fertig"
         return Ausgabe(lauf=neu, neue_teile=neue_teile)
