@@ -311,10 +311,12 @@ class _Cls:
 
 @pytest.fixture
 def m16(monkeypatch):
-    # ``call_mcp_tool`` is a top-import on topic_pages → patch it there; the
+    # ``call_mcp_tool_status`` is a top-import on topic_pages → patch it there; the
     # parse-Fns stay lazy → patch at the source module (boerdi.services.mcp.parsers).
+    # Seit Plan 2026-11-13 (C1) liest M16 auch die ART eines Fehlers (``"art"``: leer = Erfolg).
     import boerdi.services.topic_pages as topic_pages
     rec = {
+        "art": "",
         "candidates": [{"node_id": "c1", "title": "Klimawandel",
                         "topic_page_url": "http://tp/1"}],
         "swimlanes": {"swimlanes": [{"heading": "Videos", "type": "video",
@@ -331,9 +333,9 @@ def m16(monkeypatch):
         rec["call_args"].append((tool, dict(args)))
         if rec["mcp_raises"]:
             raise RuntimeError("mcp boom")
-        return tool                       # raw text irrelevant — parse-Fns are mocked
+        return tool, rec["art"]           # raw text irrelevant — parse-Fns are mocked
 
-    monkeypatch.setattr(topic_pages, "call_mcp_tool", _call)
+    monkeypatch.setattr(topic_pages, "call_mcp_tool_status", _call)
     monkeypatch.setattr("boerdi.services.mcp.parsers.parse_wlo_topic_page_cards",
                         lambda raw: list(rec["candidates"]))
     monkeypatch.setattr("boerdi.services.mcp.parsers.parse_topic_page_swimlanes",
@@ -393,7 +395,9 @@ class TestResolveM16TopicPageView:
         view, cards, text = _run_m16("M16", entities={"thema": "Klima"})
         assert view is None
         assert cards == []
-        assert "keine anzeigbaren" in text
+        # Plan 2026-11-13, C1: wirft der Aufruf, hat WLO nicht geantwortet — vorher stand hier
+        # „eventuell noch leer oder nicht freigegeben“, ein Befund über die Seite, den es nicht gab.
+        assert "nicht geantwortet" in text and "noch leer" not in text
 
     # ── T19: page-context shortcut (known collectionId → no search) ──
     def test_m16_known_collection_id_skips_search(self, m16):

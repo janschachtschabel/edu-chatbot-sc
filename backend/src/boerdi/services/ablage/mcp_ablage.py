@@ -55,6 +55,9 @@ _GRUENDE: Final = {"slot_missing": "erneut", "folder_failed": "erneut",
                    "mismatch_bytes": "passt_nicht",
                    "batch_unknown": "neu_vorbereiten", "batch_expired": "neu_vorbereiten",
                    "batch_mismatch": "neu_vorbereiten", "nothing_stored": "nichts_abgelegt",
+                   # MCP-Stand nach dem Audit (Plan 2026-11-13, C2): ein laufender Stapel wird
+                   # nicht mehr verdrängt — nichts vorbereitet, in ein paar Minuten geht es wieder
+                   "too_many_batches": "voll",
                    # Paket M1: die Namen vor dem MCP-Stand vom 2026-11-07 (Rückfall).
                    "unknown": "neu_vorbereiten", "expired": "neu_vorbereiten",
                    "mismatch": "neu_vorbereiten"}
@@ -62,7 +65,10 @@ _GRUENDE: Final = {"slot_missing": "erneut", "folder_failed": "erneut",
 #: wird ``zu_langsam`` — die Datei KANN abgelegt sein (``api/ui_ablage``: „ohne Antwort“).
 _FEHLER_CODES: Final = {"login_rejected": "kein_recht", "login_required": "nur_angemeldet",
                         "forbidden": "kein_recht", "timeout": "zu_langsam",
-                        "not_visible": "zu_langsam", "unverified": "zu_langsam"}
+                        "not_visible": "zu_langsam", "unverified": "zu_langsam",
+                        # ``WLO_UPSTREAM_CONCURRENCY`` des MCP: ausgelastet, gleich noch einmal
+                        # (mit offenem Ausgang ``zu_langsam``, siehe :func:`_werkzeug`)
+                        "upstream_busy": "voll"}
 #: ``timeout`` fängt :func:`_rufe` vorher ab (``zu_langsam``).
 _FEHLER_ARTEN: Final = {"auth": "kein_recht", "tool": "abgewiesen", "transport": "nicht_erreichbar"}
 
@@ -100,6 +106,9 @@ async def _werkzeug(name: str, args: dict[str, Any]) -> dict[str, Any]:
             code = str(strukturiert["error"].get("code") or "")
             if code == "timeout" and strukturiert["error"].get("outcomeOpen") is False:
                 raise AblageFehler("abgewiesen")
+            if code == "upstream_busy" and strukturiert["error"].get("outcomeOpen") is True:
+                # Review C2: beim Ablegen einer Datei oder des Manifests KANN geschrieben sein
+                raise AblageFehler("zu_langsam")
             raise AblageFehler(_FEHLER_CODES.get(code, "abgewiesen"))
         if fehler.get("kind") == "timeout":
             raise AblageFehler("zu_langsam")
@@ -123,6 +132,9 @@ async def vorbereiten(ordner: str, eintraege: list[dict[str, Any]]) -> dict[str,
         "entries": [{"title": e["titel"], "sha256": e["sha256"], "size": e["groesse"],
                      "ext": e["art"], "role": _ROLLEN.get(e.get("rolle", "inhalt"), "content")}
                     for e in eintraege]})
+    if (code := grund(daten)) is not None:
+        # eine Ablehnung des Stapels (``status: failed`` + ``reason``) statt eines Plans
+        raise AblageFehler(code)
     liste = daten.get("entries")
     # Je Eintrag ein ganzzahliger Index 0…n−1 in Reihenfolge — sonst kippte
     # ``vorgang_teil.aus_plan`` mit einer 500, oder ein Index wäre über ``/datei`` nie einlösbar

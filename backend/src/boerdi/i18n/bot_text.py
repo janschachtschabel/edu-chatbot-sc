@@ -544,6 +544,21 @@ BOT_TEXT: Final[Catalogue] = {
             "Fortsetzen geht hier gerade nicht — das Werkzeug ist in diesem Zusammenhang nicht "
             "freigegeben. Weiter geändert wurde nichts."),
         "action.plan.weiterKnopf": "Plan fortsetzen",
+        # Plan 2026-11-13, C2: eigene Sätze für neue Ablehnungen des MCP (statt Servertext)
+        "write.grund.alreadyDecided": "Über diesen Vorschlag ist schon entschieden.",
+        "write.grund.alreadySubmitted": "Der Inhalt ist schon zur Prüfung eingereicht.",
+        "write.grund.isAFolder": "Das ist ein Ordner, kein einzelner Inhalt.",
+        "write.grund.isACollection": "Das ist eine Sammlung, kein einzelner Inhalt.",
+        "write.grund.notARecord": "Das ist kein einzelner Inhalt.",
+        # Plan 2026-11-13, C2: der MCP meldet ``recordExists`` — angelegt, ein Folgeschritt offen
+        "write.recordExists": (
+            "Der Datensatz ist angelegt ({kennung}), aber ein Schritt danach ist nicht bestätigt "
+            "zurückgekommen — zum Beispiel die Datei oder einzelne Angaben. Lege ihn bitte nicht "
+            "noch einmal an. Sag mir, was ich nachtragen soll, oder sieh in WLO nach, was fehlt."),
+        "write.recordExistsOhneKennung": (
+            "Der Datensatz ist angelegt, aber ein Schritt danach ist nicht bestätigt "
+            "zurückgekommen — zum Beispiel die Datei oder einzelne Angaben. Lege ihn bitte nicht "
+            "noch einmal an. Sieh in WLO nach, was fehlt; dann trage ich es nach."),
         "write.executeUnconfirmed": (
             "Die Änderung ist nicht bestätigt zurückgekommen — ob sie "
             "angekommen ist, kann ich von hier aus nicht sagen. Sieh bitte in "
@@ -1031,6 +1046,19 @@ BOT_TEXT: Final[Catalogue] = {
             "Continuing is not possible here right now — the tool is not enabled in this context. "
             "Nothing further was changed."),
         "action.plan.weiterKnopf": "Continue",
+        "write.grund.alreadyDecided": "This suggestion has already been decided.",
+        "write.grund.alreadySubmitted": "The item has already been submitted for review.",
+        "write.grund.isAFolder": "That is a folder, not a single item.",
+        "write.grund.isACollection": "That is a collection, not a single item.",
+        "write.grund.notARecord": "That is not a single item.",
+        "write.recordExists": (
+            "The record has been created ({kennung}), but a step after that did not come back "
+            "confirmed — for example the file or some of the details. Please do not create it "
+            "again. Tell me what to add, or check in WLO what is missing."),
+        "write.recordExistsOhneKennung": (
+            "The record has been created, but a step after that did not come back confirmed — "
+            "for example the file or some of the details. Please do not create it again. Check "
+            "in WLO what is missing; then I will add it."),
         "write.executeUnconfirmed": (
             "The change did not come back confirmed — from here I cannot tell "
             "whether it went through. Please check in WLO before trying again, "

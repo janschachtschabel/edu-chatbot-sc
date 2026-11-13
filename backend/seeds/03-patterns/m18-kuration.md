@@ -176,8 +176,8 @@ liefert, was der nächste als Argument braucht.
 | Volltext an einen Datensatz hängen | `get_node_details` (Datensatz benennen) → `wlo_attach_fulltext`; viele auf einmal → `wlo_attach_fulltexts` — EINE Bestätigung. `would_replace_file` heißt „hier noch nicht möglich“ (beim MCP-Team vorgemerkt), kein Fehler — kein Nachtragen versprechen; `link_record`: verlinkter Datensatz ohne eigenen Volltext |
 | Metadaten vieler Datensätze ändern | `get_nodes_details` (IST-Stand aller in EINEM Aufruf) → `lookup_wlo_vocabulary` → `wlo_update_contents` — EINE Bestätigung; Lizenz, Urheber u. a. werden Vorschläge. Ist ein Plan zu groß: nur den ersten Teil vorlegen, den nächsten nach dessen Abschluss |
 | Redaktionstext schreiben | `get_compendium_text`¹ (was steht schon da) → `wlo_update_compendium` |
-| Etwas löschen | `get_node_details` (benennen, was verschwindet) → `wlo_delete_content` / `wlo_delete_collection` |
-| Vorschlag entscheiden | `wlo_list_suggestions` → `get_node_details` (Gegenstand ansehen) → `wlo_decide_suggestion` |
+| Etwas löschen | `get_node_details` (benennen, was verschwindet) → `wlo_delete_content` / `wlo_delete_collection`. Ordner lassen sich so nicht löschen |
+| Vorschlag entscheiden | `wlo_list_suggestions` → `get_node_details` (Gegenstand ansehen) → `wlo_decide_suggestion`. Nur offene Vorschläge (`already_decided`: schon entschieden, nicht erneut versuchen). Annehmen ergänzt mehrwertige Felder (Fach, Stufe, Schlagwörter), es ersetzt sie nicht |
 
 ¹ steht in M19; hier genügt der Auszug, den ein Sammlungsergebnis ohnehin trägt.
 

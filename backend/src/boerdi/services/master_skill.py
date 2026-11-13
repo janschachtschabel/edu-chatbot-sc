@@ -134,10 +134,15 @@ def ist_aktiv(ueberschreibung: bool | None) -> bool:
 #: 2026-09-29): eine unbekannte Kennung oder fehlende Rechte als eine einzige
 #: Zeile, ein Skill ohne lesbaren Text als Platzhalter unter der Trennlinie.
 _NICHT_ABRUFBAR: Final = "ist nicht abrufbar"
-_KEIN_TEXT: Final = "_Für diesen Skill ist kein Anleitungstext abrufbar"
+#: Schlusszeilen ohne Anleitungstext. Seit der Audit-Nacharbeit des MCP (Plan 2026-11-13, C4)
+#: lehnt ``get_skill`` Dateien über 2 MiB und sicher binäre Dateien ganz ab — je mit eigener Zeile
+#: (``noContentLine`` in ``tools/skills.ts``).
+_KEIN_TEXT: Final = ("_Für diesen Skill ist kein Anleitungstext abrufbar",
+                     "_Die Datei ist zu groß für eine Anleitung",
+                     "_Dieser Datensatz ist keine Textdatei")
 
 
-def _keine_anleitung(text: str) -> bool:
+def keine_anleitung(text: str) -> bool:
     """Ist ``text`` die Auskunft „keine Anleitung“ statt eines Dokuments?"""
     zeilen = [z.strip() for z in text.splitlines() if z.strip()]
     if len(zeilen) == 1 and zeilen[0].startswith("Skill ") and _NICHT_ABRUFBAR in zeilen[0]:
@@ -261,7 +266,7 @@ async def _abrufen(kennung: str, *, frisch: bool) -> tuple[str | None, str | Non
     if not text:
         logger.warning("Master-Skill %s ist leer", kennung)
         return None, "leer", True
-    if _keine_anleitung(text):
+    if keine_anleitung(text):
         logger.warning("Master-Skill %s: keine Anleitung (%s)",  # log-ok: Repo-Dokument
                        kennung, text[-160:])
         return None, f"keine Anleitung: {text[-160:]}", True

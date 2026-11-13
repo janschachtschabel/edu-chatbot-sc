@@ -456,7 +456,12 @@ CURATION_TOOL_DEFINITIONS = [
         "wlo_decide_suggestion",
         "Nimmt einen Metadaten-Vorschlag an oder lehnt ihn ab. Das ist eine "
         "redaktionelle Entscheidung ueber die Arbeit einer anderen Person — "
-        "triff sie nie von dir aus, sondern nur auf ausdruecklichen Wunsch."
+        "triff sie nie von dir aus, sondern nur auf ausdruecklichen Wunsch. "
+        # MCP-Stand nach dem Audit (Plan 2026-11-13, C2)
+        "Nur offene Vorschlaege (PENDING) sind entscheidbar; already_decided heisst: schon "
+        "entschieden, nicht erneut versuchen. Annehmen ERGAENZT bei mehrwertigen Feldern (Fach, "
+        "Bildungsstufe, Inhaltstyp, Zielgruppe, Sprache, Schlagwoerter) die vorhandenen Werte, "
+        "es ersetzt sie nicht."
         + _ZWEISTUFIG,
         {
             "nodeId": {"type": "string", "description": "nodeId des Materials."},

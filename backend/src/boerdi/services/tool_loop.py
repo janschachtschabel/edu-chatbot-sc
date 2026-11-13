@@ -99,6 +99,7 @@ from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
+from boerdi.services.master_skill import keine_anleitung
 from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.mcp.client import is_mcp_error, nimm_bestaetigung
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
@@ -953,7 +954,10 @@ async def _run_tool_loop(
                 # Nur bei ECHTEM Ergebnis merken — ein Fehlschlag ist keine
                 # laufende Anleitung. Ein MCP-Fehler kommt als gewöhnlicher
                 # Text zurück, deshalb zählt der Befund (Review 2026-09-26).
-                if tool_name == "get_skill" and result_text and outcome.status == "success":
+                # Plan 2026-11-13, C4: auch eine abgelehnte Datei (zu groß, kein Text) kommt
+                # als Erfolgstext — sie ist keine laufende Anleitung.
+                if (tool_name == "get_skill" and result_text and outcome.status == "success"
+                        and not keine_anleitung(result_text)):
                     merke_laufende_anleitung(
                         session_state.setdefault("entities", {}),
                         tool_args.get("nodeId"),

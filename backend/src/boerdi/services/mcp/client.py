@@ -42,6 +42,7 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from boerdi.domain.fremdwerkzeug import ist_fremd
+from boerdi.domain.mcp_unvollstaendig import ist_unvollstaendig
 from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
 from boerdi.domain.werkzeug_freigabe import uebernommen
 from boerdi.domain.write_confirm import (
@@ -149,6 +150,14 @@ def fehlercode(text: str | None) -> str | None:
         return None
     m = _CODE_IM_TEXT.match(str(text))
     return m.group(1) if m else None
+
+
+def _cachebar(tool_name: str, response: str, strukturiert: dict[str, Any] | None) -> bool:
+    """Gehört diese Antwort in den Cache? Nein für eine Teilantwort (``missing``, Paket M4) und
+    einen Fehltreffer (``darf_cachen``)."""
+    if strukturiert and strukturiert.get("missing"):
+        return False
+    return darf_cachen(tool_name, response)
 
 
 def is_mcp_error(text: str | None) -> bool:
@@ -617,6 +626,12 @@ async def _einzelaufruf(
         _sc = result["error"].get("structured")
         fehler = _sc.get("error") if isinstance(_sc, dict) else None
         fehler = dict(fehler) if isinstance(fehler, dict) else None
+        if (fehler and fehler.get("recordExists") is True and "nodeId" not in fehler
+                and isinstance(_sc.get("nodeId"), str)):
+            # Review C2 (2026-11-13): „angelegt, aber unvollständig“ — die Kennung des Datensatzes
+            # steht nur in einem der drei Fälle in ``error``; sonst daneben (``markWritten`` des
+            # Servers). Ohne sie könnte niemand nachtragen.
+            fehler["nodeId"] = _sc["nodeId"]
         code = str(fehler.get("code")) if fehler and fehler.get("code") else None
         if code == "login_rejected" or (code == "login_required"
                                         and auth.zug_block_wirkt_persoenlich()):
@@ -758,9 +773,11 @@ async def _einzelaufruf(
     # isn't in the blocklist).
     # Paket M4 (Review, Befund 5): eine Teilantwort (``missing`` — Zeitüberschreitung,
     # vorübergehender Fehler) nicht fünf Minuten lang wieder ausspielen.
-    teilantwort = bool(strukturiert and strukturiert.get("missing"))
-    if cache_key is not None and not teilantwort and darf_cachen(tool_name, response):
-        _cache_set(cache_key, response)
+    if cache_key is not None and _cachebar(tool_name, response, strukturiert):
+        # Plan 2026-11-13, C1: hat eine Quelle nicht (ganz) geantwortet, nur für Sekunden — sonst
+        # stünde ein Ausfall bis zu 30 Minuten als Befund da.
+        _cache_set(cache_key, response,
+                   unvollstaendig=ist_unvollstaendig(tool_name, strukturiert, response))
         # Auch die extrahierten queryMetas mit-cachen, damit Cache-Hits die
         # strukturierten Filter-Daten (URI-resolved discipline /
         # educationalContext / learningResourceType) wieder re-emitten können —
