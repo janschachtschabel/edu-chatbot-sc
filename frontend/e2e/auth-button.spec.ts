@@ -43,6 +43,7 @@ test('bei 320 px bricht die Eingabezeile nicht um und das Feld bleibt bedienbar'
   await w.open();
 
   await expect(page.locator('.btn-auth')).toBeVisible();
+  await w.ohneMikrofon();
 
   const zeile = await page.locator('.chat-footer').evaluate((el) => {
     const rahmen = el.getBoundingClientRect();
@@ -79,6 +80,7 @@ test('bei 320 px kostet der Knopf das Eingabefeld nur seine eigene Breite', asyn
   await w.open();
 
   await expect(page.locator('.btn-auth')).toHaveCount(0);
+  await w.ohneMikrofon();
   const ohne = await page.locator('.chat-footer').evaluate((el) => ({
     feld: Math.round(el.querySelector('.chat-input')!.getBoundingClientRect().width),
     scroll: el.scrollWidth, client: el.clientWidth,

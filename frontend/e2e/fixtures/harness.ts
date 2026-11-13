@@ -115,6 +115,11 @@ export interface Harness {
    *  der Klick — dort gibt es keinen FAB und der Chat steht schon; die Zusage
    *  „danach ist die Eingabe da" gilt aber in beiden Modi. */
   open(): Promise<void>;
+  /** Wartet, bis der Sprachstatus des Harness („aus“) angewandt ist. Das Widget startet
+   *  optimistisch MIT Mikrofon und blendet es erst nach `/speech/status` aus — wer die
+   *  Eingabezeile vorher misst, misst je nach Tempo eine Zeile mit oder ohne Mikrofon
+   *  (CI-Kippler 2026-11-13: `btn-mic` stand in der Zeile des Feldes). */
+  ohneMikrofon(): Promise<void>;
   /** Queue results for the next turns (FIFO); default is a plain text answer.
    *  Kontext-Pings bedienen sich hier NICHT — siehe `pingReply`. */
   enqueue(...responses: Record<string, unknown>[]): void;
@@ -267,6 +272,9 @@ export async function mount(page: Page, opts: MountOptions = {}): Promise<Harnes
     async open() {
       if (!opts.frameless) await page.locator('.boerdi-fab').first().click();
       await expect(page.locator('.chat-input')).toBeVisible();
+    },
+    async ohneMikrofon() {
+      await expect(page.locator('.btn-mic')).toHaveCount(0);
     },
     enqueue(...responses) {
       queue.push(...responses);
