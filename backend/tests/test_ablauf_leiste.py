@@ -180,8 +180,82 @@ def _abbrechen(zustand, **params):
                                                         action_params=params), zustand))
 
 
-def test_abbrechen_fragt_erst_und_bricht_dann_ab(umgebung):  # noqa: F811 — Fixture
+def _wartet_auftrag(umgebung, monkeypatch):  # noqa: F811 — Fixture
+    """Ein Lauf, der auf einen Kestra-Auftrag wartet: dort fragt „Abbrechen“ erst nach."""
+    from boerdi.services.auftraege import ablage
+
+    async def kein_auftrag(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(ablage, "offen", kein_auftrag)
     zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+    [v] = umgebung.speicher.v.values()
+    v.akte["lauf"]["status"] = "wartet_auftrag"
+    zustand["entities"]["_vorgang"]["lauf"]["status"] = "wartet_auftrag"
+    return zustand
+
+
+def test_rueckmeldung_13_11_ein_ablauf_mit_fragen_bricht_sofort_ab(umgebung):  # noqa: F811
+    """Rückmeldung 13.11.: der Knopf der Leiste ist schon die Entscheidung der Person. Eine zweite
+    Frage ließ den Lauf stehen — der nächste Start fragte dann „neu starten?“. Ohne Auftrag und
+    ohne Freigabe geht nichts verloren, was nicht im Arbeitsstand bleibt."""
+    zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+    antwort = _abbrechen(zustand)
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["lauf"]["status"] == "abgebrochen"
+    assert antwort.content == bot_text("de", "action.ablauf.abgebrochenPerson")
+    assert fortschritt.stand(zustand["entities"], "person-a", "de") is None
+    assert asyncio.run(zug._aktiver_lauf(_S(), _req(), zustand)) is None
+
+
+def test_ein_alter_abbruch_knopf_bricht_keinen_neuen_lauf_ab(umgebung):  # noqa: F811
+    """Ein Knopf „Ablauf abbrechen“ aus einer früheren Rückfrage trägt die Marke seines Laufs —
+    für einen anderen Lauf fragt er erst."""
+    zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+    antwort = _abbrechen(zustand, bestaetigt=True, marke="alt")
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["lauf"]["status"] == "wartet_wahl"
+    aktionen = [q.split("|", 3)[2] for q in antwort.quick_replies]
+    assert aktionen[0] == abbruch_zug.AKTION
+    # zweites Review AS-U, Befund 1: die Rückfrage bietet die Knöpfe des wartenden Schritts wieder
+    # an — hier mit dem echten ``_zurueck`` (kein Ersatz)
+    assert "ablauf_wahl" in aktionen[1:]
+
+
+def test_eine_veraltete_leiste_bricht_keinen_anderen_lauf_ab(umgebung):  # noqa: F811
+    """Review 13.11.: die Leiste schickt die Marke ihres Laufs (``ui.ablauf.lauf``) — zeigt sie
+    einen anderen Lauf (zweiter Tab), fragt der Zug erst; passt sie, bricht er sofort ab."""
+    zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+    [v] = umgebung.speicher.v.values()
+    antwort = _abbrechen(zustand, lauf="anderer")
+    assert v.akte["lauf"]["status"] == "wartet_wahl" and antwort.quick_replies
+    _abbrechen(zustand, lauf=v.akte["lauf"]["start"])
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["lauf"]["status"] == "abgebrochen"
+
+
+def test_die_richtige_marke_ohne_bestaetigung_bricht_an_einer_frage_ab(umgebung):  # noqa: F811
+    zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+    [v] = umgebung.speicher.v.values()
+    _abbrechen(zustand, marke=zug.lauf_marke(v, v.akte["lauf"]))
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["lauf"]["status"] == "abgebrochen"
+
+
+def test_am_ki_schritt_bricht_die_leiste_sofort_ab(umgebung):  # noqa: F811
+    roh = _ablauf([{"id": "k", "typ": "agent", "text": {"de": "Los."},
+                    "agent": {"werkzeuge": ["search_wlo_all"]}}, _ENDE])
+    zustand = _gestartet(umgebung, roh.model_dump(exclude_none=True))
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["lauf"]["status"] == "wartet_ki"
+    antwort = _abbrechen(zustand)
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["lauf"]["status"] == "abgebrochen"
+    assert antwort.content == bot_text("de", "action.ablauf.abgebrochenPerson")
+
+
+def test_abbrechen_fragt_erst_und_bricht_dann_ab(umgebung, monkeypatch):  # noqa: F811
+    zustand = _wartet_auftrag(umgebung, monkeypatch)
     frage = _abbrechen(zustand)
     knopf = frage.quick_replies[0]          # danach der Weg zurück (zweites Review AS-U, 1)
     teile = knopf.split("|", 3)
@@ -189,18 +263,18 @@ def test_abbrechen_fragt_erst_und_bricht_dann_ab(umgebung):  # noqa: F811 — Fi
     params = json.loads(teile[3])
     assert params["bestaetigt"] is True and params["marke"]
     [v] = umgebung.speicher.v.values()
-    assert v.akte["lauf"]["status"] == "wartet_wahl"
+    assert v.akte["lauf"]["status"] == "wartet_auftrag"
     _abbrechen(zustand, **params)
     [v] = umgebung.speicher.v.values()
     assert v.akte["lauf"]["status"] == "abgebrochen"
     assert fortschritt.stand(zustand["entities"], "person-a", "de") is None
 
 
-def test_eine_alte_bestaetigung_fragt_neu(umgebung):  # noqa: F811 — Fixture
-    zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+def test_eine_alte_bestaetigung_fragt_neu(umgebung, monkeypatch):  # noqa: F811 — Fixture
+    zustand = _wartet_auftrag(umgebung, monkeypatch)
     antwort = _abbrechen(zustand, bestaetigt=True, marke="alt")
     [v] = umgebung.speicher.v.values()
-    assert v.akte["lauf"]["status"] == "wartet_wahl"
+    assert v.akte["lauf"]["status"] == "wartet_auftrag"
     assert antwort.quick_replies          # neue Rückfrage
 
 
@@ -344,21 +418,25 @@ def test_nach_einer_aenderung_der_fassung_kein_stand(umgebung):  # noqa: F811 �
 # ── Zweites Review AS-U ────────────────────────────────────────────────────────────────────────
 
 
-def test_die_rueckfrage_zum_abbruch_hat_einen_weg_zurueck(umgebung):  # noqa: F811 — Fixture
-    """Befund 1: der Klick auf „Abbrechen“ ist eine Direktaktion — sie verwirft die Chips des
-    wartenden Schritts. Die Rückfrage bietet sie wieder an."""
-    zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+def test_die_rueckfrage_zum_abbruch_hat_einen_weg_zurueck(umgebung, monkeypatch):  # noqa: F811
+    """Befund 1: der Klick auf „Abbrechen“ ist eine Direktaktion — sie verwirft die Knöpfe des
+    wartenden Schritts. Die Rückfrage bietet sie wieder an. Seit 13.11. fragt der Zug nur noch an
+    Auftrag und Freigabe (und bei fremder Marke): hier das Durchreichen, das echte ``_zurueck``
+    prüft ``test_ein_alter_abbruch_knopf_bricht_keinen_neuen_lauf_ab``."""
+    zurueck = "__action__|Stand prüfen|ablauf_auftrag|{}"
+    monkeypatch.setattr(abbruch_zug, "_zurueck", lambda *a: [zurueck])
+    zustand = _wartet_auftrag(umgebung, monkeypatch)
     frage = _abbrechen(zustand)
-    aktionen = [q.split("|", 3)[2] for q in frage.quick_replies]
-    assert aktionen[0] == abbruch_zug.AKTION
-    assert "ablauf_wahl" in aktionen[1:]
+    assert frage.quick_replies[0].split("|", 3)[2] == abbruch_zug.AKTION
+    assert frage.quick_replies[1:] == [zurueck]
 
 
-def test_die_rueckfrage_trennt_abbrechen_und_weitermachen(umgebung):  # noqa: F811 — Fixture
+def test_die_rueckfrage_trennt_abbrechen_und_weitermachen(umgebung, monkeypatch):  # noqa: F811
     """Browser-Abnahme AS-U, L-2: neben „Ja, abbrechen“ stand der Chip des Schritts („Ja,
     weiter“) — ohne Satz dazu las er sich wie eine zweite Bestätigung. Der Knopf heißt jetzt
     „Ablauf abbrechen“, und die Frage nennt den Weg zurück."""
-    zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+    monkeypatch.setattr(abbruch_zug, "_zurueck", lambda *a: ["__action__|Stand prüfen|x|{}"])
+    zustand = _wartet_auftrag(umgebung, monkeypatch)
     frage = _abbrechen(zustand)
     assert frage.quick_replies[0].split("|", 3)[1] == "Ablauf abbrechen"
     assert frage.content == bot_text("de", "action.ablauf.abbrechenFrageZurueck")
@@ -366,7 +444,7 @@ def test_die_rueckfrage_trennt_abbrechen_und_weitermachen(umgebung):  # noqa: F8
 
 
 def test_ohne_weg_zurueck_bleibt_die_kurze_rueckfrage(umgebung, monkeypatch):  # noqa: F811
-    zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
+    zustand = _wartet_auftrag(umgebung, monkeypatch)
     monkeypatch.setattr(abbruch_zug, "_zurueck", lambda *a: [])
     frage = _abbrechen(zustand)
     assert frage.content == bot_text("de", "action.ablauf.abbrechenFrage")

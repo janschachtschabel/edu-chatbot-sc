@@ -2,9 +2,16 @@
 Ablauf-Leiste des Widgets.
 
 Ein Abbruch lässt sich nicht zurücknehmen und beendet auch einen Auftrag, auf den der Lauf wartet
-(``zug_basis.abbrechen``) — darum erst eine Rückfrage. Ihr Knopf trägt ``bestaetigt`` und die
-Marke des Laufs (wie „Neu starten“): hat sich der Lauf inzwischen bewegt, fragt der Zug neu, statt
-einen anderen Stand abzubrechen. Nur der eigene Lauf dieses Gesprächs.
+(``zug_basis.abbrechen``) — darum dort erst eine Rückfrage, ebenso an einer Freigabe (ein Plan
+kann schon angelaufen sein). Ihr Knopf trägt ``bestaetigt`` und die Marke des Laufs (wie „Neu
+starten“): hat sich der Lauf inzwischen bewegt, fragt der Zug neu, statt einen anderen Stand
+abzubrechen. Nur der eigene Lauf dieses Gesprächs.
+
+Rückmeldung 13.11.: an jedem anderen Schritt bricht der Knopf der Leiste sofort ab — er ist schon
+die Entscheidung der Person, und was gesammelt ist, bleibt im Arbeitsstand. Die zweite Frage ließ
+den Lauf stehen, und der nächste Start fragte „neu starten?“. Ein alter Knopf mit fremder Marke
+fragt weiterhin erst, ebenso eine Leiste, die einen anderen Lauf zeigt (``lauf`` in den
+Parametern, die Marke aus ``ui.ablauf.lauf``).
 """
 
 from __future__ import annotations
@@ -19,6 +26,8 @@ from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.llm_auth import hat_zug_schluessel
 
 AKTION: Final = "ablauf_abbrechen"
+#: Hier fragt „Abbrechen“ erst nach: ein Auftrag endet mit, ein Plan kann schon schreiben.
+_MIT_RUECKFRAGE: Final = (treiber.WARTET_AUFTRAG, treiber.WARTET_FREIGABE)
 
 
 async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> ChatResponse:
@@ -30,7 +39,12 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
     lang = resolve_locale(req.environment.locale)
     params = req.action_params or {}
     marke = zug.lauf_marke(v, lauf)
-    if params.get("bestaetigt") is not True or params.get("marke") != marke:
+    bestaetigt = params.get("bestaetigt") is True and params.get("marke") == marke
+    # Review 13.11.: die Leiste schickt die Marke ihres Laufs (``ui.ablauf.lauf``) mit — eine
+    # veraltete Leiste (zweiter Tab, inzwischen ein anderer Lauf) bricht den neuen nicht still ab.
+    fremd = (params.get("marke") is not None and params.get("marke") != marke) or (
+        params.get("lauf") is not None and params.get("lauf") != str(lauf.get("start") or ""))
+    if not bestaetigt and (fremd or lauf.get("status") in _MIT_RUECKFRAGE):
         zurueck = _zurueck(req.session_id, session_state, lang)
         # Browser-Abnahme AS-U, L-2: mit Chips des Schritts sagt die Frage, wofür sie stehen
         frage = "action.ablauf.abbrechenFrageZurueck" if zurueck else "action.ablauf.abbrechenFrage"
