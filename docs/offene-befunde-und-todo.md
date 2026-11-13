@@ -346,6 +346,13 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **MCP-Stand vom 14.11. (2026-11-14), N0 und N1:** keine Migration, keine neue Variable. Image neu
+  bauen, `import-config --werksabgleich` (M18), Master-Skill-Knoten ersetzen (Abschnitt M18). Läuft
+  mit dem alten und dem neuen MCP. Notiz `aenderungen/2026-11-14-mcp-stand-und-werkzeugliste.md`,
+  Plan `plans/2026-11-14-mcp-stand-8cbc051.md`, Antwort an den MCP-Entwickler
+  `mcp-antwort-2026-11-14.md`. **Offen:** N2 (Werte hinzufügen, Listen, Inhaltstyp nachschlagen),
+  N3 (Sammlung per Name, Entscheid des Nutzers zur Nutzung) und N4 (Stapel-Suche) erst nach dem
+  Deploy des MCP; die Frage des Entwicklers nach dem Ort für Markdown-Volltexte.
 - **Ketten kürzen (2026-11-13):** keine Migration, keine neue Variable. Image neu bauen,
   `import-config --werksabgleich` (M18, M20 und die Domänenregeln geändert), Master-Skill-Knoten in WLO mit
   `docs/skills/vorgehen-knapp.md` ersetzen (Abschnitte M18 und M20). Notiz
