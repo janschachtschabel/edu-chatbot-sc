@@ -139,31 +139,71 @@ class CollectionRenameArgs(BaseModel):
     description: str = ""
 
 
+#: SW-2 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14): Felder je Baumknoten und in ``shared``.
+BAUM_METADATEN: tuple[str, ...] = ("discipline", "educationalContext", "keywords")
+
+
+def _baumfeld(feld: str, wert: Any) -> Any:
+    """Ein Metadatenfeld am Baumknoten in der Form des Servers: Bezeichnungen ohne Leerraum und
+    ohne leere Einträge; Schlagworte immer als Liste. Ein leerer Text heißt „nicht angegeben“
+    (``None``). Eine wörtlich leere LISTE bleibt — sie schaltet den gemeinsamen Wert für den
+    Knoten ab; eine Liste nur aus Leertext dagegen ist „nicht angegeben“ (Review SW-2, Befund 3:
+    sonst schaltete ein versehentliches ``[""]`` das gemeinsame Fach ab). Anderes bleibt, wie es
+    ist: Der Server lehnt es ab."""
+    if isinstance(wert, str):
+        wert = wert.strip()
+        return ([wert] if feld == "keywords" else wert) if wert else None
+    if isinstance(wert, list) and all(isinstance(w, str) for w in wert):
+        werte = [w.strip() for w in wert if w.strip()]
+        return werte if werte or not wert else None
+    return wert
+
+
+def _baumfelder(roh: dict[str, Any]) -> dict[str, Any]:
+    werte = {f: _baumfeld(f, roh[f]) for f in BAUM_METADATEN if roh.get(f) is not None}
+    return {f: w for f, w in werte.items() if w is not None}
+
+
 class CollectionTreeCreateArgs(BaseModel):
     """``wlo_create_collection_tree`` (Paket M5): ein Baum von Untersammlungen unter
     ``parentCollectionId`` — höchstens 250 Knoten, Tiefe 4, 15 Kinder je Knoten (prüft der Server
     und nennt jeden Grund). ``onExisting``: ``merge`` (Vorgabe: gleichnamige wird übernommen) oder
-    ``fail``. ``continuationToken`` setzt einen bestätigten Plan fort."""
+    ``fail``. ``continuationToken`` setzt einen bestätigten Plan fort.
+
+    SW-2: je Knoten ``discipline``, ``educationalContext``, ``keywords``, gemeinsam für den Baum
+    als ``shared``. Das Modell behält sie; für einen Server, der sie nicht führt, nimmt der Client
+    sie vor dem Senden heraus (``services/mcp/baum_metadaten.fuer_den_server``)."""
 
     parentCollectionId: str = Field(max_length=200)
     tree: list[dict[str, Any]]
+    shared: dict[str, Any] | None = None
     onExisting: Literal["merge", "fail", ""] = ""
     continuationToken: str = Field(default="", max_length=200)
 
     @field_validator("tree", mode="before")
     @classmethod
     def _nur_baumfelder(cls, wert):
-        # Review 2026-11-07: der Server prüft jede Ebene streng — ein fremdes Feld (``keywords``,
-        # ``nodeId``) in einem tieferen Knoten kippte den ganzen Aufruf. Nur title/description/
-        # children bleiben; Grenzen (250 Knoten, Tiefe 4, 15 Kinder) prüft und nennt der Server.
+        # Review 2026-11-07: der Server prüft jede Ebene streng — ein fremdes Feld (``nodeId``,
+        # ``titel``) in einem tieferen Knoten kippte den ganzen Aufruf. Nur title/description/
+        # children und die Metadatenfelder bleiben; Grenzen (250 Knoten, Tiefe 4, 15 Kinder)
+        # prüft und nennt der Server.
         def knoten(k):
             if not isinstance(k, dict):
                 return k
             aus = {f: k[f] for f in ("title", "description") if f in k}
+            aus.update(_baumfelder(k))
             if isinstance(k.get("children"), list):
                 aus["children"] = [knoten(c) for c in k["children"]]
             return aus
         return [knoten(k) for k in wert] if isinstance(wert, list) else wert
+
+    @field_validator("shared", mode="before")
+    @classmethod
+    def _nur_gemeinsame_felder(cls, wert):
+        """Nur die drei Felder (der Server prüft ``shared`` streng); ohne Wert fällt es weg."""
+        if not isinstance(wert, dict):
+            return wert
+        return _baumfelder(wert) or None
 
 
 class CollectionsAddArgs(BaseModel):

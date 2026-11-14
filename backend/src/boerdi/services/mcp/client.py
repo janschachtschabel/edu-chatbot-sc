@@ -506,6 +506,11 @@ async def _einzelaufruf(
 
     # Validate arguments before sending to MCP server
     arguments = validate_tool_args(tool_name, arguments)
+    # SW-2: Fach, Stufe und Schlagworte im Baum nur an einen Server, der sie führt — der ältere
+    # prüft jede Ebene streng und wiese den ganzen Baum ab.
+    _vor_dem_anpassen = arguments
+    arguments = angebot.fuer_den_server(tool_name, arguments)
+    _sendehinweis = angebot.hinweis_zum_senden(tool_name, _vor_dem_anpassen, arguments)
     # N2 (Review, M4): ``add…`` an einem Server, der es nachweislich nicht kennt — er liesse die
     # Angabe still weg. Lieber hier ein klarer Satz als eine Vorschau, in der das Fach fehlt.
     # N4: mehr als acht Anfragen an die Mehrfachsuche.
@@ -779,6 +784,9 @@ async def _einzelaufruf(
     # (Abnahme-Box) wie der KI (ihr einordnender Satz).
     if is_confirmable(tool_name) and (ziel := ziel_zeile(bestaetigung, response)):
         response = f"{ziel}\n{response}"
+    # SW-2 (Review, Befund 4): was vor dem Senden herausgenommen wurde, steht vor der Antwort.
+    if _sendehinweis:
+        response = f"{_sendehinweis}\n{response}"
 
     # Slim ``get_subject_portals``: the raw API ships rich marketing
     # descriptions for every Fachportal (~50 KB total). The LLM only

@@ -154,11 +154,41 @@ def mit_kennungen(entwurf: Any, angelegt: Any) -> dict[str, Any] | None:
     return neu if verbunden else None
 
 
-def baum_aus_entwurf(entwurf: Any) -> list[dict[str, Any]] | None:
-    """Der Baum für ``wlo_create_collection_tree`` (``[{title, description?, children?}]``) aus
-    einem Entwurf — mit genau dessen Titeln, damit :func:`mit_kennungen` danach jeden Punkt
-    findet (Review AS-Dd, Befund 5: eine Auswahl kann ``titel`` nicht in ``title`` umbenennen).
-    ``None`` ohne Punkte."""
+def faecher_im_entwurf(entwurf: Any) -> set[str]:
+    """Jedes Fach, das der Entwurf oder einer seiner Punkte nennt (für die Vokabular-Prüfung)."""
+    gefunden: set[str] = set()
+
+    def lauf(knoten: Any) -> None:
+        for k in knoten if isinstance(knoten, list) else []:
+            if isinstance(k, dict):
+                if isinstance(k.get("fach"), str) and k["fach"].strip():
+                    gefunden.add(k["fach"].strip())
+                lauf(k.get("kinder"))
+
+    if isinstance(entwurf, dict):
+        if isinstance(entwurf.get("fach"), str) and entwurf["fach"].strip():
+            gefunden.add(entwurf["fach"].strip())
+        lauf(entwurf.get("knoten"))
+    return gefunden
+
+
+def baum_aus_entwurf(
+    entwurf: Any, *, faecher: frozenset[str] | set[str] = frozenset(),
+) -> list[dict[str, Any]] | None:
+    """Der Baum für ``wlo_create_collection_tree`` (``[{title, description?, discipline?,
+    educationalContext?, keywords?, children?}]``) aus einem Entwurf — mit genau dessen Titeln,
+    damit :func:`mit_kennungen` danach jeden Punkt findet (Review AS-Dd, Befund 5: eine Auswahl
+    kann ``titel`` nicht in ``title`` umbenennen). ``None`` ohne Punkte.
+
+    SW-2: Bildungsstufe und Schlagworte reisen mit, das Fach nur, wenn es in ``faecher`` steht —
+    der Aufrufer nennt dort die Fächer des Entwurfs, die das Vokabular kennt. Das Fach ist im
+    Entwurf Freitext, und der Server lehnt mit einem unbekannten den GANZEN Baum ab; die Person
+    könnte es im Entwurf nicht berichtigen (Review SW-2, Befund 2). Fach und Stufe des Entwurfs
+    gelten für jeden Punkt, der keine eigenen nennt. Ein Server, der die Felder nicht kennt,
+    bekommt sie nicht (``services/mcp/baum_metadaten.fuer_den_server``)."""
+
+    def text(wert: Any) -> str:
+        return wert.strip() if isinstance(wert, str) else ""
 
     def baum(knoten: Any, ebene: int) -> list[dict[str, Any]]:
         aus: list[dict[str, Any]] = []
@@ -169,6 +199,14 @@ def baum_aus_entwurf(entwurf: Any) -> list[dict[str, Any]] | None:
             punkt: dict[str, Any] = {"title": titel}
             if isinstance(k.get("beschreibung"), str) and k["beschreibung"].strip():
                 punkt["description"] = k["beschreibung"].strip()
+            if (fach := text(k.get("fach")) or fach_oben) in faecher:
+                punkt["discipline"] = fach
+            if stufe := text(k.get("bildungsstufe")) or stufe_oben:
+                punkt["educationalContext"] = stufe
+            roh = k.get("keywords")
+            if isinstance(roh, list) and (schlagworte := [
+                    s.strip() for s in roh if isinstance(s, str) and s.strip()]):
+                punkt["keywords"] = schlagworte
             # tiefer als ein Entwurf sein darf, geht nichts (der Server prüft seine Grenzen selbst)
             if ebene < se.HOECHSTE_TIEFE and (kinder := baum(k.get("kinder"), ebene + 1)):
                 punkt["children"] = kinder
@@ -177,4 +215,5 @@ def baum_aus_entwurf(entwurf: Any) -> list[dict[str, Any]] | None:
 
     if not isinstance(entwurf, dict):
         return None
+    fach_oben, stufe_oben = text(entwurf.get("fach")), text(entwurf.get("bildungsstufe"))
     return baum(entwurf.get("knoten"), 1) or None

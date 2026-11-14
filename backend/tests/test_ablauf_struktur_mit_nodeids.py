@@ -180,8 +180,10 @@ def test_baum_aus_entwurf_mit_denselben_titeln():
     entwurf = {**_ENTWURF, "knoten": [
         {**_ENTWURF["knoten"][0], "beschreibung": "Bewegung", "wlo_id": _ID.format(1),
          "keywords": ["x"]}, _ENTWURF["knoten"][1]]}
+    # SW-2: die Schlagworte reisen mit (``wlo_id`` nicht); ein Server, der sie im Baum nicht
+    # kennt, bekommt sie nicht (``tests/test_mcp_baum_metadaten.py``).
     assert _baum({"entwurf": entwurf}) == [
-        {"title": "Mechanik", "description": "Bewegung", "children": [
+        {"title": "Mechanik", "description": "Bewegung", "keywords": ["x"], "children": [
             {"title": "Kinematik"}, {"title": "Dynamik"}]},
         {"title": "Optik"}]
     assert typen.DIENST_EINGABE["baum_aus_entwurf"]["entwurf"] == typen.STRUKTUR

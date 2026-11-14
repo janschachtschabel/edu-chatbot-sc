@@ -297,6 +297,9 @@ nacheinander statt der einen breiten.
 (Pfad, Gliederung, Zahlen, Skills, Untersammlungen, erste Inhalte); gezielt weiter mit
 `get_collection_contents`, `get_collection_stats`, `get_node_breadcrumb`,
 `search_wlo_within_collection`, `get_compendium_text`.
+Ist ein Werkzeug angeboten, das einen ganzen Sammlungsbaum als Liste liefert, nimm es zum
+Rechnen (Entwurf gegen Bestand, angelegten Baum zurücklesen, Kennungen holen). Wo die Abfolge
+etwas bedeutet (Lehrplan), in der gespeicherten Reihenfolge lesen, wenn das Werkzeug das anbietet.
 Die Unterthemen **zeigen** mit `ui_themenbaum` (Fach als `subject`, Sammlung als `nodeId`), nicht
 abtippen; `browse_collection_tree` nur, wenn du sie selbst auswertest (Prüfen, Lücken). Ohne
 UI-Module: `browse_collection_tree` und die Themen knapp nennen.

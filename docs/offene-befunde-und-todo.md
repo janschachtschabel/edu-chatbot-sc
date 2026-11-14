@@ -346,6 +346,21 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Werkzeuge für Sammlungsstrukturen (2026-11-14):** Wünsche S1 bis S10 in
+  `mcp-werkzeug-wuensche-2026-11-14.md`; der MCP-Entwickler hat neun davon gebaut (nicht
+  bereitgestellt). Plan `plans/2026-11-14-sammlungsstruktur-werkzeuge.md` (SW-1 bis SW-4).
+  - **SW-1, SW-2 umgesetzt** (Baum als Liste lesen, gespeicherte Reihenfolge; Fach, Stufe,
+    Schlagworte beim Anlegen): Notiz `aenderungen/2026-11-14-sammlungsbaum-lesen-und-metadaten.md`.
+    Keine Migration, keine neue Variable; `import-config --werksabgleich`,
+    Master-Skill-Knoten ersetzen.
+  - **Offen:** SW-3 (sieben Kuratier-Werkzeuge: Stapel-Einreichen, Entfernen, Umsortieren,
+    leere Sammlungen löschen, Umhängen, Reihenfolge setzen, Vorschläge); SW-4 (Themenbaum in
+    gespeicherter Reihenfolge, Abgleich bis Tiefe 4; wartet auf SE-4 und SE-5).
+  - **Offen:** jede Vorschau und jedes Schreiben mit den neuen Feldern im Chat prüfen, sobald
+    der neue MCP auf Staging läuft; welche Reihenfolge die WLO-Oberfläche zeigt.
+  - **Bestand, beim Review aufgefallen:** Ein Strukturentwurf darf 30 Punkte auf oberster
+    Ebene haben (`ui_module/strukturentwurf.py`), `wlo_create_collection_tree` nimmt 15.
+    Entwürfe mit 16 bis 30 Punkten scheitern an der Vorschau des Servers.
 - **Mehrfachsuche und MCP-Stand „15.11.“ (N4, 2026-11-14):** keine Migration, keine neue
   Variable, keine Reihenfolge zum MCP. Image neu bauen, `import-config --werksabgleich`
   (Werkzeugliste des MCP-Servers, Regelwerk, Schutz-Einstellungen), Master-Skill-Knoten ersetzen.

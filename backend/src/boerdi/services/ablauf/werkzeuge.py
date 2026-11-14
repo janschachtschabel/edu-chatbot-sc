@@ -50,9 +50,15 @@ async def _struktur_mit_nodeids(args: dict[str, Any]) -> Any:
 async def _baum_aus_entwurf(args: dict[str, Any]) -> Any:
     """Paket AS-Dd (Review, Befund 5): der Baum für ``wlo_create_collection_tree`` aus dem Entwurf
     ``entwurf`` — mit dessen Titeln, damit ``struktur_mit_nodeids`` danach jeden Punkt findet."""
-    from boerdi.ui_module.strukturentwurf_bestand import baum_aus_entwurf
+    from boerdi.services.mcp.arg_resolvers import bezeichnung_bekannt
+    from boerdi.ui_module.strukturentwurf_bestand import baum_aus_entwurf, faecher_im_entwurf
 
-    return baum_aus_entwurf(args.get("entwurf"))
+    # SW-2 (Review, Befund 2): ein Fach reist nur mit, wenn das Vokabular es kennt — der Server
+    # lehnte mit einem unbekannten den ganzen Baum ab.
+    entwurf = args.get("entwurf")
+    bekannt = {f for f in faecher_im_entwurf(entwurf)
+               if await bezeichnung_bekannt("discipline", f)}
+    return baum_aus_entwurf(entwurf, faecher=bekannt)
 
 
 async def _metadaten_lesen(args: dict[str, Any]) -> Any:

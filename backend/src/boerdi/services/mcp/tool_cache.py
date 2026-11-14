@@ -319,5 +319,8 @@ _TOOL_CACHE_BLOCKLIST = frozenset({
     # Paket M3 (Review): die Dublettenprüfung muss frisch sein — direkt nach dem Anlegen und nach
     # einem ``upstream_error`` je Adresse, der sonst fünf Minuten im Cache stünde.
     "find_content_by_url",
+    # SW-1 (Review, Befund 5): die Baumliste dient dem Zurücklesen eines eben angelegten Baums —
+    # eine aufgehobene Liste von vor dem Anlegen zeigte ihn ohne die neuen Sammlungen.
+    "list_collection_tree",
     *CURATION_TOOLS,
 })

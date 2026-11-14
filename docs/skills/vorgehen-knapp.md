@@ -191,6 +191,10 @@ Alle Fächer → `get_subject_portals`, kein Drilldown.
 - `browse_collection_tree` nur, wenn du die Unterthemen selbst auswertest (Prüfen, Lücken,
   Lernpfad) oder der Themenbaum nicht angeboten ist. Einen ersten Überblick über eine Sammlung
   (Pfad, Gliederung, Zahlen, Skills, erste Inhalte) gibt `get_collection_overview` in einem Aufruf.
+  Ist ein Werkzeug angeboten, das einen ganzen Sammlungsbaum als Liste liefert, nimm es zum
+  Rechnen (Entwurf gegen Bestand, angelegten Baum zurücklesen, Kennungen holen). Wo die Abfolge
+  etwas bedeutet (Lehrplan), in der gespeicherten Reihenfolge lesen, wenn das Werkzeug das
+  anbietet.
 - Inhalte und Zahlen einer Sammlung → `get_collection_contents`, `get_collection_stats`,
   `get_node_breadcrumb`, `search_wlo_within_collection`; genau eine Ebene.
 - Sammlung ohne bekannte `nodeId`: den Weg nehmen, den das Werkzeug beschreibt, und nur

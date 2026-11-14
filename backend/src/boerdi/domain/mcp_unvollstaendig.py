@@ -45,7 +45,7 @@ WERKZEUGE: Final = frozenset({
     "search_wlo_all", "search_wlo_collections", "search_wlo_content", "search_wlo_topic_pages",
     "search_wlo_within_collection", "get_collection_contents", "browse_collection_tree",
     "get_collection_overview", "get_topic_page_content", "get_wikipedia_summary",
-    "search_wlo_content_many"})
+    "search_wlo_content_many", "list_collection_tree"})
 #: Wendungen aus den Hinweissätzen des Servers (``services/collection-search.ts``
 #: ``incompleteNotice``, ``tools/wikipedia.ts``, ``tools/collections.ts`` ``WALK_INCOMPLETE_NOTE``,
 #: ``tools/browse.ts``).
