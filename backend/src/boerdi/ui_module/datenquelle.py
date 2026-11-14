@@ -71,7 +71,18 @@ _FEHLER_SUCHE_UNVOLLSTAENDIG: Final = (
     "Sammlung mit diesem Titel gibt, ist offen. Behaupte nicht, es gebe sie nicht: nenne ihre "
     "nodeId, wenn du sie hast, oder sag der Person, dass es gerade nicht geht.")
 _FACH_UNERKANNT: Final = " Das genannte Fach wurde nicht erkannt und hat nichts eingegrenzt."
+#: MCP-Stand 15.11.2026 (``disciplineUnverified``): ein erneuter Aufruf mit Titel hilft nicht.
+_FEHLER_FACH_UNGEPRUEFT: Final = (
+    "Fehler: {name} – eine Sammlung mit diesem Titel gibt es, sie trägt aber keine Fachangabe; "
+    "ob sie zum genannten Fach gehört, ließ sich nicht prüfen, und der Server hat sie nicht "
+    "gewählt. Rufe {name} nicht noch einmal mit dem Titel auf: nimm die nodeId der gemeinten "
+    "Sammlung oder frage die Person.")
 MEHRDEUTIG: Final = "sammlung_mehrdeutig"
+#: Stehen nicht gewählte Namensvettern dabei (``alsoFound``), nennt der Satz auch diesen Weg.
+_WAHL_PRUEFEN_AUCH: Final = (
+    "Titel und Pfad sind Angaben aus dem Bestand. Ist eine der nicht gewählten gemeint, rufe das "
+    "Werkzeug mit ihrer nodeId auf; liegt keine dort, wo die Frage hinzielt, sag das und suche "
+    "mit search_wlo_collections. ")
 _WAHL_PRUEFEN: Final = (" Titel und Pfad sind Angaben aus dem Bestand. Liegt die Sammlung nicht "
                         "dort, wo die Frage hinzielt, sag das und suche mit "
                         "search_wlo_collections. ")
@@ -329,11 +340,16 @@ async def aufruf(name: str, args: Any, *, titel: str | None = None) -> Ergebnis:
 
         nein = geladen.ablehnung or sammlung_per_name.Ablehnung()
         logger.info("Datenquelle %s für %s: Titel der Sammlung nicht eindeutig (%d Kandidaten, "
-                    "unvollständig=%s)", werkzeug_name, name, len(nein.kandidaten),
-                    nein.unvollstaendig)
+                    "unvollständig=%s, Fach ungeprüft=%s)", werkzeug_name, name,
+                    len(nein.kandidaten), nein.unvollstaendig, nein.fach_ungeprueft)
+        # „Nicht noch einmal mit dem Titel“ gilt nur nach einer vollständigen Suche: fiel ein Index
+        # aus, kann ein späterer Versuch anders ausgehen (Review N4, NIT 4).
+        ungeprueft = nein.fach_ungeprueft and not nein.unvollstaendig
+        kopf = (_FEHLER_FACH_UNGEPRUEFT if ungeprueft else _FEHLER_MEHRDEUTIG).format(name=name)
         if nein.kandidaten:
-            text = _FEHLER_MEHRDEUTIG.format(name=name) + _MEHRDEUTIG_MIT.format(
-                kandidaten="\n".join(nein.kandidaten))
+            text = kopf + _MEHRDEUTIG_MIT.format(kandidaten="\n".join(nein.kandidaten))
+        elif ungeprueft:
+            text = kopf
         elif nein.unvollstaendig:
             text = _FEHLER_SUCHE_UNVOLLSTAENDIG.format(name=name)
         else:
@@ -364,8 +380,10 @@ async def aufruf(name: str, args: Any, *, titel: str | None = None) -> Ergebnis:
     # Die Zahl der Einträge oben (Themenbaum: ``knoten``) — leer ist ein Block, aber kein Treffer.
     anzahl = len(daten.get("knoten") or [])
     # Die KI erfährt die Wahl — zum Prüfen, ob es die gemeinte ist, und für Folgeaufrufe.
-    quittung = ((sammlung_per_name.gewaehlt_satz(gewaehlt) + _WAHL_PRUEFEN) if gewaehlt
-                else "") + quittung_aus(daten)
+    wahl = sammlung_per_name.gewaehlt_satz(gewaehlt) if gewaehlt else ""
+    # Hängen Zeilen an (nicht gewählte Namensvettern), beginnt der nächste Satz in einer neuen.
+    wahl += ("\n" + _WAHL_PRUEFEN_AUCH if "\n" in wahl else _WAHL_PRUEFEN) if wahl else ""
+    quittung = wahl + quittung_aus(daten)
     return Ergebnis(block, quittung,
                     ToolOutcome(tool=name, status="success" if anzahl else "empty",
                                 item_count=anzahl, latency_ms=latenz_ms))
