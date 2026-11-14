@@ -398,8 +398,18 @@ def test_zwei_verletzte_grenzen_in_einem_aufruf_werden_beide_geklemmt():
 
 def test_fehlendes_pflichtfeld_faellt_weiter_auf_die_rohargumente_zurueck():
     """Nur Grenzverletzungen werden repariert. Ein fehlendes Pflichtfeld kann die
-    Reparatur nicht erfinden — dort bleibt der bisherige Fail-Open-Pfad."""
-    assert validate_tool_args("get_collection_contents", {"query": "x"}) == {"query": "x"}
+    Reparatur nicht erfinden — dort bleibt der bisherige Fail-Open-Pfad.
+
+    Bis N3 (2026-11-14) stand hier ``get_collection_contents`` ohne ``nodeId``; dort ist die
+    Kennung keine Pflicht mehr (der Titel als ``collection`` geht auch)."""
+    assert validate_tool_args("get_related_content", {"maxResults": 3}) == {"maxResults": 3}
+
+
+def test_ohne_kennung_und_titel_entscheidet_der_server():
+    """N3: Kennung ODER Titel — fehlt beides, erfindet der Client nichts und der Server sagt es
+    (``invalid_input``). Die leere Kennung reist nicht mit."""
+    aus = validate_tool_args("get_collection_contents", {"query": "x"})
+    assert aus["query"] == "x" and "nodeId" not in aus and "collection" not in aus
 
 
 def test_nicht_zahliger_wert_faellt_weiter_auf_die_rohargumente_zurueck():

@@ -124,7 +124,12 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
 
     1. **Non-UUID input** (``"Mathematik"``, ``"?"``, ``"dummmy"``,
        empty): treat as a Fach name and resolve to UUID via cached
-       ``get_subject_portals``.
+       ``get_subject_portals``. Seit N3 (2026-11-14), wenn der Server
+       ``collection`` kennt: ein Name, der kein Fachportal ist und wie ein
+       Titel aussieht, geht als ``collection`` an den Server (auch
+       ``"dummmy"`` — der Server lehnt dann ab, statt dass hier das Fach
+       geraten wird); nur Leeres und Platzhalter wie ``"?"`` behalten den
+       Rückfall auf das Fach der Klassifikation.
 
     2. **UUID input but wrong Fach** (e.g. picked Geographie's UUID
        while user asked about Mathematik): if the per-request
@@ -138,11 +143,20 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
     sonst das Portal statt des geöffneten Zweigs. Und nennt der Aufruf ``subject`` ohne
     ``nodeId``, löst der Server das Fach selbst auf: eine ergänzte ``nodeId`` aus dem Hinweis
     ginge dort vor (``browse.ts``) und zeigte das Fach der Klassifikation statt des genannten.
+
+    N3 (2026-11-14): dasselbe gilt für ``collection`` ohne ``nodeId`` — der Server löst den Titel
+    auf, und eine ergänzte ``nodeId`` zeigte das Fachportal statt der genannten Sammlung. Ein Name
+    im Feld ``nodeId``, der kein Fachportal ist, geht als ``collection`` weiter, wenn der Server
+    das kennt (das Fach der Klassifikation als ``discipline``): bisher nahm der Client das Portal
+    des Hinweises oder ließ den Namen durch, und er scheiterte am Server. Und: mit ``collection``
+    reist nie ein ``subject`` (:func:`_fach_zum_titel`).
     """
-    nid = (arguments.get("nodeId") or "").strip()
+    nid = _text(arguments.get("nodeId"))
     fach_hint = (get_request_hint("fach", "") or "").strip()
 
-    if not nid and (arguments.get("subject") or "").strip():
+    if not nid and _text(arguments.get("collection")):
+        return _fach_zum_titel(arguments)
+    if not nid and _text(arguments.get("subject")):
         return arguments
 
     # Fast-path: not a UUID — must be a name (or junk). Resolve.
@@ -156,9 +170,16 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
         except Exception as e:
             logger.warning("browse_collection_tree nodeId resolution failed: %s", e)
             return arguments
-        match = _find_portal_by_name(results, nid) or (
-            _find_portal_by_name(results, fach_hint) if fach_hint else None
-        )
+        match = _find_portal_by_name(results, nid)
+        # Review N3, Befund 4: ein Name, der kein Fachportal ist, geht als Titel an den Server
+        # (mit dem Fach der Klassifikation), bevor das Portal des Hinweises geraten wird.
+        # Nur was wie ein Titel aussieht: ein Platzhalter („?“, „1“) behält den Rückfall auf das
+        # Fach der Klassifikation (Gegenreview N3, Befund 5).
+        if match is None and _wie_ein_titel(nid) and (
+                als_titel := _als_sammlungstitel("browse_collection_tree", arguments, nid,
+                                                 fach=fach_hint)):
+            return als_titel
+        match = match or (_find_portal_by_name(results, fach_hint) if fach_hint else None)
         if match and match.get("nodeId"):
             resolved = match["nodeId"]
             logger.info(  # log-ok: öffentlicher Portaltitel; die Eingabe nur als Länge
@@ -207,6 +228,58 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
     return arguments
 
 
+def _text(wert: Any) -> str:
+    """Ein Argument als Text; alles andere ist leer (eine Zahl im Feld der Kennung warf sonst)."""
+    return wert.strip() if isinstance(wert, str) else ""
+
+
+def _wie_ein_titel(name: str) -> bool:
+    """Mindestens drei Zeichen und ein Buchstabe — sonst ist es ein Platzhalter, kein Titel."""
+    return len(name) >= 3 and any(z.isalpha() for z in name)
+
+
+def _fach_zum_titel(arguments: dict[str, Any]) -> dict[str, Any]:
+    """``browse_collection_tree`` mit ``collection``: das Fach reist als ``discipline``, nie als
+    ``subject`` (Review N3, Befund 2). Der neue Server liest ``subject`` dort ohnehin als Fach der
+    Sammlung; ein Server OHNE ``collection`` zeigte mit ``subject`` still das Fachportal — ohne
+    ``subject`` lehnt er ab, und der Fehler ist sichtbar."""
+    if "subject" not in arguments:
+        return arguments
+    rest = {k: v for k, v in arguments.items() if k != "subject"}
+    fach = _text(arguments.get("subject"))
+    if fach and not _text(rest.get("discipline")):
+        rest["discipline"] = fach
+    return rest
+
+
+def _als_sammlungstitel(
+    werkzeug: str, arguments: dict[str, Any], name: str, *, fach: str = "",
+) -> dict[str, Any] | None:
+    """Ein Name im Feld der Kennung → ``collection`` (N3, 2026-11-14), wenn der Server das kennt.
+
+    Der Server löst den Titel streng auf: genau eine Sammlung mit diesem Titel, sonst Kandidaten.
+    Das ersetzt das Raten hier (erster Treffer der Sammlungssuche) — „Mechanik“ traf damit
+    irgendeine der gleichnamigen Sammlungen, ohne dass es jemand merkte.
+    """
+    from boerdi.services.mcp import sammlung_per_name
+
+    if not sammlung_per_name.angeboten(werkzeug):
+        return None
+    kennung, _fach = sammlung_per_name.WERKZEUGE[werkzeug]
+    logger.info("%s: Name im Feld %s (%s) geht als collection an den Server", werkzeug, kennung,
+                inhalt(name))
+    rest = {k: v for k, v in arguments.items() if k != kennung}
+    # Ein ausdrücklich genannter Titel geht vor dem Namen im Feld der Kennung.
+    neu = rest if _text(rest.get(sammlung_per_name.PARAMETER)) else {
+        **rest, sammlung_per_name.PARAMETER: name}
+    if werkzeug == "browse_collection_tree":
+        neu = _fach_zum_titel(neu)
+    fach_arg = sammlung_per_name.WERKZEUGE[werkzeug][1]
+    if fach and not _text(neu.get(fach_arg)):
+        neu[fach_arg] = fach
+    return neu
+
+
 async def _resolve_collection_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
     """Self-heal ``get_collection_contents`` calls when the LLM passed a
     collection name instead of a UUID.
@@ -224,9 +297,12 @@ async def _resolve_collection_node_id(arguments: dict[str, Any]) -> dict[str, An
     semantically valid (e.g. user clicks a sub-collection card and the
     UUID legitimately differs from the parent topic).
     """
-    nid = (arguments.get("nodeId") or "").strip()
+    nid = _text(arguments.get("nodeId"))
     if not nid or _UUID_RE.match(nid):
         return arguments
+    # N3: kennt der Server ``collection``, löst er den Titel selbst und streng auf.
+    if als_titel := _als_sammlungstitel("get_collection_contents", arguments, nid):
+        return als_titel
     # Treat as collection name — resolve via search.
     try:
         raw = await call_mcp_tool(

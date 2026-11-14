@@ -286,16 +286,34 @@ def _registry_block(r: SkillRegistry) -> list[str]:
     return zeilen
 
 
+def _aufgeloeste_sammlung(raw_text: str) -> str:
+    """Die Kennung der Sammlung, die der Server zu einem Titel gewählt hat (N3, 2026-11-14).
+
+    Wer ``browse_collection_tree`` mit ``collection`` statt ``nodeId`` ruft, hat in den
+    Argumenten keine Kennung. Der Server nennt sie im Feld ``resolvedCollection`` seiner
+    Antwort. Gelesen wird nur dieses eine Feld und nur eine Kennung in der Form von
+    edu-sharing — kein Wortlaut, kein Titel.
+    """
+    from boerdi.services.mcp.sammlung_per_name import ist_kennung
+
+    huelle = load_envelope(raw_text)
+    gewaehlt = huelle.get("resolvedCollection") if isinstance(huelle, dict) else None
+    kennung = gewaehlt.get("nodeId") if isinstance(gewaehlt, dict) else None
+    return kennung if ist_kennung(kennung) else ""
+
+
 def _anstoss(
     tool_name: str, args: dict | None, *, beantwortet: frozenset[str] = frozenset(),
+    raw_text: str = "",
 ) -> str:
     """Der Hinweis auf eine Sammlung, ueber deren Anleitungen niemand etwas sagt.
 
     Die ID kommt aus den Argumenten, mit denen WIR gerufen haben — kein
-    Zusatzabruf, keine Rateraterei am Fremdtext. **Der Ergebnistext geht hier
-    gar nicht mehr ein**, und das ist der Punkt: ob der Server die Frage schon
-    beantwortet hat, entscheidet :data:`_SAMMLUNGS_WERKZEUGE`, nicht sein
-    Wortlaut.
+    Zusatzabruf, keine Rateraterei am Fremdtext. **Der Wortlaut des Ergebnisses
+    geht hier nicht ein** (seit N3 nur das Feld ``resolvedCollection.nodeId``,
+    wenn der Aufruf einen Titel statt einer Kennung trug), und das ist der
+    Punkt: ob der Server die Frage schon beantwortet hat, entscheidet
+    :data:`_SAMMLUNGS_WERKZEUGE`, nicht sein Wortlaut.
 
     **Mit Bedingung**, und das ist der zweite Kern: ohne sie riefe das Modell
     ``get_skill_registry`` bei jedem Navigationsschritt: ein Abruf je Drilldown
@@ -312,7 +330,18 @@ def _anstoss(
     feld = _SAMMLUNGS_WERKZEUGE.get(tool_name)
     if feld is None:
         return ""
+    # N3: die vom Server gewählte Kennung, wenn das Argument keine trägt (Titel als
+    # ``collection``) oder einen Namen statt einer Kennung (der Client reichte ihn als Titel
+    # weiter).
+    from boerdi.services.mcp.sammlung_per_name import ist_kennung
+
+    # Gegenreview N3, Befund 6: an eine Fehlerantwort (etwa ``ambiguous_collection``) kein Hinweis
+    # — die KI soll dort einen Kandidaten wählen, nicht mit einem Namen die Registry abrufen.
+    if raw_text.lstrip().startswith("MCP error"):
+        return ""
     node_id = _einzeilig((args or {}).get(feld), _MAX_TITLE)
+    if not ist_kennung(node_id):
+        node_id = _aufgeloeste_sammlung(raw_text) or node_id
     if not node_id or node_id in beantwortet:
         return ""
     return "\n".join([
@@ -446,7 +475,7 @@ def skill_registry_note(
         # wegen, sondern weil ihre Werkzeugmengen disjunkt sind: _nachfassen
         # greift bei ``get_skill_registry``, _anstoss bei den zwei Werkzeugen
         # aus _SAMMLUNGS_WERKZEUGE. Das ``or`` sagt genau das.
-        return _nachfassen(tool_name, raw_text) or _anstoss(tool_name, args)
+        return _nachfassen(tool_name, raw_text) or _anstoss(tool_name, args, raw_text=raw_text)
     gezeigt = registries[:_MAX_REGISTRIES]
     zeilen = ["", "", _MARKER, _AUFFORDERUNG]
     for r in gezeigt:
@@ -459,4 +488,5 @@ def skill_registry_note(
     zeilen.append(_FUSS)
     return "\n".join(zeilen) + _anstoss(
         tool_name, args, beantwortet=frozenset(r.collection_id for r in gezeigt),
+        raw_text=raw_text,
     )

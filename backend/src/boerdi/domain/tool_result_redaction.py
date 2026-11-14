@@ -30,7 +30,11 @@ Ein Umzug nach ``services/mcp/`` verschöbe die Politik in die Adapterschicht �
 die schlechtere der beiden Verletzungen. Ein dritter Schnitt entlang dieser Naht
 wäre bei dieser Dateigröße Überbau.
 
-**Ausstieg, falls es doch stört:** die Kopplung hängt an genau einem Aufruf. Wer
+Seit N3 (2026-11-14) gibt es einen zweiten solchen Griff: :func:`_mit_gewaehlter_sammlung`
+liest über ``services.mcp.sammlung_per_name``, welche Sammlung der Server zu einem Titel gewählt
+hat — ebenfalls lazy, im Rumpf.
+
+**Ausstieg, falls es doch stört:** die Kopplung hängt an diesen zwei Aufrufen. Wer
 ``_redact_search_content_for_llm`` neben dem Rohtext den bereits gelesenen
 Umschlag hereinreicht, dreht die Kante um, ohne dass das Modul umzieht. Nicht
 gratis: die drei Aufrufstellen (``tool_loop`` einmal, ``tool_loop_messages``
@@ -515,8 +519,22 @@ def _redact_search_content_for_llm(
     """:func:`_gekuerzt_fuer_llm` — und die Hinweissätze des Servers bleiben (Plan 2026-11-13, C1,
     Review): „diese Quelle hat nicht geantwortet“ darf weder dem Deckel noch dem Ersatz durch
     eine Ansage zum Opfer fallen, sonst liest die KI einen Ausfall als „nichts gefunden“."""
-    return mcp_unvollstaendig.mit_hinweissaetzen(
-        name, _gekuerzt_fuer_llm(name, raw_text, parsed_cards, _inline_grouping_mode), raw_text)
+    kurz = _gekuerzt_fuer_llm(name, raw_text, parsed_cards, _inline_grouping_mode)
+    return mcp_unvollstaendig.mit_hinweissaetzen(name, _mit_gewaehlter_sammlung(kurz, raw_text),
+                                                 raw_text)
+
+
+def _mit_gewaehlter_sammlung(kurz: str, raw_text: str) -> str:
+    """N3 (Review, Befund 5): löste der Server einen Titel zu einer Sammlung auf, erfährt die KI
+    Kennung, Titel und Pfad auch dann, wenn die Kurzfassung das Ergebnis ersetzt hat (Kasten-Modus,
+    Deckel) — sonst wüsste sie nicht, welche Sammlung gemeint war."""
+    if "resolvedCollection" not in raw_text or "resolvedCollection" in kurz:
+        return kurz
+    from boerdi.services.mcp import sammlung_per_name
+    from boerdi.services.mcp.parsers.json_scan import load_envelope
+
+    wahl = sammlung_per_name.gewaehlt(load_envelope(raw_text))
+    return f"{sammlung_per_name.gewaehlt_satz(wahl)}\n{kurz}" if wahl else kurz
 
 
 def _gekuerzt_fuer_llm(

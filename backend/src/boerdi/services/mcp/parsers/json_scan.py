@@ -69,13 +69,29 @@ def load_envelope(raw_text: str) -> object | None:
     Wirft nie: auf dem Rückweg stehen auch Markdown-Antworten und Fehlertexte,
     und ein Zug darf daran nicht kippen.
     """
+    # ``RecursionError`` (Gegenreview N3): ein tief verschachtelter Fremdtext ließ sonst
+    # ``call_mcp_tool`` werfen, seit auch der Cache hier liest.
     try:
         return json.loads(raw_text)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, RecursionError):
         ausschnitt = _first_json_object(raw_text or "")
         if not ausschnitt:
             return None
         try:
             return json.loads(ausschnitt)
-        except ValueError:
+        except (ValueError, RecursionError):
             return None
+
+
+def load_leading(raw_text: str) -> object | None:
+    """Das JSON am ANFANG des Texts (dahinter darf Text stehen), oder ``None``.
+
+    Anders als :func:`load_envelope` wird nicht im Text gesucht: Wo die Antwort über etwas
+    entscheidet (Kandidaten einer Sammlung, „leer“ für den Cache), darf ein JSON, das irgendwo in
+    einem Titel oder in einem Beispiel einer Anleitung steht, nicht zählen. Wirft nie.
+    """
+    try:
+        wert, _ = json.JSONDecoder().raw_decode((raw_text or "").lstrip())
+    except (ValueError, TypeError, RecursionError):
+        return None
+    return wert
