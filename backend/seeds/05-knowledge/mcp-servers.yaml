@@ -45,6 +45,8 @@ servers:
   - search_wlo_content_many
   - search_wlo_topic_pages
   - search_wlo_within_collection
+  # SW-1 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14): der Sammlungsbaum als flache Liste.
+  - list_collection_tree
   - search
   # Inhalte + Volltext
   - get_collection_contents

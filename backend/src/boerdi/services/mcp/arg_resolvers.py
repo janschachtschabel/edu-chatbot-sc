@@ -432,6 +432,13 @@ async def _ensure_label_cache(vocab: str) -> None:
     _label_cache_loaded[vocab] = True
 
 
+async def bezeichnung_bekannt(vocab: str, wert: str) -> bool:
+    """Kennt das Vokabular diese Bezeichnung — als Name oder Alias, nie als Teilwort? Lädt den
+    Cache bei Bedarf. Ohne Vokabular (Server nicht erreichbar, unbekanntes Vokabular): nein."""
+    await _ensure_label_cache(vocab)
+    return bool(wert and wert.strip()) and _norm_label(wert) in _label_to_uri_cache.get(vocab, {})
+
+
 async def prewarm_vocabularies() -> None:
     """O3: Vokabular-Caches beim Backend-Start vorladen, damit schon der ERSTE
     Such-Turn warm ist (sonst mehrere MCP-Round-Trips beim ersten Nutzer).

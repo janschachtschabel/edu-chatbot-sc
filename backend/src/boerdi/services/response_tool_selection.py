@@ -74,7 +74,7 @@ from boerdi.domain.skill_bruecke import ZUSATZ_KEY as SKILL_ZUSATZ_KEY
 from boerdi.domain.write_confirm import CURATION_TOOLS
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.agent_tools import angebotene_mcp_werkzeuge, verborgene_werkzeuge
-from boerdi.services.mcp import angebot, fremdwerkzeuge, werte_hinzufuegen
+from boerdi.services.mcp import angebot, fremdwerkzeuge
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 from boerdi.services.quick_replies_llm import _max_chars
@@ -122,7 +122,8 @@ def _nameable_tools() -> list[dict]:
     # (N3) bleibt an den direkten Werkzeugen dem Agenten vorbehalten.
     # N4: die Mehrfachsuche darf ein Muster (M09) nennen — wenn der Server sie führt.
     lesend = [*TOOL_DEFINITIONS, *angebot.zusaetzliche()]
-    katalog = [werte_hinzufuegen.erweitert(t) for t in (
+    # SW-1/SW-2: ebenso die gespeicherte Reihenfolge beim Lesen und Fach, Stufe, Schlagworte im Baum.
+    katalog = [angebot.fuer_muster(t) for t in (
         lesend if not schreiben_erlaubt() else [*lesend, *CURATION_TOOL_DEFINITIONS])]
     aus = verborgene_werkzeuge()
     # Paket 11 (E): auch lesende Werkzeuge fremder MCP-Server, wenn ein Muster sie nennt.
