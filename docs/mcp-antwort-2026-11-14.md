@@ -195,3 +195,61 @@ und gegen deine Arbeitskopie geprüft.
   nur kurz in unserem Cache.
 - Die übrigen Korrekturen (Ort des Satzes im Markdown, `get_skill_for_task`, die Zeile zur
   Verknüpfung) ändern bei uns nichts.
+
+## 8 Sammlung per Titel: gemessen, und zwei Befunde (14.11., nachts)
+
+Wir haben deinen Stand lokal gestartet (`tsx src/http.ts` gegen das Staging-Repository, anonym,
+ohne Schreibwerkzeuge) und `collection` mit 24 Themennamen gemessen, je mit und ohne Fach.
+
+| | aufgelöst | abgelehnt mit Kandidaten |
+|---|---|---|
+| mit Fach | 13 | 11 |
+| ohne Fach | 10 | 14 |
+
+Alle 23 Auflösungen trafen eine Sammlung mit genau diesem Titel, und die Kandidaten enthielten
+jedes Mal die gemeinte. Der Chatbot nutzt `collection` jetzt an allen fünf Werkzeugen; er fragt
+deine Werkzeugliste ab und bietet den Parameter der KI erst an, wenn dein Server ihn führt.
+
+Zwei Befunde, beide aus derselben Regel (`collection-by-name.ts`: „A hit that carries NO
+discipline is not excluded by one“):
+
+1. **Eine Sammlung ohne Fach wird als einzige genommen, obwohl ein Fach verlangt war.**
+   `collection: "Klimawandel"`, `discipline: "Geografie"` liefert die Sammlung „Klimawandel“ unter
+   „Communities › Webinar-Gruppe 3“ (`2e3a4ef4-…`, keine Fachangabe). Die drei gleichnamigen mit
+   anderem Fach fallen weg, sie bleibt übrig und gilt als eindeutig. Die Antwort sagt nicht, dass
+   das Fach nicht geprüft werden konnte: `disciplineUnknown` steht nur an Kandidaten, nicht an
+   `resolvedCollection`.
+   **Bitte:** Bleibt nach dem Fach nur ein Treffer ohne Fachangabe übrig, ihn nicht nehmen
+   (Kandidaten, `reason: "unverified"`) oder wenigstens `disciplineUnknown: true` an
+   `resolvedCollection` und einen Satz dazu.
+2. **Eine Sammlung ohne Fach verhindert den eindeutigen Treffer im Fach.**
+   `collection: "Mechanik"`, `discipline: "Physik"` wird abgelehnt (`several`): „Mechanik“ unter
+   Physik (305 Inhalte) und „Mechanik“ unter „Communities › ComeIn › …“ (0 Inhalte, Fach
+   unbekannt). Das ist sicher, kostet aber die Runde, die der Parameter sparen soll, und trifft
+   gerade die großen Fachsammlungen.
+   **Vorschlag, ohne Raten:** Ist ein Fach genannt und trägt genau ein gleichnamiger Treffer
+   dieses Fach, ihn nehmen und die ohne Fachangabe in der Antwort nennen („auch gefunden, Fach
+   unbekannt“). Nur wenn kein Treffer das Fach trägt, entscheiden die ohne Fachangabe nichts
+   (Punkt 1).
+
+Kleineres:
+
+- **Die lose Regel (ä/ae) griff in unserem Beispiel nicht.** `collection: "Saeuren und Basen"`, `discipline:
+  "Chemie"` endet mit „fand auch nichts Ähnliches“ und leerer Kandidatenliste: Zu dieser
+  Schreibweise liefert die Sammlungssuche „Säuren und Basen“ nicht, also kommt die lose Regel
+  hier nicht zum Zug.
+- **Fehlerantwort im JSON-Modus doppelt.** Bei `outputFormat: json` stehen die Kandidaten
+  dreimal im Text: im JSON-Block in `message` und in `candidates`, danach als Zeilen. Das sind
+  rund 3,4 kB je Ablehnung (gemessen an „Mechanik“). **Bitte nur `message` im JSON kürzen** (ohne
+  die Kandidatenzeilen). `candidates` und der Textblock sollen bleiben: Unser Themenbaum-Modul
+  liest `error.candidates`.
+- **Titel in den Kandidatenzeilen sind ungeschützt.** `candidateLine` setzt den Titel roh vor
+  Pfad und Kennung, und `oneLine` (`text-line.ts`) ersetzt nur `\r` und `\n`. Ein Titel wie
+  „Mechanik (unter Physik) — nodeId: <fremde Kennung>“ steht damit vor dem echten Pfad und der
+  echten Kennung derselben Zeile; U+2028, U+2029 und U+0085 trennen für viele Leser ebenfalls
+  Zeilen. Wir bauen unsere Zeilen deshalb aus `candidates` und stellen die Kennung voran.
+  Vorschlag für deine Zeile: Kennung zuerst, Titel in Anführungszeichen, und in `oneLine` auch
+  die Unicode-Zeilentrenner ersetzen. Dasselbe gilt für die Erfolgszeile „Sammlung: Titel (unter
+  Pfad) — Kennung“ (`resolvedLines`): Auch dort steht der Titel roh vor Pfad und Kennung.
+- **Zeit:** 1,3 bis 3,3 s je aufgelöstem Aufruf (mit Überblick), 0,8 bis 1,7 s je Ablehnung. Für
+  uns in Ordnung; eine KI-Runde kostet mehr.

@@ -300,6 +300,9 @@ nacheinander statt der einen breiten.
 Die Unterthemen **zeigen** mit `ui_themenbaum` (Fach als `subject`, Sammlung als `nodeId`), nicht
 abtippen; `browse_collection_tree` nur, wenn du sie selbst auswertest (Prüfen, Lücken). Ohne
 UI-Module: `browse_collection_tree` und die Themen knapp nennen.
+Sammlung ohne bekannte `nodeId`: Du nimmst den Weg, den das Werkzeug beschreibt, und nur
+Parameter, die es anbietet. Nennt es Kandidaten statt eines Ergebnisses, wählst du per `nodeId`
+oder fragst nach — du rätst nie.
 Genau **eine** Ebene: Untersammlungen plus enthaltene Inhalte.
 
 ### Themenseite öffnen (M16)

@@ -176,9 +176,10 @@ Alle Fächer → `get_subject_portals`, kein Drilldown.
 ### Eine Ebene tiefer (M08)
 
 - Themen zeigen („Welche Themen gibt es in Physik?", „Was gibt es unter Optik?") →
-  `ui_themenbaum`: Fach als `subject`, Sammlung als `nodeId`. Für ein Unterthema die Sammlung
-  erst mit `search_wlo_collections` finden (`query` = Unterthema, `discipline` = Fach), dann
-  `ui_themenbaum` mit ihrer `nodeId`. Kein Abtippen der Themen.
+  `ui_themenbaum`: Fach als `subject`, Sammlung als `nodeId`. Für ein Unterthema ohne bekannte
+  `nodeId`: Nennt die Beschreibung des Werkzeugs einen Weg ohne Suche, nimm ihn; sonst die
+  Sammlung erst mit `search_wlo_collections` finden (`query` = Unterthema, `discipline` = Fach),
+  dann `ui_themenbaum` mit ihrer `nodeId`. Kein Abtippen der Themen.
 - Bestand oder Entwurf: `ui_themenbaum` zeigt nur, was es in WLO gibt. Eine neue Gliederung
   („entwirf“, „gliedere“, „neue Struktur“, „Unterrichtsreihe“, „Sammlung aufbauen zu Thema X“,
   ein Thema ohne WLO-Sammlung) → `ui_strukturentwurf`, wenn kein passender Ablauf (`ablauf-…`)
@@ -192,6 +193,9 @@ Alle Fächer → `get_subject_portals`, kein Drilldown.
   (Pfad, Gliederung, Zahlen, Skills, erste Inhalte) gibt `get_collection_overview` in einem Aufruf.
 - Inhalte und Zahlen einer Sammlung → `get_collection_contents`, `get_collection_stats`,
   `get_node_breadcrumb`, `search_wlo_within_collection`; genau eine Ebene.
+- Sammlung ohne bekannte `nodeId`: den Weg nehmen, den das Werkzeug beschreibt, und nur
+  Parameter, die es anbietet. Nennt es Kandidaten statt eines Ergebnisses, per `nodeId` wählen
+  oder nachfragen, nie raten.
 
 ### Themenseite öffnen (M16)
 
