@@ -123,6 +123,28 @@ def _ohne_umleitung(headers=None, timeout=None, auth=None):  # noqa: ANN001 — 
     return client
 
 
+class _Sitzung(ClientSession):
+    """Die SDK-Sitzung ohne Schema-Prüfung der Werkzeugantwort.
+
+    Das SDK prüft eine erfolgreiche Antwort gegen das Ausgabeschema, wenn das Werkzeug eines
+    veröffentlicht — und holt, um das zu wissen, ``tools/list``, sobald die Sitzung das Werkzeug
+    nicht kennt. Wir öffnen je Aufruf eine frische Sitzung — die ganze Werkzeugliste kam also bei
+    JEDEM Aufruf mit, auch ohne Schema: gemessen 2026-11-14 am Staging-MCP 0,25–0,33 s und
+    171 KiB je Werkzeugaufruf (18 von 18).
+
+    Gebraucht wird die Prüfung hier nicht: jede Antwort geht durch die eigenen Leser
+    (``client``, ``parsers``), und eine Antwort, die ein nachhinkendes Schema knapp verfehlt,
+    wurde durch sie zum Transportfehler statt zum Ergebnis. ``list_tools`` selbst bleibt
+    (``discover_server_tools``).
+
+    Die überschriebene Methode ist privat im SDK. Dass ``call_tool`` sie noch ruft, hält
+    ``tests/test_mcp_keine_werkzeugliste_je_aufruf.py`` fest.
+    """
+
+    async def _validate_tool_result(self, name: str, result: Any) -> None:
+        return None
+
+
 @asynccontextmanager
 async def _open_session(url: str) -> AsyncIterator[ClientSession]:
     """Öffne eine frisch initialisierte ``ClientSession`` gegen ``url``.
@@ -134,7 +156,7 @@ async def _open_session(url: str) -> AsyncIterator[ClientSession]:
     async with streamablehttp_client(
         url, httpx_client_factory=_client_fabrik(url)
     ) as (read_stream, write_stream, _get_session_id):
-        async with ClientSession(read_stream, write_stream) as session:
+        async with _Sitzung(read_stream, write_stream) as session:
             await session.initialize()
             yield session
 

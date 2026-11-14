@@ -39,8 +39,8 @@ LUECKE_BIS: Final = 2
 #: So viele beste Treffer je Punkt.
 TOP: Final = 2
 #: Die Codes des Servers für ``missing`` (``tools/content-count.ts``) — und unsere eigenen.
-_CODES: Final = frozenset({"unresolved_filter", "timeout", "forbidden", "upstream_busy",
-                           "upstream_error"})
+_CODES: Final = frozenset({"unresolved_filter", "timeout", "forbidden", "not_found",
+                           "upstream_busy", "upstream_error"})
 #: Nach diesen Arten bleibt der Rest ungezählt (Review M1, Befund 5): keine Antwort, ausgelastet
 #: oder abgewiesen — ein zweites Bündel belastete nur den Server und den Zug.
 _ABBRUCH: Final = frozenset({"timeout", "busy", "auth", "transport"})

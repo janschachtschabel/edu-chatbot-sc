@@ -28,8 +28,9 @@ def test_aendern_sagt_was_ersetzt_und_was_ergaenzt_wird():
 
 
 def test_aendern_nennt_die_grenzen_der_vorschau():
-    """Review 2026-11-13 (M1, M2): der Server nimmt Teilwort-Treffer an; den Datensatz nennt die
-    Vorschau, weil der Client ihn davorsetzt (``test_vorschau_nennt_datensatz``)."""
+    """Review 2026-11-13 (M1, M2): ein Wert der Vorschau kann vom genannten abweichen (Alias; der
+    Server vor dem 14.11. auch über Teilwörter); den Datensatz nennt die Vorschau, weil der Client
+    ihn davorsetzt (``test_vorschau_nennt_datensatz``)."""
     text = _werkzeug(CURATION_TOOL_DEFINITIONS, "wlo_update_content")["description"]
     assert "Die Vorschau nennt den Datensatz und zeigt je Feld alt und neu" in text
     assert "Weicht ein Wert der Vorschau vom genannten ab" in text
@@ -41,10 +42,14 @@ def test_vokabularfelder_nehmen_die_bezeichnung():
     for feld in ("discipline", "educationalContext", "contentType", "userRole"):
         assert "Bezeichnung" in felder[feld]["description"], feld
     assert "ergaenzt" in felder["keywords"]["description"]
-    assert "Teilwoerter" in felder["discipline"]["description"]
+    # Seit dem MCP-Stand vom 14.11. rät der Server beim Schreiben nicht mehr: er nennt Kandidaten.
+    assert "nennt Kandidaten" in felder["discipline"]["description"]
+    assert "Teilwoerter" not in felder["discipline"]["description"]
     # Der Schreibpfad prüft den Typ gegen ein feineres Vokabular: „Video“ lehnt er ab.
     assert "Video" not in felder["contentType"]["description"]
     assert "Vorschlag aus seiner Ablehnung" in felder["contentType"]["description"]
+    # Zwei Bedeutungen (der Server verlangt dann die URI) oder kein Vorschlag: die Person fragen.
+    assert "die Person fragen" in felder["contentType"]["description"]
 
 
 def test_nachschlagen_ist_keine_pflicht_vor_dem_schreiben():

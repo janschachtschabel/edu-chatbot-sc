@@ -231,3 +231,14 @@ def test_review_der_dienst_ist_im_treiber_mit_gesperrt():
     umgebung = treiber.Umgebung(teile=teile, gesperrt=frozenset({abdeckung.WERKZEUG}))
     aus = asyncio.run(treiber.starten(ablauf, umgebung))
     assert aus.texte == ["schade"]
+
+
+def test_ein_404_des_repositoriums_bleibt_als_not_found_erkennbar(monkeypatch):
+    """MCP-Stand 14.11.2026: ein 404 kommt als ``not_found`` in ``missing``, nicht mehr als
+    ``upstream_error`` — der Code gehört zu denen, die der Dienst kennt."""
+    antwort = McpAntwort("ok", strukturiert={
+        "results": [{"id": "k0", "total": 1, "top": []}],
+        "missing": [{"part": "k1", "code": "not_found"}]})
+    monkeypatch.setattr(client, "call_mcp_tool_antwort", _Server(antwort))
+    punkte = abdeckung.punkte_aus_entwurf(_entwurf(n_oben=2, kinder=0))
+    assert asyncio.run(abdeckung.zaehlen(punkte)).fehlen == {"k1": "not_found"}

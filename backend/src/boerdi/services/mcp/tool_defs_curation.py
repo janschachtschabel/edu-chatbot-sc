@@ -107,14 +107,19 @@ _TEXTFELDER = {
     "contentType": {"type": "string",
                     "description": "Inhaltstyp als Bezeichnung, z.B. 'Arbeitsblatt' oder 'Audio'. "
                                    "Lehnt der Server sie ab, einen Vorschlag aus seiner "
-                                   "Ablehnung nehmen (nicht nachschlagen)."},
+                                   "Ablehnung nehmen (nicht nachschlagen); nennt sie zwei "
+                                   "Bedeutungen oder keinen, die Person fragen."},
     "educationalContext": {"type": "string",
-                           "description": "Bildungsstufe als Bezeichnung, z.B. 'Sekundarstufe I'."},
+                           "description": "Bildungsstufe als Bezeichnung, z.B. 'Sekundarstufe I'. "
+                                          "Ablehnung und Kandidaten wie beim Fach."},
     "discipline": {"type": "string",
-                   "description": "Fach als Bezeichnung, z.B. 'Mathematik'. Der Server gleicht ab, "
-                                  "auch ueber Teilwoerter ('Wirtschaft' wird 'Agrarwirtschaft') — "
-                                  "die Vorschau zeigt den Wert, der geschrieben wuerde."},
-    "userRole": {"type": "string", "description": "Zielgruppe als Bezeichnung, z.B. 'Lehrer'."},
+                   "description": "Fach als Bezeichnung, z.B. 'Mathematik'. Eine unbekannte "
+                                  "lehnt der Server ab und nennt Kandidaten: einen passenden "
+                                  "nehmen oder die Person waehlen lassen. Die Vorschau zeigt den "
+                                  "Wert, der geschrieben wuerde."},
+    "userRole": {"type": "string",
+                 "description": "Zielgruppe als Bezeichnung, z.B. 'Lehrer'. Ablehnung und "
+                                "Kandidaten wie beim Fach."},
     "content": {"type": "string", "description": "Der Inhalt selbst, als Text."},
     "contentFormat": {
         "type": "string", "enum": ["markdown", "text"],
