@@ -61,6 +61,7 @@ from boerdi.obs.trace_id import TraceIdFilter, TraceIdMiddleware
 from boerdi.services import aufbewahrung
 from boerdi.services import master_skill as master_skill_dienst
 from boerdi.services.master_skill import starte as starte_master_skill_takt
+from boerdi.services.mcp.faehigkeiten import starte as starte_faehigkeiten_takt
 from boerdi.services.safety import moderation
 from boerdi.services.warmup import spawn_startup_warmups
 from boerdi.settings import (
@@ -255,6 +256,9 @@ async def _lifespan(app: FastAPI):
     master_skill_dienst.binde(engine)
     store.subscribe(master_skill_dienst.bei_signal)
     skill_takt = starte_master_skill_takt()
+    # N3 (2026-11-14): was der bereitgestellte MCP-Server kann, alle fünf Minuten — neue
+    # Parameter bekommt das Modell erst angeboten, wenn der Server sie kennt.
+    faehigkeiten_takt = starte_faehigkeiten_takt()
     try:
         yield
     finally:
@@ -265,7 +269,8 @@ async def _lifespan(app: FastAPI):
         # waren es zweimal 5 s, und mit dem Rest lag die Summe über ``stop_grace_period``.
         uhr = asyncio.get_running_loop()
         ende = uhr.time() + ABBRUCH_FRIST_S
-        await cancel_and_drain([takt, skill_takt, *master_skill_dienst.laufende_uebernahmen()],
+        await cancel_and_drain([takt, skill_takt, faehigkeiten_takt,
+                                *master_skill_dienst.laufende_uebernahmen()],
                                bezeichnung="Herunterfahren")
         config_loader.bind_store(None)
         # Paket 19 (N-25): mindestens 0,5 s — mit 0 warnte jedes Herunterfahren nach langem
