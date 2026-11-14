@@ -56,13 +56,15 @@ logger = logging.getLogger(__name__)
 #: ``search_wlo_content`` — ohne sie liefe die Sperre ins Leere (Audit 2026-09-29).
 SPERRE_KRISE: Final = (
     "search_wlo_collections", "search_wlo_content", "get_collection_contents",
-    "search_wlo_all",
+    "search_wlo_all", "search_wlo_content_many",
 )
 #: Persönliche Daten in der Nachricht: keine Volltextsuche damit. Die
 #: Werkzeugliste des Studios nennt sie (ST-8b) und liest sie hier, statt sie
 #: abzuschreiben.
 #: Paket M4 (Review, Befund 6): die Zählung ist eine Volltextsuche (bis 30 Anfragen).
-SPERRE_PERSOENLICH: Final = ("search_wlo_content", "search_wlo_all", "count_wlo_content_matches")
+#: N4 (2026-11-14): die Mehrfachsuche ebenso (bis 8 Anfragen).
+SPERRE_PERSOENLICH: Final = ("search_wlo_content", "search_wlo_all", "count_wlo_content_matches",
+                             "search_wlo_content_many")
 
 # ── Stage 1: Regex patterns ─────────────────────────────────────────
 # Crisis = Nutzer richtet Gewalt/Suizid gegen SICH SELBST.  Ein reines

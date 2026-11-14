@@ -44,7 +44,8 @@ from typing import Any, Final
 WERKZEUGE: Final = frozenset({
     "search_wlo_all", "search_wlo_collections", "search_wlo_content", "search_wlo_topic_pages",
     "search_wlo_within_collection", "get_collection_contents", "browse_collection_tree",
-    "get_collection_overview", "get_topic_page_content", "get_wikipedia_summary"})
+    "get_collection_overview", "get_topic_page_content", "get_wikipedia_summary",
+    "search_wlo_content_many"})
 #: Wendungen aus den Hinweissätzen des Servers (``services/collection-search.ts``
 #: ``incompleteNotice``, ``tools/wikipedia.ts``, ``tools/collections.ts`` ``WALK_INCOMPLETE_NOTE``,
 #: ``tools/browse.ts``).
@@ -84,9 +85,11 @@ def gekennzeichnet(daten: Any) -> bool:
             or daten.get("reason") == GRUND_AUSFALL):
         return True
     # ``subcollections``: die Übersicht führt je Untersammlung ``contentsUnread`` (MCP 14.11.).
+    # Die Mehrfachsuche (N4) führt ihre Töpfe eine Ebene tiefer: ``results[id].incomplete``.
+    je_anfrage = daten.get("results")
+    toepfe = [*daten.values(), *(je_anfrage.values() if isinstance(je_anfrage, dict) else ())]
     return (_zweig_ungelesen(daten.get("results")) or _zweig_ungelesen(daten.get("subcollections"))
-            or any(isinstance(topf, dict) and topf.get("incomplete") is True
-                   for topf in daten.values()))
+            or any(isinstance(topf, dict) and topf.get("incomplete") is True for topf in toepfe))
 
 
 def _zerlegt(text: str) -> tuple[Any, str]:
@@ -100,6 +103,13 @@ def _zerlegt(text: str) -> tuple[Any, str]:
             return None, text
         return umschlag, roh[ende:]
     return None, text
+
+
+def ohne_umschlag(text: str) -> str:
+    """Der Text HINTER dem JSON-Umschlag — für Antworten, deren Umschlag nur der Chatbot liest
+    (Mehrfachsuche, N4). Ohne Umschlag oder ohne Text dahinter bleibt der Text, wie er ist."""
+    umschlag, rest = _zerlegt(text or "")
+    return rest.strip() if isinstance(umschlag, dict) and rest.strip() else text
 
 
 def _saetze_im(rest: str, wendungen: tuple[str, ...] = _SAETZE) -> list[str]:

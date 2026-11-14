@@ -416,7 +416,8 @@ Erzeugen*).
 Kompetenzen — daraus die 4–6 Schritte. Dann **jeder Schritt mit einem
 konkreten WLO-Material**: je Schrittthema `search_wlo_content` mit Fach/Stufe,
 innerhalb einer Sammlung `search_wlo_within_collection` —
-`search_wlo_collections` liefert Sammlungen, keine Schritt-Materialien.
+`search_wlo_collections` liefert Sammlungen, keine Schritt-Materialien. Ist ein Werkzeug für
+mehrere Suchen in einem Aufruf angeboten, suchst du alle Schritte damit zugleich.
 Den fertigen Plan übergibst du mit `ui_inhaltsrahmen`; jeder Schritt nennt sein
 Material mit Titel und Link.
 **Nicht:** keine Verweise auf „die Suche unten", keine Schritte ohne Material, kein

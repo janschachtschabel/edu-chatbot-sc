@@ -50,6 +50,8 @@ CARD_YIELDING_TOOLS: Final = {
     "search_wlo_all",
     "search_wlo_within_collection",
     "get_related_content",
+    # N4 (Review, M1): die Mehrfachsuche — ihre Treffer stehen im Umschlag vor dem Text.
+    "search_wlo_content_many",
 }
 
 
@@ -105,6 +107,10 @@ def parse_cards_for_tool(tool_name: str, result_text: str) -> list[dict]:
         from boerdi.services.mcp.parsers import parse_search_all_cards
         toepfe = parse_search_all_cards(result_text)
         return toepfe["content"] + toepfe["collections"] + toepfe["topic_pages"]
+    if tool_name == "search_wlo_content_many":
+        # Je Anfrage ein Topf unter ``results[id]`` — der Standardparser gäbe 0 zurück.
+        from boerdi.services.mcp.parsers import parse_search_many_cards
+        return parse_search_many_cards(result_text)
     return parse_wlo_cards(result_text) or []
 
 

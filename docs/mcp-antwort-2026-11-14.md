@@ -253,3 +253,118 @@ Kleineres:
   Pfad) — Kennung“ (`resolvedLines`): Auch dort steht der Titel roh vor Pfad und Kennung.
 - **Zeit:** 1,3 bis 3,3 s je aufgelöstem Aufruf (mit Überblick), 0,8 bis 1,7 s je Ablehnung. Für
   uns in Ordnung; eine KI-Runde kostet mehr.
+
+## 9 Antwort auf deine Rückmeldung vom 15.11.
+
+Danke, beide Befunde sind so behoben, wie wir sie brauchen. Wir haben deinen Stand wieder lokal
+gestartet (anonym, lesend, gegen das Staging-Repository) und nachgemessen.
+
+| Aufruf | Stand 14.11. | Stand 15.11. |
+|---|---|---|
+| „Mechanik“ + Physik | abgelehnt (`several`) | „Mechanik“ unter Physik, Community-Sammlung in `alsoFound` |
+| „Klimawandel“ + Geografie | Community-Sammlung genommen | abgelehnt, `unverified` + `disciplineUnverified` |
+| „Saeuren und Basen“ + Chemie | „nichts Ähnliches“ | „Säuren und Basen“, `matched: "loose"` |
+| 24 Titel mit Fach | 13 aufgelöst, eine davon die falsche | 13 aufgelöst, alle im genannten Fach |
+
+### Was wir angepasst haben
+
+- **`disciplineUnverified`:** Unser Themenbaum-Modul sagt der KI dann, dass es eine gleichnamige
+  Sammlung ohne Fachangabe gibt, dass ein erneuter Aufruf mit dem Titel nichts ändert und dass
+  sie die Kennung nehmen oder nachfragen soll. `incomplete` ohne Kandidaten bleibt bei uns
+  „Suche unvollständig, kein Befund“.
+- **`alsoFound` / `alsoFoundTotal`:** Die KI bekommt die nicht gewählten Sammlungen als Zeilen
+  (höchstens drei, mit Kennung) und die Gesamtzahl.
+- **Neue Zeilenform:** betrifft uns nicht. Kandidaten und gewählte Sammlung bauen wir aus
+  `error.candidates` und `resolvedCollection`; die `Sammlung:`-Zeile und die Kandidatenzeilen
+  werten wir nirgends wörtlich aus.
+
+### Deine Frage: Welche Zeilen wertet ihr wörtlich aus?
+
+An diesen Formen hängen wir. Bitte ändere sie nur mit Vorlauf:
+
+| Werkzeug | Form, an der wir hängen | Wofür |
+|---|---|---|
+| `get_skill_registry` (Markdown) | je Eintrag `### <Titel>`, darunter `nodeId: <id>`, Ende des Zwecks an `Keywords:`, der nächsten Überschrift oder der ersten Leerzeile nach `nodeId:` | Kürzung des Katalogs für die KI |
+| `get_skill_registry` mit `task` | deine Zeilen vor der ersten `# `-Überschrift; danach `nodeId:` (Anleitung) oder `Registry-Dokument:` (Katalog) | Erkennen, ob eine Anleitung gewählt wurde |
+| `get_skill_registry` mit `context` | Kopfzeile `Kontext: …` vor der ersten `##` | dann kürzen wir nicht: die Zeile trägt die Anweisung der Redaktion |
+| `get_skill` | erste Zeile `# <Titel>`; die Fehlzeile **als ganze Zeile**: genau eine Zeile, die mit `Skill ` beginnt und „ist nicht abrufbar (“ enthält (heute `Skill <nodeId> ist nicht abrufbar (…)`); als letzte Zeile „_Für diesen Skill ist kein Anleitungstext abrufbar“, „_Die Datei ist zu groß für eine Anleitung“ oder „_Dieser Datensatz ist keine Textdatei“ | Titel; kein Cache für einen Fehltreffer; „keine Anleitung“ erkennen — sonst gälte die Fehlzeile als geladene Anleitung |
+| `get_skill` | die Ansage `[ edu-sharing Skill ] …` oberhalb der Trennlinie `---` | Ansage einer aktiven Anleitung |
+| `lookup_wlo_vocabulary` (Markdown) | `- **<Label>** \| Aliases: a, b` und `URI: <uri>` | Vokabular-Cache |
+| Schreibwerkzeuge, Vorschau | `confirmToken: <Schlüssel>`; der Anschluss „Dazu denselben Aufruf mit confirmToken:“; jede Zeile mit `continuationToken`; die Form `„<Titel>“ (<Kennung>)` | Schlüssel aus dem Text nehmen; ab dem Anschluss zeigen wir der Person nichts mehr; die Zeile mit dem Fortsetzungs-Schlüssel nehmen wir aus der Anzeige; ob du das Ziel schon nennst (dann setzen wir keine eigene Zeile davor) |
+| elf lesende Werkzeuge (die vier Suchen, die Mehrfachsuche, Suche in einer Sammlung, Sammlungsinhalte, Baum, Übersicht, Themenseiten-Inhalt, Wikipedia) | die Wendungen „hat nicht (vollständig) geantwortet“, „war nur teilweise erreichbar“, „Wikipedia hat gerade nicht geantwortet“, „ließ sich gerade nicht lesen“, „ließen sich gerade nicht lesen“, „mit dieser Anmeldung nicht lesbar“ | Ausfall erkennen (kurze Cache-Frist), Hinweis an die KI weiterreichen |
+| `get_collection_overview` (Text) | `Nicht geladen: …`; `Inhalte (n von m):` und darunter die Listenform (`- ` oder Einrückung) | Kürzung für die KI |
+| `count_wlo_content_matches` (Text) | `<Teil>: nicht gezählt (` | Fehlzeilen bleiben bei der Kürzung vorn |
+| Suchen | ein Textblock, der mit `{"_queryMeta"` beginnt | aufgelöste Filter und Facetten (ohne ihn lesen wir `structuredContent`) |
+| `search_wlo_topic_pages` | „Keine Themenseiten“ | leere Antwort erkennen |
+| Suchantworten in Markdown | „Gefundene Treffer gesamt: <n>“ (unser Leser nimmt auch „Gesamt:“, „Treffer:“, „Gefunden:“) | Trefferzahl, nur als Rückfall ohne JSON |
+
+**Nicht wörtlich** werten wir aus: die Baumzeile `- **Titel** (id)`, `Skill: <Titel> (nodeId: …)`,
+die Kandidaten- und die `Sammlung:`-Zeile. Den Baum und die Suchen holen wir als JSON. Diese
+Zeilen gehen unverändert an die KI; „Kennung vorn, Titel in Anführungszeichen“ wäre dort auch
+für uns die bessere Form. Ändere sie gern.
+
+Zur Vorschau der Schreibwerkzeuge: Stellst du `Datensatz: „Titel“ (id)` auf „Kennung vorn“ um,
+erkennen wir deine Zeile nicht mehr und setzen unsere zusätzlich davor. Das schadet nicht, wäre
+aber doppelt; ein Wort vorher genügt.
+
+### Befund: `search_wlo_content_many` meldete „weitere Treffer“ bei null Treffern
+
+**Stand 15.11., später: in deiner Arbeitskopie behoben** (`windowWasLast`, eine Regel für beide
+Suchen). Nachgemessen: Die Anfrage unten antwortet jetzt mit „keine Treffer“. Der Befund bleibt
+hier zum Nachlesen stehen.
+
+Eine Anfrage ohne jeden Treffer (`xyzzyqwertz gibtesnicht`) liefert in der Mehrfachsuche
+`count: 0, more: true` und im Text „keine Treffer im geprüften Ausschnitt / Es gibt weitere
+Treffer — search_wlo_content liefert mehr und blättert.“ `search_wlo_content` meldet zur selben
+Anfrage `total: 0`.
+
+Ursache nach unserem Lesen: Die Einzelsuche wertet ein leeres Fenster als Ende
+(`content-search.ts`: `reachedEnd = response.exhausted === true || response.nodes.length === 0`),
+die Mehrfachsuche nur `response.exhausted === true` (`content-search-many.ts`). Folge: Die KI
+sucht bei einem Schritt ohne Material unnötig einzeln nach, oder sie sagt „es gibt mehr“.
+
+### Deine neuen Zeilenformen („Kennung vorn“, 15.11.) — nachgeprüft
+
+Wir haben deinen Stand danach noch einmal gestartet und unsere Leser dagegen laufen lassen:
+
+- `get_collection_overview`: Die Inhaltsliste steht weiter unter `Inhalte (n von m):` mit
+  `- Titel` und eingerücktem `nodeId:`; unsere Kürzung (keine Einzeltitel, wenn die Oberfläche
+  keine zeigt) greift wie zuvor. Die neuen Formen bei Untersammlungen und Skills stören nicht.
+- `Skill-Registry (nodeId: …) — … — „Titel“` und `Skill (nodeId: …), laden mit get_skill —
+  „Titel“`: lesen wir nicht, sie gehen an die KI.
+- `find_content_by_url` (`- [exact] nodeId: … — „Titel“ — Adresse`): ebenso.
+- Den Baum holen wir als JSON; die Zeile `- nodeId: … — „Titel“` sehen wir nicht.
+
+Danke für die Liste der festgeschriebenen Formen in `tests/line-forms.test.ts`. Gegen unsere
+Tabelle gelesen fehlen dort noch: die sechs Ausfall-Wendungen, die `# `-Formen von `get_skill`
+und `get_skill_registry`, die Kopfzeile `Kontext:` und die Fehlzeile von `get_skill` als ganze
+Zeile. Dein Wächter prüft dort nur die Wendung „ist nicht abrufbar (“.
+
+Die letzten beiden sind uns am wichtigsten. Stellst du die Skill-Zeilen weiter auf „Kennung vorn“
+um, bleibt dein Test grün, und bei uns gälte die Fehlzeile als geladene Anleitung. Wir stellen
+die Erkennung auf `structuredContent.found === false` um (das Feld lieferst du schon); bis dahin
+lass die Zeile bitte mit `Skill ` beginnen.
+
+### Was wir sonst gebaut haben
+
+- **Werte hinzufügen (`addDiscipline`, `addEducationalContext`, `addUserRole`), Listen und
+  `lookup_wlo_vocabulary("contentType")`** sind im Chatbot eingebaut, gebunden an deine
+  Werkzeugliste. Gemessen mit dem Modell: „Füge das Fach Mathematik hinzu“ führt in 3 von 3 Läufen
+  zu `addDiscipline` in einer Runde. Eine echte Vorschau konnten wir ohne Anmeldung nicht prüfen.
+- **`search_wlo_content_many`** ist eingebaut, ebenfalls gebunden an deine Werkzeugliste.
+  Gemessen an deinem Stand: fünf Suchen in einem Aufruf 0,6 bis 1,1 s, nacheinander 4 bis 5 s.
+  Mehr als acht Anfragen lehnt unser Client selbst mit einem Satz ab; `license: "OER"` reichen
+  wir durch, dein Satz dazu ist klar.
+  Wir rufen in Markdown und lesen dazu `structuredContent`: Aus `results[id].results[]`
+  (`nodeId`, `title`, `url`, `description`, `learningResourceTypes`, `educationalContexts`,
+  `license`, `previewUrl`) werden die Karten unter der Antwort; `missing` und
+  `results[id].incomplete` steuern unseren Cache. Dein Markdown geht unverändert an die KI.
+  Bitte lass den strukturierten Teil auch in Markdown mitreisen und die Feldnamen der Treffer
+  wie bei der Einzelsuche.
+
+### Offen bei dir
+
+- Der Termin für das Deploy auf Staging. Danach prüfen wir die neuen Wege im Chat mit Anmeldung.
+- Aus unserer Rückmeldung vom 13.11. weiter offen: Version, Reihenfolge der Entscheide 1/2/4,
+  Staging-Vorgabe im Code, Registry.
+

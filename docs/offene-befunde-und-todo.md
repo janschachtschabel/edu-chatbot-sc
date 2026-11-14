@@ -346,6 +346,21 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Mehrfachsuche und MCP-Stand „15.11.“ (N4, 2026-11-14):** keine Migration, keine neue
+  Variable, keine Reihenfolge zum MCP. Image neu bauen, `import-config --werksabgleich`
+  (Werkzeugliste des MCP-Servers, Regelwerk, Schutz-Einstellungen), Master-Skill-Knoten ersetzen.
+  Eigene Fassungen von Regelwerk oder Schutz-Einstellungen: `search_wlo_content_many` dort selbst
+  nachtragen. Notiz `aenderungen/2026-11-14-mehrfachsuche-und-mcp-stand.md`. Die Antwort an den
+  Entwickler steht in `mcp-antwort-2026-11-14.md`, Abschnitt 9. **Offen:**
+  - ein Zug im Chat gegen den neuen MCP auf Staging (Karten aus der Mehrfachsuche, Zeile im
+    Studio);
+  - `get_skill`: „nicht abrufbar“ über das Feld `found` des strukturierten Teils erkennen statt
+    über die Zeile `Skill … ist nicht abrufbar (` (`services/master_skill.keine_anleitung`). Bis
+    dahin hängt der Chatbot an dieser Zeile; dem Entwickler ist das gesagt;
+  - die Regel `pol-no-personal-data-search` nennt `search_wlo_all` nicht (schon vor N4; die
+    feste Sperre bei persönlichen Daten greift dort);
+  - `outcome_service` zählt die Mehrfachsuche immer als „Erfolg, ein Treffer“, wie
+    `search_wlo_all`.
 - **Werte hinzufügen statt ersetzen (N2, 2026-11-14):** keine Migration, keine neue Variable,
   keine Reihenfolge zum MCP. Image neu bauen, `import-config --werksabgleich` (M18),
   Master-Skill-Knoten ersetzen. Notiz `aenderungen/2026-11-14-werte-hinzufuegen.md`. **Offen:**
@@ -364,9 +379,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   bauen, `import-config --werksabgleich` (M18), Master-Skill-Knoten ersetzen (Abschnitt M18). Läuft
   mit dem alten und dem neuen MCP. Notiz `aenderungen/2026-11-14-mcp-stand-und-werkzeugliste.md`,
   Plan `plans/2026-11-14-mcp-stand-8cbc051.md`, Antwort an den MCP-Entwickler
-  `mcp-antwort-2026-11-14.md`. **Offen:** N4 (Stapel-Suche); sie lässt sich seit N3 an die
-  Fähigkeitsabfrage binden und vor dem Deploy des MCP fertigstellen. N2, N3 und N5 sind umgesetzt
-  (eigene Einträge oben).
+  `mcp-antwort-2026-11-14.md`. N2 bis N5 sind umgesetzt (eigene Einträge oben). **Offen** bleibt die
+  Prüfung im Chat mit Anmeldung, sobald der neue MCP auf Staging läuft.
 - **Ketten kürzen (2026-11-13):** keine Migration, keine neue Variable. Image neu bauen,
   `import-config --werksabgleich` (M18, M20 und die Domänenregeln geändert), Master-Skill-Knoten in WLO mit
   `docs/skills/vorgehen-knapp.md` ersetzen (Abschnitte M18 und M20). Notiz

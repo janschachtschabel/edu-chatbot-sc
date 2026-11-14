@@ -143,18 +143,47 @@ def _pfad(roh: Any) -> str:
     return " › ".join(teile)
 
 
+def _kandidat(k: Any) -> str | None:
+    """Eine Zeile zu einer Sammlung, die zur Wahl steht: Kennung vorn aus ihrem eigenen Feld, Titel
+    und Pfad entschärft in „…“. ``None``, wenn der Eintrag keine echte Kennung trägt."""
+    if not isinstance(k, dict) or not ist_kennung(k.get("nodeId")):
+        return None
+    pfad = _pfad(k.get("path"))
+    anzahl = k.get("contentsCount")
+    gezaehlt = (isinstance(anzahl, int) and not isinstance(anzahl, bool)
+                and 0 <= anzahl < _HOECHSTENS_INHALTE)
+    return (f"- nodeId {k['nodeId']}: „{fuer_ki(k.get('title'))}“"
+            + (f" unter „{pfad}“" if pfad else "")
+            + (f" · {anzahl} Inhalte" if gezaehlt else "")
+            + (" · Fach unbekannt" if k.get("disciplineUnknown") is True else ""))
+
+
+def _kandidaten(roh: Any, hoechstens: int = _HOECHSTENS_KANDIDATEN) -> tuple[str, ...]:
+    zeilen = [z for z in map(_kandidat, roh if isinstance(roh, list) else []) if z]
+    return tuple(zeilen[:hoechstens])
+
+
 def gewaehlt(payload: Any) -> dict[str, str] | None:
     """Die Sammlung, die der Server zu einem Titel gewählt hat (``resolvedCollection``): Kennung,
     Titel und Pfad entschärft, dazu der Titel unverändert (``titel_roh``, für die Überschrift im
-    Widget). ``None``, wenn mit einer Kennung oder einem Fach gerufen wurde."""
+    Widget). ``None``, wenn mit einer Kennung oder einem Fach gerufen wurde.
+
+    ``auch`` (MCP-Stand 15.11.2026): gleichnamige Sammlungen ohne Fachangabe, die der Server
+    NICHT gewählt hat, weil die gewählte das genannte Fach trägt (``alsoFound``) — als Zeilen,
+    höchstens drei; ``auch_zahl`` nennt, wie viele es insgesamt sind."""
     roh = payload.get("resolvedCollection") if isinstance(payload, dict) else None
     if not isinstance(roh, dict) or not ist_kennung(roh.get("nodeId")):
         return None
     titel = roh.get("title")
+    auch = _kandidaten(roh.get("alsoFound"), 3)
+    gesamt = roh.get("alsoFoundTotal")
+    zahl = gesamt if isinstance(gesamt, int) and not isinstance(gesamt, bool) and gesamt > len(
+        auch) else len(_kandidaten(roh.get("alsoFound")))
     return {"titel": fuer_ki(titel), "titel_roh": titel if isinstance(titel, str) else "",
             "kennung": roh["nodeId"], "pfad": _pfad(roh.get("path")),
             "lose": "ja" if roh.get("matched") == "loose" else "",
-            "fach_unerkannt": "ja" if isinstance(roh.get("unresolvedDiscipline"), dict) else ""}
+            "fach_unerkannt": "ja" if isinstance(roh.get("unresolvedDiscipline"), dict) else "",
+            "auch": "\n".join(auch), "auch_zahl": str(zahl) if auch else ""}
 
 
 def gewaehlt_satz(wahl: dict[str, str]) -> str:
@@ -164,8 +193,13 @@ def gewaehlt_satz(wahl: dict[str, str]) -> str:
             if wahl["lose"] else "")
     fach = (" Das genannte Fach wurde nicht erkannt und hat nichts eingegrenzt."
             if wahl.get("fach_unerkannt") else "")
+    gezeigt = wahl["auch"].count("\n") + 1 if wahl.get("auch") else 0
+    zahl = (f"{gezeigt} gleichnamige" if str(gezeigt) == wahl.get("auch_zahl")
+            else f"{gezeigt} von {wahl.get('auch_zahl')} gleichnamigen")
+    auch = (f" Sie trägt das genannte Fach. Nicht gewählt, weil ohne Fachangabe "
+            f"({zahl}):\n{wahl['auch']}" if wahl.get("auch") else "")
     return (f"Gewählt wurde die Sammlung mit der nodeId {wahl['kennung']}: "
-            f"„{wahl['titel']}“{unter}.{lose}{fach}")
+            f"„{wahl['titel']}“{unter}.{lose}{fach}{auch}")
 
 
 class Ablehnung(NamedTuple):
@@ -176,6 +210,10 @@ class Ablehnung(NamedTuple):
     unvollstaendig: bool = False
     #: Das genannte Fach wurde nicht erkannt und hat nichts eingegrenzt.
     fach_unerkannt: bool = False
+    #: MCP-Stand 15.11.2026: eine gleichnamige Sammlung gibt es, sie trägt aber keine Fachangabe —
+    #: ob sie zum genannten Fach gehört, ließ sich nicht prüfen (``disciplineUnverified``). Ein
+    #: erneuter Aufruf ändert daran nichts.
+    fach_ungeprueft: bool = False
 
 
 def ablehnung(fehlertext: str) -> Ablehnung:
@@ -193,21 +231,7 @@ def ablehnung(fehlertext: str) -> Ablehnung:
     fehler = huelle.get("error") if isinstance(huelle, dict) else None
     if not isinstance(fehler, dict):
         return Ablehnung()
-    roh = fehler.get("candidates")
-    zeilen: list[str] = []
-    for k in roh if isinstance(roh, list) else []:
-        if not isinstance(k, dict) or not ist_kennung(k.get("nodeId")):
-            continue
-        pfad = _pfad(k.get("path"))
-        anzahl = k.get("contentsCount")
-        gezaehlt = (isinstance(anzahl, int) and not isinstance(anzahl, bool)
-                    and 0 <= anzahl < _HOECHSTENS_INHALTE)
-        zeilen.append(
-            f"- nodeId {k['nodeId']}: „{fuer_ki(k.get('title'))}“"
-            + (f" unter „{pfad}“" if pfad else "")
-            + (f" · {anzahl} Inhalte" if gezaehlt else "")
-            + (" · Fach unbekannt" if k.get("disciplineUnknown") is True else ""))
-        if len(zeilen) == _HOECHSTENS_KANDIDATEN:
-            break
-    return Ablehnung(tuple(zeilen), unvollstaendig=fehler.get("incomplete") is True,
-                     fach_unerkannt=isinstance(fehler.get("unresolvedDiscipline"), dict))
+    return Ablehnung(_kandidaten(fehler.get("candidates")),
+                     unvollstaendig=fehler.get("incomplete") is True,
+                     fach_unerkannt=isinstance(fehler.get("unresolvedDiscipline"), dict),
+                     fach_ungeprueft=fehler.get("disciplineUnverified") is True)

@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _logger = logging.getLogger(__name__)
 
@@ -308,6 +308,100 @@ class ContentCountArgs(BaseModel):
         if "top" in data:
             data["top"] = _kappe(data["top"], 2, 0, 3)
         return data
+
+
+_MANY_FILTER = ("educationalContext", "discipline", "userRole", "learningResourceType",
+                "publisher", "license")
+
+
+def _many_wert(wert: Any) -> Any:
+    """Ein Filterwert: Text in der Schranke des Servers (200 Zeichen); eine Liste mit genau einem
+    Text ist dieser Text. Alles andere bleibt, wie es ist — der Server lehnt es ab."""
+    if isinstance(wert, list) and len(wert) == 1 and isinstance(wert[0], str):
+        wert = wert[0]
+    return wert.strip()[:200] if isinstance(wert, str) else wert
+
+
+def _many_filter(roh: Any) -> Any:
+    """Die Filter einer Anfrage: leere Werte fallen weg (wie am Server), die alten Namen
+    (``educationalLevel``, ``resourceType``, ``subject``) werden übersetzt. Ein Wert, der kein
+    Text ist (mehrere Werte als Liste, eine Zahl), bleibt stehen, ebenso ein ``filters``, das
+    kein Objekt ist: Der Server lehnt den Aufruf ab und sagt es. Auch ein fremder Schlüssel
+    bleibt stehen: Den ließe der Server still weg, deshalb lehnt der Client den Aufruf ab
+    (``suche_mehrfach.nicht_moeglich``). Fiele der Filter still weg, liefe die Suche ungefiltert
+    und sähe gefiltert aus (Review N4, M3; Review 2, Befund 4)."""
+    if not isinstance(roh, dict):
+        return roh
+    werte = {n: w for n, w in roh.items() if n not in _ZAEHL_ALTNAMEN}
+    for alt, neu in _ZAEHL_ALTNAMEN.items():
+        if alt in roh and werte.get(neu) in (None, "", []):
+            werte[neu] = roh[alt]
+    werte = {n: (_many_wert(w) if n in _MANY_FILTER else w)
+             for n, w in werte.items() if w is not None}
+    return {n: w for n, w in werte.items() if w not in ("", [])}
+
+
+def _many_anfrage(roh: Any) -> Any:
+    """Eine Anfrage ``{id, query, filters?}`` in den Schranken des Servers (``id`` 1–40, ``query``
+    1–200 Zeichen), ohne fremde Felder und leere Filter. Was keine Anfrage sein kann, bleibt, wie
+    es ist: Der Server lehnt den Aufruf dann ab und sagt es — fiele die Anfrage hier still weg,
+    bliebe ein Schritt ohne Suche und sähe aus wie „keine Treffer“. Dasselbe gilt für einen
+    Filter, der keiner sein kann (:func:`_many_filter`)."""
+    if not isinstance(roh, dict) or not isinstance(roh.get("query"), str) or not roh[
+            "query"].strip():
+        return roh
+    kennung = roh.get("id")
+    if not isinstance(kennung, str | int) or isinstance(kennung, bool) or not str(kennung).strip():
+        return roh
+    anfrage: dict[str, Any] = {"id": str(kennung).strip()[:40], "query": roh["query"].strip()[:200]}
+    if filter_ := _many_filter(roh.get("filters")):
+        anfrage["filters"] = filter_
+    return anfrage
+
+
+class ContentSearchManyArgs(BaseModel):
+    """``search_wlo_content_many`` (N4, MCP-Stand 2026-11-14): bis zu acht Inhaltssuchen
+    ``{id, query, filters?}`` in einem Aufruf, je bis zu fünf Treffer in Kurzform. Gemeinsame
+    Filter gelten für alle Anfragen. Mehr als acht Anfragen lehnt der Client mit einem Satz ab
+    (``services/mcp/suche_mehrfach.nicht_moeglich``), er kürzt nicht."""
+
+    queries: list[Any]
+    educationalContext: str = Field(default="", max_length=200)
+    discipline: str = Field(default="", max_length=200)
+    userRole: str = Field(default="", max_length=200)
+    learningResourceType: str = Field(default="", max_length=200)
+    publisher: str = Field(default="", max_length=200)
+    license: str = Field(default="", max_length=200)
+    maxResults: int = Field(default=3, ge=1, le=5)
+    distinct: bool = False
+
+    @field_validator("queries", mode="before")
+    @classmethod
+    def _anfragen(cls, wert):
+        return [_many_anfrage(a) for a in wert] if isinstance(wert, list) else wert
+
+    @model_validator(mode="before")
+    @classmethod
+    def _altnamen(cls, data):
+        """Die alten Filternamen, gemeinsam für alle Anfragen — wie bei der Einzelsuche."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        for alt, neu in _ZAEHL_ALTNAMEN.items():
+            if alt in data and data.get(neu) in (None, "", []):
+                data[neu] = data.pop(alt)
+        return data
+
+    @field_validator(*_MANY_FILTER, mode="before")
+    @classmethod
+    def _ein_wert(cls, wert):
+        """Eine Liste mit genau einem Text ist dieser Text; ``null`` und eine leere Liste heißen
+        „nicht angegeben“ (wie je Anfrage). Mehrere Werte lässt das Modell nicht zu: Die
+        Argumente gehen dann roh hinaus, und der Server lehnt sie ab."""
+        if wert is None or wert == []:
+            return ""
+        return wert[0] if (isinstance(wert, list) and len(wert) == 1
+                           and isinstance(wert[0], str)) else wert
 
 
 class NodesDetailsArgs(BaseModel):

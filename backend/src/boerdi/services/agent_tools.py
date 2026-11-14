@@ -109,7 +109,7 @@ def _mcp_werkzeuge(
     aus = verborgene_werkzeuge()
     # N3/N2: was nur der neuere Server kann (Sammlung per Titel, Werte hinzufügen) — angeboten
     # nur, wenn der bereitgestellte es führt.
-    tools = [angebot.nach_faehigkeit(t) for t in TOOL_DEFINITIONS
+    tools = [angebot.nach_faehigkeit(t) for t in (*TOOL_DEFINITIONS, *angebot.zusaetzliche())
              if t["function"]["name"] not in aus]
     if allow_curation and has_auth_token():
         tools.extend(angebot.nach_faehigkeit(t) for t in CURATION_TOOL_DEFINITIONS

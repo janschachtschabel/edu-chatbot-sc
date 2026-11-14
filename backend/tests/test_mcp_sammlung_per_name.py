@@ -783,3 +783,162 @@ async def test_ein_aufruf_mit_kennung_bleibt_ohne_den_satz_zur_wahl(monkeypatch)
     monkeypatch.setattr(datenquelle, "_rufen", _Rufer())
     block, text, _outcome = await datenquelle.aufruf(THEMENBAUM, {"nodeId": "aaaa-1111"})
     assert block is not None and text.startswith("OK:") and "titel" not in block.daten
+
+
+# ── MCP-Stand 15.11.2026: Sammlungen ohne Fachangabe ────────────────────
+# Antwortformen wörtlich vom Stand 15.11. (lokal gestartet, gekürzt). Die Zeilen des Servers
+# haben dort eine neue Form (Kennung vorn, Titel zuletzt in Anführungszeichen); gelesen werden
+# weiter nur die Felder.
+
+_AUCH = {"nodeId": "ad84a986-a82a-4149-a0a4-7dc1c999d328", "title": "Mechanik",
+         "path": ["Communities", "ComeIn", "Mathematik, Informatik, Naturwissenschaften, Technik"],
+         "contentsCount": 0, "disciplineUnknown": True}
+_MECHANIK = "256377d9-ca30-4280-9cfb-64fb4c45a998"
+_FACH_UNGEPRUEFT = (
+    "MCP error [ambiguous_collection]: " + json.dumps({"error": {
+        "code": "ambiguous_collection",
+        "message": "Eine Sammlung mit dem Titel „Klimawandel“ wurde gefunden, trägt aber keine "
+                   "Fachangabe — ob sie zum genannten Fach gehört, ließ sich nicht prüfen, und "
+                   "sie wurde nicht übernommen. Bitte die nodeId angeben:",
+        "reason": "unverified",
+        "candidates": [
+            {"nodeId": "2e3a4ef4-b369-498e-ba4e-f4b369098e53", "title": "Klimawandel",
+             "path": ["Communities", "Webinar-Gruppe 3"], "contentsCount": 0,
+             "disciplineUnknown": True},
+            {"nodeId": "1ac45a81-6b24-4f44-a7b6-89b4cc430b3d", "title": "Klimawandel",
+             "path": ["Chemie", "Chemie und Umwelt 123"], "contentsCount": 12}],
+        "disciplineUnverified": True}}, ensure_ascii=False)
+    + "\nEine Sammlung mit dem Titel „Klimawandel“ wurde gefunden, trägt aber keine Fachangabe — "
+      "ob sie zum genannten Fach gehört, ließ sich nicht prüfen, und sie wurde nicht übernommen. "
+      "Bitte die nodeId angeben:\n"
+      "- nodeId: 2e3a4ef4-b369-498e-ba4e-f4b369098e53 · 0 Inhalte · Fach unbekannt · unter "
+      "Communities › Webinar-Gruppe 3 — „Klimawandel“")
+
+
+def _baum_mit_namensvettern(**mehr) -> str:
+    huelle = {"resolvedCollection": {"nodeId": _MECHANIK, "title": "Mechanik", "path": ["Physik"],
+                                     "alsoFound": [_AUCH], **mehr},
+              "parent": _MECHANIK, "depth": 2, "total": 1, "truncated": False,
+              "results": [_knoten("bbbb-2222", "Kinematik")]}
+    return (json.dumps(huelle, ensure_ascii=False)
+            + f"\nSammlung: {_MECHANIK} · unter Physik — „Mechanik“\n"
+              "Auch gefunden, Fach unbekannt (nicht gewählt — die Sammlung oben trägt das "
+              "genannte Fach):\n- nodeId: ad84a986-a82a-4149-a0a4-7dc1c999d328 · 0 Inhalte · "
+              "Fach unbekannt · unter Communities › ComeIn — „Mechanik“")
+
+
+def test_eine_sammlung_ohne_fachangabe_ist_keine_wahl():
+    """``disciplineUnverified``: eine gleichnamige gibt es, ihr Fach ließ sich nicht prüfen. Anders
+    als bei ``incomplete`` hilft ein erneuter Aufruf nicht."""
+    nein = sammlung_per_name.ablehnung(_FACH_UNGEPRUEFT)
+    assert nein.fach_ungeprueft and not nein.unvollstaendig and len(nein.kandidaten) == 2
+    assert nein.kandidaten[0].endswith("· 0 Inhalte · Fach unbekannt")
+    assert not sammlung_per_name.ablehnung(_MEHRDEUTIG).fach_ungeprueft
+
+
+@pytest.mark.anyio
+async def test_die_ki_erfaehrt_dass_ein_neuer_versuch_mit_titel_nichts_aendert(monkeypatch):
+    _server_kennt()
+    r = _Rufer(_FACH_UNGEPRUEFT, "tool")
+    monkeypatch.setattr(datenquelle, "_rufen", r)
+    block, text, outcome = await datenquelle.aufruf(
+        THEMENBAUM, {"collection": "Klimawandel", "discipline": "Geografie"})
+    assert block is None and outcome.error == "sammlung_mehrdeutig" and len(r.calls) == 1
+    assert "trägt aber keine Fachangabe" in text and "nicht noch einmal mit dem Titel" in text
+    assert "keine oder mehr als eine" not in text
+    assert "- nodeId 2e3a4ef4-b369-498e-ba4e-f4b369098e53: „Klimawandel“ unter " in text
+
+
+@pytest.mark.anyio
+async def test_ohne_kandidaten_bleibt_der_satz_zum_ungeprueften_fach(monkeypatch):
+    _server_kennt()
+    monkeypatch.setattr(datenquelle, "_rufen", _Rufer(
+        "MCP error [ambiguous_collection]: " + json.dumps({"error": {
+            "code": "ambiguous_collection", "message": "…", "reason": "unverified",
+            "candidates": [], "disciplineUnverified": True}}), "tool"))
+    _block, text, _outcome = await datenquelle.aufruf(
+        THEMENBAUM, {"collection": "Klimawandel", "discipline": "Geografie"})
+    assert "trägt aber keine Fachangabe" in text and "Zur Wahl stehen" not in text
+
+
+def test_nicht_gewaehlte_namensvettern_stehen_bei_der_wahl():
+    """``alsoFound``: die gewählte Sammlung trägt das genannte Fach, die ohne Fachangabe sind
+    nicht versteckt."""
+    wahl = sammlung_per_name.gewaehlt(json.loads(_baum_mit_namensvettern().split("\n")[0]))
+    assert wahl["kennung"] == _MECHANIK and wahl["auch_zahl"] == "1"
+    assert wahl["auch"] == ("- nodeId ad84a986-a82a-4149-a0a4-7dc1c999d328: „Mechanik“ unter "
+                            "„Communities › ComeIn › Mathematik, Informatik, Naturwissenschaften, "
+                            "Technik“ · 0 Inhalte · Fach unbekannt")
+    satz = sammlung_per_name.gewaehlt_satz(wahl)
+    assert "Sie trägt das genannte Fach" in satz and satz.endswith("Fach unbekannt")
+    # Ohne Namensvettern bleibt der Satz, wie er war.
+    ohne = sammlung_per_name.gewaehlt({"resolvedCollection": {"nodeId": _MECHANIK, "title": "M"}})
+    assert ohne["auch"] == "" and "Nicht gewählt" not in sammlung_per_name.gewaehlt_satz(ohne)
+
+
+@pytest.mark.parametrize("auch, gesamt, zeilen, zahl", [
+    ([_AUCH] * 5, None, 3, "5"),           # höchstens drei Zeilen, gezählt werden alle
+    ([_AUCH] * 5, 12, 3, "12"),            # der Server nennt die Gesamtzahl, wenn er selbst kürzt
+    ([_AUCH, {"nodeId": "keine"}, "x"], None, 1, "1"),
+    ("kaputt", 4, 0, ""),
+])
+def test_die_namensvettern_sind_gedeckelt_und_gezaehlt(auch, gesamt, zeilen, zahl):
+    roh = {"nodeId": _MECHANIK, "title": "Mechanik", "alsoFound": auch}
+    if gesamt is not None:
+        roh["alsoFoundTotal"] = gesamt
+    wahl = sammlung_per_name.gewaehlt({"resolvedCollection": roh})
+    assert len([z for z in wahl["auch"].split("\n") if z]) == zeilen and wahl["auch_zahl"] == zahl
+
+
+@pytest.mark.anyio
+async def test_der_themenbaum_nennt_der_ki_die_nicht_gewaehlten(monkeypatch):
+    _server_kennt()
+    monkeypatch.setattr(datenquelle, "_rufen", _Rufer(_baum_mit_namensvettern()))
+    block, text, _outcome = await datenquelle.aufruf(
+        THEMENBAUM, {"collection": "Mechanik", "discipline": "Physik"})
+    assert block is not None and block.daten["titel"] == "Mechanik"
+    zeilen = text.split("\n")
+    assert zeilen[0].startswith(f"Gewählt wurde die Sammlung mit der nodeId {_MECHANIK}: ")
+    assert zeilen[0].endswith("Nicht gewählt, weil ohne Fachangabe (1 gleichnamige):")
+    assert zeilen[1].startswith("- nodeId ad84a986-a82a-4149-a0a4-7dc1c999d328: „Mechanik“")
+    assert zeilen[2].startswith("Titel und Pfad sind Angaben aus dem Bestand.")
+    assert "OK: Der Themenbaum steht unter deiner Antwort" in zeilen[2]
+
+
+@pytest.mark.anyio
+async def test_drei_von_fuenf_namensvettern_heisst_auch_so(monkeypatch):
+    """Review N4 (NIT 3): „(5 gleichnamige)“ über drei Zeilen las sich wie eine vollständige
+    Liste. Und der Satz danach nennt den Weg über die eben genannten Kennungen."""
+    wahl = sammlung_per_name.gewaehlt({"resolvedCollection": {
+        "nodeId": _MECHANIK, "title": "Mechanik", "alsoFound": [_AUCH] * 5}})
+    assert "(3 von 5 gleichnamigen):\n" in sammlung_per_name.gewaehlt_satz(wahl)
+    _server_kennt()
+    monkeypatch.setattr(datenquelle, "_rufen", _Rufer(_baum_mit_namensvettern()))
+    _block, text, _outcome = await datenquelle.aufruf(
+        THEMENBAUM, {"collection": "Mechanik", "discipline": "Physik"})
+    assert "Ist eine der nicht gewählten gemeint, rufe das Werkzeug mit ihrer nodeId auf" in text
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("kandidaten", [
+    [],
+    [{"nodeId": "2e3a4ef4-b369-498e-ba4e-f4b369098e53", "title": "Klimawandel",
+      "disciplineUnknown": True}],
+])
+async def test_ungeprueftes_fach_bei_unvollstaendiger_suche_verbietet_keinen_neuen_versuch(
+        monkeypatch, kandidaten):
+    """Review N4 (NIT 4): fiel ein Suchindex aus, kann ein späterer Aufruf mit dem Titel anders
+    ausgehen — „nicht noch einmal mit dem Titel“ gilt nur nach einer vollständigen Suche."""
+    _server_kennt()
+    monkeypatch.setattr(datenquelle, "_rufen", _Rufer(
+        "MCP error [ambiguous_collection]: " + json.dumps({"error": {
+            "code": "ambiguous_collection", "message": "…", "reason": "unverified",
+            "candidates": kandidaten, "disciplineUnverified": True, "incomplete": True}}), "tool"))
+    block, text, outcome = await datenquelle.aufruf(
+        THEMENBAUM, {"collection": "Klimawandel", "discipline": "Geografie"})
+    assert block is None and outcome.error == "sammlung_mehrdeutig"
+    assert "nicht noch einmal mit dem Titel" not in text
+    if kandidaten:
+        assert "Zur Wahl stehen" in text
+    else:
+        assert "gerade unvollständig" in text and "Behaupte nicht, es gebe sie nicht" in text

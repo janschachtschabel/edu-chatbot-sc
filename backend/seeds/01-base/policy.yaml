@@ -26,7 +26,7 @@ rules:
     match:
       message_regex: "(passwort|password|kreditkart)"
     effect:
-      block_tools: ["search_wlo_content"]
+      block_tools: ["search_wlo_content", "search_wlo_content_many"]
       disclaimer: "Personenbezogene Daten können nicht über die Suche verarbeitet werden."
       disclaimer_en: "Personal data cannot be processed through the search."
 

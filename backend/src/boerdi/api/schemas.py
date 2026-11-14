@@ -47,6 +47,7 @@ from boerdi.api.schemas_mcp import (
     CompendiumTextArgs,
     ContentCountArgs,
     ContentSearchArgs,
+    ContentSearchManyArgs,
     FindByUrlArgs,
     HealthCheckArgs,
     LookupVocabularyArgs,
@@ -92,7 +93,7 @@ from boerdi.domain.seitenkontext_eingang import deckle_seitenkontext
 
 __all__ = [
     "ChatRequest", "ChatResponse", "ClassificationResult", "CollectionContentsArgs",
-    "ContentSearchArgs",
+    "ContentSearchArgs", "ContentSearchManyArgs",
     "CollectionCreateArgs", "CollectionMembershipArgs", "CollectionRenameArgs",
     "CollectionsAddArgs", "CollectionTreeCreateArgs",
     "CollectionStatsArgs", "CollectionTreeArgs", "CompendiumTextArgs",

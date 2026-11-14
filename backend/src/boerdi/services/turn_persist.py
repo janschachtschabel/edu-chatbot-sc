@@ -288,6 +288,18 @@ async def build_debug_and_update_session(
     return debug
 
 
+def _materialien_deckel(pattern_id: str, mehrfachsuche: bool) -> tuple[str, int]:
+    """Schlüssel in ``display_rules.groups`` und Vorgabe für den Deckel der Materialien-Box.
+
+    Der Lernpfad (M09) nennt seine Materialien im Text und hat deshalb einen eigenen, größeren
+    Deckel. Dasselbe gilt für einen Zug mit der Mehrfachsuche (N4, Review 2, Befund 1): Je Teil
+    ein Material ist ihr Zweck; mit dem Standard-Deckel (3) blieben nur Karten zur ersten Anfrage.
+    """
+    if pattern_id == "M09" or mehrfachsuche:
+        return "materialien_max_lernpfad", 5
+    return "materialien_max", 3
+
+
 def _boxen_erlaubt(display_rules: dict[str, Any]) -> bool:
     """Zeigt diese Anlage überhaupt Inline-Boxen?
 
@@ -325,6 +337,7 @@ async def persist_and_build_response(
     _effective_pattern_id: str,
     gelieferte_dokumente: list[dict[str, Any]] | None = None,
     ui_bloecke: list[UiBlock] | None = None,
+    mehrfachsuche: bool = False,
 ) -> ChatResponse:
     """Phasen P29-P33: DebugInfo-Anreicherung + Assistant-Persist + Quality-Log,
     guide_urls, finale QR-Politur + display_rules-Gruppen-Trims, Inline-Document-
@@ -496,12 +509,11 @@ async def persist_and_build_response(
                         len(_materialien),
                     )
                 _materialien = []
-            elif _effective_pattern_id == "M09":
-                # Lernpfad: die Box zeigt nur verlinkte Materialien; eigener
-                # Studio-Deckel (Default 5) statt der Standard-3.
-                _materialien = _trim(_materialien, "materialien_max_lernpfad", 5, 1, 8)
             else:
-                _materialien = _trim(_materialien, "materialien_max", 3, 1, 8)
+                # Lernpfad und Mehrfachsuche: eigener Studio-Deckel (Default 5) statt der
+                # Standard-3 — Begründung an :func:`_materialien_deckel`.
+                _materialien = _trim(
+                    _materialien, *_materialien_deckel(_effective_pattern_id, mehrfachsuche), 1, 8)
 
             # Reihenfolge: Themenseiten, dann Sammlungen, dann Materialien
             # (entspricht der visuellen Box-Reihenfolge im Frontend).

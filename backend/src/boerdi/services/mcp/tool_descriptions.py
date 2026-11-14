@@ -24,7 +24,7 @@ from boerdi.obs.drossel import gedrosselt
 from boerdi.services import config_loader
 from boerdi.services.agent_tools import AUS_DEM_KATALOG
 from boerdi.services.config_loader.mcp import _PRIMARY_ID
-from boerdi.services.mcp import transport
+from boerdi.services.mcp import suche_mehrfach, transport
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 
@@ -32,8 +32,12 @@ logger = logging.getLogger(__name__)
 
 #: Die Werkzeuge, die der Chatbot kennt und dem Modell anbieten kann — nur für sie
 #: hat ein Schalter im Studio eine Wirkung (Paket 7, S5).
+#: N4 (Review, m1): dazu die Mehrfachsuche. Sie steht nicht im Katalog der Lesewerkzeuge (angeboten
+#: nur, wenn der Server sie führt), braucht aber denselben Schalter.
+_NUR_WENN_AM_SERVER = frozenset({suche_mehrfach.WERKZEUG})
 _KATALOG = frozenset(
-    t["function"]["name"] for t in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS))
+    t["function"]["name"] for t in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS)
+) | _NUR_WENN_AM_SERVER
 
 # Cache MCP tool descriptions for ~5 min so the studio's GET /mcp-servers doesn't
 # pay the discover round-trip on every render. Descriptions change rarely (only on
@@ -96,8 +100,11 @@ async def load_mcp_servers_with_descriptions() -> list[dict]:
         # Paket 11 (gemessen 2026-10-15: ``search_skill`` fehlt am Server): Katalog-Werkzeuge,
         # die der Server laut Live-Abfrage nicht führt — eingeschaltet scheiterte jeder Aufruf.
         # Ohne Live-Antwort weiß das niemand, dann keine Warnung.
+        # Nicht für Werkzeuge, die nur angeboten werden, wenn der Server sie führt (Review 2,
+        # Befund 3): dort scheitert kein Aufruf, und die Seite „Werkzeuge“ nennt den Grund.
         srv["werkzeuge_fehlen_am_server"] = sorted(
-            (_KATALOG & set(srv.get("tools") or ())) - set(live)) if live else []
+            ((_KATALOG - _NUR_WENN_AM_SERVER) & set(srv.get("tools") or ())) - set(live)
+        ) if live else []
         # Paket 7 (S5): die wirksame Liste (die Vorgabe sichtbar gemacht) und
         # welche Werkzeuge überhaupt einen Schalter tragen. Die zweite Angabe ist
         # UI-Beiwerk und wird beim Speichern entfernt (``_UI_META_KEYS``).

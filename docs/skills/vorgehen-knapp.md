@@ -273,7 +273,8 @@ Planungsauftrag oder Frage nach einem fertigen Lernpfad. Auf einer Sammlung erst
 laden (direkt `get_skill`), dann die Kompetenzen über
 `get_compendium_text(nodeId, query: "Lehrplan <Bundesland> <Stufe>")` → 4–6 Schritte. Je Schritt
 ein konkretes Material (`search_wlo_content` mit Fach/Stufe; in Sammlungen
-`search_wlo_within_collection` — `search_wlo_collections` liefert nur Sammlungen). Den Plan mit
+`search_wlo_within_collection` — `search_wlo_collections` liefert nur Sammlungen). Ist ein
+Werkzeug für mehrere Suchen in einem Aufruf angeboten, alle Schritte damit zugleich suchen. Den Plan mit
 `ui_inhaltsrahmen`, je Schritt Titel und Link. Keine Schritte ohne Material, kein „gibt nichts
 Fertiges". Fragt die Person nur nach Bausteinen („Was könnte da rein?") und hängt der Plan von
 ihrer Wahl ab: suchen, die Bausteine kurz einordnen und als Auswahlfeld anbieten (mehrfach, mit
