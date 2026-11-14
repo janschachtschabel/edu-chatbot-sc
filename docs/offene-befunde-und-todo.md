@@ -346,6 +346,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Werte hinzufügen statt ersetzen (N2, 2026-11-14):** keine Migration, keine neue Variable,
+  keine Reihenfolge zum MCP. Image neu bauen, `import-config --werksabgleich` (M18),
+  Master-Skill-Knoten ersetzen. Notiz `aenderungen/2026-11-14-werte-hinzufuegen.md`. **Offen:**
+  eine echte Vorschau mit `add…` am neuen MCP auf Staging (braucht Anmeldung).
 - **Sammlung per Titel (N3, 2026-11-14):** keine Migration, keine neue Variable, keine Reihenfolge
   zum MCP: der Chatbot fragt den Server, ob er `collection` kennt. Image neu bauen,
   Master-Skill-Knoten in WLO mit `docs/skills/vorgehen-knapp.md` ersetzen (Abschnitt M08). Notiz
@@ -360,9 +364,9 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   bauen, `import-config --werksabgleich` (M18), Master-Skill-Knoten ersetzen (Abschnitt M18). Läuft
   mit dem alten und dem neuen MCP. Notiz `aenderungen/2026-11-14-mcp-stand-und-werkzeugliste.md`,
   Plan `plans/2026-11-14-mcp-stand-8cbc051.md`, Antwort an den MCP-Entwickler
-  `mcp-antwort-2026-11-14.md`. **Offen:** N2 (Werte hinzufügen, Listen, Inhaltstyp nachschlagen)
-  und N4 (Stapel-Suche); beide lassen sich seit N3 an die Fähigkeitsabfrage binden und vor dem
-  Deploy des MCP fertigstellen. N3 und N5 sind umgesetzt (eigene Einträge oben).
+  `mcp-antwort-2026-11-14.md`. **Offen:** N4 (Stapel-Suche); sie lässt sich seit N3 an die
+  Fähigkeitsabfrage binden und vor dem Deploy des MCP fertigstellen. N2, N3 und N5 sind umgesetzt
+  (eigene Einträge oben).
 - **Ketten kürzen (2026-11-13):** keine Migration, keine neue Variable. Image neu bauen,
   `import-config --werksabgleich` (M18, M20 und die Domänenregeln geändert), Master-Skill-Knoten in WLO mit
   `docs/skills/vorgehen-knapp.md` ersetzen (Abschnitte M18 und M20). Notiz

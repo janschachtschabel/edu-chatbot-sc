@@ -32,6 +32,8 @@ FILTER_SCHLUESSEL = frozenset({
     # Review Phase 2: weitere Aufzählungen und Kennungen der WLO-Werkzeuge.
     "subject", "vocabulary", "parentId", "suggestionId", "field", "method", "decision", "status",
     "contentFormat", "licenseKey", "licenseVersion", "contentType",
+    # N2 (2026-11-14): Bezeichnungen wie ``discipline`` — sie werden hinzugefügt statt ersetzt.
+    "addDiscipline", "addEducationalContext", "addUserRole",
 })
 #: Längere Listen (``excludeNodeIds`` bis 200) erscheinen nur als Anzahl.
 MAX_LISTE = 5

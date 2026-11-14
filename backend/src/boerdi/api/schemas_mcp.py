@@ -452,14 +452,23 @@ class LookupVocabularyArgs(BaseModel):
     (not ``field``). Historically this project used ``field``; we accept
     either via the pre-validator for backwards compatibility, but the
     exported argument is always ``vocabulary``.
+
+    ``query`` (N2, MCP-Stand 2026-11-14): grenzt die große Liste ``contentType`` (Inhaltstypen
+    zum Schreiben) auf Einträge nahe einem Begriff ein.
     """
     vocabulary: str
+    query: str = Field(default="", max_length=100)
 
     @model_validator(mode="before")
     @classmethod
     def _accept_legacy_field(cls, data):
         if isinstance(data, dict) and "vocabulary" not in data and "field" in data:
             data = {**data, "vocabulary": data["field"]}
+        # Review N2 (M2): ``query`` ist jetzt angeboten — ``null`` oder ein zu langer Wert darf
+        # nicht den ganzen Aufruf roh hinausschicken.
+        if isinstance(data, dict) and "query" in data:
+            q = data["query"]
+            data = {**data, "query": q.strip()[:100] if isinstance(q, str) else ""}
         return data
 
 
