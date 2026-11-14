@@ -159,3 +159,19 @@ Diese Teile brauchen den neuen Server. Wir rollen sie erst aus, wenn er bereitge
 - Sag uns, wann dein Stand auf dem Staging-Server läuft. Wir prüfen dann die neuen Wege im Chat.
 - Ändert sich an Punkt 1 oder 4 aus Abschnitt 2 etwas, brauchen wir die neue Form vorab; beide
   betreffen, was die KI einer Person über Vollständigkeit sagt.
+
+## 7 Nachtrag nach deiner zweiten Rückmeldung (14.11.)
+
+Danke für die schnelle Umsetzung aller fünf Punkte. Die Formen von Punkt 1 und 4 haben wir gelesen
+und gegen deine Arbeitskopie geprüft.
+
+- **`restricted` und der Hinweissatz:** Unser Client reicht den Satz „… mit dieser Anmeldung nicht
+  lesbar …“ jetzt an die KI weiter, auch hinter einer gekürzten Antwort. Als Ausfall wertet er ihn
+  nicht; die Antwort bleibt normal im Cache. Bitte lass die Wendung „mit dieser Anmeldung nicht
+  lesbar“ in den Sätzen stehen, an ihr erkennen wir sie.
+- **`contentsUnread`:** werten wir als Ausfall wie `childrenUnread`.
+- **`previewUrl` in `search_wlo_content_many`:** Ja, bitte. Ein allgemeines Symbol für die
+  Medienart stört nicht.
+- **Themenseiten-Varianten ohne Leserecht:** Ein eigenes Kennzeichen brauchen wir dort nicht.
+- **Unser Themenbaum-Modul** zeigt einen nicht lesbaren Zweig noch wie ein Blatt. Das ist unsere
+  Baustelle; an deiner Form ändert sie nichts.

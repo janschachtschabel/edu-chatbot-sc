@@ -43,11 +43,27 @@ Beide Änderungen laufen mit dem alten und dem neuen MCP.
 - `not_found` steht jetzt in der Liste der Codes, die die Abdeckungsprüfung aus `missing` liest
   (`services/abdeckung.py`). Der MCP meldet einen 404 so statt als `upstream_error`.
 
+## N1b Abgelehnt ist nicht leer, und kein Ausfall
+
+Der Entwickler hat unsere fünf Punkte noch am 14.11. umgesetzt (zweite Rückmeldung). Neu in seinem
+Stand: `restricted: true` an einer Liste samt festem Hinweissatz, im Baum je Knoten
+`childrenRefused` und `contentsRefused`, dazu `contentsUnread` für einen Ausfall beim Inhaltsabruf.
+
+- **Die KI sieht den Satz.** „… mit dieser Anmeldung nicht lesbar …“ gilt als Hinweissatz des
+  Servers und bleibt an der gekürzten Antwort, wie die Ausfall-Sätze
+  (`domain/mcp_unvollstaendig.py`). Die Kurzfassung der Sammlungssuche behält `restricted`.
+- **Der Cache behandelt es nicht als Ausfall.** Ein erneuter Aufruf ändert nichts; die Antwort
+  bleibt so lange stehen wie jede andere. Der Cache-Schlüssel trägt die Anmeldung.
+- **`contentsUnread` zählt als Ausfall** wie `childrenUnread` (30 Sekunden im Cache).
+- Läuft mit dem alten Server: Dort fehlen die Felder und der Satz.
+- **Offen:** Das Themenbaum-Modul zeigt einen nicht lesbaren Zweig weiter wie ein Blatt. Das gilt
+  auch für `childrenUnread`. Plan N5.
+
 ## Was ohne Änderung passt
 
 - Die Vorschau-Zeile des Clients („Geändert wird …“) fällt von selbst weg, sobald der Server das
-  Ziel als „Titel“ (Kennung) nennt. Das tut der neue Stand bei `wlo_update_content`. Bei sehr
-  langen Titeln kürzt der Server; dann stehen beide Zeilen da.
+  Ziel als „Titel“ (Kennung) nennt. Das tut der neue Stand bei `wlo_update_content` und beim
+  Setzen des Kompendialtexts. Bei sehr langen Titeln kürzt der Server; dann stehen beide Zeilen da.
 - `is_a_collection` und `is_a_folder` beim Einreichen haben seit dem 13.11. eigene Sätze.
 - Das Themenseiten-Muster wertet einen 404 (`not_found`) nicht als Ausfall.
 - `textContentUnreadable` wertet der Chatbot nicht aus.
@@ -56,7 +72,9 @@ Beide Änderungen laufen mit dem alten und dem neuen MCP.
 
 - Neue Tests: `tests/test_mcp_keine_werkzeugliste_je_aufruf.py` (das SDK listet je Aufruf, unsere
   Sitzung nicht, `_open_session` öffnet unsere Sitzung, die Liste bleibt auf Wunsch erreichbar).
-- Angepasst: `tests/test_werkzeug_ketten_kurz.py`.
+- Neu: `tests/test_mcp_nicht_lesbar_ist_nicht_leer.py` (Antwortformen aus dem Quelltext des
+  Servers: kein Ausfall für den Cache, der Satz überlebt Kürzung und Zeichen-Deckel).
+- Angepasst: `tests/test_werkzeug_ketten_kurz.py`, `tests/test_abdeckung_m1.py`.
 - Nachmessung am Staging-MCP mit dem echten Client: 0 `tools/list`.
 
 ## Deploy

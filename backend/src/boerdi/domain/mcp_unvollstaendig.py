@@ -9,7 +9,8 @@ Arbeitsstand des Servers gelesen (Reviews C1):
 - im JSON-TEXT steht das Kennzeichen nur bei ``search_wlo_all`` (je Topf) und im Leerfall der
   Themenseiten; ``search_wlo_collections`` schreibt dort nur ``{total, count, results}`` und hängt
   den Hinweissatz als eigenen Block an — im Text also HINTER dem Umschlag;
-- ``childrenUnread: true`` an einem Knoten von ``browse_collection_tree``;
+- ``childrenUnread: true`` an einem Knoten von ``browse_collection_tree``, seit dem MCP-Stand
+  vom 14.11.2026 auch ``contentsUnread: true`` (der Inhaltsabruf des Zweigs);
 - ``unreachable: true`` bei ``get_wikipedia_summary``;
 - ``reason: "source_unreachable"`` bei ``get_topic_page_content``;
 - im Markdown-Modus nur ein Hinweissatz.
@@ -20,6 +21,13 @@ nur kurz stehen) und die Kürzung für die KI (der Satz des Servers reist mit).
 **Nur für die Werkzeuge in** :data:`WERKZEUGE`. Bei jedem anderen — einer Anleitung, einem
 Volltext, einem fremden MCP-Server — könnte dieselbe Wendung oder dasselbe Feld etwas anderes
 heißen (zweites Review C1).
+
+**Abgelehnt ist kein Ausfall** (MCP-Stand 14.11.2026): gibt das Repository einen Zweig mit
+dieser Anmeldung nicht heraus, steht ``restricted: true`` an der Liste bzw. ``childrenRefused`` /
+``contentsRefused`` am Knoten, dazu ein fester Hinweissatz. Ein erneuter Aufruf ändert daran
+nichts — die Antwort bleibt also so lange im Cache wie jede andere (der Schlüssel trägt die
+Anmeldung). Der Satz reist aber mit zur KI wie die Ausfall-Sätze, sonst läse sie „mehr gibt es
+dort nicht“.
 
 Bewusst nicht erkannt: die Skill-Suche. Ihr ``incomplete`` mit ``incompleteNote`` und ihr Satz
 („Die Sammlung wurde nicht vollständig gelesen“) stehen auch für dauerhafte Grenzen (Seitengröße,
@@ -42,6 +50,9 @@ WERKZEUGE: Final = frozenset({
 _SAETZE: Final = ("hat nicht (vollständig) geantwortet", "war nur teilweise erreichbar",
                   "Wikipedia hat gerade nicht geantwortet", "ließ sich gerade nicht lesen",
                   "ließen sich gerade nicht lesen")
+#: Wendung der Hinweise auf einen ABGELEHNTEN Teil (``services/collection-traversal.ts``
+#: ``RESTRICTED_NOTICE``, ``tools/browse.ts`` je Knoten): kein Ausfall, aber die KI muss es wissen.
+_SAETZE_ABGELEHNT: Final = ("mit dieser Anmeldung nicht lesbar",)
 #: Der Grund von ``get_topic_page_content``, wenn die Suche nach der Seite nicht geantwortet hat.
 GRUND_AUSFALL: Final = "source_unreachable"
 _SATZ_ZEICHEN: Final = 400
@@ -53,10 +64,13 @@ _LESER: Final = json.JSONDecoder()
 
 
 def _zweig_ungelesen(knoten: Any, tiefe: int = 0) -> bool:
-    """``childrenUnread`` an einem Knoten des Baums (``results[].children[]…``)."""
+    """``childrenUnread`` oder ``contentsUnread`` an einem Knoten des Baums
+    (``results[].children[]…``). ``childrenRefused`` / ``contentsRefused`` zählen nicht: abgelehnt
+    bleibt abgelehnt."""
     if not isinstance(knoten, list) or tiefe > _BAUM_TIEFE:
         return False
     return any(isinstance(k, dict) and (k.get("childrenUnread") is True
+                                         or k.get("contentsUnread") is True
                                          or _zweig_ungelesen(k.get("children"), tiefe + 1))
                for k in knoten)
 
@@ -85,17 +99,18 @@ def _zerlegt(text: str) -> tuple[Any, str]:
     return None, text
 
 
-def _saetze_im(rest: str) -> list[str]:
+def _saetze_im(rest: str, wendungen: tuple[str, ...] = _SAETZE) -> list[str]:
     return [zeile.strip()[:_SATZ_ZEICHEN] for zeile in rest.splitlines()
-            if any(satz in zeile for satz in _SAETZE)][:_SAETZE_HOECHSTENS]
+            if any(satz in zeile for satz in wendungen)][:_SAETZE_HOECHSTENS]
 
 
 def hinweissaetze(tool_name: str, text: str) -> list[str]:
-    """Die Hinweissätze des Servers im Text — nur AUSSERHALB des Umschlags: ein Treffer, dessen
-    Titel so eine Wendung enthält, ist keine Meldung des Servers. Höchstens drei."""
+    """Die Hinweissätze des Servers im Text — Ausfall UND abgelehnter Teil —, nur AUSSERHALB des
+    Umschlags: ein Treffer, dessen Titel so eine Wendung enthält, ist keine Meldung des Servers.
+    Höchstens drei."""
     if tool_name not in WERKZEUGE or not text:
         return []
-    return _saetze_im(_zerlegt(text)[1])
+    return _saetze_im(_zerlegt(text)[1], _SAETZE + _SAETZE_ABGELEHNT)
 
 
 def ist_unvollstaendig(tool_name: str, strukturiert: dict[str, Any] | None, text: str) -> bool:
@@ -112,8 +127,9 @@ def ist_unvollstaendig(tool_name: str, strukturiert: dict[str, Any] | None, text
 
 
 def kennzeichen(topf: dict[str, Any]) -> dict[str, bool]:
-    """Für die Kürzung eines Topfs: das Kennzeichen bleibt, wenn der Server es gesetzt hat."""
-    return {"incomplete": True} if topf.get("incomplete") is True else {}
+    """Für die Kürzung eines Topfs: ``incomplete`` (Ausfall) und ``restricted`` (abgelehnter
+    Teil) bleiben, wenn der Server sie gesetzt hat."""
+    return {feld: True for feld in ("incomplete", "restricted") if topf.get(feld) is True}
 
 
 def mit_hinweissaetzen(tool_name: str, gekuerzt: str, roh: str) -> str:
