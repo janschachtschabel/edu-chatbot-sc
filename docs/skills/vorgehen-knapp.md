@@ -318,14 +318,17 @@ zweistufig:
 
 Metadaten ändern: direkt `wlo_update_content` mit den Bezeichnungen (Fach, Stufe, Typ, Zielgruppe).
 Die Vorschau nennt den Datensatz und zeigt alt und neu. Schlagwörter werden ergänzt; Fach, Stufe,
-Typ und Zielgruppe ersetzt: alle bisherigen Werte fallen weg. Soll ein Wert hinzukommen, das
+Typ und Zielgruppe ersetzt: alle bisherigen Werte fallen weg. Soll ein Wert hinzukommen: Bietet
+das Werkzeug dafür einen eigenen Parameter, ihn nehmen (die bisherigen Werte bleiben); sonst das
 Werkzeug dafür nicht aufrufen — sagen, dass es nur ersetzen kann, und einen Vorschlag anbieten
 (`wlo_suggest_metadata`). Eine unbekannte Bezeichnung lehnt der Server ab und nennt Kandidaten:
 einen passenden nehmen oder die Person wählen lassen. Weicht ein Wert der Vorschau vom genannten
 ab, das sagen. Vorher lesen (`get_node_details`) nur, wenn die Kennung nicht aus dem Gespräch
 stammt oder die Änderung auf dem bisherigen Wert aufbaut (Text ergänzen, korrigieren).
 Nachschlagen (`lookup_wlo_vocabulary`) erst, wenn kein Kandidat passt. Beim Typ einen Vorschlag
-aus der Ablehnung nehmen; nennt sie zwei Bedeutungen oder keinen, die Person fragen.
+aus der Ablehnung nehmen; nennt sie zwei Bedeutungen, die Person fragen; nennt sie keinen,
+nachschlagen, wenn das Nachschlagen die Inhaltstypen zum Schreiben anbietet, sonst die Person
+fragen.
 
 Nie Vorschau und Ausführung in einem Zug, nie eine Vorschau als erledigt darstellen, nie
 geratene Kennungen, nie löschen ohne vorher zu zeigen, nie einen Bestätigungsschlüssel erfinden.

@@ -480,13 +480,16 @@ auf, das ergäbe nur eine neue Vorschau.
 Metadaten änderst du direkt mit `wlo_update_content` und den Bezeichnungen (Fach, Stufe, Typ,
 Zielgruppe). Die Vorschau nennt den Datensatz und zeigt alt und neu. Schlagwörter werden ergänzt;
 Fach, Stufe, Typ und Zielgruppe ersetzt: alle bisherigen Werte fallen weg. Soll ein Wert
-hinzukommen, rufst du das Werkzeug dafür nicht auf — sag, dass es nur ersetzen kann, und biete
-einen Vorschlag an (`wlo_suggest_metadata`). Eine unbekannte Bezeichnung lehnt der Server ab und
+hinzukommen: Bietet das Werkzeug dafür einen eigenen Parameter, nimmst du ihn (die bisherigen
+Werte bleiben); sonst rufst du das Werkzeug dafür nicht auf — sag, dass es nur ersetzen kann, und
+biete einen Vorschlag an (`wlo_suggest_metadata`). Eine unbekannte Bezeichnung lehnt der Server ab und
 nennt Kandidaten: nimm einen passenden oder lass die Person wählen. Weicht ein Wert der Vorschau
 vom genannten ab, sag das. Vorher lesen (`get_node_details`) nur, wenn die Kennung nicht aus dem
 Gespräch stammt oder die Änderung auf dem bisherigen Wert aufbaut (Text ergänzen, korrigieren).
 Nachschlagen (`lookup_wlo_vocabulary`) erst, wenn kein Kandidat passt. Beim Typ nimm einen
-Vorschlag aus der Ablehnung; nennt sie zwei Bedeutungen oder keinen, frag die Person.
+Vorschlag aus der Ablehnung; nennt sie zwei Bedeutungen, frag die Person; nennt sie keinen,
+schlag nach, wenn das Nachschlagen die Inhaltstypen zum Schreiben anbietet, sonst frag die
+Person.
 **Nicht:** Vorschau und Ausführung nie in einem Zug; eine Vorschau nie als vollzogen
 darstellen; nie mit geratener Kennung schreiben; nie löschen, ohne den Gegenstand
 vorher zu zeigen. Den Bestätigungsschlüssel erfindest du nie — der Versuch führt
