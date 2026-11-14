@@ -112,7 +112,7 @@
             "ebene": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 2
+              "maximum": 4
             },
             "art": {
               "enum": [
@@ -145,6 +145,11 @@
                   "type": "string",
                   "maxLength": 500,
                   "pattern": "^https?://"
+                },
+                "eltern_titel": {
+                  "type": "string",
+                  "maxLength": 120,
+                  "description": "Nur wenn der Punkt ohne zugeordneten Elternpunkt gefunden wurde: unter welcher Sammlung."
                 }
               }
             },
@@ -212,11 +217,11 @@
             "abdeckung_fehlt": {
               "type": "string",
               "maxLength": 40,
-              "description": "Paket U5: warum nicht gezaehlt wurde (Code)."
+              "description": "Paket U5: warum nicht gezaehlt wurde (Code); ebene = nach Regel nicht (gezaehlt wird nur bis abdeckung.nur_bis_ebene)."
             }
           }
         },
-        "description": "Je Punkt des Entwurfs (Ebene 1 und 2) die Art und die zugeordnete Sammlung."
+        "description": "Je Punkt des Entwurfs die Art und die zugeordnete Sammlung - bis Ebene 4, wenn der Server den ganzen Baum liefert, sonst Ebene 1 und 2."
       },
       "nur_in_wlo": {
         "type": "array",
@@ -241,7 +246,7 @@
             "ebene": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 2
+              "maximum": 4
             },
             "anzahl": {
               "type": "integer",
@@ -255,7 +260,7 @@
             "eltern_titel": {
               "type": "string",
               "maxLength": 120,
-              "description": "Nur Ebene 2: unter welcher Sammlung."
+              "description": "Ab Ebene 2: unter welcher Sammlung."
             }
           }
         },
@@ -291,7 +296,11 @@
       },
       "gekuerzt": {
         "type": "boolean",
-        "description": "Die Sammlung ist groesser als gezeigt."
+        "description": "Die Sammlung ist groesser als gezeigt oder wurde nicht vollstaendig gelesen."
+      },
+      "unvollstaendig": {
+        "type": "boolean",
+        "description": "Der Baum wurde nicht vollstaendig gelesen (ein Zweig ohne Antwort, nicht lesbar oder zu gross); dann ist auch gekuerzt gesetzt."
       },
       "abdeckung": {
         "type": "object",
@@ -324,6 +333,12 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 10
+          },
+          "nur_bis_ebene": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4,
+            "description": "Nur wenn der Abgleich tiefer reicht als die Zaehlung: bis zu dieser Ebene wurde gezaehlt."
           }
         },
         "description": "Paket U5: die Abdeckung insgesamt (nur mit abdeckung: true)."

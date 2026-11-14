@@ -3,8 +3,8 @@
  * rahmenloses Custom Element (`laden: "bei_bedarf"`, Vertrag `_nachladen/element-vertrag.ts`).
  *
  * Nur Anzeige: je Punkt des Entwurfs die Art (vorhanden, ähnlich, neu bzw. nicht gefunden) als Wort und die
- * zugeordnete Sammlung mit der Zahl ihrer Inhalte; Ebene 2 als verschachtelte Liste unter ihrem Punkt
- * (Review U4, Befund 7). Darunter aufklappbar die Sammlungen, die es nur in WLO gibt — mit Ebene und
+ * zugeordnete Sammlung mit der Zahl ihrer Inhalte; tiefere Ebenen (bis 4, SW-4) als verschachtelte Listen
+ * unter ihrem Punkt (Review U4, Befund 7). Darunter aufklappbar die Sammlungen, die es nur in WLO gibt — mit Ebene und
  * Elternsammlung als Text (Befund 6). Links laufen über `host.link` (nur geprüfte Ziele). Fremdtext
  * (Titel) steht immer als `textContent`.
  */
@@ -24,12 +24,22 @@ interface Zeile {
 }
 
 const ARTEN: readonly Art[] = ['vorhanden', 'aehnlich', 'neu'];
+/** So tief reicht der Abgleich höchstens (wie das Anlegen eines Sammlungsbaums). */
+const TIEFE = 4;
+
+/** Die Ebene einer Zeile oder Sammlung: 1 bis {@link TIEFE}; alles andere (kaputte Daten) ist 1. */
+function ebeneVon(wert: unknown): number {
+  return typeof wert === 'number' && Number.isInteger(wert) && wert >= 1 && wert <= TIEFE ? wert : 1;
+}
 
 function liste<T>(wert: unknown): T[] {
   return Array.isArray(wert) ? (wert as T[]) : [];
 }
 
-/** R3-c: der Titel des Punkts (Ebene 1) über jeder Zeile der Ebene 2 — wie in {@link punkte}. */
+/**
+ * R3-c: der Titel des Punkts (Ebene 1) über jeder Zeile der Ebene 2. Lücken gibt es nur auf Ebene 1 und 2
+ * (der Dienst zählt nicht tiefer); tiefere Zeilen dazwischen ändern den Punkt nicht.
+ */
 function elternTitel(zeilen: Zeile[]): Map<Zeile, string> {
   const eltern = new Map<Zeile, string>();
   let punkt: Zeile | null = null;
@@ -93,6 +103,13 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
     return e;
   }
 
+  /** Eine Liste ohne Aufzählungszeichen: Safari mit VoiceOver nimmt ihr sonst die Rolle. */
+  private ul(klasse: string): HTMLUListElement {
+    const ul = this.el('ul', klasse);
+    ul.setAttribute('role', 'list');
+    return ul;
+  }
+
   /** Ein Link nur über den Host (geprüfte Ziele) — sonst der Titel als Text. */
   private link(titel: string, url: string | undefined): HTMLElement {
     const ziel = url && this.host ? this.host.link(url) : null;
@@ -109,6 +126,8 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
     const t = texte(this.sprache);
     const p = this.el('p', 'a__wlo', `${t.inWlo} `);
     p.append(this.link(text(w.titel), w.url));
+    // Ohne zugeordneten Elternpunkt gefunden: dann sagt der Dienst, unter welcher Sammlung.
+    if (text(w.eltern_titel)) p.append(` · ${t.unter(text(w.eltern_titel))}`);
     if (typeof w.anzahl === 'number') p.append(` · ${t.inhalte(zahl(w.anzahl))}`);
     return p;
   }
@@ -121,7 +140,8 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
     kopf.append(this.el('span', `a__art a__art--${ungewiss ? 'ungewiss' : z.art}`, ungewiss ? t.nichtGefunden : t.art[z.art]),
       this.el('span', 'a__name', text(z.titel)));
     if (z.wlo && z.art !== 'neu') kopf.append(this.wloZeile(z.wlo));
-    if (this.mitAbdeckung) kopf.append(this.abdeckungZeile(z));
+    // „ebene“: nach Regel nicht gezählt (tiefer als die Zählung) — das steht einmal im Abschnitt Lücken.
+    if (this.mitAbdeckung && z.abdeckung_fehlt !== 'ebene') kopf.append(this.abdeckungZeile(z));
     li.append(kopf);
     return li;
   }
@@ -167,6 +187,7 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
       return details;
     }
     details.append(this.el('p', 'a__hinweis', t.lueckenHinweis(zahl(ab['luecke_bis']) || 2)));
+    if (zahl(ab['nur_bis_ebene'])) details.append(this.el('p', 'a__hinweis', t.nurBisEbene(zahl(ab['nur_bis_ebene']))));
     if (zahl(ab['ungezaehlt'])) {
       details.append(this.el('p', 'a__hinweis', t.gezaehltVon(gezaehlt, gezaehlt + zahl(ab['ungezaehlt']))));
     }
@@ -174,7 +195,7 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
       details.append(this.el('p', 'a__hinweis', t.keineLuecken));
       return details;
     }
-    const ul = this.el('ul', 'a__liste');
+    const ul = this.ul('a__liste');
     const eltern = elternTitel(zeilen);
     for (const z of luecken) {
       const li = this.el('li', 'a__eintrag');
@@ -199,25 +220,29 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
     return details;
   }
 
-  /** Ebene 2 als verschachtelte Liste unter ihrem Punkt; ohne Punkt davor (kaputte Daten) oben. */
+  /**
+   * Tiefere Ebenen als verschachtelte Listen unter ihrem Punkt; ohne Punkt davor (kaputte Daten) oben.
+   * `offen[k]` ist die gerade offene Liste der Ebene k+1 mit ihrem letzten Eintrag. Überspringen die Daten
+   * eine Ebene, rückt die Zeile nur eine Stufe ein.
+   */
   private punkte(zeilen: Zeile[]): HTMLUListElement {
-    const ul = this.el('ul', 'a__liste');
-    let unter: HTMLUListElement | null = null;
+    const wurzel = this.ul('a__liste');
+    const offen: { ul: HTMLUListElement; letztes: HTMLLIElement | null }[] = [{ ul: wurzel, letztes: null }];
     for (const z of zeilen) {
       const li = this.zeile(z);
-      const letztes = ul.lastElementChild;
-      if (z.ebene === 2 && letztes) {
-        if (!unter) {
-          unter = this.el('ul', 'a__liste a__liste--e2');
-          letztes.append(unter);
-        }
-        unter.append(li);
-      } else {
-        ul.append(li);
-        unter = null;
+      const ebene = ebeneVon(z.ebene);
+      offen.length = Math.min(offen.length, ebene);      // ein Punkt schließt alles, was tiefer liegt
+      const oben = offen[offen.length - 1];
+      if (offen.length < ebene && oben.letztes) {
+        const ul = this.ul('a__liste a__liste--e2');
+        oben.letztes.append(ul);
+        offen.push({ ul, letztes: null });
       }
+      const ziel = offen[offen.length - 1];
+      ziel.ul.append(li);
+      ziel.letztes = li;
     }
-    return ul;
+    return wurzel;
   }
 
   private zeichne(): void {
@@ -247,14 +272,15 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
     if (!nur.length) {
       details.append(this.el('p', 'a__hinweis', t.nurInWloLeer));
     } else {
-      const ul = this.el('ul', 'a__liste');
+      const ul = this.ul('a__liste');
       for (const w of nur) {
         const li = this.el('li', 'a__eintrag');
         const kopf = this.el('div', 'a__zeile');
         const name = this.el('span', 'a__name');
         name.append(this.link(text(w.titel), w.url));
-        kopf.append(this.el('span', 'a__art', t.ebene(w.ebene === 2 ? 2 : 1)), name);
-        const mehr = [w.ebene === 2 && text(w.eltern_titel) ? t.unter(text(w.eltern_titel)) : '',
+        const ebene = ebeneVon(w.ebene);
+        kopf.append(this.el('span', 'a__art', t.ebene(ebene)), name);
+        const mehr = [ebene > 1 && text(w.eltern_titel) ? t.unter(text(w.eltern_titel)) : '',
           typeof w.anzahl === 'number' ? t.inhalte(zahl(w.anzahl)) : ''].filter(Boolean).join(' · ');
         if (mehr) kopf.append(this.el('p', 'a__wlo', mehr));
         li.append(kopf);
@@ -263,7 +289,8 @@ export class UiStrukturabgleichElement extends HTMLElement implements NachladeEl
       details.append(ul);
     }
     this.inhalt.append(details);
-    if (d['gekuerzt'] === true) this.inhalt.append(this.el('p', 'a__hinweis', t.gekuerzt));
+    if (d['unvollstaendig'] === true) this.inhalt.append(this.el('p', 'a__hinweis', t.unvollstaendig));
+    else if (d['gekuerzt'] === true) this.inhalt.append(this.el('p', 'a__hinweis', t.gekuerzt));
     this.inhalt.append(this.el('p', 'a__hinweis', t.direkt));
   }
 }
