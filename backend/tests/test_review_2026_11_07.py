@@ -137,12 +137,14 @@ async def test_weiter_achtet_die_sperren_der_pruefung(_rand, monkeypatch):
 # ── Werkzeugkatalog ──────────────────────────────────────────────────────────────────────
 
 def test_der_baum_traegt_nur_seine_felder():
-    """Befund 4 (Katalog): der Server prüft jede Ebene streng."""
+    """Befund 4 (Katalog): der Server prüft jede Ebene streng. Seit SW-2 (2026-11-14) gehören
+    Fach, Stufe und Schlagworte zu den Feldern des Baums; für einen Server, der sie nicht führt,
+    nimmt der Client sie vor dem Senden heraus (``tests/test_mcp_baum_metadaten.py``)."""
     out = validate_tool_args(_BAUM, {"parentCollectionId": "c-1", "tree": [
         {"title": "Optik", "keywords": ["x"], "children": [
             {"title": "Linsen", "nodeId": "n-9",
              "children": [{"title": "Sammellinse", "x": 1}]}]}]})
-    assert out["tree"] == [{"title": "Optik", "children": [
+    assert out["tree"] == [{"title": "Optik", "keywords": ["x"], "children": [
         {"title": "Linsen", "children": [{"title": "Sammellinse"}]}]}]
     paare = validate_tool_args("wlo_add_to_collections",
                                {"pairs": [{"nodeId": "m-1", "collectionId": "c-1", "x": "y"}]})
