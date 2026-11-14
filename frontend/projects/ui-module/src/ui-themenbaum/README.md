@@ -17,7 +17,10 @@ ihn). Unter dem Baum steht für die Wurzel **„Als Entwurf bearbeiten“** — 
 Person den Entwurf übernimmt oder dazu schreibt.
 
 - **Aufruf:** Die KI ruft `ui_themenbaum` mit `subject` (Name eines Fachportals) **oder** `nodeId`
-  (Kennung einer Sammlung). Mehr sieht sie nicht: die Parameter kommen aus der Beschreibung von
+  (Kennung einer Sammlung). Kennt der MCP-Server es (N3, 2026-11-14), geht auch `collection`
+  (Titel einer Sammlung) mit `discipline` (Fach): Der Server löst den Titel streng auf, die
+  Überschrift ist der Titel der gewählten Sammlung, und bei einem mehrdeutigen Titel bekommt die
+  KI Kandidaten mit Kennung. Mehr sieht sie nicht: die Parameter kommen aus der Beschreibung von
   `browse_collection_tree`, `depth: 2` und `maxResults: 31` setzt das Backend fest
   (`datenquelle.vorgaben`; ein Knoten mehr, als der Baum zeigt — kommt er, gibt es oben mehr).
   Das Nachladen (U1-h) prüft dasselbe Angebot. Das Backend ruft das Werkzeug selbst
@@ -75,3 +78,19 @@ Person den Entwurf übernimmt oder dazu schreibt.
 Noch nicht: Auswahl eines Knotens („später wählen“) — dafür kommt das abfragende
 `ui_themenbaum_auswahl` (Plan §13). Muster, die heute `browse_collection_tree` selbst nennen,
 zeigen weiter Karten.
+
+## Nicht lesbare Zweige (N5, 2026-11-14)
+
+Ein Knoten kann `nicht_lesbar` tragen:
+
+- `ausfall`: Der Server konnte die Unterthemen gerade nicht lesen. Am Eintrag steht „Unterthemen
+  gerade nicht lesbar – Aufklappen lädt neu“; er ist aufklappbar, und das Aufklappen lädt neu.
+- `gesperrt`: Das Repository gibt die Unterthemen nicht heraus (nicht freigegeben oder nicht mehr
+  vorhanden). Am Eintrag steht „Unterthemen nicht zugänglich“; kein Auf/Zu, kein Abruf. Der Stand
+  bleibt, bis ein neuer Baum kommt, auch nach einem Wechsel der Anmeldung.
+
+Auf der tiefsten Ebene (8) steht kein Hinweis: Dort zeigt der Baum keine Unterthemen.
+
+Meldet erst das Aufklappen die Ablehnung, antwortet der Endpunkt mit
+`{ "knoten": [], "nicht_lesbar": "gesperrt" }`. Der Eintrag zeigt dann denselben Hinweis, ohne
+„Erneut laden“. Die Regeln stehen in `themenbaum-zweige.ts`.

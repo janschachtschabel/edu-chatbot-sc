@@ -52,7 +52,9 @@ export interface ModulHost {
   /** Die Unterthemen eines Knotens im Themenbaum nachladen (U1-h, Fähigkeit `nachladen`): ohne
    *  Zug und ohne KI, nichts wird gespeichert. Löst mit Daten in der Form der Block-Daten von
    *  `ui_themenbaum` auf (`knoten`, `gekuerzt?`, `wurzel_mehr?`, …; ohne Überschrift); lehnt ab
-   *  mit einem Fehler, dessen `status` (HTTP) sagt, ob ein neuer Versuch hilft (403: nein). */
+   *  mit einem Fehler, dessen `status` (HTTP) sagt, ob ein neuer Versuch hilft (403: nein). Gibt
+   *  das Repository den Zweig nicht heraus, löst es mit `{ knoten: [], nicht_lesbar: "gesperrt" }`
+   *  auf (N5) — kein Fehler, aber auch kein neuer Versuch. */
   zweig(nodeId: string): Promise<Record<string, unknown>>;
   /** Ein Dokument lesen lassen (U3-2c, Fähigkeit `hochladen`): ohne Zug und ohne KI liest das Backend
    *  es, legt den Text an der Sitzung ab und löst mit dem Befund auf (`upload_id`, `name`, `format`,

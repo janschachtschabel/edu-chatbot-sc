@@ -801,3 +801,145 @@ describe('UiThemenbaum — Bestand und Entwurf (Paket U2)', () => {
     expect(h.aktion).not.toHaveBeenCalled();
   });
 });
+
+describe('UiThemenbaum — nicht lesbare Zweige (N5)', () => {
+  const NICHT_LESBAR = manifest.beispiele.find((b) => b.titel === 'Unterthemen nicht lesbar')!.daten as UiThemenbaumDaten;
+
+  function eintrag(el: HTMLElement, titel: string): HTMLElement {
+    return items(el).find((i) => name(i) === titel)!;
+  }
+
+  function beschreibung(item: HTMLElement): string[] {
+    return (item.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean)
+      .map((id) => document.getElementById(id)?.textContent?.trim() ?? '');
+  }
+
+  function ansage(el: HTMLElement): string {
+    return el.querySelector('[aria-live="polite"]')?.textContent?.trim() ?? '';
+  }
+
+  it('Ausfall: der Hinweis steht am Thema und gehört zu seiner Beschreibung; Aufklappen lädt erneut', async () => {
+    const { f, el } = await render(NICHT_LESBAR);
+    const chemie = eintrag(el, 'Organische Chemie');
+    expect(beschreibung(chemie)).toContain('Unterthemen gerade nicht lesbar – Aufklappen lädt neu');
+    expect(chemie.getAttribute('aria-expanded')).toBe('false');     // aufklappbar: ein neuer Versuch lohnt
+
+    chemie.focus();
+    await taste(f, el, 'ArrowRight');
+    expect(h.zweig).toHaveBeenCalledWith('mmmm-0004');
+    await offene.at(-1)!.aufloesen({ knoten: [{ id: 'p1', titel: 'Alkane' }] });
+    await f.whenStable();
+    expect(eintrag(el, 'Alkane')).toBeDefined();
+    expect(beschreibung(eintrag(el, 'Organische Chemie'))).not.toContain('Unterthemen gerade nicht lesbar – Aufklappen lädt neu');
+  });
+
+  it('abgelehnt: der Hinweis steht am Thema; kein Auf/Zu, kein Abruf, kein „Erneut laden“', async () => {
+    const { f, el } = await render(NICHT_LESBAR);
+    const intern = eintrag(el, 'Redaktion intern');
+    expect(beschreibung(intern)).toContain('Unterthemen nicht zugänglich');
+    expect(intern.hasAttribute('aria-expanded')).toBe(false);
+
+    intern.focus();
+    await taste(f, el, 'ArrowRight');
+    expect(h.zweig).not.toHaveBeenCalled();
+    expect(knopf(el, 'Erneut laden')).toBeUndefined();
+  });
+
+  it('ein Thema ohne Kennzeichen bleibt, wie es war', async () => {
+    const { el } = await render(NICHT_LESBAR);
+    const saeuren = eintrag(el, 'Säuren und Basen');
+    expect(saeuren.hasAttribute('aria-describedby')).toBe(false);
+    expect(saeuren.hasAttribute('aria-expanded')).toBe(false);
+  });
+
+  it('beim Aufklappen abgelehnt: Hinweis und Ansage, kein „Erneut laden“, kein zweiter Abruf', async () => {
+    const { f, el } = await render(BAUM);
+    items(el)[0].focus();
+    await taste(f, el, 'ArrowRight');                       // Algebra auf
+    await taste(f, el, 'ArrowRight');                       // Gleichungen
+    await taste(f, el, 'ArrowDown');                        // Terme
+    await taste(f, el, 'ArrowRight');                       // lädt
+    await offene.at(-1)!.aufloesen({ knoten: [], nicht_lesbar: 'gesperrt' });
+    await f.whenStable();
+
+    const terme = eintrag(el, 'Terme');
+    expect(beschreibung(terme)).toContain('Unterthemen nicht zugänglich');
+    expect(terme.hasAttribute('aria-expanded')).toBe(false);
+    expect(ansage(el)).toBe('Die Unterthemen von Terme sind nicht zugänglich.');
+    expect(knopf(el, 'Erneut laden')).toBeUndefined();
+    await taste(f, el, 'ArrowRight');
+    expect(h.zweig.mock.calls.filter(([id]) => id === 'dddd-4444').length).toBe(1);
+  });
+
+  it('Ausfall, und das Nachladen scheitert wieder: „nicht geladen“ mit „Erneut laden“; der nächste Versuch lädt', async () => {
+    // Review N5, Befund 7: die Notiz behauptete den Pfad, kein Test belegte ihn.
+    const { f, el } = await render(NICHT_LESBAR);
+    eintrag(el, 'Organische Chemie').focus();
+    await taste(f, el, 'ArrowRight');
+    await offene.at(-1)!.ablehnen(502);
+    await f.whenStable();
+
+    const chemie = eintrag(el, 'Organische Chemie');
+    expect(beschreibung(chemie)).toContain('nicht geladen');
+    expect(chemie.getAttribute('aria-expanded')).toBe('false');
+    expect(knopf(el, 'Erneut laden')).toBeDefined();
+
+    await taste(f, el, 'ArrowRight');
+    expect(h.zweig.mock.calls.filter(([id]) => id === 'mmmm-0004').length).toBe(2);
+    await offene.at(-1)!.aufloesen({ knoten: [{ id: 'p1', titel: 'Alkane' }] });
+    await f.whenStable();
+    expect(eintrag(el, 'Alkane')).toBeDefined();
+  });
+
+  it('Ausfall, und das Nachladen meldet „nicht angeboten“ (403): kein weiterer Abruf', async () => {
+    const { f, el } = await render(NICHT_LESBAR);
+    eintrag(el, 'Organische Chemie').focus();
+    await taste(f, el, 'ArrowRight');
+    await offene.at(-1)!.ablehnen(403);
+    await f.whenStable();
+    await taste(f, el, 'ArrowRight');
+    expect(h.zweig.mock.calls.filter(([id]) => id === 'mmmm-0004').length).toBe(1);
+    expect(knopf(el, 'Erneut laden')).toBeUndefined();
+  });
+
+  it('eine Ablehnung ohne Liste gilt auch (Reihenfolge der Prüfung)', async () => {
+    const { f, el } = await render(BAUM);
+    items(el)[0].focus();
+    await taste(f, el, 'ArrowRight');                       // Algebra auf
+    await taste(f, el, 'ArrowRight');                       // Gleichungen
+    await taste(f, el, 'ArrowDown');                        // Terme
+    await taste(f, el, 'ArrowRight');                       // lädt
+    await offene.at(-1)!.aufloesen({ nicht_lesbar: 'gesperrt' });
+    await f.whenStable();
+    expect(beschreibung(eintrag(el, 'Terme'))).toContain('Unterthemen nicht zugänglich');
+    expect(knopf(el, 'Erneut laden')).toBeUndefined();
+  });
+
+  it('Kennzeichen auf der zweiten Ebene und in einem nachgeladenen Zweig', async () => {
+    const zweiEbenen: UiThemenbaumDaten = {
+      titel: 'Chemie', knoten: [{ id: 'q1', titel: 'Stoffe', kinder: [
+        { id: 'q2', titel: 'Metalle', nicht_lesbar: 'ausfall' },
+        { id: 'q3', titel: 'Salze', nicht_lesbar: 'gesperrt' },
+      ] }],
+    };
+    const { f, el } = await render(zweiEbenen);
+    items(el)[0].focus();
+    await taste(f, el, 'ArrowRight');                       // Stoffe auf
+    expect(beschreibung(eintrag(el, 'Metalle'))).toContain('Unterthemen gerade nicht lesbar – Aufklappen lädt neu');
+    expect(beschreibung(eintrag(el, 'Salze'))).toContain('Unterthemen nicht zugänglich');
+    expect(eintrag(el, 'Salze').hasAttribute('aria-expanded')).toBe(false);
+
+    await taste(f, el, 'ArrowRight');                       // Metalle
+    await taste(f, el, 'ArrowRight');                       // lädt neu
+    expect(h.zweig).toHaveBeenCalledWith('q2');
+    await offene.at(-1)!.aufloesen({ knoten: [{ id: 'q4', titel: 'Edelmetalle', nicht_lesbar: 'gesperrt' }] });
+    await f.whenStable();
+    expect(beschreibung(eintrag(el, 'Edelmetalle'))).toContain('Unterthemen nicht zugänglich');
+  });
+
+  it('englische Texte', async () => {
+    const { el } = await render(NICHT_LESBAR, 'en');
+    expect(beschreibung(eintrag(el, 'Organische Chemie'))).toContain('subtopics could not be read just now – expand to retry');
+    expect(beschreibung(eintrag(el, 'Redaktion intern'))).toContain('subtopics not accessible');
+  });
+});

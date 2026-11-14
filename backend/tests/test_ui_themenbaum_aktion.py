@@ -107,6 +107,21 @@ def test_ein_fehler_des_werkzeugs_ergibt_einen_hinweis_mit_wiederholen(monkeypat
                for q in resp.quick_replies)
 
 
+@pytest.mark.parametrize("locale, wendung", [(None, "nicht zugänglich"),
+                                             ("en", "not accessible")])
+def test_eine_abgelehnte_sammlung_bekommt_einen_eigenen_satz_ohne_wiederholen(
+        monkeypatch, save, locale, wendung):
+    """N5: gibt das Repository die Sammlung mit dieser Anmeldung nicht heraus, hülfe ein zweiter
+    Versuch nicht — kein „Versuch es noch einmal“, kein Knopf dafür."""
+    monkeypatch.setattr(datenquelle, "_rufen", _Rufer(
+        "MCP error [forbidden]: Fehler beim Sub-Sammlungs-Abruf: nicht lesbar (HTTP 403).", "tool"))
+    resp = _laufen(_req(locale=locale, collection_id=KNOTEN, title="Algebra"))
+    assert resp.ui.ui_bloecke == []
+    assert "Algebra" in resp.content and wendung in resp.content
+    assert "HTTP 403" not in resp.content
+    assert resp.quick_replies == []
+
+
 def test_englisch_und_ohne_titel(monkeypatch, save):
     monkeypatch.setattr(datenquelle, "_rufen", _Rufer(json.dumps(_payload(results=[]))))
     resp = _laufen(_req(locale="en", collection_id=KNOTEN))

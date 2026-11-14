@@ -185,6 +185,19 @@ def test_ein_fehler_des_werkzeugs_ergibt_einen_ehrlichen_satz(monkeypatch, db):
     assert resp.quick_replies                                    # „Nochmal versuchen“
 
 
+def test_eine_nicht_zugaengliche_sammlung_bekommt_keinen_wiederholen_knopf(monkeypatch, db):
+    """N5 (Review, Befund 6): wie bei der Direktaktion „Unterthemen“ — ein zweiter Versuch hülfe
+    nicht, also ein eigener Satz und kein „Nochmal versuchen“."""
+    r = _Rufer("MCP error [forbidden]: Fehler beim Sub-Sammlungs-Abruf: nicht lesbar (HTTP 403).",
+               "tool")
+    monkeypatch.setattr(datenquelle, "_rufen", r)
+    resp, state = _laufen(_req(collection_id=WURZEL, title="Mathematik"))
+    assert not resp.ui.ui_bloecke and "nicht zugänglich" in resp.content
+    assert "HTTP 403" not in resp.content
+    assert resp.quick_replies == [] and len(r.calls) == 1
+    assert OFFENE_FRAGE not in state.get("entities", {})
+
+
 # ── Verteiler (preflight) ─────────────────────────────────────────────────
 
 

@@ -63,6 +63,9 @@ def _fuer_die_ki(schema: Any, feldliste: bool = False, *, pruefen: bool = False)
 
 def _beschreibung(manifest: Manifest) -> str:
     teile = [manifest["beschreibung"]]
+    # N3 (2026-11-14): eine Sammlung über ihren Titel — nur, wenn der MCP-Server das kennt.
+    if datenquelle.werkzeug(manifest) and (zusatz := datenquelle.zusatz(manifest)):
+        teile.append(zusatz)
     if manifest.get("wann"):
         teile.append("WANN:\n" + "\n".join(f"- {w}" for w in manifest["wann"]))
     if manifest.get("nicht_wann"):

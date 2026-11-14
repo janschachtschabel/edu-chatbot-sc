@@ -52,7 +52,9 @@ interface Ziel {
  * der Verlauf zeigt den ursprünglichen Baum. Während des Ladens trägt der Eintrag `aria-busy` und
  * „lädt …“, ein Fehler steht am Eintrag („nicht geladen“, bei 429 „zu viele Anfragen“; Knopf
  * „Erneut laden“ in der Leiste) und schließt einen Eintrag ohne bekannte Kinder wieder — dann
- * versuchen →, Enter und Klick es direkt neu. Das Ergebnis sagt eine höfliche Statuszeile an
+ * versuchen →, Enter und Klick es direkt neu. **N5:** Meldet der Server, dass er die Unterthemen
+ * eines Knotens gerade nicht lesen konnte oder das Repository sie nicht herausgibt, steht das als
+ * Hinweis am Eintrag (Regeln in `themenbaum-zweige.ts`). Das Ergebnis sagt eine höfliche Statuszeile an
  * (derselbe Text zweimal wird zweimal angesagt). Stand der Fokus im Baum, bleibt er am Knoten —
  * wird eine gekürzte Liste ersetzt, folgt er dem Thema über die Kennung; in der Aktionsleiste
  * bleibt er, wo er ist.
@@ -182,14 +184,23 @@ export class UiThemenbaum {
     let liste: ThemenbaumKnoten[] | null = null;
     let mehr = false;
     let status: unknown;
+    let roh: Record<string, unknown> | null = null;
     try {
-      const roh = await this.host.zweig(knoten.id);
+      roh = await this.host.zweig(knoten.id);
       liste = zweigKnoten(roh);
       mehr = roh['wurzel_mehr'] === true;
     } catch (err) {
       status = (err as { status?: unknown } | null)?.status;
     }
     const t = this.texte();
+    if (roh?.['nicht_lesbar'] === 'gesperrt') {
+      // N5: das Repository gibt den Zweig nicht heraus — kein neuer Versuch. Vor der Prüfung der
+      // Liste: die Antwort gilt auch, wenn sie keine brauchbaren Knoten trägt.
+      this.setzeZweig(knoten.id, { status: 'gesperrt' });
+      if (!this.sichtbar().find((s) => s.knoten.id === knoten.id)?.kinder.length) this.setzeOffen(knoten.id, false);
+      this.ansage.sagen(t.nichtLesbar(knoten.titel));
+      return;
+    }
     if (!liste) {
       // 403: hier nicht angeboten oder abgeschaltet — ein neuer Versuch hülfe nicht; R3-d: ebenso
       // 404 (Sitzung weg) und 422 (keine gültige Kennung). 429: zu viele Anfragen — eigener Text;
