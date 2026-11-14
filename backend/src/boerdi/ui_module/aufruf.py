@@ -36,6 +36,8 @@ class Umgebung:
     teile: TeilLader | None = None
     #: Paket U5 (Review, Befund 5): die in diesem Zug angebotenen Werkzeuge — ein Dienst ruft ein
     #: MCP-Werkzeug, das er nur nebenbei nutzt, nur, wenn es darin steht (``None``: nie).
+    #: Nicht daran hängt die Baumliste des Strukturabgleichs (SW-4): Sie liest dasselbe wie
+    #: ``dienst.braucht`` und beachtet den Studio-Schalter selbst (``_liste_erlaubt``).
     verfuegbar: frozenset[str] | None = None
     #: Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt eines Laufs
     #: (``ki_schritt.vorgaben``) — ein Dienst setzt sie in seinen Systemteil.

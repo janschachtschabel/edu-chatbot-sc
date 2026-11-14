@@ -17,9 +17,11 @@ interface AbgleichTexte {
   inWlo: string;
   nurInWlo: (gezeigt: number, gesamt: number) => string;
   nurInWloLeer: string;
-  ebene: (n: 1 | 2) => string;
+  ebene: (n: number) => string;
   unter: (titel: string) => string;
   gekuerzt: string;
+  unvollstaendig: string;
+  nurBisEbene: (n: number) => string;
   direkt: string;
   leer: string;
   oeffnet: string;
@@ -62,6 +64,8 @@ const DE: AbgleichTexte = {
   ebene: (n) => `Ebene ${n}`,
   unter: (titel) => `unter ${titel}`,
   gekuerzt: 'Die Sammlung ist größer als hier gezeigt. „Nicht gefunden“ heißt: dort nicht mitgeliefert, nicht sicher neu.',
+  unvollstaendig: 'Die Sammlung wurde nicht vollständig gelesen. „Nicht gefunden“ heißt: dort nicht gelesen, nicht sicher neu.',
+  nurBisEbene: (n) => `Gezählt wird nur für Ebene 1 bis ${n}.`,
   direkt: 'Die Zahl der Inhalte zählt, was direkt in einer Sammlung liegt.',
   leer: 'Der Entwurf hat keine Punkte zum Abgleichen.',
   oeffnet: 'öffnet in einem neuen Tab',
@@ -96,6 +100,8 @@ const EN: AbgleichTexte = {
   ebene: (n) => `Level ${n}`,
   unter: (titel) => `under ${titel}`,
   gekuerzt: 'The collection is larger than shown here. “Not found” means: not delivered there, not surely new.',
+  unvollstaendig: 'The collection was not read completely. “Not found” means: not read there, not surely new.',
+  nurBisEbene: (n) => `Only levels 1 to ${n} are counted.`,
   direkt: 'The number of items counts what lies directly in a collection.',
   leer: 'The draft has no points to compare.',
   oeffnet: 'opens in a new tab',

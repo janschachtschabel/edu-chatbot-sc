@@ -161,6 +161,87 @@ describe('ui_strukturabgleich', () => {
     expect(wurzel.textContent).toContain('matches in all of WLO');
   });
 
+  it('SW-4: bis vier Ebenen verschachtelt; eine übersprungene Ebene rückt nur eine Stufe ein', () => {
+    const zeilen = [
+      { id: 'a', titel: 'Optik', ebene: 1, art: 'vorhanden' },
+      { id: 'b', titel: 'Linsen', ebene: 2, art: 'neu' },
+      { id: 'c', titel: 'Sammellinsen', ebene: 3, art: 'neu' },
+      { id: 'd', titel: 'Brennweite', ebene: 4, art: 'neu' },
+      { id: 'e', titel: 'Spiegel', ebene: 2, art: 'neu' },
+      { id: 'f', titel: 'Akustik', ebene: 1, art: 'neu' },
+      { id: 'g', titel: 'Schall', ebene: 3, art: 'neu' },
+      { id: 'h', titel: 'Zu tief', ebene: 7, art: 'neu' },
+    ];
+    const { wurzel } = erzeuge({ ...BEISPIEL, zeilen });
+    const unter = (li: Element) => [...li.children].find((k) => k.classList.contains('a__liste--e2')) as HTMLElement | undefined;
+    const namen = (ul: Element | undefined) => [...(ul?.children ?? [])].map((li) => li.firstElementChild?.querySelector('.a__name')?.textContent);
+    expect(namen(wurzel.querySelector('.a > .a__liste') as HTMLElement)).toEqual(['Optik', 'Akustik', 'Zu tief']);
+    const [optik, akustik, zuTief] = oben(wurzel);
+    const e2 = unter(optik) as HTMLElement;
+    expect(namen(e2)).toEqual(['Linsen', 'Spiegel']);
+    const e3 = unter(e2.children[0]) as HTMLElement;
+    expect(namen(e3)).toEqual(['Sammellinsen']);
+    expect(namen(unter(e3.children[0]))).toEqual(['Brennweite']);
+    expect(unter(e2.children[1])).toBeUndefined();
+    // Ebene 3 direkt unter Ebene 1 (kaputte Daten): eine Stufe, nicht zwei
+    expect(namen(unter(akustik))).toEqual(['Schall']);
+    expect(unter(unter(akustik)!.children[0])).toBeUndefined();
+    // eine Ebene außerhalb 1 bis 4 zählt als 1
+    expect(unter(zuTief)).toBeUndefined();
+  });
+
+  it('SW-4: tiefe Zeilen ohne „nicht gezählt“, ein Hinweis im Abschnitt; nur in WLO mit Ebene 3 und Elternsammlung', () => {
+    const mit = manifest.beispiele[1].daten as Record<string, unknown>;
+    const zeilen = [
+      { id: 'a', titel: 'Optik', ebene: 1, art: 'neu', abdeckung: { total: 90, luecke: false } },
+      { id: 'b', titel: 'Linsen', ebene: 2, art: 'neu', abdeckung_fehlt: 'timeout' },
+      { id: 'c', titel: 'Sammellinsen', ebene: 3, art: 'neu', abdeckung_fehlt: 'ebene' },
+      { id: 'd', titel: 'Brennweite', ebene: 4, art: 'neu', abdeckung_fehlt: 'ebene' },
+      { id: 'e', titel: 'Akustik', ebene: 1, art: 'neu', abdeckung: { total: 1, luecke: true } },
+      { id: 'f', titel: 'Schall', ebene: 2, art: 'neu', abdeckung: { total: 2, luecke: true } },
+    ];
+    const nur = [{ nodeId: 'x', titel: 'Lupe', ebene: 3, eltern_titel: 'Linsen', anzahl: 2 },
+      { nodeId: 'y', titel: 'Okular', ebene: 4, eltern_titel: 'Lupe' }];
+    const { wurzel } = erzeuge({ ...mit, zeilen, nur_in_wlo: nur, abdeckung: { gezaehlt: 3, luecken: 2, ungezaehlt: 1, nur_bis_ebene: 2 } });
+    const zeile = (name: string) => [...wurzel.querySelectorAll('.a > .a__liste .a__zeile')].find((z) => z.querySelector('.a__name')?.textContent === name);
+    expect(zeile('Linsen')?.textContent).toContain('nicht gezählt');             // ausgefallen
+    expect(zeile('Sammellinsen')?.textContent).not.toContain('nicht gezählt');   // nach Regel nicht
+    expect(zeile('Brennweite')?.textContent).not.toContain('nicht gezählt');
+    const abschnitt = [...wurzel.querySelectorAll('details')].find((d) => d.querySelector('summary')?.textContent === 'Lücken (2)');
+    expect(abschnitt?.textContent).toContain('Gezählt wird nur für Ebene 1 bis 2.');
+    expect(abschnitt?.textContent).toContain('3 von 4 Punkten gezählt');
+    // tiefere Zeilen zwischen Punkt und Unterpunkt ändern den Punkt einer Lücke nicht
+    expect([...abschnitt!.querySelectorAll('.a__name')].map((n) => n.textContent)).toEqual(['Akustik', 'Akustik › Schall']);
+    const nurAbschnitt = [...wurzel.querySelectorAll('details')].find((d) => d.querySelector('summary')?.textContent?.startsWith('Nur in WLO'));
+    const eintraege = [...nurAbschnitt!.querySelectorAll('.a__eintrag')].map((e) => e.textContent ?? '');
+    expect(eintraege[0]).toContain('Ebene 3');
+    expect(eintraege[0]).toContain('unter Linsen · 2 Inhalte');
+    expect(eintraege[1]).toContain('Ebene 4');
+    expect(eintraege[1]).toContain('unter Lupe');
+    // ohne tiefere Zeilen: kein Hinweis
+    const { wurzel: flach } = erzeuge(mit);
+    expect(flach.textContent).not.toContain('Gezählt wird nur');
+  });
+
+  it('SW-4: ohne Elternpunkt gefunden nennt die Sammlung darüber; nicht vollständig gelesen statt „größer“', () => {
+    const zeilen = [
+      { id: 'a', titel: 'Neues Thema', ebene: 1, art: 'neu' },
+      { id: 'b', titel: 'Grundlagen', ebene: 2, art: 'vorhanden', wlo: { nodeId: 'g', titel: 'Grundlagen', anzahl: 3, eltern_titel: 'Mechanik' } },
+      { id: 'c', titel: 'Wellen', ebene: 2, art: 'neu', ungewiss: true },
+    ];
+    const { wurzel } = erzeuge({ ...BEISPIEL, zeilen, gekuerzt: true, unvollstaendig: true });
+    const wlo = wurzel.querySelector('.a > .a__liste .a__liste--e2 .a__wlo');
+    expect(wlo?.textContent).toBe('in WLO: Grundlagen · unter Mechanik · 3 Inhalte');
+    expect(wurzel.textContent).toContain('nicht vollständig gelesen');
+    expect(wurzel.textContent).not.toContain('größer als hier gezeigt');
+    expect(wurzel.textContent).toContain('Nicht gefunden');
+    const { wurzel: en } = erzeuge({ ...BEISPIEL, zeilen, gekuerzt: true, unvollstaendig: true }, { sprache: 'en' });
+    expect(en.textContent).toContain('was not read completely');
+    // jede Liste trägt ihre Rolle ausdrücklich (list-style: none)
+    expect([...wurzel.querySelectorAll('ul')].every((ul) => ul.getAttribute('role') === 'list')).toBe(true);
+    expect(wurzel.querySelectorAll('ul').length).toBeGreaterThanOrEqual(3);
+  });
+
   it('definiert sich nur einmal', () => {
     definiere();
     definiere();

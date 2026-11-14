@@ -34,6 +34,9 @@ WERKZEUG: Final = "count_wlo_content_matches"
 JE_AUFRUF: Final = 30
 #: So viele Punkte zählt der Dienst höchstens (zwei Aufrufe).
 HOECHSTENS: Final = 60
+#: So tief wird gezählt (Entscheid SE-9, Plan 2026-11-14): Der Strukturabgleich zeigt bis Ebene 4,
+#: die Zählung bleibt bei zwei — mehr Punkte hieße mehr Suchanfragen je Abgleich.
+TIEFE: Final = 2
 #: Bis zu so vielen Treffern (einschließlich) gilt ein Punkt als Lücke (U5).
 LUECKE_BIS: Final = 2
 #: So viele beste Treffer je Punkt.
@@ -91,19 +94,20 @@ def _filter(k: dict[str, Any], erbe: dict[str, str]) -> dict[str, str]:
 
 def _knoten(knoten: Any, ebene: int, tiefe: int, erbe: dict[str, str]
             ) -> Iterator[tuple[dict[str, Any], int, dict[str, str]]]:
-    """Nur Dicts, nur Listen als ``kinder``, nicht tiefer als ``tiefe`` (kein
-    ``RecursionError``)."""
+    """Nur Dicts mit Titel, nur Listen als ``kinder``, nicht tiefer als ``tiefe`` (kein
+    ``RecursionError``). Ein Punkt ohne Titel fällt mit allem darunter weg — wie im Abgleich
+    (``domain/strukturabgleich``), sonst würden Punkte gezählt, die dort keine Zeile haben."""
     if ebene > tiefe or not isinstance(knoten, list):
         return
     for k in knoten:
-        if not isinstance(k, dict):
+        if not isinstance(k, dict) or not _text(k.get("titel"), _TITEL):
             continue
         eigen = _filter(k, erbe)
         yield k, ebene, eigen
         yield from _knoten(k.get("kinder"), ebene + 1, tiefe, eigen)
 
 
-def punkte_aus_entwurf(entwurf: Any, *, tiefe: int = 2) -> list[Punkt]:
+def punkte_aus_entwurf(entwurf: Any, *, tiefe: int = TIEFE) -> list[Punkt]:
     """Die Punkte eines Entwurfs (``wlo.sammlungsstruktur@1``) bis ``tiefe`` — höchstens
     :data:`HOECHSTENS`, in Lesereihenfolge; ohne gültige Kennung oder Titel nicht."""
     if not isinstance(entwurf, dict):

@@ -357,8 +357,20 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     Umsortieren, leere Sammlungen löschen, Umhängen, Reihenfolge setzen, Vorschläge): Notiz
     `aenderungen/2026-11-14-sammlungen-pflegen.md`. `import-config --werksabgleich`
     (Werkzeugliste des MCP-Servers, Muster M18).
-  - **Offen:** SW-4 (Themenbaum in gespeicherter Reihenfolge, Abgleich bis Tiefe 4; wartet
-    auf SE-4 und SE-5). Abläufe können die neuen Werkzeuge mit Freigabe rufen, auch wenn der
+  - **SW-4 umgesetzt** (Strukturabgleich bis Ebene 4, wenn der Server die Baumliste führt):
+    Notiz `aenderungen/2026-11-14-strukturabgleich-vier-ebenen.md`. Keine Migration, kein
+    `import-config`; Image mit neuem Widget-Bündel.
+  - **Offen aus SW-4:** Themenbaum-Modul in gespeicherter Reihenfolge (wartet auf den Server:
+    „gesetzte Position, sonst Titel“, Wunsch S11). Ein Fachportal mit Inhaltszahlen liest der
+    Abgleich in 11 bis 13 s statt 4 bis 5 s, als erster Aufruf auch 19 bis 38 s (Wunsch S12);
+    dauert die erste Seite länger als 30 s, fällt er auf zwei Ebenen zurück (bei einer
+    Folgeseite bleibt das Gelesene). Nach dem MCP-Deploy im Chat nachmessen, auch an einem
+    Portal mit mehr als 400 Sammlungen (dort greift die Grenze des Servers, „Neu“ gilt dann
+    nur bis zur vorletzten gelesenen Ebene). Meldet der Server einen Ausfall, ist jeder neue
+    Punkt nur „nicht gefunden“, bis er sagt, wo es war (Wunsch S13). Abdeckung zählt weiter nur
+    Ebene 1 und 2. Eine Sperre je Lauf (Policy), die nur `list_collection_tree` nennt, erreicht den
+    Dienst nicht; der Studio-Schalter schon.
+  - **Offen:** Abläufe können die neuen Werkzeuge mit Freigabe rufen, auch wenn der
     Server sie nicht führt (die Studio-Auswahl bietet sie an, die Prüfung warnt nicht); der
     Schritt endet dann in einer Ablehnung ohne Grund und geht zu `bei_fehler`.
   - **Offen:** jede Vorschau und jedes Schreiben mit den neuen Feldern im Chat prüfen, sobald
