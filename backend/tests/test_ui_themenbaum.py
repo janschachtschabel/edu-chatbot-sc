@@ -79,7 +79,9 @@ def test_der_themenbaum_steht_im_katalog_mit_seiner_datenquelle():
     m = _manifest_baum()
     assert (m["art"], m["agent"]) == ("anzeigen", True)
     assert m["datenquelle"]["werkzeug"] == WERKZEUG
-    assert m["datenquelle"]["argumente"] == ["subject", "nodeId"]
+    # N3 (2026-11-14): dazu der Titel einer Sammlung und ihr Fach — angeboten nur, wenn der
+    # MCP-Server sie kennt (``tests/test_mcp_sammlung_per_name.py``).
+    assert m["datenquelle"]["argumente"] == ["subject", "discipline", "collection", "nodeId"]
     assert m["datenquelle"]["vorgaben"] == {"depth": 2, "maxResults": 31}
     assert "oeffnen" in m["faehigkeiten"]
 
@@ -88,11 +90,17 @@ def test_argumente_und_vorgaben_gibt_es_im_werkzeug_wirklich():
     """Drift-Wächter: die KI bekommt die Beschreibung des MCP-Werkzeugs — fehlt ein Argument dort,
     stünde ein Parameter ohne Beschreibung im Angebot."""
     from boerdi.api.schemas_mcp import CollectionTreeArgs
+    from boerdi.services.mcp import faehigkeiten, sammlung_per_name
 
     m = _manifest_baum()
     [werkzeug] = [t for t in TOOL_DEFINITIONS if t["function"]["name"] == WERKZEUG]
-    props = werkzeug["function"]["parameters"]["properties"]
+    # N3: ``collection`` und ``discipline`` stehen in der Definition, sobald der Server sie kennt.
+    faehigkeiten.uebernehmen([{"name": WERKZEUG,
+                               "input_schema": {"properties": {"collection": {}}}}])
+    props = sammlung_per_name.erweitert(werkzeug)["function"]["parameters"]["properties"]
     assert set(m["datenquelle"]["argumente"]) <= set(props)
+    # … und der Client lässt sie durch (er filtert, was sein Argument-Modell nicht kennt).
+    assert set(m["datenquelle"]["argumente"]) <= set(CollectionTreeArgs.model_fields)
     assert set(m["datenquelle"]["vorgaben"]) <= set(props)
     CollectionTreeArgs(**m["datenquelle"]["vorgaben"])        # gültig nach dem Argument-Modell
 

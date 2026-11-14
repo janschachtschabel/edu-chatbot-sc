@@ -68,7 +68,7 @@
         }
         @if (e.zustand) {
           <span class="ui-themenbaum__neben ui-themenbaum__zustand"
-                [class.ui-themenbaum__zustand--fehler]="e.zustand === 'fehler' || e.zustand === 'gedrosselt'"
+                [class.ui-themenbaum__zustand--fehler]="e.zustand === 'fehler' || e.zustand === 'gedrosselt' || e.zustand === 'ungelesen'"
                 [id]="kennung('k' + e.pfad + '-zustand')">
             @if (e.zustand === 'laedt') { <span class="ui-themenbaum__kreisel" aria-hidden="true"></span> }
             {{ zustandText(e) }}

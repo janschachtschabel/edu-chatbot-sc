@@ -82,8 +82,11 @@ async def handle_edit_collection_as_draft(session: AsyncSession, req: ChatReques
     angeboten = angebotene_mcp_werkzeuge(allow_curation=False, blocked_tools=list(blocked_tools),
                                          tool_mode=req.environment.tool_mode)
     daten = None
+    abgelehnt = False
     if werkzeug in angeboten:
         geladen = await datenquelle.laden(THEMENBAUM, {"nodeId": kennung})
+        # N5 (Review, Befund 6): nicht zugänglich — eigener Satz, kein „Erneut versuchen“.
+        abgelehnt = geladen.art == datenquelle.ABGELEHNT
         daten = aus_bestand(geladen.payload, titel,
                             ersatz_titel=bot_text(lang, "action.draft.ohneTitel")
                             ) if geladen.payload is not None else None
@@ -94,9 +97,10 @@ async def handle_edit_collection_as_draft(session: AsyncSession, req: ChatReques
     else:
         logger.info("%s: %s in diesem Zug nicht angeboten", AKTION, werkzeug)
     if daten is None:
-        text = bot_text(lang, "action.draft.loadFailed", title=anzeige)
+        text = bot_text(lang, "action.tree.notReadable" if abgelehnt
+                        else "action.draft.loadFailed", title=anzeige)
         await save_message(session, req.session_id, "assistant", text, debug=debug.model_dump())
-        return _antwort(req, text, debug, chip=werkzeug in angeboten)
+        return _antwort(req, text, debug, chip=werkzeug in angeboten and not abgelehnt)
 
     manifest = katalog.katalog()[STRUKTURENTWURF]
     block = neuer_block(STRUKTURENTWURF, manifest["version"], manifest["art"], daten,

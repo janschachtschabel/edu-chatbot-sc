@@ -20,6 +20,10 @@ Verbindung „idle in transaction“ darüber war genau, was Paket 19 (H-5) für
 Tiefe und Menge setzt das Manifest (``datenquelle.vorgaben``), nicht der Aufrufer. Fehler kommen
 ohne Text des Servers: 403 ``aus``/``nicht_angeboten`` (nochmal versuchen hilft nicht), 502
 ``nicht_geladen`` (vielleicht später), 404 für eine unbekannte Sitzung.
+
+N5 (2026-11-14): Gibt das Repository den Zweig nicht heraus, ist das kein Fehler des Endpunkts —
+er antwortet 200 mit ``{"knoten": [], "nicht_lesbar": "gesperrt"}``, und das Widget zeigt den
+Hinweis am Eintrag statt „nicht geladen“ mit „Erneut laden“.
 """
 
 from __future__ import annotations
@@ -59,7 +63,8 @@ class ThemenbaumZweigAnfrage(BaseModel):
 
 
 class ThemenbaumZweigAntwort(BaseModel):
-    """Die Unterthemen in der Form der Block-Daten von ``ui_themenbaum`` (ohne Überschrift)."""
+    """Die Unterthemen in der Form der Block-Daten von ``ui_themenbaum`` (ohne Überschrift) —
+    oder ``{"knoten": [], "nicht_lesbar": "gesperrt"}`` für einen nicht zugänglichen Zweig (N5)."""
 
     daten: dict[str, Any]
 

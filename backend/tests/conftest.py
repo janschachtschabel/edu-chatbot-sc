@@ -122,6 +122,25 @@ def _kein_master_skill_takt(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _kein_faehigkeiten_takt(monkeypatch):
+    """Den Takt der MCP-Fähigkeiten (N3, 2026-11-14) in der Unit-Suite stilllegen — er fragte
+    sonst bei jedem Lebenszyklus echt ``tools/list`` — und den Stand leeren: „der Server kennt
+    ``collection``“ aus einem Test darf den nächsten nicht färben.
+
+    ``test_mcp_sammlung_per_name`` prüft die Verdrahtung, indem es dieselbe Naht selbst patcht.
+    """
+    import asyncio
+
+    import boerdi.main as main_mod
+    from boerdi.services.mcp import faehigkeiten
+    monkeypatch.setattr(main_mod, "starte_faehigkeiten_takt",
+                        lambda: asyncio.create_task(asyncio.sleep(3600)))
+    faehigkeiten.vergessen()
+    yield
+    faehigkeiten.vergessen()
+
+
+@pytest.fixture(autouse=True)
 def _mcp_schutz_frisch(monkeypatch):
     """Ausfall-Schalter und Budget-Wächter (Plan 2026-11-07, CB-3/CB-5) leben je Prozess. Ohne
     Rücksetzen öffneten drei Tests mit Transportfehler den Schalter für den vierten, und eine

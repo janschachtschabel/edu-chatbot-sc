@@ -102,8 +102,14 @@ class CollectionContentsArgs(BaseModel):
 
     Matches MCP schema: nodeId, query, contentFilter, includeSubcollections,
     maxResults, skipCount. Legacy name maxItems accepted via pre-validator.
+
+    N3 (MCP-Stand 2026-11-14): statt ``nodeId`` der Titel der Sammlung als ``collection``, dazu
+    ``discipline`` für gleichnamige. Die Kennung ist deshalb hier keine Pflicht mehr; fehlt
+    beides, sagt es der Server (``invalid_input``).
     """
-    nodeId: str
+    nodeId: str = ""
+    collection: str = Field(default="", max_length=200)
+    discipline: str = Field(default="", max_length=200)
     query: str = ""
     contentFilter: str = ""  # "files" | "folders" | "both"
     # Server 2026-08-18: liefert die Skills DIESES Arbeitszusammenhangs samt
@@ -166,6 +172,10 @@ class CollectionTreeArgs(BaseModel):
     """
     nodeId: str = ""
     subject: str = ""
+    # N3 (MCP-Stand 2026-11-14): der Titel einer Sammlung statt ihrer Kennung; ``discipline``
+    # unterscheidet gleichnamige. ``subject`` bleibt der Name eines Fachportals.
+    collection: str = Field(default="", max_length=200)
+    discipline: str = Field(default="", max_length=200)
     depth: int = Field(default=1, ge=1, le=3)  # Paket M4: bis 3 (MCP-Stand 2026-11-07)
     includeContentCounts: bool = False
     maxResults: int = Field(default=50, ge=1, le=100)
@@ -210,7 +220,10 @@ class CollectionOverviewArgs(BaseModel):
     """``get_collection_overview`` (Paket M4, MCP-Stand 2026-11-07): eine Sammlung auf einen Blick.
     Unbekannte Teile fallen weg, Zahlen werden auf die Grenzen des Servers gekappt."""
 
-    collectionId: str = Field(max_length=200)
+    # N3 (MCP-Stand 2026-11-14): die Kennung oder der Titel als ``collection`` (mit ``discipline``).
+    collectionId: str = Field(default="", max_length=200)
+    collection: str = Field(default="", max_length=200)
+    discipline: str = Field(default="", max_length=200)
     include: list[str] = Field(default_factory=list)
     maxContents: int = 10
     maxSubcollections: int = 30
@@ -343,8 +356,12 @@ class CompendiumTextArgs(BaseModel):
     Inhaltsverzeichnis statt des ganzen Texts — gemessen ~5 KB statt ~21 KB am
     größten Kompendium. Die Antwort nennt Suchwörter ohne Treffer ausdrücklich.
     ``max_length`` spiegelt die Server-Schranke.
+
+    N3 (MCP-Stand 2026-11-14): statt der Kennung der Titel als ``collection`` (mit ``discipline``).
     """
-    nodeId: str
+    nodeId: str = ""
+    collection: str = Field(default="", max_length=200)
+    discipline: str = Field(default="", max_length=200)
     nodeIds: list[str] = Field(default_factory=list, max_length=9)
     query: str = Field(default="", max_length=200)
 
@@ -365,8 +382,13 @@ class WithinCollectionArgs(BaseModel):
 
     Same filter vocabulary as the global content search, but scoped to one
     collection. Server schema fetched 2026-08-01.
+
+    N3 (MCP-Stand 2026-11-14): statt ``nodeId`` der Titel als ``collection``. Das Fach der
+    Sammlung heißt hier ``collectionDiscipline`` — ``discipline`` filtert die Inhalte.
     """
-    nodeId: str
+    nodeId: str = ""
+    collection: str = Field(default="", max_length=200)
+    collectionDiscipline: str = Field(default="", max_length=200)
     query: str = ""
     educationalContext: str = ""
     discipline: str = ""

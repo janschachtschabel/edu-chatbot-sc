@@ -252,6 +252,9 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 **Datenquelle** (`ui_module/datenquelle.py`)
 
 - Die KI sieht nur die `argumente` mit der Beschreibung aus dem MCP-Werkzeug-Katalog.
+- Argumente, die der bereitgestellte MCP-Server nicht kennt, sieht sie nicht (N3, 2026-11-14):
+  `collection` und das Fach dazu stehen im Manifest des Themenbaums, angeboten werden sie erst,
+  wenn der Server sie führt (`services/mcp/faehigkeiten.py`).
 - Angeboten wird das Modul nur, wenn sein Werkzeug im Zug verfügbar ist (Studio, Sperren,
   Modus der Einbettung).
 - Das Backend ruft das MCP-Werkzeug selbst (`call_mcp_tool_status`, mit Cache und Zugang),

@@ -10,6 +10,7 @@ import { expect, test } from '@playwright/test';
 
 import { boxkante, luecke, textkante, TOLERANZ_PX } from './fixtures/abstaende';
 import { chatResponse } from './fixtures/backend-payloads';
+import { bericht, textkontraste, verstoesse } from './fixtures/contrast';
 import { API, mount } from './fixtures/harness';
 
 /** Zweige je Knoten (Antwort des Endpunkts) oder ein HTTP-Status für einen Fehler. */
@@ -213,5 +214,78 @@ for (const breite of [1280, 320]) {
     // „In WLO öffnen“ ist ein Link im Kleid der Knöpfe — auch in der Höhe.
     expect(Math.max(...m.knopfHoehen) - Math.min(...m.knopfHoehen), zeig).toBeLessThanOrEqual(1);
     expect(Math.min(...m.knopfHoehen), zeig).toBeGreaterThanOrEqual(24);
+  });
+}
+
+// ── N5: nicht lesbare Zweige ─────────────────────────────────────────────────────────────────────
+
+async function nichtLesbarZeigen(
+  page: import('@playwright/test').Page, zweige: Zweige = {}, theme?: 'light' | 'dark',
+) {
+  const w = await mount(page, theme ? { attrs: { theme } } : undefined);
+  const anfragen = await zweigeMocken(page, zweige);
+  const block = baumBlock();
+  block.daten = {
+    titel: 'Chemie', wurzel_id: 'aaaa-1111', gekuerzt: false,
+    knoten: [
+      { id: 'mmmm-0004', titel: 'Organische Chemie', nicht_lesbar: 'ausfall' },
+      { id: 'nnnn-0005', titel: 'Redaktion intern', nicht_lesbar: 'gesperrt' },
+      { id: 'oooo-0006', titel: 'Säuren und Basen' },
+    ],
+  } as unknown as typeof block.daten;
+  w.enqueue(chatResponse({ content: 'Hier die Themen in Chemie.', ui: { ui_bloecke: [block] } }));
+  await w.open();
+  await page.locator('.chat-input').fill('Welche Themen gibt es in Chemie?');
+  await page.locator('.btn-send').click();
+  await w.waitForTurns(1);
+  return { w, anfragen };
+}
+
+test('N5: ein nicht lesbarer Zweig sagt es am Thema; nach einem Ausfall lädt das Aufklappen neu', async ({ page }) => {
+  const { anfragen } = await nichtLesbarZeigen(page, {
+    'mmmm-0004': { knoten: [{ id: 'pppp-0007', titel: 'Alkane' }] },
+  });
+  const baum = page.getByRole('tree', { name: 'Unterthemen von Chemie' });
+  const ausfall = baum.getByRole('treeitem', { name: 'Organische Chemie', exact: true });
+  const gesperrt = baum.getByRole('treeitem', { name: 'Redaktion intern', exact: true });
+
+  // Der Hinweis ist sichtbarer Text und gehört zur Beschreibung des Eintrags (Vorleser).
+  await expect(ausfall).toContainText('Unterthemen gerade nicht lesbar');
+  await expect(ausfall).toHaveAccessibleDescription(/Unterthemen gerade nicht lesbar/);
+  await expect(gesperrt).toContainText('Unterthemen nicht zugänglich');
+  await expect(gesperrt).toHaveAccessibleDescription(/Unterthemen nicht zugänglich/);
+
+  // Abgelehnt: kein Auf/Zu. Ausfall: aufklappbar, per Tastatur, und es lädt.
+  await expect(gesperrt).not.toHaveAttribute('aria-expanded');
+  await expect(ausfall).toHaveAttribute('aria-expanded', 'false');
+  await ausfall.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(baum.getByRole('treeitem', { name: 'Alkane' })).toBeVisible();
+  expect(anfragen.map((a) => a['node_id'])).toEqual(['mmmm-0004']);
+  await expect(ausfall).not.toContainText('Unterthemen gerade nicht lesbar');
+});
+
+test('N5: bei 320 px passen die Hinweise ohne waagerechtes Scrollen', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await nichtLesbarZeigen(page);
+  const baum = page.getByRole('tree', { name: 'Unterthemen von Chemie' });
+  await expect(baum.getByRole('treeitem', { name: 'Redaktion intern', exact: true }))
+    .toContainText('Unterthemen nicht zugänglich');
+  const masse = await page.locator('ui-themenbaum').evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+  expect(masse.scroll).toBeLessThanOrEqual(masse.client);
+});
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`N5: kein Text unter SC 1.4.3 — Hinweise „nicht lesbar“, ${theme}`, async ({ page }) => {
+    await nichtLesbarZeigen(page, {}, theme);
+    const baum = page.getByRole('tree', { name: 'Unterthemen von Chemie' });
+    // Der Ausfall-Hinweis trägt die Fehlerfarbe — auch auf der Fläche des ausgewählten Eintrags.
+    await baum.getByRole('treeitem', { name: 'Organische Chemie', exact: true }).focus();
+
+    const befunde = await textkontraste(page);
+    expect(befunde.some((b) => b.sel.includes('ui-themenbaum__zustand')), 'Hinweis nicht gemessen').toBe(true);
+    expect(befunde.filter((b) => b.unmessbar), 'Fläche nicht messbar').toEqual([]);
+    const funde = verstoesse(befunde);
+    expect(funde, `Kontrast zu schwach (Themenbaum, nicht lesbar, ${theme}):\n${bericht(funde)}`).toEqual([]);
   });
 }

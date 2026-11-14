@@ -89,8 +89,12 @@ async def handle_show_collection_tree(session: AsyncSession, req: ChatRequest,
     stand = angebot(blocked_tools=blocked_tools, tool_mode=req.environment.tool_mode)
     aktiv, angeboten = stand != "aus", stand == "ja"
     block = None
+    abgelehnt = False
     if angeboten:
-        block = (await datenquelle.aufruf(THEMENBAUM, {"nodeId": kennung}, titel=titel)).block
+        ergebnis = await datenquelle.aufruf(THEMENBAUM, {"nodeId": kennung}, titel=titel)
+        block = ergebnis.block
+        # N5: nicht zugänglich — ein zweiter Versuch hülfe nicht.
+        abgelehnt = block is None and ergebnis.outcome.error == datenquelle.ABGELEHNT
     elif aktiv:
         logger.info("show_collection_tree: %s in diesem Zug nicht angeboten", werkzeug)
     else:
@@ -102,12 +106,14 @@ async def handle_show_collection_tree(session: AsyncSession, req: ChatRequest,
                       entities=session_state.get("entities", {}))
     if block is None:
         logger.info("show_collection_tree: kein Baum für die Sammlung")
-        text = bot_text(lang, "action.tree.loadFailed" if aktiv else "action.tree.inactive",
-                        title=anzeige_titel)
+        schluessel = ("action.tree.notReadable" if abgelehnt
+                      else "action.tree.loadFailed" if aktiv else "action.tree.inactive")
+        text = bot_text(lang, schluessel, title=anzeige_titel)
         await save_message(session, req.session_id, "assistant", text, debug=debug.model_dump())
         return ChatResponse(session_id=req.session_id, content=text, debug=debug,
-                            # Gesperrt hilft kein zweiter Versuch.
-                            quick_replies=[_wiederholen_chip(req, lang)] if angeboten else [])
+                            # Gesperrt oder abgelehnt hilft kein zweiter Versuch.
+                            quick_replies=([_wiederholen_chip(req, lang)]
+                                           if angeboten and not abgelehnt else []))
 
     # Der Begleitsatz ohne Titel (Review U1-e, Befund 11): die Überschrift trägt der Block.
     text = bot_text(lang, "action.tree.header")

@@ -159,6 +159,27 @@ def test_is_empty_response():
     assert _is_empty_response('[]') is True
     assert _is_empty_response('{"items": [1]}') is False
     assert _is_empty_response("kein json") is False
+    # Review N3, Befund 7: zu einem Titel (``collection``) hängt der Server eine Zeile hinter das
+    # JSON (wörtlich vom neuen Stand, 14.11.2026) — leer bleibt leer.
+    leer = ('{"resolvedCollection":{"nodeId":"5780f825-0d8d-4473-903f-6fe4eec137f8","title":'
+            '"Zellbiologie","path":["Biologie"]},"total":0,"count":0,"results":[]}\n'
+            "Sammlung: Zellbiologie (unter Biologie) — 5780f825-0d8d-4473-903f-6fe4eec137f8")
+    assert _is_empty_response(leer) is True
+    assert _is_empty_response(leer.replace('"results":[]', '"results":[{"nodeId":"x"}]')) is False
+    # Gegenreview N3: nur das JSON am Anfang zählt — ein Beispiel in einer Anleitung macht sie
+    # nicht „leer“ —, und ein tief verschachtelter Fremdtext wirft nicht.
+    assert _is_empty_response('# Anleitung\n\nBeispiel: {"results": []}\n\nmehr Text') is False
+    assert _is_empty_response('Hinweis {"items": []} …') is False
+    assert _is_empty_response('{"a":' + "[" * 20000) is False
+
+
+def test_die_json_leser_werfen_nie():
+    from boerdi.services.mcp.parsers.json_scan import load_envelope, load_leading
+
+    tief = '{"a":' + "[" * 20000 + "]" * 20000 + "}"
+    assert load_envelope(tief) is None and load_leading(tief) is None
+    assert load_leading('  {"a": 1}\nText dahinter') == {"a": 1}
+    assert load_leading('Text davor {"a": 1}') is None and load_leading(None) is None
 
 
 # ── _ttl_for_tool ───────────────────────────────────────────────────────

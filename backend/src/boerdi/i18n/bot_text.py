@@ -115,6 +115,11 @@ BOT_TEXT: Final[Catalogue] = {
         "action.tree.loadFailed": (
             'Die Unterthemen von "{title}" ließen sich nicht laden. Versuch es bitte noch einmal.'
         ),
+        # N5 (2026-11-14): das Repository gibt die Sammlung nicht heraus (auch ohne Anmeldung).
+        "action.tree.notReadable": (
+            'Die Unterthemen von "{title}" sind hier nicht zugänglich: nicht freigegeben oder '
+            "nicht mehr vorhanden. Ob es welche gibt, kann ich nicht sagen."
+        ),
         # Paket U1-f: der Themenbaum ist im Studio abgeschaltet (Seite „UI-Module“).
         "action.tree.inactive": (
             'Die Ansicht „Themenbaum“ ist abgeschaltet — die Unterthemen von "{title}" kann ich '
@@ -712,6 +717,10 @@ BOT_TEXT: Final[Catalogue] = {
         "action.tree.header": "Here are the subtopics:",
         "action.tree.loadFailed": (
             'Could not load the subtopics of "{title}". Please try again.'
+        ),
+        "action.tree.notReadable": (
+            'The subtopics of "{title}" are not accessible here: not shared or no longer there. '
+            "I cannot tell whether there are any."
         ),
         "action.tree.inactive": (
             'The topic tree view is switched off — I cannot open the subtopics of "{title}" here.'

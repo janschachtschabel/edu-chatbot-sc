@@ -12,6 +12,15 @@
  * 320 px), „In WLO öffnen“ zeigt dann alles. Auch mitgelieferte Kinder eines Knotens auf dieser
  * Ebene bleiben verborgen (Review U1-h, Befund 6).
  *
+ * **Nicht lesbar (N5):** Der Server kennzeichnet einen Knoten, dessen Unterthemen er gerade nicht
+ * lesen konnte (`nicht_lesbar: "ausfall"`) oder mit dieser Anmeldung nicht lesen durfte
+ * (`"gesperrt"`). Ohne das Kennzeichen sähe er aus wie ein Thema ohne Unterthemen. Bei einem Ausfall
+ * lädt das Aufklappen neu — auch auf der ersten Ebene, deren Kinder sonst als bekannt gelten.
+ * Abgelehnt bleibt abgelehnt: kein Auf/Zu, kein Abruf — bis ein neuer Baum kommt, auch nach einem
+ * Wechsel der Anmeldung. Dasselbe gilt, wenn erst das Aufklappen die Ablehnung meldet
+ * (`{ knoten: [], nicht_lesbar: "gesperrt" }`). Auf der tiefsten Ebene steht kein Hinweis: dort
+ * zeigt der Baum ohnehin keine Unterthemen.
+ *
  * **Kreise:** Kommt in einem nachgeladenen Zweig ein Vorfahr wieder vor (Sammlungen können sich
  * im Repositorium gegenseitig enthalten), steht er dort als Blatt — sonst wüchse der Baum ohne
  * Ende, weil der Zustand je Kennung gilt (Review U1-h, Befund 4).
@@ -24,6 +33,9 @@ export interface ThemenbaumBlatt {
   readonly url?: string;
   readonly anzahl?: number;
   readonly mehr?: boolean;
+  /** N5: die Unterthemen ließen sich gerade nicht lesen (`ausfall`) bzw. das Repository gibt sie
+   *  nicht heraus (`gesperrt`). */
+  readonly nicht_lesbar?: 'ausfall' | 'gesperrt';
 }
 
 export interface ThemenbaumKnoten extends ThemenbaumBlatt {
@@ -34,9 +46,11 @@ export interface ThemenbaumKnoten extends ThemenbaumBlatt {
 export const HOECHSTE_EBENE = 8;
 
 /** Zustand eines Zweigs je Knoten-Kennung. `nochmal: false` nach 403 (hier nicht angeboten);
- *  `gedrosselt` nach 429 (zu viele Anfragen — eigener Text, neuer Versuch erlaubt). */
+ *  `gedrosselt` nach 429 (zu viele Anfragen — eigener Text, neuer Versuch erlaubt); `gesperrt`,
+ *  wenn das Aufklappen meldet, dass das Repository den Zweig mit dieser Anmeldung nicht herausgibt. */
 export type ZweigZustand =
   | { readonly status: 'laedt' }
+  | { readonly status: 'gesperrt' }
   | { readonly status: 'fehler'; readonly nochmal: boolean; readonly gedrosselt?: boolean }
   | { readonly status: 'fertig'; readonly knoten: readonly ThemenbaumKnoten[]; readonly mehr: boolean };
 
@@ -52,7 +66,7 @@ export interface Eintrag {
   readonly aufklappbar: boolean;
   /** Aufklappen lädt (noch nicht geladen, lädt gerade nicht, nicht gesperrt, nicht zu tief). */
   readonly ladbar: boolean;
-  readonly zustand: 'laedt' | 'fehler' | 'gedrosselt' | 'leer' | null;
+  readonly zustand: 'laedt' | 'fehler' | 'gedrosselt' | 'leer' | 'ungelesen' | 'gesperrt' | null;
   readonly nochmal: boolean;
   /** „weitere“: der Zweig ist gekürzt. */
   readonly mehr: boolean;
@@ -80,10 +94,18 @@ interface Ort {
 
 const WURZEL: Ort = { ebene: 1, eltern: null, bekannt: true, vorfahren: new Set() };
 
-function zustandVon(zweig: ZweigZustand | undefined, leer: boolean): Eintrag['zustand'] {
+function zustandVon(
+  zweig: ZweigZustand | undefined, leer: boolean, knoten: ThemenbaumBlatt, tiefer: boolean,
+): Eintrag['zustand'] {
   if (zweig?.status === 'laedt') return 'laedt';
   if (zweig?.status === 'fehler') return zweig.gedrosselt ? 'gedrosselt' : 'fehler';
-  return zweig?.status === 'fertig' && leer ? 'leer' : null;
+  if (zweig?.status === 'gesperrt') return 'gesperrt';
+  if (zweig?.status === 'fertig') return leer ? 'leer' : null;
+  // Noch nichts nachgeladen: es gilt, was der Server am Knoten gemeldet hat (N5) — nur, wo der
+  // Baum Unterthemen zeigen könnte („Aufklappen lädt neu“ wäre auf der tiefsten Ebene falsch).
+  if (!tiefer) return null;
+  if (knoten.nicht_lesbar === 'gesperrt') return 'gesperrt';
+  return knoten.nicht_lesbar === 'ausfall' ? 'ungelesen' : null;
 }
 
 /** Der sichtbare Baum ab einer Liste. */
@@ -103,15 +125,18 @@ export function ebenen(
     const geladen = zweig?.status === 'fertig' ? zweig : null;
     const kinder = kinderVon(knoten, bekannt, zweig);
     const mehr = geladen ? geladen.mehr : knoten.mehr === true;
-    const gesperrt = zweig?.status === 'fehler' && !zweig.nochmal;
+    // Kein Abruf: hier nicht angeboten (403 u. a.) oder nicht zugänglich (N5).
+    const gesperrt = (zweig?.status === 'fehler' && !zweig.nochmal) || zweig?.status === 'gesperrt'
+      || (!zweig && knoten.nicht_lesbar === 'gesperrt');
     const tiefer = ebene < HOECHSTE_EBENE;
-    const kannLaden = !geladen && !gesperrt && tiefer && (!bekannt || mehr);
+    // N5: nach einem Ausfall lohnt ein neuer Versuch, auch wenn die Kinder sonst als bekannt gelten.
+    const kannLaden = !geladen && !gesperrt && tiefer && (!bekannt || mehr || knoten.nicht_lesbar === 'ausfall');
     const aufklappbar = tiefer && (kinder.liste.length > 0 || kannLaden);
     return {
       ...lage,
       aufklappbar,
       ladbar: kannLaden && zweig?.status !== 'laedt',
-      zustand: zustandVon(zweig, !kinder.liste.length),
+      zustand: zustandVon(zweig, !kinder.liste.length, knoten, tiefer),
       nochmal: zweig?.status === 'fehler' && zweig.nochmal,
       mehr,
       kinder: aufklappbar && offen.has(knoten.id)

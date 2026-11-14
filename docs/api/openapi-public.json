@@ -1213,7 +1213,7 @@
         "type": "object"
       },
       "ThemenbaumZweigAntwort": {
-        "description": "Die Unterthemen in der Form der Block-Daten von ``ui_themenbaum`` (ohne Überschrift).",
+        "description": "Die Unterthemen in der Form der Block-Daten von ``ui_themenbaum`` (ohne Überschrift) —\noder ``{\"knoten\": [], \"nicht_lesbar\": \"gesperrt\"}`` für einen nicht zugänglichen Zweig (N5).",
         "properties": {
           "daten": {
             "additionalProperties": true,

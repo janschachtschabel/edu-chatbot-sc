@@ -6,7 +6,7 @@
     "de": "Themenbaum",
     "en": "Topic tree"
   },
-  "beschreibung": "Zeigt NUR, was es in WLO schon gibt: die Unterthemen eines WLO-Fachportals oder einer Sammlung als aufklappbaren Baum. Den Baum holt das System: du nennst nur das Fach (subject) ODER die Sammlung (nodeId) und siehst die Themen nicht. Fuer ein Unterthema eines Fachs (z. B. Optik in Physik) die Sammlung zuerst mit search_wlo_collections finden (query = Unterthema, discipline = Fach) und ihre nodeId nennen. Hoechstens ein kurzer Begleitsatz, keine Themenliste; tiefer klappt die Person selbst auf. Eine neue Gliederung entwirft ui_strukturentwurf.",
+  "beschreibung": "Zeigt NUR, was es in WLO schon gibt: die Unterthemen eines WLO-Fachportals oder einer Sammlung als aufklappbaren Baum. Den Baum holt das System: du nennst nur das Fach (subject) ODER die Sammlung und siehst die Themen nicht. Ein Thema unterhalb eines Fachs (z. B. Optik in Physik) ist eine Sammlung: nenne ihre nodeId; kennst du sie nicht, findet search_wlo_collections sie (query = Unterthema, discipline = Fach). Hoechstens ein kurzer Begleitsatz, keine Themenliste; tiefer klappt die Person selbst auf. Eine neue Gliederung entwirft ui_strukturentwurf.",
   "wann": [
     "die Person will wissen, welche Themen oder Unterthemen es in einem Fach oder einer Sammlung gibt",
     "gefuehrtes Stoebern, z. B. 'zeig mir die Themen in Mathe' oder 'was gibt es unter Optik?'"
@@ -98,6 +98,10 @@
             "type": "boolean",
             "description": "Es gibt mehr Unterthemen, als hier stehen."
           },
+          "nicht_lesbar": {
+            "enum": ["ausfall", "gesperrt"],
+            "description": "Setzt das System: die Unterthemen liessen sich gerade nicht lesen (ausfall) oder sind nicht zugänglich (gesperrt)."
+          },
           "kinder": {
             "type": "array",
             "maxItems": 10,
@@ -141,6 +145,10 @@
           "mehr": {
             "type": "boolean",
             "description": "Es gibt mehr Unterthemen, als hier stehen."
+          },
+          "nicht_lesbar": {
+            "enum": ["ausfall", "gesperrt"],
+            "description": "Setzt das System: die Unterthemen liessen sich gerade nicht lesen (ausfall) oder sind nicht zugänglich (gesperrt)."
           }
         }
       }
@@ -150,6 +158,8 @@
     "werkzeug": "browse_collection_tree",
     "argumente": [
       "subject",
+      "discipline",
+      "collection",
       "nodeId"
     ],
     "vorgaben": {
@@ -245,6 +255,29 @@
           {
             "id": "kkkk-0002",
             "titel": "Optik"
+          }
+        ]
+      }
+    },
+    {
+      "titel": "Unterthemen nicht lesbar",
+      "daten": {
+        "titel": "Chemie",
+        "wurzel_id": "llll-0003",
+        "knoten": [
+          {
+            "id": "mmmm-0004",
+            "titel": "Organische Chemie",
+            "nicht_lesbar": "ausfall"
+          },
+          {
+            "id": "nnnn-0005",
+            "titel": "Redaktion intern",
+            "nicht_lesbar": "gesperrt"
+          },
+          {
+            "id": "oooo-0006",
+            "titel": "Säuren und Basen"
           }
         ]
       }

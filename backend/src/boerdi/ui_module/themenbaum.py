@@ -15,6 +15,13 @@ ersten Ebene und sagt nicht, ob es mehr gibt — ``truncated`` meint nur gekürz
 (``collection-traversal.ts:239-314``). Die Vorgabe holt deshalb einen Knoten mehr, als der Baum
 zeigt (``maxResults`` = :data:`HOECHSTENS_OBEN` + 1); kommt er, steht ``wurzel_mehr`` in den
 Daten. Die Wurzel bekommt ihre Adresse in WLO (``wurzel_url``), damit die Person dort alles sieht.
+
+**Nicht lesbar** (N5, 2026-11-14): Der Server kennzeichnet einen Knoten, dessen Unterthemen er
+nicht lesen konnte (``childrenUnread``, ein Ausfall) oder nicht lesen durfte (``childrenRefused``,
+mit dieser Anmeldung). Der Knoten trägt dann ``nicht_lesbar`` (``ausfall`` / ``gesperrt``) — ohne
+das Feld sähe er aus wie ein Thema ohne Unterthemen. Die Kennzeichen zum Inhaltsabruf
+(``contentsUnread`` / ``contentsRefused``) entstehen nur mit Inhaltszahlen, die der Baum nicht
+anfordert.
 """
 
 from __future__ import annotations
@@ -36,6 +43,11 @@ KENNUNG: Final = r"^[A-Za-z0-9-]{1,80}$"
 KNOTEN_UUID: Final = (r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}"
                       r"-[0-9a-fA-F]{12}$")
 _KENNUNG: Final = re.compile(KENNUNG)
+#: Kennzeichen des Servers → Wert von ``nicht_lesbar``. Abgelehnt geht vor: es bleibt so.
+_NICHT_LESBAR: Final = (("childrenRefused", "gesperrt"), ("childrenUnread", "ausfall"))
+#: Zusatz in der Textfassung, je Wert.
+_TEXT_NICHT_LESBAR: Final = {"ausfall": "Unterthemen gerade nicht lesbar",
+                             "gesperrt": "Unterthemen nicht zugänglich"}
 
 
 def _kennung(wert: Any) -> str | None:
@@ -63,6 +75,8 @@ def _knoten(roh: Any, *, mit_kindern: bool) -> tuple[dict[str, Any] | None, bool
                    if isinstance(roh.get(f), int) and not isinstance(roh.get(f), bool)), None)
     if anzahl is not None and anzahl >= 0:
         knoten["anzahl"] = anzahl
+    if grund := next((wert for feld, wert in _NICHT_LESBAR if roh.get(feld) is True), None):
+        knoten["nicht_lesbar"] = grund
     gekuerzt = roh.get("hasMoreChildren") is True
     if mit_kindern and isinstance(roh.get("children"), list):
         kinder = [k for k, _ in (_knoten(c, mit_kindern=False) for c in roh["children"]) if k]
@@ -129,7 +143,30 @@ def _entwurf_moeglich() -> bool:
 
 
 def _zeile(knoten: dict[str, Any], einzug: str) -> str:
-    return f"{einzug}- {md_link(knoten['titel'], knoten.get('url') or '')}"
+    zusatz = _TEXT_NICHT_LESBAR.get(knoten.get("nicht_lesbar") or "")
+    return (f"{einzug}- {md_link(knoten['titel'], knoten.get('url') or '')}"
+            + (f" ({zusatz})" if zusatz else ""))
+
+
+def gesperrt_daten() -> dict[str, Any]:
+    """Die Antwort des Aufklappens für einen Zweig, den das Repository nicht herausgibt: keine
+    Knoten und der Grund. Das Widget zeigt ihn am Eintrag, ohne „Erneut laden“."""
+    return {"knoten": [], "nicht_lesbar": "gesperrt"}
+
+
+def _nicht_lesbar_satz(daten: dict[str, Any]) -> str:
+    """Wie viele Themen nicht lesbar waren, getrennt nach Grund — ohne ihre Namen."""
+    alle = [k for oben in daten["knoten"] for k in (oben, *oben.get("kinder", []))]
+    saetze = []
+    for grund, satz in (
+        ("ausfall", " Bei {n} ließen sich die Unterthemen gerade nicht lesen; im Baum steht es "
+                    "am Thema, und die Person kann sie dort erneut laden."),
+        ("gesperrt", " Bei {n} sind die Unterthemen nicht zugänglich (nicht freigegeben); ob es "
+                     "welche gibt, ist offen — behaupte nicht, dort gebe es nichts."),
+    ):
+        if n := sum(1 for k in alle if k.get("nicht_lesbar") == grund):
+            saetze.append(satz.format(n="1 Thema" if n == 1 else f"{n} Themen"))
+    return "".join(saetze)
 
 
 def textfassung(daten: dict[str, Any]) -> str:
@@ -157,6 +194,11 @@ def quittung(daten: dict[str, Any]) -> str:
     if daten.get("wurzel_mehr"):
         gekuerzt += (" Es gibt mehr Themen, als der Baum zeigt; alle sieht die Person in WLO "
                      "(Link am Baum).")
+    nicht_lesbar = _nicht_lesbar_satz(daten)
+    # Eine Schlussanweisung, nicht je Grund eine (Review N5, Befund 4).
+    schluss = (" — darin steht, dass ein Teil der Unterthemen nicht lesbar war." if nicht_lesbar
+               else ".")
     return (f"OK: Der Themenbaum steht unter deiner Antwort — {oben} Themen, {mit_kindern} "
-            f"davon mit Unterthemen.{gekuerzt} Die Themen sieht die Person dort, du kennst sie "
-            f"nicht: zähle keine auf, schreibe höchstens einen kurzen Begleitsatz.")
+            f"davon mit Unterthemen.{gekuerzt}{nicht_lesbar} Die Themen sieht die "
+            f"Person dort, du kennst sie nicht: zähle keine auf, schreibe höchstens einen kurzen "
+            f"Begleitsatz{schluss}")

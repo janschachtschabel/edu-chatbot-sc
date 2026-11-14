@@ -8,7 +8,8 @@ ohne KI, ohne Speichern.
 Der Zweig hat die Form der Block-Daten (``themenbaum.daten_aus``): er kommt über dieselbe
 Datenquelle wie der Baum selbst (``datenquelle.aufruf``) — Vorgaben aus dem Manifest
 (``depth: 2``, ``maxResults: 31``), Deckel, nur http/https, Prüfung gegen ``eingabe``. Ohne
-Überschrift: die steht im Modul schon.
+Überschrift: die steht im Modul schon. Gibt das Repository den Zweig mit dieser Anmeldung nicht
+heraus, kommt statt eines Fehlers eine leere Liste mit ``nicht_lesbar: "gesperrt"`` (N5).
 
 Angeboten wie die Direktaktion (``themenbaum_aktion.angebot``), aber **ohne Sperren einer
 Sicherheitsprüfung**: Sperren entstehen nur aus dem Text eines Zugs, und hier gibt es keinen.
@@ -23,7 +24,7 @@ import logging
 from typing import Any, Literal, NamedTuple
 
 from boerdi.services import themenbaum_aktion
-from boerdi.ui_module import datenquelle
+from boerdi.ui_module import datenquelle, themenbaum
 from boerdi.ui_module.namen import THEMENBAUM
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,9 @@ def zweig_angebot(*, tool_mode: str | None) -> Literal["ja", "aus", "nicht_angeb
 async def zweig_laden(kennung: str) -> Zweig:
     """Die Unterthemen unter ``kennung`` — Kennung und Angebot prüft der Aufrufer."""
     ergebnis = await datenquelle.aufruf(THEMENBAUM, {"nodeId": kennung}, titel="")
+    if ergebnis.block is None and ergebnis.outcome.error == datenquelle.ABGELEHNT:
+        # N5: nicht zugänglich — kein „nicht geladen“ mit „Erneut laden“.
+        return Zweig("ok", themenbaum.gesperrt_daten())
     if ergebnis.block is None:
         logger.info("themenbaum_zweig: kein Zweig (%s)", ergebnis.outcome.error)
         return Zweig("nicht_geladen")

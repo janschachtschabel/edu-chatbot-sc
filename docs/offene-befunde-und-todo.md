@@ -346,14 +346,23 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Sammlung per Titel (N3, 2026-11-14):** keine Migration, keine neue Variable, keine Reihenfolge
+  zum MCP: der Chatbot fragt den Server, ob er `collection` kennt. Image neu bauen,
+  Master-Skill-Knoten in WLO mit `docs/skills/vorgehen-knapp.md` ersetzen (Abschnitt M08). Notiz
+  `aenderungen/2026-11-14-sammlung-per-titel.md`. **Offen:** ein Zug im Chat gegen den neuen MCP
+  auf Staging; zwei Befunde zur Auflösung beim MCP-Entwickler (Community-Sammlungen ohne Fach,
+  `mcp-antwort-2026-11-14.md` Abschnitt 8); Kandidaten als Auswahlfeld nur bei Bedarf.
+- **Themenbaum zeigt nicht lesbare Zweige (N5, 2026-11-14):** keine Migration, keine neue Variable.
+  Image neu bauen (Backend und Widget). Notiz `aenderungen/2026-11-14-themenbaum-nicht-lesbar.md`.
+  Der Teil für „nicht zugänglich“ wirkt nach dem Deploy des MCP. Bundle jetzt 662,9 kB roh /
+  193,0 kB gzip.
 - **MCP-Stand vom 14.11. (2026-11-14), N0 und N1:** keine Migration, keine neue Variable. Image neu
   bauen, `import-config --werksabgleich` (M18), Master-Skill-Knoten ersetzen (Abschnitt M18). Läuft
   mit dem alten und dem neuen MCP. Notiz `aenderungen/2026-11-14-mcp-stand-und-werkzeugliste.md`,
   Plan `plans/2026-11-14-mcp-stand-8cbc051.md`, Antwort an den MCP-Entwickler
-  `mcp-antwort-2026-11-14.md`. **Offen:** N2 (Werte hinzufügen, Listen, Inhaltstyp nachschlagen),
-  N3 (Sammlung per Name, Entscheid des Nutzers zur Nutzung) und N4 (Stapel-Suche) erst nach dem
-  Deploy des MCP; die Frage des Entwicklers nach dem Ort für Markdown-Volltexte; N5 (der Themenbaum zeigt
-  nicht lesbare Zweige noch wie ein Blatt, auch bei `childrenUnread`).
+  `mcp-antwort-2026-11-14.md`. **Offen:** N2 (Werte hinzufügen, Listen, Inhaltstyp nachschlagen)
+  und N4 (Stapel-Suche); beide lassen sich seit N3 an die Fähigkeitsabfrage binden und vor dem
+  Deploy des MCP fertigstellen. N3 und N5 sind umgesetzt (eigene Einträge oben).
 - **Ketten kürzen (2026-11-13):** keine Migration, keine neue Variable. Image neu bauen,
   `import-config --werksabgleich` (M18, M20 und die Domänenregeln geändert), Master-Skill-Knoten in WLO mit
   `docs/skills/vorgehen-knapp.md` ersetzen (Abschnitte M18 und M20). Notiz

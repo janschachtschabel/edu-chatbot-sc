@@ -124,10 +124,13 @@ def _is_empty_response(value: str) -> bool:
     s = (value or "").strip()
     if not s:
         return True
-    try:
-        parsed = json.loads(s)
-    except Exception:
-        return False
+    # Das JSON am Anfang, dahinter darf Text stehen (Review N3, Befund 7): zu einem Titel
+    # (``collection``) hängt der Server die Zeile „Sammlung: …“ an — die Antwort galt damit nie
+    # als leer und blieb mit voller Frist im Cache. Nicht im Text suchen: ein Beispiel
+    # ``{"results": []}`` in einer Anleitung machte sie sonst „leer“.
+    from boerdi.services.mcp.parsers.json_scan import load_leading
+
+    parsed = load_leading(s)
     if isinstance(parsed, dict):
         for key in ("items", "nodes", "results", "content", "topic_pages"):
             v = parsed.get(key)
