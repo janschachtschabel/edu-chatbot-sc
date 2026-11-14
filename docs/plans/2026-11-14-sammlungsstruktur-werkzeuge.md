@@ -68,5 +68,5 @@ SW-4 ist bewusst abgetrennt: Es ändert Module und einen Endpunkt, und zwei Frag
 
 - SW-1: umgesetzt 14.11. (Notiz `aenderungen/2026-11-14-sammlungsbaum-lesen-und-metadaten.md`)
 - SW-2: umgesetzt 14.11. (dieselbe Notiz)
-- SW-3: offen
+- SW-3: umgesetzt 14.11. (Notiz `aenderungen/2026-11-14-sammlungen-pflegen.md`)
 - SW-4: offen (wartet auf SE-4, SE-5)
