@@ -489,7 +489,8 @@ damit das Modell nichts verspricht, was es nicht ausführen kann.
   `POST /api/ui/ablage/*`, dann der MCP mit Stapel-Freigabe, dann der persönliche Bereich (Vorgangs-Ordner).
   Das Modell sieht dabei weder Dateien noch Schlüssel.
 - Den Abgleich eines Entwurfs mit einer WLO-Sammlung (`ui_strukturabgleich`, U4/U5) rechnet der Dienst ohne
-  LLM aus `browse_collection_tree` und `count_wlo_content_matches`. Er liest nur; Gliederungspunkte, die nach
+  LLM aus `browse_collection_tree` (zwei Ebenen) oder, wenn der Server es führt, aus
+  `list_collection_tree` (bis Ebene 4), dazu `count_wlo_content_matches`. Er liest nur; Gliederungspunkte, die nach
   persönlichen Daten aussehen (E-Mail, Telefon, IBAN), gehen nicht in die Suche.
 
 ### 5.5 Identität — anonym oder als Person

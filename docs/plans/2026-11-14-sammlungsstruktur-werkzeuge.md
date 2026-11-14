@@ -38,10 +38,10 @@ Seine Arbeitskopie lokal gestartet (anonym, nur lesend, gegen das Staging-Reposi
 | SW-1 | Lesen: `list_collection_tree` für die KI; `order` an Baum und Übersicht | S1 (lesen), S2 |
 | SW-2 | Baum anlegen mit Fach, Stufe, Schlagworten; der Ablauf-Dienst reicht sie aus dem Entwurf durch | S3, S1 (setzen im Baum) |
 | SW-3 | Sieben Kuratier-Werkzeuge: Stapel-Einreichen, Stapel-Entfernen, Umsortieren, leere Sammlungen löschen, Umhängen, Reihenfolge setzen, Vorschläge lesen und entscheiden | S4 bis S9 |
-| SW-4 | Anzeige: Themenbaum in gespeicherter Reihenfolge; Strukturabgleich bis Tiefe 4 | S1, S2 |
+| SW-4 | Anzeige: Strukturabgleich bis Tiefe 4 (umgesetzt); Themenbaum in gespeicherter Reihenfolge (wartet auf den Server, SE-4) | S1, S2 |
 
-SW-4 ist bewusst abgetrennt: Es ändert Module und einen Endpunkt, und zwei Fragen sind offen
-(siehe SE-4, SE-5).
+SW-4 ist abgetrennt, weil es ein Modul und seinen Dienst ändert. Der Abgleich ist umgesetzt, der
+Themenbaum nicht (siehe SE-4, SE-5, SE-9, SE-10).
 
 ## Entscheide
 
@@ -50,11 +50,14 @@ SW-4 ist bewusst abgetrennt: Es ändert Module und einen Endpunkt, und zwei Frag
 | SE-1 | `list_collection_tree`: in den Katalog? | **Nein**, bedingt angeboten wie die Mehrfachsuche. Der Muster-Weg reicht den Lese-Katalog als Ganzes weiter; ein Server ohne das Werkzeug wiese dort jeden Aufruf ab. |
 | SE-2 | Die sieben Kuratier-Werkzeuge: in den Katalog? | **Ja.** Nur so greifen Bestätigung, Pläne, Argumentmodelle, Cache-Sperre und die Wächter-Tests von selbst. Angeboten werden sie trotzdem nur, wenn der Server sie führt (ein Filter in `angebot`). |
 | SE-3 | `wlo_delete_collections` in Abläufen? | **Nein**, wie jedes Löschen. Im Chat mit Bestätigung erlaubt; es löscht nur leere Sammlungen. |
-| SE-4 | Themenbaum-Modul in gespeicherter Reihenfolge? | **Noch nicht** (SW-4). „Gespeichert“ heißt ohne gesetzte Position „Reihenfolge des Anlegens“. Für ein Fachportal ist das beliebig, für einen angelegten Lehrplan richtig. Welche Reihenfolge die WLO-Oberfläche zeigt, ist nicht gemessen. Bis dahin entscheidet die KI je Aufruf über `order` an den Werkzeugen. |
-| SE-5 | Strukturabgleich bis Tiefe 4? | **Noch nicht** (SW-4). Der Abgleich vergleicht zwei Ebenen; tiefer heißt den Algorithmus ändern, nicht nur die Quelle. |
+| SE-4 | Themenbaum-Modul in gespeicherter Reihenfolge? | **Nein, bis der Server eine passende Reihenfolge kennt.** `order: "stored"` heißt: die gesetzte Position, sonst die Reihenfolge des Anlegens. Für einen angelegten Lehrplan ist das richtig, für ein Fachportal beliebig, und die Antwort sagt nicht, welcher Fall vorliegt. Gebraucht wird „gesetzte Position, sonst Titel“; das steht als Wunsch in `mcp-antwort-2026-11-14-sammlungsstrukturen.md`. Kein Code auf Verdacht. Bis dahin entscheidet die KI je Aufruf über `order` an den Werkzeugen. |
+| SE-5 | Strukturabgleich bis Tiefe 4? | **Ja, wenn der Server `list_collection_tree` führt** (SW-4, 14.11.); sonst zwei Ebenen wie bisher. Je Ebene gilt die Regel der Ebene 2: erst unter der zugeordneten Sammlung des Elternpunkts, sonst gegen die übrigen Sammlungen der Ebene. Maßgeblich ist der Stand des Servers, nicht das Angebot des Zugs: Ein KI-Schritt eines Ablaufs engt das Angebot ein, und gerade dort wird tief abgeglichen. Lesen darf der Dienst über `dienst.braucht` (`browse_collection_tree`). Den Studio-Schalter der Baumliste beachtet er; eine Sperre je Lauf, die nur die Baumliste nennt, erreicht ihn nicht. Bricht die Liste ab (Grenze des Servers, zu viele Seiten, keine Zeit), wird „neu“ ab der tiefsten gelesenen Ebene zu „nicht gefunden“; meldet der Server einen Ausfall (`incomplete`, `restricted`), an jedem neuen Punkt, denn wo es war, sagt die Antwort nicht verlässlich. |
 | SE-6 | Fach, Stufe, Schlagworte aus dem Strukturentwurf? | Der Ablauf-Dienst `baum_aus_entwurf` reicht Stufe und Schlagworte durch, das Fach nur, wenn das Vokabular es kennt (im Entwurf ist es Freitext; der Server lehnte sonst den ganzen Baum ab). Die Werte stehen an jedem Knoten, nicht in `shared`. Ein Server, der die Felder nicht annimmt, bekommt sie nicht. |
 | SE-7 | Vorschlag an eine Sammlung: eigener Weg im Chatbot? | **Nein.** Der Server schlägt von selbst vor, wo nur Leserecht besteht, und sagt es je Paar (`proposed`). Der Master-Skill hält fest: Vorgeschlagen ist nicht aufgenommen. |
 | SE-8 | Vorschläge lesen (`wlo_list_collection_proposals`) | Wie `wlo_list_suggestions`: bei den Kuratier-Werkzeugen, ohne Bestätigung, im Lesemodus erlaubt. |
+| SE-9 | Abdeckung (Treffer in ganz WLO) auch für Ebene 3 und 4? | **Nein.** Gezählt wird weiter für Ebene 1 und 2, höchstens 60 Punkte. Tiefere Punkte tragen keine Zahl und zählen nicht als „ungezählt“; Modul und KI lesen einmal „Gezählt wird nur für Ebene 1 bis 2“. Mehr Punkte hieße mehr Suchanfragen je Abgleich. |
+| SE-10 | Die Baumliste eines Fachportals dauert länger als der alte Weg | Gemessen: Physik (144 Sammlungen) mit Inhaltszahlen 10,5 bis 12,8 s, als erster Aufruf eines Prozesses 19 und 38 s; bisher 3,6 bis 5,0 s. Die Zahlen bleiben, das Modul zeigt sie. Eine Seite der Liste darf 30 s dauern; bleiben dem Lauf dafür keine 40 s (30 s und 10 s für den alten Weg, nach 15 s Reserve), dauert die erste Seite länger oder fällt sie aus, liest der Dienst zwei Ebenen. Nach 30 s insgesamt beginnt keine weitere Seite. Schnelleres Zählen steht als Wunsch beim MCP-Entwickler. |
+| SE-11 | Wie tief wird die Baumliste gelesen? | **So tief wie der Entwurf, mindestens zwei, höchstens vier Ebenen.** Tiefer kostete je Sammlung eine Abfrage und stieße früher an die Grenze des Servers (400 Auflistungen je Aufruf), ohne dass ein Punkt dazu passte. „Nur in WLO“ zeigt deshalb nichts unterhalb der Tiefe des Entwurfs. |
 
 ## Prüfung
 
@@ -69,4 +72,6 @@ SW-4 ist bewusst abgetrennt: Es ändert Module und einen Endpunkt, und zwei Frag
 - SW-1: umgesetzt 14.11. (Notiz `aenderungen/2026-11-14-sammlungsbaum-lesen-und-metadaten.md`)
 - SW-2: umgesetzt 14.11. (dieselbe Notiz)
 - SW-3: umgesetzt 14.11. (Notiz `aenderungen/2026-11-14-sammlungen-pflegen.md`)
-- SW-4: offen (wartet auf SE-4, SE-5)
+- SW-4: Abgleich bis Ebene 4 umgesetzt 14.11. (Notiz
+  `aenderungen/2026-11-14-strukturabgleich-vier-ebenen.md`); Themenbaum in gespeicherter
+  Reihenfolge wartet auf den Server (SE-4)
