@@ -127,7 +127,9 @@ def _nameable_tools() -> list[dict]:
         lesend if not schreiben_erlaubt() else [*lesend, *CURATION_TOOL_DEFINITIONS])]
     aus = verborgene_werkzeuge()
     # Paket 11 (E): auch lesende Werkzeuge fremder MCP-Server, wenn ein Muster sie nennt.
-    return [*(t for t in katalog if t["function"]["name"] not in aus),
+    # SW-3: ohne die Kuratier-Werkzeuge, die der bereitgestellte Server nicht führt.
+    return [*(t for t in katalog if t["function"]["name"] not in aus
+              and angebot.gefuehrt(t["function"]["name"])),
             *fremdwerkzeuge.definitionen()]
 
 

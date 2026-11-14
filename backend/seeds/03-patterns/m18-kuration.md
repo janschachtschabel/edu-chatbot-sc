@@ -37,6 +37,14 @@ tools:
   - wlo_suggest_metadata
   - wlo_list_suggestions
   - wlo_decide_suggestion
+  # ── Sammlungen pflegen (SW-3, MCP-Stand 2026-11-14; angeboten nur, wenn der Server sie führt)
+  - wlo_submit_contents
+  - wlo_remove_from_collections
+  - wlo_delete_collections
+  - wlo_move_collection
+  - wlo_order_collection
+  - wlo_list_collection_proposals
+  - wlo_decide_collection_proposal
   # ── Lesend, aber hier unentbehrlich ───────────────────────────────
   # Kuratieren heisst fast immer: erst den Gegenstand finden, bei Bedarf seinen
   # IST-Stand lesen, dann ändern. Ohne sie müsste das Modell mit geratenen IDs
@@ -77,7 +85,8 @@ core_rule: |
   Weicht eines ab, gilt das als anderes Vorhaben — dann gibt es wieder nur
   eine Vorschau und keine Ausführung. Ausnahme Pläne
   (`wlo_create_collection_tree`, `wlo_add_to_collections`, `wlo_attach_fulltexts`,
-  `wlo_update_contents`): ihr Ja löst der Chat selbst ein — nicht erneut
+  `wlo_update_contents`, `wlo_submit_contents`, `wlo_remove_from_collections`,
+  `wlo_delete_collections`): ihr Ja löst der Chat selbst ein — nicht erneut
   aufrufen, das ergäbe nur eine neue Vorschau.
 
   Den Bestätigungsschlüssel setzt NIE das Modell — er wird ihm gar nicht
@@ -175,6 +184,12 @@ liefert, was der nächste als Argument braucht.
 | Viele Materialien einsortieren | `search_wlo_content` / `find_content_by_url` (nodeIds) → `wlo_add_to_collections` — EINE Bestätigung für alle Paare |
 | Volltext an einen Datensatz hängen | `get_node_details` (Datensatz benennen) → `wlo_attach_fulltext`; viele auf einmal → `wlo_attach_fulltexts` — EINE Bestätigung. `would_replace_file` heißt: der Datensatz trägt schon eine Datei oder einen Text, und ein Volltext lässt sich nur an einen Datensatz ohne Datei hängen (kein Fehler, und es bleibt so) — kein Nachtragen versprechen; `link_record`: verlinkter Datensatz ohne eigenen Volltext |
 | Metadaten vieler Datensätze ändern | `wlo_update_contents` mit den Bezeichnungen — EINE Bestätigung; davor `get_nodes_details` (alle in EINEM Aufruf) nur, wenn die Änderung auf den bisherigen Werten aufbaut; nach einer Ablehnung einen passenden Kandidaten nehmen, erst sonst `lookup_wlo_vocabulary`; Lizenz, Urheber u. a. werden Vorschläge. Ist ein Plan zu groß: nur den ersten Teil vorlegen, den nächsten nach dessen Abschluss |
+| Viele Materialien einreichen | `wlo_submit_contents` — EINE Bestätigung für alle (nur wenn angeboten; sonst einzeln `wlo_submit_content`) |
+| Materialien umsortieren | `wlo_add_to_collections` mit `removeFrom` je Paar, wenn das Werkzeug den Parameter anbietet; sonst aufnehmen, dann einzeln `wlo_remove_from_collection`. Viele nur herausnehmen: `wlo_remove_from_collections` (nur wenn angeboten) |
+| Falsch angelegte Sammlungen zurücknehmen | die nodeIds aus der Antwort des Anlegens bzw. `browse_collection_tree` → `wlo_delete_collections` mit allen — löscht NUR leere, alles andere bleibt (nur wenn angeboten) |
+| Sammlung umhängen | `wlo_move_collection` — vorher sagen: geerbte Rechte kommen danach von der neuen Elternsammlung (nur wenn angeboten) |
+| Reihenfolge festlegen | `browse_collection_tree` (alle Untersammlungen der Ebene) → `wlo_order_collection` mit ALLEN Untersammlungen oder ALLEN Inhalten der Sammlung; fehlt einer, nennt die Ablehnung des Servers die fehlenden (nur wenn angeboten) |
+| Vorschlag an eine Sammlung entscheiden | `wlo_list_collection_proposals` → `wlo_decide_collection_proposal`, nur auf ausdrücklichen Wunsch (nur wenn angeboten) |
 | Redaktionstext schreiben | `get_compendium_text`¹ (was steht schon da) → `wlo_update_compendium` |
 | Etwas löschen | `get_node_details` (benennen, was verschwindet) → `wlo_delete_content` / `wlo_delete_collection`. Ordner lassen sich so nicht löschen |
 | Vorschlag entscheiden | `wlo_list_suggestions` → `get_node_details` (Gegenstand ansehen) → `wlo_decide_suggestion`. Nur offene Vorschläge (`already_decided`: schon entschieden, nicht erneut versuchen). Annehmen ergänzt mehrwertige Felder (Fach, Stufe, Schlagwörter), es ersetzt sie nicht |

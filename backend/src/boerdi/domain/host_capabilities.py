@@ -44,14 +44,16 @@ KOPF: Final = "## Diese Anwendung"
 #: Die Ausnahmen vom Praefix-Test: ``wlo_*``-Namen, die NICHTS aendern.
 #:
 #: Der Praefix-Test unten liest ``wlo_`` als „schreibend" — das stimmt fuer den
-#: ganzen Kuratier-Katalog, aber drei lesende Werkzeuge tragen dasselbe Praefix
-#: (``wlo_list_suggestions`` seit Paket 11, C-5 — Server-Annotation ``readOnlyHint``).
+#: ganzen Kuratier-Katalog, aber vier lesende Werkzeuge tragen dasselbe Praefix
+#: (``wlo_list_suggestions`` seit Paket 11, C-5; ``wlo_list_collection_proposals`` seit SW-3 —
+#: Server-Annotation ``readOnlyHint``).
 #: Ohne diese Liste fiele in ``read-only`` die Frage „ist die Person angemeldet?"
 #: weg, und das Modell muesste raten, statt es sagen zu koennen.
 #: Ein Waechter haelt die Liste an den echten Katalogen fest
 #: (``test_host_capabilities.TestLesendeWloWerkzeuge``).
 LESENDE_WLO_WERKZEUGE: Final = frozenset(
-    {"wlo_auth_status", "wlo_health_check", "wlo_list_suggestions"})
+    {"wlo_auth_status", "wlo_health_check", "wlo_list_suggestions",
+     "wlo_list_collection_proposals"})        # SW-3: liest die Vorschläge an eine Sammlung
 
 _OHNE_GLIEDERUNG: Final = (
     "Diese Anwendung gruppiert Treffer NICHT in Boxen (Themenseiten, Sammlungen, "
@@ -101,8 +103,8 @@ def erlaubt(werkzeugname: str, tool_mode: str | None) -> bool:
     ``search_*``/``get_*``/``lookup_*``/``browse_*``. Eine Liste haette bei jedem
     neuen Werkzeug still zu wenig oder zu viel erlaubt.
 
-    **Zwei benannte Ausnahmen** (:data:`LESENDE_WLO_WERKZEUGE`): das Praefix ist
-    die Regel, nicht das Gesetz — ``wlo_auth_status`` und ``wlo_health_check``
+    **Benannte Ausnahmen** (:data:`LESENDE_WLO_WERKZEUGE`): das Praefix ist
+    die Regel, nicht das Gesetz — etwa ``wlo_auth_status`` und ``wlo_health_check``
     tragen es, ohne etwas zu aendern. Die Ausnahme steht als Liste da, weil sie
     endlich und pruefbar ist; die Regel bleibt der Praefix, weil sie mitwaechst.
     """

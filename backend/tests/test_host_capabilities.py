@@ -101,7 +101,8 @@ class TestLesendeWloWerkzeuge:
         schreibend = {t["function"]["name"] for t in CURATION_TOOL_DEFINITIONS}
         # Paket 11, C-5: ``wlo_list_suggestions`` steht im Kuratier-Katalog, weil es eine
         # Anmeldung braucht — es liest aber nur (Server: ``readOnlyHint: true``).
-        nur_lesend_im_kuratier_katalog = {"wlo_list_suggestions"}
+        # SW-3: ebenso ``wlo_list_collection_proposals``.
+        nur_lesend_im_kuratier_katalog = {"wlo_list_suggestions", "wlo_list_collection_proposals"}
         assert hc.LESENDE_WLO_WERKZEUGE <= lesend | nur_lesend_im_kuratier_katalog
         assert not (hc.LESENDE_WLO_WERKZEUGE & (schreibend - nur_lesend_im_kuratier_katalog))
 
@@ -113,8 +114,8 @@ class TestLesendeWloWerkzeuge:
 
         for t in CURATION_TOOL_DEFINITIONS:
             name = t["function"]["name"]
-            if name == "wlo_list_suggestions":  # liest nur (C-5), siehe oben
-                continue
+            if name in ("wlo_list_suggestions", "wlo_list_collection_proposals"):
+                continue  # lesen nur (C-5, SW-3), siehe oben
             assert not hc.erlaubt(name, hc.LESEND), name
 
 
