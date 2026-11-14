@@ -175,7 +175,7 @@ def _leer(wert: Any) -> bool:
 class FulltextAttachArgs(BaseModel):
     """``wlo_attach_fulltext`` (Paket K2d-3, W1): ein Volltext (Markdown) in den ``textContent``
     eines vorhandenen Datensatzes. ``replace`` ersetzt einen vorhandenen. Ein Datensatz mit Datei
-    lehnt der Server bis zur Messung des MCP-Teams ab (``would_replace_file``)."""
+    lehnt der Server ab (``would_replace_file``, dauerhaft seit dem 14.11.2026)."""
 
     nodeId: str = Field(max_length=200)
     markdown: str
