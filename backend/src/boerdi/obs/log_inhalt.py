@@ -34,6 +34,9 @@ FILTER_SCHLUESSEL = frozenset({
     "contentFormat", "licenseKey", "licenseVersion", "contentType",
     # N2 (2026-11-14): Bezeichnungen wie ``discipline`` — sie werden hinzugefügt statt ersetzt.
     "addDiscipline", "addEducationalContext", "addUserRole",
+    # SW-3 (2026-11-14): die Zielsammlung beim Umhängen. ``order`` bewusst NICHT: Nennt die KI
+    # dort Titel statt Kennungen, stünden sie im Log (Review SW-3, Befund 9).
+    "newParentId",
 })
 #: Längere Listen (``excludeNodeIds`` bis 200) erscheinen nur als Anzahl.
 MAX_LISTE = 5

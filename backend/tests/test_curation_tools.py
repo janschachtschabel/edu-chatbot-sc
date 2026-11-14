@@ -53,6 +53,8 @@ def _beispielwert(feld: str):
         return "binary"
     if feld == "items":   # Paket K2d-3: W2/W3 (W3 behält davon nur nodeId)
         return [{"nodeId": "m-1", "markdown": "# T", "source": "binary"}]
+    if feld in ("nodeIds", "order"):   # SW-3: Listen von Kennungen
+        return ["c-1", "c-2"]
     return f"probe-{feld}"
 
 

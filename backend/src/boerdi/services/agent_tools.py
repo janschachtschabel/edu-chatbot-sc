@@ -112,8 +112,10 @@ def _mcp_werkzeuge(
     tools = [angebot.nach_faehigkeit(t) for t in (*TOOL_DEFINITIONS, *angebot.zusaetzliche())
              if t["function"]["name"] not in aus]
     if allow_curation and has_auth_token():
+        # SW-3: ohne die Kuratier-Werkzeuge, die der bereitgestellte Server nicht führt.
         tools.extend(angebot.nach_faehigkeit(t) for t in CURATION_TOOL_DEFINITIONS
-                     if t["function"]["name"] not in aus)
+                     if t["function"]["name"] not in aus
+                     and angebot.gefuehrt(t["function"]["name"]))
     # Paket 11 (E): lesende Werkzeuge fremder MCP-Server, im eigenen Namensraum.
     tools.extend(fremdwerkzeuge.definitionen())
     if blocked_tools:

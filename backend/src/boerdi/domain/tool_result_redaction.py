@@ -113,6 +113,16 @@ _KOMBI_WERKZEUG = "search_wlo_all"
 _MEHRFACH_SUCHE = "search_wlo_content_many"
 _MEHRFACH_DECKEL = 32_000
 _MEHRFACH_ENDE = 2_000
+#: SW-1: der Sammlungsbaum als flache Liste, eine Zeile je Sammlung, bis 250 je Seite. Gemessen
+#: 16,7 kB für 144 Einträge; eine volle Seite mit langen Titeln und vier Ebenen erreicht rund
+#: 50 kB (Review SW-1, Befund 1). Kein blinder Deckel und kein Schnitt mitten in der Seite: Ein
+#: Baum mit fehlenden Zeilen läse sich wie ein vollständiger. Der Sicherheitsdeckel liegt weit
+#: über einer vollen Seite; greift er doch, endet die Liste an einer Zeilengrenze mit einem Satz.
+_BAUM_LISTE = "list_collection_tree"
+_BAUM_DECKEL = 120_000
+_BAUM_GEKUERZT = ("[Die Liste dieser Seite ist nach {zeilen} Zeilen gekürzt — sie ist NICHT "
+                  "vollständig. Lies dieselbe Seite mit kleinerem maxItems erneut.]")
+_GANZ: frozenset[str] = frozenset({_MEHRFACH_SUCHE, _BAUM_LISTE})
 
 
 def _sicht_der_mehrfachsuche(raw_text: str) -> str:
@@ -123,6 +133,19 @@ def _sicht_der_mehrfachsuche(raw_text: str) -> str:
         return text
     return (text[:_MEHRFACH_DECKEL - _MEHRFACH_ENDE] + "\n[… gekürzt …]\n"
             + text[-_MEHRFACH_ENDE:])
+
+
+def _sicht_der_baumliste(raw_text: str) -> str:
+    """Die Baumliste ganz; über dem Sicherheitsdeckel nur ganze Zeilen und der Satz dazu."""
+    if len(raw_text) <= _BAUM_DECKEL:
+        return raw_text
+    zeilen = raw_text[:_BAUM_DECKEL].split("\n")[:-1]     # die angeschnittene Zeile fällt weg
+    return "\n".join([*zeilen, _BAUM_GEKUERZT.format(zeilen=len(zeilen))])
+
+
+def _ganz(name: str, raw_text: str) -> str:
+    return _sicht_der_baumliste(raw_text) if name == _BAUM_LISTE else _sicht_der_mehrfachsuche(
+        raw_text)
 
 #: Der Skill-Katalog — eigene Antwortform, eigene Kürzung. Siehe
 #: :func:`_redigiere_skill_registry`.
@@ -416,8 +439,8 @@ def redigiere_strukturell(tool_name: str, raw_text: str) -> str:
     """
     if tool_name == _KATALOG_WERKZEUG:
         return _redigiere_katalog_antwort(raw_text, deckel=False)
-    if tool_name == _MEHRFACH_SUCHE:
-        return _sicht_der_mehrfachsuche(raw_text)
+    if tool_name in _GANZ:
+        return _ganz(tool_name, raw_text)
     kurz = None
     if tool_name == _KOMBI_WERKZEUG:
         kurz = _redigiere_kombi_suche(raw_text, mit_einzelinhalten=True)
@@ -592,10 +615,11 @@ def _gekuerzt_fuer_llm(
         # ein blinder darüber schnitt die Anleitung „Stunde planen" bei 4 000
         # von 11 000 Zeichen ab (Begründung an der Konstante).
         return raw_text
-    if name == _MEHRFACH_SUCHE:
+    if name in _GANZ:
         # Vor allen anderen Zweigen: kein blinder Deckel, und die Titel bleiben — die Zuordnung
-        # Teil → Material ist der Zweck des Werkzeugs (Begründung an der Konstante).
-        return _sicht_der_mehrfachsuche(raw_text)
+        # Teil → Material bzw. der ganze Baum ist der Zweck des Werkzeugs (Begründung an den
+        # Konstanten).
+        return _ganz(name, raw_text)
     if name == _KATALOG_WERKZEUG:
         # Vor der Kombi-Suche geprüft, weil der Rückfall derselbe ist: gelingt
         # die strukturelle Kürzung nicht, bleibt der blinde Deckel.

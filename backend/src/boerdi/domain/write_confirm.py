@@ -95,13 +95,23 @@ CURATION_TOOLS = frozenset({
     "wlo_attach_fulltext",
     "wlo_attach_fulltexts",
     "wlo_update_contents",
+    # SW-3 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14): Stapel-Werkzeuge, Umhängen, Reihenfolge,
+    # Vorschläge an Sammlungen. Angeboten nur, wenn der Server sie führt
+    # (``services/mcp/sammlungspflege``).
+    "wlo_submit_contents",
+    "wlo_remove_from_collections",
+    "wlo_delete_collections",
+    "wlo_move_collection",
+    "wlo_order_collection",
+    "wlo_list_collection_proposals",
+    "wlo_decide_collection_proposal",
 })
 
-# Alle bis auf einen führen einen ``confirmToken`` (Stand K2d-3: 18 von 19).
-# ``wlo_list_suggestions`` nicht — es
-# listet vorhandene Vorschläge auf und ändert nichts; live am Eingabeschema
-# geprüft, nicht angenommen.
-CONFIRMABLE_TOOLS = CURATION_TOOLS - {"wlo_list_suggestions"}
+#: Kuratier-Werkzeuge, die nur lesen: Sie brauchen eine Anmeldung, aber keinen ``confirmToken``
+#: (am Eingabeschema des Servers geprüft; Annotation ``readOnlyHint``).
+NUR_LESEND = frozenset({"wlo_list_suggestions", "wlo_list_collection_proposals"})
+# Alle übrigen führen einen ``confirmToken`` (Stand SW-3: 24 von 26).
+CONFIRMABLE_TOOLS = CURATION_TOOLS - NUR_LESEND
 
 # Öffentlich, weil ihn zwei Seiten kennen müssen: dieses Modul (entfernen,
 # einsetzen, aus dem Text schneiden) und die Argument-Prüfung auf dem Weg zum
@@ -124,7 +134,10 @@ SCHLUESSEL_FELDER = frozenset({CONFIRM_TOKEN_FIELD, FORTSETZEN_FIELD, "batchToke
 #: Schleifen setzen für sie nie einen Schlüssel ein (Re-Review M5, Befund 1).
 PLAN_TOOLS = frozenset({"wlo_create_collection_tree", "wlo_add_to_collections",
                         # Paket K2d-3: W2 und W3 laufen auf demselben Plan-Mechanismus des Servers.
-                        "wlo_attach_fulltexts", "wlo_update_contents"})
+                        "wlo_attach_fulltexts", "wlo_update_contents",
+                        # SW-3: ebenso Einreichen, Herausnehmen und Löschen leerer Sammlungen.
+                        "wlo_submit_contents", "wlo_remove_from_collections",
+                        "wlo_delete_collections"})
 
 
 def is_plan(tool_name: str) -> bool:

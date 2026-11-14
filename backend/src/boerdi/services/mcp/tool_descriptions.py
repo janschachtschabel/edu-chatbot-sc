@@ -24,7 +24,7 @@ from boerdi.obs.drossel import gedrosselt
 from boerdi.services import config_loader
 from boerdi.services.agent_tools import AUS_DEM_KATALOG
 from boerdi.services.config_loader.mcp import _PRIMARY_ID
-from boerdi.services.mcp import suche_mehrfach, transport
+from boerdi.services.mcp import angebot, sammlungspflege, transport
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 
@@ -34,7 +34,8 @@ logger = logging.getLogger(__name__)
 #: hat ein Schalter im Studio eine Wirkung (Paket 7, S5).
 #: N4 (Review, m1): dazu die Mehrfachsuche. Sie steht nicht im Katalog der Lesewerkzeuge (angeboten
 #: nur, wenn der Server sie führt), braucht aber denselben Schalter.
-_NUR_WENN_AM_SERVER = frozenset({suche_mehrfach.WERKZEUG})
+_NUR_WENN_AM_SERVER = (frozenset(modul.WERKZEUG for modul in angebot.BEDINGT_LESEND)
+                       | sammlungspflege.WERKZEUGE)    # SW-3: stehen im Katalog, aber bedingt
 _KATALOG = frozenset(
     t["function"]["name"] for t in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS)
 ) | _NUR_WENN_AM_SERVER

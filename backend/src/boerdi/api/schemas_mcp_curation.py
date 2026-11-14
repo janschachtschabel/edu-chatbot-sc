@@ -139,35 +139,102 @@ class CollectionRenameArgs(BaseModel):
     description: str = ""
 
 
+#: SW-2 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14): Felder je Baumknoten und in ``shared``.
+BAUM_METADATEN: tuple[str, ...] = ("discipline", "educationalContext", "keywords")
+
+
+def _baumfeld(feld: str, wert: Any) -> Any:
+    """Ein Metadatenfeld am Baumknoten in der Form des Servers: Bezeichnungen ohne Leerraum und
+    ohne leere Einträge; Schlagworte immer als Liste. Ein leerer Text heißt „nicht angegeben“
+    (``None``). Eine wörtlich leere LISTE bleibt — sie schaltet den gemeinsamen Wert für den
+    Knoten ab; eine Liste nur aus Leertext dagegen ist „nicht angegeben“ (Review SW-2, Befund 3:
+    sonst schaltete ein versehentliches ``[""]`` das gemeinsame Fach ab). Anderes bleibt, wie es
+    ist: Der Server lehnt es ab."""
+    if isinstance(wert, str):
+        wert = wert.strip()
+        return ([wert] if feld == "keywords" else wert) if wert else None
+    if isinstance(wert, list) and all(isinstance(w, str) for w in wert):
+        werte = [w.strip() for w in wert if w.strip()]
+        return werte if werte or not wert else None
+    return wert
+
+
+def _baumfelder(roh: dict[str, Any]) -> dict[str, Any]:
+    werte = {f: _baumfeld(f, roh[f]) for f in BAUM_METADATEN if roh.get(f) is not None}
+    return {f: w for f, w in werte.items() if w is not None}
+
+
 class CollectionTreeCreateArgs(BaseModel):
     """``wlo_create_collection_tree`` (Paket M5): ein Baum von Untersammlungen unter
     ``parentCollectionId`` — höchstens 250 Knoten, Tiefe 4, 15 Kinder je Knoten (prüft der Server
     und nennt jeden Grund). ``onExisting``: ``merge`` (Vorgabe: gleichnamige wird übernommen) oder
-    ``fail``. ``continuationToken`` setzt einen bestätigten Plan fort."""
+    ``fail``. ``continuationToken`` setzt einen bestätigten Plan fort.
+
+    SW-2: je Knoten ``discipline``, ``educationalContext``, ``keywords``, gemeinsam für den Baum
+    als ``shared``. Das Modell behält sie; für einen Server, der sie nicht führt, nimmt der Client
+    sie vor dem Senden heraus (``services/mcp/baum_metadaten.fuer_den_server``)."""
 
     parentCollectionId: str = Field(max_length=200)
     tree: list[dict[str, Any]]
+    shared: dict[str, Any] | None = None
     onExisting: Literal["merge", "fail", ""] = ""
     continuationToken: str = Field(default="", max_length=200)
 
     @field_validator("tree", mode="before")
     @classmethod
     def _nur_baumfelder(cls, wert):
-        # Review 2026-11-07: der Server prüft jede Ebene streng — ein fremdes Feld (``keywords``,
-        # ``nodeId``) in einem tieferen Knoten kippte den ganzen Aufruf. Nur title/description/
-        # children bleiben; Grenzen (250 Knoten, Tiefe 4, 15 Kinder) prüft und nennt der Server.
+        # Review 2026-11-07: der Server prüft jede Ebene streng — ein fremdes Feld (``nodeId``,
+        # ``titel``) in einem tieferen Knoten kippte den ganzen Aufruf. Nur title/description/
+        # children und die Metadatenfelder bleiben; Grenzen (250 Knoten, Tiefe 4, 15 Kinder)
+        # prüft und nennt der Server.
         def knoten(k):
             if not isinstance(k, dict):
                 return k
             aus = {f: k[f] for f in ("title", "description") if f in k}
+            aus.update(_baumfelder(k))
             if isinstance(k.get("children"), list):
                 aus["children"] = [knoten(c) for c in k["children"]]
             return aus
         return [knoten(k) for k in wert] if isinstance(wert, list) else wert
 
+    @field_validator("shared", mode="before")
+    @classmethod
+    def _nur_gemeinsame_felder(cls, wert):
+        """Nur die drei Felder (der Server prüft ``shared`` streng); ohne Wert fällt es weg."""
+        if not isinstance(wert, dict):
+            return wert
+        return _baumfelder(wert) or None
+
+
+def _paare(wert: Any, felder: tuple[str, ...]) -> Any:
+    """Jedes Paar nur mit diesen Feldern (der Server lehnt fremde ab); ein leeres ``removeFrom``
+    heißt „nicht angegeben“ und fällt weg."""
+    if not isinstance(wert, list):
+        return wert
+    return [{f: p[f] for f in felder if f in p and (f != "removeFrom" or p[f])}
+            if isinstance(p, dict) else p for p in wert]
+
 
 class CollectionsAddArgs(BaseModel):
-    """``wlo_add_to_collections`` (Paket M5): bis zu 200 Paare ``{nodeId, collectionId}``."""
+    """``wlo_add_to_collections`` (Paket M5): bis zu 200 Paare ``{nodeId, collectionId}``.
+    SW-3 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14): je Paar ``removeFrom`` — die Sammlung, aus
+    der das Material nach dem Aufnehmen herausgenommen wird (Umsortieren)."""
+
+    pairs: list[dict[str, str]]
+    #: Nur damit ein ``removeFrom`` an der falschen Stelle nicht still wegfällt: Der Client lehnt
+    #: den Aufruf dann ab (``sammlungspflege.nicht_moeglich``); zum Server geht es nie.
+    removeFrom: str = ""
+    continuationToken: str = Field(default="", max_length=200)
+
+    @field_validator("pairs", mode="before")
+    @classmethod
+    def _nur_paarfelder(cls, wert):
+        return _paare(wert, ("nodeId", "collectionId", "removeFrom"))
+
+
+class CollectionsRemoveArgs(BaseModel):
+    """``wlo_remove_from_collections`` (SW-3): bis zu 200 Paare ``{nodeId, collectionId}`` als
+    Plan. Entfernt wird nur der Verweis."""
 
     pairs: list[dict[str, str]]
     continuationToken: str = Field(default="", max_length=200)
@@ -175,11 +242,60 @@ class CollectionsAddArgs(BaseModel):
     @field_validator("pairs", mode="before")
     @classmethod
     def _nur_paarfelder(cls, wert):
-        # Wie beim Baum: nur nodeId/collectionId — der Server lehnt fremde Felder ab.
-        if not isinstance(wert, list):
-            return wert
-        return [{f: p[f] for f in ("nodeId", "collectionId") if f in p} if isinstance(p, dict)
-                else p for p in wert]
+        return _paare(wert, ("nodeId", "collectionId"))
+
+
+class ContentsSubmitArgs(BaseModel):
+    """``wlo_submit_contents`` (SW-3): bis zu 200 Materialien zur redaktionellen Prüfung
+    einreichen, als Plan. Die Notiz gilt für alle."""
+
+    items: list[dict[str, Any]]
+    comment: str = Field(default="", max_length=1000)
+    continuationToken: str = Field(default="", max_length=200)
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _nur_kennungen(cls, wert):
+        # Eine bloße Liste von Kennungen ist gemeint, wie sie dasteht.
+        if isinstance(wert, list):
+            wert = [{"nodeId": e} if isinstance(e, str) else e for e in wert]
+        return _nur(("nodeId",), wert)
+
+
+class CollectionsDeleteArgs(BaseModel):
+    """``wlo_delete_collections`` (SW-3): bis zu 200 Sammlungen löschen, als Plan — der Server
+    löscht nur leere."""
+
+    nodeIds: list[str]
+    continuationToken: str = Field(default="", max_length=200)
+
+
+class CollectionMoveArgs(BaseModel):
+    """``wlo_move_collection`` (SW-3): eine Sammlung samt Teilbaum unter eine andere hängen."""
+    nodeId: str = Field(max_length=200)
+    newParentId: str = Field(max_length=200)
+
+
+class CollectionOrderArgs(BaseModel):
+    """``wlo_order_collection`` (SW-3): die Reihenfolge der Untersammlungen ODER der Inhalte einer
+    Sammlung. ``order`` nennt alle Einträge einer Art (prüft der Server)."""
+    collectionId: str = Field(max_length=200)
+    order: list[str]
+
+
+class CollectionProposalsListArgs(BaseModel):
+    """``wlo_list_collection_proposals`` (SW-3) — liest nur, braucht Schreibrecht an der
+    Sammlung."""
+    collectionId: str = Field(max_length=200)
+    status: Literal["PENDING", "ACCEPTED", "DECLINED", ""] = ""
+
+
+class CollectionProposalDecideArgs(BaseModel):
+    """``wlo_decide_collection_proposal`` (SW-3): einen Vorschlag an eine Sammlung annehmen oder
+    ablehnen. ``nodeId`` ist die des vorgeschlagenen Materials."""
+    collectionId: str = Field(max_length=200)
+    nodeId: str = Field(max_length=200)
+    decision: Literal["accept", "decline"]
 
 
 #: Paket K2d-3: woher ein Volltext kommt (``wlo_attach_fulltext(s)``, Schema des Servers).
@@ -267,6 +383,13 @@ class CollectionMembershipArgs(BaseModel):
     """
     collectionId: str
     nodeId: str
+
+
+class CollectionAddArgs(CollectionMembershipArgs):
+    """``wlo_add_to_collection`` — wie oben. ``removeFrom`` steht hier nur, damit es nicht still
+    wegfällt: Umsortieren geht je Paar an ``wlo_add_to_collections``, der Client lehnt den Aufruf
+    mit einem Satz ab (``sammlungspflege.nicht_moeglich``); zum Server geht das Feld nie."""
+    removeFrom: str = ""
 
 
 class CompendiumUpdateArgs(BaseModel):

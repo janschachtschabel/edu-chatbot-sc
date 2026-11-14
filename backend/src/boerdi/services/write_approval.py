@@ -446,6 +446,18 @@ async def redeem_write_approval(
         await _persist(session, req, session_state, antwort.content, debug)
         return antwort
 
+    if is_mcp_error(rohtext) and antwort_mcp.code == "proposal_not_marked":
+        # SW-3 (Review, Befund 1): ``wlo_decide_collection_proposal`` hat das Material
+        # aufgenommen, die Markierung des Vorschlags steht nicht fest. Der Server meldet das mit
+        # ``recordExists`` — der Satz dazu („der Datensatz ist angelegt …“) wäre hier falsch.
+        logger.warning("Abnahme für %s (Sitzung %s): aufgenommen, Vorschlag nicht markiert",
+                       tool, kennung(req.session_id))
+        debug.entities["reason"] = "mcp_error"
+        antwort = ChatResponse(session_id=req.session_id,
+                               content=bot_text(lang, "write.proposalNotMarked"), debug=debug)
+        await _persist(session, req, session_state, antwort.content, debug)
+        return antwort
+
     if is_mcp_error(rohtext) and (antwort_mcp.fehler or {}).get("recordExists") is True:
         # MCP-Stand nach dem Audit (Plan 2026-11-13, C2): der Datensatz IST angelegt, ein Schritt
         # danach blieb ohne Antwort. Weder „abgelehnt, nichts geändert“ noch „ob es ankam, weiß
@@ -604,7 +616,15 @@ _EIGENER_GRUND = {"already_decided": "write.grund.alreadyDecided",
                   "already_submitted": "write.grund.alreadySubmitted",
                   "is_a_folder": "write.grund.isAFolder",
                   "is_a_collection": "write.grund.isACollection",
-                  "not_a_record": "write.grund.notARecord"}
+                  "not_a_record": "write.grund.notARecord",
+                  # SW-3 (Review, Befund 3): Gründe der Werkzeuge für Sammlungen. ``is_original``
+                  # kommt beim einzelnen Herausnehmen erst NACH dem Ja — ohne Satz läse die
+                  # Person nur „abgelehnt“.
+                  "is_original": "write.grund.isOriginal",
+                  "source_is_original": "write.grund.isOriginal",
+                  "already_proposed": "write.grund.alreadyProposed",
+                  "no_pending_proposal": "write.grund.noPendingProposal",
+                  "no_change": "write.grund.noChange"}
 #: Eine Knoten-Kennung, wie sie in einen Satz an die Person darf — ohne Satz- und
 #: Markdown-Zeichen.
 _KENNUNG = re.compile(r"[A-Za-z0-9-]{8,64}")

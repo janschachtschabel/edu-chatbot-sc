@@ -248,6 +248,10 @@ _STRUKTURIERT_GEPARST = {
             "wlo_decide_suggestion", "wlo_create_collection_tree", "wlo_add_to_collections",
             # Paket K2d-3: Volltexte und Metadaten — Vorschau bzw. Stand eines Plans
             "wlo_attach_fulltext", "wlo_attach_fulltexts", "wlo_update_contents",
+            # SW-3: Stapel, Umhängen, Reihenfolge, Vorschläge an Sammlungen
+            "wlo_submit_contents", "wlo_remove_from_collections", "wlo_delete_collections",
+            "wlo_move_collection", "wlo_order_collection", "wlo_list_collection_proposals",
+            "wlo_decide_collection_proposal",
         ],
         "Aenderungs-Vorschau: Feld-Diff, je Wert geflacht und gekappt (600/120)",
     ),

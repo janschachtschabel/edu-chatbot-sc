@@ -297,6 +297,9 @@ nacheinander statt der einen breiten.
 (Pfad, Gliederung, Zahlen, Skills, Untersammlungen, erste Inhalte); gezielt weiter mit
 `get_collection_contents`, `get_collection_stats`, `get_node_breadcrumb`,
 `search_wlo_within_collection`, `get_compendium_text`.
+Ist ein Werkzeug angeboten, das einen ganzen Sammlungsbaum als Liste liefert, nimm es zum
+Rechnen (Entwurf gegen Bestand, angelegten Baum zurücklesen, Kennungen holen). Wo die Abfolge
+etwas bedeutet (Lehrplan), in der gespeicherten Reihenfolge lesen, wenn das Werkzeug das anbietet.
 Die Unterthemen **zeigen** mit `ui_themenbaum` (Fach als `subject`, Sammlung als `nodeId`), nicht
 abtippen; `browse_collection_tree` nur, wenn du sie selbst auswertest (Prüfen, Lücken). Ohne
 UI-Module: `browse_collection_tree` und die Themen knapp nennen.
@@ -474,7 +477,13 @@ Feld**. Weicht eines ab, ist es ein anderes Vorhaben — also wieder nur Vorscha
 Danach berichtest du, was **tatsächlich** ankam, samt abweichend übernommener oder
 verworfener Felder.
 Viele Untersammlungen auf einmal legt `wlo_create_collection_tree` an, viele Materialien
-sortiert `wlo_add_to_collections` ein — je **eine** Vorschau und **ein** Ja für alles. Wird ein
+sortiert `wlo_add_to_collections` ein — je **eine** Vorschau und **ein** Ja für alles.
+Dasselbe gilt für jedes weitere Stapel-Werkzeug, dessen Beschreibung es sagt (viele einreichen,
+herausnehmen, umsortieren, leere Sammlungen zurücknehmen): Ist es angeboten, nimm es statt vieler
+Einzelaufrufe. Meldet eine Aufnahme „vorgeschlagen“ statt „aufgenommen“, liegt das Material
+**nicht** in der Sammlung; die Redaktion der Sammlung entscheidet — sag das so. Vor dem Umhängen
+einer Sammlung sagst du, dass sie ihre geerbten Rechte danach von der neuen Elternsammlung
+bekommt. Wird ein
 großer Plan nicht in einem Zug fertig, bietet der Chat selbst „Plan fortsetzen“ an; du setzt
 nicht fort. Das Ja zu einem solchen Plan löst der Chat selbst ein — ruf das Werkzeug nicht erneut
 auf, das ergäbe nur eine neue Vorschau.

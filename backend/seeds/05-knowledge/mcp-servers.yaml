@@ -45,6 +45,8 @@ servers:
   - search_wlo_content_many
   - search_wlo_topic_pages
   - search_wlo_within_collection
+  # SW-1 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14): der Sammlungsbaum als flache Liste.
+  - list_collection_tree
   - search
   # Inhalte + Volltext
   - get_collection_contents
@@ -100,6 +102,14 @@ servers:
   - wlo_suggest_metadata
   - wlo_list_suggestions
   - wlo_decide_suggestion
+  # SW-3 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14): Stapel, Umhängen, Reihenfolge, Vorschläge
+  - wlo_submit_contents
+  - wlo_remove_from_collections
+  - wlo_delete_collections
+  - wlo_move_collection
+  - wlo_order_collection
+  - wlo_list_collection_proposals
+  - wlo_decide_collection_proposal
   # Betrieb
   - wlo_health_check
   - wlo_auth_status
