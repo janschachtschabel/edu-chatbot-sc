@@ -100,3 +100,30 @@ def test_ohne_ablehnung_aendert_sich_die_kuerzung_nicht():
     voll = json.dumps({"total": 1, "count": 1, "results": [{"title": "Optik", "nodeId": "n1"}]})
     kurz = redigiere_strukturell(_SAMMLUNGEN, voll)
     assert "restricted" not in kurz and "nicht lesbar" not in kurz
+
+
+# ── Nachtrag des Entwicklers vom 14.11. abends ──────────────────────────────────────────────────
+
+def test_die_uebersicht_mit_ungelesener_anzahl_steht_nur_kurz_im_cache():
+    """``get_collection_overview`` führt je Untersammlung ``contentsUnread`` (Anzahl gerade nicht
+    lesbar) oder ``contentsRefused`` (mit dieser Anmeldung nicht lesbar): das erste ist ein
+    Ausfall, das zweite nicht (``services/collection-overview.ts``)."""
+    kopf = {"collection": {"nodeId": "c1", "title": "Physik"}}
+    ausfall = {**kopf, "subcollections": [{"nodeId": "n1", "title": "Optik",
+                                           "contentsUnread": True}]}
+    abgelehnt = {**kopf, "subcollections": [{"nodeId": "n1", "title": "Optik",
+                                             "contentsRefused": True}]}
+    assert mu.ist_unvollstaendig("get_collection_overview", ausfall, "Unterthemen: …") is True
+    assert mu.ist_unvollstaendig("get_collection_overview", abgelehnt, "Unterthemen: …") is False
+
+
+def test_die_dublettenpruefung_sagt_dass_ein_fehler_je_adresse_offen_laesst():
+    """``find_content_by_url``: ein Eintrag mit ``error`` — seit dem 14.11. auch ``not_found`` —
+    heißt „Prüfung offen“, nicht „kein Datensatz“. Verneint wird nur mit ``matches: []`` ohne
+    ``error``. Läse die KI ``not_found`` als „gibt es nicht“, legte sie eine Dublette an."""
+    from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
+
+    text = next(w["function"]["description"] for w in TOOL_DEFINITIONS
+                if w["function"]["name"] == "find_content_by_url")
+    assert "error" in text and "not_found" in text and "OFFEN" in text
+    assert "matches leer und ohne error" in text

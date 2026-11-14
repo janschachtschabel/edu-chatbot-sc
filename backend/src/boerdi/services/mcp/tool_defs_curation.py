@@ -129,15 +129,16 @@ _TEXTFELDER = {
 }
 
 
-#: Paket K2d-3: ``would_replace_file`` ist kein Fehler (Nutzer-Entscheid 2026-11-08) — bis das
-#: MCP-Team gemessen hat, dass eine Datei erhalten bleibt, schreibt der Server an Datensätze mit
-#: Datei keinen Volltext.
-_VORGEMERKT = (
+#: Paket K2d-3: ``would_replace_file`` ist kein Fehler (Nutzer-Entscheid 2026-11-08). Seit dem
+#: 14.11.2026 steht fest, dass es so bleibt (Messung des MCP-Teams, Auskunft des Nutzers): das
+#: Schreiben eines Volltexts ersetzt die Datei im Inhalt. Bei einem Datensatz mit Datei gewinnt
+#: das Repository den Text selbst, sobald sein Text-Endpunkt gelesen wird.
+_NUR_OHNE_DATEI = (
     " Lehnt der Server einen Datensatz mit Code would_replace_file ab, ist das KEIN Fehler: der "
-    "Datensatz traegt schon Inhalt (eine Datei oder einen Text), und daran schreibt der Server "
-    "vorerst nichts — das MCP-Team hebt die Sperre nach seiner Messung auf (vorgemerkt). Sag der "
-    "Person, dass das Anhaengen hier noch nicht moeglich ist und spaeter erneut versucht werden "
-    "kann; es ist nichts verloren und nichts geaendert. Gemerkt wird der Text dabei NICHT — "
+    "Datensatz traegt schon Inhalt (eine Datei oder einen Text), und ein geschriebener Volltext "
+    "wuerde ihn ersetzen. Das bleibt so: ein Volltext laesst sich nur an einen Datensatz ohne "
+    "Datei haengen; aus einer Datei gewinnt das Repository den Text selbst. Sag der Person das; "
+    "es ist nichts verloren und nichts geaendert. Gemerkt wird der Text dabei NICHT — "
     "versprich kein Nachtragen. link_record heisst: ein verlinkter Datensatz, dessen Text das "
     "Repository von der Webseite liest — dort gibt es keinen eigenen Volltext."
 )
@@ -332,7 +333,7 @@ CURATION_TOOL_DEFINITIONS = [
         "Hand (source). replace=true ersetzt einen vorhandenen Volltext (vorerst lehnt der Server "
         "das ab, siehe would_replace_file); steht derselbe Text schon da, gibt es nichts zu "
         "bestaetigen. Fuer viele Datensaetze: "
-        "wlo_attach_fulltexts." + _VORGEMERKT + _ZWEISTUFIG,
+        "wlo_attach_fulltexts." + _NUR_OHNE_DATEI + _ZWEISTUFIG,
         {**_VOLLTEXT_FELDER,
          "replace": {"type": "boolean", "description": "Einen vorhandenen Volltext ersetzen."}},
         ["nodeId", "markdown", "source"],
@@ -344,7 +345,7 @@ CURATION_TOOL_DEFINITIONS = [
         "und abgelehnt. Grosse Mengen arbeitet der Server in Abschnitten ab; die Person setzt "
         "ueber den Knopf 'Plan fortsetzen' fort, ohne neue Bestaetigung — du setzt nicht selbst "
         "fort."
-        + _VORGEMERKT + _ZWEISTUFIG_PLAN,
+        + _NUR_OHNE_DATEI + _ZWEISTUFIG_PLAN,
         {
             "items": {"type": "array",
                       "items": {"type": "object", "properties": _VOLLTEXT_FELDER,

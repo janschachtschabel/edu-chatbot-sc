@@ -4,7 +4,7 @@
   zweistufig wie jedes kuratierende Werkzeug (Vorschau, „ja“, der Chat setzt den Schlüssel ein).
 - ``wlo_attach_fulltexts`` (W2) und ``wlo_update_contents`` (W3): viele Datensätze unter EINER
   Bestätigung — **Pläne** wie M5 (der Vorlauf löst ein, „Plan fortsetzen“ setzt fort).
-- ``would_replace_file`` (Datensatz mit Inhalt, bis zur Messung des MCP-Teams) ist kein Fehler: die
+- ``would_replace_file`` (Datensatz mit Inhalt; seit dem 14.11.2026 dauerhaft) ist kein Fehler: die
   Beschreibung sagt dem Modell, es als „hier noch nicht möglich“ zu nennen — ohne Nachtragen zu
   versprechen (Review K2d-3, Befund 3).
 - Die Argumente gehen nur mit den Feldern zum Server, die er kennt, und ohne leere Werte.
@@ -41,7 +41,10 @@ def test_die_beschreibungen_sagen_wann_und_wie():
     assert w2["parameters"]["required"] == ["items"] and w3["parameters"]["required"] == ["items"]
     for d in (w1, w2):
         # kein Fehler beim Datensatz mit Inhalt (Nutzer-Entscheid 2026-11-08, Review Befund 3)
-        assert "would_replace_file" in d["description"] and "vorgemerkt" in d["description"]
+        assert "would_replace_file" in d["description"]
+        # Seit dem 14.11.2026 dauerhaft: kein „später erneut“, kein „vorgemerkt“.
+        assert "nur an einen Datensatz ohne Datei" in d["description"]
+        assert "vorgemerkt" not in d["description"] and "spaeter erneut" not in d["description"]
     for d in (w2, w3):
         assert "NICHT erneut auf" in d["description"]          # Plan: der Chat löst ein
     assert "erneut auf" in w1["description"] and "NICHT erneut auf" not in w1["description"]

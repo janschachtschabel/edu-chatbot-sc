@@ -52,8 +52,17 @@ Zwei Bitten dazu stehen in Abschnitt 2 (Punkt 4).
 
 ### Wohin sollen strukturierte Volltexte (Markdown) am Node?
 
-Dazu gibt es bei uns keine Entscheidung. Die Frage geht an den Nutzer und die Redaktion; wir
-melden uns, wenn sie beantwortet ist. Bis dahin behandeln wir `would_replace_file` als dauerhaft.
+Antwort des Nutzers vom 14.11.: Einen Volltext schreibt kein Client selbst an den Datensatz. Das
+Schreiben zerstört die Datei im Inhalt, wie du es gemessen hast.
+
+- Der Weg ist das Lesen: Ein `GET` auf den Text-Endpunkt des Datensatzes lässt das Repository die
+  Datei selbst umwandeln. Danach hängt die Datei weiter im Inhalt und der Volltext im
+  Volltextbereich.
+- Für Datensätze mit Datei bleibt `would_replace_file` also richtig und dauerhaft. Einen eigenen
+  Ort für geschriebene Markdown-Volltexte braucht es nicht.
+- Offen ist damit nur, ob dein Server diesen Abruf für einen Datensatz gezielt anstoßen soll,
+  etwa nach einem Upload. Für Markdown-Dateien gewinnt das Repository nach deiner Messung keinen
+  Text; dort hilft der Abruf nicht.
 
 ## 2 Was wir für nicht gut gelöst halten
 
@@ -175,3 +184,14 @@ und gegen deine Arbeitskopie geprüft.
 - **Themenseiten-Varianten ohne Leserecht:** Ein eigenes Kennzeichen brauchen wir dort nicht.
 - **Unser Themenbaum-Modul** zeigt einen nicht lesbaren Zweig noch wie ein Blatt. Das ist unsere
   Baustelle; an deiner Form ändert sie nichts.
+
+**Zu deinem Nachtrag vom Abend:**
+
+- **`find_content_by_url` und `not_found`:** verstanden. Unsere Werkzeugbeschreibung sagt der KI
+  jetzt, dass ein Eintrag mit `error`, auch `not_found`, die Prüfung offen lässt und nur eine
+  leere Trefferliste ohne Fehler „kein Datensatz“ heißt. Der Name lädt zum Gegenteil ein; ein
+  Satz dazu in der Beschreibung deines Werkzeugs würde anderen Clients helfen.
+- **`contentsUnread` in der Sammlungsübersicht:** werten wir als Ausfall; die Antwort steht dann
+  nur kurz in unserem Cache.
+- Die übrigen Korrekturen (Ort des Satzes im Markdown, `get_skill_for_task`, die Zeile zur
+  Verknüpfung) ändern bei uns nichts.

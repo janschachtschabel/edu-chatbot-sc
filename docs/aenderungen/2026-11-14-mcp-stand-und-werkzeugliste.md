@@ -54,8 +54,18 @@ Stand: `restricted: true` an einer Liste samt festem Hinweissatz, im Baum je Kno
   (`domain/mcp_unvollstaendig.py`). Die Kurzfassung der Sammlungssuche behält `restricted`.
 - **Der Cache behandelt es nicht als Ausfall.** Ein erneuter Aufruf ändert nichts; die Antwort
   bleibt so lange stehen wie jede andere. Der Cache-Schlüssel trägt die Anmeldung.
-- **`contentsUnread` zählt als Ausfall** wie `childrenUnread` (30 Sekunden im Cache).
+- **`contentsUnread` zählt als Ausfall** wie `childrenUnread` (30 Sekunden im Cache), auch je
+  Untersammlung in der Sammlungsübersicht (`get_collection_overview`).
+- **Dublettenprüfung:** `find_content_by_url` kann je Adresse einen Fehler tragen, im neuen Stand
+  auch `not_found`. Das heißt „Prüfung offen“, nicht „kein Datensatz“. Die Werkzeugbeschreibung
+  sagt das der KI jetzt ausdrücklich; sonst könnte sie nach einem solchen Eintrag eine Dublette
+  anlegen. Verneint wird nur mit leerer Trefferliste ohne Fehler.
 - Läuft mit dem alten Server: Dort fehlen die Felder und der Satz.
+- **Volltext an einem Datensatz mit Datei bleibt abgelehnt.** Auskunft des Nutzers vom 14.11.:
+  Einen Volltext schreibt kein Client selbst, das zerstört die Datei im Inhalt; ein `GET` auf den
+  Text-Endpunkt lässt das Repository umwandeln. Die Texte nannten `would_replace_file` bisher
+  „vorgemerkt“ und „später erneut“. Jetzt steht dort: Ein Volltext lässt sich nur an einen
+  Datensatz ohne Datei hängen (Werkzeugbeschreibungen, Muster M18).
 - **Offen:** Das Themenbaum-Modul zeigt einen nicht lesbaren Zweig weiter wie ein Blatt. Das gilt
   auch für `childrenUnread`. Plan N5.
 
