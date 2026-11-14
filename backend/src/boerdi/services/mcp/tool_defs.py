@@ -480,7 +480,9 @@ TOOL_DEFINITIONS = [
                 "URL fragen — gleichzeitig mit get_url_text, beides braucht nur die Adresse. Liefert je Adresse die Treffer mit nodeId und Titel, mit "
                 "includeCollections auch, in wie vielen Sammlungen sie liegen. match=exact heisst: "
                 "dieser Datensatz IST es (nicht neu anlegen); match=normalized: wahrscheinlich, die "
-                "Person fragen — nie still als Dublette werten."
+                "Person fragen — nie still als Dublette werten. Traegt ein Eintrag error (auch "
+                "not_found), ist die Pruefung fuer diese Adresse OFFEN: das sagen, nicht als 'gibt "
+                "es nicht' werten. Kein Datensatz heisst nur: matches leer und ohne error."
             ),
             "parameters": {
                 "type": "object",

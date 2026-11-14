@@ -10,7 +10,8 @@ Arbeitsstand des Servers gelesen (Reviews C1):
   Themenseiten; ``search_wlo_collections`` schreibt dort nur ``{total, count, results}`` und hängt
   den Hinweissatz als eigenen Block an — im Text also HINTER dem Umschlag;
 - ``childrenUnread: true`` an einem Knoten von ``browse_collection_tree``, seit dem MCP-Stand
-  vom 14.11.2026 auch ``contentsUnread: true`` (der Inhaltsabruf des Zweigs);
+  vom 14.11.2026 auch ``contentsUnread: true`` (der Inhaltsabruf des Zweigs) — dieses auch je
+  Eintrag in ``subcollections`` von ``get_collection_overview``;
 - ``unreachable: true`` bei ``get_wikipedia_summary``;
 - ``reason: "source_unreachable"`` bei ``get_topic_page_content``;
 - im Markdown-Modus nur ein Hinweissatz.
@@ -43,7 +44,7 @@ from typing import Any, Final
 WERKZEUGE: Final = frozenset({
     "search_wlo_all", "search_wlo_collections", "search_wlo_content", "search_wlo_topic_pages",
     "search_wlo_within_collection", "get_collection_contents", "browse_collection_tree",
-    "get_topic_page_content", "get_wikipedia_summary"})
+    "get_collection_overview", "get_topic_page_content", "get_wikipedia_summary"})
 #: Wendungen aus den Hinweissätzen des Servers (``services/collection-search.ts``
 #: ``incompleteNotice``, ``tools/wikipedia.ts``, ``tools/collections.ts`` ``WALK_INCOMPLETE_NOTE``,
 #: ``tools/browse.ts``).
@@ -82,8 +83,10 @@ def gekennzeichnet(daten: Any) -> bool:
     if (daten.get("incomplete") is True or daten.get("unreachable") is True
             or daten.get("reason") == GRUND_AUSFALL):
         return True
-    return _zweig_ungelesen(daten.get("results")) or any(
-        isinstance(topf, dict) and topf.get("incomplete") is True for topf in daten.values())
+    # ``subcollections``: die Übersicht führt je Untersammlung ``contentsUnread`` (MCP 14.11.).
+    return (_zweig_ungelesen(daten.get("results")) or _zweig_ungelesen(daten.get("subcollections"))
+            or any(isinstance(topf, dict) and topf.get("incomplete") is True
+                   for topf in daten.values()))
 
 
 def _zerlegt(text: str) -> tuple[Any, str]:
