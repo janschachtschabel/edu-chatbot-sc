@@ -235,10 +235,14 @@ def test_jedes_kurationswerkzeug_der_registry_ist_eingeordnet():
 
 def test_nur_das_lesende_werkzeug_ist_nicht_bestaetigungspflichtig():
     # Live gemessen: 13 der 14 fuehren einen ``confirmToken``; allein
-    # ``wlo_list_suggestions`` nicht, weil es nichts aendert.
-    assert set(CURATION_TOOLS) - set(CONFIRMABLE_TOOLS) == {"wlo_list_suggestions"}
+    # ``wlo_list_suggestions`` nicht, weil es nichts aendert. Seit SW-3 (2026-11-14) ebenso
+    # ``wlo_list_collection_proposals`` (am Eingabeschema des neuen Servers gelesen).
+    assert set(CURATION_TOOLS) - set(CONFIRMABLE_TOOLS) == {
+        "wlo_list_suggestions", "wlo_list_collection_proposals"}
     assert is_confirmable("wlo_delete_content")
     assert not is_confirmable("wlo_list_suggestions")
+    assert not is_confirmable("wlo_list_collection_proposals")
+    assert is_confirmable("wlo_decide_collection_proposal")
     assert not is_confirmable("search_wlo_content")
 
 

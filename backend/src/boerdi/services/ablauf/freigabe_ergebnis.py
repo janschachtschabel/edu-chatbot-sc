@@ -24,14 +24,21 @@ def ohne_schluessel(wert: Any, tiefe: int = 0) -> Any:
     return wert
 
 
+#: Status eines Plan-Eintrags, bei denen sicher nichts geschehen ist.
+_NICHT_GESCHEHEN = frozenset({"failed", "not_stored"})
+
+
 def alle_gescheitert(ergebnis: Any) -> bool:
     """Teilweise Fehler stehen im Teil; nur wenn jeder Eintrag gescheitert ist, gilt der Schritt
-    als gescheitert."""
+    als gescheitert. ``not_stored`` (SW-3, ``wlo_submit_contents``: mit Erfolg beantwortet, aber
+    nicht in der Warteschlange) zählt wie ``failed`` — sonst liefe der Lauf weiter, als sei
+    eingereicht. ``proposed`` zählt NICHT als gescheitert: Die Vorschau hat gesagt, dass
+    vorgeschlagen statt aufgenommen wird, und die Person hat dem zugestimmt."""
     if not isinstance(ergebnis, dict):
         return False
     eintraege = next((ergebnis[k] for k in ("items", "nodes", "pairs")
                       if isinstance(ergebnis.get(k), list) and ergebnis[k]), None)
-    return bool(eintraege) and all(isinstance(e, dict) and e.get("status") == "failed"
+    return bool(eintraege) and all(isinstance(e, dict) and e.get("status") in _NICHT_GESCHEHEN
                                    for e in eintraege)
 
 

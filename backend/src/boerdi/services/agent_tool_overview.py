@@ -136,7 +136,9 @@ def werkzeugliste() -> dict[str, Any]:
                 "name": name, "kind": art,
                 "description": definition["function"]["description"],
                 "offered": name in angeboten,
-                "locks": _sperren(name, art, policy, verborgen),
+                # SW-3: ein Katalog-Werkzeug, das der bereitgestellte Server nicht führt.
+                "locks": [*_sperren(name, art, policy, verborgen),
+                          *([] if angebot.gefuehrt(name) else [{"code": "server_lacks"}])],
             })
     # N4 (Review, m1), SW-1: Lesewerkzeuge, die in keinem der beiden Kataloge stehen — angeboten
     # werden sie nur, wenn der bereitgestellte Server sie führt (``server_lacks``); sonst eine

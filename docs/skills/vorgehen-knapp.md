@@ -319,7 +319,12 @@ zweistufig:
 3. Danach berichten, was tatsächlich ankam, auch abweichende oder verworfene Felder.
 4. Viele Untersammlungen (`wlo_create_collection_tree`) oder Aufnahmen (`wlo_add_to_collections`):
    eine Vorschau, ein Ja für alles. Das Ja löst der Chat selbst ein (nicht erneut aufrufen),
-   „Plan fortsetzen“ bietet er selbst an.
+   „Plan fortsetzen“ bietet er selbst an. Dasselbe gilt für jedes weitere Stapel-Werkzeug, dessen
+   Beschreibung es sagt (viele einreichen, herausnehmen, umsortieren, leere Sammlungen
+   zurücknehmen): Ist es angeboten, nimm es statt vieler Einzelaufrufe.
+5. Meldet eine Aufnahme „vorgeschlagen“ statt „aufgenommen“, liegt das Material NICHT in der
+   Sammlung; die Redaktion der Sammlung entscheidet. Sag das so. Vor dem Umhängen einer Sammlung
+   sagen, dass sie ihre geerbten Rechte danach von der neuen Elternsammlung bekommt.
 
 Metadaten ändern: direkt `wlo_update_content` mit den Bezeichnungen (Fach, Stufe, Typ, Zielgruppe).
 Die Vorschau nennt den Datensatz und zeigt alt und neu. Schlagwörter werden ergänzt; Fach, Stufe,

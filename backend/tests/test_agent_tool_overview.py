@@ -71,7 +71,13 @@ def test_mit_schreibrecht_kommen_die_kuratierenden_dazu(monkeypatch):
 
     monkeypatch.setattr(ov, "schreiben_erlaubt", lambda: True)
     mit = ov.werkzeugliste()
-    assert all(_zeile(mit, d["function"]["name"])["offered"] for d in CURATION_TOOL_DEFINITIONS)
+    # SW-3 (2026-11-14): sieben Kuratier-Werkzeuge führt erst der neuere MCP-Server; ohne ihn
+    # tragen sie den Grund ``server_lacks`` (``tests/test_mcp_sammlungspflege.py``).
+    from boerdi.services.mcp import sammlungspflege
+
+    for d in CURATION_TOOL_DEFINITIONS:
+        name = d["function"]["name"]
+        assert _zeile(mit, name)["offered"] is (name not in sammlungspflege.WERKZEUGE), name
 
 
 def test_search_skill_ist_von_haus_aus_verborgen():

@@ -232,9 +232,21 @@ class TestKurationskatalogErreichbar:
             {}, self._m18(), None, None, False, False, pattern_label="M18",
         )
         namen = {t["function"]["name"] for t in aktiv}
-        assert CURATION_TOOLS <= namen, (
-            f"fehlend: {sorted(CURATION_TOOLS - namen)}"
+        # SW-3 (2026-11-14): sieben Kuratier-Werkzeuge führt erst der neuere MCP-Server — ohne
+        # ihn fehlen genau sie, mit ihm ist der ganze Katalog da.
+        from boerdi.services.mcp import faehigkeiten, sammlungspflege
+
+        assert CURATION_TOOLS - namen == sammlungspflege.WERKZEUGE, (
+            f"fehlend: {sorted(CURATION_TOOLS - namen - sammlungspflege.WERKZEUGE)}"
         )
+        assert faehigkeiten.uebernehmen([
+            {"name": n, "input_schema": {"properties": {p: {}}}}
+            for n, p in sammlungspflege._MARKEN.items()])
+        aktiv, *_ = rts._select_active_tools(
+            {}, self._m18(), None, None, False, False, pattern_label="M18",
+        )
+        namen = {t["function"]["name"] for t in aktiv}
+        assert CURATION_TOOLS <= namen, f"fehlend: {sorted(CURATION_TOOLS - namen)}"
 
     def test_ohne_zugangsblock_ist_keins_dabei(self, monkeypatch):
         from boerdi.domain.write_confirm import CURATION_TOOLS

@@ -353,9 +353,14 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     Schlagworte beim Anlegen): Notiz `aenderungen/2026-11-14-sammlungsbaum-lesen-und-metadaten.md`.
     Keine Migration, keine neue Variable; `import-config --werksabgleich`,
     Master-Skill-Knoten ersetzen.
-  - **Offen:** SW-3 (sieben Kuratier-Werkzeuge: Stapel-Einreichen, Entfernen, Umsortieren,
-    leere Sammlungen löschen, Umhängen, Reihenfolge setzen, Vorschläge); SW-4 (Themenbaum in
-    gespeicherter Reihenfolge, Abgleich bis Tiefe 4; wartet auf SE-4 und SE-5).
+  - **SW-3 umgesetzt** (sieben Kuratier-Werkzeuge: Stapel-Einreichen, Herausnehmen,
+    Umsortieren, leere Sammlungen löschen, Umhängen, Reihenfolge setzen, Vorschläge): Notiz
+    `aenderungen/2026-11-14-sammlungen-pflegen.md`. `import-config --werksabgleich`
+    (Werkzeugliste des MCP-Servers, Muster M18).
+  - **Offen:** SW-4 (Themenbaum in gespeicherter Reihenfolge, Abgleich bis Tiefe 4; wartet
+    auf SE-4 und SE-5). Abläufe können die neuen Werkzeuge mit Freigabe rufen, auch wenn der
+    Server sie nicht führt (die Studio-Auswahl bietet sie an, die Prüfung warnt nicht); der
+    Schritt endet dann in einer Ablehnung ohne Grund und geht zu `bei_fehler`.
   - **Offen:** jede Vorschau und jedes Schreiben mit den neuen Feldern im Chat prüfen, sobald
     der neue MCP auf Staging läuft; welche Reihenfolge die WLO-Oberfläche zeigt.
   - **Bestand, beim Review aufgefallen:** Ein Strukturentwurf darf 30 Punkte auf oberster

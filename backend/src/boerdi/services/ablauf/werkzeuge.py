@@ -126,7 +126,9 @@ def schreibend(name: str) -> bool:
 
 
 #: Paket S (Review S1, Befund 8): Löschen nicht aus einem Ablauf — offen als Entscheid des Nutzers.
-_NICHT_IM_ABLAUF: Final = frozenset({"wlo_delete_content", "wlo_delete_collection"})
+#: SW-3 (SE-3): auch das Löschen leerer Sammlungen im Stapel.
+_NICHT_IM_ABLAUF: Final = frozenset({"wlo_delete_content", "wlo_delete_collection",
+                                     "wlo_delete_collections"})
 
 
 def freigebbar(name: str) -> bool:

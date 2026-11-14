@@ -555,6 +555,20 @@ BOT_TEXT: Final[Catalogue] = {
         "write.grund.isAFolder": "Das ist ein Ordner, kein einzelner Inhalt.",
         "write.grund.isACollection": "Das ist eine Sammlung, kein einzelner Inhalt.",
         "write.grund.notARecord": "Das ist kein einzelner Inhalt.",
+        # SW-3 (2026-11-14): Gründe der Werkzeuge für Sammlungen
+        "write.grund.isOriginal": (
+            "Das Material liegt als Original direkt in dieser Sammlung. Herausnehmen würde es "
+            "löschen — deshalb ist nichts geändert."),
+        "write.grund.alreadyProposed": (
+            "Das Material ist für diese Sammlung schon vorgeschlagen worden. Es liegt nicht in "
+            "der Sammlung; ein zweiter Vorschlag ist nicht möglich."),
+        "write.grund.noPendingProposal": (
+            "Zu diesem Material gibt es keinen offenen Vorschlag an diese Sammlung."),
+        "write.grund.noChange": "Es gibt nichts zu ändern: Der gewünschte Stand besteht schon.",
+        "write.proposalNotMarked": (
+            "Das Material liegt jetzt in der Sammlung. Ob der Vorschlag als angenommen markiert "
+            "ist, steht nicht fest; er kann noch als offen erscheinen. Bitte nicht noch einmal "
+            "annehmen."),
         # Plan 2026-11-13, C2: der MCP meldet ``recordExists`` — angelegt, ein Folgeschritt offen
         "write.recordExists": (
             "Der Datensatz ist angelegt ({kennung}), aber ein Schritt danach ist nicht bestätigt "
@@ -1060,6 +1074,18 @@ BOT_TEXT: Final[Catalogue] = {
         "write.grund.isAFolder": "That is a folder, not a single item.",
         "write.grund.isACollection": "That is a collection, not a single item.",
         "write.grund.notARecord": "That is not a single item.",
+        "write.grund.isOriginal": (
+            "The item sits in this collection as the original itself. Removing it would delete "
+            "it — so nothing was changed."),
+        "write.grund.alreadyProposed": (
+            "The item has already been proposed for this collection. It is not in the "
+            "collection; a second proposal is not possible."),
+        "write.grund.noPendingProposal": (
+            "There is no open proposal for this item in this collection."),
+        "write.grund.noChange": "There is nothing to change: it is already as requested.",
+        "write.proposalNotMarked": (
+            "The item is now in the collection. Whether the proposal is marked as accepted is "
+            "not certain; it may still show as open. Please do not accept it again."),
         "write.recordExists": (
             "The record has been created ({kennung}), but a step after that did not come back "
             "confirmed — for example the file or some of the details. Please do not create it "

@@ -30,13 +30,21 @@ ist der Anlass zum Prüfen, nicht der Befund.
 from __future__ import annotations
 
 from boerdi.api.schemas import (
+    CollectionAddArgs,
     CollectionCreateArgs,
     CollectionMembershipArgs,
+    CollectionMoveArgs,
+    CollectionOrderArgs,
+    CollectionProposalDecideArgs,
+    CollectionProposalsListArgs,
     CollectionRenameArgs,
     CollectionsAddArgs,
+    CollectionsDeleteArgs,
+    CollectionsRemoveArgs,
     CollectionTreeCreateArgs,
     CompendiumUpdateArgs,
     ContentCreateArgs,
+    ContentsSubmitArgs,
     ContentSubmitArgs,
     ContentsUpdateArgs,
     ContentUpdateArgs,
@@ -494,6 +502,129 @@ CURATION_TOOL_DEFINITIONS = [
         },
         ["nodeId", "suggestionId", "decision"],
     ),
+    # ── SW-3 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14) ──────────────────────────────────────
+    # Im Katalog, damit Bestaetigung, Plaene und Argumentmodelle greifen; angeboten nur, wenn der
+    # bereitgestellte Server sie fuehrt (``services/mcp/sammlungspflege.gefuehrt``).
+    _fn(
+        "wlo_submit_contents",
+        "Reicht viele vorhandene Materialien zur redaktionellen Pruefung ein — bis zu 200 mit "
+        "EINER Bestaetigung, etwa nach einem Upload. Nur einzelne Materialien, keine Sammlungen. "
+        "Was schon zur Pruefung vorliegt, zaehlt als erledigt; ein gescheiterter Eintrag haelt die "
+        "anderen nicht auf. Die Notiz gilt fuer alle. Fortsetzen ueber den Knopf 'Plan fortsetzen'."
+        + _ZWEISTUFIG_PLAN,
+        {
+            "items": {"type": "array",
+                      "items": {"type": "object", "properties": {"nodeId": {"type": "string"}},
+                                "required": ["nodeId"]},
+                      "description": "Eintraege {nodeId}, max. 200."},
+            "comment": {"type": "string",
+                        "description": "Notiz fuer die Redaktion, an jedem der Materialien."},
+        },
+        ["items"],
+    ),
+    _fn(
+        "wlo_remove_from_collections",
+        "Nimmt viele Materialien aus Sammlungen heraus — bis zu 200 Paare mit EINER "
+        "Bestaetigung. Entfernt wird nur der Verweis; das Material bleibt im Bestand und in allen "
+        "anderen Sammlungen. Ein Paar, das nicht in seiner Sammlung liegt, zaehlt als erledigt. "
+        "Liegt ein Material als Original direkt in der Sammlung, lehnt der Server es ab (es wuerde "
+        "geloescht). Zum UMSORTIEREN stattdessen wlo_add_to_collections mit removeFrom. "
+        "Fortsetzen ueber den Knopf 'Plan fortsetzen'."
+        + _ZWEISTUFIG_PLAN,
+        {
+            "pairs": {
+                "type": "array",
+                "items": {"type": "object", "properties": {
+                    "nodeId": {"type": "string"}, "collectionId": {"type": "string"}},
+                    "required": ["nodeId", "collectionId"]},
+                "description": "Paare {nodeId des Materials, collectionId der Sammlung}, max. 200.",
+            },
+        },
+        ["pairs"],
+    ),
+    _fn(
+        "wlo_delete_collections",
+        "Loescht viele Sammlungen mit EINER Bestaetigung — aber NUR leere: ohne Untersammlung "
+        "und ohne Material. Leer heisst: nichts, was DEINE Anmeldung sehen kann — sag das, wenn "
+        "andere dort Material haben koennten. Gedacht, um einen falsch angelegten Baum "
+        "zurueckzunehmen: nenne alle "
+        "seine nodeIds (eine Sammlung, deren einziger Inhalt mitgenannte leere Untersammlungen "
+        "sind, zaehlt als leer). Was nicht leer ist, bleibt und kommt als not_empty zurueck — das "
+        "ist eine Antwort, kein Fehler. Geloeschtes laesst sich nicht verlaesslich "
+        "wiederherstellen. Fortsetzen ueber den Knopf 'Plan fortsetzen'."
+        + _ZWEISTUFIG_PLAN,
+        {
+            "nodeIds": {"type": "array", "items": {"type": "string"},
+                        "description": "nodeIds der Sammlungen, max. 200. Reihenfolge egal."},
+        },
+        ["nodeIds"],
+    ),
+    _fn(
+        "wlo_move_collection",
+        "Haengt eine Sammlung unter eine andere Elternsammlung — samt allen Untersammlungen und "
+        "Inhalten. Ihre nodeId bleibt. Geerbte Rechte kommen danach von der neuen Elternsammlung: "
+        "die Sichtbarkeit kann sich aendern, sag das. Der Server lehnt ab, wenn das Ziel im "
+        "eigenen Teilbaum liegt, dort schon eine gleichnamige Sammlung steht oder die Sammlung "
+        "schon dort liegt. Auf die oberste Ebene laesst sich nicht umhaengen."
+        + _ZWEISTUFIG,
+        {
+            "nodeId": {"type": "string", "description": "nodeId der Sammlung, die umzieht."},
+            "newParentId": {"type": "string",
+                            "description": "nodeId der Sammlung, unter der sie danach liegt."},
+        },
+        ["nodeId", "newParentId"],
+    ),
+    _fn(
+        "wlo_order_collection",
+        "Legt die Reihenfolge der Untersammlungen ODER der Inhalte einer Sammlung fest, etwa die "
+        "Abfolge eines Lehrplans. order nennt die nodeIds in der gewuenschten Reihenfolge und "
+        "muss ALLE Eintraege dieser Art nennen; eine unvollstaendige Liste lehnt der Server ab "
+        "und nennt, was fehlt. Je Aufruf nur eine Art."
+        + _ZWEISTUFIG,
+        {
+            "collectionId": {"type": "string",
+                             "description": "nodeId der Sammlung, deren Eintraege du ordnest."},
+            "order": {"type": "array", "items": {"type": "string"},
+                      "description": "Alle Untersammlungen ODER alle Inhalte dieser Sammlung, in "
+                                     "der gewuenschten Reihenfolge (max. 500)."},
+        },
+        ["collectionId", "order"],
+    ),
+    _fn(
+        "wlo_list_collection_proposals",
+        "Listet, welche Materialien fuer EINE Sammlung vorgeschlagen wurden — von Personen, die "
+        "dort lesen, aber nicht schreiben duerfen. Ein Vorschlag ist KEINE Aufnahme. Aendert "
+        "nichts und hat keinen Vorschau-Schritt. Sichtbar nur mit Schreibrecht an der Sammlung.",
+        {
+            "collectionId": {"type": "string", "description": "nodeId der Sammlung."},
+            "status": {
+                "type": "string", "enum": ["PENDING", "ACCEPTED", "DECLINED"],
+                "description": "Nur Vorschlaege in diesem Zustand (Vorgabe: PENDING, offen).",
+            },
+        },
+        ["collectionId"],
+    ),
+    _fn(
+        "wlo_decide_collection_proposal",
+        "Nimmt einen Vorschlag an eine Sammlung an oder lehnt ihn ab — eine redaktionelle "
+        "Entscheidung, nur auf ausdruecklichen Wunsch. Annehmen nimmt das Material in die "
+        "Sammlung auf. Ablehnen laesst es, wo es ist; es kann fuer diese Sammlung dann nicht noch "
+        "einmal vorgeschlagen werden. Nur offene Vorschlaege sind entscheidbar. Meldet der Server "
+        "proposal_not_marked: aufgenommen, aber die Markierung steht nicht fest — NICHT noch "
+        "einmal annehmen."
+        + _ZWEISTUFIG,
+        {
+            "collectionId": {"type": "string", "description": "nodeId der Sammlung."},
+            "nodeId": {"type": "string",
+                       "description": "nodeId des vorgeschlagenen Materials (aus "
+                                      "wlo_list_collection_proposals)."},
+            "decision": {
+                "type": "string", "enum": ["accept", "decline"],
+                "description": "annehmen oder ablehnen.",
+            },
+        },
+        ["collectionId", "nodeId", "decision"],
+    ),
 ]
 
 
@@ -507,7 +638,7 @@ CURATION_ARG_MODELS: dict[str, type] = {
     "wlo_create_collection":      CollectionCreateArgs,
     "wlo_rename_collection":      CollectionRenameArgs,
     "wlo_delete_collection":      NodeOnlyArgs,
-    "wlo_add_to_collection":      CollectionMembershipArgs,
+    "wlo_add_to_collection":      CollectionAddArgs,
     "wlo_create_collection_tree": CollectionTreeCreateArgs,
     "wlo_add_to_collections":     CollectionsAddArgs,
     "wlo_attach_fulltext":        FulltextAttachArgs,
@@ -519,4 +650,12 @@ CURATION_ARG_MODELS: dict[str, type] = {
     "wlo_suggest_metadata":       MetadataSuggestArgs,
     "wlo_list_suggestions":       SuggestionsListArgs,
     "wlo_decide_suggestion":      SuggestionDecideArgs,
+    # SW-3 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14)
+    "wlo_submit_contents":            ContentsSubmitArgs,
+    "wlo_remove_from_collections":    CollectionsRemoveArgs,
+    "wlo_delete_collections":         CollectionsDeleteArgs,
+    "wlo_move_collection":            CollectionMoveArgs,
+    "wlo_order_collection":           CollectionOrderArgs,
+    "wlo_list_collection_proposals":  CollectionProposalsListArgs,
+    "wlo_decide_collection_proposal": CollectionProposalDecideArgs,
 }

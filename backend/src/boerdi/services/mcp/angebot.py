@@ -13,6 +13,9 @@ führt (:mod:`faehigkeiten`):
   gespeicherte Reihenfolge an zwei Lesewerkzeugen.
 - :mod:`baum_metadaten` (SW-2): Fach, Bildungsstufe und Schlagworte gleich beim Anlegen eines
   Sammlungsbaums.
+- :mod:`sammlungspflege` (SW-3): sieben Kuratier-Werkzeuge, die im Katalog stehen und nur
+  angeboten werden, wenn der Server sie führt (:func:`gefuehrt`); Umsortieren und Vorschlagen an
+  den Einsortier-Werkzeugen.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from boerdi.services.mcp import (
     baum_lesen,
     baum_metadaten,
     sammlung_per_name,
+    sammlungspflege,
     suche_mehrfach,
     werte_hinzufuegen,
 )
@@ -42,7 +46,14 @@ def nach_faehigkeit(definition: dict[str, Any]) -> dict[str, Any]:
 def fuer_muster(definition: dict[str, Any]) -> dict[str, Any]:
     """Wie :func:`nach_faehigkeit`, ohne die Sammlung per Titel: Die bleibt an den direkten
     Werkzeugen dem Agenten vorbehalten (N3). Für Werkzeuge, die ein Muster beim Namen nennt."""
-    return baum_metadaten.erweitert(baum_lesen.erweitert(werte_hinzufuegen.erweitert(definition)))
+    return sammlungspflege.erweitert(
+        baum_metadaten.erweitert(baum_lesen.erweitert(werte_hinzufuegen.erweitert(definition))))
+
+
+def gefuehrt(werkzeug: str) -> bool:
+    """Darf dieses Katalog-Werkzeug angeboten werden? Nein nur für die Kuratier-Werkzeuge, die
+    der bereitgestellte Server (noch) nicht führt — ein Aufruf endete dort im Fehler."""
+    return sammlungspflege.gefuehrt(werkzeug)
 
 
 def fuer_den_server(werkzeug: str, argumente: dict[str, Any]) -> dict[str, Any]:
@@ -61,7 +72,8 @@ def lokale_ablehnung(werkzeug: str, argumente: dict[str, Any]) -> str | None:
     Angabe still oder wiese den Aufruf mit einer Schemameldung ab) — sonst ``None``."""
     return (werte_hinzufuegen.nicht_moeglich(werkzeug, argumente)
             or suche_mehrfach.nicht_moeglich(werkzeug, argumente)
-            or baum_lesen.nicht_moeglich(werkzeug, argumente))
+            or baum_lesen.nicht_moeglich(werkzeug, argumente)
+            or sammlungspflege.nicht_moeglich(werkzeug, argumente))
 
 
 def hinweis_zum_senden(werkzeug: str, eingang: dict[str, Any],
