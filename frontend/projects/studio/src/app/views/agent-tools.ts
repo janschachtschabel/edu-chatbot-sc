@@ -80,6 +80,9 @@ export function lockText(lock: AgentToolLock, w: LockWords): string {
       return w.t('agentTools.lock.dataSource', { tool: lock.tool ?? '' });
     case 'studio_off':
       return w.t('agentTools.lock.studioOff');
+    // N4: der bereitgestellte MCP-Server führt das Werkzeug (noch) nicht.
+    case 'server_lacks':
+      return w.t('agentTools.lock.serverLacks');
     default:
       return lock.code;
   }

@@ -75,6 +75,9 @@ export const AGENT_CENTER: CataloguePart = {
       + 'fehlt das Modul mit.',
     // U1-f: Schalter der Seite „UI-Module“.
     'agentTools.lock.studioOff': 'Auf der Seite „UI-Module“ abgeschaltet.',
+    'agentTools.lock.serverLacks':
+      'Der bereitgestellte MCP-Server führt dieses Werkzeug nicht. Es wird angeboten, sobald er '
+      + 'es kann.',
 
     'curated.agent.skills.label': 'Skill-Verzeichnis',
     'curated.agent.skills.hint':
@@ -187,6 +190,9 @@ export const AGENT_CENTER: CataloguePart = {
       'Only when its tool {tool} is offered — if that is missing (switch, block, tool-mode), the '
       + 'module is missing too.',
     'agentTools.lock.studioOff': 'Switched off on the “UI modules” page.',
+    'agentTools.lock.serverLacks':
+      'The deployed MCP server does not provide this tool. It is offered as soon as the server '
+      + 'does.',
 
     'curated.agent.skills.label': 'Skill directory',
     'curated.agent.skills.hint':

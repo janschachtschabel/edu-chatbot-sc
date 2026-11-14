@@ -100,6 +100,13 @@ describe('lockText (ST-8b)', () => {
       .toBe('Auf der Seite „UI-Module“ abgeschaltet.');
     expect(lockText({ code: 'studio_off' }, wörter('en')))
       .toBe('Switched off on the “UI modules” page.');
+    // N4: der bereitgestellte MCP-Server führt das Werkzeug (noch) nicht.
+    expect(lockText({ code: 'server_lacks' }, de))
+      .toBe('Der bereitgestellte MCP-Server führt dieses Werkzeug nicht. Es wird angeboten, '
+        + 'sobald er es kann.');
+    expect(lockText({ code: 'server_lacks' }, wörter('en')))
+      .toBe('The deployed MCP server does not provide this tool. It is offered as soon as the '
+        + 'server does.');
   });
 
   it('nennt Policy-Regeln mit ihrer Kennung, in Einzahl und Mehrzahl', () => {
