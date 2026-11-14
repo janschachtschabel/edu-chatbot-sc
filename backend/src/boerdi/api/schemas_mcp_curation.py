@@ -24,6 +24,30 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
+#: Eine Bezeichnung oder mehrere (N2, MCP-Stand 2026-11-14: Fach, Stufe, Typ und Zielgruppe nehmen
+#: auch eine Liste, 1–20). Leer bleibt ``""`` — ``_export_non_empty`` lässt es dann weg. Mehr als
+#: 20 lehnt der Server ab und sagt es; der Client schneidet nicht still ab (Review N2, N4) —
+#: bei einem ersetzenden Feld fehlten sonst Werte.
+Etiketten = str | list[str]
+#: Die Felder, die der Server ERSETZT und für die er eine Liste nimmt.
+MEHRWERTIG = ("contentType", "educationalContext", "discipline", "userRole")
+#: N2: fügt hinzu, die bisherigen Werte bleiben — nur beim Ändern, nicht beim Anlegen.
+HINZUFUEGEN = ("addDiscipline", "addEducationalContext", "addUserRole")
+
+
+def etiketten(wert: Any) -> Any:
+    """Eine Bezeichnung oder eine Liste davon, ohne Leerraum am Rand und ohne leere Einträge;
+    eine einzelne als Text (so nimmt sie auch ein Server, der noch keine Liste kennt), nichts
+    als ``""``. Anderes bleibt, wie es ist — die Prüfung des Felds entscheidet."""
+    if wert is None:
+        return ""
+    if isinstance(wert, str):
+        return wert.strip()
+    if not isinstance(wert, list) or not all(isinstance(w, str) for w in wert):
+        return wert
+    werte = [w.strip() for w in wert if w.strip()]
+    return "" if not werte else werte[0] if len(werte) == 1 else werte
+
 
 # Die schreibbaren Metadatenfelder eines Materials. Einmal deklariert, von
 # ``wlo_create_content`` und ``wlo_update_content`` geteilt — der Server führt
@@ -39,10 +63,10 @@ class _ContentFields(BaseModel):
     publisher: str = ""
     licenseKey: str = ""
     licenseVersion: str = ""
-    contentType: str = ""
-    educationalContext: str = ""
-    discipline: str = ""
-    userRole: str = ""
+    contentType: Etiketten = ""
+    educationalContext: Etiketten = ""
+    discipline: Etiketten = ""
+    userRole: Etiketten = ""
     content: str = ""
     # Leerstring statt ``None`` als „nicht angegeben": ``_export_non_empty``
     # entfernt ausschliesslich leere Strings. Ein ``None`` ueberlebt den Export
@@ -50,6 +74,11 @@ class _ContentFields(BaseModel):
     # Feld als optionale Zeichenkette fuehrt — zod lehnt ``null`` dort ab.
     contentFormat: Literal["markdown", "text", ""] = ""
     fileBase64: str = ""
+
+    @field_validator(*MEHRWERTIG, mode="before")
+    @classmethod
+    def _eine_oder_mehrere(cls, wert):
+        return etiketten(wert)
 
 
 class ContentCreateArgs(_ContentFields):
@@ -67,10 +96,22 @@ class ContentUpdateArgs(_ContentFields):
 
     ``commit`` steht auf dem Server-Standard ``False``: eine neue Version wird
     nur auf ausdrücklichen Wunsch angelegt.
+
+    ``addDiscipline`` / ``addEducationalContext`` / ``addUserRole`` (N2, MCP-Stand 2026-11-14):
+    fügen hinzu, die bisherigen Werte bleiben. Dasselbe Feld zugleich ersetzen und ergänzen
+    lehnt der Server ab — der Client mischt sich nicht ein, die Ablehnung sagt es der KI.
     """
     nodeId: str
     commit: bool = False
     versionComment: str = ""
+    addDiscipline: Etiketten = ""
+    addEducationalContext: Etiketten = ""
+    addUserRole: Etiketten = ""
+
+    @field_validator(*HINZUFUEGEN, mode="before")
+    @classmethod
+    def _eine_oder_mehrere_dazu(cls, wert):
+        return etiketten(wert)
 
 
 class NodeOnlyArgs(BaseModel):
@@ -148,7 +189,8 @@ _VOLLTEXT_FELDER = ("nodeId", "markdown", "source", "sourceUrl", "language")
 #: :class:`_ContentFields` ohne Inhalt und Datei (dafür bleibt ``wlo_update_content``), dazu
 #: ``reason`` (Begründung der Vorschläge, die der Server statt eines Schreibens hinterlegt).
 _METADATEN_FELDER = ("nodeId", "reason", *(f for f in _ContentFields.model_fields
-                                          if f not in ("content", "contentFormat", "fileBase64")))
+                                          if f not in ("content", "contentFormat", "fileBase64")),
+                     *HINZUFUEGEN)
 
 
 def _nur(felder: tuple[str, ...], wert: Any) -> Any:
@@ -158,8 +200,14 @@ def _nur(felder: tuple[str, ...], wert: Any) -> Any:
     Ebene auf."""
     if not isinstance(wert, list):
         return wert
-    return [{f: v for f in felder if f in e and not _leer(v := _ohne_leere(e[f]))}
+    return [{f: v for f in felder if f in e and not _leer(v := _eintragswert(f, e[f]))}
             if isinstance(e, dict) else e for e in wert]
+
+
+def _eintragswert(feld: str, wert: Any) -> Any:
+    """Ein Feld eines Eintrags: Bezeichnungen wie im Einzelaufruf (:func:`etiketten`, Review N2,
+    M3 — eine einzelne als Text), sonst ohne leere Listeneinträge."""
+    return etiketten(wert) if feld in MEHRWERTIG or feld in HINZUFUEGEN else _ohne_leere(wert)
 
 
 def _ohne_leere(wert: Any) -> Any:

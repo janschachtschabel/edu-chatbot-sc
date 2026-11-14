@@ -55,7 +55,14 @@ from boerdi.domain.write_confirm import (
 from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.log_inhalt import ereignis, filterwerte
 from boerdi.services import probe
-from boerdi.services.mcp import anmeldung, auth, fremdwerkzeuge, transport, wiederholung
+from boerdi.services.mcp import (
+    anmeldung,
+    auth,
+    fremdwerkzeuge,
+    transport,
+    werte_hinzufuegen,
+    wiederholung,
+)
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
 from boerdi.services.mcp.listen_argumente import braucht_umformung, mit_listen
 from boerdi.services.mcp.tool_args import (
@@ -498,6 +505,12 @@ async def _einzelaufruf(
 
     # Validate arguments before sending to MCP server
     arguments = validate_tool_args(tool_name, arguments)
+    # N2 (Review, M4): ``add…`` an einem Server, der es nachweislich nicht kennt — er liesse die
+    # Angabe still weg. Lieber hier ein klarer Satz als eine Vorschau, in der das Fach fehlt.
+    if grund := werte_hinzufuegen.nicht_moeglich(tool_name, arguments):
+        gesendet.append(arguments)
+        return McpAntwort(text=f"{_MCP_ERROR_PREFIX} [invalid_input]: {grund}", art="tool",
+                          code="invalid_input"), False
 
     # Preprocessor pipeline — zentral registriert in TOOL_PREPROCESSORS.
     # Jeder Preprocessor bekommt das ``arguments``-Dict und gibt ein neues

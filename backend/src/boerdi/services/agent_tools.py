@@ -31,7 +31,7 @@ from boerdi.domain.result_delivery import ergebnis_werkzeug
 from boerdi.domain.werkzeug_freigabe import VORGABE_AUS, verborgen
 from boerdi.services.config_loader import load_mcp_servers
 from boerdi.services.config_loader.mcp import _PRIMARY_ID
-from boerdi.services.mcp import fremdwerkzeuge, sammlung_per_name
+from boerdi.services.mcp import angebot, fremdwerkzeuge
 from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
@@ -107,11 +107,13 @@ def _mcp_werkzeuge(
     """Die MCP-Werkzeuge eines Laufs: ohne verborgene, ohne kuratierende ohne
     Schreibrecht, ohne gesperrte, nur was der Modus der Einbettung erlaubt."""
     aus = verborgene_werkzeuge()
-    # N3: eine Sammlung über ihren Titel — nur, wenn der bereitgestellte Server das kennt.
-    tools = [sammlung_per_name.erweitert(t) for t in TOOL_DEFINITIONS
+    # N3/N2: was nur der neuere Server kann (Sammlung per Titel, Werte hinzufügen) — angeboten
+    # nur, wenn der bereitgestellte es führt.
+    tools = [angebot.nach_faehigkeit(t) for t in TOOL_DEFINITIONS
              if t["function"]["name"] not in aus]
     if allow_curation and has_auth_token():
-        tools.extend(t for t in CURATION_TOOL_DEFINITIONS if t["function"]["name"] not in aus)
+        tools.extend(angebot.nach_faehigkeit(t) for t in CURATION_TOOL_DEFINITIONS
+                     if t["function"]["name"] not in aus)
     # Paket 11 (E): lesende Werkzeuge fremder MCP-Server, im eigenen Namensraum.
     tools.extend(fremdwerkzeuge.definitionen())
     if blocked_tools:

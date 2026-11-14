@@ -35,14 +35,21 @@ FEHLVERSUCHE_BIS_UNBEKANNT: Final = 3
 #: Eine Warnung je Viertelstunde und Prozess, nicht je Fehlversuch (Hausregel seit Paket 19, N-15).
 _WARN_ABSTAND_S: Final = 900.0
 
-#: Werkzeug → Namen seiner Parameter; leer, solange der Server nicht geantwortet hat.
-_parameter: dict[str, frozenset[str]] = {}
+#: Werkzeug → Parameter → seine Aufzählungswerte (leer ohne ``enum``); leer, solange der Server
+#: nicht geantwortet hat.
+_parameter: dict[str, dict[str, frozenset[str]]] = {}
 _fehlversuche = 0
 
 
 def kennt(werkzeug: str, parameter: str) -> bool:
     """Führt der Server ``parameter`` an ``werkzeug``? ``False``, solange das offen ist."""
-    return parameter in _parameter.get(werkzeug, frozenset())
+    return parameter in _parameter.get(werkzeug, {})
+
+
+def kennt_wert(werkzeug: str, parameter: str, wert: str) -> bool:
+    """Nennt der Server ``wert`` in der Aufzählung (``enum``) von ``parameter``? N2 (2026-11-14):
+    ein neuer Wert an einem alten Parameter, etwa ``contentType`` an ``vocabulary``."""
+    return wert in _parameter.get(werkzeug, {}).get(parameter, frozenset())
 
 
 def uebernehmen(werkzeuge: Iterable[Mapping[str, Any]]) -> bool:
@@ -52,7 +59,7 @@ def uebernehmen(werkzeuge: Iterable[Mapping[str, Any]]) -> bool:
     mehr“ nach einer kaputten Antwort nähme dem Modell alles Neue weg. Dann bleibt der Stand.
     """
     global _parameter, _fehlversuche
-    neu: dict[str, frozenset[str]] = {}
+    neu: dict[str, dict[str, frozenset[str]]] = {}
     for w in werkzeuge:
         if not isinstance(w, Mapping):
             continue
@@ -60,12 +67,20 @@ def uebernehmen(werkzeuge: Iterable[Mapping[str, Any]]) -> bool:
         schema = w.get("input_schema")
         eigenschaften = schema.get("properties") if isinstance(schema, Mapping) else None
         if isinstance(name, str) and name:
-            neu[name] = frozenset(eigenschaften if isinstance(eigenschaften, Mapping) else ())
+            neu[name] = {str(p): _aufzaehlung(s) for p, s in eigenschaften.items()} if isinstance(
+                eigenschaften, Mapping) else {}
     if not neu:
         return False
     _parameter = neu
     _fehlversuche = 0
     return True
+
+
+def _aufzaehlung(schema: Any) -> frozenset[str]:
+    werte = schema.get("enum") if isinstance(schema, Mapping) else None
+    if not isinstance(werte, list):
+        return frozenset()
+    return frozenset(w for w in werte if isinstance(w, str))
 
 
 def vergessen() -> None:

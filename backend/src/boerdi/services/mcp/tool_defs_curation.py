@@ -48,6 +48,7 @@ from boerdi.api.schemas import (
     SuggestionsListArgs,
     TopicPageSetArgs,
 )
+from boerdi.services.mcp.werte_hinzufuegen import NUR_ERSETZEN
 
 # Satz, der in jeder Beschreibung eines zweistufigen Werkzeugs steht. Ohne ihn
 # liest das Modell die Vorschau als Fehlschlag und versucht es erneut, statt den
@@ -196,10 +197,7 @@ CURATION_TOOL_DEFINITIONS = [
         "wlo_update_content",
         "Aendert die Metadaten oder den Inhalt eines vorhandenen Materials. Nur "
         "die Felder angeben, die sich aendern sollen; alles andere bleibt "
-        "stehen. Schlagworte werden ergaenzt; Fach, Bildungsstufe, Inhaltstyp und "
-        "Zielgruppe werden ERSETZT: alle bisherigen Werte fallen weg. Soll ein Wert "
-        "HINZUKOMMEN, dieses Werkzeug dafuer nicht aufrufen: sag, dass es nur ersetzen "
-        "kann, und biete einen Vorschlag an (wlo_suggest_metadata; Annehmen ergaenzt). "
+        "stehen. " + NUR_ERSETZEN +
         "Die Vorschau nennt den Datensatz und zeigt je Feld alt und neu. Weicht ein Wert "
         "der Vorschau vom genannten ab, sag das. get_node_details davor nur, wenn die "
         "nodeId nicht aus dem Gespraech stammt oder die Aenderung auf dem bisherigen "
