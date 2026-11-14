@@ -14,11 +14,12 @@ definieren. Wer sie in einem Test ersetzen will, muss sie **hier** ersetzen —
 from __future__ import annotations
 
 import logging
+from itertools import zip_longest
 from typing import Any
 
 from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import get_repo_base_url, rewrite_repo_host_v2
-from boerdi.services.mcp.parsers.json_scan import load_envelope
+from boerdi.services.mcp.parsers.json_scan import load_envelope, load_leading
 from boerdi.services.mcp.parsers.skill_registry import skill_count_of
 
 logger = logging.getLogger(__name__)
@@ -338,3 +339,37 @@ def parse_search_all_cards(mcp_text: str) -> dict[str, list[dict]]:
     # Nur dieser Topf: die anderen beiden behalten den Typ des Servers.
     out["topic_pages"] = _als_themenseiten_karten(out["topic_pages"])
     return out
+
+
+def parse_search_many_cards(mcp_text: str) -> list[dict]:
+    """Die Treffer der Mehrfachsuche (``search_wlo_content_many``, N4) als Karten.
+
+    Umschlag — der strukturierte Teil des Servers, vom Client vor den Text gestellt
+    (``suche_mehrfach.mit_umschlag``):
+
+    .. code-block:: json
+
+        {"results": {"<id>": {"count": N, "results": [Treffer, ...]}}, "missing": []}
+
+    Die Treffer tragen die Feldnamen der FormattedNode (``nodeId``, ``title``, ``url``,
+    ``description``, ``learningResourceTypes``, ``educationalContexts``, ``license``,
+    ``previewUrl``); jeder Topf geht deshalb durch denselben Leser wie eine Einzelsuche. Die
+    Karten stehen REIHUM je Anfrage (erst der beste Treffer jeder Anfrage, dann die zweiten …),
+    jede einmal: Die Materialien-Box ist gedeckelt, und so bekommt jeder Teil eine Karte, solange
+    der Deckel reicht (Review 2, Befund 1). Gelesen wird nur das JSON am ANFANG: ein JSON in einem
+    Titel weiter hinten zählt nicht.
+    """
+    obj = load_leading(mcp_text or "")
+    toepfe = obj.get("results") if isinstance(obj, dict) else None
+    if not isinstance(toepfe, dict):
+        return []
+    je_anfrage = [_cards_from_json_envelope(topf) or [] for topf in toepfe.values()
+                  if isinstance(topf, dict)]
+    karten: list[dict] = []
+    gesehen: set[str] = set()
+    for runde in zip_longest(*je_anfrage):
+        for karte in runde:
+            if karte is not None and karte["node_id"] not in gesehen:
+                gesehen.add(karte["node_id"])
+                karten.append(karte)
+    return karten

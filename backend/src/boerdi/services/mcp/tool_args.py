@@ -26,6 +26,7 @@ from boerdi.api.schemas import (
     CompendiumTextArgs,
     ContentCountArgs,
     ContentSearchArgs,
+    ContentSearchManyArgs,
     FindByUrlArgs,
     HealthCheckArgs,
     LookupVocabularyArgs,
@@ -70,6 +71,8 @@ _TOOL_ARG_MODELS: dict[str, type] = {
     "find_content_by_url":    FindByUrlArgs,
     "get_collection_overview": CollectionOverviewArgs,
     "count_wlo_content_matches": ContentCountArgs,
+    # N4 (MCP-Stand 2026-11-14): mehrere Inhaltssuchen in einem Aufruf.
+    "search_wlo_content_many": ContentSearchManyArgs,
     # W9a (2026-08-01), Server-Schemata per ``tools/list`` geholt.
     "get_collection_stats":   CollectionStatsArgs,
     "get_node_breadcrumb":    NodeBreadcrumbArgs,

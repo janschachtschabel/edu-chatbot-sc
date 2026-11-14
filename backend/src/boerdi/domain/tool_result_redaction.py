@@ -105,6 +105,25 @@ def _einzelinhalt_satz(name: str, einzel: list[dict]) -> str:
 #: eine eigene Redaktion.
 _KOMBI_WERKZEUG = "search_wlo_all"
 
+#: N4: die Mehrfachsuche reist als Umschlag (für die Karten) mit dem Text des Servers dahinter;
+#: das Modell bekommt nur den Text. Kein blinder Deckel (Review N4, M2): „Nicht beantwortet“ steht
+#: am Ende. Der Server begrenzt Anzahl (8 Anfragen, je 5 Treffer) und Beschreibung — nachgerechnet
+#: höchstens rund 20 kB. Titel und Adressen deckelt er nicht: dafür ein weiter Sicherheitsdeckel,
+#: der das Ende stehen lässt.
+_MEHRFACH_SUCHE = "search_wlo_content_many"
+_MEHRFACH_DECKEL = 32_000
+_MEHRFACH_ENDE = 2_000
+
+
+def _sicht_der_mehrfachsuche(raw_text: str) -> str:
+    """Der Text des Servers ohne den Umschlag — ganz, bis auf Ausreißer über dem
+    Sicherheitsdeckel; dann bleiben Anfang und Ende."""
+    text = mcp_unvollstaendig.ohne_umschlag(raw_text)
+    if len(text) <= _MEHRFACH_DECKEL:
+        return text
+    return (text[:_MEHRFACH_DECKEL - _MEHRFACH_ENDE] + "\n[… gekürzt …]\n"
+            + text[-_MEHRFACH_ENDE:])
+
 #: Der Skill-Katalog — eigene Antwortform, eigene Kürzung. Siehe
 #: :func:`_redigiere_skill_registry`.
 _KATALOG_WERKZEUG = "get_skill_registry"
@@ -397,6 +416,8 @@ def redigiere_strukturell(tool_name: str, raw_text: str) -> str:
     """
     if tool_name == _KATALOG_WERKZEUG:
         return _redigiere_katalog_antwort(raw_text, deckel=False)
+    if tool_name == _MEHRFACH_SUCHE:
+        return _sicht_der_mehrfachsuche(raw_text)
     kurz = None
     if tool_name == _KOMBI_WERKZEUG:
         kurz = _redigiere_kombi_suche(raw_text, mit_einzelinhalten=True)
@@ -571,6 +592,10 @@ def _gekuerzt_fuer_llm(
         # ein blinder darüber schnitt die Anleitung „Stunde planen" bei 4 000
         # von 11 000 Zeichen ab (Begründung an der Konstante).
         return raw_text
+    if name == _MEHRFACH_SUCHE:
+        # Vor allen anderen Zweigen: kein blinder Deckel, und die Titel bleiben — die Zuordnung
+        # Teil → Material ist der Zweck des Werkzeugs (Begründung an der Konstante).
+        return _sicht_der_mehrfachsuche(raw_text)
     if name == _KATALOG_WERKZEUG:
         # Vor der Kombi-Suche geprüft, weil der Rückfall derselbe ist: gelingt
         # die strukturelle Kürzung nicht, bleibt der blinde Deckel.

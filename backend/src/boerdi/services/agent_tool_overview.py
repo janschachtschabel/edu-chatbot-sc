@@ -43,7 +43,7 @@ from boerdi.domain.result_delivery import ergebnis_werkzeug
 from boerdi.services.agent_knowledge import WISSEN_SUCHEN, wissen_werkzeug
 from boerdi.services.agent_tools import build_agent_tools, verborgene_werkzeuge
 from boerdi.services.config_loader import load_policy_config, load_rag_config
-from boerdi.services.mcp import fremdwerkzeuge
+from boerdi.services.mcp import fremdwerkzeuge, suche_mehrfach
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 from boerdi.services.safety.regex_gate import SPERRE_PERSOENLICH
@@ -138,6 +138,16 @@ def werkzeugliste() -> dict[str, Any]:
                 "offered": name in angeboten,
                 "locks": _sperren(name, art, policy, verborgen),
             })
+    # N4 (Review, m1): die Mehrfachsuche steht in keinem der beiden Kataloge — angeboten wird sie
+    # nur, wenn der bereitgestellte Server sie führt (``server_lacks``); sonst eine Zeile wie jedes
+    # Lesewerkzeug, mit Schalter und Sperren.
+    mehrfach = suche_mehrfach.DEFINITION["function"]
+    zeilen.append({
+        "name": mehrfach["name"], "kind": "read", "description": mehrfach["description"],
+        "offered": mehrfach["name"] in angeboten,
+        "locks": [*_sperren(mehrfach["name"], "read", policy, verborgen),
+                  *([] if suche_mehrfach.angeboten() else [{"code": "server_lacks"}])],
+    })
     # Paket 11 (E): lesende Werkzeuge fremder MCP-Server als eigene Art. Server und Originalname
     # reisen mit (Review-Runde 2): der Modellname ist bereinigt und gekürzt, das Studio fände den
     # Schalter daraus nicht zuverlässig wieder.

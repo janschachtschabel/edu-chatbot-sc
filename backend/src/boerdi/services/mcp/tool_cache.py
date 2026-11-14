@@ -83,6 +83,8 @@ _TOOL_CACHE_TTL_PER_TOOL: dict[str, int] = {
     # Suchen: dynamisch, neue Treffer möglich → Default 5 min
     "search_wlo_collections": 300,
     "search_wlo_content": 300,
+    # N4: wie die Einzelsuche. ``missing`` hält der Cache nicht, ``incomplete`` nur für Sekunden.
+    "search_wlo_content_many": 300,
     "search_wlo_topic_pages": 300,
 }
 

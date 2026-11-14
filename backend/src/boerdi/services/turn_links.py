@@ -61,6 +61,7 @@ from boerdi.i18n import (
 from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.client import get_query_metas
+from boerdi.services.mcp.suche_mehrfach import WERKZEUG as _MEHRFACH_SUCHE
 from boerdi.services.zugakte import merke_umschreibung
 
 logger = logging.getLogger(__name__)
@@ -625,8 +626,10 @@ async def _finalize_links_and_metas(
     if _grouping_on_impl:
         _final_text, _web_links = _extract_web_links_from_text(
             response_text, cards=cards,
-            # Lernpfad: Material-Erwähnungen als Text behalten (s. Helper).
-            keep_bullet_labels=(_effective_pattern_id == "M09"),
+            # Lernpfad: Material-Erwähnungen als Text behalten (s. Helper). Ebenso nach einer
+            # Mehrfachsuche (N4): dort ist die Zuordnung Teil → Material der Zweck.
+            keep_bullet_labels=(_effective_pattern_id == "M09"
+                                or _MEHRFACH_SUCHE in (tools_called or [])),
         )
     else:
         _final_text, _web_links = response_text, []

@@ -41,6 +41,8 @@ servers:
   - search_wlo_all
   - search_wlo_collections
   - search_wlo_content
+  # N4 (MCP-Stand 2026-11-14): mehrere Inhaltssuchen in einem Aufruf.
+  - search_wlo_content_many
   - search_wlo_topic_pages
   - search_wlo_within_collection
   - search

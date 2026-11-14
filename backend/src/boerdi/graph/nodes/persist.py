@@ -42,6 +42,7 @@ from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.services import arbeitsstand
 from boerdi.services.mcp.client import get_query_metas
+from boerdi.services.mcp.suche_mehrfach import WERKZEUG as _MEHRFACH_SUCHE
 from boerdi.services.tool_loop import GELIEFERTE_DOKUMENTE_KEY
 from boerdi.services.turn_links import _finalize_links_and_metas
 from boerdi.services.turn_persist import (
@@ -175,6 +176,7 @@ async def persist(
         _effective_pattern_id=ctx.effective_pattern_id,
         gelieferte_dokumente=ctx.gelieferte_dokumente or _aus_dem_musterweg,
         ui_bloecke=ctx.ui_bloecke,
+        mehrfachsuche=_MEHRFACH_SUCHE in (ctx.tools_called or []),
     )
     # Das maschinenlesbare Ergebnis der Agent-Schleife (2026-08-14). NACH dem
     # Bau angehängt statt durch die Signatur gereicht: die trägt schon zwanzig

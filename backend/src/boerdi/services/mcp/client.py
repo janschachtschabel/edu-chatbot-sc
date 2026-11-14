@@ -56,11 +56,12 @@ from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.log_inhalt import ereignis, filterwerte
 from boerdi.services import probe
 from boerdi.services.mcp import (
+    angebot,
     anmeldung,
     auth,
     fremdwerkzeuge,
+    suche_mehrfach,
     transport,
-    werte_hinzufuegen,
     wiederholung,
 )
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
@@ -507,7 +508,8 @@ async def _einzelaufruf(
     arguments = validate_tool_args(tool_name, arguments)
     # N2 (Review, M4): ``add…`` an einem Server, der es nachweislich nicht kennt — er liesse die
     # Angabe still weg. Lieber hier ein klarer Satz als eine Vorschau, in der das Fach fehlt.
-    if grund := werte_hinzufuegen.nicht_moeglich(tool_name, arguments):
+    # N4: mehr als acht Anfragen an die Mehrfachsuche.
+    if grund := angebot.lokale_ablehnung(tool_name, arguments):
         gesendet.append(arguments)
         return McpAntwort(text=f"{_MCP_ERROR_PREFIX} [invalid_input]: {grund}", art="tool",
                           code="invalid_input"), False
@@ -768,6 +770,10 @@ async def _einzelaufruf(
             "Schreibzugriff — verworfen", tool_name)
 
     response = "\n".join(texts) if texts else json.dumps(result_data)
+    # N4 (Review, M1): die Mehrfachsuche antwortet in Markdown; ihre Treffer für die Karten stehen
+    # nur im strukturierten Teil. Er reist als Umschlag vor dem Text mit — auch durch den Cache.
+    if tool_name == suche_mehrfach.WERKZEUG:
+        response = suche_mehrfach.mit_umschlag(strukturiert, response)
     # Review 2026-11-13 (M1): der Vorschautext einer Metadaten-Änderung nennt den Datensatz
     # nicht — Titel und Kennung stehen nur im strukturierten Teil. Die Zeile gilt der Person
     # (Abnahme-Box) wie der KI (ihr einordnender Satz).

@@ -33,6 +33,7 @@ anderen intern auf (gemessen 2026-08-01).
 from boerdi.services.mcp.parsers.cards import (
     _als_themenseiten_karten,
     parse_search_all_cards,
+    parse_search_many_cards,
     parse_total_count,
     parse_wlo_cards,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "_topic_page_display_title",
     "parse_content_text",
     "parse_search_all_cards",
+    "parse_search_many_cards",
     "parse_skill_registries",
     "parse_topic_page_swimlanes",
     "parse_total_count",
