@@ -431,8 +431,13 @@ async def redeem_write_approval(
         await _persist(session, req, session_state, antwort.content, debug)
         return antwort
 
+    # Zweites Review MR, B5: Plan-Werkzeuge laufen beim MCP ohne den Zusatz „Schlüssel
+    # verbraucht“ — ein Unfall im Server nach dem Ja (``internal_error``, ``upstream_error``)
+    # trägt dann kein ``outcomeOpen``, obwohl Schritte gelaufen sein können.
+    plan_unfall = (fehlerart == "tool" and antwort_mcp.code in ("internal_error", "upstream_error")
+                   and (antwort_mcp.fehler or {}).get("outcomeOpen") is not False)
     if (is_mcp_error(rohtext) and plan_fortsetzen.ist_plan(tool)
-            and fehlerart in ("timeout", "transport")
+            and (fehlerart in ("timeout", "transport") or plan_unfall)
             and plan_fortsetzen.merke_unklar(entities, tool, args, caller=aufrufer_kennung(),
                                              now=time.time())):
         # Review M5, Befund 3: der erste Abschnitt ist der längste. Ohne Antwort KANN der Plan
@@ -467,7 +472,7 @@ async def redeem_write_approval(
         logger.warning("Abnahme für %s (Sitzung %s): angelegt, aber unvollständig (%s)",
                        tool, kennung(req.session_id), fehlercode)
         return await _angelegt_unvollstaendig(session, req, session_state, lang, debug,
-                                              antwort_mcp.fehler or {})
+                                              antwort_mcp.fehler or {}, tool)
 
     if is_mcp_error(rohtext) and fehlerart in ("tool", "auth"):
         # Der Server hat GEANTWORTET und abgelehnt — damit steht fest, dass er
@@ -565,17 +570,22 @@ def _neu_vorlegen(antwort: McpAntwort) -> bool:
 
     ``requiresNewPreview`` allein genügt NICHT (Review 2026-11-07, Befund 1): der Server setzt es
     an JEDEN Fehler nach der Einlösung, auch an ``not_visible``/``unverified`` („angenommen, aber
-    nicht nachweisbar“). Neu vorgelegt wird nur, wenn der Server geantwortet hat (``tool``) und
-    der Code sagt, dass der Schlüssel nicht galt — oder er ausdrücklich ``outcomeOpen: false``
-    meldet. Jede andere Ablehnung zeigt ihren Grund, ein offener Ausgang „bitte nachsehen“."""
-    if antwort.art != "tool":
-        return False
-    fehler = antwort.fehler or {}
-    # ``exists`` (Dublette) trägt nach der Einlösung ``outcomeOpen: false`` — eine neue Vorschau
-    # träfe dieselbe Dublette; die Ablehnung nennt dafür den vorhandenen Datensatz (Paket M2).
-    return antwort.code in _NEU_VORLEGEN or (
-        bool(fehler.get("requiresNewPreview")) and fehler.get("outcomeOpen") is False
-        and antwort.code != "exists")
+    nicht nachweisbar“). Auch ``outcomeOpen: false`` dazu genügt nicht (MR-1, MCP-Stand
+    14.11.2026): Das trägt jetzt jede Ablehnung des Repositorys nach dem Ja (``forbidden``,
+    ``not_found``, ``refused``) — eine neue Vorschau gelänge, und die Person läse bei jedem Ja
+    wieder „die Freigabe war nicht mehr gültig“, nie den Grund.
+
+    Neu vorgelegt wird nur, wenn der Server geantwortet hat (``tool``) und der Code sagt, dass
+    der Schlüssel nicht (mehr) gilt. Jede andere Ablehnung zeigt ihren Grund, ein offener Ausgang
+    „bitte nachsehen“.
+
+    Auch „WLO blieb ohne Urteil, nichts geschrieben“ wird NICHT von selbst neu vorgelegt (zweites
+    Review MR): Hinter denselben Codes stehen beim MCP dauerhafte Gründe — ``upstream_error``
+    mit ``outcomeOpen: false`` ist beim Volltext ein abgelehnter Upload (4xx), ``not_checked``
+    beim Herausnehmen eine Sammlung mit mehr Einträgen, als er durchsucht. Die neue Vorschau
+    gelänge, das nächste Ja scheiterte wieder. Die Person liest den Grund und bittet selbst
+    noch einmal."""
+    return antwort.art == "tool" and antwort.code in _NEU_VORLEGEN
 
 
 async def _liegen_lassen(session: AsyncSession | None, req: ChatRequest, session_state: dict,
@@ -598,8 +608,10 @@ async def _liegen_lassen(session: AsyncSession | None, req: ChatRequest, session
     return antwort
 
 
+#: ``changed_since_preview`` (``wlo_attach_fulltext``): Der Datensatz hat sich seit der Vorschau
+#: geändert — der Schlüssel gilt für diesen Stand nicht mehr (Review MR, Befund 2).
 _NEU_VORLEGEN = frozenset({"confirm_expired", "confirm_unknown", "confirm_mismatch",
-                           "plan_expired", "plan_mismatch"})
+                           "plan_expired", "plan_mismatch", "changed_since_preview"})
 _ANMELDUNG = frozenset({"login_required", "login_rejected"})
 #: Nur fachliche Gründe erreichen die Person (Review M2, Befund 1): ``upstream_error`` und
 #: ``forbidden`` tragen Text des Repositoriums — der gehört ins Protokoll.
@@ -611,7 +623,7 @@ _GRUND_ZEIGEN = frozenset({"refused", "invalid_input", "not_found", "not_a_colle
 #: ist an die KI gerichtet und nennt Werkzeuge und Status-Kennungen („ist wlo_update_content das
 #: Werkzeug“, „Status 200_tocheck“) — das gehört nicht vor die Person (Review C2). So gibt es den
 #: Grund auch auf Englisch. ``suggestion_not_marked`` fehlt bewusst: es kommt nur nach der
-#: Einlösung und wird dort neu vorgelegt oder „bitte nachsehen“.
+#: Einlösung — mit offenem Ausgang „bitte nachsehen“, sonst eine Ablehnung ohne Grund.
 _EIGENER_GRUND = {"already_decided": "write.grund.alreadyDecided",
                   "already_submitted": "write.grund.alreadySubmitted",
                   "is_a_folder": "write.grund.isAFolder",
@@ -624,7 +636,24 @@ _EIGENER_GRUND = {"already_decided": "write.grund.alreadyDecided",
                   "source_is_original": "write.grund.isOriginal",
                   "already_proposed": "write.grund.alreadyProposed",
                   "no_pending_proposal": "write.grund.noPendingProposal",
-                  "no_change": "write.grund.noChange"}
+                  "no_change": "write.grund.noChange",
+                  # MR-1 (MCP-Stand 14.11.2026): ``forbidden`` trägt Text des Repositorys und
+                  # hatte deshalb keinen Grund; ``not_in_collection`` kommt schon in der Vorschau.
+                  "forbidden": "write.grund.forbidden",
+                  "not_in_collection": "write.grund.notInCollection",
+                  "not_stored": "write.grund.notStored",
+                  # Der MCP konnte vor dem Schreiben nicht lesen — gesendet wurde nichts
+                  # (``wlo_attach_fulltext``; zweites Review MR, B4).
+                  "unreadable": "write.grund.notChecked",
+                  "text_unreadable": "write.grund.notChecked",
+                  "unreadable_original": "write.grund.notChecked"}
+#: MR-1: Trägt der Grund des Servers die Antwort des Repositorys („HTTP 400: …“ mit dessen
+#: Fehlertext, ``failureDetail`` im MCP) oder den Namen eines internen Abrufs
+#: („getCollectionContents failed: 503 Service Unavailable“, ``upstream-error.ts``), gehört er
+#: ins Protokoll — die Person bekommt den Satz zum Code. Seit dem Stand vom 14.11.2026 kommen so
+#: auch ``not_found`` und ``refused``. Die Gruppe ist der Status.
+_VOM_REPOSITORY = re.compile(r"(?:\bfailed: |\bHTTP )(\d{3})\b")
+_STATT_SERVERTEXT = {"not_found": "write.grund.notFound", "not_checked": "write.grund.notChecked"}
 #: Eine Knoten-Kennung, wie sie in einen Satz an die Person darf — ohne Satz- und
 #: Markdown-Zeichen.
 _KENNUNG = re.compile(r"[A-Za-z0-9-]{8,64}")
@@ -647,9 +676,26 @@ def abgelehnt_text(lang: Locale, antwort: McpAntwort) -> str:
     if antwort.code in _EIGENER_GRUND:
         return f"{text}\n\n" + bot_text(lang, "write.rejectedReason",
                                          grund=bot_text(lang, _EIGENER_GRUND[antwort.code]))
-    if antwort.code not in _GRUND_ZEIGEN or lang != "de":
-        return text           # der Grund des Servers ist deutsch — in EN nur der Satz
     grund = " ".join(redact_confirm_token(str(fehler.get("message") or "")).split())
+    status = _VOM_REPOSITORY.search(grund)
+    if antwort.code == "upstream_error":
+        # Der Server hat geantwortet und nichts geschrieben (ein offener Ausgang käme nicht hier
+        # an). Ein 4xx des Repositorys ist ein „Nein“ — so meldet der MCP beim Volltext einen
+        # abgelehnten Upload —, alles andere ein Ausfall (zweites Review MR, B1).
+        nein = status is not None and status.group(1)[0] == "4" and status.group(1) != "429"
+        eigen = "write.grund.refusedByWlo" if nein else "write.grund.notChecked"
+        return f"{text}\n\n" + bot_text(lang, "write.rejectedReason", grund=bot_text(lang, eigen))
+    if antwort.code not in _GRUND_ZEIGEN:
+        return text
+    eigen = _STATT_SERVERTEXT.get(antwort.code or "")
+    if status:
+        eigen = eigen or "write.grund.refusedByWlo"
+    elif lang == "de":
+        eigen = None          # der eigene Satz des Servers ist genauer — und deutsch
+    if eigen:
+        return f"{text}\n\n" + bot_text(lang, "write.rejectedReason", grund=bot_text(lang, eigen))
+    if lang != "de":
+        return text           # der Grund des Servers ist deutsch — in EN nur der Satz
     if len(grund) > _GRUND_ZEICHEN:
         grund = grund[:_GRUND_ZEICHEN - 1].rstrip() + "…"
     return f"{text}\n\n" + bot_text(lang, "write.rejectedReason", grund=grund) if grund else text
@@ -760,17 +806,21 @@ async def _zustimmung_unklar(
 
 async def _angelegt_unvollstaendig(
     session: AsyncSession | None, req: ChatRequest, session_state: dict, lang: Locale,
-    debug: DebugInfo, fehler: dict,
+    debug: DebugInfo, fehler: dict, tool: str = "",
 ) -> ChatResponse:
     """Der Datensatz existiert, ein Schritt nach dem Anlegen ist offen (``recordExists``): der
     Satz nennt die Kennung (``error.nodeId``), damit die Person oder der Folgezug nachträgt statt
-    neu anzulegen. Für einen Ablauf bleibt es ein offener Ausgang (``reason: mcp_error``)."""
+    neu anzulegen. Für einen Ablauf bleibt es ein offener Ausgang (``reason: mcp_error``).
+
+    MR-1: ``wlo_create_collection`` meldet es seit dem Stand vom 14.11.2026 auch — dann ist es
+    eine Sammlung, und „die Datei oder einzelne Angaben“ passte nicht."""
     debug.entities["reason"] = "mcp_error"
     debug.entities["record_exists"] = True
     roh = fehler.get("nodeId")
     node_id = roh if isinstance(roh, str) and _KENNUNG.fullmatch(roh) else None
-    text = (bot_text(lang, "write.recordExists", kennung=node_id) if node_id
-            else bot_text(lang, "write.recordExistsOhneKennung"))
+    art = "collectionExists" if tool == "wlo_create_collection" else "recordExists"
+    text = (bot_text(lang, f"write.{art}", kennung=node_id) if node_id
+            else bot_text(lang, f"write.{art}OhneKennung"))
     antwort = ChatResponse(session_id=req.session_id, content=text, debug=debug)
     await _persist(session, req, session_state, antwort.content, debug)
     return antwort
