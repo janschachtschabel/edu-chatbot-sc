@@ -210,7 +210,12 @@ def _gesendete_argumente(manifest: Manifest, args: Any) -> dict[str, Any] | None
         # Review N3, Befund 3: den Titel still fallen zu lassen und das Fach zu zeigen, wäre ein
         # Baum, nach dem niemand gefragt hat. Lieber ein Fehler, der die angebotenen Wege nennt.
         return None
-    gesendet = {gilt: genannt[gilt], **(quelle.get("vorgaben") or {})}
+    from boerdi.services.mcp import baum_lesen
+
+    # SW-5: der Baum in der Reihenfolge „gesetzte Position, sonst Titel“, wo der Server sie
+    # führt — eine Vorgabe des Manifests geht vor.
+    gesendet = {gilt: genannt[gilt], **baum_lesen.fuer_die_anzeige(quelle["werkzeug"]),
+                **(quelle.get("vorgaben") or {})}
     if gilt == titel_arg and (fach := fach or genannt.get("subject")):
         gesendet[fach_arg] = fach
     return gesendet

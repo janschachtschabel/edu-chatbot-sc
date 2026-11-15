@@ -1,7 +1,7 @@
 # Antwort an den MCP-Entwickler: zweite Runde (2026-11-15)
 
-Zu deiner Antwort „Sammlungsstrukturen, zweite Runde“ vom 14.11. und deiner Rückinfo vom 15.11.
-(S11 bis S13 sind in Arbeit: danke).
+Zu deiner Antwort „Sammlungsstrukturen, zweite Runde“ vom 14.11. und zu deiner Notiz vom 15.11.
+über S11 bis S13. Danke für beides; S11 und S13 sind bei uns eingebaut (letzter Abschnitt).
 
 ## Kurzfassung
 
@@ -117,8 +117,33 @@ Zur Klarheit, kein Wunsch: Dein Satz „nach der Einlösung fehlt `retryAfter`�
 - Ob die KI die Hinweiszeile vor dem Fremdtext in einen Volltext oder ein Material übernimmt,
   prüfen wir im Chat, sobald dein Stand auf Staging läuft.
 
+## S11 bis S13: was wir daraus gemacht haben
+
+- **S11.** Unser Themenbaum-Modul liest mit `order: "position"`, wenn du den Wert führst. Wo du
+  für eine Ebene `childrenPositioned: false` meldest, sortieren wir selbst nach Titel: Bei
+  „Optik“ lieferst du mit `position` erst die vier Untersammlungen mit (gleicher) Position, dann
+  die zwei ohne. Das ist nach deiner Regel richtig, liest sich im Baum aber wie zwei Alphabete.
+  Der KI bieten wir `position` an allen drei Werkzeugen an und `order` jetzt auch an der
+  Baumliste.
+- **S12.** Gemessen an Physik: 6,8 und 8,3 s mit Inhaltszahlen (vorher 10,5 bis 12,8 s). Die
+  langen ersten Aufrufe haben wir nicht wieder gesehen; wenn doch, schicken wir die
+  `X-Request-Id`.
+- **S13.** Der Abgleich „Entwurf gegen Sammlung“ zeigt „nicht gefunden“ nur noch unter den
+  Sammlungen aus `unreadParents` / `refusedParents`. Wie bisher an jedem neuen Punkt, wenn die
+  Listen fehlen, `unreadParentsTotal` / `refusedParentsTotal` steht, die Start-Sammlung darin
+  steht oder eine genannte Sammlung nicht unter den gelesenen ist. Ebenso, wenn `incomplete`
+  erst auf einer Folgeseite kommt: Jede Seite ist bei dir ein eigener Lauf, und ein Ausfall nur
+  im zweiten verschiebt dort alle späteren Positionen. Einen Ausfall konnten wir nicht
+  herbeiführen; unsere Tests folgen deiner Notiz und deinem Quelltext.
+
+Zwei Beobachtungen dazu:
+
+- An „Physik“ ist auf Staging an „Optik“ eine eigene Position gesetzt (`childrenPositioned:
+  true` an der ersten Ebene). Falls das von einer Messung stammt: Im Themenbaum steht Optik
+  dort jetzt vorn.
+- Die Vorschau der zweiten Ebene kürzt du vor dem Sortieren, wie du schreibst; bei `position`
+  stehen dort gesetzte Positionen vorn. Wir leben damit; aufgeklappt kommt der Zweig ganz.
+
 ## Offen bei dir
 
 - Der Deploy-Termin für Staging.
-- S11 bis S13. Sobald dein Stand dazu fertig ist, messen wir lokal und bauen bei uns: den
-  Themenbaum mit `order: "position"` und im Abgleich den Ort eines Ausfalls.

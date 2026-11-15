@@ -365,13 +365,11 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - **Regel seit MR-1:** Von selbst neu vorgelegt wird nur, wenn der Schlüssel nicht mehr gilt.
     Wer das ändern will, liest erst ME-1 im Plan: „WLO blieb ohne Urteil, also neu vorlegen“
     lief zweimal in eine Schleife.
-  - **Zugesagt (Rückinfo 15.11.), bei ihm in Arbeit:** S11 (dritter Wert `position` an `order`,
-    „gesetzte Position, sonst Titel“, dazu ein Merkmal je Knoten, ob Positionen gesetzt sind),
-    S12 (schnellere Inhaltszahlen der Baumliste, nur wenn eine Messung einen Weg zeigt), S13
-    (die Kennungen aller nicht gelesenen Eltern im Kopf der Antwort). **Danach bei uns (SW-5):**
-    das Themenbaum-Modul mit `order: "position"` lesen, wenn der Server den Wert führt (SE-4);
-    im Strukturabgleich einen gemeldeten Ausfall wieder auf den betroffenen Zweig begrenzen
-    (heute: jeder neue Punkt „nicht gefunden“). Erst bauen, wenn sein Stand fertig ist.
+  - **S11 bis S13 sind beim Entwickler gebaut (15.11.), SW-5 nutzt sie:** Themenbaum-Modul mit
+    `order: "position"`, im Strukturabgleich der Ort eines Ausfalls. Notiz
+    `aenderungen/2026-11-15-themenbaum-reihenfolge-und-ausfall-ort.md`. Nach dem MCP-Deploy im
+    Chat ansehen: einen angelegten Lehrplan-Baum im Themenbaum (Reihenfolge). Ein Ausfall erst
+    auf einer Folgeseite der Baumliste macht weiter jeden neuen Punkt „nicht gefunden“.
 - **Werkzeuge für Sammlungsstrukturen (2026-11-14):** Wünsche S1 bis S10 in
   `mcp-werkzeug-wuensche-2026-11-14.md`; der MCP-Entwickler hat neun davon gebaut (nicht
   bereitgestellt). Plan `plans/2026-11-14-sammlungsstruktur-werkzeuge.md` (SW-1 bis SW-4).
@@ -386,8 +384,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - **SW-4 umgesetzt** (Strukturabgleich bis Ebene 4, wenn der Server die Baumliste führt):
     Notiz `aenderungen/2026-11-14-strukturabgleich-vier-ebenen.md`. Keine Migration, kein
     `import-config`; Image mit neuem Widget-Bündel.
-  - **Offen aus SW-4:** Themenbaum-Modul in gespeicherter Reihenfolge (wartet auf den Server:
-    „gesetzte Position, sonst Titel“, Wunsch S11). Ein Fachportal mit Inhaltszahlen liest der
+  - **Offen aus SW-4:** Ein Fachportal mit Inhaltszahlen liest der
     Abgleich in 11 bis 13 s statt 4 bis 5 s, als erster Aufruf auch 19 bis 38 s (Wunsch S12);
     dauert die erste Seite länger als 30 s, fällt er auf zwei Ebenen zurück (bei einer
     Folgeseite bleibt das Gelesene). Nach dem MCP-Deploy im Chat nachmessen, auch an einem

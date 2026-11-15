@@ -126,6 +126,29 @@ def _liste_erlaubt(umgebung: Umgebung) -> bool:
     return True
 
 
+#: S13 (MCP-Stand 15.11.2026): die Kennungen aller Sammlungen, deren Unterliste in einem Aufruf
+#: nicht geantwortet hat bzw. abgelehnt wurde — für den ganzen Lauf, die Start-Sammlung
+#: eingeschlossen. Höchstens 50; sind es mehr, steht die Zahl im dritten Feld.
+_AUSFALL_FELDER: Final = (("incomplete", "unreadParents", "unreadParentsTotal"),
+                          ("restricted", "refusedParents", "refusedParentsTotal"))
+
+
+def _nicht_gelesene_eltern(liste: dict[str, Any]) -> set[str] | None:
+    """Wo der Server nicht lesen konnte — oder ``None``, wenn die Antwort es nicht (vollständig)
+    sagt: ein Stand ohne die Listen, mehr als 50 Kennungen, eine fremde Form. Dann gilt jeder
+    neue Punkt als „nicht gefunden“."""
+    eltern: set[str] = set()
+    for marke, feld, gesamt in _AUSFALL_FELDER:
+        if not liste.get(marke):
+            continue
+        kennungen = liste.get(feld)
+        if (liste.get(gesamt) is not None or not isinstance(kennungen, list) or not kennungen
+                or not all(isinstance(k, str) and k for k in kennungen)):
+            return None
+        eltern |= set(kennungen)
+    return eltern
+
+
 async def _ganzer_baum(node_id: str, umgebung: Umgebung, tiefe: int
                        ) -> tuple[list[dict[str, Any]], int | None, str, str] | None:
     """SW-4: der Bestand bis ``tiefe`` Ebenen aus ``list_collection_tree`` — ``(Sammlungen,
@@ -138,8 +161,11 @@ async def _ganzer_baum(node_id: str, umgebung: Umgebung, tiefe: int
       :data:`_SEITEN` Seiten, keine Zeit mehr (je Seite geprüft; nach :data:`_LISTE_BRAUCHT_S`
       insgesamt beginnt keine weitere), eine Folgeseite fällt aus —, ist die tiefste gelesene
       Ebene unvollständig, die darüber nicht.
-    - Konnte er irgendwo nicht lesen (``incomplete``, ``restricted``), ist nichts sicher: Wo,
-      sagt die Antwort nicht verlässlich (zweites Review SW-4, Befund 1) — dann gilt Ebene 1.
+    - Konnte er irgendwo nicht lesen (``incomplete``, ``restricted``), nennt er ab dem Stand
+      vom 15.11.2026 die betroffenen Sammlungen (:func:`_nicht_gelesene_eltern`): Sie bekommen
+      ``mehr`` — „nicht gefunden“ heißt es dann nur unter ihnen. Sagt die Antwort es nicht, ist
+      die gelesene Sammlung selbst betroffen oder eine, die nicht gelesen wurde, oder fällt
+      etwas erst auf einer Folgeseite aus, gilt Ebene 1.
 
     Die Sammlung Optik (16 Sammlungen) dauerte 2,2 s; zum Fachportal siehe
     :data:`_LISTE_BRAUCHT_S`."""
@@ -150,7 +176,8 @@ async def _ganzer_baum(node_id: str, umgebung: Umgebung, tiefe: int
     beginn = _jetzt()
     sammlungen: list[dict[str, Any]] = []
     gesehen: set[str] = set()
-    ausfall = abgebrochen = False
+    abgebrochen = ausfall_unklar = False
+    ausfall_eltern: set[str] = set()
     gelesen, titel, ab = node_id, "", 0
     for seite in range(_SEITEN):
         if seite and (not _zeit_reicht(umgebung) or _jetzt() - beginn > _LISTE_BRAUCHT_S):
@@ -190,7 +217,15 @@ async def _ganzer_baum(node_id: str, umgebung: Umgebung, tiefe: int
             if isinstance(wurzel.get("title"), str) and wurzel["title"] != gelesen:
                 titel = " ".join(wurzel["title"].split())[:120]
         if liste.get("incomplete") or liste.get("restricted"):
-            ausfall = True
+            eltern = _nicht_gelesene_eltern(liste)
+            if eltern is None or (seite and liste.get("incomplete")):
+                # Review SW-5, Befund 1: Jede Seite ist ein eigener Lauf des Servers. Fällt eine
+                # Unterliste erst im zweiten aus, fehlt ihr Zweig dort und alle späteren
+                # Positionen rücken vor — zwischen den Seiten fehlen dann Einträge, die NICHT
+                # unter der genannten Sammlung liegen. Eine Ablehnung ist in jedem Lauf gleich.
+                ausfall_unklar = True
+            else:
+                ausfall_eltern |= eltern
         if liste.get("walkCapped") or liste.get("skipLimitReached"):
             abgebrochen = True
         if liste.get("more") is None:
@@ -202,8 +237,13 @@ async def _ganzer_baum(node_id: str, umgebung: Umgebung, tiefe: int
             break
         ab = weiter
     unvollstaendig_ab = max((w["ebene"] for w in sammlungen), default=1) if abgebrochen else None
-    if ausfall:
+    if ausfall_unklar or ausfall_eltern & {node_id, gelesen} or ausfall_eltern - gesehen:
+        # nicht gesagt, wo — oder die erste Ebene selbst, oder ein Zweig, den wir nicht kennen
         unvollstaendig_ab = 1
+    else:
+        for w in sammlungen:
+            if w["nodeId"] in ausfall_eltern:
+                w["mehr"] = True
     for w in sammlungen:
         # Die Liste trägt keine Adresse; dieselbe wie die der Sammlung selbst.
         if _UUID.match(w["nodeId"]) and (url := _wurzel_url(w["nodeId"])) and \
@@ -401,7 +441,7 @@ async def _abgleich(manifest: Manifest, args: dict[str, Any], umgebung: Umgebung
             if _liste_erlaubt(umgebung) else None)
     if ganz is not None:
         sammlungen, unvollstaendig_ab, gelesen, wurzel_titel = ganz
-        unvollstaendig = unvollstaendig_ab is not None
+        unvollstaendig = unvollstaendig_ab is not None or any(w["mehr"] for w in sammlungen)
         erg = sa.abgleichen(entwurf, sammlungen, tiefe=tiefe,
                             unvollstaendig_ab=unvollstaendig_ab)
         latenz_ms = int((time.monotonic() - t0) * 1000)

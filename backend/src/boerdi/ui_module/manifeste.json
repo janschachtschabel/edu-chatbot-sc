@@ -1715,7 +1715,7 @@
         "knoten": {
           "type": "array",
           "maxItems": 30,
-          "description": "Die Unterthemen der ersten Ebene, alphabetisch; leer, wenn es keine gibt.",
+          "description": "Die Unterthemen der ersten Ebene - in gesetzter Reihenfolge, wo WLO eine fuehrt, sonst alphabetisch; leer, wenn es keine gibt.",
           "items": {
             "$ref": "#/$defs/knoten"
           }
