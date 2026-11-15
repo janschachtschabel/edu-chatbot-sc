@@ -288,12 +288,16 @@ def test_nichts_landet_im_protokoll(client, monkeypatch, caplog):
         return weiter
 
     _mcp(monkeypatch, _naechste)
+    from boerdi.api import sitzung
+
+    monkeypatch.setattr(sitzung, "peer_ip", lambda _r: "203.0.113.7")
     with caplog.at_level(logging.DEBUG):
         _tausch(client, cookie=f"JSESSIONID={_SITZUNG}; INGRESSCOOKIE=abc")
         _tausch(client)
         _tausch(client)
     text = caplog.text
     assert _SITZUNG not in text and _BLOCK not in text and "INGRESSCOOKIE=abc" not in text
+    assert "203.0.113.7" not in text
 
 
 def test_traegt_den_client_schluessel(client, monkeypatch):
@@ -317,6 +321,25 @@ def test_nur_eine_gueltige_ip_geht_als_adresse_hinaus(client, monkeypatch):
     monkeypatch.setattr(sitzung, "peer_ip", lambda _r: "203.0.113.7")
     _tausch(client)
     assert gesehen[1].headers["x-forwarded-for"] == "203.0.113.7"
+    # MCP 1.4.0 liest die eigene Kopfzeile, die kein Proxy anfasst.
+    assert gesehen[1].headers["x-wlo-client-address"] == "203.0.113.7"
+    assert "x-wlo-client-address" not in gesehen[0].headers
+
+
+@pytest.mark.parametrize(("roh", "erwartet"), [
+    ("203.0.113.7", "203.0.113.7"),
+    (" 2001:db8::1 ", "2001:db8::1"),
+    ("2001:DB8::1", "2001:db8::1"),
+    # IPv4 hinter einem Dual-Stack-Ingress: Python 3.12 schriebe ``::ffff:cb00:7107``, und der
+    # MCP schnitte das auf ein /64 — alle IPv4-Personen in einem Topf (Review SA-18).
+    ("::ffff:203.0.113.7", "203.0.113.7"),
+    # Was der MCP nicht als eine Adresse liest, geht gar nicht erst hinaus.
+    ("fe80::1%eth0", ""), ("fe80::1%1", ""), ("[2001:db8::1]", ""), ("203.0.113.7:443", ""),
+    ("203.0.113.7\r\nX-Fremd: ja", ""),
+    ("203.0.113.7, 198.51.100.1", ""), ("testclient", ""), ("", ""),
+])
+def test_als_adresse_geht_nur_eine_einzelne_ip_hinaus(roh, erwartet):
+    assert sitzung_tausch._gueltige_adresse(roh) == erwartet
 
 
 @pytest.mark.parametrize(("wert", "je_adresse"), [(20, 10), (1000, 60)])

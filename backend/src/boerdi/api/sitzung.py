@@ -50,7 +50,7 @@ repository_router = APIRouter(tags=["auth"])
 #: Eine Person tauscht beim Laden einmal, bei einem Wechsel der Person noch einmal.
 #: Eng, solange die Gesamtgrenze eng ist: Eine Adresse nimmt dann höchstens die Hälfte.
 GRENZE_JE_ADRESSE_ENG = "10/minute"
-#: Weit (Gesamtgrenze über 20, also mit Client-Schlüssel und MCP ab 1.3.0): Eine Schulklasse hinter
+#: Weit (Gesamtgrenze über 20, also mit Client-Schlüssel und MCP ab 1.4.0): Eine Schulklasse hinter
 #: einem Router lädt auf einmal (wie die Chat-Drossel, Paket 18F).
 GRENZE_JE_ADRESSE_WEIT = "60/minute"
 

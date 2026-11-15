@@ -10,7 +10,8 @@ Was durchgeht und was nicht:
 
 * **hinaus:** genau eine ``JSESSIONID`` und höchstens ein ``INGRESSCOOKIE`` (Bindung an den
   Knoten des Repositorys), die geprüfte Herkunft, der Client-Schlüssel, die Adresse der Person
-  (nur eine gültige IP); kein ``Authorization`` (edu-sharing sieht sonst die Sitzung nicht an).
+  (nur eine gültige IP, in ``X-WLO-Client-Address`` und ``X-Forwarded-For``); kein
+  ``Authorization`` (edu-sharing sieht sonst die Sitzung nicht an).
   Zwei **verschiedene** Sitzungen in einer Anfrage weist schon die Route ab — der MCP tut das
   auch, aber nur, wenn er beide sieht; eine Nachbar-Subdomain könnte sonst wählen, wessen
   Sitzung gilt.
@@ -21,16 +22,17 @@ Was durchgeht und was nicht:
 * **nie:** ins Protokoll. Weder Cookie noch Block noch Kontoname; nur Status und Art eines
   Fehlers.
 
-**Budget.** Ab MCP 1.3.0 zahlen Tausch und Abmelden mit einem vertrauten Client-Schlüssel
+**Budget.** Ab MCP 1.4.0 zahlen Tausch und Abmelden mit einem vertrauten Client-Schlüssel
 (``TRUSTED_CLIENT_KEYS`` am MCP) aus dessen Protokoll-Budget (3 × rpm je Minute, geteilt mit
 ``/mcp`` und ``/auth/status``); den Schutz vor vielen Sitzungen zählt der MCP dann je Adresse,
-die wir im ``X-Forwarded-For`` nennen. Ohne Schlüssel zählt alles auf die Adresse dieses
-Backends, im Topf ``API_RATE_LIMIT_RPM`` (Vorgabe 30 je Minute), geteilt mit dem Abmelden.
-Darum gilt hier eine Gesamtgrenze (:func:`gesamtgrenze`): ``MCP_SESSION_EXCHANGE_RPM``, Vorgabe
-20, über 20 nur mit Schlüssel. Weit wird sie nur auf ausdrücklichen Wunsch des Betriebs, weil das
-Backend nicht sieht, ob der MCP den Schlüssel kennt (Review SA-17). Gezählt wird im gemeinsamen
-Speicher der Drossel — im Cluster Valkey, also für alle
-Repliken zusammen; gezählt wird nur, was wirklich zum MCP geht. Dazu drosselt die Route je
+die wir in ``X-WLO-Client-Address`` nennen (nur mit gültigem Schlüssel gelesen, Vorrang vor
+``X-Forwarded-For``; das wirft ein Proxy vor dem MCP ab Werk weg). Ohne Schlüssel zählt alles
+auf die Adresse dieses Backends, im Topf ``API_RATE_LIMIT_RPM`` (Vorgabe 30 je Minute), geteilt
+mit dem Abmelden. Darum gilt hier eine Gesamtgrenze (:func:`gesamtgrenze`):
+``MCP_SESSION_EXCHANGE_RPM``, Vorgabe 20, über 20 nur mit Schlüssel. Weit wird sie nur auf
+ausdrücklichen Wunsch des Betriebs, weil das Backend nicht sieht, ob der MCP den Schlüssel kennt
+(Review SA-17). Gezählt wird im gemeinsamen Speicher der Drossel — im Cluster Valkey, also für
+alle Repliken zusammen; gezählt wird nur, was wirklich zum MCP geht. Dazu drosselt die Route je
 Adresse.
 
 Den Ausfall-Schalter liest der Weiterreicher nur: Ein Ausfall des Tauschs soll nicht die
@@ -68,6 +70,9 @@ _KNOTEN_WERT = re.compile(r"[A-Za-z0-9._|-]{1,200}")
 #: Gesamtfrist des Abrufs samt Verbindung — kürzer als die des Widgets (10 s), damit es die
 #: Antwort noch bekommt.
 _FRIST_S = 8.0
+#: Die Adresse der Person für den MCP (ab 1.4.0, nur mit Client-Schlüssel gelesen). Kein Proxy
+#: fasst sie an, anders als ``X-Forwarded-For``.
+CLIENT_ADRESSE_KOPF = "X-WLO-Client-Address"
 #: Wartezeit, die das Widget genannt bekommt, wenn der MCP nicht zu erreichen war.
 _WARTEZEIT_S = 10
 #: Status, die ein Urteil der Tauschstelle sind. Alles andere ist für das Widget ``502``.
@@ -151,11 +156,19 @@ def _gesamt_warten_s(angabe: str) -> int:
 
 def _gueltige_adresse(adresse: str) -> str:
     """Eine IP-Adresse, wie der MCP sie zählt — sonst ``""`` (ein Name oder Fremdes geht nicht
-    als Kopfwert hinaus)."""
+    als Kopfwert hinaus). IPv6 ohne Klammern und ohne Zonen-Kennung (``%…``)."""
     try:
-        return str(ipaddress.ip_address((adresse or "").strip()))
+        ip = ipaddress.ip_address((adresse or "").strip())
     except ValueError:
         return ""
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.scope_id:
+            return ""
+        # Punkt-Form wie in ``drossel_schluessel``: Python 3.12 schriebe ``::ffff:cb00:7107``,
+        # und der MCP schnitte das auf ein /64 — alle IPv4-Personen in einem Topf.
+        if ip.ipv4_mapped is not None:
+            return str(ip.ipv4_mapped)
+    return str(ip)
 
 
 def _gefiltert(rumpf: Any) -> dict[str, Any]:
@@ -195,8 +208,10 @@ async def weiterreichen(cookies: str, herkunft: str, adresse: str) -> TauschAntw
     koepfe = {**ausgehende_koepfe(), **client_schluessel_kopf(),
               "Content-Type": "application/json", "Origin": herkunft, "Cookie": cookies}
     # Ein einziger Eintrag: Was der Browser selbst behauptet hat, geht nicht weiter. Der MCP liest
-    # den Eintrag vor dem seines eigenen Proxys (``TRUST_PROXY``), also diesen.
+    # ab 1.4.0 die eigene Kopfzeile; ``X-Forwarded-For`` bleibt für ältere Stände und für einen
+    # Proxy, der weitergereichte Adressen durchlässt.
     if ip := _gueltige_adresse(adresse):
+        koepfe[CLIENT_ADRESSE_KOPF] = ip
         koepfe["X-Forwarded-For"] = ip
     try:
         async with asyncio.timeout(_FRIST_S), httpx.AsyncClient(

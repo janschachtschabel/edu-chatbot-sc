@@ -307,7 +307,8 @@ class Settings(BaseSettings):
     # wartet ein Aufruf höchstens ``MCP_BUDGET_WAIT_S`` und endet sonst als „ausgelastet“.
     mcp_budget_rpm: int = Field(300, validation_alias=_env("MCP_BUDGET_RPM"))
     # SA-17: Sitzungs-Tausche je Minute für die ganze Anlage (alle Repliken, im Speicher der
-    # Drossel). Über 20 nur mit MCP_CLIENT_KEY und einem MCP ab 1.3.0, der den Schlüssel kennt —
+    # Drossel). Über 20 nur mit MCP_CLIENT_KEY und einem MCP ab 1.4.0 (Budget seit 1.3.0, Adresse
+    # der Person seit 1.4.0), der den Schlüssel kennt —
     # sonst zählt der MCP alle Tausche im Topf der Adresse (30 je Minute, mit dem Abmelden).
     mcp_session_exchange_rpm: int = Field(
         20, ge=1, le=1000, validation_alias=_env("MCP_SESSION_EXCHANGE_RPM"))
