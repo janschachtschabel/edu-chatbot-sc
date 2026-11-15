@@ -1,5 +1,8 @@
 # Dritte Antwort an den MCP-Entwickler: Anmeldung aus der WLO-Sitzung (2026-11-15)
 
+> **Stand:** Beantwortet am selben Tag: Kopfzeile `X-WLO-Client-Address` (1.4.0), rpm 500 statt
+> 360. Bei uns umgesetzt (SA-18); Kurzantwort in `mcp-antwort-2026-11-15-sitzung-4.md`.
+
 Zu deiner zweiten Antwort (Version 1.3.0). Danke, beides passt zu unserem Weiterreicher. Zwei
 Fragen, bevor wir die Grenze bei uns anheben. Bis dahin bleibt sie bei 20 Tauschen je Minute.
 

@@ -372,13 +372,19 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     Sitzung im Browser (Knopf zeigt den Namen, Schreiben mit Zustimmung), Abmelden im
     Repository (das Widget tauscht neu und arbeitet ohne Anmeldung weiter), Abmelden im Chat
     (kein Tausch nach dem Neuladen). Bisher nur ohne Anmeldung am lokalen MCP gemessen.
-  - **Beim MCP gebaut (Version 1.3.0, 2026-11-15), auf Staging noch nicht eingespielt:**
+  - **Beim MCP gebaut (Version 1.3.0/1.4.0, 2026-11-15), auf Staging noch nicht eingespielt:**
     Budget je weitergereichter Adresse für unseren Client-Schlüssel, Bindung an die Eintragung
-    für Sitzungs- und Ticket-Blöcke. Das MCP-Team spielt 1.3.0 mit `WLO_SESSION_EXCHANGE=1` und
+    für Sitzungs- und Ticket-Blöcke, die Kopfzeile `X-WLO-Client-Address` (1.4.0). Das MCP-Team
+    spielt 1.4.0 mit `WLO_SESSION_EXCHANGE=1` und
     unserem Schlüssel in `TRUSTED_CLIENT_KEYS` auf Staging ein und meldet sich; danach unser
-    Test im Browser. Danach `MCP_SESSION_EXCHANGE_RPM=100` (SA-17, Vorgabe 20), wenn die
-    Adresse der Person beim MCP ankommt (Frage zum Traefik vor dem MCP und zur Rechnung des
-    Protokoll-Budgets: `mcp-antwort-2026-11-15-sitzung-3.md`).
+    Test im Browser und sein Blick ins Log (verschiedene Pseudonyme je Anschluss). Danach
+    `MCP_SESSION_EXCHANGE_RPM=200` (SA-17/SA-18, Vorgabe 20); dafür unser Schlüssel mit rpm
+    500 (`boerdi:500:<schlüssel>`, Entscheid 2026-11-15).
+  - **Offen, optional: ein Werkzeugaufruf ohne eigene MCP-Sitzung.** `transport._open_session`
+    öffnet je Aufruf eine Sitzung (`initialize`, `notifications/initialized`, `tools/call`):
+    drei POSTs am Protokoll-Budget des MCP statt einem. Der MCP ist zustandslos und beantwortet
+    `tools/call` auch ohne `initialize` (gemessen vom MCP-Entwickler, SDK 1.32.2). Würde die
+    Werkzeugaufrufe am Budget dritteln; braucht einen eigenen Transport-Pfad und Tests.
   - **Ohne diesen Pfad bleibt der Weg aus.** Der Chatbot-Teil liegt dann still (ohne
     `MCP_SESSION_URL` keine Anfrage). Was ohne Pfad am Repository-Host schon geht: das Ticket
     der Seite (Weg A) und das Schreiben im Browser mit der Sitzung (vorbereitete Änderung, eine

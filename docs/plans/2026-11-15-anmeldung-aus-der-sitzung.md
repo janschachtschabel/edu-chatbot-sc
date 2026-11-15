@@ -81,25 +81,29 @@ Ingress-Regel im Cluster zeigt dorthin nicht ohne Weiteres). Das Widget ändert 
 - **Kein `rewrite-target`:** Das Backend nimmt den Pfad am Repository-Host unverändert an
   (`PFAD_AM_REPOSITORY`). Ein `rewrite-target` stellte bei ingress-nginx alle Pfade des Hosts
   auf Regex um, auch die von edu-sharing.
-- **Budget (SA-17, MCP 1.3.0):** Mit unserem Client-Schlüssel zahlen Tausch und Abmelden beim
-  MCP aus dem Protokoll-Budget des Schlüssels (3 × rpm je Minute, geteilt mit `/mcp` und
+- **Budget (SA-17/SA-18, MCP 1.4.0):** Mit unserem Client-Schlüssel zahlen Tausch und Abmelden
+  beim MCP aus dem Protokoll-Budget des Schlüssels (3 × rpm je Minute, geteilt mit `/mcp` und
   `/auth/status`). Den Schutz vor vielen Sitzungen (200 verschiedene in 10 Minuten) zählt der
-  MCP je Adresse, die wir in `X-Forwarded-For` nennen. `Origin` und `Content-Type` sind
+  MCP je Adresse, die wir in `X-WLO-Client-Address` nennen (SA-18). `Origin` und `Content-Type` sind
   außerhalb eines Browsers frei wählbar, die Host-Prüfung ist nur Tiefenverteidigung. Deshalb
   begrenzt das Backend die ganze Anlage mit `MCP_SESSION_EXCHANGE_RPM` (Vorgabe 20, damit vom
   Topf der Adresse 10 für das Abmelden bleiben) und jede Adresse mit 10 je Minute. Gezählt wird
   im gemeinsamen Speicher der Drossel (im Cluster Valkey, über alle Repliken).
-  - **Weit nur auf Wunsch (Review SA-17):** Das Backend sieht nicht, ob der MCP 1.3.0 läuft
+  - **Weit nur auf Wunsch (Review SA-17):** Das Backend sieht nicht, ob der MCP 1.4.0 läuft
     und den Schlüssel kennt; `MCP_CLIENT_KEY` ist im Betrieb schon seit dem 7.11. gesetzt. Eine
     Automatik „Schlüssel da → weit“ hätte vor dem MCP-Update das Abmelden ausgehungert. Darum
-    setzt der Betrieb den Wert erst nach dem MCP-Update hoch (Empfehlung 100). Ohne Schlüssel
+    setzt der Betrieb den Wert erst nach dem MCP-Update hoch (Empfehlung 200). Ohne Schlüssel
     gilt höchstens 20. Über 20 steigt die Grenze je Adresse auf 60 (Schulklasse hinter einem
     Router).
-  - **Warum 100, nicht 200:** Jeder Werkzeugaufruf kostet am Protokoll-Budget drei POSTs
-    (eigene Sitzung je Aufruf); bei 300 Werkzeugaufrufen je Minute blieben von 1080 rund 180.
-  - **Voraussetzung am Proxy des MCP:** Er muss unseren `X-Forwarded-For` durchlassen
-    (Traefik `forwardedHeaders.trustedIPs` mit der Ausgangsadresse des Backends), sonst zählt
-    der MCP alle Personen als eine Adresse.
+  - **Rechnung:** Jeder Werkzeugaufruf kostet am Protokoll-Budget drei POSTs (eigene Sitzung
+    je Aufruf). Bei 300 Werkzeugaufrufen je Minute bleiben bei rpm 360 von 1080 rund 180, bei
+    rpm 500 von 1500 rund 600. Entscheid 2026-11-15: rpm 500 für unseren Schlüssel (Vorschlag
+    des MCP-Entwicklers), dann 200 Tausche je Minute.
+  - **SA-18, Adresse der Person:** Traefik vor dem MCP wirft `X-Forwarded-For` ab Werk weg
+    (vom MCP-Entwickler bestätigt). Darum schickt das Backend die Adresse zusätzlich in
+    `X-WLO-Client-Address` (MCP ab 1.4.0, nur mit gültigem Schlüssel gelesen, Vorrang): eine
+    einzelne IP, IPv6 ohne Klammern und ohne Zonen-Kennung; sonst geht die Kopfzeile nicht
+    hinaus.
 - **Preis:** Das Cookie läuft im Transit durch unser Backend, wie beim Server des md-editors. Es
   wird weder gespeichert noch protokolliert.
 - **Keine neue Umgebungsvariable für SA-16.** Die Route gilt, sobald `MCP_SESSION_URL` gesetzt
