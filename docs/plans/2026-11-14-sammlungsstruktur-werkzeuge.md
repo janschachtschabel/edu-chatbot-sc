@@ -75,3 +75,7 @@ Themenbaum nicht (siehe SE-4, SE-5, SE-9, SE-10).
 - SW-4: Abgleich bis Ebene 4 umgesetzt 14.11. (Notiz
   `aenderungen/2026-11-14-strukturabgleich-vier-ebenen.md`); Themenbaum in gespeicherter
   Reihenfolge wartet auf den Server (SE-4)
+- SW-5 (offen): Der MCP-Entwickler hat S11 bis S13 am 15.11. zugesagt und baut sie. Danach:
+  Themenbaum-Modul mit `order: "position"`, wenn der Server den Wert führt; im Abgleich einen
+  gemeldeten Ausfall auf den betroffenen Zweig begrenzen (die Kennungen der nicht gelesenen
+  Eltern stehen dann im Kopf der Antwort)
