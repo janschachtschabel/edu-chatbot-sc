@@ -229,6 +229,7 @@ env:
   MCP_BUSY_RETRY_MAX_S: "5.0"
   AUTH_GRACE_S: "1800.0"
   MCP_SERVER_URL: "https://wlo-mcp.87.106.195.152.nip.io/mcp"   # Staging-MCP — Prod-Adresse eintragen, sobald vorhanden
+  MCP_SESSION_URL: ""   # Anmeldung aus der WLO-Sitzung: https://<Repository-Host>/edu-sharing/…/auth/session; leer = aus
   MCP_TOOL_CACHE_MAX_CHARS: "20000000"
   MCP_TOOL_CACHE_MAX_ENTRY_CHARS: "1000000"
   OPENAI_BASE_URL: ""

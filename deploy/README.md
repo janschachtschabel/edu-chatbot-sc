@@ -153,6 +153,31 @@ Bestätigung einer Person `AUTH_GRACE_S` (30 min) weiter.
 
 Alle Werte stehen in `.env.example`; die Herkunftslisten am MCP-Server in `docs/uebergabe-betrieb.md` §11.
 
+#### `MCP_SESSION_URL` — Anmeldung aus der WLO-Sitzung, optional (Plan 2026-11-15)
+
+```
+MCP_SESSION_URL=https://<Repository-Host>/edu-sharing/services/wlo-mcp/auth/session
+```
+
+Sitzt das Widget in einer Seite des Repositorys und ist dort jemand angemeldet, arbeitet der
+Chatbot mit dessen Rechten, ohne zweite Anmeldung. Der Wert ist die Adresse, unter der der
+MCP-Server die Sitzung gegen einen Zugangsblock tauscht. Kein Geheimnis.
+
+Drei Dinge müssen zusammenpassen:
+
+1. **Am MCP-Server:** `WLO_AUTH_PRIVATE_KEY` und `WLO_SESSION_EXCHANGE=1`; weicht die Adresse
+   des Repositorys im Browser von `WLO_REPOSITORY_URL` ab, dazu `WLO_SESSION_ALLOWED_ORIGINS`.
+2. **Am Ingress des Repository-Hosts:** ein Pfad unterhalb von `/edu-sharing`, der auf
+   `POST /auth/session` des MCP-Servers zeigt. `Cookie` und `Origin` müssen durchkommen.
+3. **Hier:** dieselbe Adresse in `MCP_SESSION_URL`. Eine geschlossene Anlage
+   (`CORS_ALLOW_ALL=false`) nennt sie nur Seiten aus `CORS_ORIGINS`: der Repository-Host
+   gehört dann in diese Liste.
+
+Leer = aus (Vorgabe). Eine Adresse in anderer Form beendet den Start mit einer Meldung.
+Prüfen: `curl -s https://<PUBLIC_HOST>/api/config/guide-mode` nennt das Feld `mcp_session_url`.
+Mehr: [`docs/edu-sharing-einbindung.md`](../docs/edu-sharing-einbindung.md), Abschnitt
+„Anmeldung aus der Sitzung“.
+
 #### `MCP_AUTH_TOKEN` — Zugangsblock, optional (C2, 2026-08-10)
 
 ```

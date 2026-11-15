@@ -59,7 +59,7 @@ def _endpunkt(monkeypatch, *, origin, offen, liste="https://wirlernenonline.de")
     from boerdi.api import config as api_config
 
     einstellungen = SimpleNamespace(
-        mcp_server_url="https://mcp.example.org/mcp", cors_allow_all=offen,
+        mcp_server_url="https://mcp.example.org/mcp", mcp_session_url="", cors_allow_all=offen,
         cors_origin_list=[t.strip() for t in liste.split(",")], cors_origin_regex=None)
     monkeypatch.setattr(api_config, "get_settings", lambda: einstellungen)
     monkeypatch.setattr(api_config.cl, "load_guide_mode_config", lambda: {})

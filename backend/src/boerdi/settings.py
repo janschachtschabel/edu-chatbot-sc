@@ -23,6 +23,8 @@ from limits import parse_many
 from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from boerdi.domain.mcp_herkunft import sitzungs_adresse
+
 
 def _env(name: str) -> AliasChoices:
     return AliasChoices(name)
@@ -276,6 +278,15 @@ class Settings(BaseSettings):
             "antwortet dann weiter mit 200 und der vollen Werkzeugliste."
         ),
     )
+    # Plan 2026-11-15 (Anmeldung aus der WLO-Sitzung): wo der MCP-Server die Sitzung einer
+    # Repository-Seite tauscht — sein ``/auth/session``, eingehängt auf dem Host des
+    # Repositorys. Das Widget geht den Weg nur auf Seiten derselben Herkunft. Leer = aus.
+    mcp_session_url: str = Field(
+        "",
+        validation_alias=_env("MCP_SESSION_URL"),
+        description="Address of the MCP session exchange on the repository host "
+                    "(scheme://host/<repo root>/…/auth/session). Empty = not offered.",
+    )
     # Plan 2026-11-07 (Stabilität der MCP-Anbindung), Gegenstück zu S1 des MCP-Servers:
     # mit diesem Schlüssel zählt der Server den Chatbot in einem eigenen Budget statt
     # im Budget seiner Adresse. Nur an den primären Server, nie ins Log.
@@ -486,6 +497,12 @@ class Settings(BaseSettings):
     # Compose (kein App-Port veröffentlicht, nur traefik spricht mit 8100); in Kubernetes die
     # Pod-CIDR des Ingress, sonst fälscht jeder, der 8100 erreicht, seine Adresse.
     forwarded_allow_ips: str = Field("*", validation_alias=_env("FORWARDED_ALLOW_IPS"))
+
+    @field_validator("mcp_session_url")
+    @classmethod
+    def _sitzungs_adresse(cls, v: str) -> str:
+        # SA-11: ein Tippfehler beendet den Start — still abgeschaltet fiele er niemandem auf.
+        return sitzungs_adresse(v)
 
     @field_validator("internal_port")
     @classmethod
