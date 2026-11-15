@@ -58,6 +58,9 @@ _GRUENDE: Final = {"slot_missing": "erneut", "folder_failed": "erneut",
                    # MCP-Stand nach dem Audit (Plan 2026-11-13, C2): ein laufender Stapel wird
                    # nicht mehr verdrängt — nichts vorbereitet, in ein paar Minuten geht es wieder
                    "too_many_batches": "voll",
+                   # MCP-Stand 14.11.2026 abends (MR-4): nach einem offenen Ausgang ließ sich
+                   # nicht klären, ob die Datei da ist — kein Urteil, gleich noch einmal
+                   "not_checked": "nicht_erreichbar",
                    # Paket M1: die Namen vor dem MCP-Stand vom 2026-11-07 (Rückfall).
                    "unknown": "neu_vorbereiten", "expired": "neu_vorbereiten",
                    "mismatch": "neu_vorbereiten"}

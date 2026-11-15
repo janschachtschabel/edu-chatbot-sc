@@ -264,6 +264,8 @@ async def laden(name: str, args: Any) -> Geladen:
     gesendet = _gesendete_argumente(manifest, args)
     if gesendet is None:
         return Geladen(None, "argumente", None, 0)
+    from boerdi.services.mcp.client import fehlercode
+
     t0 = time.monotonic()
     text, art = await _rufen(werkzeug_name, gesendet)
     if art == "tool" and (eigene := _fehlerart(text, gesendet)):
@@ -273,7 +275,9 @@ async def laden(name: str, args: Any) -> Geladen:
 
         abgelehnt = sammlung_per_name.ablehnung(text) if eigene == MEHRDEUTIG else None
         return Geladen(None, eigene, gesendet, int((time.monotonic() - t0) * 1000), abgelehnt)
-    if art == "tool":
+    if art == "tool" and fehlercode(text) != "internal_error":
+        # ``internal_error`` (MCP-Stand 14.11.2026): ein Fehler im Server selbst, bei dem eine
+        # Wiederholung nichts ändert.
         # Eine Datenquelle liest nur — ein zweiter Versuch ist gefahrlos. Ein kurzer Ausfall
         # von edu-sharing hinter dem MCP-Server kommt als ``tool``-Fehler an, und den wiederholt
         # der MCP-Client nicht (dort heißt ``tool`` „der Server hat abgelehnt“). Frist, Anmeldung

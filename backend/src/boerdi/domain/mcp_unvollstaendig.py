@@ -46,6 +46,13 @@ WERKZEUGE: Final = frozenset({
     "search_wlo_within_collection", "get_collection_contents", "browse_collection_tree",
     "get_collection_overview", "get_topic_page_content", "get_wikipedia_summary",
     "search_wlo_content_many", "list_collection_tree"})
+#: MR-2 (MCP-Stand 14.11.2026 abends): Werkzeuge, bei denen NUR ein Feld des Umschlags einen
+#: Ausfall anzeigt — nie eine Wendung im Text. Der Text von ``get_wlo_content_text`` ist Fremdtext
+#: (ein Volltext kann jede Wendung enthalten), und ``get_related_content`` sagt es nur im Feld.
+#: Für den Cache: so eine Antwort bleibt nur kurz stehen. Die Hinweissätze für die KI
+#: (:func:`hinweissaetze`) gelten für diese Werkzeuge bewusst nicht.
+_NUR_FELD: Final = {"get_wlo_content_text": ("reason", "text_unreadable"),
+                    "get_related_content": ("siblingsUnread", True)}
 #: Wendungen aus den Hinweissätzen des Servers (``services/collection-search.ts``
 #: ``incompleteNotice``, ``tools/wikipedia.ts``, ``tools/collections.ts`` ``WALK_INCOMPLETE_NOTE``,
 #: ``tools/browse.ts``).
@@ -55,11 +62,27 @@ _SAETZE: Final = ("hat nicht (vollständig) geantwortet", "war nur teilweise err
 #: Wendung der Hinweise auf einen ABGELEHNTEN Teil (``services/collection-traversal.ts``
 #: ``RESTRICTED_NOTICE``, ``tools/browse.ts`` je Knoten): kein Ausfall, aber die KI muss es wissen.
 _SAETZE_ABGELEHNT: Final = ("mit dieser Anmeldung nicht lesbar",)
+#: MR-3 (MCP-Stand 14.11.2026 abends): Grenzen einer Antwort — nur ein Teil durchsucht
+#: (``scanCapped``), nur die ersten Inhalte (``truncated``), die Zahl nur eine Ober- oder
+#: Untergrenze, der Lauf an seiner Grenze. Der Server sagt sie im JSON-Modus in eigenen Blöcken
+#: HINTER dem Umschlag, jeder Satz beginnt so. Kein Ausfall (der Cache bleibt, wie er ist) — aber
+#: die KI muss sie lesen, sonst hält sie „nichts gefunden“ oder eine Zahl für die ganze Wahrheit.
+_VORSATZ_GRENZE: Final = "Hinweis: "
+#: Werkzeuge ohne Grenz-Sätze: Bei der Mehrfachsuche setzt der Chatbot selbst einen Umschlag
+#: vor den Markdown-Text des Servers — dahinter stehen Titel und Beschreibungen der Treffer.
+_OHNE_GRENZSAETZE: Final = frozenset({"search_wlo_content_many"})
+#: Die Kennzeichen dazu, die in einer gekürzten Sicht bleiben (Sammlungssuche, Töpfe der
+#: Kombi-Suche).
+_GRENZ_FELDER: Final = ("scanCapped", "totalIsUpperBound")
 #: Der Grund von ``get_topic_page_content``, wenn die Suche nach der Seite nicht geantwortet hat.
 GRUND_AUSFALL: Final = "source_unreachable"
 _SATZ_ZEICHEN: Final = 400
-#: So viele Hinweissätze reisen höchstens mit (der Baum kann je Zweig einen tragen).
+#: So viele Sätze zu Ausfall und Ablehnung reisen höchstens mit (der Baum kann je Zweig einen
+#: tragen).
 _SAETZE_HOECHSTENS: Final = 3
+#: … und so viele mit den Grenz-Sätzen zusammen: Der rekursive Sammlungsinhalt kann Ausfall,
+#: Ablehnung und drei Grenzen zugleich tragen.
+_SAETZE_GESAMT: Final = 5
 #: So tief wird ein Baum nach ``childrenUnread`` durchsucht (der Server liefert höchstens 3 Ebenen).
 _BAUM_TIEFE: Final = 6
 _LESER: Final = json.JSONDecoder()
@@ -118,17 +141,43 @@ def _saetze_im(rest: str, wendungen: tuple[str, ...] = _SAETZE) -> list[str]:
 
 
 def hinweissaetze(tool_name: str, text: str) -> list[str]:
-    """Die Hinweissätze des Servers im Text — Ausfall UND abgelehnter Teil —, nur AUSSERHALB des
-    Umschlags: ein Treffer, dessen Titel so eine Wendung enthält, ist keine Meldung des Servers.
-    Höchstens drei."""
+    """Die Hinweissätze des Servers im Text — Ausfall, abgelehnter Teil und (MR-3) Grenzen —, nur
+    AUSSERHALB des Umschlags: ein Treffer, dessen Titel so eine Wendung enthält, ist keine
+    Meldung des Servers. Ausfall und Ablehnung zuerst (höchstens drei), mit den Grenzen zusammen
+    höchstens fünf.
+
+    Die Grenz-Sätze („Hinweis: …“) zählen nur HINTER einem Umschlag und nur am ZEILENANFANG: In
+    einer Markdown-Antwort stehen Titel und Beschreibungen der Treffer im selben Text, und auch
+    hinter dem Umschlag hängt der Server Fremdtext an — den Skill-Katalog einer Sammlung mit
+    eingerückten Zeilen „  Titel: Beschreibung“ (Review MR, Befund 3: ein Skill namens „Hinweis“
+    wäre sonst ein Satz des Servers). Seine eigenen Hinweise beginnen in Spalte 0."""
     if tool_name not in WERKZEUGE or not text:
         return []
-    return _saetze_im(_zerlegt(text)[1], _SAETZE + _SAETZE_ABGELEHNT)
+    umschlag, rest = _zerlegt(text)
+    saetze = _saetze_im(rest, _SAETZE + _SAETZE_ABGELEHNT)
+    # Nur ein Objekt ist ein Umschlag: Eine Markdown-Antwort, die mit „[1] …“ beginnt, läse sich
+    # sonst als JSON-Liste mit Text dahinter.
+    if isinstance(umschlag, dict) and tool_name not in _OHNE_GRENZSAETZE:
+        for zeile in rest.splitlines():
+            # ``search_wlo_within_collection`` setzt seinen Satz kursiv (``_Hinweis: …_``).
+            satz = zeile.rstrip().strip("_*")[:_SATZ_ZEICHEN]
+            if satz.startswith(_VORSATZ_GRENZE) and not any(satz in s for s in saetze):
+                saetze.append(satz)
+    return saetze[:_SAETZE_GESAMT]
 
 
 def ist_unvollstaendig(tool_name: str, strukturiert: dict[str, Any] | None, text: str) -> bool:
     """Hat eine Quelle dieser Antwort nicht (vollständig) geantwortet? Erst der strukturierte
     Teil, dann der Umschlag im Text, dann die Hinweissätze dahinter."""
+    if (feld := _NUR_FELD.get(tool_name)) is not None:
+        name, wert = feld
+
+        def traegt(u: Any) -> bool:
+            return isinstance(u, dict) and type(u.get(name)) is type(wert) and u[name] == wert
+
+        # Erst der strukturierte Teil: Der Text eines Volltexts kann 200 kB groß sein.
+        return traegt(strukturiert) or (
+            strukturiert is None and bool(text) and traegt(_zerlegt(text)[0]))
     if tool_name not in WERKZEUGE:
         return False
     if gekennzeichnet(strukturiert):
@@ -140,9 +189,10 @@ def ist_unvollstaendig(tool_name: str, strukturiert: dict[str, Any] | None, text
 
 
 def kennzeichen(topf: dict[str, Any]) -> dict[str, bool]:
-    """Für die Kürzung eines Topfs: ``incomplete`` (Ausfall) und ``restricted`` (abgelehnter
-    Teil) bleiben, wenn der Server sie gesetzt hat."""
-    return {feld: True for feld in ("incomplete", "restricted") if topf.get(feld) is True}
+    """Für die Kürzung eines Topfs: ``incomplete`` (Ausfall), ``restricted`` (abgelehnter Teil)
+    und die Grenzen (:data:`_GRENZ_FELDER`) bleiben, wenn der Server sie gesetzt hat."""
+    return {feld: True for feld in ("incomplete", "restricted", *_GRENZ_FELDER)
+            if topf.get(feld) is True}
 
 
 def mit_hinweissaetzen(tool_name: str, gekuerzt: str, roh: str) -> str:

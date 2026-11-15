@@ -63,6 +63,9 @@ _GRUND_SCHLUESSEL: dict[str, str] = {
     "no_text_no_url": "content.reason.noTextNoUrl",
     "extraction_failed": "content.reason.extractionFailed",
     "node_not_found": "content.reason.nodeNotFound",
+    # MR-2 (MCP-Stand 14.11.2026): das Repository hat nicht geantwortet — weder „gibt es nicht“
+    # noch „nicht zugänglich“; ein zweiter Versuch kann klappen.
+    "text_unreadable": "content.reason.textUnreadable",
     "no_envelope": "content.reason.noEnvelope",
 }
 
