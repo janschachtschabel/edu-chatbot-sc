@@ -56,14 +56,49 @@ vor jedem Abruf mit Block:  GET …/-me-  ─► noch dieselbe Person? ─ nein 
 
 ## Voraussetzung am Repository-Host
 
-Der Weg braucht einen Pfad unter `/edu-sharing` auf dem Host des Repositorys, der auf den
-Tausch des MCP zeigt. Anders geht es nicht: Das Sitzungs-Cookie trägt `Path=/edu-sharing` und
-`HttpOnly`, und die Schnittstelle des Repositorys gibt keinem Browser ein Ticket (gemessen am
-15.11.: 321 Pfade; `appauth` bleibt ausgeschlossen). Der md-editor nutzt dasselbe Muster und
-läuft so auf Staging (`/edu-sharing/services/md-editor/`, eigenes Ingress-Objekt aus seinem
-Chart, `config.auth.cookie.enabled`). Es ist also kein Eingriff in edu-sharing, aber er setzt
-voraus, dass der MCP im Cluster des Repositorys läuft; sein Staging-Server läuft heute auf einem
-eigenen Rechner. Ohne den Pfad bleibt der Weg aus; der Chatbot-Teil liegt dann still.
+Der Weg braucht einen Pfad unter `/edu-sharing` auf dem Host des Repositorys. Anders geht es
+nicht: Das Sitzungs-Cookie trägt `Path=/edu-sharing` und `HttpOnly`, und die Schnittstelle des
+Repositorys gibt keinem Browser ein Ticket (gemessen am 15.11.: 321 Pfade; `appauth` bleibt
+ausgeschlossen). Der md-editor nutzt dasselbe Muster und läuft so auf Staging
+(`/edu-sharing/services/md-editor/`, eigenes Ingress-Objekt aus seinem Chart,
+`config.auth.cookie.enabled`).
+
+**SA-16: Der Pfad führt zu unserem Backend, nicht zum MCP.** Unser Chart legt das Ingress-Objekt
+an (`sessionIngress` in der Werte-Vorlage für Team 6) und leitet genau
+`/edu-sharing/services/boerdi/auth/session` unverändert an unser Backend (kein `rewrite-target`;
+das Backend nimmt den Pfad selbst an). Das Backend reicht den Tausch server-zu-server an `POST /auth/session` des MCP weiter
+(`services/mcp/sitzung_tausch.py`). So steuert der Betrieb des Chatbots den Weg selbst, und der
+MCP kann bleiben, wo er ist (sein Staging-Server läuft auf einem eigenen Rechner; eine
+Ingress-Regel im Cluster zeigt dorthin nicht ohne Weiteres). Das Widget ändert sich nicht:
+`MCP_SESSION_URL` nennt nur eine andere Adresse.
+
+- **Riegel im Backend:** nur über den Host aus `MCP_SESSION_URL` (sonst 404, also nicht über den
+  Host des Chats); nur `POST` mit JSON; `Origin` gleich der Herkunft aus `MCP_SESSION_URL`;
+  genau eine `JSESSIONID` (zwei verschiedene weist schon die Route ab, eine Nachbar-Subdomain
+  könnte sonst wählen, wessen Sitzung gilt); weitergereicht werden nur diese und höchstens ein
+  `INGRESSCOOKIE`, kein `Authorization`; zurück gehen nur die Felder der Tauschstelle und nur
+  Status, die ein Urteil sind (sonst 502); Gesamtfrist 8 s; ohne `MCP_SESSION_URL` 404.
+- **Kein `rewrite-target`:** Das Backend nimmt den Pfad am Repository-Host unverändert an
+  (`PFAD_AM_REPOSITORY`). Ein `rewrite-target` stellte bei ingress-nginx alle Pfade des Hosts
+  auf Regex um, auch die von edu-sharing.
+- **Budget:** Beim MCP zählen alle Tausche auf die Adresse unseres Backends, im selben Topf wie
+  das Abmelden (`API_RATE_LIMIT_RPM`, Vorgabe 30 je Minute; dazu 200 verschiedene Sitzungen in
+  10 Minuten). Der Anmeldestand (`/auth/status`) zählt dort anders (Budget des
+  Client-Schlüssels). `Origin` und `Content-Type` sind außerhalb eines Browsers frei wählbar,
+  die Host-Prüfung ist nur Tiefenverteidigung. Deshalb 10 Tausche je Minute und Adresse (für beide Pfade gemeinsam) und 20 je Minute für die ganze Anlage, gezählt im gemeinsamen Speicher der Drossel (im Cluster Valkey, also über alle Repliken); vom Topf bleiben
+  10 je Minute für das Abmelden. Wer fälscht, kann den Tausch für alle eine Minute lang
+  aufhalten, aber nicht das Abmelden. Kapazität damit: 20 Tausche je Minute für die ganze
+  Anlage; das reicht für eine Redaktion, nicht für eine Schulklasse, die gleichzeitig lädt. Die echte Lösung liegt beim MCP: ein
+  Budget je weitergereichter Adresse für unseren Client-Schlüssel. **Bedingung für den Betrieb
+  mit vielen Personen.**
+- **Preis:** Das Cookie läuft im Transit durch unser Backend, wie beim Server des md-editors. Es
+  wird weder gespeichert noch protokolliert.
+- **Keine neue Umgebungsvariable.** Die Route gilt, sobald `MCP_SESSION_URL` gesetzt ist.
+- **Alternative bleibt möglich:** Läuft der MCP eines Tages im Cluster des Repositorys, kann
+  `MCP_SESSION_URL` auch direkt auf seinen eingehängten Pfad zeigen (`WLO_SESSION_MOUNT_PATH`
+  am MCP); das Widget merkt keinen Unterschied.
+
+Ohne den Pfad bleibt der Weg aus; der Chatbot-Teil liegt dann still.
 
 ## Risiken
 

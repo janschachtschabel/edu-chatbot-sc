@@ -16,7 +16,7 @@ zu lösen. Dieses Dokument ist die Liste dafür.
 |---|---|---|
 | Anmelden per Knopf | Widget → MCP-Server (OAuth 2.1, PKCE, öffentlicher Client) | Die Person meldet sich auf der Seite des MCP-Servers bei WLO an und bekommt einen **Zugangsblock** `wlo2.…` als `access_token`. |
 | Anmelden per Ticket | Gastseite rendert `ticket` ins Widget → `POST /auth/ticket` | Das edu-sharing-Ticket wird gegen einen Block getauscht (`k:'ticket'`). |
-| Anmelden aus der Sitzung (seit 2026-11-15) | Widget auf einer Seite des Repositorys → `POST …/auth/session` auf dessen Host | Die Sitzung der Seite wird gegen einen Block getauscht (`k:'session'`). Das Widget fragt vorher das Repository, wer angemeldet ist, und vergleicht die Person. Der Block bleibt im Arbeitsspeicher. Einzelheiten: [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) §3a. |
+| Anmelden aus der Sitzung (seit 2026-11-15) | Widget auf einer Seite des Repositorys → `POST /edu-sharing/services/boerdi/auth/session` auf dessen Host (eigene Ingress-Regel unseres Charts) → Backend → MCP `POST /auth/session` | Die Sitzung der Seite wird gegen einen Block getauscht (`k:'session'`). Das Widget fragt vorher das Repository, wer angemeldet ist, und vergleicht die Person. Das Cookie läuft im Transit durch unser Backend (nur `JSESSIONID`/`INGRESSCOOKIE`, nicht gespeichert, nicht protokolliert). Der Block bleibt im Arbeitsspeicher. Einzelheiten: [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) §3a. |
 | Aufbewahren | Widget, `sessionStorage` (`boerdi.mcp-access`); Block aus der Sitzung nur im Arbeitsspeicher | Je Tab, stirbt mit dem Tab. Kein Cookie, kein `localStorage`. |
 | Je Chat-Anfrage | Widget → Backend (Kopfzeile `WLO-Access-Block`) → MCP-Server (`Authorization: Bearer`) | Das Backend speichert den Block nirgends und reicht ihn **nur an den WLO-Server** weiter, nie an andere MCP-Server. |
 | Echtheitsprüfung | Backend → `wlo_auth_status` (seit Paket 10) | Erst ein bestätigter Block gilt als Person (Cache 5 min je Block, abgewiesen 30 s). Abgewiesener Block → `auth_invalid` an das Widget. |
@@ -115,6 +115,10 @@ außen am MCP-Server als die Person handeln, solange die Sitzung im Repository l
 - **Was dagegen steht:** Der Weg gilt nur auf der Herkunft, die der Betrieb einträgt
   (`MCP_SESSION_URL`), und am MCP-Server nur für freigegebene Seiten. Der Block endet mit der
   Sitzung.
+- **Das Cookie im Backend (SA-16):** Auf dem Weg zum MCP läuft das Sitzungs-Cookie durch unser
+  Backend, wie beim Server des md-editors. Weitergereicht werden nur `JSESSIONID` und
+  `INGRESSCOOKIE`; gespeichert oder protokolliert wird nichts. Ein Zugriffslog am Ingress darf
+  `$http_cookie` nicht enthalten (der Standard tut es nicht).
 - **Was bleibt:** Der Weg gehört nur auf Seiten, deren Skripte der Betreiber verantwortet.
   Dieselbe Abwägung wie R1.
 

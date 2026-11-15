@@ -7,33 +7,47 @@ Danke, der Weg B ist bei uns eingebaut. Er ist aus, bis der Betrieb die Adresse 
 
 ## 1. Was wir von dir brauchen
 
-### 1a. Den Sitzungs-Pfad in deinem Helm-Chart, so wie beim md-editor
+### 1a. Wir reichen den Tausch über unser Backend weiter — bitte so annehmen
 
 Der Weg B braucht einen Pfad auf dem Host des Repositorys unterhalb von `/edu-sharing`; nur
 dorthin schickt der Browser das Sitzungs-Cookie (gemessen an Staging: `JSESSIONID` und
-`INGRESSCOOKIE` mit `Path=/edu-sharing`, `HttpOnly`). Das ist kein Eingriff in edu-sharing:
-Der md-editor macht es genauso und läuft so auf Staging
-(`https://repository.staging.openeduhub.net/edu-sharing/services/md-editor/` antwortet mit dem
-Editor). Sein Chart legt dafür ein eigenes Ingress-Objekt mit dem Repository-Host an
-(`ingress.basePath`, Präfix wird abgeschnitten, `config.auth.cookie.enabled`).
+`INGRESSCOOKIE` mit `Path=/edu-sharing`, `HttpOnly`). Der md-editor macht es genauso und läuft
+so auf Staging (`/edu-sharing/services/md-editor/`, eigenes Ingress-Objekt aus seinem Chart).
 
-Dein Chart kennt das noch nicht: `templates/ingress.yaml` legt nur `path: /` auf `ingress.host`
-an. Bitte:
+Dein Staging-Server läuft auf einem eigenen Rechner (`wlo-mcp.87.106.195.152.nip.io`), nicht im
+Cluster des Repositorys. Darum legt **unser** Chart den Pfad an
+(`/edu-sharing/services/boerdi/auth/session`) und leitet ihn auf unser Backend; das reicht den
+Tausch server-zu-server an dein `POST /auth/session` weiter. Du musst dafür nichts einhängen.
 
-- eine zweite, eigene Ingress-Regel, abschaltbar, etwa `sessionIngress.host`
-  (Repository-Host) und `sessionIngress.path` (Vorgabe `/edu-sharing/services/wlo-mcp`), die
-  **nur** `<path>/auth/session` auf `/auth/session` umschreibt (`pathType: Exact`, nicht den
-  ganzen Server);
-- dazu im Chart prüfen, was der md-editor prüft: Pfad unter `/edu-sharing`, sonst bricht
-  `helm template` ab; mit gesetztem `sessionIngress.host` gilt `WLO_SESSION_EXCHANGE=1`;
-- in deiner Betriebsanleitung: `Cookie` und `Origin` müssen durchkommen; `TRUST_PROXY` zur
-  Proxy-Kette des Repository-Ingress.
+So sieht die Anfrage bei dir aus:
 
-**Die eigentliche Frage dahinter:** Der md-editor läuft im Cluster des Repositorys, dein
-Staging-Server läuft auf einem eigenen Rechner (`wlo-mcp.87.106.195.152.nip.io`). Eine
-Ingress-Regel im Cluster kann nicht ohne Weiteres auf einen Rechner außerhalb zeigen. Für
-Weg B muss der MCP (mindestens der Teil, der `/auth/session` beantwortet) im Cluster des
-Repositorys laufen, wie der md-editor. Wer entscheidet das, und ist es geplant?
+- `Cookie`: genau eine `JSESSIONID` und höchstens ein `INGRESSCOOKIE` aus dem Browser; zwei
+  verschiedene Sitzungen in einer Anfrage weisen wir schon selbst ab (wie du);
+- `Origin`: die Herkunft der Repository-Seite. Wir reichen sie nur weiter, wenn der Browser
+  genau sie geschickt hat;
+- `Content-Type: application/json`, Rumpf `{}`, kein `Authorization`;
+- `X-WLO-Client-Key` (unser Schlüssel) und `X-Forwarded-For` mit der Adresse der Person.
+
+Bitte:
+
+1. **Ist das für dich in Ordnung?** Deine Herkunftsprüfung trifft bei uns eine Anfrage, deren
+   `Origin` wir setzen (nach eigener Prüfung). Wenn du serverseitige Weiterreicher
+   ausdrücklich zulassen willst, sag, woran du sie erkennen möchtest (etwa am Client-Schlüssel).
+2. **Budget — das ist die Bedingung für den Betrieb.** Alle Tausche kommen von der Adresse
+   unseres Backends. An `/auth/session` und `/auth/revoke` gilt bei dir je Adresse
+   `API_RATE_LIMIT_RPM` (Vorgabe 30 je Minute), ein gemeinsamer Topf; dazu 200 verschiedene
+   Sitzungen in 10 Minuten (`TICKET_CREDENTIAL_LIMIT`). Der Client-Schlüssel zählt dort nicht
+   (anders als an `/auth/status`), und `X-Forwarded-For` von uns wirkt nicht, weil du den
+   letzten Eintrag nimmst. Wer bei uns Kopfzeilen fälscht, kann so deinen Topf für uns leeren;
+   wir schützen ihn mit 10 Tauschen je Minute und Adresse und 20 je Minute für die ganze
+   Anlage, sodass 10 für das Abmelden bleiben. Das ist ein Notbehelf, und 20 je Minute sind
+   wenig. Bitte: Für einen vertrauten
+   Client-Schlüssel an `/auth/session` die Grenzen je weitergereichter Adresse zählen (unser
+   `X-Forwarded-For`), oder ihm einen eigenen, größeren Topf geben.
+3. **`WLO_SESSION_EXCHANGE=1`** an deinem Staging-Server, sobald unser Pfad steht.
+
+Deine Option `WLO_SESSION_MOUNT_PATH` brauchen wir damit nicht; läuft der MCP eines Tages im
+Cluster, kann unsere Adresse auch direkt dorthin zeigen.
 
 ### 1b. Ein alter Sitzungs-Block soll nach einem neuen Tausch nicht wieder gelten
 
@@ -82,7 +96,7 @@ nach 12 Stunden.
 ## 2. Zur Information: was das Widget tut
 
 1. **Wo der Weg gilt:** Unser Backend nennt dem Widget die Adresse des Tauschs (bei uns
-   `MCP_SESSION_URL`, etwa `https://<Repository-Host>/edu-sharing/services/wlo-mcp/auth/session`).
+   `MCP_SESSION_URL`, etwa `https://<Repository-Host>/edu-sharing/services/boerdi/auth/session`).
    Das Widget versucht ihn nur auf Seiten dieser Herkunft. Der Pfad muss auf `/auth/session`
    enden und unterhalb einer Wurzel liegen (`/edu-sharing/…`).
 2. **Wer ist da:** `GET /edu-sharing/rest/iam/v1/people/-home-/-me-` mit der Sitzung der Seite.
@@ -105,7 +119,7 @@ nach 12 Stunden.
    | 415, sonstiges | ohne Anmeldung weiter, Zeile in der Konsole |
 
    Ohne die Regel am Ingress antwortet das Repository selbst mit 404 (gemessen an Staging unter
-   `/edu-sharing/services/wlo-mcp/auth/session`); das fällt bei uns unter „nicht eingerichtet“.
+   `/edu-sharing/services/…`); das fällt bei uns unter „nicht eingerichtet“.
 6. **Vor jedem Abruf, der den Block trägt,** fragen wir das Repository noch einmal, wer auf der
    Seite angemeldet ist (höchstens 3 s; eine Antwort gilt 2 s). Ist es ein Gast, verwerfen wir
    den Block. Ist es jemand anderes, verwerfen wir ihn und tauschen neu. War vorher niemand

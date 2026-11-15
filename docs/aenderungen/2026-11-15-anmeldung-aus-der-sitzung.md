@@ -39,6 +39,32 @@ Schreiben bleibt hinter Vorschau und Zustimmung.
 Am Ticket-Weg neu: Meldet sich jemand während eines laufenden Tauschs ab, widerruft das Widget
 auch den Block, der danach noch zurückkommt. Bisher warf es ihn nur lokal weg.
 
+## Nachtrag: der Tausch läuft über unser Backend (SA-16)
+
+Abgleich mit dem md-editor: Er braucht für seine Anmeldung aus der Sitzung ebenfalls einen Pfad
+unter `/edu-sharing` auf dem Repository-Host und legt ihn mit einem eigenen Ingress-Objekt aus
+seinem Chart an (`ingress.basePath`, läuft so auf Staging). Ohne einen solchen Pfad geht es
+nicht: Das Cookie trägt `Path=/edu-sharing` und `HttpOnly`, und die Schnittstelle des
+Repositorys gibt keinem Browser ein Ticket.
+
+Damit wir den Weg selbst steuern und der MCP bleiben kann, wo er ist:
+
+- **Chart:** `sessionIngress` in `deploy/helm/values.example.yaml` — ein eigenes Ingress-Objekt
+  mit dem Hostnamen des Repositorys, das genau `/edu-sharing/services/boerdi/auth/session` auf
+  unser Backend leitet, unverändert (kein `rewrite-target`).
+- **Backend:** neue Route `POST /api/auth/session` (`api/sitzung.py`,
+  `services/mcp/sitzung_tausch.py`), am Repository-Host unter demselben Pfad wie dort
+  angenommen (kein `rewrite-target`). Sie prüft Host, Herkunft, Form und genau eine
+  `JSESSIONID`, reicht nur diese und höchstens ein `INGRESSCOOKIE` an `POST /auth/session` des
+  MCP weiter und gibt nur die Felder der Tauschstelle zurück. Ohne `MCP_SESSION_URL` 404.
+- **Keine neue Umgebungsvariable**, das Widget ist unverändert.
+- **Preis:** Das Cookie läuft im Transit durch unser Backend (nicht gespeichert, nicht
+  protokolliert). Beim MCP zählen alle Tausche auf die Adresse unseres Backends, im selben Topf
+  wie das Abmelden (30 je Minute). Das Backend begrenzt auf 10 je Minute und Adresse und 20 je
+  Minute für die ganze Anlage (gemeinsamer Speicher der Drossel); wer Kopfzeilen fälscht, kann
+  den Tausch trotzdem für alle kurz aufhalten, das Abmelden nicht. Die echte Lösung (Budget je weitergereichter Adresse) liegt beim MCP: Bedingung
+  für den Betrieb mit vielen Personen.
+
 ## Sicherheit
 
 - Der Pfad muss auf `/auth/session` enden und aus schlichten Stufen bestehen. Die Anfrage
@@ -80,7 +106,7 @@ des MCP-Entwicklers und seinem Quelltext.
 
 ## Review
 
-Drei unabhängige Reviews, jedes nach der Nachbesserung des vorigen. Kein kritischer Befund.
+Fünf unabhängige Reviews, jedes nach der Nachbesserung des vorigen. Kein kritischer Befund.
 
 1. **Erstes Review: 1 schwerer, 8 mittlere Punkte.**
    - Schwer: Der Block war im ausgelieferten Bündel über `window` erreichbar, weil das Bündel
@@ -104,6 +130,15 @@ Drei unabhängige Reviews, jedes nach der Nachbesserung des vorigen. Kein kritis
    - Ein 401 des Repositorys galt als „keine Aussage“; jetzt als „niemand angemeldet“.
    - Lücken in den Tests und vier Stellen in der Doku.
 
+4. **Weiterreicher (SA-16), zwei Reviews.** Erstes: 2 schwere, 9 mittlere Punkte. Schwer:
+   Fremde konnten mit gefälschten Kopfzeilen das gemeinsame Budget des Backends am MCP leeren;
+   eine doppelt untergeschobene Sitzung ging vor der echten durch. Behoben: Host-Prüfung, Grenze
+   je Adresse und Gesamtgrenze, genau eine Sitzung, kein `rewrite-target`, Gesamtfrist, Adresse
+   aus der Drossel-Logik, Doku-Zahlen. Zweites: beide schweren geschlossen, 6 mittlere Punkte
+   behoben (Gesamtgrenze im gemeinsamen Speicher statt je Prozess, eine Grenze für beide Pfade,
+   Logzeile bei zwei Sitzungen, Muster der Sitzungs-Kennung, kein HSTS am Repository-Pfad,
+   Doku: der Anmeldestand liegt nicht im selben Topf).
+
 Nicht behoben, festgehalten im Plan: Mehrere Widgets auf einer Seite zeigen einen Wechsel am
 Knopf erst beim nächsten eigenen Abruf; beim Wechsel der Person bleibt das Gespräch stehen
 (offene Entscheidung).
@@ -123,11 +158,12 @@ Knopf erst beim nächsten eigenen Abruf; beim Wechsel der Person bleibt das Gesp
 - Image neu bauen. Keine Migration, kein `import-config`.
 - Der Weg ist ohne `MCP_SESSION_URL` aus; bis dahin ändert sich nichts.
 - Einschalten (Reihenfolge egal, wirksam erst mit allen drei):
-  1. MCP-Server: `WLO_AUTH_PRIVATE_KEY`, `WLO_SESSION_EXCHANGE=1`, bei abweichender Adresse
-     `WLO_SESSION_ALLOWED_ORIGINS`; `TRUST_PROXY` passend zum Ingress.
-  2. Ingress des Repository-Hosts: Pfad unterhalb von `/edu-sharing` auf `POST /auth/session`;
-     `Cookie` und `Origin` kommen durch.
-  3. Chatbot: `MCP_SESSION_URL`; bei `CORS_ALLOW_ALL=false` den Repository-Host in
-     `CORS_ORIGINS`.
+  1. Chart: `sessionIngress` (eigenes Ingress-Objekt mit dem Repository-Host, Pfad
+     `/edu-sharing/services/boerdi/auth/session`, `Exact`, kein `rewrite-target`); Team 6.
+  2. Chatbot: `MCP_SESSION_URL` auf diese Adresse; bei `CORS_ALLOW_ALL=false` den
+     Repository-Host in `CORS_ORIGINS`.
+  3. MCP-Server: `WLO_AUTH_PRIVATE_KEY`, `WLO_SESSION_EXCHANGE=1`, bei abweichender Adresse
+     `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss nicht in den Cluster.
+- Für viele Personen vorher das Budget am MCP klären (siehe Nachtrag).
 - Hinter dem Proxy der B-API: `WLO-Access-Block` am Proxy-Eintrag freigeben
   ([`uebergabe-betrieb.md`](../uebergabe-betrieb.md) §5).

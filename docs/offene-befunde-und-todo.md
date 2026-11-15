@@ -358,10 +358,12 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   `aenderungen/2026-11-15-anmeldung-aus-der-sitzung.md`, Antwort an den MCP-Entwickler
   `mcp-antwort-2026-11-15-sitzung.md`. Keine Migration, kein `import-config`. Ohne
   `MCP_SESSION_URL` ist der Weg aus.
-  - **Einschalten:** am MCP-Server `WLO_SESSION_EXCHANGE=1`; am Ingress des Repository-Hosts
-    ein Pfad unterhalb von `/edu-sharing` auf `POST /auth/session`; am Chatbot
-    `MCP_SESSION_URL` (bei `CORS_ALLOW_ALL=false` den Repository-Host in `CORS_ORIGINS`).
-    Schritte: `deploy/README.md`, Abschnitt `MCP_SESSION_URL`.
+  - **Einschalten (SA-16, über unser Backend):** im Chart `sessionIngress` (eigenes
+    Ingress-Objekt mit dem Repository-Host, Pfad `/edu-sharing/services/boerdi/auth/session`
+    unverändert ans Backend, kein `rewrite-target`, wie beim md-editor; Team 6); am Chatbot `MCP_SESSION_URL` auf
+    diese Adresse (bei `CORS_ALLOW_ALL=false` den Repository-Host in `CORS_ORIGINS`); am
+    MCP-Server `WLO_SESSION_EXCHANGE=1`. Der MCP muss nicht in den Cluster. Schritte:
+    `deploy/README.md`, Abschnitt `MCP_SESSION_URL`.
   - **Hinter dem Proxy der B-API** muss die Kopfzeile `WLO-Access-Block` am Proxy-Eintrag
     freigegeben sein (`allowedRequestHeaders`), dazu `X-Boerdi-Engine` und `Accept-Language`.
     Sonst arbeitet jede angemeldete Person still als Gast. Mit dem b-api-Team klären, auch die
@@ -370,10 +372,9 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     Sitzung im Browser (Knopf zeigt den Namen, Schreiben mit Zustimmung), Abmelden im
     Repository (das Widget tauscht neu und arbeitet ohne Anmeldung weiter), Abmelden im Chat
     (kein Tausch nach dem Neuladen). Bisher nur ohne Anmeldung am lokalen MCP gemessen.
-  - **Offen beim MCP-Entwickler** (`mcp-antwort-2026-11-15-sitzung.md` §1): (a) den
-    Sitzungs-Pfad im Helm-Chart anlegen können wie der md-editor (`ingress.basePath`), und die
-    Frage, ob der MCP in den Cluster des Repositorys kommt — sein Staging-Server läuft auf einem
-    eigenen Rechner, dorthin zeigt eine Ingress-Regel im Cluster nicht ohne Weiteres; (b) ein
+  - **Offen beim MCP-Entwickler** (`mcp-antwort-2026-11-15-sitzung.md` §1): (a) unseren
+    Weiterreicher annehmen und sein Budget klären (an `/auth*` zählt heute nur die Adresse;
+    Wunsch: Client-Schlüssel auch dort), `WLO_SESSION_EXCHANGE=1` auf Staging; (b) ein
     widerrufener oder abgelaufener Sitzungs-Block gilt nach dem nächsten Tausch wieder; (c) eine
     Frage zu `/auth/status`.
   - **Ohne diesen Pfad bleibt der Weg aus.** Der Chatbot-Teil liegt dann still (ohne
