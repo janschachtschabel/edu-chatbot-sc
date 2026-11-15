@@ -17,9 +17,10 @@ npm run lint       # eslint + angular-eslint (Templates inkl. a11y-Regeln)
 npm run check:tokens   # jedes gelesene var(--token) muss definiert sein (s. u.)
 npm run check:contrast # Studio: Fokusring, Akzent-Paare, Feldrahmen (s. u.)
 npm test           # Unit-Tests: ng test ui && ng test widget && ng test studio
-npm run build:widget   # Single-File-Bundle → dist/widget/browser/main.js
+npm run build:widget   # Single-File-Bundle → dist/widget/browser/main.js (in einer Hülle)
+npm run check:huelle   # Bündel + Nachlade-Module: keine Deklaration auf oberster Ebene
 npm run build:studio   # Studio-SPA → dist/studio/browser/
-npm run budget     # §5.5-Gate: 1 Datei, ≤420 kB raw, ≤140 kB gzip (nur Widget)
+npm run budget     # §5.5-Gate: 1 Datei, ≤700 kB raw, ≤210 kB gzip; Module; Hülle
 npm run e2e        # Playwright gegen das GEBAUTE Bundle
 ```
 

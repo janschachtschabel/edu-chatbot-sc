@@ -404,6 +404,30 @@ test('auch die Hülle folgt dem Dunkelmodus — Panel, Fußzeile, Eingabe, Ergeb
   expect(kontrast(dunkel.boxText, dunkel.box)).toBeGreaterThanOrEqual(4.5);
 });
 
+test('das Bündel legt keine Namen im Fenster der Gastseite an (Hülle)', async ({ page }) => {
+  // Das Bündel läuft als klassisches Skript: ohne Hülle wären seine rund 2 000 `var` und
+  // Funktionen Eigenschaften von `window` — für jedes Skript der Seite aufrufbar (darunter die
+  // Funktion, die den Zugangsblock liest) und im Zusammenstoß mit Namen der Seite. Die Form prüft
+  // `scripts/check-widget-huelle.mjs`; hier zählt, was im Browser wirklich am Fenster hängt —
+  // auch eine Zuweisung an `window` aus dem Inneren der Hülle fiele hier auf.
+  await page.addInitScript(() => {
+    (window as any).__vorDemBuendel = Object.getOwnPropertyNames(window);
+  });
+
+  const w = await mount(page);
+  await w.open();
+
+  const { vorher, neu } = await page.evaluate(() => {
+    const vorher = new Set<string>((window as any).__vorDemBuendel);
+    const neu = Object.getOwnPropertyNames(window)
+      .filter((name) => !vorher.has(name) && name !== '__vorDemBuendel');
+    return { vorher: vorher.size, neu };
+  });
+  // Erst beweisen, dass die Messung läuft — sonst wäre die leere Liste trivial.
+  expect(vorher).toBeGreaterThan(100);
+  expect(neu).toEqual([]);
+});
+
 test('das Widget lädt nichts von Dritt-Hosts (DSGVO-Guardrail)', async ({ page }) => {
   const seen: string[] = [];
   page.on('request', (req) => seen.push(req.url()));
