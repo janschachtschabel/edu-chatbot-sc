@@ -369,6 +369,12 @@ Seitenkontext, Zweisprachigkeit.
 
 ## 6. Was wir bewusst **nicht** anbieten
 
+> **Nachtrag 2026-11-15:** Die zweite Zeile gilt für einen Bau am Repository selbst weiter. Der
+> MCP-Server tauscht inzwischen eine Sitzung gegen einen Zugangsblock, wenn sein Pfad
+> `/auth/session` am Ingress des Repository-Hosts eingehängt ist; das Widget nutzt das auf
+> Seiten des Repositorys von selbst. Das Cookie erreicht dabei weiter nicht unser Backend.
+> Plan: [`2026-11-15-anmeldung-aus-der-sitzung.md`](2026-11-15-anmeldung-aus-der-sitzung.md).
+
 | | warum nicht |
 |---|---|
 | Sitzung an unser Backend übergeben | technisch unmöglich (§1) — und wäre auch unerwünscht |

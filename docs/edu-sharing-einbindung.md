@@ -20,23 +20,25 @@ Alles hier ist am Quelltext belegt; Fundstellen stehen in Klammern. Wo etwas
 
 ## 1. Die eine Entscheidung vorweg
 
-Es gibt zwei Betriebsformen. Sie unterscheiden sich **nur** darin, ob ihr uns
-einen Ausweis der angemeldeten Person mitgebt.
+Es gibt drei Betriebsformen. Sie unterscheiden sich darin, ob und wie der Chatbot
+die angemeldete Person erfährt.
 
-| | **A — ohne Ticket** | **B — mit Ticket** (empfohlen) |
-|---|---|---|
-| Was ihr baut | Widget einbetten | Widget einbetten **+ `ticket` templaten** |
-| Lesen (Suche, Prüfen) | Dienstkonto des MCP-Servers | **als die angemeldete Person** |
-| Schreiben | nur im Browser, same-origin, **eine** Anfrage je Bestätigung (§9) | serverseitig durch den MCP-Server, **auch mehrschrittig** |
-| Zuschreibung einer Änderung | die Person (Browser-Sitzung) | die Person (Ticket) |
-| Zweite Anmeldung nötig | nein | nein |
+| | **A — ohne Ticket** | **B — mit Ticket** | **C — aus der Sitzung** (seit 15.11.2026) |
+|---|---|---|---|
+| Was ihr baut | Widget einbetten | Widget einbetten **+ `ticket` templaten** | Widget einbetten **+ ein Pfad am Ingress** auf den MCP-Server |
+| Lesen (Suche, Prüfen) | Dienstkonto des MCP-Servers | **als die angemeldete Person** | **als die angemeldete Person** |
+| Schreiben | nur im Browser, same-origin, **eine** Anfrage je Bestätigung (§9) | serverseitig durch den MCP-Server, **auch mehrschrittig** | wie B |
+| Zuschreibung einer Änderung | die Person (Browser-Sitzung) | die Person (Ticket) | die Person (Sitzung) |
+| Zweite Anmeldung nötig | nein | nein | nein |
 
-**B ist der bessere Tausch**, sobald ihr ohnehin einbettet: ein Ticket ist ein
-begrenzter, widerrufbarer Ausweis. Der Aufwand dafür ist ein Attribut, das ihr
-serverseitig ins Template schreibt (§3).
+**B und C leisten im Chat dasselbe.** B braucht ein Attribut, das ihr serverseitig ins
+Template schreibt (§3). C braucht kein Template, aber einen Pfad am Ingress eures
+Hosts und zwei Einstellungen (§3a). Gebt ihr ein Ticket mit, gilt B. Ein Unterschied:
+Wollt ihr `/api/agent` selbst aufrufen (§8), geht das mit dem Block des Widgets nur bei B.
 
-Was ihr **nicht** tun müsst: nichts an edu-sharing bauen, keinen Endpunkt
-bereitstellen, keine Anwendung registrieren, keinen Reverse-Proxy einrichten.
+Was ihr für A und B **nicht** tun müsst: nichts an edu-sharing bauen, keinen Endpunkt
+bereitstellen, keine Anwendung registrieren, keinen Reverse-Proxy einrichten. Für C
+kommt der eine Pfad am Ingress dazu; an edu-sharing selbst wird auch dort nichts gebaut.
 
 **Was ihr entscheidet:** mit welchem Konto der MCP-Server liest.
 
@@ -132,6 +134,10 @@ Gemessen am 2026-08-12 gegen `repository.staging.openeduhub.net`:
 
 Ein Ticket kann deshalb nur **serverseitig** entstehen — beim Rendern eurer
 Seite. Genau das macht der md-editor heute in Produktion (`?ticket=…`).
+
+Seit dem 15.11.2026 gibt es daneben einen Weg ohne Ticket (§3a). Er widerspricht dem
+nicht: Auch dort liest kein JavaScript das Cookie. Der MCP-Server ist dafür auf eurem
+Host eingehängt und bekommt das Cookie vom Browser selbst.
 
 ### Der Weg, Station für Station
 
@@ -230,10 +236,128 @@ Es reist im Boot-Bündel `GET /api/config/guide-mode`.
 
 | | warum nicht |
 |---|---|
-| Sitzungs-Cookies an unser Backend übergeben | technisch unmöglich, und unerwünscht: **die Sitzung eurer Nutzer verlässt den Browser nicht — wir können sie nicht sehen** |
-| Endpunkt bei euch, der uns die Sitzung reicht | verlangt einen Bau am Repositorium; ausgeschlossen |
+| Sitzungs-Cookies an unser Backend übergeben | technisch unmöglich, und unerwünscht. Auch beim Weg aus der Sitzung (§3a) geht das Cookie nur an den Pfad auf eurem Host und von dort an den MCP-Server, nie an unser Backend |
+| Einen Bau am Repositorium selbst | ausgeschlossen. Der Weg aus der Sitzung braucht nur einen Pfad am Ingress |
 | `appauth` mit registrierter Anwendung | Identitätsübernahme per Bauart: wer es rufen darf, darf jeder sein |
 | Dienstkonto mit Schreibrechten | jede Änderung liefe unter einem Sammelkonto, ohne Zuschreibung |
+
+---
+
+## 3a. Anmeldung aus der Sitzung — ohne Ticket (seit 2026-11-15)
+
+Der dritte Weg braucht kein Ticket im Template. Das Widget erkennt selbst, dass es in einer
+Seite des Repositorys sitzt und dort jemand angemeldet ist, und arbeitet dann mit dessen
+Rechten. Plan mit allen Entscheiden:
+[`plans/2026-11-15-anmeldung-aus-der-sitzung.md`](plans/2026-11-15-anmeldung-aus-der-sitzung.md).
+
+**Warum das jetzt geht:** Nicht der Browser holt sich einen Ausweis vom Repository (das bleibt
+unmöglich, siehe oben). Der MCP-Server bekommt einen Pfad **auf eurem Host** unterhalb von
+`/edu-sharing`. Dorthin schickt der Browser das Sitzungs-Cookie von selbst mit, und der
+MCP-Server tauscht die Sitzung gegen einen gewöhnlichen Zugangsblock. Im Klartext sehen das
+Cookie weder das Widget noch unser Backend: Der Block enthält es verschlüsselt, lesen kann es
+nur der MCP-Server.
+
+### Der Weg, Station für Station
+
+1. **Das Config-Bündel nennt die Adresse** (`GET /api/config/guide-mode`, Feld
+   `mcp_session_url`). Das Widget geht den Weg nur, wenn die Adresse dieselbe Herkunft hat wie
+   die Seite. Auf jeder anderen Seite stellt es dazu keine Anfrage.
+2. **Es fragt, wer da ist:** `GET /edu-sharing/rest/iam/v1/people/-home-/-me-` mit der Sitzung
+   der Seite. Ein Gast (`esguest`) wird nicht getauscht.
+3. **Es tauscht:** `POST <mcp_session_url>` mit `credentials: 'same-origin'`, Körper `{}`.
+   Antwort `{ok, block, authority, displayName?}`.
+4. **Es vergleicht die Person.** Nennt der Tausch eine andere `authority` als die Seite, wird
+   der Block verworfen. Der Vergleich ist wörtlich. Der MCP-Server nennt den Kontonamen
+   bereinigt (Leerraum zusammengezogen, Steuerzeichen entfernt, bei 120 Zeichen gekappt); ein
+   Konto mit solchem Namen bleibt bei `mismatch` und damit ohne Anmeldung.
+5. **Der Block bleibt im Arbeitsspeicher**, nicht im `sessionStorage`. Nach dem Neuladen
+   tauscht das Widget neu. Ab hier wie bei jedem Block: Kopfzeile `WLO-Access-Block` je
+   Anfrage, das Backend gibt ihn nur an den MCP-Server.
+6. **Der Knopf zeigt, wer handelt:** „Abmelden — angemeldet als …“, wenn das Profil einen
+   Vor- oder Nachnamen hat; sonst nur „Abmelden“. Im Chat steht dazu kein Satz.
+7. **Vor jedem Abruf mit Block fragt es noch einmal, wer da ist** (wie in Schritt 2, höchstens
+   3 s). Das gilt für Züge wie für Verlauf, „Meine Vorgänge“, Ablage und Dokumente.
+   - Dieselbe Person: nichts.
+   - Gast (oder ein 401 eures Repositorys): Der Block fällt weg, mit einem Satz im Chat.
+   - Eine andere Person: Der Block fällt weg, das Widget tauscht neu.
+   - Vorher Gast, jetzt angemeldet: Das Widget tauscht. Wer sich nach dem Laden der Seite bei
+     euch anmeldet, ist beim nächsten Zug auch im Chat angemeldet, ohne Neuladen.
+   - Keine Antwort: Der Block bleibt.
+
+   Für euch heißt das: je Zug ein `GET …/-me-` mehr, auch für Gäste. Eine Folge von Abrufen
+   fragt einmal (die Antwort gilt 2 s). Die Frage hält einen Abruf höchstens 3 s auf, ein
+   daraus folgender Tausch weitere 5 s. Scheitert ein Tausch, versucht es das Widget 5 Minuten
+   nicht von selbst wieder; fehlt die Einrichtung (`unavailable`, `not-allowed`, `mismatch`),
+   erst nach dem Neuladen oder einem Klick auf „Anmelden“.
+
+Ein Ticket im Attribut geht vor: Mit `ticket` nimmt das Widget §3, ohne diesen Weg.
+
+### Was dafür konfiguriert sein muss
+
+| Wo | Was | Sonst |
+|---|---|---|
+| **MCP-Server** | `WLO_AUTH_PRIVATE_KEY` und `WLO_SESSION_EXCHANGE=1` | Tausch → 404 → `unavailable` |
+| **Ingress eures Hosts** | ein Pfad unterhalb von `/edu-sharing` auf `POST /auth/session` des MCP-Servers, etwa `/edu-sharing/services/wlo-mcp/auth/session`; `Cookie` und `Origin` kommen durch | Tausch → 404 oder eine HTML-Seite → `unavailable` |
+| **MCP-Server** | die Adresse eurer Seite ist `WLO_REPOSITORY_URL` oder steht in `WLO_SESSION_ALLOWED_ORIGINS` | Tausch → 403 → `not-allowed` |
+| **Chatbot-Backend** | `MCP_SESSION_URL` = dieselbe Adresse; bei `CORS_ALLOW_ALL=false` euer Host in `CORS_ORIGINS` | Feld leer, das Widget versucht nichts |
+
+### Ausgänge
+
+Still wie beim Ticket. Für euch steht eine `console.warn`-Zeile „WLO-Anmeldung über die Sitzung
+der Seite nicht gelungen: …“ mit einem Wort:
+
+| Ausgang | heißt |
+|---|---|
+| `done` | getauscht, der Block liegt im Arbeitsspeicher |
+| `off` | keine Adresse, andere Herkunft oder unbrauchbarer Pfad (keine Warnung) |
+| `no-session` | Gast, oder die Tauschstelle sieht keine Sitzung (keine Warnung, das ist der Normalfall für Gäste) |
+| `unavailable` | der Pfad ist nicht eingeschaltet oder nicht eingehängt |
+| `not-allowed` | diese Seite steht nicht auf der Liste des MCP-Servers |
+| `mismatch` | der Tausch nennt eine andere Person als die Seite |
+| `rejected` | sonstige Ablehnung (zweimal 429, ein 5xx, unbrauchbare Antwort) |
+| `unreachable` | Netz, Frist von 10 s, das Repository antwortet nicht auf „wer bin ich“, oder zweimal 503 |
+| `store-failed` | die Antwort trug etwas, das kein Zugangsblock ist |
+
+Bei 503 und 429 wartet das Widget die genannte Zeit (höchstens 15 s) und versucht es einmal
+erneut.
+
+### Frist, Abmelden, Ende der Sitzung
+
+- **Frist:** 12 Stunden ab dem ersten Tausch der Sitzung. Danach tauscht das Widget still neu.
+- **Ende der Sitzung:** Meldet sich die Person im Repository ab, merkt das Widget es vor dem
+  nächsten Abruf (Schritt 7) und arbeitet ohne Anmeldung weiter, mit einem Satz im Chat. Lehnt
+  der MCP-Server den Block vorher ab, meldet das Backend es; das Widget tauscht dann einmal neu.
+- **Wechsel der Person:** Der Block wechselt, das Gespräch bleibt stehen. Die neue Person
+  sieht den Verlauf der alten. Wollt ihr das nicht, ruft beim Abmelden `resetSession()` am
+  Widget (§6).
+- **Abmelden im Chat** widerruft den Block und gilt für den Tab: kein Tausch von selbst, auch
+  nach dem Neuladen. Im Repository bleibt die Person angemeldet; der Satz im Chat sagt das.
+  „Anmelden“ nimmt danach wieder die Sitzung. Tauscht ein zweiter Tab dieselbe Sitzung neu,
+  gilt der widerrufene Block am MCP-Server wieder (siehe Grenzen).
+
+### Grenzen
+
+- **Der Block ist für Skripte eurer Seite erreichbar, das Cookie nicht.** Wer auf eurer Seite
+  Skript ausführen kann, kann die Sitzung ohnehin benutzen; den Block kann er zusätzlich
+  mitnehmen und von außen am MCP-Server als die Person handeln, solange die Sitzung lebt. Der
+  Weg gehört deshalb nur auf Seiten, deren Skripte ihr verantwortet.
+- **12 Stunden und Widerruf gelten bis zum nächsten Tausch derselben Sitzung.** Der MCP-Server
+  führt den Block unter einer Kennung, die aus der Sitzung entsteht. Ist sie nicht mehr
+  gelistet (widerrufen oder abgelaufen), trägt der nächste Tausch sie wieder ein. Endgültig
+  endet der Zugang mit der Sitzung im Repository.
+- **`/api/agent` aus eurer Seite (§8):** Der Block liegt bei diesem Weg nicht im
+  `sessionStorage`; eure Seite kann ihn nicht mitschicken. Dafür Weg B nehmen.
+- **Kein Anmelde-Dialog des Browsers:** Die Frage „wer bin ich“ beantwortet das Repository
+  ohne Sitzung mit dem Gast oder mit 401 ohne `WWW-Authenticate` (gemessen an Staging). Das
+  Widget liest beides als „niemand angemeldet“.
+- **Neubau des Widgets:** Baut eure Seite `<boerdi-chat>` neu (etwa bei einem Routenwechsel),
+  übernimmt die neue Instanz den Block nicht, sondern tauscht selbst. Das kostet zwei Abrufe.
+- **Mehrere Widgets auf einer Seite** teilen sich den Block; der Knopf des einen zieht einen
+  Wechsel erst bei seinem nächsten Abruf nach.
+- **Nicht in einer angemeldeten Sitzung geprüft** (Stand 15.11.): Die Antworten der
+  Tauschstelle ohne Sitzung, für Gäste, fremde Herkunft und falschen `Content-Type` sind am
+  lokal gestarteten MCP-Server nachgemessen; der Tausch einer angemeldeten Sitzung im Browser
+  steht aus, bis der Pfad auf Staging eingehängt ist.
 
 ---
 
@@ -555,7 +679,8 @@ Drei Wege, in dieser Reihenfolge geprüft (`backend/src/boerdi/api/turn_auth.py`
 
 **Habt ihr §3 gebaut, habt ihr Weg 2 schon.** Der Block, den das Ticket
 erzeugt hat, liegt im `sessionStorage` unter `boerdi.mcp-access` und ist
-derselbe, den ihr hier mitschickt. Der Studio-Schlüssel ist der Admin-Schlüssel
+derselbe, den ihr hier mitschickt. Mit der Anmeldung aus der Sitzung (§3a) liegt
+dort nichts: Der Block bleibt im Arbeitsspeicher des Widgets. Der Studio-Schlüssel ist der Admin-Schlüssel
 und hat in einem Browser nichts zu suchen.
 
 Dazu die Drosselung: `RATE_LIMIT_CHAT`, Vorgabe **120/Minute je IP**, sonst `429`
@@ -735,6 +860,10 @@ Volle Herleitung: [`plans/2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2
    → Der Anmelde-Knopf steht auf „angemeldet", ohne dass jemand geklickt hat.
    Steht er auf „Anmelden": Konsole lesen, das Wort dort benennt die Station
    (§3).
+   **Oder ohne Ticket (§3a):** Pfad am Ingress einhängen, am MCP-Server
+   `WLO_SESSION_EXCHANGE=1`, am Chatbot-Backend `MCP_SESSION_URL`.
+   → `GET /api/config/guide-mode` nennt `mcp_session_url`; angemeldet im Repository
+   steht der Knopf auf „Abmelden — angemeldet als …“, ohne dass jemand geklickt hat.
 6. **Engine wählen** (§5) und, wenn ihr strukturierte Ergebnisse braucht, §8
    verdrahten.
 
@@ -747,6 +876,9 @@ Volle Herleitung: [`plans/2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2
 | Anmelde-Knopf bleibt auf „Anmelden" | Ticket-Tausch gescheitert — `console.warn` nennt den Ausgang (§3) |
 | `unavailable` in der Konsole | `mcp_auth_base` leer (`MCP_SERVER_URL` fehlt) **oder** `/auth/ticket` → 404 (`WLO_AUTH_PRIVATE_KEY` fehlt) |
 | `rejected` in der Konsole | Ticket abgelaufen oder Template liefert ein totes Ticket |
+| Weg aus der Sitzung: nichts passiert, keine Warnung | `mcp_session_url` leer oder mit anderer Herkunft als die Seite (Schema, Host und Port müssen stimmen); oder die Person ist Gast; oder sie hat sich im Chat abgemeldet (§3a) |
+| Weg aus der Sitzung: `unavailable` oder `rejected` | Pfad am Ingress fehlt (das Repository antwortet selbst: mit 404, einer Seite oder einem 500) oder `WLO_SESSION_EXCHANGE` ist aus |
+| Weg aus der Sitzung: `not-allowed` | die Adresse eurer Seite fehlt in `WLO_SESSION_ALLOWED_ORIGINS` am MCP-Server, oder der Ingress reicht `Origin` nicht durch |
 | Kontext bleibt nach Routenwechsel stehen | bis zu 1,5 s Wächter-Takt abwarten; sofort geht es mit `replaceContext()` (§6) |
 | Der Bot spricht über die vorige Seite mit | Für einen Seitenwechsel `updateContext()` benutzt — das mergt und lässt alte IDs stehen. `replaceContext()` nehmen (§6) |
 | Nach dem Kontextwechsel begrüßt der Bot die neue Seite nicht | Auch das ist der Unterschied: nur `replaceContext()` (und die erkannte Navigation) setzen das Ping-Gate zurück (§6) |
