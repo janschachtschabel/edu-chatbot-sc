@@ -24,6 +24,12 @@ describe('authButtonState', () => {
     expect(authButtonState('\t\n', false)).toBe('hidden');
   });
 
+  it('bietet die Anmeldung auch ohne Adresse an, wenn die Seite ihre Sitzung anbietet', () => {
+    // Plan 2026-11-15: nach einem Abmelden führte sonst kein Knopf zurück.
+    expect(authButtonState('', false, true)).toBe('signIn');
+    expect(authButtonState('', true, true)).toBe('signOut');
+  });
+
   it('lässt das Abmelden AUCH ohne Adresse zu', () => {
     // Zwei erreichbare Fälle, in denen beides zusammentrifft:
     // (1) Beim Neuladen des Tabs — `mcpAuthBase` beginnt leer und wird erst

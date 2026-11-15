@@ -310,6 +310,9 @@ async def get_guide_mode(request: Request) -> dict:
         request.headers.get("origin"), allow_all=s.cors_allow_all,
         origins=s.cors_origin_list, origin_regex=s.cors_origin_regex)
     cfg["mcp_auth_base"] = _mcp_auth_base() if erlaubt else ""
+    # Plan 2026-11-15: die Adresse des Sitzungs-Tauschs auf dem Host des Repositorys, nach
+    # derselben Regel. Das Widget geht den Weg nur, wenn sie die Herkunft seiner Seite hat.
+    cfg["mcp_session_url"] = s.mcp_session_url if erlaubt else ""
     # AS-7b (Plan 2026-11-09 §5m, F-7): Abläufe mit Auslöser ``seite`` — das Widget bietet sie unter
     # der Begrüßung an, wenn die Seite passt. Neues Feld im offenen Objekt, wie ``mcp_auth_base``.
     cfg["ablauf_seiten"] = ausloeser.seiten_angebote()

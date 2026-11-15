@@ -6,16 +6,68 @@ import {
   MCP_ACCESS_STORAGE_KEY,
   accessBlockHeaders,
   clearAccessBlock,
+  holdAccessBlock,
   isWellFormedAccessBlock,
   readAccessBlock,
+  sessionBlockOwner,
   writeAccessBlock,
 } from './mcp-access';
 
 const BLOCK = 'wlo2.QUJD-_x=.aXY.Y3Q';
+const LEA = { authority: 'lehrerin', displayName: 'Lea Lehrerin' };
 
 beforeEach(() => {
   sessionStorage.clear();
   localStorage.clear();
+  clearAccessBlock();
+});
+
+describe('holdAccessBlock (Block aus der Sitzung der Seite)', () => {
+  it('hält den Block nur im Arbeitsspeicher und gibt ihn wie jeden anderen heraus', () => {
+    expect(holdAccessBlock(BLOCK, LEA)).toBe(true);
+    expect(readAccessBlock()).toBe(BLOCK);
+    expect(accessBlockHeaders()).toEqual({ [MCP_ACCESS_HEADER]: BLOCK });
+    expect(sessionStorage.length, 'nichts im Web-Speicher').toBe(0);
+    expect(localStorage.length).toBe(0);
+  });
+
+  it('ersetzt einen abgelegten Block und räumt ihn aus dem Web-Speicher', () => {
+    writeAccessBlock('wlo2.YWx0.aXY.Y3Q');
+    holdAccessBlock(BLOCK, LEA);
+    expect(readAccessBlock()).toBe(BLOCK);
+    expect(sessionStorage.getItem(MCP_ACCESS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('nimmt nichts an, was kein Block ist', () => {
+    expect(holdAccessBlock('Bearer ' + BLOCK, LEA)).toBe(false);
+    expect(holdAccessBlock(BLOCK, { authority: '', displayName: '' }), 'ohne Person').toBe(false);
+    expect(readAccessBlock()).toBeNull();
+  });
+
+  it('weiß, für wen der Block gilt — und vergisst es mit ihm', () => {
+    // Review 2026-11-15: baut die Gastseite das Widget neu, erbt die neue Instanz den Block;
+    // sie muss ebenso erben, wessen Block es ist.
+    expect(sessionBlockOwner()).toBeNull();
+    holdAccessBlock(BLOCK, LEA);
+    expect(sessionBlockOwner()).toEqual(LEA);
+
+    clearAccessBlock();
+    expect(sessionBlockOwner()).toBeNull();
+
+    holdAccessBlock(BLOCK, LEA);
+    writeAccessBlock('wlo2.bmV1.aXY.Y3Q');   // eine Anmeldung von Hand
+    expect(sessionBlockOwner(), 'ein abgelegter Block ist keiner aus der Sitzung').toBeNull();
+  });
+
+  it('Löschen entfernt ihn, und eine Anmeldung von Hand löst ihn ab', () => {
+    holdAccessBlock(BLOCK, LEA);
+    clearAccessBlock();
+    expect(readAccessBlock()).toBeNull();
+
+    holdAccessBlock(BLOCK, LEA);
+    writeAccessBlock('wlo2.bmV1.aXY.Y3Q');
+    expect(readAccessBlock()).toBe('wlo2.bmV1.aXY.Y3Q');
+  });
 });
 
 describe('isWellFormedAccessBlock', () => {

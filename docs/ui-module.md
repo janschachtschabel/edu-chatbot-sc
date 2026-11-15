@@ -185,7 +185,9 @@ Selten gebrauchte oder große Module kommen deshalb **nicht** ins Haupt-Bündel,
 - **Build:** `npm run build:widget` ruft zuerst `scripts/build-nachlade-module.mjs`: esbuild (`iife`,
   klassisches Skript wie das Widget) → `dist/widget-module/ui-<name>.<sha256-8>.js` und der Index
   `ui/ui-bloecke/nachlade-index.build.ts` (Datei + SRI `sha384`, **nicht eingecheckt**), den der Build per
-  `fileReplacements` statt des leeren `nachlade-index.ts` einbindet. Budget: je Modul ≤ 20 kB gzip (seit U3-3b, vorher 15),
+  `fileReplacements` statt des leeren `nachlade-index.ts` einbindet. Zuletzt setzt
+  `scripts/build-widget-huelle.mjs` das Haupt-Bündel in eine Hülle (der Angular-Builder schreibt es ohne;
+  Prüfung `npm run check:huelle`, auch für die Module). Budget: je Modul ≤ 20 kB gzip (seit U3-3b, vorher 15),
   zusammen ≤ 60 kB (`scripts/check-module-budget.mjs`, auch in CI).
 - **Laden:** `ui/ui-bloecke/nachladen.ts` hängt beim ersten Block ein `<script>` mit `integrity` und
   `crossorigin="anonymous"` an; Adresse = API-Basis ohne `/api` + `/widget/module/<datei>`, jede Adresse

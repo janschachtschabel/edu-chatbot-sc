@@ -185,6 +185,9 @@ jobs:
       # Paket U3-0: nachgeladene Module — Bündel-Skript und Budget-Schranke getestet.
       - name: UI-Module (Nachlade-Skripte)
         run: node --test scripts/build-nachlade-module.test.mjs scripts/check-module-budget.test.mjs
+      # Hülle um das Widget-Bündel (Befund 2026-11-15): Nachschritt und Prüfung getestet.
+      - name: Widget-Hülle (Skripte)
+        run: node --test scripts/build-widget-huelle.test.mjs scripts/check-widget-huelle.test.mjs
       # Bundle bauen, BEVOR Budget und E2E laufen: beide messen bzw. fahren das
       # ausgelieferte Single-File-Artefakt, nicht die Quellen.
       - name: Build widget bundle
@@ -194,6 +197,10 @@ jobs:
         run: node scripts/check-widget-budget.mjs
       - name: Nachgeladene Module (U3-0 — je ≤15 kB gzip, zusammen ≤60 kB)
         run: node scripts/check-module-budget.mjs
+      # Das Bündel und die Module laufen als klassische Skripte auf der Gastseite: auf oberster
+      # Ebene darf nur die Hülle stehen, sonst hängen ihre Namen am `window` der Seite.
+      - name: Widget-Hülle (keine Deklaration auf oberster Ebene)
+        run: node scripts/check-widget-huelle.mjs
       # Der Studio-Build ist eigenständig: er hat kein Single-File-Budget (die
       # SPA lädt Routen lazy), aber ein Compile-Fehler in einer noch nicht
       # getesteten View würde sonst erst beim Deploy auffallen. `ng build`

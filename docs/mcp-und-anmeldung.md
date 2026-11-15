@@ -16,10 +16,11 @@ zu lösen. Dieses Dokument ist die Liste dafür.
 |---|---|---|
 | Anmelden per Knopf | Widget → MCP-Server (OAuth 2.1, PKCE, öffentlicher Client) | Die Person meldet sich auf der Seite des MCP-Servers bei WLO an und bekommt einen **Zugangsblock** `wlo2.…` als `access_token`. |
 | Anmelden per Ticket | Gastseite rendert `ticket` ins Widget → `POST /auth/ticket` | Das edu-sharing-Ticket wird gegen einen Block getauscht (`k:'ticket'`). |
-| Aufbewahren | Widget, `sessionStorage` (`boerdi.mcp-access`) | Je Tab, stirbt mit dem Tab. Kein Cookie, kein `localStorage`. |
+| Anmelden aus der Sitzung (seit 2026-11-15) | Widget auf einer Seite des Repositorys → `POST /edu-sharing/services/boerdi/auth/session` auf dessen Host (eigene Ingress-Regel unseres Charts) → Backend → MCP `POST /auth/session` | Die Sitzung der Seite wird gegen einen Block getauscht (`k:'session'`). Das Widget fragt vorher das Repository, wer angemeldet ist, und vergleicht die Person. Das Cookie läuft im Transit durch unser Backend (nur `JSESSIONID`/`INGRESSCOOKIE`, nicht gespeichert, nicht protokolliert). Der Block bleibt im Arbeitsspeicher. Einzelheiten: [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) §3a. |
+| Aufbewahren | Widget, `sessionStorage` (`boerdi.mcp-access`); Block aus der Sitzung nur im Arbeitsspeicher | Je Tab, stirbt mit dem Tab. Kein Cookie, kein `localStorage`. |
 | Je Chat-Anfrage | Widget → Backend (Kopfzeile `WLO-Access-Block`) → MCP-Server (`Authorization: Bearer`) | Das Backend speichert den Block nirgends und reicht ihn **nur an den WLO-Server** weiter, nie an andere MCP-Server. |
 | Echtheitsprüfung | Backend → `wlo_auth_status` (seit Paket 10) | Erst ein bestätigter Block gilt als Person (Cache 5 min je Block, abgewiesen 30 s). Abgewiesener Block → `auth_invalid` an das Widget. |
-| Abmelden | Widget | Entfernt den Block aus dem Tab. **Am Server gilt er weiter** (A-4). |
+| Abmelden | Widget → Backend (`POST /api/auth/abmelden`) → MCP-Server (`/auth/revoke`) | Entfernt den Block aus dem Tab und widerruft ihn am Server (seit 2026-11-07, R2). Bei einem Block aus der Sitzung gilt der Widerruf bis zum nächsten Tausch derselben Sitzung (R6). |
 
 ## 2. Was ein Block ist
 
@@ -90,6 +91,37 @@ Werkzeuge weiterer Server gehen einen eigenen Weg ohne `structuredContent`, und 
 WLO-Aufruf mehr um. Für den MCP-Server: Vertrag der vorbereiteten Anfrage dokumentieren
 (erlaubte Methoden und Pfade).
 
+### R6 Block aus der Sitzung: für Skripte der Seite erreichbar (2026-11-15)
+
+Das Sitzungs-Cookie des Repositorys ist `HttpOnly`: Ein Skript der Seite kann es benutzen, aber
+nicht mitnehmen. Der Block, den der MCP-Server daraus macht, liegt im Arbeitsspeicher des
+Widgets und reist in einer Kopfzeile. Ein Skript der Seite kann ihn abgreifen und damit von
+außen am MCP-Server als die Person handeln, solange die Sitzung im Repository lebt.
+
+- **Erreichbar bleibt er:** Ein Skript der Seite kann `fetch` oder `XMLHttpRequest` umbiegen und den Block aus der
+  Kopfzeile lesen, oder die Tauschstelle selbst rufen. Im Web-Speicher liegt der Block nicht.
+- **Nicht mehr an `window` (seit 2026-11-15):** Das Widget-Bündel steht beim Bau in einer
+  Hülle (`frontend/scripts/build-widget-huelle.mjs`). Vorher lief es als gewöhnliches Skript
+  ohne Hülle; seine Variablen und Funktionen waren Eigenschaften von `window`, auch die
+  Funktion, die den Block liest. Das ist Hygiene und kein Schutz vor Skripten der Seite: Die
+  beiden Wege darüber bleiben offen. Geprüft im Bau (`check-widget-huelle.mjs`) und im Browser
+  (`e2e/embed.spec.ts`).
+- **Lebensdauer:** Der MCP-Server führt einen Block aus einer Sitzung unter einer Kennung, die
+  aus der Sitzung entsteht. Ist sie nicht mehr gelistet (widerrufen oder abgelaufen), trägt
+  der nächste Tausch derselben Sitzung sie wieder ein. „12 Stunden“ und „Abmelden widerruft“
+  gelten deshalb nur bis zum nächsten Tausch; ein früher abgegriffener Block gilt danach
+  wieder, bis die Sitzung endet. Wunsch an das MCP-Team: den
+  Ausstellzeitpunkt prüfen oder die Kennung je Tausch wechseln.
+- **Was dagegen steht:** Der Weg gilt nur auf der Herkunft, die der Betrieb einträgt
+  (`MCP_SESSION_URL`), und am MCP-Server nur für freigegebene Seiten. Der Block endet mit der
+  Sitzung.
+- **Das Cookie im Backend (SA-16):** Auf dem Weg zum MCP läuft das Sitzungs-Cookie durch unser
+  Backend, wie beim Server des md-editors. Weitergereicht werden nur `JSESSIONID` und
+  `INGRESSCOOKIE`; gespeichert oder protokolliert wird nichts. Ein Zugriffslog am Ingress darf
+  `$http_cookie` nicht enthalten (der Standard tut es nicht).
+- **Was bleibt:** Der Weg gehört nur auf Seiten, deren Skripte der Betreiber verantwortet.
+  Dieselbe Abwägung wie R1.
+
 ## 4. Wünsche an den Umbau des MCP-Servers
 
 Nach Wirkung sortiert:
@@ -130,6 +162,15 @@ Offen: 2 (Bindung an Scope/Herkunft) und 7. Entscheidungsvorlage und Rückmeldun
   - Nach einer 429 wartet der Chatbot die genannte `Retry-After` ab (höchstens 600 s): beim Anmelde-Schutz
     (`too_many_logins`) für diesen Block, beim erschöpften Budget (`rate_limited`) für alle.
 - Eine Bestätigung gilt nie über `expiresAt` hinaus; die Frist reist als `auth_expires_at` ans Widget.
+- Anmeldung aus der Sitzung (2026-11-15), alles im Widget (`session/session-login.ts`):
+  - nur auf der Herkunft der eingestellten Adresse, nur ein Pfad auf `/auth/session`;
+  - erst „wer bin ich“ am Repository, Gäste werden nicht getauscht;
+  - die Person des Tauschs muss die der Seite sein;
+  - der Block bleibt im Arbeitsspeicher; nach einem Abmelden kein Tausch von selbst;
+  - vor jedem Abruf mit Block die Frage, ob die Seite noch dieselbe Person zeigt
+    (`session/sitzungs-wache.ts`). Gast: Block weg. Andere Person: Block weg und neu tauschen.
+    Das gilt für Züge wie für Verlauf, Vorgänge, Ablage und Dokumente;
+  - eine neu gebaute Instanz des Widgets übernimmt einen Block aus der Sitzung nicht.
 - Schreiben nur zweistufig: Vorschau, dann Zustimmung im nächsten Zug; der Bestätigungsschlüssel erreicht das
   Modell nie; eine Abnahme gilt nur für die Person, unter der die Vorschau entstand (Paket 10, S-1).
 - Abgewiesener Block (401/403) → das Widget bietet die Anmeldung neu an (Paket 10, A-3). Seit dem MCP-Stand

@@ -20,7 +20,7 @@ describe('parseGuideModeConfig', () => {
   it('fehlende Felder bleiben null (Signal wird nicht angetastet)', () => {
     expect(parseGuideModeConfig({})).toEqual({
       trustedDomains: null, headerNav: null, greeting: null, startReplies: null, tourReply: null,
-      greetingEn: null, startRepliesEn: null, tourReplyEn: null, mcpAuthBase: null,
+      greetingEn: null, startRepliesEn: null, tourReplyEn: null, mcpAuthBase: null, mcpSessionUrl: null,
       ablaufSeiten: null,   // AS-7b
     });
     expect(parseGuideModeConfig(null).trustedDomains).toBeNull();
@@ -35,6 +35,11 @@ describe('parseGuideModeConfig', () => {
       .toBe('https://mcp.example');
     expect(parseGuideModeConfig({ mcp_auth_base: '  ' }).mcpAuthBase).toBe('');
     expect(parseGuideModeConfig({ mcp_auth_base: 42 }).mcpAuthBase).toBeNull();
+    // Plan 2026-11-15: die Adresse des Sitzungs-Tauschs, nach derselben Regel.
+    expect(parseGuideModeConfig({ mcp_session_url: ' https://repo.example/edu-sharing/x/auth/session ' })
+      .mcpSessionUrl).toBe('https://repo.example/edu-sharing/x/auth/session');
+    expect(parseGuideModeConfig({ mcp_session_url: '' }).mcpSessionUrl).toBe('');
+    expect(parseGuideModeConfig({ mcp_session_url: 42 }).mcpSessionUrl).toBeNull();
   });
 
   it('normalisiert trusted_domains und filtert leere Einträge', () => {

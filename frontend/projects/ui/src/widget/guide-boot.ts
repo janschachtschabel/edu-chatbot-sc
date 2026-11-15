@@ -59,6 +59,8 @@ export class GuideBoot {
    *  Anlage bietet sie nicht an" — dann öffnet der Anmelde-Chip kein Fenster,
    *  sondern sagt genau das. */
   readonly mcpAuthBase = signal('');
+  /** Plan 2026-11-15: Adresse des Sitzungs-Tauschs. Leer heisst „nicht angeboten". */
+  readonly mcpSessionUrl = signal('');
   /** AS-7b (F-7): Abläufe mit Auslöser `seite` — die Hülle bietet passende unter der Begrüßung an. */
   readonly ablaufSeiten = signal<AblaufSeite[]>([]);
   /** Hostname-Schnappschuss fürs Guide-Env jeder Anfrage — damit das Backend
@@ -109,6 +111,7 @@ export class GuideBoot {
         if (cfg.startRepliesEn !== null) this.startRepliesEn.set(cfg.startRepliesEn);
         if (cfg.tourReplyEn !== null) this.tourReplyEn.set(cfg.tourReplyEn);
         if (cfg.mcpAuthBase !== null) this.mcpAuthBase.set(cfg.mcpAuthBase);
+        if (cfg.mcpSessionUrl !== null) this.mcpSessionUrl.set(cfg.mcpSessionUrl);
         if (cfg.ablaufSeiten !== null) this.ablaufSeiten.set(cfg.ablaufSeiten);
       } else {
         console.warn('boerdi: Widget-Konfiguration nicht geladen, es gelten die Vorgaben —',

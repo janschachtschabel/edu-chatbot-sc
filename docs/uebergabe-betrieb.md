@@ -62,7 +62,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 | Header | Wofür |
 |---|---|
 | `Authorization: Bearer <key>` | b-api-Schlüssel des Aufrufers (Proxy, §5) |
-| `WLO-Access-Block` | persönliche WLO-Anmeldung für den MCP-Server |
+| `WLO-Access-Block` | persönliche WLO-Anmeldung für den MCP-Server. Hinter dem b-api-Proxy muss er durchkommen (§5) |
 | `X-Boerdi-Engine` | Maschine wählen (`agent`/`pattern`) |
 | `Accept-Language` | Sprache |
 | `x-client-trace-id` bzw. B3 | Trace-ID (§7) |
@@ -115,6 +115,14 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   (`BOERDI_ALLOW_OPEN_ADMIN` ohne Studio-Passwort und ohne `STUDIO_API_KEY`) zählt jeder Zug
   über das Studio als Probe und bucht auf `B_API_KEY` — der Modus gehört nie auf einen
   erreichbaren Server.
+- **Kopfzeilen am Proxy freigeben:** Der Proxy-Eintrag muss diese Kopfzeilen des Browsers
+  durchlassen (`allowedRequestHeaders`): `WLO-Access-Block`, `X-Boerdi-Engine`,
+  `Accept-Language`. Ohne `WLO-Access-Block` arbeitet jede angemeldete Person still als Gast:
+  Der Block der Anmeldung reist in dieser Kopfzeile, weil `Authorization` vom Schlüssel der
+  b-api belegt ist. Nicht jeder Abruf mit Block hat einen JSON-Körper (der Verlauf ist ein GET,
+  der Upload ein Formular); ein Feld im Körper trüge ihn dort nicht. Mit dem b-api-Team klären: die Freigabe, die
+  Vorabfrage des Browsers (`OPTIONS`) und dass der Strom (`text/event-stream`) ungepuffert
+  durchgeht.
 - **Studio-Proxy:** Er reicht ihn nie durch.
 - **Rechte des virtuellen Schlüssels:**
   - Chat und Responses mit `gpt-6-luna` bzw. der Route
@@ -279,6 +287,22 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   - `MCP_CONNECT_TIMEOUT_S` 5 s für den Verbindungsaufbau (die Gesamtfrist bleibt `MCP_CALL_TIMEOUT_S`).
   - `AUTH_GRACE_S` 1800: So lange gilt die letzte Bestätigung einer Person weiter, wenn der MCP-Server die
     Anmeldung gerade nicht prüfen kann.
+  - `MCP_SESSION_URL` (Vorgabe leer = aus): Anmeldung aus der WLO-Sitzung (Plan 2026-11-15, SA-16). Die
+    Adresse auf dem Repository-Host, unter der unser Backend den Tausch annimmt
+    (`https://<Repository-Host>/edu-sharing/services/boerdi/auth/session`).
+    - **Chart:** `sessionIngress` in `deploy/helm/values.example.yaml` — ein zweites Ingress-Objekt mit dem
+      Hostnamen des Repositorys, das genau diesen Pfad (`Exact`, kein `rewrite-target`) an den öffentlichen
+      Port des Backends leitet, mit einem TLS-Zertifikat für den Repository-Host im eigenen Namespace.
+      Hinweise für das Template stehen in den Werten (keine Cookie-Affinität, Host unverändert, Istio). Vorbild: das Chart des md-editors
+      (`ingress.basePath`), läuft so auf Staging. An edu-sharing und dessen Ingress ändert sich nichts.
+    - Am MCP-Server `WLO_SESSION_EXCHANGE=1` und, wenn die Adresse im Browser von `WLO_REPOSITORY_URL`
+      abweicht, `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster; das Backend ruft ihn
+      server-zu-server, und alle Tausche zählen dort auf die Adresse des Backends (Topf `/auth*`, 30 je
+      Minute). Für viele Personen vorher das Budget mit dem MCP-Team klären (`deploy/README.md`).
+    - Bei `CORS_ALLOW_ALL=false` gehört der Repository-Host in `CORS_ORIGINS`, sonst nennt das Backend dem
+      Widget die Adresse nicht.
+    - Eine Adresse in anderer Form beendet den Start. Kein Geheimnis.
+    - Schritte und Prüfpunkte: `deploy/README.md`, Abschnitt `MCP_SESSION_URL`.
   - **Herkunftslisten am MCP-Server** (setzt das MCP-Team, Werte liefert der Betrieb):
     - `TICKET_ALLOWED_ORIGINS` = die Seiten, die das Widget mit `ticket` einbetten. Das ist dieselbe Liste wie
       `CORS_ORIGINS` hier; beide gemeinsam pflegen.

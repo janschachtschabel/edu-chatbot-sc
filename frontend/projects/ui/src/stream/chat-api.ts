@@ -17,7 +17,7 @@ import type { AblageSchritt } from '@boerdi/ui-module';
 
 import { ChatResponse, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { fehlerKurz } from '../obs/fehler-kurz';
-import { accessBlockHeaders, MCP_ACCESS_HEADER } from '../session/mcp-access';
+import { accessBlockHeaders, MCP_ACCESS_HEADER, readAccessBlock } from '../session/mcp-access';
 import { ablageSenden } from './ablage-transport';
 import { type DokumentBefund, dokumentHochladen } from './dokument-transport';
 import { verlaufAbrufen } from './history-transport';
@@ -448,6 +448,28 @@ export class ChatApiClient {
 
   private anmeldung: Promise<void> | null = null;
 
+  /** Plan 2026-11-15 (SA-13): läuft vor jedem Abruf, der den Zugangsblock trägt — Züge wie
+   *  Verlauf, Vorgänge, Ablage und Dokumente —, nach dem Warten auf die Anmeldung. Die Shell prüft
+   *  damit, ob ein Block aus der Sitzung der Seite noch zur dort angemeldeten Person gehört.
+   *  `null`: nichts zu prüfen. */
+  zugWache: (() => Promise<void>) | null = null;
+
+  /** Der Zugangsblock, mit dem der letzte Zug hinausging (`null`: ohne Anmeldung). Die Shell
+   *  vergleicht ihn, wenn der Server den Block eines Zugs abweist: ist inzwischen ein anderer da,
+   *  trifft die Abweisung nicht ihn. */
+  letzterZugBlock: string | null = null;
+
+  /** Vor jedem Abruf mit Block: die Anmeldung abwarten, dann die Wache. Ein Wurf der Wache hält
+   *  den Abruf nicht auf — er ginge dann wie ohne sie hinaus. */
+  private async bereit(): Promise<void> {
+    await this.anmeldung;
+    try {
+      await this.zugWache?.();
+    } catch {
+      /* die Wache meldet sich selbst; der Abruf geht weiter */
+    }
+  }
+
   /** SSE-Streaming-Turn (POST /api/chat/stream). `onEvent` bekommt jedes
    *  connected/phase/text_delta-Event; löst mit der `ChatResponse`. */
   async stream(
@@ -455,7 +477,8 @@ export class ChatApiClient {
     env?: Partial<Environment>, action?: string, actionParams?: Record<string, any>,
     uiAntwort?: UiAntwortAnfrage, fromHost?: boolean,
   ): Promise<ChatResponse> {
-    await this.anmeldung;
+    await this.bereit();
+    this.letzterZugBlock = readAccessBlock();
     return streamChat<ChatResponse>({
       url: `${this.baseUrl}/chat/stream`,
       body: this.buildBody(sessionId, message, env, action, actionParams, uiAntwort, fromHost),
@@ -472,7 +495,8 @@ export class ChatApiClient {
     action?: string, actionParams?: Record<string, any>, fristMs?: number,
     uiAntwort?: UiAntwortAnfrage, fromHost?: boolean,
   ): Promise<ChatResponse> {
-    await this.anmeldung;
+    await this.bereit();
+    this.letzterZugBlock = readAccessBlock();
     return postChat<ChatResponse>({
       url: `${this.baseUrl}/chat`,
       body: this.buildBody(sessionId, message, env, action, actionParams, uiAntwort, fromHost),
@@ -508,7 +532,7 @@ export class ChatApiClient {
    *  nicht-ok-Abruf wirft mit `status` (`httpFehler`), eine Antwort ohne Daten-Objekt ebenso.
    *  `signal` bricht den Abruf ab (das Widget wird entfernt). */
   async themenbaumZweig(sessionId: string, nodeId: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
-    await this.anmeldung;
+    await this.bereit();
     const antwort = await postChat<{ daten?: unknown }>({
       url: `${this.baseUrl}/ui/themenbaum/zweig`,
       body: { session_id: sessionId, node_id: nodeId, ...(this.toolMode ? { tool_mode: this.toolMode } : {}) },
@@ -527,7 +551,7 @@ export class ChatApiClient {
     sessionId: string, blockId: string, datei: File,
     opts: { onFortschritt?: (anteil: number) => void; signal?: AbortSignal } = {},
   ): Promise<DokumentBefund> {
-    await this.anmeldung;
+    await this.bereit();
     return dokumentHochladen({ url: `${this.baseUrl}/ui/dokumente`, sessionId, blockId, datei, ...opts });
   }
 
@@ -536,14 +560,14 @@ export class ChatApiClient {
   async ablageSchritt(
     sessionId: string, blockId: string, schritt: AblageSchritt, signal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
-    await this.anmeldung;
+    await this.bereit();
     return ablageSenden({ basis: this.baseUrl, sessionId, blockId, schritt, signal });
   }
 
   /** Der Stand eines Ablauf-Auftrags (K1b, `POST /api/ui/auftrag/stand`): kein Zug, nur Sitzung,
    *  Ablauf und Kürzel; der Zugangsblock reist mit. Ein unbekannter Stand wirft (nie „fertig“ raten). */
   async auftragStand(sessionId: string, ablauf: string, kuerzel: string, signal?: AbortSignal): Promise<{ stand: string }> {
-    await this.anmeldung;
+    await this.bereit();
     const antwort = await postChat<{ stand?: unknown }>({
       url: `${this.baseUrl}/ui/auftrag/stand`,
       body: { session_id: sessionId, ablauf, kuerzel },
@@ -559,7 +583,7 @@ export class ChatApiClient {
    *  `POST /api/ui/vorgaenge/offen`): kein Zug; der Zugangsblock reist mit. Wirft bei jedem Fehler
    *  und bei einer Antwort ohne Liste; unbrauchbare Einträge fallen still weg. */
   async offeneVorgaenge(sessionId: string, signal?: AbortSignal): Promise<OffenerVorgang[]> {
-    await this.anmeldung;
+    await this.bereit();
     const antwort = await postChat<unknown>({
       url: `${this.baseUrl}/ui/vorgaenge/offen`,
       // Zweites Review, Z-2: der Titel eines Ablaufs im Hinweis wie in der Liste
@@ -576,7 +600,7 @@ export class ChatApiClient {
    *  Anmeldung), eine unbrauchbare Antwort ist `null`. */
   async wiederkehr(sessionId: string, kennung: WiederkehrKennung, signal?: AbortSignal,
   ): Promise<WiederkehrVorgang | null> {
-    await this.anmeldung;
+    await this.bereit();
     const antwort = await postChat<unknown>({
       url: `${this.baseUrl}/ui/vorgaenge/wiederkehr`,
       // Review PR #51 (R3): der Titel eines Ablaufs wie im Hinweis und in der Liste
@@ -592,7 +616,7 @@ export class ChatApiClient {
    *  (`POST /api/ui/vorgaenge/liste`) — nur für die angemeldete Besitzerin. Wirft bei jedem Fehler;
    *  unbrauchbare Einträge fallen still weg. */
   async eigeneVorgaenge(sessionId: string, signal?: AbortSignal): Promise<EigenerVorgang[]> {
-    await this.anmeldung;
+    await this.bereit();
     const antwort = await postChat<unknown>({
       url: `${this.baseUrl}/ui/vorgaenge/liste`,
       body: { session_id: sessionId, sprache: this.sprache() },
@@ -608,7 +632,7 @@ export class ChatApiClient {
    *  `laeuftWeiter` (Q-6): ein Auftrag läuft bei der b-api weiter (ohne Schlüssel der Person). */
   async vorgangLoeschen(sessionId: string, vorgangId: string, signal?: AbortSignal,
   ): Promise<{ laeuftWeiter: boolean }> {
-    await this.anmeldung;
+    await this.bereit();
     const antwort = await postChat<{ geloescht?: unknown; auftrag_laeuft_weiter?: unknown } | null>({
       url: `${this.baseUrl}/ui/vorgaenge/loeschen`,
       body: { session_id: sessionId, vorgang: vorgangId },
@@ -688,7 +712,7 @@ export class ChatApiClient {
   async fetchHistory(sessionId: string, limit: number, signal?: AbortSignal): Promise<HistoryMessage[]> {
     // Zweites Review, Z-1: wie jeder Abruf mit Zugangsblock erst nach einem laufenden Ticket-Tausch —
     // sonst ginge der Verlauf anonym hinaus und kennte den Lauf der Person nicht.
-    await this.anmeldung;
+    await this.bereit();
     return verlaufAbrufen(this.fetchImpl ?? fetch, this.baseUrl, sessionId, limit, signal,
                           this.uiLocale || undefined, accessBlockHeaders());
   }

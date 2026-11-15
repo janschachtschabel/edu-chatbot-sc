@@ -27,8 +27,13 @@ export type AuthButtonState = 'hidden' | 'signIn' | 'signOut';
  *   heisst „keine Anmeldung angeboten" — dieselbe Prüfung wie in `runSignIn`.
  * @param hasBlock Ob ein brauchbarer Zugangsblock hinterlegt ist
  *   (`readAccessBlock() !== null`).
+ * @param sessionWay Ob diese Seite die Anmeldung aus ihrer Sitzung anbietet (Plan 2026-11-15):
+ *   dann braucht „Anmelden" keine Anmelde-Adresse — nach einem Abmelden führte sonst kein
+ *   Knopf zurück.
  */
-export function authButtonState(mcpAuthBase: string, hasBlock: boolean): AuthButtonState {
+export function authButtonState(
+  mcpAuthBase: string, hasBlock: boolean, sessionWay = false,
+): AuthButtonState {
   if (hasBlock) return 'signOut';
-  return (mcpAuthBase || '').trim() ? 'signIn' : 'hidden';
+  return sessionWay || (mcpAuthBase || '').trim() ? 'signIn' : 'hidden';
 }

@@ -153,6 +153,56 @@ Bestätigung einer Person `AUTH_GRACE_S` (30 min) weiter.
 
 Alle Werte stehen in `.env.example`; die Herkunftslisten am MCP-Server in `docs/uebergabe-betrieb.md` §11.
 
+#### `MCP_SESSION_URL` — Anmeldung aus der WLO-Sitzung, optional (Plan 2026-11-15)
+
+```
+MCP_SESSION_URL=https://<Repository-Host>/edu-sharing/services/boerdi/auth/session
+```
+
+Sitzt das Widget in einer Seite des Repositorys und ist dort jemand angemeldet, arbeitet der
+Chatbot mit dessen Rechten, ohne zweite Anmeldung. Der Wert ist die Adresse auf dem
+Repository-Host, unter der unser Backend den Tausch annimmt und an den MCP-Server weiterreicht.
+Kein Geheimnis.
+
+Drei Dinge müssen zusammenpassen, alle in unserer Hand außer Punkt 3:
+
+1. **Chart (`sessionIngress` in `deploy/helm/values.example.yaml`):** ein zweites, eigenes
+   Ingress-Objekt mit dem **Hostnamen des Repositorys**, das genau einen Pfad
+   (`/edu-sharing/services/boerdi/auth/session`, `pathType: Exact`) **unverändert** an den
+   öffentlichen Port dieses Backends leitet; das Backend nimmt den Pfad selbst an. **Kein
+   `rewrite-target`:** ingress-nginx stellte damit alle Pfade des Repository-Hosts auf Regex um,
+   auch die von edu-sharing. Keine Cookie-Affinität (sonst ein zweites `INGRESSCOOKIE`). So legt auch das Chart des md-editors seinen Pfad an
+   (`ingress.basePath=/edu-sharing/services/md-editor`, läuft so auf Staging); an edu-sharing
+   und dessen Ingress ändert sich nichts. `Cookie` und `Origin` müssen durchkommen, TLS mit dem
+   Zertifikat des Repository-Hosts. Warum dieser Host: Das Sitzungs-Cookie trägt
+   `Path=/edu-sharing` und `HttpOnly`; an jede andere Adresse schickt der Browser es nicht.
+2. **Hier:** `MCP_SESSION_URL=https://<Repository-Host>/edu-sharing/services/boerdi/auth/session`.
+   Eine geschlossene Anlage (`CORS_ALLOW_ALL=false`) nennt sie nur Seiten aus `CORS_ORIGINS`:
+   der Repository-Host gehört dann in diese Liste. Ohne den Wert antwortet die Route 404.
+3. **Am MCP-Server** (MCP-Team): `WLO_AUTH_PRIVATE_KEY` und `WLO_SESSION_EXCHANGE=1`; weicht die
+   Adresse des Repositorys im Browser von `WLO_REPOSITORY_URL` ab, dazu
+   `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster.
+
+Was das Backend dabei tut: nur `POST` mit JSON; `Origin` muss die Herkunft aus `MCP_SESSION_URL`
+sein; weitergereicht werden nur die Cookies `JSESSIONID` und `INGRESSCOOKIE`, dazu der
+Client-Schlüssel; zurück gehen nur die Felder der Tauschstelle. Nichts davon landet im Log.
+Die Route antwortet nur, wenn `Host` der Host aus `MCP_SESSION_URL` ist, also nicht über den
+Host des Chats.
+
+**Budget — vor dem Einschalten für viele Personen klären.** Beim MCP zählen alle Tausche auf die
+Adresse des Backends, im selben Topf wie das Abmelden (`API_RATE_LIMIT_RPM`, Vorgabe 30 je
+Minute; dazu 200 verschiedene Sitzungen in 10 Minuten). Das Backend schützt den Topf mit 10 Tausche je Minute und Adresse (für beide Pfade gemeinsam) und 20 je Minute für die ganze Anlage, gezählt im gemeinsamen Speicher der Drossel (im Cluster Valkey, also über alle Repliken).
+Ohne Valkey (`RATE_LIMIT_STORAGE_URI=memory://`) zählt jede Replik für sich — dann mit einer
+Replik oder Valkey betreiben. Wer Kopfzeilen fälscht, kann den Tausch für alle eine Minute lang
+aufhalten, aber nicht das Abmelden. Kapazität: 20 Tausche je Minute für die ganze Anlage. Eine
+echte Lösung braucht der MCP: ein eigenes Budget je weitergereichter Adresse für unseren
+Client-Schlüssel (Wunsch an das MCP-Team, `docs/mcp-antwort-2026-11-15-sitzung.md` §1a).
+
+Leer = aus (Vorgabe). Eine Adresse in anderer Form beendet den Start mit einer Meldung.
+Prüfen: `curl -s https://<PUBLIC_HOST>/api/config/guide-mode` nennt das Feld `mcp_session_url`.
+Mehr: [`docs/edu-sharing-einbindung.md`](../docs/edu-sharing-einbindung.md), Abschnitt
+„Anmeldung aus der Sitzung“.
+
 #### `MCP_AUTH_TOKEN` — Zugangsblock, optional (C2, 2026-08-10)
 
 ```

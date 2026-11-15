@@ -22,12 +22,13 @@ Altsystem, generisch über deklarative Konfiguration.
 | 🤖 Agent-Modus — Maschinen, Master-Skill, Grenzen | [docs/agent-modus.md](docs/agent-modus.md) |
 | 🔑 MCP-Server und Anmeldung (für das MCP-Team) | [docs/mcp-und-anmeldung.md](docs/mcp-und-anmeldung.md) |
 | 🧩 **Chatbot einbinden** — Browser-Plugin / fremde Seite | [docs/browser-plugin-einbindung.md](docs/browser-plugin-einbindung.md) |
-| 🏫 **Chatbot einbinden** — edu-sharing-Repositorium (mit Ticket-Anmeldung) | [docs/edu-sharing-einbindung.md](docs/edu-sharing-einbindung.md) |
+| 🏫 **Chatbot einbinden** — edu-sharing-Repositorium (Anmeldung über Ticket oder aus der WLO-Sitzung) | [docs/edu-sharing-einbindung.md](docs/edu-sharing-einbindung.md) |
 | 📘 Bauplan/Spec (Quelle der Wahrheit) | [docs/plans/2026-07-10-boerdi-chat-neubau.md](docs/plans/2026-07-10-boerdi-chat-neubau.md) |
 | 🤖 Arbeits-Hinweise für KI-Sessions | [CLAUDE.md](CLAUDE.md) |
 | 🏛 Altsystem (Referenz, läuft parallel) | `../badboerdi/` |
 | 🔌 WLO-MCP-Server (extern; vorausgesetzt ist der Stand vom 07.11.2026, für die Stabilitätspunkte S1–S7 Commit `9093a5d`; ein älterer Stand geht, nutzt sie aber nicht) | `../wlo-mcp-server-sc/` |
 | 🔁 Anpassung an den MCP-Stand 07.11.2026 (Antwortvertrag, Anlegen mit Sammlung, Pläne, letzte Ablagen) | [docs/plans/2026-11-07-mcp-vertrag.md](docs/plans/2026-11-07-mcp-vertrag.md) |
+| 🔐 Anmeldung aus der WLO-Sitzung (das Widget übernimmt auf Seiten des Repositorys die angemeldete Sitzung; `MCP_SESSION_URL`, ohne Vorgabe aus) | [docs/plans/2026-11-15-anmeldung-aus-der-sitzung.md](docs/plans/2026-11-15-anmeldung-aus-der-sitzung.md) · Einrichten: [deploy/README.md](deploy/README.md) · Antwort ans MCP-Team: [docs/mcp-antwort-2026-11-15-sitzung.md](docs/mcp-antwort-2026-11-15-sitzung.md) |
 | 🛡 Stabile MCP-Anbindung (Budget, Ausfall-Schalter, sichere Wiederholung, Anmeldung mit Frist, Abmelden widerruft) | [docs/plans/2026-11-07-stabilitaet-mcp-anbindung.md](docs/plans/2026-11-07-stabilitaet-mcp-anbindung.md) · Rückmeldung ans MCP-Team: [docs/mcp-rueckmeldung-2026-11-07.md](docs/mcp-rueckmeldung-2026-11-07.md) |
 
 **Betrieb in Kürze** (Stand Paket 18, 2026-10-30):

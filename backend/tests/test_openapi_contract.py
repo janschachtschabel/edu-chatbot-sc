@@ -177,6 +177,7 @@ POST   /api/ui/vorgaenge/wiederkehr
 POST   /api/ui/vorgaenge/liste
 POST   /api/ui/vorgaenge/loeschen
 POST   /api/auth/abmelden
+POST   /api/auth/session
 GET    /api/usage/period
 GET    /api/usage/session/{session_id}
 GET    /health
@@ -218,6 +219,7 @@ PUBLIC_ROUTES = {
     "POST /api/ui/vorgaenge/liste",
     "POST /api/ui/vorgaenge/loeschen",
     "POST /api/auth/abmelden",  # Plan 2026-11-07, R2: Abmelden widerruft am MCP
+    "POST /api/auth/session",  # Plan 2026-11-15, SA-16: Sitzungs-Tausch über das Backend
     "GET /widget/classic", "GET /widget/frameless", "GET /widget/inline",
     "GET /widget/{asset_name}",
     # Paket U3-0: Bündel nachgeladener UI-Module (Widget lädt sie von fremden Seiten).

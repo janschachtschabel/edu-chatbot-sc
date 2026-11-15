@@ -207,6 +207,12 @@ Die zugehörigen Pläne:
 - ~~**Preis für `gpt-6-luna` fehlt in der Preistafel des Seeds**~~ — erledigt 2026-10-18: die Werksfassung `01-base/pricing` trägt die OpenAI-Listenpreise (Standard, kurzer Kontext) in **USD** (Nutzer-Entscheid; hebt „Seed ohne Preise“ auf). Nicht abgebildet: Cache-Schreibpreise, langer Kontext, abweichende Abrechnung über b-api/AcademicCloud. Achtung Präfix-Suche: eine ungelistete Variante (etwa `gpt-5.4-nano`) bekäme still den Preis von `gpt-5.4`. Eine Anlage, deren Preistafel unberührt ist, übernimmt die Preise beim nächsten Werksabgleich (`migrate`).
 Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — in [`entscheidungen-offen.md`](entscheidungen-offen.md). Die Entscheide vom 2026-10-09 sind in Paket 7 und Paket 8 umgesetzt (siehe die Plan-Liste oben); offen ist:
 
+- **Gespräch beim Wechsel der angemeldeten Person (2026-11-15, Anmeldung aus der WLO-Sitzung):**
+  Meldet sich auf einer Seite des Repositorys jemand anderes an, wechselt das Widget den
+  Zugangsblock; das Gespräch bleibt stehen. Die neue Person sieht den Verlauf der alten und
+  schreibt im selben Gespräch weiter (beim Ticket ist das genauso). Zu entscheiden: Soll das
+  Widget bei einem Wechsel der Person von selbst ein neues Gespräch beginnen, auch beim
+  Abmelden im Repository? Bis dahin kann die Gastseite `resetSession()` rufen.
 - **AcademicCloud und Einbettungen:** entschieden 2026-10-15 (so lassen); Einbettungswechsel machbar machen → Paket 11 (D), [`plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md`](plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md).
 - **Neue MCP-Server und ihre Werkzeuge:** Nutzer 2026-10-15: sollen nutzbar sein → Paket 11 (E). MCP- und Anmeldungs-Punkte für das MCP-Team: [`mcp-und-anmeldung.md`](mcp-und-anmeldung.md).
 - **Paket 18, E5 — Agent-Deckel für Anonyme:** Nutzer-Entscheid 2026-10-28: erst die Kosten eines anonymen Zugs messen, dann entscheiden (Audit-Rückmeldung §5). **Entschieden 2026-10-31:** anonyme Züge sollen im Studio eigene Werte bekommen können, Vorgabe = dieselben wie mit Anmeldung — **ist so gebaut**: Agent-Deckel `agent.anonymous` (Runden, Frist, Token-Budget; als Minimum angewandt, ein höherer anonymer Wert hebt nichts an) und seit Paket 19 die Zug-Grenzen `safety-config.turn_limits` (anonym/angemeldet). Kein Code nötig.
@@ -346,6 +352,48 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Anmeldung aus der WLO-Sitzung (2026-11-15):** Das Widget übernimmt auf Seiten des
+  Repositorys die angemeldete Sitzung, ohne Ticket und ohne Anmeldung im Widget. Plan
+  `plans/2026-11-15-anmeldung-aus-der-sitzung.md` (SA-1 bis SA-15), Notiz
+  `aenderungen/2026-11-15-anmeldung-aus-der-sitzung.md`, Antwort an den MCP-Entwickler
+  `mcp-antwort-2026-11-15-sitzung.md`. Keine Migration, kein `import-config`. Ohne
+  `MCP_SESSION_URL` ist der Weg aus.
+  - **Einschalten (SA-16, über unser Backend):** im Chart `sessionIngress` (eigenes
+    Ingress-Objekt mit dem Repository-Host, Pfad `/edu-sharing/services/boerdi/auth/session`
+    unverändert ans Backend, kein `rewrite-target`, wie beim md-editor; Team 6); am Chatbot `MCP_SESSION_URL` auf
+    diese Adresse (bei `CORS_ALLOW_ALL=false` den Repository-Host in `CORS_ORIGINS`); am
+    MCP-Server `WLO_SESSION_EXCHANGE=1`. Der MCP muss nicht in den Cluster. Schritte:
+    `deploy/README.md`, Abschnitt `MCP_SESSION_URL`.
+  - **Hinter dem Proxy der B-API** muss die Kopfzeile `WLO-Access-Block` am Proxy-Eintrag
+    freigegeben sein (`allowedRequestHeaders`), dazu `X-Boerdi-Engine` und `Accept-Language`.
+    Sonst arbeitet jede angemeldete Person still als Gast. Mit dem b-api-Team klären, auch die
+    Vorabfrage und den ungepufferten Strom (`uebergabe-betrieb.md` §5).
+  - **Offen, sobald der Pfad auf Staging eingehängt ist:** der Tausch einer angemeldeten
+    Sitzung im Browser (Knopf zeigt den Namen, Schreiben mit Zustimmung), Abmelden im
+    Repository (das Widget tauscht neu und arbeitet ohne Anmeldung weiter), Abmelden im Chat
+    (kein Tausch nach dem Neuladen). Bisher nur ohne Anmeldung am lokalen MCP gemessen.
+  - **Offen beim MCP-Entwickler** (`mcp-antwort-2026-11-15-sitzung.md` §1): (a) unseren
+    Weiterreicher annehmen und sein Budget klären (an `/auth*` zählt heute nur die Adresse;
+    Wunsch: Client-Schlüssel auch dort), `WLO_SESSION_EXCHANGE=1` auf Staging; (b) ein
+    widerrufener oder abgelaufener Sitzungs-Block gilt nach dem nächsten Tausch wieder; (c) eine
+    Frage zu `/auth/status`.
+  - **Ohne diesen Pfad bleibt der Weg aus.** Der Chatbot-Teil liegt dann still (ohne
+    `MCP_SESSION_URL` keine Anfrage). Was ohne Pfad am Repository-Host schon geht: das Ticket
+    der Seite (Weg A) und das Schreiben im Browser mit der Sitzung (vorbereitete Änderung, eine
+    Anfrage je Freigabe); gelesen wird dort mit dem Konto des MCP.
+  - **Nicht gebaut:** Ticket-Blöcke nur im Arbeitsspeicher halten; ein Rückfall vom
+    abgelaufenen Ticket auf die Sitzung.
+  - **Widget-Bündel in einer Hülle (Befund des Reviews, behoben am 2026-11-15):** `main.js`
+    lief als gewöhnliches Skript ohne Hülle; im Browser gemessen hingen rund 2 000 Namen des Bündels
+    am `window` der Gastseite, auch die Funktion, die den Zugangsblock liest, und der Name `$`.
+    Jetzt setzt `npm run build:widget` das Bündel als letzten Schritt in eine Hülle
+    (`frontend/scripts/build-widget-huelle.mjs`). Bau-Test „keine Deklaration auf oberster
+    Ebene“ (`check-widget-huelle.mjs`, auch in CI, auch für die Nachlade-Module) und ein
+    E2E-Test, der die Namen am Fenster zählt. Notiz
+    `aenderungen/2026-11-15-widget-buendel-in-huelle.md`.
+    - Beim Deploy: Image neu bauen. Die gehashte Adresse des Bündels wechselt von selbst.
+    - Bleibt: Die Hülle ist Hygiene, kein Schutz. Ein Skript der Seite kann `fetch` oder `XMLHttpRequest` umbiegen
+      oder die Tauschstelle selbst rufen (R6 in `mcp-und-anmeldung.md`).
 - **MCP-Antwort, zweite Runde (2026-11-15):** Der Chatbot ist an den MCP-Stand vom 14.11.
   abends angepasst (MR-1 bis MR-4: Ablehnung des Repositorys nach dem Ja, neue Ausfall-Gründe
   beim Lesen, Grenz-Hinweise für die KI, Ablage). Plan `plans/2026-11-15-mcp-antwort-runde-2.md`,

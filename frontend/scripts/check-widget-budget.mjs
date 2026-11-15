@@ -13,6 +13,8 @@
  * stricter one: `@angular/build` defines `BYTES_IN_KILOBYTE = 1000`
  * (utils/bundle-calculator.js), so `maximumError: "700kb"` in angular.json is
  * the same 700 000 bytes as RAW_MAX here and the build already fails first.
+ * (Since 2026-11-15 the build measures 13 bytes less than this gate: the wrapper
+ * added by `build-widget-huelle.mjs` comes after Angular's own budget check.)
  * What this gate adds is the **gzip** limit and the **single-file** check —
  * neither of which Angular's budgets can express.
  *

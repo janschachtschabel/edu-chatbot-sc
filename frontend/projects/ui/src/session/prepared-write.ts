@@ -41,7 +41,7 @@ import type { TranslateFn } from '../i18n/i18n';
 export const ANONYMOUS_AUTHORITY = 'esguest';
 
 /** Der Endpunkt, der die angemeldete Person nennt (`person.authorityName`). */
-const IDENTITY_SUFFIX = '/rest/iam/v1/people/-home-/-me-';
+export const IDENTITY_SUFFIX = '/rest/iam/v1/people/-home-/-me-';
 
 interface WriteRule {
   readonly method: string;
@@ -162,7 +162,7 @@ export interface PreparedWriteContext {
 }
 
 /** Die gemeldete Person, oder leer wenn die Antwort nichts hergibt. */
-function readAuthority(data: unknown): string {
+export function readAuthority(data: unknown): string {
   const person = (data as { person?: { authorityName?: unknown } } | null)?.person;
   return typeof person?.authorityName === 'string' ? person.authorityName : '';
 }
