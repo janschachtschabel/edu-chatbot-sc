@@ -54,6 +54,17 @@ vor jedem Abruf mit Block:  GET …/-me-  ─► noch dieselbe Person? ─ nein 
 | SA-14 | **Grenzen der Wache.** Die Frage wartet höchstens 3 s, danach ein angestoßener Tausch höchstens 5 s; dann geht der Abruf ohne Anmeldung hinaus. Ein Abruf, der während eines laufenden Tauschs kommt, wartet bis zu 10 s (erst die Sperre der Anmeldung, dann der Tausch). Eine Antwort gilt 2 s, eine Folge von Abrufen fragt einmal. Scheitert ein Tausch, gleich wer ihn anstieß, versucht es die Wache 5 Minuten nicht von selbst; liegt es an der Einrichtung (Pfad fehlt, Seite nicht freigegeben, andere Person genannt), bis zum Neuladen oder einem Klick auf „Anmelden“. Eine Anmeldung von Hand und ein Tab nach „Abmelden“ sind nicht ihr Fall. | Die Wache darf selbst kein Hindernis werden und das Anmelde-Budget der Adresse am MCP nicht verbrauchen. Kosten: auf Seiten des Repositorys ein kleiner Abruf je Zug, auch für Gäste. |
 | SA-15 | **Für wen der Block gilt, steht neben dem Block** (im selben Modul, nicht in der Shell). **Eine neu gebaute Instanz des Widgets übernimmt einen Block aus der Sitzung nicht:** Sie verwirft ihn beim Start und tauscht selbst. | Bis das Config-Bündel den Weg nennt, hängt die Wache an keinem Abruf; ein geerbter Block ginge so lange ungeprüft hinaus, auch wenn die Seite inzwischen jemand anderen zeigt. Der neue Tausch kostet nichts. Ein Block von Hand oder aus einem Ticket bleibt über den Neubau erhalten. |
 
+## Voraussetzung am Repository-Host
+
+Der Weg braucht einen Pfad unter `/edu-sharing` auf dem Host des Repositorys, der auf den
+Tausch des MCP zeigt. Anders geht es nicht: Das Sitzungs-Cookie trägt `Path=/edu-sharing` und
+`HttpOnly`, und die Schnittstelle des Repositorys gibt keinem Browser ein Ticket (gemessen am
+15.11.: 321 Pfade; `appauth` bleibt ausgeschlossen). Der md-editor nutzt dasselbe Muster und
+läuft so auf Staging (`/edu-sharing/services/md-editor/`, eigenes Ingress-Objekt aus seinem
+Chart, `config.auth.cookie.enabled`). Es ist also kein Eingriff in edu-sharing, aber er setzt
+voraus, dass der MCP im Cluster des Repositorys läuft; sein Staging-Server läuft heute auf einem
+eigenen Rechner. Ohne den Pfad bleibt der Weg aus; der Chatbot-Teil liegt dann still.
+
 ## Risiken
 
 - **Der Block ist für Skripte der Seite erreichbar, das Cookie nicht.** Das Sitzungs-Cookie ist

@@ -251,9 +251,13 @@ Rechten. Plan mit allen Entscheiden:
 [`plans/2026-11-15-anmeldung-aus-der-sitzung.md`](plans/2026-11-15-anmeldung-aus-der-sitzung.md).
 
 **Warum das jetzt geht:** Nicht der Browser holt sich einen Ausweis vom Repository (das bleibt
-unmöglich, siehe oben). Der MCP-Server bekommt einen Pfad **auf eurem Host** unterhalb von
+unmöglich, siehe oben; auch die Schnittstelle des Repositorys gibt keinem Browser ein Ticket,
+gemessen am 15.11. an 321 Pfaden). Der MCP-Server bekommt einen Pfad **auf eurem Host** unterhalb von
 `/edu-sharing`. Dorthin schickt der Browser das Sitzungs-Cookie von selbst mit, und der
-MCP-Server tauscht die Sitzung gegen einen gewöhnlichen Zugangsblock. Im Klartext sehen das
+MCP-Server tauscht die Sitzung gegen einen gewöhnlichen Zugangsblock. Dasselbe Muster nutzt der
+md-editor für seine Anmeldung aus der Sitzung (`config.auth.cookie.enabled`, `ingress.basePath`).
+Ohne einen Pfad unter `/edu-sharing` auf eurem Host geht es nicht: Das Cookie trägt
+`Path=/edu-sharing` und `HttpOnly`. Im Klartext sehen das
 Cookie weder das Widget noch unser Backend: Der Block enthält es verschlüsselt, lesen kann es
 nur der MCP-Server.
 
@@ -297,7 +301,7 @@ Ein Ticket im Attribut geht vor: Mit `ticket` nimmt das Widget §3, ohne diesen 
 | Wo | Was | Sonst |
 |---|---|---|
 | **MCP-Server** | `WLO_AUTH_PRIVATE_KEY` und `WLO_SESSION_EXCHANGE=1` | Tausch → 404 → `unavailable` |
-| **Ingress eures Hosts** | ein Pfad unterhalb von `/edu-sharing` auf `POST /auth/session` des MCP-Servers, etwa `/edu-sharing/services/wlo-mcp/auth/session`; `Cookie` und `Origin` kommen durch | Tausch → 404 oder eine HTML-Seite → `unavailable` |
+| **Ingress eures Hosts** | ein Pfad unterhalb von `/edu-sharing` auf `POST /auth/session` des MCP-Servers, etwa `/edu-sharing/services/wlo-mcp/auth/session`; `Cookie` und `Origin` kommen durch. Ein eigenes Ingress-Objekt mit eurem Hostnamen, wie beim md-editor (läuft so auf Staging unter `/edu-sharing/services/md-editor/`); an edu-sharing selbst ändert sich nichts. Setzt voraus, dass der MCP-Server im selben Cluster läuft | Tausch → 404 (gemessen) → `unavailable` |
 | **MCP-Server** | die Adresse eurer Seite ist `WLO_REPOSITORY_URL` oder steht in `WLO_SESSION_ALLOWED_ORIGINS` | Tausch → 403 → `not-allowed` |
 | **Chatbot-Backend** | `MCP_SESSION_URL` = dieselbe Adresse; bei `CORS_ALLOW_ALL=false` euer Host in `CORS_ORIGINS` | Feld leer, das Widget versucht nichts |
 
@@ -877,7 +881,7 @@ Volle Herleitung: [`plans/2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2
 | `unavailable` in der Konsole | `mcp_auth_base` leer (`MCP_SERVER_URL` fehlt) **oder** `/auth/ticket` → 404 (`WLO_AUTH_PRIVATE_KEY` fehlt) |
 | `rejected` in der Konsole | Ticket abgelaufen oder Template liefert ein totes Ticket |
 | Weg aus der Sitzung: nichts passiert, keine Warnung | `mcp_session_url` leer oder mit anderer Herkunft als die Seite (Schema, Host und Port müssen stimmen); oder die Person ist Gast; oder sie hat sich im Chat abgemeldet (§3a) |
-| Weg aus der Sitzung: `unavailable` oder `rejected` | Pfad am Ingress fehlt (das Repository antwortet selbst: mit 404, einer Seite oder einem 500) oder `WLO_SESSION_EXCHANGE` ist aus |
+| Weg aus der Sitzung: `unavailable` | Pfad am Ingress fehlt (das Repository antwortet selbst mit 404, gemessen an Staging) oder `WLO_SESSION_EXCHANGE` ist aus |
 | Weg aus der Sitzung: `not-allowed` | die Adresse eurer Seite fehlt in `WLO_SESSION_ALLOWED_ORIGINS` am MCP-Server, oder der Ingress reicht `Origin` nicht durch |
 | Kontext bleibt nach Routenwechsel stehen | bis zu 1,5 s Wächter-Takt abwarten; sofort geht es mit `replaceContext()` (§6) |
 | Der Bot spricht über die vorige Seite mit | Für einen Seitenwechsel `updateContext()` benutzt — das mergt und lässt alte IDs stehen. `replaceContext()` nehmen (§6) |

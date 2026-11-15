@@ -169,6 +169,11 @@ Drei Dinge müssen zusammenpassen:
    des Repositorys im Browser von `WLO_REPOSITORY_URL` ab, dazu `WLO_SESSION_ALLOWED_ORIGINS`.
 2. **Am Ingress des Repository-Hosts:** ein Pfad unterhalb von `/edu-sharing`, der auf
    `POST /auth/session` des MCP-Servers zeigt. `Cookie` und `Origin` müssen durchkommen.
+   Das ist ein eigenes Ingress-Objekt mit dem Repository-Hostnamen, wie beim md-editor (sein
+   Chart: `ingress.basePath=/edu-sharing/services/md-editor`, läuft so auf Staging); an
+   edu-sharing selbst wird nichts geändert. Voraussetzung: Der MCP-Server läuft im Cluster des
+   Repositorys. Das Chart des MCP-Servers kann diesen Pfad noch nicht anlegen (Wunsch an das
+   MCP-Team, `docs/mcp-antwort-2026-11-15-sitzung.md` §1a).
 3. **Hier:** dieselbe Adresse in `MCP_SESSION_URL`. Eine geschlossene Anlage
    (`CORS_ALLOW_ALL=false`) nennt sie nur Seiten aus `CORS_ORIGINS`: der Repository-Host
    gehört dann in diese Liste.

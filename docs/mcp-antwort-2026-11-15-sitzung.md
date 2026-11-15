@@ -3,17 +3,39 @@
 Zu deiner Nachricht „Für das Chatbot-Team: die Anmeldung aus der WLO-Sitzung übernehmen“.
 Danke, der Weg B ist bei uns eingebaut. Er ist aus, bis der Betrieb die Adresse einträgt.
 
-## Kurzfassung
+**Was wir von dir brauchen, steht in Abschnitt 1. Alles danach ist zur Information.**
 
-- Das Widget geht Weg B von selbst, wenn es in einer Seite des Repositorys sitzt. Mit `ticket`
-  im Attribut gilt Weg A, wie du empfiehlst.
-- Der Block aus der Sitzung liegt bei uns nur im Arbeitsspeicher und reist je Anfrage mit.
-- Wir geben ihn in einer eigenen Kopfzeile ans Backend, nicht im JSON-Körper (Grund unten).
-- **Ein Wunsch mit Gewicht:** Ein Block aus einer Sitzung gilt nach jedem neuen Tausch
-  derselben Sitzung wieder, auch ein widerrufener oder abgelaufener (nächster Abschnitt).
-- Deine Tauschstelle haben wir ohne Anmeldung nachgemessen; mit angemeldeter Sitzung noch nicht.
+## 1. Was wir von dir brauchen
 
-## Der Wunsch: ein alter Block soll nach einem neuen Tausch nicht wieder gelten
+### 1a. Den Sitzungs-Pfad in deinem Helm-Chart, so wie beim md-editor
+
+Der Weg B braucht einen Pfad auf dem Host des Repositorys unterhalb von `/edu-sharing`; nur
+dorthin schickt der Browser das Sitzungs-Cookie (gemessen an Staging: `JSESSIONID` und
+`INGRESSCOOKIE` mit `Path=/edu-sharing`, `HttpOnly`). Das ist kein Eingriff in edu-sharing:
+Der md-editor macht es genauso und läuft so auf Staging
+(`https://repository.staging.openeduhub.net/edu-sharing/services/md-editor/` antwortet mit dem
+Editor). Sein Chart legt dafür ein eigenes Ingress-Objekt mit dem Repository-Host an
+(`ingress.basePath`, Präfix wird abgeschnitten, `config.auth.cookie.enabled`).
+
+Dein Chart kennt das noch nicht: `templates/ingress.yaml` legt nur `path: /` auf `ingress.host`
+an. Bitte:
+
+- eine zweite, eigene Ingress-Regel, abschaltbar, etwa `sessionIngress.host`
+  (Repository-Host) und `sessionIngress.path` (Vorgabe `/edu-sharing/services/wlo-mcp`), die
+  **nur** `<path>/auth/session` auf `/auth/session` umschreibt (`pathType: Exact`, nicht den
+  ganzen Server);
+- dazu im Chart prüfen, was der md-editor prüft: Pfad unter `/edu-sharing`, sonst bricht
+  `helm template` ab; mit gesetztem `sessionIngress.host` gilt `WLO_SESSION_EXCHANGE=1`;
+- in deiner Betriebsanleitung: `Cookie` und `Origin` müssen durchkommen; `TRUST_PROXY` zur
+  Proxy-Kette des Repository-Ingress.
+
+**Die eigentliche Frage dahinter:** Der md-editor läuft im Cluster des Repositorys, dein
+Staging-Server läuft auf einem eigenen Rechner (`wlo-mcp.87.106.195.152.nip.io`). Eine
+Ingress-Regel im Cluster kann nicht ohne Weiteres auf einen Rechner außerhalb zeigen. Für
+Weg B muss der MCP (mindestens der Teil, der `/auth/session` beantwortet) im Cluster des
+Repositorys laufen, wie der md-editor. Wer entscheidet das, und ist es geplant?
+
+### 1b. Ein alter Sitzungs-Block soll nach einem neuen Tausch nicht wieder gelten
 
 So lesen wir deinen Quelltext:
 
@@ -21,8 +43,8 @@ So lesen wir deinen Quelltext:
   (`auth/session-exchange.ts`).
 - Geprüft wird an einem Block nur, ob die Kennung gelistet ist und der Name passt
   (`auth/credential.ts`, `credentialFromAccessBlock`). Der Ausstellzeitpunkt zählt nicht.
-- Ist die Kennung nicht mehr gelistet (widerrufen, oder der Eintrag ist abgelaufen), trägt
-  der nächste Tausch derselben Sitzung sie wieder ein.
+- Ist die Kennung nicht mehr gelistet (widerrufen, oder der Eintrag ist abgelaufen), trägt der
+  nächste Tausch derselben Sitzung sie wieder ein.
 
 Die Folge: „12 Stunden“ und „Abmelden widerruft“ gelten nur bis zum nächsten Tausch. Zwei
 Fälle, die bei uns von selbst eintreten:
@@ -33,8 +55,8 @@ Fälle, die bei uns von selbst eintreten:
    bekommt die Ablehnung, tauscht still neu, und der widerrufene Block aus Tab 1 gilt wieder.
 
 Das wiegt, weil der Block anders als das Cookie für Skripte der Seite erreichbar ist: Ein
-Skript der Seite kann `fetch` oder `XMLHttpRequest` umbiegen und den Block aus unserer Kopfzeile lesen, und es kann
-deine Tauschstelle auch selbst rufen.
+Skript der Seite kann `fetch` oder `XMLHttpRequest` umbiegen und den Block aus unserer
+Kopfzeile lesen, und es kann deine Tauschstelle auch selbst rufen.
 
 Bitte eins von beiden:
 
@@ -46,14 +68,25 @@ Weiter gedacht, kein Muss für den Start: den Block aus einer Sitzung an etwas b
 fremder Rechner nicht hat, etwa an unseren Client-Schlüssel (`X-WLO-Client-Key`). Ein
 mitgenommener Block wäre dann außerhalb unseres Backends wertlos.
 
-## Was das Widget tut
+### 1c. Eine Frage
+
+**Ende der Sitzung an `/auth/status`:** Kommt nach dem Abmelden im Repository
+`authenticated: false` mit `upstream: "ok"`? Ohne `upstream: "ok"` und ohne `authority` lesen
+wir „nicht prüfbar“ und lassen die letzte Bestätigung bis zu 30 Minuten gelten. Am Werkzeug
+reicht uns `login_rejected`; so lesen wir deinen Quelltext (`apps/tool-defaults.ts`). Und:
+Nennt `/auth/status` für einen Sitzungs-Block `expiresAt`? Daran hängt unser stilles Erneuern
+nach 12 Stunden.
+
+---
+
+## 2. Zur Information: was das Widget tut
 
 1. **Wo der Weg gilt:** Unser Backend nennt dem Widget die Adresse des Tauschs (bei uns
    `MCP_SESSION_URL`, etwa `https://<Repository-Host>/edu-sharing/services/wlo-mcp/auth/session`).
    Das Widget versucht ihn nur auf Seiten dieser Herkunft. Der Pfad muss auf `/auth/session`
    enden und unterhalb einer Wurzel liegen (`/edu-sharing/…`).
 2. **Wer ist da:** `GET /edu-sharing/rest/iam/v1/people/-home-/-me-` mit der Sitzung der Seite.
-   Für `esguest` rufen wir dich nicht auf.
+   Für `esguest` (und für ein 401) rufen wir dich nicht auf.
 3. **Tausch:** `POST` mit `credentials: 'same-origin'`, `Content-Type: application/json`,
    Körper `{}`. Kein `Authorization`. Frist 10 s.
 4. **Vergleich:** `authority` aus deiner Antwort muss gleich `person.authorityName` der Seite
@@ -71,13 +104,14 @@ mitgenommener Block wäre dann außerhalb unseres Backends wertlos.
    | 503, 429 | nach `retryAfter` (höchstens 15 s) einmal erneut |
    | 415, sonstiges | ohne Anmeldung weiter, Zeile in der Konsole |
 
+   Ohne die Regel am Ingress antwortet das Repository selbst mit 404 (gemessen an Staging unter
+   `/edu-sharing/services/wlo-mcp/auth/session`); das fällt bei uns unter „nicht eingerichtet“.
 6. **Vor jedem Abruf, der den Block trägt,** fragen wir das Repository noch einmal, wer auf der
    Seite angemeldet ist (höchstens 3 s; eine Antwort gilt 2 s). Ist es ein Gast, verwerfen wir
    den Block. Ist es jemand anderes, verwerfen wir ihn und tauschen neu. War vorher niemand
    angemeldet und jetzt jemand, tauschen wir ebenfalls. Antwortet das Repository nicht, bleibt
-   der Block. Ein 401 des Repositorys lesen wir wie einen Gast. Du
-   schreibst im Quelltext, ob die Sitzungs-Kennung einen Wechsel der Anmeldung überlebt, sei
-   nicht gemessen; für uns hängt daran damit wenig.
+   der Block. Du schreibst im Quelltext, ob die Sitzungs-Kennung einen Wechsel der Anmeldung
+   überlebt, sei nicht gemessen; für uns hängt daran damit wenig.
    - Für dein Budget: Ein Wechsel der Person kostet dich einen Tausch, ebenso jeder Neubau
      unseres Widgets auf der Seite. Scheitert ein Tausch, versuchen wir es fünf Minuten nicht
      von selbst wieder; bei 403, 404 und einer abweichenden `authority` erst nach dem Neuladen
@@ -91,11 +125,11 @@ mitgenommener Block wäre dann außerhalb unseres Backends wertlos.
    tauscht wieder. Kommt ein Block noch aus einem laufenden Tausch zurück, widerrufen wir auch
    ihn.
 
-## Warum Kopfzeile statt JSON-Körper
+## 3. Zur Information: Kopfzeile statt JSON-Körper
 
 Du empfiehlst ein Feld im Körper der Chat-Anfrage. Wir bleiben bei unserer Kopfzeile
-`WLO-Access-Block`: Nicht jeder Abruf mit Block hat bei uns einen JSON-Körper. Der Verlauf
-ist ein GET, der Upload geht als Formular (`multipart`). Hinter dem Proxy der B-API braucht das die
+`WLO-Access-Block`: Nicht jeder Abruf mit Block hat bei uns einen JSON-Körper. Der Verlauf ist
+ein GET, der Upload geht als Formular (`multipart`). Hinter dem Proxy der B-API braucht das die
 Freigabe der Kopfzeile am Proxy-Eintrag (`allowedRequestHeaders`); das steht in unserer
 Betriebsübergabe.
 
@@ -109,9 +143,10 @@ Zwei Einschränkungen, damit es nicht falsch ankommt:
   Neuladen halten.
 - „Im Arbeitsspeicher“ ist kein Versteck vor Skripten der Seite. Unser Bündel steht seit dem
   15.11. in einer Hülle, seine Variablen hängen nicht mehr an `window` (vorher taten sie es).
-  Ein Skript der Seite kann aber weiter `fetch` oder `XMLHttpRequest` umbiegen und den Block aus der Kopfzeile lesen.
+  Ein Skript der Seite kann aber weiter `fetch` oder `XMLHttpRequest` umbiegen und den Block
+  aus der Kopfzeile lesen.
 
-## Nachgemessen an deinem Stand
+## 4. Zur Information: nachgemessen an deinem Stand
 
 Lokal gestartet, `WLO_SESSION_EXCHANGE=1`, eigener Wegwerf-Schlüssel, gegen Staging, ohne
 Anmeldung:
@@ -127,22 +162,3 @@ Anmeldung:
 
 Das passt zu deiner Tabelle. Den Tausch einer angemeldeten Sitzung prüfen wir, sobald der Pfad
 auf Staging eingehängt ist.
-
-## Zwei Fragen
-
-1. **Ende der Sitzung an `/auth/status`:** Kommt nach dem Abmelden im Repository
-   `authenticated: false` mit `upstream: "ok"`? Ohne `upstream: "ok"` und ohne `authority`
-   lesen wir „nicht prüfbar“ und lassen die letzte Bestätigung bis zu 30 Minuten gelten. Am
-   Werkzeug reicht uns `login_rejected`; so lesen wir deinen Quelltext
-   (`apps/tool-defaults.ts`). Und: Nennt `/auth/status` für einen Sitzungs-Block `expiresAt`?
-   Daran hängt unser stilles Erneuern nach 12 Stunden.
-2. **`Origin` am Ingress:** Ohne `Origin` antwortest du 403. Browser schicken ihn bei einem
-   `POST` mit; der Ingress des Repositorys muss ihn durchlassen. Bitte in die Anleitung für
-   den Betrieb als eigenen Prüfpunkt. Und: Was antwortet das Repository unter dem Beispielpfad
-   `/edu-sharing/services/…`, solange die Regel am Ingress fehlt? Wir rechnen mit 404, einer
-   HTML-Seite oder einem 500 seines eigenen Servlets.
-
-## Offen bei dir und beim Betrieb
-
-- Der Pfad am Ingress des Staging-Repositorys und `WLO_SESSION_EXCHANGE=1` am Staging-MCP.
-- Die Adresse, die wir als `MCP_SESSION_URL` eintragen.

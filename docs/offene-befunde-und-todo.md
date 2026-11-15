@@ -370,9 +370,16 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     Sitzung im Browser (Knopf zeigt den Namen, Schreiben mit Zustimmung), Abmelden im
     Repository (das Widget tauscht neu und arbeitet ohne Anmeldung weiter), Abmelden im Chat
     (kein Tausch nach dem Neuladen). Bisher nur ohne Anmeldung am lokalen MCP gemessen.
-  - **Offen beim MCP-Entwickler:** ein Wunsch mit Gewicht (ein Block aus einer Sitzung gilt
-    nach jedem neuen Tausch wieder, auch ein widerrufener oder abgelaufener), zwei Fragen und
-    ein Vorschlag in `mcp-antwort-2026-11-15-sitzung.md`.
+  - **Offen beim MCP-Entwickler** (`mcp-antwort-2026-11-15-sitzung.md` §1): (a) den
+    Sitzungs-Pfad im Helm-Chart anlegen können wie der md-editor (`ingress.basePath`), und die
+    Frage, ob der MCP in den Cluster des Repositorys kommt — sein Staging-Server läuft auf einem
+    eigenen Rechner, dorthin zeigt eine Ingress-Regel im Cluster nicht ohne Weiteres; (b) ein
+    widerrufener oder abgelaufener Sitzungs-Block gilt nach dem nächsten Tausch wieder; (c) eine
+    Frage zu `/auth/status`.
+  - **Ohne diesen Pfad bleibt der Weg aus.** Der Chatbot-Teil liegt dann still (ohne
+    `MCP_SESSION_URL` keine Anfrage). Was ohne Pfad am Repository-Host schon geht: das Ticket
+    der Seite (Weg A) und das Schreiben im Browser mit der Sitzung (vorbereitete Änderung, eine
+    Anfrage je Freigabe); gelesen wird dort mit dem Konto des MCP.
   - **Nicht gebaut:** Ticket-Blöcke nur im Arbeitsspeicher halten; ein Rückfall vom
     abgelaufenen Ticket auf die Sitzung.
   - **Widget-Bündel in einer Hülle (Befund des Reviews, behoben am 2026-11-15):** `main.js`
