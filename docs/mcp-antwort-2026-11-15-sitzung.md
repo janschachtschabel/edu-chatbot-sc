@@ -3,6 +3,11 @@
 Zu deiner Nachricht „Für das Chatbot-Team: die Anmeldung aus der WLO-Sitzung übernehmen“.
 Danke, der Weg B ist bei uns eingebaut. Er ist aus, bis der Betrieb die Adresse einträgt.
 
+> **Stand:** Der MCP-Entwickler hat am selben Tag geantwortet (MCP-Repo
+> `docs/plans/2026-11-15-antwort-chatbot-sitzung.md`): 1b umgesetzt, 1c beantwortet. Zu 1a
+> antwortete er auf eine frühere Fassung (MCP im Cluster). Unsere Folge-Antwort:
+> [`mcp-antwort-2026-11-15-sitzung-2.md`](mcp-antwort-2026-11-15-sitzung-2.md).
+
 **Was wir von dir brauchen, steht in Abschnitt 1. Alles danach ist zur Information.**
 
 ## 1. Was wir von dir brauchen

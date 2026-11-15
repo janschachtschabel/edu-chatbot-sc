@@ -164,6 +164,9 @@ Knopf erst beim nächsten eigenen Abruf; beim Wechsel der Person bleibt das Gesp
      Repository-Host in `CORS_ORIGINS`.
   3. MCP-Server: `WLO_AUTH_PRIVATE_KEY`, `WLO_SESSION_EXCHANGE=1`, bei abweichender Adresse
      `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss nicht in den Cluster.
-- Für viele Personen vorher das Budget am MCP klären (siehe Nachtrag).
+- Für viele Personen vorher das Budget am MCP klären (siehe Nachtrag; Folge-Antwort an den
+  MCP-Entwickler `docs/mcp-antwort-2026-11-15-sitzung-2.md`). Seine Antwort vom selben Tag:
+  Ein alter Sitzungs-Block gilt nach einem neuen Tausch nicht wieder (umgesetzt); er nahm an,
+  Weg B brauche den MCP im Cluster. Das ist mit unserem Weiterreicher nicht nötig.
 - Hinter dem Proxy der B-API: `WLO-Access-Block` am Proxy-Eintrag freigeben
   ([`uebergabe-betrieb.md`](../uebergabe-betrieb.md) §5).
