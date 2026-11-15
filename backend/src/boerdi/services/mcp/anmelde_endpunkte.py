@@ -101,7 +101,8 @@ async def widerrufen(block: str, frist_s: float = 10.0) -> bool | None:
         logger.warning("Widerruf des Zugangsblocks nicht möglich (%s)", type(exc).__name__)
         return None
     if antwort.status_code != 200:
-        # 404: diese Anlage gibt keine Blöcke aus; 429: Adress-Budget von ``/auth*``.
+        # 404: diese Anlage gibt keine Blöcke aus; 429: Budget von ``/auth*`` (mit Client-Schlüssel
+        # ab MCP 1.3.0 dessen Protokoll-Budget, sonst das der Adresse).
         status = antwort.status_code
         logger.warning("Widerruf des Zugangsblocks abgelehnt (HTTP %s)", status)
         return None

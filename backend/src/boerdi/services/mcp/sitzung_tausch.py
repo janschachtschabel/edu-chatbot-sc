@@ -21,12 +21,17 @@ Was durchgeht und was nicht:
 * **nie:** ins Protokoll. Weder Cookie noch Block noch Kontoname; nur Status und Art eines
   Fehlers.
 
-**Budget.** Beim MCP zählen alle Tausche auf die Adresse dieses Backends, im selben Topf wie das
-Abmelden (``/auth/revoke``; ``API_RATE_LIMIT_RPM``, Vorgabe 30 je Minute). Damit ein Fremder mit
-gefälschten Kopfzeilen nicht den ganzen Topf leert, gilt hier eine Gesamtgrenze
-(:data:`GESAMTGRENZE`) im gemeinsamen Speicher der Drossel — im Cluster Valkey, also für alle
+**Budget.** Ab MCP 1.3.0 zahlen Tausch und Abmelden mit einem vertrauten Client-Schlüssel
+(``TRUSTED_CLIENT_KEYS`` am MCP) aus dessen Protokoll-Budget (3 × rpm je Minute, geteilt mit
+``/mcp`` und ``/auth/status``); den Schutz vor vielen Sitzungen zählt der MCP dann je Adresse,
+die wir im ``X-Forwarded-For`` nennen. Ohne Schlüssel zählt alles auf die Adresse dieses
+Backends, im Topf ``API_RATE_LIMIT_RPM`` (Vorgabe 30 je Minute), geteilt mit dem Abmelden.
+Darum gilt hier eine Gesamtgrenze (:func:`gesamtgrenze`): ``MCP_SESSION_EXCHANGE_RPM``, Vorgabe
+20, über 20 nur mit Schlüssel. Weit wird sie nur auf ausdrücklichen Wunsch des Betriebs, weil das
+Backend nicht sieht, ob der MCP den Schlüssel kennt (Review SA-17). Gezählt wird im gemeinsamen
+Speicher der Drossel — im Cluster Valkey, also für alle
 Repliken zusammen; gezählt wird nur, was wirklich zum MCP geht. Dazu drosselt die Route je
-Adresse enger als sonst.
+Adresse.
 
 Den Ausfall-Schalter liest der Weiterreicher nur: Ein Ausfall des Tauschs soll nicht die
 Werkzeuge des Chats sperren.
@@ -72,9 +77,9 @@ _FELDER: dict[str, tuple[type, int]] = {
     "ok": (bool, 0), "block": (str, 4096), "authority": (str, 200),
     "displayName": (str, 200), "error": (str, 300), "code": (str, 60), "retryAfter": (int, 0),
 }
-#: Höchstens so viele Tausche je Minute für die ganze Anlage (alle Repliken zusammen). Vom Topf
-#: des MCP (30 je Minute für Tausch und Abmelden des Backends) bleiben zehn für das Abmelden.
-GESAMTGRENZE = "20/minute"
+#: Höchstens so viele Tausche je Minute für die ganze Anlage ohne Client-Schlüssel: Vom Topf des
+#: MCP (30 je Minute für Tausch und Abmelden) bleiben zehn für das Abmelden.
+OBERGRENZE_OHNE_SCHLUESSEL = 20
 _GESAMT_SCHLUESSEL = "sitzung-tausch:gesamt"
 
 
@@ -122,10 +127,22 @@ def sitzungs_cookies(roh: str | None) -> SitzungsCookies:
 _letzte_warnung = 0.0
 
 
-def _gesamt_warten_s() -> int:
+def gesamt_je_minute() -> int:
+    """Tausche je Minute für die ganze Anlage: ``MCP_SESSION_EXCHANGE_RPM``, ohne Client-Schlüssel
+    höchstens :data:`OBERGRENZE_OHNE_SCHLUESSEL`."""
+    wert = get_settings().mcp_session_exchange_rpm
+    return wert if client_schluessel_kopf() else min(wert, OBERGRENZE_OHNE_SCHLUESSEL)
+
+
+def gesamtgrenze() -> str:
+    """Die Gesamtgrenze als Angabe für die Drossel."""
+    return f"{gesamt_je_minute()}/minute"
+
+
+def _gesamt_warten_s(angabe: str) -> int:
     """``0``, wenn ein Tausch jetzt geht (und zählt ihn); sonst die Sekunden bis zum nächsten
     Fenster. Im Speicher der Drossel, damit alle Repliken einen Zähler teilen."""
-    grenze = parse(GESAMTGRENZE)
+    grenze = parse(angabe)
     if limiter.limiter.hit(grenze, _GESAMT_SCHLUESSEL):
         return 0
     rest = limiter.limiter.get_window_stats(grenze, _GESAMT_SCHLUESSEL).reset_time - time.time()
@@ -166,16 +183,19 @@ async def weiterreichen(cookies: str, herkunft: str, adresse: str) -> TauschAntw
               "code": "upstream_unreachable", "retryAfter": _WARTEZEIT_S})
     if schutz.ist_offen(url):
         return nicht_erreichbar
-    warte = _gesamt_warten_s()
+    grenze = gesamtgrenze()
+    warte = _gesamt_warten_s(grenze)
     if warte:
         global _letzte_warnung
         if time.monotonic() - _letzte_warnung >= 60.0:
             _letzte_warnung = time.monotonic()
-            logger.warning("Sitzungs-Tausch: Gesamtgrenze erreicht (%s)", GESAMTGRENZE)
+            logger.warning("Sitzungs-Tausch: Gesamtgrenze erreicht (%s)", grenze)
         return TauschAntwort(429, {"error": "Gerade melden sich viele an. Gleich noch einmal.",
                                    "code": "rate_limited", "retryAfter": warte})
     koepfe = {**ausgehende_koepfe(), **client_schluessel_kopf(),
               "Content-Type": "application/json", "Origin": herkunft, "Cookie": cookies}
+    # Ein einziger Eintrag: Was der Browser selbst behauptet hat, geht nicht weiter. Der MCP liest
+    # den Eintrag vor dem seines eigenen Proxys (``TRUST_PROXY``), also diesen.
     if ip := _gueltige_adresse(adresse):
         koepfe["X-Forwarded-For"] = ip
     try:
