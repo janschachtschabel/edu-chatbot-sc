@@ -5185,6 +5185,26 @@
         ]
       }
     },
+    "/api/auth/session": {
+      "post": {
+        "description": "Die Repository-Sitzung des Browsers gegen einen Zugangsblock tauschen (über den MCP).",
+        "operationId": "sitzung_tauschen_api_auth_session_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sitzung Tauschen",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/chat": {
       "post": {
         "description": "Run one chat turn through the LangGraph pipeline.\n\nSerialised per ``session_id`` across all replicas (Paket 7, P1:\n``sitzung_sperren``) so two turns of one session never read/write\n``session_state`` in parallel; a second one waits briefly, then gets 409.\nDifferent sessions still run fully in parallel. The compiled graph yields a\nstate dict — ``early_response`` (tour/preflight/fast-path early exit) wins over\n``response`` (normal path). Any unhandled error becomes a graceful bubble\ninstead of an HTTP 500 so the widget shows something actionable.",

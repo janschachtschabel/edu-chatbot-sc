@@ -74,4 +74,9 @@ def sitzungs_adresse(url: str | None) -> str:
     if (teile.username or teile.password or teile.params or "?" in roh or "#" in roh
             or not _TAUSCH_PFAD.fullmatch(teile.path)):
         raise fehler
+    # Ein ausdrücklich genannter Standard-Port fällt weg: Der Browser nennt ihn im ``Origin`` nie,
+    # und die Route verglich sonst ``https://repo:443`` mit ``https://repo`` (Review 2026-11-15).
+    for schema, port in (("https", ":443"), ("http", ":80")):
+        if teile.scheme == schema and herkunft.endswith(port):
+            herkunft = herkunft[: -len(port)]
     return herkunft + teile.path

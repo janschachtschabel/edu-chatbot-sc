@@ -11,6 +11,8 @@ image:
   pullPolicy: IfNotPresent
 
 replicaCount: 2           # feste Zahl (Nutzer-Entscheid); LLM_MAX_CONCURRENCY je Pod = Limit/N
+                          # Mehr als eine Replik nur mit Valkey (RATE_LIMIT_STORAGE_URI): sonst
+                          # zählt jede ihre Drossel und die Gesamtgrenze des Sitzungs-Tauschs selbst.
 
 ports:
   public: 8100            # Widget, Chat, Agent, Sprache, Studio (hinter Login) — Ingress
@@ -33,6 +35,41 @@ ingress:
     # nginx.ingress.kubernetes.io/enable-access-log: "false"
   # Am öffentlichen Port bleibt /health (nur {"status":"ok"}) für ältere Proben — ausblenden:
   hidePaths: ["/health"]
+
+# Anmeldung aus der WLO-Sitzung (Plan 2026-11-15, SA-16) — ein ZWEITES, eigenes Ingress-Objekt
+# auf dem Host des REPOSITORYS, wie es das Chart des md-editors für seine Cookie-Anmeldung anlegt
+# (dort `ingress.basePath=/edu-sharing/services/md-editor`, läuft so auf Staging). An edu-sharing
+# selbst und an dessen Ingress ändert sich nichts.
+# Warum: Der Browser schickt das Sitzungs-Cookie (JSESSIONID, Path=/edu-sharing, HttpOnly) nur an
+# Adressen unter /edu-sharing auf diesem Host. Das Objekt leitet GENAU EINEN Pfad dort an den
+# öffentlichen Port dieses Backends; das Backend nimmt ihn unverändert an (api/sitzung.py,
+# PFAD_AM_REPOSITORY) und reicht den Tausch an den MCP-Server weiter.
+# Dazu MCP_SESSION_URL = https://<host><path> (env unten) und am MCP-Server WLO_SESSION_EXCHANGE=1.
+# Für das Template:
+# - genau EINE Regel: host, path, pathType Exact, Backend = Service dieses Charts, Port public;
+# - KEIN rewrite-target: ingress-nginx stellte damit alle Pfade des Repository-Hosts auf Regex um,
+#   auch die von edu-sharing, und Exact gälte nicht mehr. Deshalb nimmt das Backend den Pfad
+#   selbst an. Wer einen anderen Pfad will, braucht rewrite-target auf /api/auth/session und nimmt
+#   diese Nebenwirkung in Kauf (beim md-editor ist sie auf Staging schon da);
+# - Host-Kopf unverändert durchreichen (Standard bei ingress-nginx): das Backend antwortet nur,
+#   wenn er der Host aus MCP_SESSION_URL ist;
+# - KEINE Cookie-Affinität (nginx.ingress.kubernetes.io/affinity), auch nicht aus der Vorlage des
+#   md-editors: ingress-nginx setzte sonst ein eigenes INGRESSCOOKIE mit längerem Pfad, der Browser
+#   schickte es vor dem des Repositorys, und die Prüfung landete auf dem falschen Repository-Knoten;
+# - Zugriffslog ohne $http_cookie (der Standard hat keins) — das Cookie ist eine Anmeldung;
+# - TLS: Das Secret muss im Namespace DIESES Charts liegen (oder cert-manager stellt es dort neu
+#   aus); das Secret des Repositorys im Namespace von edu-sharing ist hier nicht lesbar;
+# - Istio statt ingress-nginx: ein VirtualService mit exact-Match auf den Pfad am Gateway des
+#   Repository-Hosts, wie die Istio-Variante im Chart des md-editors.
+sessionIngress:
+  enabled: false
+  className: nginx                      # Ingress-Klasse des Clusters (wie beim Repository)
+  host: repository.example.org          # Host des Repositorys, so wie die Redaktion ihn aufruft
+  # Exact. Unter /edu-sharing und auf /auth/session endend (sonst lehnen Backend und Widget ab);
+  # nur dieser Pfad kommt ohne rewrite-target aus.
+  path: /edu-sharing/services/boerdi/auth/session
+  annotations: {}
+  tls: []                               # [{secretName: …, hosts: [repository.example.org]}]
 
 probes:
   # timeoutSeconds 3: die Datenbank-Probe hinter /ready hat selbst eine Frist von 2 s.

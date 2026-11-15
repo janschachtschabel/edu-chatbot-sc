@@ -4,10 +4,11 @@
  *
  * Der Fall: das Widget sitzt in einer Seite des Repositorys, und dort ist schon
  * jemand angemeldet. Der MCP-Server tauscht diese Sitzung gegen einen
- * gewöhnlichen Zugangsblock (`POST …/auth/session`). Sein Pfad ist dafür auf
- * dem Host des Repositorys eingehängt, denn nur dorthin schickt der Browser das
- * Sitzungs-Cookie. Das Cookie selbst sieht dieses Modul nie: es ist für
- * JavaScript nicht lesbar und muss es nicht sein.
+ * gewöhnlichen Zugangsblock. Der Pfad dafür liegt auf dem Host des Repositorys
+ * (nur dorthin schickt der Browser das Sitzungs-Cookie) und führt zu unserem
+ * Backend, das den Tausch weiterreicht (Plan SA-16) — oder, wenn der MCP dort
+ * eingehängt ist, direkt zu ihm; für dieses Modul ist beides gleich. Das Cookie
+ * selbst sieht es nie: es ist für JavaScript nicht lesbar.
  *
  * ⚠️ Security-relevant. Vier Regeln, jede mit ihrem Grund:
  *
@@ -230,7 +231,7 @@ export async function runSessionLogin(ctx: SessionLoginContext): Promise<Session
     try {
       data = await res.json();
     } catch {
-      // 200 ohne JSON: der Pfad ist am Repository nicht eingehängt, es antwortet mit einer Seite.
+      // 200 ohne JSON: der Pfad führt nicht zur Tauschstelle, das Repository antwortet mit einer Seite.
       return ende('unavailable');
     }
   } catch {

@@ -39,6 +39,7 @@ from boerdi.api import (
     rag,
     safety,
     sessions,
+    sitzung,
     speech,
     studio_bff,
     ui_ablage,
@@ -368,7 +369,9 @@ def create_app() -> FastAPI:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
-        if hsts:
+        # Nicht am Pfad auf dem Host des Repositorys (``sessionIngress``): dort gilt dessen
+        # eigene Regel, und unsere (ohne ``includeSubDomains``) ersetzte sie im Browser.
+        if hsts and request.url.path != sitzung.PFAD_AM_REPOSITORY:
             response.headers.setdefault("Strict-Transport-Security", hsts)
         return response
 
@@ -416,6 +419,10 @@ def create_app() -> FastAPI:
     app.include_router(ui_vorgaenge.public_router)
     # Plan 2026-11-07 (R2): Abmelden widerruft den Zugangsblock am MCP-Server.
     app.include_router(abmelden.public_router)
+    # Plan 2026-11-15 (SA-16): Sitzungs-Tausch über unser Backend (eigene Ingress-Regel am
+    # Repository-Host, ``sessionIngress``).
+    app.include_router(sitzung.public_router)
+    app.include_router(sitzung.repository_router)
     app.include_router(studio_bff.router)
     # Mount last: SpaFiles owns /studio, the BFF routes above must win.
     from boerdi.api.studio_static import mount_studio_spa

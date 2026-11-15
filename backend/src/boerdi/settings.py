@@ -278,9 +278,10 @@ class Settings(BaseSettings):
             "antwortet dann weiter mit 200 und der vollen Werkzeugliste."
         ),
     )
-    # Plan 2026-11-15 (Anmeldung aus der WLO-Sitzung): wo der MCP-Server die Sitzung einer
-    # Repository-Seite tauscht — sein ``/auth/session``, eingehängt auf dem Host des
-    # Repositorys. Das Widget geht den Weg nur auf Seiten derselben Herkunft. Leer = aus.
+    # Plan 2026-11-15 (Anmeldung aus der WLO-Sitzung, SA-16): die Adresse auf dem Host des
+    # Repositorys, die eine eigene Ingress-Regel (``sessionIngress``) auf dieses Backend leitet;
+    # ``api/sitzung`` reicht den Tausch an den MCP weiter. Das Widget geht den Weg nur auf Seiten
+    # derselben Herkunft. Leer = aus (die Route antwortet 404).
     mcp_session_url: str = Field(
         "",
         validation_alias=_env("MCP_SESSION_URL"),
