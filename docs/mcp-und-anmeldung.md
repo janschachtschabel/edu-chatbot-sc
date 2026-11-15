@@ -106,12 +106,10 @@ außen am MCP-Server als die Person handeln, solange die Sitzung im Repository l
   Funktion, die den Block liest. Das ist Hygiene und kein Schutz vor Skripten der Seite: Die
   beiden Wege darüber bleiben offen. Geprüft im Bau (`check-widget-huelle.mjs`) und im Browser
   (`e2e/embed.spec.ts`).
-- **Lebensdauer:** Der MCP-Server führt einen Block aus einer Sitzung unter einer Kennung, die
-  aus der Sitzung entsteht. Ist sie nicht mehr gelistet (widerrufen oder abgelaufen), trägt
-  der nächste Tausch derselben Sitzung sie wieder ein. „12 Stunden“ und „Abmelden widerruft“
-  gelten deshalb nur bis zum nächsten Tausch; ein früher abgegriffener Block gilt danach
-  wieder, bis die Sitzung endet. Wunsch an das MCP-Team: den
-  Ausstellzeitpunkt prüfen oder die Kennung je Tausch wechseln.
+- **Lebensdauer:** Ein Block aus einer Sitzung gilt höchstens 12 Stunden und nur für die
+  Eintragung, aus der er stammt. Der MCP-Server prüft den Zeitpunkt der Eintragung (seit
+  2026-11-15, auf unseren Wunsch). Nach einem Widerruf oder nach den 12 Stunden trägt der
+  nächste Tausch neu ein, und die Blöcke der alten Eintragung gelten nicht wieder.
 - **Was dagegen steht:** Der Weg gilt nur auf der Herkunft, die der Betrieb einträgt
   (`MCP_SESSION_URL`), und am MCP-Server nur für freigegebene Seiten. Der Block endet mit der
   Sitzung.

@@ -115,11 +115,10 @@ Ohne den Pfad bleibt der Weg aus; der Chatbot-Teil liegt dann still.
   - Ein Skript derselben Seite kann die Tauschstelle auch selbst rufen. Der Schutz liegt
     deshalb nicht im Versteck, sondern darin, wo der Weg gilt: nur auf der Herkunft, die der
     Betrieb einträgt, und am MCP nur für freigegebene Seiten.
-  - „12 Stunden“ und „Abmelden widerruft“ gelten nur bis zum nächsten Tausch derselben
-    Sitzung: Der MCP führt einen Block aus einer Sitzung unter einer Kennung, die aus der
-    Sitzung entsteht. Ist sie nicht mehr gelistet (widerrufen oder abgelaufen), trägt der
-    nächste Tausch sie wieder ein. Ein früher mitgenommener Block gilt dann wieder. Wunsch an
-    den MCP-Entwickler: den Ausstellzeitpunkt prüfen oder die Kennung je Tausch wechseln.
+  - Ein mitgenommener Block nützt höchstens bis zum Widerruf oder bis zum Ende der 12 Stunden.
+    Bis 2026-11-15 trug der nächste Tausch derselben Sitzung die alte Kennung wieder ein, und
+    ein früher mitgenommener Block galt wieder. Der MCP-Entwickler hat das auf unseren Wunsch
+    behoben: Der Block trägt den Zeitpunkt seiner Eintragung, und die Prüfung vergleicht ihn.
   - Der Weg gehört deshalb nur auf Seiten, deren Skripte der Betreiber verantwortet (das
     Repository selbst).
 - **Wechsel der Person ohne Neuladen.** Gelöst durch SA-13. Was bleibt:

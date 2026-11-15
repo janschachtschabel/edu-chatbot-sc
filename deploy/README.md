@@ -196,7 +196,7 @@ Ohne Valkey (`RATE_LIMIT_STORAGE_URI=memory://`) zählt jede Replik für sich �
 Replik oder Valkey betreiben. Wer Kopfzeilen fälscht, kann den Tausch für alle eine Minute lang
 aufhalten, aber nicht das Abmelden. Kapazität: 20 Tausche je Minute für die ganze Anlage. Eine
 echte Lösung braucht der MCP: ein eigenes Budget je weitergereichter Adresse für unseren
-Client-Schlüssel (Wunsch an das MCP-Team, `docs/mcp-antwort-2026-11-15-sitzung.md` §1a).
+Client-Schlüssel (Wunsch an das MCP-Team, `docs/mcp-antwort-2026-11-15-sitzung-2.md` §1a).
 
 Leer = aus (Vorgabe). Eine Adresse in anderer Form beendet den Start mit einer Meldung.
 Prüfen: `curl -s https://<PUBLIC_HOST>/api/config/guide-mode` nennt das Feld `mcp_session_url`.
