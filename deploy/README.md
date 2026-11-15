@@ -179,10 +179,11 @@ Drei Dinge müssen zusammenpassen, alle in unserer Hand außer Punkt 3:
 2. **Hier:** `MCP_SESSION_URL=https://<Repository-Host>/edu-sharing/services/boerdi/auth/session`.
    Eine geschlossene Anlage (`CORS_ALLOW_ALL=false`) nennt sie nur Seiten aus `CORS_ORIGINS`:
    der Repository-Host gehört dann in diese Liste. Ohne den Wert antwortet die Route 404.
-3. **Am MCP-Server** (MCP-Team, ab Version 1.3.0): `WLO_AUTH_PRIVATE_KEY`,
-   `WLO_SESSION_EXCHANGE=1` und unser Schlüssel in `TRUSTED_CLIENT_KEYS`; weicht die
-   Adresse des Repositorys im Browser von `WLO_REPOSITORY_URL` ab, dazu
-   `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster.
+3. **Am MCP-Server** (MCP-Team): `WLO_AUTH_PRIVATE_KEY` und `WLO_SESSION_EXCHANGE=1`; weicht
+   die Adresse des Repositorys im Browser von `WLO_REPOSITORY_URL` ab, dazu
+   `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster. Für mehr als 20
+   Tausche je Minute zusätzlich Version 1.3.0 und unser Schlüssel in `TRUSTED_CLIENT_KEYS`
+   (siehe Budget).
 
 Was das Backend dabei tut: nur `POST` mit JSON; `Origin` muss die Herkunft aus `MCP_SESSION_URL`
 sein; weitergereicht werden nur die Cookies `JSESSIONID` und `INGRESSCOOKIE`, dazu der
@@ -220,7 +221,9 @@ Valkey betreiben.
    Anlage. Prüfen: Nach einigen Tauschen von verschiedenen Anschlüssen nennt das Log des MCP
    verschiedene Adressen.
 
-Dann `MCP_SESSION_EXCHANGE_RPM=100`. Damit steigt auch die Grenze je Adresse auf 60 (eine
+Dann `MCP_SESSION_EXCHANGE_RPM=100`. Während eines Rolling-Updates zählen alte und neue
+Repliken getrennt (der Zähler hängt am Wert); kurz gehen also bis zu 20 + 100 je Minute durch.
+Damit steigt auch die Grenze je Adresse auf 60 (eine
 Schulklasse hinter einem Router). Warum nicht mehr: Das Protokoll-Budget des Schlüssels
 (3 × 360 = 1080 je Minute) zählt jeden POST an `/mcp`, und jeder Werkzeugaufruf des Chatbots
 kostet drei davon (eigene Sitzung je Aufruf). Bei 300 Werkzeugaufrufen je Minute

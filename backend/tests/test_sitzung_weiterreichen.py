@@ -373,14 +373,29 @@ def test_die_gesamtgrenze(monkeypatch, schluessel, wert, erwartet):
     assert sitzung_tausch.gesamtgrenze() == erwartet
 
 
-@pytest.mark.parametrize(("wert", "erwartet"), [(20, "10/minute"), (21, "60/minute")])
-def test_die_grenze_je_adresse_folgt_der_gesamtgrenze(monkeypatch, wert, erwartet):
+@pytest.mark.parametrize(("schluessel", "wert", "erwartet"), [
+    (True, 20, "10/minute"), (True, 21, "60/minute"),
+    # Ohne Schlüssel bleibt die Gesamtgrenze bei 20, also auch die Grenze je Adresse eng.
+    (False, 1000, "10/minute"),
+])
+def test_die_grenze_je_adresse_folgt_der_gesamtgrenze(monkeypatch, schluessel, wert, erwartet):
     # Ohne weite Grenze nimmt eine Adresse höchstens die Hälfte (Review SA-17).
     from boerdi.api.sitzung import grenze_je_adresse
 
-    _schluessel(monkeypatch)
+    if schluessel:
+        _schluessel(monkeypatch)
     _einstellen(monkeypatch, mcp_session_exchange_rpm=wert)
     assert grenze_je_adresse() == erwartet
+
+
+def test_ohne_schluessel_haelt_die_route_bei_20(client, monkeypatch):
+    # Ein hoher Wert ohne Client-Schlüssel landete beim MCP im Topf der Adresse des Backends.
+    # Grenze je Adresse abgeschaltet, damit nur die Gesamtgrenze greift.
+    _einstellen(monkeypatch, rate_limit_chat="off", mcp_session_exchange_rpm=200)
+    gesehen = _mcp(monkeypatch, _ok())
+    stati = [_tausch(client).status_code for _ in range(21)]
+    assert stati == [200] * 20 + [429]
+    assert len(gesehen) == 20
 
 
 def test_mit_schluessel_gilt_die_weite_gesamtgrenze_auch_ohne_drossel(client, monkeypatch):

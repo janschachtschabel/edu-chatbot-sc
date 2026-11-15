@@ -60,6 +60,7 @@ def grenze_je_adresse() -> str:
     weit = sitzung_tausch.gesamt_je_minute() > sitzung_tausch.OBERGRENZE_OHNE_SCHLUESSEL
     return GRENZE_JE_ADRESSE_WEIT if weit else GRENZE_JE_ADRESSE_ENG
 
+
 _KEIN_SPEICHER = {"Cache-Control": "no-store"}
 _NICHT_EINGERICHTET = {"error": "Die Übernahme einer WLO-Sitzung ist nicht eingerichtet."}
 

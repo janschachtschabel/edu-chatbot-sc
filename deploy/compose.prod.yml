@@ -232,6 +232,9 @@ services:
       MCP_SERVER_URL: ${MCP_SERVER_URL:-}
       # Plan 2026-11-15: Adresse des Sitzungs-Tauschs auf dem Host des Repositorys. Leer = aus.
       MCP_SESSION_URL: ${MCP_SESSION_URL:-}
+      # SA-17: Sitzungs-Tausche je Minute für die ganze Anlage (Vorgabe 20; über 20 erst nach
+      # dem MCP-Update, deploy/README.md). Leer = Vorgabe.
+      MCP_SESSION_EXCHANGE_RPM: ${MCP_SESSION_EXCHANGE_RPM:-}
       MCP_CALL_TIMEOUT_S: ${MCP_CALL_TIMEOUT_S:-}
       MCP_TOOL_CACHE_MAX_CHARS: ${MCP_TOOL_CACHE_MAX_CHARS:-}
       MCP_TOOL_CACHE_MAX_ENTRY_CHARS: ${MCP_TOOL_CACHE_MAX_ENTRY_CHARS:-}

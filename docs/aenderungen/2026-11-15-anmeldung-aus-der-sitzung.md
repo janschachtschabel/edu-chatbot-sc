@@ -41,7 +41,8 @@ auch den Block, der danach noch zurückkommt. Bisher warf es ihn nur lokal weg.
 
 ## Nachtrag: der Tausch läuft über unser Backend (SA-16)
 
-> Die Zahlen zum Budget in diesem Nachtrag sind durch SA-17 (unten) überholt.
+> Die Zahlen zum Budget in diesem Nachtrag sind durch SA-17 (unten) überholt, ebenso „keine
+> neue Umgebungsvariable“: SA-17 bringt `MCP_SESSION_EXCHANGE_RPM`.
 
 Abgleich mit dem md-editor: Er braucht für seine Anmeldung aus der Sitzung ebenfalls einen Pfad
 unter `/edu-sharing` auf dem Repository-Host und legt ihn mit einem eigenen Ingress-Objekt aus

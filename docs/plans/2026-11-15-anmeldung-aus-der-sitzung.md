@@ -102,7 +102,8 @@ Ingress-Regel im Cluster zeigt dorthin nicht ohne Weiteres). Das Widget ändert 
     der MCP alle Personen als eine Adresse.
 - **Preis:** Das Cookie läuft im Transit durch unser Backend, wie beim Server des md-editors. Es
   wird weder gespeichert noch protokolliert.
-- **Keine neue Umgebungsvariable.** Die Route gilt, sobald `MCP_SESSION_URL` gesetzt ist.
+- **Keine neue Umgebungsvariable für SA-16.** Die Route gilt, sobald `MCP_SESSION_URL` gesetzt
+  ist. SA-17 bringt `MCP_SESSION_EXCHANGE_RPM` (siehe Budget oben).
 - **Alternative bleibt möglich:** Läuft der MCP eines Tages im Cluster des Repositorys, kann
   `MCP_SESSION_URL` auch direkt auf seinen eingehängten Pfad zeigen (`WLO_SESSION_MOUNT_PATH`
   am MCP); das Widget merkt keinen Unterschied.

@@ -297,7 +297,8 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
       (`ingress.basePath`), läuft so auf Staging. An edu-sharing und dessen Ingress ändert sich nichts.
     - Am MCP-Server `WLO_SESSION_EXCHANGE=1` und, wenn die Adresse im Browser von `WLO_REPOSITORY_URL`
       abweicht, `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster; das Backend ruft ihn
-      server-zu-server. Ab MCP 1.3.0 zahlen die Tausche mit unserem Schlüssel aus dessen Budget.
+      server-zu-server. Ab MCP 1.3.0 zahlen die Tausche aus dem Budget unseres Schlüssels, wenn der MCP ihn in
+      `TRUSTED_CLIENT_KEYS` führt; sonst aus dem Topf der Adresse des Backends.
     - Bei `CORS_ALLOW_ALL=false` gehört der Repository-Host in `CORS_ORIGINS`, sonst nennt das Backend dem
       Widget die Adresse nicht.
     - Eine Adresse in anderer Form beendet den Start. Kein Geheimnis.
