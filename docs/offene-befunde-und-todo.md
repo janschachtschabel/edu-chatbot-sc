@@ -372,14 +372,13 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     Sitzung im Browser (Knopf zeigt den Namen, Schreiben mit Zustimmung), Abmelden im
     Repository (das Widget tauscht neu und arbeitet ohne Anmeldung weiter), Abmelden im Chat
     (kein Tausch nach dem Neuladen). Bisher nur ohne Anmeldung am lokalen MCP gemessen.
-  - **Offen beim MCP-Entwickler** (Folge-Antwort `mcp-antwort-2026-11-15-sitzung-2.md` §1):
-    (a) `WLO_SESSION_EXCHANGE=1` an seinem Staging-Server, ohne Chart und ohne Mount-Pfad; er
-    nahm an, Weg B brauche den MCP im Cluster, das ist mit unserem Weiterreicher nicht nötig;
-    (b) ein Budget je weitergereichter Adresse für unseren Client-Schlüssel (an `/auth*` zählt
-    heute nur die Adresse), noch unbeantwortet; (c) die Bindung an die Eintragung auch für
-    Ticket-Blöcke (unser Wunsch, nicht eilig). Erledigt am 2026-11-15: Ein alter Sitzungs-Block
-    gilt nach einem neuen Tausch nicht wieder, und die Frage zu `/auth/status` ist beantwortet
-    (unser Backend passt schon).
+  - **Beim MCP gebaut (Version 1.3.0, 2026-11-15), auf Staging noch nicht eingespielt:**
+    Budget je weitergereichter Adresse für unseren Client-Schlüssel, Bindung an die Eintragung
+    für Sitzungs- und Ticket-Blöcke. Das MCP-Team spielt 1.3.0 mit `WLO_SESSION_EXCHANGE=1` und
+    unserem Schlüssel in `TRUSTED_CLIENT_KEYS` auf Staging ein und meldet sich; danach unser
+    Test im Browser. Danach `MCP_SESSION_EXCHANGE_RPM=100` (SA-17, Vorgabe 20), wenn die
+    Adresse der Person beim MCP ankommt (Frage zum Traefik vor dem MCP und zur Rechnung des
+    Protokoll-Budgets: `mcp-antwort-2026-11-15-sitzung-3.md`).
   - **Ohne diesen Pfad bleibt der Weg aus.** Der Chatbot-Teil liegt dann still (ohne
     `MCP_SESSION_URL` keine Anfrage). Was ohne Pfad am Repository-Host schon geht: das Ticket
     der Seite (Weg A) und das Schreiben im Browser mit der Sitzung (vorbereitete Änderung, eine
