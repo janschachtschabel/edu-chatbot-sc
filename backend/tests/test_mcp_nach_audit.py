@@ -65,10 +65,13 @@ def test_neue_ablehnungen_nennen_ihren_grund_mit_eigenem_satz(code, schluessel, 
 @pytest.mark.parametrize("code", ["upstream_error", "suggestion_not_marked", "ganz_neu"])
 def test_andere_codes_zeigen_weiter_keinen_servertext(code):
     """``upstream_error`` trägt Text des Repositoriums; ``suggestion_not_marked`` kommt nur nach
-    der Einlösung (neu vorgelegt oder „bitte nachsehen“) und braucht hier keinen Satz."""
+    der Einlösung (mit offenem Ausgang „bitte nachsehen“) und braucht hier keinen Satz."""
     antwort = McpAntwort(f"MCP error [{code}]: Interna", "tool", code,
                          {"code": code, "message": "Interna"})
-    assert abgelehnt_text("de", antwort) == bot_text("de", "write.executeRejected")
+    text = abgelehnt_text("de", antwort)
+    assert text.startswith(bot_text("de", "write.executeRejected")) and "Interna" not in text
+    # MR (2026-11-15): ``upstream_error`` hat einen EIGENEN Satz — „ließ sich nicht prüfen“.
+    assert (text == bot_text("de", "write.executeRejected")) == (code != "upstream_error")
 
 
 @pytest.fixture

@@ -27,7 +27,7 @@ def parse_content_text(mcp_text: str) -> dict[str, Any]:
          "source": "repository" | "external-extraction" | "none",
          "sourceUrl": str | null, "charCount": 4200, "truncated": false,
          "reason": "access_denied" | "no_text_no_url" | "extraction_failed"
-                   | "node_not_found"}          # nur wenn kein Text da ist
+                   | "node_not_found" | "text_unreadable"}   # nur wenn kein Text da ist
 
     Rückgabe (Boerdi-Namen)::
 

@@ -38,7 +38,9 @@ _M16_REASONS_NO_TOPIC_PAGE = frozenset({"no_page_config_ref", "node_not_found"})
 #: Ablehnung (``tool``: ungültige Eingabe, unbekanntes Werkzeug; ``auth``) ist keiner — „noch
 #: einmal versuchen“ hülfe dort nicht (Reviews C1: Positivliste statt Sperrliste).
 _M16_AUSFALL_ARTEN = frozenset({"transport", "timeout", "busy"})
-_M16_AUSFALL_CODES = ("[upstream_error]", "[upstream_unreachable]")
+#: ``internal_error`` (MCP-Stand 14.11.2026): ein Fehler im Server selbst — vorher kam er als
+#: ``upstream_error``. Über die Themenseite sagt er so wenig wie ein Ausfall.
+_M16_AUSFALL_CODES = ("[upstream_error]", "[upstream_unreachable]", "[internal_error]")
 
 
 def _m16_ist_ausfall(roh: str, art: str) -> bool:

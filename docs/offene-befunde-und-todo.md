@@ -346,6 +346,32 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **MCP-Antwort, zweite Runde (2026-11-15):** Der Chatbot ist an den MCP-Stand vom 14.11.
+  abends angepasst (MR-1 bis MR-4: Ablehnung des Repositorys nach dem Ja, neue Ausfall-Gründe
+  beim Lesen, Grenz-Hinweise für die KI, Ablage). Plan `plans/2026-11-15-mcp-antwort-runde-2.md`,
+  Notiz `aenderungen/2026-11-15-mcp-antwort-runde-2.md`, Antwort an den Entwickler
+  `mcp-antwort-2026-11-15.md`. Keine Migration, kein `import-config`.
+  - **Offen, nach dem MCP-Deploy im Chat prüfen:** jeder Schreibweg mit Anmeldung (Ablehnung
+    mit Grund statt neuer Vorschau; Sammlung anlegen ohne Recht); ob die KI die Hinweiszeile
+    vor Fremdtext („ungeprüfter Inhalt …“) in einen Volltext oder ein Material übernimmt.
+  - **Offen bei uns:** Im Ablauf zählt ein Plan-Eintrag mit offenem Ausgang wie „sicher nicht
+    geschehen“ (`freigabe_ergebnis`). Das Upload-Widget versucht den Abschluss nach „später
+    noch einmal“ nicht erneut. Der Lizenz-Hinweis der Suche („ⓘ …“) geht im Muster-Weg am
+    Deckel verloren.
+  - **Beim Entwickler:** An Staging meldet sein Stand jede Inhaltssuche als unvollständig.
+    Zwei Stellen, an denen sein Code nicht passt: ein abgelehnter Volltext-Upload kommt als
+    `upstream_error`, und `not_checked` beim Herausnehmen ist bei großen Sammlungen dauerhaft.
+    Wunsch nach einem Feld für „das Repository hat abgelehnt“ statt des Wortlauts „HTTP 400“.
+  - **Regel seit MR-1:** Von selbst neu vorgelegt wird nur, wenn der Schlüssel nicht mehr gilt.
+    Wer das ändern will, liest erst ME-1 im Plan: „WLO blieb ohne Urteil, also neu vorlegen“
+    lief zweimal in eine Schleife.
+  - **Zugesagt (Rückinfo 15.11.), bei ihm in Arbeit:** S11 (dritter Wert `position` an `order`,
+    „gesetzte Position, sonst Titel“, dazu ein Merkmal je Knoten, ob Positionen gesetzt sind),
+    S12 (schnellere Inhaltszahlen der Baumliste, nur wenn eine Messung einen Weg zeigt), S13
+    (die Kennungen aller nicht gelesenen Eltern im Kopf der Antwort). **Danach bei uns (SW-5):**
+    das Themenbaum-Modul mit `order: "position"` lesen, wenn der Server den Wert führt (SE-4);
+    im Strukturabgleich einen gemeldeten Ausfall wieder auf den betroffenen Zweig begrenzen
+    (heute: jeder neue Punkt „nicht gefunden“). Erst bauen, wenn sein Stand fertig ist.
 - **Werkzeuge für Sammlungsstrukturen (2026-11-14):** Wünsche S1 bis S10 in
   `mcp-werkzeug-wuensche-2026-11-14.md`; der MCP-Entwickler hat neun davon gebaut (nicht
   bereitgestellt). Plan `plans/2026-11-14-sammlungsstruktur-werkzeuge.md` (SW-1 bis SW-4).
@@ -662,6 +688,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Widget: `projects/ui/src/session/anmelde-frist.spec.ts` („steht nach dem Abmelden …“) sah im
     vollen `ng test ui` einmal einen Abmelde-Merker aus einer anderen Spec; allein und im nächsten
     vollen Lauf grün. Fester machen: den Merker im `beforeEach` löschen.
+  - `tests/test_loadtest_anfragen.py::test_die_werkzeugzeit_kommt_vom_echten_erzeuger` (gesehen
+    2026-11-15 im vollen Lauf, allein grün): erwartet nach zweimal `asyncio.sleep(0.01)`
+    mindestens 20 ms und maß 15. Die Uhr von Windows tickt in Schritten von rund 15,6 ms. Fester
+    machen: länger schlafen oder die Schwelle senken.
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
   - Paket 6 hat geteilt: `services/rag/ingest.py` (→ `umwandeln.py`), Studio `schema-form/schema-form.scss` (Teildateien je Baustein, CSS byte-gleich), `views/curated-views.ts` und `i18n/catalogue/curated.ts` (nach Seitengruppen), `i18n/catalogue/area-editor.ts` (`groupSection.*` eigener Teil), `views/eval-run-detail.component.ts` (Gold-Zug-Tabelle als `eval-gold-turns`) und `schema-form/schema-field.component.ts` (Listen- und Map-Regeln in `list-items.ts`, `map-entries.ts`; die Vorlage steht mit 300 an der Grenze). Dabei vor dem Überschreiten bewahrt: `api/config_guards.py` (Fehler-Antworten nach `api/config_antworten.py`), `api/rag.py` (`api/rag_umwandlung.py`), `api/config.py` (Löschen nach `api/config_documents.py`), `views/group-section.component.ts` (`group-documents.ts`, `feld-reiter.ts`).
   - Paket 7: `graph/nodes/respond_agent.py` (537; Paket B und E-C, überwiegend Begründungs-Kommentar; Review B-3 +3), `services/response_prompt_builder.py` (324; P4 +6, E-E +6, Review B-5 +2), `services/classify_prompt.py` (315; vorher 330), `services/tool_loop_messages.py` (373, Fidelity-Port; D, E-E, T1, Review B-5 +4), `services/page_context.py` (815; vorher 972 — der tote Regel-Zweig ist weg), Widget `shell/lifecycle.ts` (326; vorher 302, T2 und Review C-5 — die Kontext-Ping-Abläufe wären ein eigener Baustein, ein Backend-Test liest aber `PING_COVERS_BACKEND_KINDS` aus genau dieser Datei).

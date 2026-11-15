@@ -141,8 +141,10 @@ async def test_requires_new_preview_mit_ausdruecklich_nichts_geschehen_legt_neu_
         _rand, monkeypatch):  # noqa: F811
     neu = "NeuerSchluessel-0123456789ab"
     mcp = _Antworten(
-        McpAntwort("MCP error [refused]: belegt", "tool", "refused",
-                   {"code": "refused", "requiresNewPreview": True, "outcomeOpen": False}),
+        # MR-1 (2026-11-15): nur noch, wenn der Schlüssel nicht galt — ``refused`` trägt seit
+        # dem MCP-Stand vom 14.11. jede Ablehnung nach dem Ja (``test_mcp_antwort_runde2``).
+        McpAntwort("MCP error [confirm_mismatch]: andere Angaben", "tool", "confirm_mismatch",
+                   {"code": "confirm_mismatch", "outcomeOpen": False}),
         McpAntwort(f"Bitte prüfen:\n\nTitel: Neu\n\nconfirmToken: {neu}",
                    strukturiert={"confirm": {"token": neu}}))
     monkeypatch.setattr(wa_mod, "call_mcp_tool_antwort", mcp)
@@ -205,16 +207,17 @@ async def test_eine_dublette_nach_der_einloesung_wird_nicht_neu_vorgelegt(
 
 
 @pytest.mark.asyncio
-async def test_nichts_gespeichert_nach_der_einloesung_legt_neu_vor(_rand, monkeypatch):  # noqa: F811
-    neu = "NeuerSchluessel-0123456789ab"
+async def test_nichts_gespeichert_nach_der_einloesung_ist_eine_ablehnung(_rand, monkeypatch):  # noqa: F811
+    """MR-1 (2026-11-15, Review): ``not_stored`` mit ``outcomeOpen: false`` ist ein Urteil — das
+    Repository hat angenommen und nichts gespeichert, meist fehlt das Recht. Vorher: neue
+    Vorschau, bei jedem Ja wieder."""
     mcp = _Antworten(
         McpAntwort("MCP error [not_stored]: nichts angekommen", "tool", "not_stored",
-                   {"code": "not_stored", "requiresNewPreview": True, "outcomeOpen": False}),
-        McpAntwort(f"Bitte prüfen:\n\nTitel: Neu\n\nconfirmToken: {neu}",
-                   strukturiert={"confirm": {"token": neu}}))
+                   {"code": "not_stored", "requiresNewPreview": True, "outcomeOpen": False}))
     monkeypatch.setattr(wa_mod, "call_mcp_tool_antwort", mcp)
     antwort = await redeem_write_approval(_SESSION, _req(), _zustand())
-    assert bot_text("de", "write.confirmRenewed") in antwort.content
+    assert len(mcp.calls) == 1
+    assert bot_text("de", "write.grund.notStored") in antwort.content
 
 
 def test_ausgelastet_nach_der_einloesung_heisst_offen(mcp_state, monkeypatch):  # noqa: F811

@@ -58,8 +58,7 @@ DEFINITION: Final[dict[str, Any]] = {
                 "collection": {"type": "string",
                                "description": "Titel der Start-Sammlung statt ihrer nodeId, z.B. "
                                               "'Optik'. Er muss genau stimmen; bei mehreren "
-                                              "gleichnamigen kommen Kandidaten zurueck. Ein "
-                                              "Fachportal besser ueber seine nodeId."},
+                                              "gleichnamigen kommen Kandidaten zurueck."},
                 "discipline": {"type": "string",
                                "description": "Nur mit collection: Fach, um gleichnamige "
                                               "Sammlungen zu unterscheiden."},

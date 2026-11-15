@@ -155,7 +155,11 @@ async def test_interna_des_servers_erreichen_die_person_nicht(_rand, monkeypatch
     mcp = _Antworten(_abgelehnt(code, "Repository: InvalidTypeException at x.y"))
     monkeypatch.setattr(wa_mod, "call_mcp_tool_antwort", mcp)
     antwort = await redeem_write_approval(_SESSION, _req(), _zustand())
-    assert antwort.content == bot_text("de", "write.executeRejected")
+    # MR-1 (2026-11-15): ``forbidden`` hat einen eigenen Satz — der Text des Repositoriums
+    # bleibt draußen.
+    assert antwort.content.startswith(bot_text("de", "write.executeRejected"))
+    assert "InvalidTypeException" not in antwort.content
+    assert (bot_text("de", "write.grund.forbidden") in antwort.content) == (code == "forbidden")
 
 
 @pytest.mark.asyncio

@@ -82,6 +82,10 @@ BOT_TEXT: Final[Catalogue] = {
             "Die Antwort der Materialsuche kam in einer Form, die ich nicht lesen "
             "konnte. Ich zeige den Inhalt lieber gar nicht als halb geraten."
         ),
+        "content.reason.textUnreadable": (
+            "Der Text dieses Materials ließ sich gerade nicht lesen — WLO hat nicht "
+            "geantwortet. Versuch es bitte gleich noch einmal."
+        ),
         "content.reason.unknown": "Den Volltext dieses Materials konnte ich nicht laden.",
         "content.source": "Quelle: {url}",
         "content.lead": "Hier ist der Inhalt von „{title}“.",
@@ -565,6 +569,17 @@ BOT_TEXT: Final[Catalogue] = {
         "write.grund.noPendingProposal": (
             "Zu diesem Material gibt es keinen offenen Vorschlag an diese Sammlung."),
         "write.grund.noChange": "Es gibt nichts zu ändern: Der gewünschte Stand besteht schon.",
+        # MR-1 (MCP-Stand 14.11.2026): Ablehnungen des Repositorys — der Satz statt dessen Text
+        "write.grund.forbidden": "Dafür fehlt dieser Anmeldung in WLO das Recht.",
+        "write.grund.notInCollection": "Das Material liegt nicht in dieser Sammlung.",
+        "write.grund.notFound": (
+            "WLO findet das Ziel nicht (mehr) — vielleicht wurde es verschoben oder gelöscht."),
+        "write.grund.notChecked": (
+            "WLO ließ sich dazu gerade nicht prüfen. Bitte mich gleich noch einmal darum."),
+        "write.grund.refusedByWlo": "WLO hat die Anfrage so nicht angenommen.",
+        "write.grund.notStored": (
+            "WLO hat die Anfrage angenommen, aber nichts gespeichert — meist fehlt dieser "
+            "Anmeldung das Recht dazu."),
         "write.proposalNotMarked": (
             "Das Material liegt jetzt in der Sammlung. Ob der Vorschlag als angenommen markiert "
             "ist, steht nicht fest; er kann noch als offen erscheinen. Bitte nicht noch einmal "
@@ -578,6 +593,15 @@ BOT_TEXT: Final[Catalogue] = {
             "Der Datensatz ist angelegt, aber ein Schritt danach ist nicht bestätigt "
             "zurückgekommen — zum Beispiel die Datei oder einzelne Angaben. Lege ihn bitte nicht "
             "noch einmal an. Sieh in WLO nach, was fehlt; dann trage ich es nach."),
+        # MR-1: dasselbe für eine Sammlung (``wlo_create_collection``)
+        "write.collectionExists": (
+            "Die Sammlung ist angelegt ({kennung}), aber die Bestätigung dazu ist nicht "
+            "zurückgekommen. Lege sie bitte nicht noch einmal an. Sieh in WLO nach, ob Titel "
+            "und Beschreibung stimmen; sonst trage ich es nach."),
+        "write.collectionExistsOhneKennung": (
+            "Die Sammlung ist angelegt, aber die Bestätigung dazu ist nicht zurückgekommen. "
+            "Lege sie bitte nicht noch einmal an. Sieh in WLO nach, ob Titel und Beschreibung "
+            "stimmen; sonst trage ich es nach."),
         "write.executeUnconfirmed": (
             "Die Änderung ist nicht bestätigt zurückgekommen — ob sie "
             "angekommen ist, kann ich von hier aus nicht sagen. Sieh bitte in "
@@ -705,6 +729,10 @@ BOT_TEXT: Final[Catalogue] = {
         "content.reason.noEnvelope": (
             "The material search answered in a shape I could not read. I would "
             "rather show nothing than half a guess."
+        ),
+        "content.reason.textUnreadable": (
+            "The text of this material could not be read just now — WLO did not answer. "
+            "Please try again in a moment."
         ),
         "content.reason.unknown": "I could not load the full text of this material.",
         "content.source": "Source: {url}",
@@ -1083,6 +1111,16 @@ BOT_TEXT: Final[Catalogue] = {
         "write.grund.noPendingProposal": (
             "There is no open proposal for this item in this collection."),
         "write.grund.noChange": "There is nothing to change: it is already as requested.",
+        "write.grund.forbidden": "This sign-in does not have the permission for that in WLO.",
+        "write.grund.notInCollection": "The item is not in this collection.",
+        "write.grund.notFound": (
+            "WLO cannot find the target (any more) — it may have been moved or deleted."),
+        "write.grund.notChecked": (
+            "WLO could not be checked for this right now. Please ask me again in a moment."),
+        "write.grund.refusedByWlo": "WLO did not accept the request as it is.",
+        "write.grund.notStored": (
+            "WLO accepted the request but stored nothing — usually this sign-in lacks the "
+            "permission for it."),
         "write.proposalNotMarked": (
             "The item is now in the collection. Whether the proposal is marked as accepted is "
             "not certain; it may still show as open. Please do not accept it again."),
@@ -1094,6 +1132,14 @@ BOT_TEXT: Final[Catalogue] = {
             "The record has been created, but a step after that did not come back confirmed — "
             "for example the file or some of the details. Please do not create it again. Check "
             "in WLO what is missing; then I will add it."),
+        "write.collectionExists": (
+            "The collection has been created ({kennung}), but its confirmation did not come "
+            "back. Please do not create it again. Check in WLO whether title and description "
+            "are right; otherwise I will add them."),
+        "write.collectionExistsOhneKennung": (
+            "The collection has been created, but its confirmation did not come back. Please "
+            "do not create it again. Check in WLO whether title and description are right; "
+            "otherwise I will add them."),
         "write.executeUnconfirmed": (
             "The change did not come back confirmed — from here I cannot tell "
             "whether it went through. Please check in WLO before trying again, "
