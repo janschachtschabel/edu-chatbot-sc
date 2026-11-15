@@ -142,7 +142,7 @@ Seit dem MCP-Stand vom 07.11.2026 zählt der MCP-Server je Minute nur Werkzeugau
 Mit `X-WLO-Client-Key` bekommt ein vertrauter Client ein eigenes Budget statt des Budgets seiner Adresse.
 
 ```bash
-MCP_CLIENT_KEY=…        # Geheimnis, ≥ 32 Zeichen, mit dem MCP-Team getauscht (boerdi:360:<schlüssel>)
+MCP_CLIENT_KEY=…        # Geheimnis, ≥ 32 Zeichen, mit dem MCP-Team getauscht (boerdi:500:<schlüssel>)
 MCP_BUDGET_RPM=300      # ohne Client-Schlüssel 280 (Adress-Budget des Servers: 300)
 ```
 
@@ -179,9 +179,11 @@ Drei Dinge müssen zusammenpassen, alle in unserer Hand außer Punkt 3:
 2. **Hier:** `MCP_SESSION_URL=https://<Repository-Host>/edu-sharing/services/boerdi/auth/session`.
    Eine geschlossene Anlage (`CORS_ALLOW_ALL=false`) nennt sie nur Seiten aus `CORS_ORIGINS`:
    der Repository-Host gehört dann in diese Liste. Ohne den Wert antwortet die Route 404.
-3. **Am MCP-Server** (MCP-Team): `WLO_AUTH_PRIVATE_KEY` und `WLO_SESSION_EXCHANGE=1`; weicht die
-   Adresse des Repositorys im Browser von `WLO_REPOSITORY_URL` ab, dazu
-   `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster.
+3. **Am MCP-Server** (MCP-Team): `WLO_AUTH_PRIVATE_KEY` und `WLO_SESSION_EXCHANGE=1`; weicht
+   die Adresse des Repositorys im Browser von `WLO_REPOSITORY_URL` ab, dazu
+   `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster. Für mehr als 20
+   Tausche je Minute zusätzlich Version 1.4.0 und unser Schlüssel in `TRUSTED_CLIENT_KEYS`
+   (siehe Budget).
 
 Was das Backend dabei tut: nur `POST` mit JSON; `Origin` muss die Herkunft aus `MCP_SESSION_URL`
 sein; weitergereicht werden nur die Cookies `JSESSIONID` und `INGRESSCOOKIE`, dazu der
@@ -189,14 +191,45 @@ Client-Schlüssel; zurück gehen nur die Felder der Tauschstelle. Nichts davon l
 Die Route antwortet nur, wenn `Host` der Host aus `MCP_SESSION_URL` ist, also nicht über den
 Host des Chats.
 
-**Budget — vor dem Einschalten für viele Personen klären.** Beim MCP zählen alle Tausche auf die
-Adresse des Backends, im selben Topf wie das Abmelden (`API_RATE_LIMIT_RPM`, Vorgabe 30 je
-Minute; dazu 200 verschiedene Sitzungen in 10 Minuten). Das Backend schützt den Topf mit 10 Tausche je Minute und Adresse (für beide Pfade gemeinsam) und 20 je Minute für die ganze Anlage, gezählt im gemeinsamen Speicher der Drossel (im Cluster Valkey, also über alle Repliken).
-Ohne Valkey (`RATE_LIMIT_STORAGE_URI=memory://`) zählt jede Replik für sich — dann mit einer
-Replik oder Valkey betreiben. Wer Kopfzeilen fälscht, kann den Tausch für alle eine Minute lang
-aufhalten, aber nicht das Abmelden. Kapazität: 20 Tausche je Minute für die ganze Anlage. Eine
-echte Lösung braucht der MCP: ein eigenes Budget je weitergereichter Adresse für unseren
-Client-Schlüssel (Wunsch an das MCP-Team, `docs/mcp-antwort-2026-11-15-sitzung-2.md` §1a).
+**Budget.** Ab MCP 1.4.0 (Budget seit 1.3.0, Adresse der Person seit 1.4.0) gibt der MCP
+unserem Weiterreicher ein eigenes Budget, wenn das Backend
+seinen Client-Schlüssel schickt (`MCP_CLIENT_KEY`; am MCP `boerdi:500:<schlüssel>` in
+`TRUSTED_CLIENT_KEYS`):
+
+- Tausch und Abmelden zahlen dann aus dem Protokoll-Budget des Schlüssels (3 × 500 = 1500 je
+  Minute, geteilt mit den Werkzeugaufrufen und `/auth/status`).
+- Den Schutz vor vielen Sitzungen (200 verschiedene in 10 Minuten) zählt der MCP je Adresse,
+  die das Backend für die Person nennt. Das Backend schickt sie in `X-WLO-Client-Address`
+  (eine IP, nur mit gültigem Schlüssel gelesen, Vorrang) und zusätzlich als einzigen Eintrag in
+  `X-Forwarded-For`. Die eigene Kopfzeile fasst kein Proxy an; `X-Forwarded-For` wirft ein
+  Traefik vor dem MCP ab Werk weg.
+
+Das Backend begrenzt die Tausche für die ganze Anlage mit `MCP_SESSION_EXCHANGE_RPM` (Vorgabe
+20 je Minute) und je Adresse (beide Pfade gemeinsam) mit 10 je Minute. Gezählt wird im
+gemeinsamen Speicher der Drossel (im Cluster Valkey, also über alle Repliken). Ohne Valkey
+(`RATE_LIMIT_STORAGE_URI=memory://`) zählt jede Replik für sich — dann mit einer Replik oder
+Valkey betreiben.
+
+**Mehr als 20 je Minute** (Schulklassen) erst, wenn alles davon stimmt:
+
+1. Der MCP-Server läuft ab Version 1.4.0 und führt unseren Schlüssel in `TRUSTED_CLIENT_KEYS`.
+   Ob er ihn kennt, sieht das Backend nicht. Fehlt er dort, landen alle Tausche wieder im Topf
+   der Adresse des Backends (30 je Minute, geteilt mit dem Abmelden), und das Abmelden scheitert
+   mit 429.
+2. `MCP_CLIENT_KEY` ist am Chatbot gesetzt. Ohne ihn gilt höchstens 20, gleich was eingetragen ist.
+3. Die Adresse der Person kommt beim MCP an. Sonst zählt der MCP alle Personen als eine
+   Adresse: 200 verschiedene Sitzungen in 10 Minuten für die ganze Anlage. Prüfen nach einigen
+   Tauschen von verschiedenen Anschlüssen im Log des MCP: Die Zeilen
+   `session exchanged for an access block` tragen im Feld `ip` verschiedene Pseudonyme, und die
+   Warnung `named no usable address` steht nicht da.
+
+Dann `MCP_SESSION_EXCHANGE_RPM=200` (bei rpm 360 für den Schlüssel: 100). Während eines
+Rolling-Updates zählen alte und neue Repliken getrennt (der Zähler hängt am Wert); kurz gehen
+also bis zu 20 + 200 je Minute durch. Damit steigt auch die Grenze je Adresse auf 60 (eine
+Schulklasse hinter einem Router). Die Rechnung: Das Protokoll-Budget des Schlüssels zählt jeden
+POST an `/mcp`, und jeder Werkzeugaufruf des Chatbots kostet drei davon (eigene Sitzung je
+Aufruf). Bei 300 Werkzeugaufrufen je Minute (`MCP_BUDGET_RPM`) bleiben bei rpm 500 von 1500
+rund 600 für Tausch, Abmelden und Status, bei rpm 360 von 1080 nur rund 180.
 
 Leer = aus (Vorgabe). Eine Adresse in anderer Form beendet den Start mit einer Meldung.
 Prüfen: `curl -s https://<PUBLIC_HOST>/api/config/guide-mode` nennt das Feld `mcp_session_url`.

@@ -41,6 +41,9 @@ auch den Block, der danach noch zurückkommt. Bisher warf es ihn nur lokal weg.
 
 ## Nachtrag: der Tausch läuft über unser Backend (SA-16)
 
+> Die Zahlen zum Budget in diesem Nachtrag sind durch SA-17 (unten) überholt, ebenso „keine
+> neue Umgebungsvariable“: SA-17 bringt `MCP_SESSION_EXCHANGE_RPM`.
+
 Abgleich mit dem md-editor: Er braucht für seine Anmeldung aus der Sitzung ebenfalls einen Pfad
 unter `/edu-sharing` auf dem Repository-Host und legt ihn mit einem eigenen Ingress-Objekt aus
 seinem Chart an (`ingress.basePath`, läuft so auf Staging). Ohne einen solchen Pfad geht es
@@ -64,6 +67,58 @@ Damit wir den Weg selbst steuern und der MCP bleiben kann, wo er ist:
   Minute für die ganze Anlage (gemeinsamer Speicher der Drossel); wer Kopfzeilen fälscht, kann
   den Tausch trotzdem für alle kurz aufhalten, das Abmelden nicht. Die echte Lösung (Budget je weitergereichter Adresse) liegt beim MCP: Bedingung
   für den Betrieb mit vielen Personen.
+
+## Nachtrag: Budget am MCP 1.3.0 (SA-17)
+
+> Überholt durch SA-18 (oben): rpm 500 statt 360, Empfehlung 200 statt 100, die Adresse geht in
+> der eigenen Kopfzeile `X-WLO-Client-Address` statt über Traefik. Die Punkte unten zu 100,
+> `trustedIPs` und `X-Forwarded-For` gelten nicht mehr.
+
+Der MCP-Entwickler hat unser Budget gebaut (Version 1.3.0, zweite Antwort vom selben Tag). Mit
+einem vertrauten Client-Schlüssel zahlen Tausch und Abmelden aus dessen Protokoll-Budget. Den
+Schutz vor vielen Sitzungen zählt der MCP je Adresse, die wir für die Person nennen.
+
+- **Neue Einstellung `MCP_SESSION_EXCHANGE_RPM`** (Vorgabe 20, 1 bis 1000): Tausche je Minute
+  für die ganze Anlage. Ohne `MCP_CLIENT_KEY` gilt höchstens 20. Der Betrieb setzt sie erst
+  nach dem MCP-Update hoch (Empfehlung 100): Das Backend sieht nicht, ob der MCP den Schlüssel
+  kennt, und `MCP_CLIENT_KEY` ist schon gesetzt. Eine Automatik hätte vor dem Update das
+  Abmelden ausgehungert (Review).
+- **Je Adresse:** 10 je Minute, bei einer Gesamtgrenze über 20 dann 60 (Schulklasse hinter
+  einem Router, wie die Chat-Drossel seit Paket 18F). Eine Adresse nimmt der engen
+  Gesamtgrenze so höchstens die Hälfte.
+- **Warum 100, nicht 200:** Jeder Werkzeugaufruf kostet am Protokoll-Budget des MCP drei POSTs
+  (eigene Sitzung je Aufruf). Bei 300 Werkzeugaufrufen je Minute blieben von 1080 rund 180.
+- **Voraussetzung am Proxy des MCP:** Er muss unseren `X-Forwarded-For` durchlassen (Traefik
+  `forwardedHeaders.trustedIPs`), sonst zählt der MCP alle Personen als eine Adresse. Als
+  Frage an den MCP-Entwickler (`docs/mcp-antwort-2026-11-15-sitzung-3.md`); gelöst mit SA-18.
+- **`X-Forwarded-For`:** bleibt ein einziger Eintrag mit der Adresse der Person. Der MCP liest
+  den Eintrag vor dem seines eigenen Proxys, also diesen.
+- **Abmelden mit einem alten Block** beendet beim MCP auch die aktuelle Eintragung derselben
+  Sitzung. Das Widget widerruft nur beim Abmelden durch die Person (und einen Block, der danach
+  noch aus einem laufenden Tausch kommt); das ist die gewollte Richtung.
+- **Ticket-Blöcke (Weg A)** sind beim MCP jetzt ebenso an ihre Eintragung gebunden. Beim
+  Einspielen antwortet ein Block, den ein Neuladen vor 1.3.0 ausgestellt hat, einmal mit 401.
+- Tests: `test_sitzung_weiterreichen.py` (Gesamtgrenze je Schlüssel und Wert, Grenze je
+  Adresse 10/60, Wertebereich, Gesamtgrenze bei abgeschalteter Drossel).
+
+## Nachtrag: Adresse in eigener Kopfzeile, rpm 500 (SA-18, MCP 1.4.0)
+
+Dritte Antwort des MCP-Entwicklers: Traefik vor seinem Server wirft unser `X-Forwarded-For` ab
+Werk weg, und ein Werkzeugaufruf kostet uns drei POSTs. Seine Lösung kommt mit 1.4.0; den
+Staging-Server setzt er gleich mit 1.4.0 auf.
+
+- **`X-WLO-Client-Address`:** Das Backend schickt die Adresse der Person zusätzlich in dieser
+  Kopfzeile. Sie geht nur hinaus, wenn sie eine einzelne IP ist (IPv6 ohne Klammern, ohne
+  Zonen-Kennung). Der MCP liest sie nur mit gültigem Schlüssel, und sie hat Vorrang.
+  `X-Forwarded-For` bleibt daneben stehen.
+- **rpm 500** für unseren Schlüssel (Entscheid 2026-11-15, Vorschlag des MCP-Entwicklers): Von
+  1500 Anfragen je Minute bleiben neben 300 Werkzeugaufrufen rund 600. Damit
+  `MCP_SESSION_EXCHANGE_RPM=200`; bei rpm 360 bleibt es bei 100.
+- **Prüfen nach dem ersten Test:** im Log des MCP verschiedene Pseudonyme (Feld `ip` der Zeile
+  `session exchanged for an access block`), keine Warnung `named no usable address`.
+- **Nicht gebaut:** ein Werkzeugaufruf ohne eigene Sitzung (ein POST statt drei). Der MCP
+  beantwortet `tools/call` auch ohne `initialize`; offen in `offene-befunde-und-todo.md`.
+- Tests: `test_sitzung_weiterreichen.py` (Kopfzeile, Form der Adresse).
 
 ## Sicherheit
 
@@ -164,9 +219,9 @@ Knopf erst beim nächsten eigenen Abruf; beim Wechsel der Person bleibt das Gesp
      Repository-Host in `CORS_ORIGINS`.
   3. MCP-Server: `WLO_AUTH_PRIVATE_KEY`, `WLO_SESSION_EXCHANGE=1`, bei abweichender Adresse
      `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss nicht in den Cluster.
-- Für viele Personen vorher das Budget am MCP klären (siehe Nachtrag; Folge-Antwort an den
-  MCP-Entwickler `docs/mcp-antwort-2026-11-15-sitzung-2.md`). Seine Antwort vom selben Tag:
-  Ein alter Sitzungs-Block gilt nach einem neuen Tausch nicht wieder (umgesetzt); er nahm an,
-  Weg B brauche den MCP im Cluster. Das ist mit unserem Weiterreicher nicht nötig.
+- Neue Einstellung `MCP_SESSION_EXCHANGE_RPM` (Vorgabe 20, ändert nichts). Über 20 erst,
+  wenn der MCP ab 1.4.0 läuft, unseren Schlüssel in `TRUSTED_CLIENT_KEYS` führt
+  (`boerdi:500:<schlüssel>`) und die Adresse der Person ankommt; dann 200
+  (`deploy/README.md`, Abschnitt `MCP_SESSION_URL`).
 - Hinter dem Proxy der B-API: `WLO-Access-Block` am Proxy-Eintrag freigeben
   ([`uebergabe-betrieb.md`](../uebergabe-betrieb.md) §5).

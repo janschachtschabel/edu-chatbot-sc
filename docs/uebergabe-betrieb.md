@@ -272,9 +272,10 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   - `POSTGRES_PASSWORD`, `DATABASE_URL`
 - **MCP-Anbindung (Plan 2026-11-07, MCP-Stand S1–S7):**
   - `MCP_CLIENT_KEY`: Client-Schlüssel beim MCP-Server. Mit ihm zählt der Server den Chatbot in einem eigenen
-    Budget (vereinbart 360 Werkzeugaufrufe/min) statt im Budget der Adresse.
+    Budget (vereinbart 500 je Minute seit 2026-11-15, vorher 360) statt im Budget der Adresse.
     - Mindestens 32 Zeichen, mit dem MCP-Team außerhalb jedes Chats tauschen; dort steht er als
-      `boerdi:360:<schlüssel>` in `TRUSTED_CLIENT_KEYS`.
+      `boerdi:500:<schlüssel>` in `TRUSTED_CLIENT_KEYS` (rpm 500: Platz für den Sitzungs-Tausch neben
+      den Werkzeugaufrufen).
     - Geht nur an den primären MCP-Server, erscheint nie im Log. Die Startzeile „MCP-Budget: …“ sagt nur, ob
       er gesetzt ist.
   - `MCP_BUDGET_RPM` (Vorgabe 300): Werkzeugaufrufe je Minute, die der Chatbot selbst einhält.
@@ -297,12 +298,17 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
       (`ingress.basePath`), läuft so auf Staging. An edu-sharing und dessen Ingress ändert sich nichts.
     - Am MCP-Server `WLO_SESSION_EXCHANGE=1` und, wenn die Adresse im Browser von `WLO_REPOSITORY_URL`
       abweicht, `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster; das Backend ruft ihn
-      server-zu-server, und alle Tausche zählen dort auf die Adresse des Backends (Topf `/auth*`, 30 je
-      Minute). Für viele Personen vorher das Budget mit dem MCP-Team klären (`deploy/README.md`).
+      server-zu-server. Ab MCP 1.4.0 zahlen die Tausche aus dem Budget unseres Schlüssels, wenn der MCP ihn in
+      `TRUSTED_CLIENT_KEYS` führt; sonst aus dem Topf der Adresse des Backends.
     - Bei `CORS_ALLOW_ALL=false` gehört der Repository-Host in `CORS_ORIGINS`, sonst nennt das Backend dem
       Widget die Adresse nicht.
     - Eine Adresse in anderer Form beendet den Start. Kein Geheimnis.
     - Schritte und Prüfpunkte: `deploy/README.md`, Abschnitt `MCP_SESSION_URL`.
+  - `MCP_SESSION_EXCHANGE_RPM` (Vorgabe 20): Sitzungs-Tausche je Minute für die ganze Anlage. Über 20 erst,
+    wenn der MCP ab 1.4.0 unseren Schlüssel kennt und die Adresse der Person ankommt; dann 200 (bei rpm 360
+    für den Schlüssel 100). Ohne
+    `MCP_CLIENT_KEY` gilt höchstens 20. Bedingungen und Rechnung: `deploy/README.md`, Abschnitt
+    `MCP_SESSION_URL`.
   - **Herkunftslisten am MCP-Server** (setzt das MCP-Team, Werte liefert der Betrieb):
     - `TICKET_ALLOWED_ORIGINS` = die Seiten, die das Widget mit `ticket` einbetten. Das ist dieselbe Liste wie
       `CORS_ORIGINS` hier; beide gemeinsam pflegen.

@@ -372,14 +372,19 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     Sitzung im Browser (Knopf zeigt den Namen, Schreiben mit Zustimmung), Abmelden im
     Repository (das Widget tauscht neu und arbeitet ohne Anmeldung weiter), Abmelden im Chat
     (kein Tausch nach dem Neuladen). Bisher nur ohne Anmeldung am lokalen MCP gemessen.
-  - **Offen beim MCP-Entwickler** (Folge-Antwort `mcp-antwort-2026-11-15-sitzung-2.md` §1):
-    (a) `WLO_SESSION_EXCHANGE=1` an seinem Staging-Server, ohne Chart und ohne Mount-Pfad; er
-    nahm an, Weg B brauche den MCP im Cluster, das ist mit unserem Weiterreicher nicht nötig;
-    (b) ein Budget je weitergereichter Adresse für unseren Client-Schlüssel (an `/auth*` zählt
-    heute nur die Adresse), noch unbeantwortet; (c) die Bindung an die Eintragung auch für
-    Ticket-Blöcke (unser Wunsch, nicht eilig). Erledigt am 2026-11-15: Ein alter Sitzungs-Block
-    gilt nach einem neuen Tausch nicht wieder, und die Frage zu `/auth/status` ist beantwortet
-    (unser Backend passt schon).
+  - **Beim MCP gebaut (Version 1.3.0/1.4.0, 2026-11-15), auf Staging noch nicht eingespielt:**
+    Budget je weitergereichter Adresse für unseren Client-Schlüssel, Bindung an die Eintragung
+    für Sitzungs- und Ticket-Blöcke, die Kopfzeile `X-WLO-Client-Address` (1.4.0). Das MCP-Team
+    spielt 1.4.0 mit `WLO_SESSION_EXCHANGE=1` und
+    unserem Schlüssel in `TRUSTED_CLIENT_KEYS` auf Staging ein und meldet sich; danach unser
+    Test im Browser und sein Blick ins Log (verschiedene Pseudonyme je Anschluss). Danach
+    `MCP_SESSION_EXCHANGE_RPM=200` (SA-17/SA-18, Vorgabe 20); dafür unser Schlüssel mit rpm
+    500 (`boerdi:500:<schlüssel>`, Entscheid 2026-11-15).
+  - **Offen, optional: ein Werkzeugaufruf ohne eigene MCP-Sitzung.** `transport._open_session`
+    öffnet je Aufruf eine Sitzung (`initialize`, `notifications/initialized`, `tools/call`):
+    drei POSTs am Protokoll-Budget des MCP statt einem. Der MCP ist zustandslos und beantwortet
+    `tools/call` auch ohne `initialize` (gemessen vom MCP-Entwickler, SDK 1.32.2). Würde die
+    Werkzeugaufrufe am Budget dritteln; braucht einen eigenen Transport-Pfad und Tests.
   - **Ohne diesen Pfad bleibt der Weg aus.** Der Chatbot-Teil liegt dann still (ohne
     `MCP_SESSION_URL` keine Anfrage). Was ohne Pfad am Repository-Host schon geht: das Ticket
     der Seite (Weg A) und das Schreiben im Browser mit der Sitzung (vorbereitete Änderung, eine

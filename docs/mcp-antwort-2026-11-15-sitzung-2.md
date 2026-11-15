@@ -5,6 +5,10 @@ Zu deiner Antwort â€žAntwort an das Chatbot-Team: Anmeldung aus der WLO-Sitzungâ
 
 **Kurz: Weg B braucht den MCP nicht im Cluster. Von dir brauchen wir nur Abschnitt 1.**
 
+> **Stand:** Beantwortet am selben Tag. Der MCP-Entwickler hat 1a.2 (Budget) und 1b
+> (Ticket-Bindung) in Version 1.3.0 gebaut und spielt sie mit `WLO_SESSION_EXCHANGE=1` auf
+> Staging ein. Unsere Grenzen sind darauf angepasst (Plan SA-17).
+
 ## 1. Was wir von dir brauchen
 
 ### 1a. Weg B geht ohne den MCP im Cluster

@@ -266,10 +266,10 @@ def test_bei_offenem_ausfall_schalter_wird_nicht_gefragt(client, monkeypatch):
 
 
 def test_die_gesamtgrenze_schuetzt_das_budget_am_mcp(client, monkeypatch):
-    # Review 2026-11-15: Beim MCP zählen alle Tausche auf die Adresse des Backends, im selben Topf
-    # wie das Abmelden. Gefälschte Kopfzeilen von vielen Adressen sollen ihn nicht leeren.
+    # Review 2026-11-15: Ohne Client-Schlüssel zählen beim MCP alle Tausche auf die Adresse des
+    # Backends, im selben Topf wie das Abmelden. Gefälschte Kopfzeilen sollen ihn nicht leeren.
     gesehen = _mcp(monkeypatch, _ok())
-    monkeypatch.setattr(sitzung_tausch, "GESAMTGRENZE", "2/minute")
+    _einstellen(monkeypatch, mcp_session_exchange_rpm=2)
     assert [_tausch(client).status_code for _ in range(2)] == [200, 200]
     antwort = _tausch(client)
     assert antwort.status_code == 429
@@ -288,12 +288,16 @@ def test_nichts_landet_im_protokoll(client, monkeypatch, caplog):
         return weiter
 
     _mcp(monkeypatch, _naechste)
+    from boerdi.api import sitzung
+
+    monkeypatch.setattr(sitzung, "peer_ip", lambda _r: "203.0.113.7")
     with caplog.at_level(logging.DEBUG):
         _tausch(client, cookie=f"JSESSIONID={_SITZUNG}; INGRESSCOOKIE=abc")
         _tausch(client)
         _tausch(client)
     text = caplog.text
     assert _SITZUNG not in text and _BLOCK not in text and "INGRESSCOOKIE=abc" not in text
+    assert "203.0.113.7" not in text
 
 
 def test_traegt_den_client_schluessel(client, monkeypatch):
@@ -317,23 +321,46 @@ def test_nur_eine_gueltige_ip_geht_als_adresse_hinaus(client, monkeypatch):
     monkeypatch.setattr(sitzung, "peer_ip", lambda _r: "203.0.113.7")
     _tausch(client)
     assert gesehen[1].headers["x-forwarded-for"] == "203.0.113.7"
+    # MCP 1.4.0 liest die eigene Kopfzeile, die kein Proxy anfasst.
+    assert gesehen[1].headers["x-wlo-client-address"] == "203.0.113.7"
+    assert "x-wlo-client-address" not in gesehen[0].headers
 
 
-def test_je_adresse_gilt_eine_enge_grenze__fuer_beide_pfade_gemeinsam(client, monkeypatch):
-    # Eine Person tauscht beim Laden einmal und bei einem Wechsel der Person noch einmal. Beide
-    # Pfade teilen sich die Grenze (Review 2026-11-15: sonst gälte sie doppelt).
+@pytest.mark.parametrize(("roh", "erwartet"), [
+    ("203.0.113.7", "203.0.113.7"),
+    (" 2001:db8::1 ", "2001:db8::1"),
+    ("2001:DB8::1", "2001:db8::1"),
+    # IPv4 hinter einem Dual-Stack-Ingress: Python 3.12 schriebe ``::ffff:cb00:7107``, und der
+    # MCP schnitte das auf ein /64 — alle IPv4-Personen in einem Topf (Review SA-18).
+    ("::ffff:203.0.113.7", "203.0.113.7"),
+    # Was der MCP nicht als eine Adresse liest, geht gar nicht erst hinaus.
+    ("fe80::1%eth0", ""), ("fe80::1%1", ""), ("[2001:db8::1]", ""), ("203.0.113.7:443", ""),
+    ("203.0.113.7\r\nX-Fremd: ja", ""),
+    ("203.0.113.7, 198.51.100.1", ""), ("testclient", ""), ("", ""),
+])
+def test_als_adresse_geht_nur_eine_einzelne_ip_hinaus(roh, erwartet):
+    assert sitzung_tausch._gueltige_adresse(roh) == erwartet
+
+
+@pytest.mark.parametrize(("wert", "je_adresse"), [(20, 10), (1000, 60)])
+def test_je_adresse_gilt_eine_grenze__fuer_beide_pfade_gemeinsam(client, monkeypatch, wert,
+                                                               je_adresse):
+    # Weit: Eine Schulklasse hinter einem Router tauscht beim Laden auf einmal (MCP 1.3.0 zählt
+    # sie dort je genannter Adresse). Beide Pfade teilen sich die Grenze (Review 2026-11-15).
     from boerdi.api.sitzung import PFAD_AM_REPOSITORY
 
+    _schluessel(monkeypatch)
+    _einstellen(monkeypatch, mcp_session_exchange_rpm=wert)
     _mcp(monkeypatch, _ok())
     stati = [_tausch(client, pfad=PFAD_AM_REPOSITORY if i % 2 else "/api/auth/session").status_code
-             for i in range(11)]
-    assert stati[:10] == [200] * 10
-    assert stati[10] == 429
+             for i in range(je_adresse + 1)]
+    assert stati[:je_adresse] == [200] * je_adresse
+    assert stati[je_adresse] == 429
 
 
 def test_was_vorher_abgelehnt_wird__zaehlt_nicht_zur_gesamtgrenze(client, monkeypatch):
     gesehen = _mcp(monkeypatch, _ok())
-    monkeypatch.setattr(sitzung_tausch, "GESAMTGRENZE", "1/minute")
+    _einstellen(monkeypatch, mcp_session_exchange_rpm=1)
     assert _tausch(client, content_type="text/plain").status_code == 415
     assert _tausch(client, cookie="theme=dunkel").status_code == 400
     assert _tausch(client).status_code == 200
@@ -344,8 +371,72 @@ def test_die_gesamtgrenze_gilt_auch_ohne_drossel(client, monkeypatch):
     # ``RATE_LIMIT_CHAT=off`` schaltet die Grenze je Adresse ab — die Gesamtgrenze bleibt.
     _einstellen(monkeypatch, rate_limit_chat="off")
     _mcp(monkeypatch, _ok())
-    monkeypatch.setattr(sitzung_tausch, "GESAMTGRENZE", "2/minute")
+    _einstellen(monkeypatch, mcp_session_exchange_rpm=2)
     assert [_tausch(client).status_code for _ in range(3)] == [200, 200, 429]
+
+
+def _schluessel(monkeypatch) -> None:
+    from pydantic import SecretStr
+
+    _einstellen(monkeypatch, mcp_client_key=SecretStr("k" * 40))
+
+
+@pytest.mark.parametrize(("schluessel", "wert", "erwartet"), [
+    # Vorgabe 20: Ohne ausdrücklichen Wert ändert sich nichts, auch mit Schlüssel — ein MCP vor
+    # 1.3.0 zählt sonst alles im Topf der Adresse (Review SA-17).
+    (False, 20, "20/minute"), (True, 20, "20/minute"),
+    # Weit nur mit Schlüssel: Ohne ihn landen beim MCP alle Tausche im Topf von 30 je Minute.
+    (False, 200, "20/minute"), (True, 200, "200/minute"),
+    (False, 5, "5/minute"), (True, 5, "5/minute"),
+])
+def test_die_gesamtgrenze(monkeypatch, schluessel, wert, erwartet):
+    if schluessel:
+        _schluessel(monkeypatch)
+    _einstellen(monkeypatch, mcp_session_exchange_rpm=wert)
+    assert sitzung_tausch.gesamtgrenze() == erwartet
+
+
+@pytest.mark.parametrize(("schluessel", "wert", "erwartet"), [
+    (True, 20, "10/minute"), (True, 21, "60/minute"),
+    # Ohne Schlüssel bleibt die Gesamtgrenze bei 20, also auch die Grenze je Adresse eng.
+    (False, 1000, "10/minute"),
+])
+def test_die_grenze_je_adresse_folgt_der_gesamtgrenze(monkeypatch, schluessel, wert, erwartet):
+    # Ohne weite Grenze nimmt eine Adresse höchstens die Hälfte (Review SA-17).
+    from boerdi.api.sitzung import grenze_je_adresse
+
+    if schluessel:
+        _schluessel(monkeypatch)
+    _einstellen(monkeypatch, mcp_session_exchange_rpm=wert)
+    assert grenze_je_adresse() == erwartet
+
+
+def test_ohne_schluessel_haelt_die_route_bei_20(client, monkeypatch):
+    # Ein hoher Wert ohne Client-Schlüssel landete beim MCP im Topf der Adresse des Backends.
+    # Grenze je Adresse abgeschaltet, damit nur die Gesamtgrenze greift.
+    _einstellen(monkeypatch, rate_limit_chat="off", mcp_session_exchange_rpm=200)
+    gesehen = _mcp(monkeypatch, _ok())
+    stati = [_tausch(client).status_code for _ in range(21)]
+    assert stati == [200] * 20 + [429]
+    assert len(gesehen) == 20
+
+
+def test_mit_schluessel_gilt_die_weite_gesamtgrenze_auch_ohne_drossel(client, monkeypatch):
+    _schluessel(monkeypatch)
+    _einstellen(monkeypatch, rate_limit_chat="off", mcp_session_exchange_rpm=3)
+    _mcp(monkeypatch, _ok())
+    assert [_tausch(client).status_code for _ in range(4)] == [200, 200, 200, 429]
+
+
+def test_der_wert_ist_begrenzt():
+    from pydantic import ValidationError
+
+    from boerdi.settings import Settings
+
+    assert Settings(_env_file=None).mcp_session_exchange_rpm == 20
+    for falsch in (0, 1001):
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None, MCP_SESSION_EXCHANGE_RPM=falsch)
 
 
 @pytest.mark.parametrize("host", ["REPOSITORY.example.org", "repository.example.org:443"])
