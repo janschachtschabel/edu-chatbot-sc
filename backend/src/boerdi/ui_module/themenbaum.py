@@ -27,6 +27,7 @@ anfordert.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any, Final
 
 from boerdi.ui_module.abgeleitet import http_url, md_link
@@ -56,6 +57,43 @@ def _kennung(wert: Any) -> str | None:
 
 def _text(wert: Any) -> str:
     return " ".join(wert.split()) if isinstance(wert, str) else ""
+
+
+#: SW-5 (MCP-Stand 15.11.2026): Mit ``order: "position"`` sagt der Server je Ebene, ob
+#: unterscheidende Positionen gesetzt sind. ``False`` heißt „selbst sortieren“: Dann stehen bei
+#: ihm erst die Sammlungen MIT (gleicher) Position nach Titel, danach die ohne — zwei Alphabete
+#: hintereinander (gemessen an „Optik“: Farben … Wellenoptik, dann Kompendium_…). Ohne das
+#: Merkmal (älterer Server, ``title``, gekürzte Liste) bleibt die Reihenfolge des Servers.
+_MERKMAL_REIHENFOLGE: Final = "childrenPositioned"
+#: Buchstaben, die sich nicht in Grundbuchstabe und Akzent zerlegen — sie stünden sonst hinter Z.
+_UMLAUTE: Final = str.maketrans({"ä": "a", "ö": "o", "ü": "u", "ß": "ss", "ø": "o", "æ": "ae",
+                                 "œ": "oe", "ł": "l", "đ": "d"})
+
+
+def _nach_titel(roh: Any) -> tuple[str, str]:
+    """Der Sortierschlüssel eines Rohknotens wie im Wörterbuch (ä wie a, ohne Akzente, ohne
+    Groß/Klein). Unbrauchbares steht vorn und fällt beim Umformen ohnehin weg."""
+    titel = roh.get("title") if isinstance(roh, dict) else None
+    titel = titel if isinstance(titel, str) else ""
+    gefaltet = unicodedata.normalize("NFKD", titel.casefold().translate(_UMLAUTE))
+    return "".join(z for z in gefaltet if not unicodedata.combining(z)), titel
+
+
+def geordnet(payload: Any) -> Any:
+    """Der Rohbaum des Werkzeugs, je Ebene nach Titel sortiert, wo der Server „keine
+    unterscheidenden Positionen“ meldet — für jeden, der ihn zeigt oder umformt (der Baum hier,
+    der Entwurf in ``strukturentwurf_bestand``; Review SW-5, Befund 2). Eine neue Struktur, der
+    Eingang bleibt unberührt; ohne das Merkmal dieselbe Reihenfolge."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+        return payload
+
+    def ebene(knoten: list[Any], merkmal: Any) -> list[Any]:
+        neu = [{**k, "children": ebene(k["children"], k.get(_MERKMAL_REIHENFOLGE))}
+               if isinstance(k, dict) and isinstance(k.get("children"), list) else k
+               for k in knoten]
+        return sorted(neu, key=_nach_titel) if merkmal is False else neu
+
+    return {**payload, "results": ebene(payload["results"], payload.get(_MERKMAL_REIHENFOLGE))}
 
 
 def _knoten(roh: Any, *, mit_kindern: bool) -> tuple[dict[str, Any] | None, bool]:
@@ -104,6 +142,7 @@ def daten_aus(payload: Any, titel: str = "") -> dict[str, Any] | None:
         return None
     if "parent" in payload and not isinstance(payload["parent"], str):
         return None
+    payload = geordnet(payload)                  # SW-5: sortiert wird vor dem Deckel
     knoten: list[dict[str, Any]] = []
     gekuerzt = payload.get("truncated") is True
     for roh in payload["results"]:

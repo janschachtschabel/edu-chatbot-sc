@@ -49,6 +49,11 @@ def aus_bestand(payload: Any, titel: str, *, ersatz_titel: str = "Gliederung aus
     ``ersatz_titel`` ohne Titel, in der Sprache der Person (``action.draft.ohneTitel``)."""
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
         return None
+    from boerdi.ui_module import themenbaum
+
+    # SW-5: dieselbe Reihenfolge wie im Baum, aus dem der Entwurf entsteht — gesetzte Positionen
+    # bleiben, wo keine unterscheidet, nach Titel.
+    payload = themenbaum.geordnet(payload)
     vergeben: set[str] = set()
     zahl = 0
     gekuerzt = payload.get("truncated") is True or len(payload["results"]) > se.HOECHSTENS_OBEN

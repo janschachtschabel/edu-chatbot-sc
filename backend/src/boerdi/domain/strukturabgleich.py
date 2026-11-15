@@ -120,7 +120,9 @@ def wlo_aus_liste(liste: Any) -> list[dict[str, Any]]:
     Die Marken ``childrenUnread``/``childrenRefused`` je Sammlung zählen hier bewusst nicht
     (zweites Review SW-4): Sie stehen nur an Einträgen der gelieferten Seite, und für einen
     Ausfall an der gelesenen Sammlung selbst gibt es keine — „nur dort ungewiss“ ließe einen
-    zweiten Ausfall als nicht geschehen gelten."""
+    zweiten Ausfall als nicht geschehen gelten. Wo nicht gelesen wurde, sagt der Kopf der
+    Antwort für den ganzen Lauf (``unreadParents``/``refusedParents``, MCP-Stand 15.11.2026);
+    der Dienst setzt danach ``mehr`` (``dienst_strukturabgleich._ganzer_baum``)."""
     items = liste.get("items") if isinstance(liste, dict) else None
     aus: list[dict[str, Any]] = []
     for roh in (items if isinstance(items, list) else [])[:LISTE_SEITE]:

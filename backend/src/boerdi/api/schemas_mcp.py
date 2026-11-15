@@ -181,7 +181,8 @@ class CollectionTreeArgs(BaseModel):
     maxResults: int = Field(default=50, ge=1, le=100)
     # SW-1 (MCP-Stand „Sammlungsstrukturen“ 2026-11-14): ``stored`` = Reihenfolge des Repositorys.
     # Leer heißt „nicht angegeben“ und reist nicht mit; angeboten nur, wenn der Server es kennt.
-    order: Literal["", "title", "stored"] = ""
+    # SW-5 (MCP-Stand 15.11.2026): ``position`` = gesetzte Position, sonst Titel.
+    order: Literal["", "title", "stored", "position"] = ""
 
 
 class CollectionTreeListArgs(BaseModel):
@@ -198,6 +199,8 @@ class CollectionTreeListArgs(BaseModel):
     maxItems: int = Field(default=250, ge=1, le=250)
     skipCount: int = Field(default=0, ge=0)
     includeContentCounts: bool = False
+    # SW-5 (MCP-Stand 15.11.2026): die Baumliste nimmt ``order``; ihre Vorgabe ist ``stored``.
+    order: Literal["", "title", "stored", "position"] = ""
 
 
 class HealthCheckArgs(BaseModel):
@@ -246,7 +249,7 @@ class CollectionOverviewArgs(BaseModel):
     include: list[str] = Field(default_factory=list)
     maxContents: int = 10
     maxSubcollections: int = 30
-    order: Literal["", "title", "stored"] = ""        # SW-1, wie an ``CollectionTreeArgs``
+    order: Literal["", "title", "stored", "position"] = ""   # wie an ``CollectionTreeArgs``
 
     @model_validator(mode="before")
     @classmethod

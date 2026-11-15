@@ -86,6 +86,18 @@ _ORDER: Final[dict[str, Any]] = {
                    "des Anlegens. Nimm 'stored', wo die Abfolge etwas bedeutet (Lehrplan, "
                    "angelegter Baum).",
 }
+#: SW-5 (MCP-Stand 15.11.2026): der dritte Wert. An Staging tragen die meisten Elternknoten keine
+#: oder lauter gleiche Positionen (alle Fachportale die 1) — dort ist ``stored`` die Reihenfolge
+#: des Anlegens, also beliebig; ``position`` faellt dann auf den Titel zurueck.
+POSITION: Final = "position"
+_ORDER_POSITION: Final = (
+    " 'position': die gesetzte Position, bei gleicher oder ohne Position der Titel — passt immer, "
+    "auch wo niemand eine Reihenfolge gesetzt hat.")
+#: ``order`` an der Baumliste: dieselben Werte, aber ihre Vorgabe ist die Reihenfolge des
+#: Repositorys.
+_ORDER_LISTE: Final = (
+    "Reihenfolge je Elternknoten. 'stored' (Vorgabe): wie das Repository sie haelt — die gesetzte "
+    "Position, sonst die Reihenfolge des Anlegens. 'title': alphabetisch.")
 
 
 _KEINE_REIHENFOLGE: Final = (
@@ -94,14 +106,46 @@ _KEINE_REIHENFOLGE: Final = (
     "das, wenn die Abfolge etwas bedeutet.")
 
 
+_KEINE_REIHENFOLGE_LISTE: Final = (
+    "Die Baumliste nimmt an diesem Server kein order: Sie steht immer in der Reihenfolge des "
+    "Repositorys (gesetzte Position, sonst Reihenfolge des Anlegens). Nichts wurde gelesen: "
+    "Rufe sie ohne order auf.")
+_KEINE_POSITION: Final = (
+    "Die Reihenfolge 'position' kennt der Server an diesem Werkzeug nicht. Nichts wurde gelesen: "
+    "Rufe es ohne order auf und sag, in welcher Reihenfolge die Liste dann steht.")
+
+
+def position_bekannt(werkzeug: str) -> bool:
+    """Führt der Server ``order: "position"`` an diesem Werkzeug (S11, MCP-Stand 15.11.2026)?"""
+    return faehigkeiten.kennt_wert(werkzeug, "order", POSITION)
+
+
 def nicht_moeglich(werkzeug: str, argumente: dict[str, Any]) -> str | None:
-    """Ein Satz für die KI, wenn sie die gespeicherte Reihenfolge an einem Server verlangt, der
-    ``order`` nicht kennt: Er verwürfe das Feld still und lieferte alphabetisch — die KI hielte
-    das für die Abfolge des Repositorys (Review SW-1, Befund 7). Sonst ``None``."""
-    if (werkzeug in ORDER_WERKZEUGE and argumente.get("order") == "stored"
+    """Ein Satz für die KI, wenn sie eine Reihenfolge an einem Server verlangt, der sie nicht
+    kennt: Er verwürfe das Feld still und lieferte alphabetisch — die KI hielte das für die
+    verlangte Abfolge (Review SW-1, Befund 7). Sonst ``None``."""
+    if werkzeug not in (*ORDER_WERKZEUGE, WERKZEUG):
+        return None
+    wert = argumente.get("order")
+    if (werkzeug == WERKZEUG and wert not in (None, "", "stored")
+            and not faehigkeiten.kennt(WERKZEUG, "order")):
+        # Review SW-5, Befund 5: Die Baumliste des Stands vom 14.11. kennt kein ``order`` — sie
+        # verwürfe 'title' still und lieferte in der Reihenfolge des Repositorys.
+        return _KEINE_REIHENFOLGE_LISTE
+    if wert == POSITION and not position_bekannt(werkzeug):
+        return _KEINE_POSITION
+    if (werkzeug in ORDER_WERKZEUGE and wert == "stored"
             and not faehigkeiten.kennt(werkzeug, "order")):
         return _KEINE_REIHENFOLGE
     return None
+
+
+def fuer_die_anzeige(werkzeug: str) -> dict[str, str]:
+    """Die Reihenfolge, in der ein Modul des Chatbots einen Baum liest (SW-5, Entscheid SE-4):
+    ``position``, wenn der Server den Wert führt — die Abfolge eines angelegten Lehrplans bleibt
+    dann, und ein Fachportal ohne gesetzte Reihenfolge steht weiter alphabetisch. Sonst nichts
+    (der Server sortiert alphabetisch)."""
+    return {"order": POSITION} if position_bekannt(werkzeug) else {}
 
 
 def angeboten() -> bool:
@@ -118,8 +162,13 @@ def erweitert(definition: dict[str, Any]) -> dict[str, Any]:
     """Die Definition mit ``order``, wenn der Server den Parameter an diesem Werkzeug kennt —
     sonst unverändert (dieselbe Definition, keine Kopie)."""
     name = definition.get("function", {}).get("name")
-    if name not in ORDER_WERKZEUGE or not faehigkeiten.kennt(name, "order"):
+    if name not in (*ORDER_WERKZEUGE, WERKZEUG) or not faehigkeiten.kennt(name, "order"):
         return definition
+    order = dict(_ORDER) if name != WERKZEUG else {
+        "type": "string", "enum": ["stored", "title"], "description": _ORDER_LISTE}
+    if position_bekannt(name):
+        order["enum"] = [*order["enum"], POSITION]
+        order["description"] += _ORDER_POSITION
     neu = copy.deepcopy(definition)
-    neu["function"]["parameters"].setdefault("properties", {})["order"] = dict(_ORDER)
+    neu["function"]["parameters"].setdefault("properties", {})["order"] = order
     return neu
