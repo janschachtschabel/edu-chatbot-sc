@@ -54,6 +54,7 @@ function fakeApi(opts: { streamRejects?: Error; resp?: ChatResponse } = {}) {
     getSpeechEnabled: vi.fn(async () => false),
     loadHistory: vi.fn(async () => []),
     warteAufAnmeldung: vi.fn(),
+    abmelden: vi.fn(async () => true),
   };
 }
 
@@ -643,6 +644,8 @@ describe('ChatShellComponent — Ticket-Anmeldung', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(sessionStorage.getItem('boerdi.mcp-access')).toBeNull();
     expect(f.componentInstance.authButton()).toBe('signIn');
+    // Review 2026-11-15: auch am Server — der Widerruf beim Abmelden traf nur den alten Block.
+    expect((f.componentInstance as any)._api.abmelden).toHaveBeenCalledWith(BLOCK);
   });
 
   // Plan 2026-11-07 (R2): nach „Abmelden“ meldet das Seiten-Ticket nicht von selbst wieder an.

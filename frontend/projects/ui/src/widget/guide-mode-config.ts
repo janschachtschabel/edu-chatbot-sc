@@ -51,6 +51,10 @@ export interface ParsedGuideModeConfig {
    *  Ein leerer Wert ist eine AUSSAGE („diese Anlage bietet sie nicht an") und
    *  wird deshalb übernommen; `null` heisst nur „stand nicht in der Antwort". */
   mcpAuthBase: string | null;
+  /** Plan 2026-11-15: Adresse des Sitzungs-Tauschs auf dem Host des Repositorys. Leer = diese
+   *  Anlage bietet ihn nicht an; `null` = stand nicht in der Antwort. Ob sie für DIESE Seite
+   *  gilt, prüft `session/session-login.ts`. */
+  mcpSessionUrl: string | null;
   /** AS-7b (F-7): Abläufe mit Auslöser `seite` — `null` heißt „stand nicht in der Antwort". */
   ablaufSeiten: AblaufSeite[] | null;
 }
@@ -81,6 +85,7 @@ export function parseGuideModeConfig(data: any): ParsedGuideModeConfig {
     startRepliesEn: null,
     tourReplyEn: null,
     mcpAuthBase: null,
+    mcpSessionUrl: null,
     ablaufSeiten: null,
   };
   out.ablaufSeiten = ablaufSeitenAus(data?.ablauf_seiten);
@@ -88,6 +93,9 @@ export function parseGuideModeConfig(data: any): ParsedGuideModeConfig {
   // keine WLO-Anmeldung an". Nur ein fehlendes Feld bleibt `null`.
   if (typeof data?.mcp_auth_base === 'string') {
     out.mcpAuthBase = data.mcp_auth_base.trim();
+  }
+  if (typeof data?.mcp_session_url === 'string') {
+    out.mcpSessionUrl = data.mcp_session_url.trim();
   }
   if (Array.isArray(data?.trusted_domains)) {
     out.trustedDomains = data.trusted_domains

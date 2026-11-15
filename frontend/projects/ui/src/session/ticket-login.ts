@@ -51,7 +51,7 @@ export interface TicketLoginContext {
 export const ZWEITER_VERSUCH_MAX_MS = 15_000;
 
 /** Die Wartezeit einer 503 `upstream_unreachable` (Rumpf `retryAfter`, sonst `Retry-After`), gedeckelt. */
-async function wartezeitMs(res: Response): Promise<number> {
+export async function wartezeitMs(res: Response): Promise<number> {
   let sekunden = Number(res.headers.get('retry-after'));
   try {
     const rumpf = (await res.json()) as { retryAfter?: unknown };

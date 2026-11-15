@@ -88,14 +88,28 @@ import { FortsetzenController, type OffenerVorgang, fortsetzenDatum } from './fo
 import { type WiederkehrKennung, wiederkehrKennung } from '../stream/offene-vorgaenge';
 import { sitzungsWache } from '../session/session-id';
 
+/**
+ * Der Zugangsblock, mit dem eine neue Shell startet. Ein Block aus der Sitzung der Seite, den eine
+ * frühere Instanz im Arbeitsspeicher hinterließ, wird NICHT geerbt (Review 2026-11-15): bis das
+ * Config-Bündel den Weg nennt, kann ihn niemand prüfen — die Wache hängt erst dann am Abruf —,
+ * und die Seite kann inzwischen jemand anderen zeigen. Die neue Instanz tauscht ohnehin neu.
+ * Ein abgelegter Block (Anmeldung von Hand, Ticket) bleibt.
+ */
+function blockBeimStart(): string | null {
+  if (sessionBlockOwner() !== null) clearAccessBlock();
+  return readAccessBlock();
+}
+
 /** Wie eine Wiederkehr ausging — die Gastseite (Widget) merkt sich danach, ob sie fertig ist. */
 export type WiederkehrAusgang = 'gefunden' | 'nichts' | 'anmeldung' | 'fehler' | 'verworfen' | 'ungueltig';
 import {
-  clearAccessBlock, clearSignedOut, isSignedOut, markSignedOut, readAccessBlock,
+  clearAccessBlock, clearSignedOut, isSignedOut, markSignedOut, readAccessBlock, sessionBlockOwner,
 } from '../session/mcp-access';
 import { AnmeldeFrist } from '../session/anmelde-frist';
 import { AUTH_QR_MARKER } from '../chips/auth-qr';
 import { anmeldeSperre, runTicketLogin } from '../session/ticket-login';
+import { readSessionPerson, runSessionLogin, sessionLoginTarget } from '../session/session-login';
+import { SitzungsWache, WACHE_FRAGE_MS, WACHE_TAUSCH_MS } from '../session/sitzungs-wache';
 import { runPreparedWrite } from '../session/prepared-write';
 import {
   InputRoutingContext, guideQuickReplyTarget, resolveGuideNavTarget, routeQuickReply,
@@ -267,6 +281,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  einen Zugangsblock, sobald `mcpAuthBase` aus dem Config-Bündel da ist
    *  (`session/ticket-login.ts`). */
   readonly ticket = input('');
+  /** Adresse des Sitzungs-Tauschs (Config-Bündel, `mcp_session_url`; Plan 2026-11-15). Gilt nur,
+   *  wenn sie auf der Herkunft dieser Seite liegt (`session/session-login.ts`). Leer = nicht
+   *  angeboten. */
+  readonly mcpSessionUrl = input('');
   /** Vom Widget durchgereichte Trusted-Hosts-Whitelist (Same-Tab-Nav-Gate). */
   readonly trustedHosts = input<string[]>([]);
   /** ALT-Compat-Konstante (seit Welle E immer true): Lotsen-Modus aktiv. */
@@ -875,7 +893,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     // Ereignisse der Gastseite. Ein werfender Rückruf nahm sonst alles danach mit.
     this.eingabeGesperrt.set(resp.eingabe_gesperrt === true);
     if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
-    if (resp.auth_invalid) this._anmeldungAbgewiesen();
+    if (resp.auth_invalid) this._zugAbgewiesen();
     else this._frist.planen(resp.auth_expires_at);
     if (this._speech.autoSpeak && resp.content) {
       this._speech.autoSpeakText(resp.content);
@@ -1026,7 +1044,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  keine kennt: ohne es bliebe der Knopf im zoneless Betrieb nach dem
    *  Abmelden auf „Abmelden" stehen. Gesetzt beim Bau (der Block überlebt das
    *  Neuladen des Tabs) und nach jedem An-/Abmelden. */
-  private readonly _hasAccessBlock = signal(readAccessBlock() !== null);
+  private readonly _hasAccessBlock = signal(blockBeimStart() !== null);
 
   /** Paket K2a: „Gespräch fortsetzen“ — ein Ablauf der angemeldeten Person wartet in einem anderen
    *  Gespräch. Gefragt wird, sobald ein Block da ist und kein Zug läuft (einmal je Gespräch). */
@@ -1274,23 +1292,33 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     void this._tauscheTicket(ticket, basis);
   });
 
-  /** Ticket gegen Block tauschen; bis zum Ende warten die Züge (S-4). Gibt zurück, ob ein Block
-   *  da ist. Auch nach Ablauf oder Abweisung des Blocks (Plan 2026-11-07, R1). */
-  private _tauscheTicket(ticket: string, basis: string): Promise<boolean> {
+  /** Still anmelden — über das Ticket oder die Sitzung der Seite; bis zum Ende warten die Züge
+   *  (S-4). Gibt zurück, ob ein Block da ist. Auch nach Ablauf oder Abweisung des Blocks (Plan
+   *  2026-11-07, R1). */
+  private _stillAnmelden(
+    weg: 'ticket' | 'sitzung', lauf: () => Promise<{ outcome: string; displayName?: string }>,
+  ): Promise<boolean> {
     if (!this._ticketSperre) {
       const { sperre, freigeben } = anmeldeSperre();
       this._ticketSperre = freigeben;
       this._api.warteAufAnmeldung(sperre);
     }
-    return runTicketLogin({ ticket: () => ticket, mcpAuthBase: () => basis }).then((ausgang) => {
-      if (ausgang === 'done' && isSignedOut()) {
+    return lauf().then(({ outcome, displayName }) => {
+      if (outcome === 'done' && isSignedOut()) {
         // Review 2026-11-07 (Befund 6): während des Tauschs abgemeldet — der neue Block darf
-        // nicht bleiben, sonst wäre die Person nach dem Abmelden wieder angemeldet.
+        // nicht bleiben, sonst wäre die Person nach dem Abmelden wieder angemeldet. Auch am
+        // Server nicht (Review 2026-11-15): der Widerruf beim Abmelden traf nur den alten Block.
+        const frisch = readAccessBlock();
         clearAccessBlock();
         this._hasAccessBlock.set(false);
+        if (frisch) void this._api.abmelden(frisch);
         return false;
       }
-      if (ausgang === 'done') {
+      // Jeder Tausch der Sitzung meldet seinen Ausgang der Wache: gelungen oder Gast gilt als
+      // frische Antwort der Seite, ein Fehlschlag setzt ihre Pause.
+      if (weg === 'sitzung') this._wache.getauscht(outcome);
+      if (outcome === 'done') {
+        this._angemeldetAls.set(displayName ?? '');
         this._hasAccessBlock.set(readAccessBlock() !== null);
         this._fortsetzenNeu();   // K2a: ein neuer Block kann einer anderen Person gehören
         void this._standNachladen();   // Z-1: der Lauf der Person, nun angemeldet
@@ -1298,7 +1326,20 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
         this._cdr.markForCheck();
         return true;
       }
-      console.warn('WLO-Anmeldung über das Seiten-Ticket nicht gelungen:', ausgang);
+      // „Niemand angemeldet“ ist auf einer Seite des Repositorys der Normalfall für Gäste und
+      // keine Zeile für die Betreiberseite wert.
+      const stumm = weg === 'sitzung' && (outcome === 'no-session' || outcome === 'off');
+      if (!stumm) {
+        console.warn(`WLO-Anmeldung über ${weg === 'ticket' ? 'das Seiten-Ticket'
+          : 'die Sitzung der Seite'} nicht gelungen:`, outcome);
+      }
+      // Der Tausch kann einen Block verworfen haben, der nicht mehr zur Person der Seite gehört
+      // (`runSessionLogin`) — erreichbar über die Frist: nach 12 Stunden zeigt die Seite einen
+      // Gast. Dann sagt es ein Satz, wie bei jeder Anmeldung, die nicht mehr gilt.
+      if (this._hasAccessBlock() && readAccessBlock() === null) {
+        this._blockVerworfen();
+        this._store.addBotMessage(this.t('auth.expired'));
+      }
       return false;
     }).finally(() => {
       this._ticketSperre?.();
@@ -1306,23 +1347,128 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     });
   }
 
-  /** Das Seiten-Ticket noch einmal tauschen — wenn es eins gibt und niemand sich abgemeldet hat.
-   *  `false`: kein Tausch möglich. Ein Tausch VOR dem Ablauf verlängert nichts (MCP R1). */
-  private _ticketErneut(): Promise<boolean> {
-    const ticket = this.ticket().trim();
-    const basis = this.mcpAuthBase().trim();
-    if (!ticket || !basis || isSignedOut() || this._zerstoert) return Promise.resolve(false);
-    return this._tauscheTicket(ticket, basis);
+  /** Ticket gegen Block tauschen (Weg A). */
+  private _tauscheTicket(ticket: string, basis: string): Promise<boolean> {
+    return this._stillAnmelden('ticket', () =>
+      runTicketLogin({ ticket: () => ticket, mcpAuthBase: () => basis }).then((outcome) => ({ outcome })));
   }
 
-  /** Die Frist des Blocks (Plan 2026-11-07, R1): Ticket nach dem Ablauf neu tauschen, sonst kurz
-   *  davor die Anmeldung anbieten. */
+  // ── Anmeldung aus der Sitzung der Seite (Plan 2026-11-15, Weg B) ─────────
+
+  /** Herkunft der Seite, in der das Widget sitzt. */
+  private _herkunft(): string {
+    return typeof window !== 'undefined' ? window.location?.origin || '' : '';
+  }
+
+  /** Gilt der Sitzungs-Weg auf dieser Seite (SA-1)? Ein Ticket der Seite geht vor (SA-6). */
+  private _sitzungsWeg(): boolean {
+    return !this.ticket().trim()
+      && sessionLoginTarget(this.mcpSessionUrl(), this._herkunft()) !== null;
+  }
+
+  private _sitzungVersucht = false;
+
+  /** Einmal je Laden, sobald das Config-Bündel die Adresse nennt und sie auf dieser Seite gilt.
+   *  Still wie der Ticket-Tausch; nach einem ausdrücklichen „Abmelden“ nicht von selbst (SA-8). */
+  private readonly _sessionLogin = effect(() => {
+    if (!this._sitzungsWeg()) return;
+    // Die Wache gilt, sobald der Weg gilt — auch in einem Tab, in dem sich jemand im Chat
+    // abgemeldet hat (dort tut sie nichts, bis „Anmelden“ das Abmelden aufhebt).
+    this._api.zugWache = this._wachePruefen;
+    if (this._sitzungVersucht || isSignedOut()) return;
+    this._sitzungVersucht = true;
+    void this._tauscheSitzung();
+  });
+
+  /** Was der Sitzungs-Tausch braucht (auch die Frage „wer ist da“ vor einem Zug). */
+  private readonly _sitzungsKontext = {
+    sessionUrl: () => this.mcpSessionUrl(),
+    origin: () => this._herkunft(),
+  };
+
+  /** Ein laufender Sitzungs-Tausch — ein zweiter Anlass (Klick, Frist) hängt sich daran — und
+   *  das Wort, mit dem der letzte endete (für den Klick, der zum Fehlschlag einen Satz sagt). */
+  private _sitzungsLauf: Promise<boolean> | null = null;
+  private _sitzungsAusgang = '';
+
+  /** Die Sitzung der Seite gegen einen Block tauschen; er bleibt im Arbeitsspeicher (SA-5). */
+  private _tauscheSitzung(): Promise<boolean> {
+    if (this._sitzungsLauf) return this._sitzungsLauf;
+    const lauf = this._stillAnmelden('sitzung', () => runSessionLogin(this._sitzungsKontext)
+      .then((ergebnis) => {
+        this._sitzungsAusgang = ergebnis.outcome;
+        return ergebnis;
+      })).finally(() => { if (this._sitzungsLauf === lauf) this._sitzungsLauf = null; });
+    this._sitzungsLauf = lauf;
+    return lauf;
+  }
+
+  /** Der Block ist weg (abgewiesen, abgemeldet, oder er gehört nicht mehr zur Person der Seite):
+   *  Knopf, Frist und die Listen der Person nachziehen. Den Block selbst löscht der Aufrufer. */
+  private _blockVerworfen(): void {
+    this._hasAccessBlock.set(false);
+    this._frist.vergessen();
+    this.fortsetzen.vergessen();
+    this.meineVorgaenge.vergessen();
+    this._cdr.markForCheck();
+  }
+
+  /** Die Wache vor jedem Abruf mit Block (SA-13, `session/sitzungs-wache.ts`): zeigt die Seite
+   *  noch die Person, für die der Block gilt — oder inzwischen überhaupt jemanden? */
+  private readonly _wache = new SitzungsWache({
+    aktiv: () => !this._zerstoert && this._sitzungsWeg() && !isSignedOut(),
+    fragen: () => readSessionPerson({ ...this._sitzungsKontext, fristMs: WACHE_FRAGE_MS }),
+    verworfen: () => this._blockVerworfen(),
+    tauschen: () => this._tauscheSitzung().then((gelungen) => {
+      // Ein gelungener Tausch für die neue Person gibt die Erneuerung nach einer Abweisung frei.
+      if (gelungen) this._nachAbweisung = '';
+      return gelungen;
+    }),
+    sagen: () => {
+      this._store.addBotMessage(this.t('auth.expired'));
+      this._cdr.markForCheck();
+    },
+  });
+  /** Was `ChatApiClient` vor jedem Abruf mit Block ruft. Läuft gerade ein Tausch, wartet der
+   *  Abruf auf ihn (höchstens `WACHE_TAUSCH_MS`) statt die Seite ein zweites Mal zu fragen. */
+  private readonly _wachePruefen = (): Promise<void> => {
+    const tausch = this._sitzungsLauf;
+    if (!tausch) return this._wache.pruefen();
+    return Promise.race([
+      tausch.then(() => undefined, () => undefined),
+      new Promise<void>((fertig) => setTimeout(fertig, WACHE_TAUSCH_MS)),
+    ]);
+  };
+
+  /** Kennung des stillen Wegs dieser Seite: das Ticket (Weg A) vor der Sitzung (Weg B). Leer:
+   *  die Seite hat keinen. */
+  private _stillerWeg(): string {
+    const ticket = this.ticket().trim();
+    if (ticket) return `ticket:${ticket}`;
+    return this._sitzungsWeg() ? 'sitzung' : '';
+  }
+
+  /** Den stillen Weg noch einmal gehen — wenn es einen gibt und niemand sich abgemeldet hat.
+   *  `false`: kein Tausch möglich. Ein Tausch VOR dem Ablauf verlängert nichts (MCP R1). */
+  private _stillErneut(): Promise<boolean> {
+    if (isSignedOut() || this._zerstoert) return Promise.resolve(false);
+    const ticket = this.ticket().trim();
+    const basis = this.mcpAuthBase().trim();
+    if (ticket) return basis ? this._tauscheTicket(ticket, basis) : Promise.resolve(false);
+    return this._sitzungsWeg() ? this._tauscheSitzung() : Promise.resolve(false);
+  }
+
+  /** Die Frist des Blocks (Plan 2026-11-07, R1): auf dem stillen Weg nach dem Ablauf neu
+   *  tauschen, sonst kurz davor die Anmeldung anbieten. */
   private readonly _frist = new AnmeldeFrist({
-    ticketWeg: () => Boolean(this.ticket().trim()) && !isSignedOut(),
+    // Auf einer Seite mit Sitzungs-Weg nur für einen Block AUS der Sitzung: wer sich dort von
+    // Hand angemeldet hat, bekommt den Hinweis vor dem Ablauf wie überall (Review 2026-11-15).
+    ticketWeg: () => !isSignedOut()
+      && (Boolean(this.ticket().trim()) || (sessionBlockOwner() !== null && this._sitzungsWeg())),
     neuTauschen: () => {
       // Ein gelungener Tausch nach Ablauf gibt die Erneuerung nach einer Abweisung wieder frei —
       // sonst endete die zweite 12-h-Frist eines langen Tages im Satz statt im Tausch (Befund 8).
-      void this._ticketErneut().then((neu) => { if (neu) this._ticketNachAbweisung = ''; });
+      void this._stillErneut().then((neu) => { if (neu) this._nachAbweisung = ''; });
     },
     hinweisen: () => {
       if (readAccessBlock() === null) return;
@@ -1331,32 +1477,53 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     },
   });
 
-  /** Ein Ticket wird nach einer Abweisung höchstens einmal je Wert neu getauscht — sonst liefe
-   *  jeder Zug in denselben Kreis, wenn der Server das Ticket selbst nicht mehr annimmt. */
-  private _ticketNachAbweisung = '';
+  /** Nach einer Abweisung wird je stillem Weg (`_stillerWeg`) höchstens einmal neu getauscht —
+   *  sonst liefe jeder Zug in denselben Kreis, wenn der Server Ticket oder Sitzung selbst nicht
+   *  mehr annimmt. */
+  private _nachAbweisung = '';
 
-  /** Gibt die Züge frei, die auf den Ticket-Tausch warten (S-4). */
+  /** Gibt die Züge frei, die auf den stillen Tausch warten (S-4). */
   private _ticketSperre: (() => void) | null = null;
 
   /** Was der Knopf in der Fußzeile zeigt — Entscheidung in `session/auth-button`. */
-  readonly authButton = computed(() => authButtonState(this.mcpAuthBase(), this._hasAccessBlock()));
+  readonly authButton = computed(() =>
+    authButtonState(this.mcpAuthBase(), this._hasAccessBlock(), this._sitzungsWeg()));
+
+  /** Name der Person aus der Sitzung der Seite (SA-9): nur im Arbeitsspeicher, nur am Knopf. */
+  private readonly _angemeldetAls = signal('');
+
+  /** Beschriftung des Knopfs. Wer aus der Sitzung der Seite angemeldet wurde, hat nichts
+   *  angeklickt — der Knopf sagt deshalb, unter welchem Namen der Chatbot arbeitet. */
+  readonly authTitel = computed(() => {
+    if (this.authButton() !== 'signOut') return this.t('auth.signIn');
+    const name = this._angemeldetAls();
+    return name ? this.t('auth.signOutAs', { name }) : this.t('auth.signOut');
+  });
+
+  /** Der Server wies den Block eines Zugs ab. Das gilt dem Block, mit dem der Zug hinausging:
+   *  ist inzwischen keiner mehr da (die Wache hat ihn verworfen und es gesagt) oder ein anderer
+   *  (sie hat für die neue Person getauscht), trifft die Abweisung ihn nicht (Review 2026-11-15). */
+  private _zugAbgewiesen(): void {
+    const jetzt = readAccessBlock();
+    const gesendet = this._api.letzterZugBlock;
+    if (jetzt === null || (typeof gesendet === 'string' && gesendet !== jetzt)) return;
+    this._anmeldungAbgewiesen();
+  }
 
   /** Der Server wies den Block ab (Paket 10, Kurzaudit A-3): weg damit, der Knopf
    *  bietet wieder „Anmelden“ an, und ein Satz sagt, warum. */
   private _anmeldungAbgewiesen(): void {
     clearAccessBlock();
-    this._hasAccessBlock.set(false);
-    this._frist.vergessen();
-    this.fortsetzen.vergessen();
-    this.meineVorgaenge.vergessen();
+    this._blockVerworfen();
     // Nach einem Abmelden ist eine Abweisung keine Nachricht wert (Review 2026-11-07, Befund 8).
     if (isSignedOut()) return;
-    // Plan 2026-11-07 (RB-1): ein Ticket-Block lief nach 12 h ab — still neu tauschen, einmal je
-    // Ticket. Erst wenn das nicht geht, erfährt es die Person.
-    const ticket = this.ticket().trim();
-    if (ticket && ticket !== this._ticketNachAbweisung) {
-      this._ticketNachAbweisung = ticket;
-      void this._ticketErneut().then((neu) => {
+    // Plan 2026-11-07 (RB-1): ein Block vom stillen Weg lief nach 12 h ab, oder die Sitzung der
+    // Seite gehört inzwischen jemand anderem — still neu tauschen, einmal je Weg. Erst wenn das
+    // nicht geht, erfährt es die Person.
+    const weg = this._stillerWeg();
+    if (weg && weg !== this._nachAbweisung) {
+      this._nachAbweisung = weg;
+      void this._stillErneut().then((neu) => {
         if (!neu) this._store.addBotMessage(this.t('auth.expired'));
         this._cdr.markForCheck();
       });
@@ -1375,29 +1542,54 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       // Plan 2026-11-07 (RB-2): das Backend widerruft den Block am MCP-Server. Hier sofort aus dem
       // Tab — er reist ausdrücklich mit, also schadet das Löschen dem Widerruf nicht.
       const block = readAccessBlock();
+      // SA-8: mit einem Block aus der Sitzung endet nur der Zugang des Chatbots, nicht die Sitzung.
+      const beendetText = sessionBlockOwner() !== null ? 'auth.signedOutSession' : 'auth.signedOut';
       clearAccessBlock();
       markSignedOut();
-      this._frist.vergessen();
-      this.fortsetzen.vergessen();
-      this.meineVorgaenge.vergessen();
-      this._hasAccessBlock.set(false);
+      this._blockVerworfen();
       void (block ? this._api.abmelden(block) : Promise.resolve(false)).then((beendet) => {
-        this._store.addBotMessage(this.t(beendet ? 'auth.signedOut' : 'auth.signedOutLocal'));
+        this._store.addBotMessage(this.t(beendet ? beendetText : 'auth.signedOutLocal'));
         this._cdr.markForCheck();
       });
       return;
     }
+    if (this._sitzungsWeg()) {
+      this._ausDerSitzungAnmelden();
+      return;
+    }
     this._signInAndRefresh();
+  }
+
+  /** „Anmelden“ auf einer Seite des Repositorys (SA-8): erst die Sitzung der Seite. Gelingt das
+   *  nicht, sagt ein Satz, warum — mit dem Chip für die Anmeldung von Hand, wenn die Anlage sie
+   *  anbietet (der Chip ist dann die Nutzergeste, die das Anmeldefenster braucht). */
+  private _ausDerSitzungAnmelden(): void {
+    clearSignedOut();   // der Klick hebt das Abmelden auf (R2/CB-9)
+    void this._tauscheSitzung().then((angemeldet) => {
+      if (angemeldet) {
+        this._nachAbweisung = '';
+        return;
+      }
+      const text = this.t(
+        this._sitzungsAusgang === 'no-session' ? 'auth.sessionNone' : 'auth.sessionFailed');
+      const vonHand = this.mcpAuthBase().trim() ? [AUTH_QR_MARKER] : [];
+      this._store.addBotMessage(text, false, [], vonHand);
+      this._cdr.markForCheck();
+    });
   }
 
   /** Anmelden und danach den Knopf nachziehen. Beide Auslöser — dieser Knopf
    *  und der `__auth__`-Chip — laufen hier durch, sonst stünde der Knopf nach
    *  einer Anmeldung über den Chip weiter auf „Anmelden". */
   private _signInAndRefresh(): void {
+    const vorher = readAccessBlock();
     void this.startSignIn().then(() => {
       const angemeldet = readAccessBlock() !== null;
       // Eine Anmeldung von Hand hebt das Abmelden auf (R2/CB-9).
       if (angemeldet) clearSignedOut();
+      // Ein neuer Block: der Name am Knopf gehörte zur Sitzung der Seite. Bricht die Person das
+      // Anmeldefenster ab, bleibt er (Review 2026-11-15).
+      if (readAccessBlock() !== vorher) this._angemeldetAls.set('');
       this._hasAccessBlock.set(angemeldet);
       this._fortsetzenNeu();     // K2a: nach der Anmeldung fragen, mit diesem Block
       if (angemeldet) {

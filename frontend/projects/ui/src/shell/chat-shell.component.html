@@ -367,8 +367,8 @@
         type="button"
         class="btn-auth"
         (click)="onAuthClick()"
-        [title]="authButton() === 'signOut' ? t('auth.signOut') : t('auth.signIn')"
-        [attr.aria-label]="authButton() === 'signOut' ? t('auth.signOut') : t('auth.signIn')"
+        [title]="authTitel()"
+        [attr.aria-label]="authTitel()"
       >
         <span
           class="bb-icon"

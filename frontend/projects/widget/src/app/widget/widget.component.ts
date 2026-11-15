@@ -526,6 +526,8 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   /** C5-c2: Herkunft des MCP-Servers für die WLO-Anmeldung (aus demselben
    *  Boot-Abruf). Leer = diese Anlage bietet keine Anmeldung an. */
   readonly mcpAuthBase = this.guide.mcpAuthBase;
+  /** Plan 2026-11-15: Adresse des Sitzungs-Tauschs (aus demselben Boot-Abruf). */
+  readonly mcpSessionUrl = this.guide.mcpSessionUrl;
   /** Vom Bot vorgeschlagenes Navigationsziel; `null` blendet das Banner aus. */
   readonly guideNavTarget = this.guideNav.target;
   /** Aktive Sprache — die Shell braucht sie, um ihren Markdown-Cache beim

@@ -29,6 +29,11 @@
  * den häufigen Fall früh ab — mitkopiertes „Bearer " (AUTH.md §5a: genau dafür
  * hat die `/auth`-Seite zwei Kopier-Knöpfe) — und hält fremde Zugangsdaten aus
  * unserem Speicher heraus.
+ *
+ * **Block aus der Sitzung der Seite (Plan 2026-11-15, SA-5):** der liegt gar nicht im
+ * Web-Speicher, sondern nur in diesem Modul (`holdAccessBlock`). Er lässt sich nach jedem
+ * Laden still neu holen; ein abgelegter überlebte dagegen einen Wechsel der Person. Lesen,
+ * Kopfzeile und Löschen gehen für beide Arten durch dieselben Funktionen.
  */
 
 /** Schlüssel im `sessionStorage`. */
@@ -52,8 +57,50 @@ export function isWellFormedAccessBlock(block: string | null | undefined): boole
   return block.length <= MAX_LENGTH && /^wlo[A-Za-z0-9._~+/=-]*$/.test(block);
 }
 
+/** Der Block aus der Sitzung der Seite: nur hier, nie im Web-Speicher. Seit dem 2026-11-15 steht
+ *  das Widget-Bündel in einer Hülle (`scripts/build-widget-huelle.mjs`): diese Variable und
+ *  `readAccessBlock` hängen nicht mehr an `window`. Ein Schutz vor Skripten der Gastseite ist das
+ *  trotzdem nicht — sie können `fetch` oder `XMLHttpRequest` umbiegen und die Kopfzeile mitlesen oder die Tauschstelle
+ *  selbst rufen. */
+let imArbeitsspeicher: string | null = null;
+
+/** Für wen der Block aus der Sitzung gilt. */
+export interface SessionBlockOwner {
+  /** `authorityName` der Person, die beim Tausch auf der Seite angemeldet war. */
+  authority: string;
+  /** Anzeigename für den Knopf; leer, wenn der Server keinen nennt. */
+  displayName: string;
+}
+
+/** Steht NEBEN dem Block, nicht in der Shell: baut die Gastseite das Widget neu, erbt die neue
+ *  Instanz den Block — und muss ebenso erben, wessen Block es ist (Review 2026-11-15). */
+let gehaltenFuer: SessionBlockOwner | null = null;
+
+/**
+ * Einen Block nur im Arbeitsspeicher halten (Sitzung der Seite, SA-5). Er ersetzt einen
+ * abgelegten: die Seite benennt, wer hier ist. Gibt zurück, ob er angenommen wurde.
+ */
+export function holdAccessBlock(block: string, fuer: SessionBlockOwner): boolean {
+  if (!isWellFormedAccessBlock(block) || !fuer.authority) return false;
+  imArbeitsspeicher = block;
+  gehaltenFuer = { authority: fuer.authority, displayName: fuer.displayName };
+  try {
+    sessionStorage.removeItem(MCP_ACCESS_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+/** Für wen der gehaltene Block gilt — `null`, wenn kein Block aus der Sitzung der Seite da ist
+ *  (niemand angemeldet, oder von Hand bzw. über ein Ticket). */
+export function sessionBlockOwner(): SessionBlockOwner | null {
+  return imArbeitsspeicher !== null && gehaltenFuer !== null ? { ...gehaltenFuer } : null;
+}
+
 /** Der hinterlegte Block — `null`, wenn keiner da oder er unbrauchbar ist. */
 export function readAccessBlock(): string | null {
+  if (imArbeitsspeicher !== null) return imArbeitsspeicher;
   try {
     const roh = sessionStorage.getItem(MCP_ACCESS_STORAGE_KEY);
     // Auch beim LESEN prüfen: fremder Code auf der Gastgeberseite teilt sich
@@ -69,6 +116,9 @@ export function writeAccessBlock(block: string): boolean {
   if (!isWellFormedAccessBlock(block)) return false;
   try {
     sessionStorage.setItem(MCP_ACCESS_STORAGE_KEY, block);
+    // Eine Anmeldung von Hand oder über das Ticket löst den Block aus der Sitzung ab.
+    imArbeitsspeicher = null;
+    gehaltenFuer = null;
     return true;
   } catch {
     return false;
@@ -107,9 +157,11 @@ export function isSignedOut(): boolean {
   }
 }
 
-/** Den Block aus dem Tab entfernen. Den Zugang am Server beendet erst der Widerruf über das
+/** Den Block aus dem Tab entfernen, den abgelegten wie den im Arbeitsspeicher. Den Zugang am Server beendet erst der Widerruf über das
  *  Backend (`ChatApiService.abmelden`, Plan 2026-11-07, R2). */
 export function clearAccessBlock(): void {
+  imArbeitsspeicher = null;
+  gehaltenFuer = null;
   try {
     sessionStorage.removeItem(MCP_ACCESS_STORAGE_KEY);
   } catch {
