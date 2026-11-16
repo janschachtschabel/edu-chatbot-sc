@@ -205,6 +205,63 @@ describe('UiEntscheidung', () => {
       expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: [], freitext: 'Klasse 11' }, 'Klasse 11');
     });
 
+    // Rückmeldung 2026-11-15: die eigene Antwort mit Enter bestätigen wie eine Nachricht im Chat
+    describe('Enter im Textfeld', () => {
+      const druecke = (feld: HTMLTextAreaElement, mehr: KeyboardEventInit = {}) => {
+        const ereignis = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...mehr });
+        feld.dispatchEvent(ereignis);
+        return ereignis;
+      };
+
+      it('Enter schickt die eigene Antwort ab, ohne Zeilenumbruch', async () => {
+        const { h, feld, tippe } = await render(EINZEL_FREI);
+        await tippe('Klasse 11');
+        const ereignis = druecke(feld());
+        expect(ereignis.defaultPrevented).toBe(true);
+        expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: [], freitext: 'Klasse 11' }, 'Klasse 11');
+      });
+
+      it('Umschalt+Enter bricht die Zeile um und schickt nichts', async () => {
+        const { h, feld, tippe } = await render(EINZEL_FREI);
+        await tippe('Klasse 11');
+        expect(druecke(feld(), { shiftKey: true }).defaultPrevented).toBe(false);
+        expect(h.antworten).not.toHaveBeenCalled();
+      });
+
+      it('während einer Eingabe mit IME (Zeichen werden zusammengesetzt) schickt Enter nichts', async () => {
+        const { h, feld, tippe } = await render(EINZEL_FREI);
+        await tippe('Klasse 11');
+        expect(druecke(feld(), { isComposing: true }).defaultPrevented).toBe(false);
+        expect(h.antworten).not.toHaveBeenCalled();
+      });
+
+      it('Safari: eine IME-Komposition (keyCode 229) schickt nichts', async () => {
+        const { h, feld, tippe } = await render(EINZEL_FREI);
+        await tippe('Klasse 11');
+        expect(druecke(feld(), { keyCode: 229 }).defaultPrevented).toBe(false);
+        expect(h.antworten).not.toHaveBeenCalled();
+      });
+
+      it('der Vorlesetext nennt Enter und Umschalt+Enter', async () => {
+        const { el, feld } = await render(EINZEL_FREI);
+        const hinweis = el.querySelector(`#${feld().getAttribute('aria-describedby')}`);
+        expect(hinweis?.textContent).toContain('Umschalt+Enter');
+      });
+
+      it('leeres Feld: Enter schickt nichts und schreibt auch keinen Umbruch', async () => {
+        const { h, feld } = await render(EINZEL_FREI);
+        expect(druecke(feld()).defaultPrevented).toBe(true);
+        expect(h.antworten).not.toHaveBeenCalled();
+      });
+
+      it('während eines Zugs schickt Enter nichts', async () => {
+        const { h, feld, tippe } = await render(EINZEL_FREI, {}, host(signal(true)));
+        await tippe('Klasse 11');
+        druecke(feld());
+        expect(h.antworten).not.toHaveBeenCalled();
+      });
+    });
+
     it('Einzelwahl: wer danach wieder oben wählt, schickt nur diese Wahl — der Text bleibt stehen', async () => {
       const { h, knopf, option, waehle, eigen, feld, tippe } = await render(EINZEL_FREI);
       await tippe('Klasse 11');

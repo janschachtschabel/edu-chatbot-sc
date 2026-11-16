@@ -99,6 +99,10 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     if getippt:
         await wahl_zug.aufraeumen(session, req.session_id, ctx.session_state)
     freitext = getippt and wahl_zug.nimmt_getippt(req.session_id, ctx.session_state, req.message)
+    # Zweites Review WF, Befund M1: nimmt der wartende Schritt den Text nicht, endet ein Ablauf mit
+    # ``endet_bei_text`` still — der Zug geht den gewöhnlichen Weg (wie die eingebaute Tour)
+    if getippt and not freitext:
+        await wahl_zug.still_beenden(session, req.session_id, ctx.session_state)
     return Ausloeser(bool(im_lauf), per_modul, bool(ordner), per_text, gesperrt, freitext)
 
 

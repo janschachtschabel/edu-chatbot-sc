@@ -7,11 +7,13 @@
  * sind jsdom-kompatibel und werden in `widget-init.spec.ts` echt dagegen
  * gefahren — ein Seam wäre nur zusätzliche Indirektion ohne Testgewinn.
  */
+import { ablaufSeiteMerkerGesetzt } from '../controllers/ablauf-seite-merker';
 import { detectPageContext } from '../page-context/page-context-detector';
 import { isValidSessionId } from '../session/session-id';
 
 /** Auto-Open-Policy (Welle E): Das Widget öffnet sich von selbst NUR bei
- *  ``?bsid=`` (Cross-TLD-/Tour-Handoff) ODER laufender Web-Tour
+ *  ``?bsid=`` (Cross-TLD-/Tour-Handoff), bei einem Ablauf, der auf eine Seite wartet
+ *  (``boerdi_ablauf_seite``, WF-5), ODER laufender Web-Tour
  *  (localStorage ``boerdi_tour_active``, von der Chat-Shell gesetzt —
  *  überlebt den WP-Full-Page-Reload; die Tour navigiert same-origin ohne
  *  ?bsid= und würde sonst auf jeder Tour-Seite zuklappen). Die frühere
@@ -38,6 +40,10 @@ export function computeInitialExpanded(initialState: 'collapsed' | 'expanded'): 
       expanded = true;
     }
   } catch { /* ignore */ }
+
+  // WF-5 (Plan 2026-11-15): ein Ablauf wartet auf eine Seite — wie die Web-Tour offen starten,
+  // sonst meldet der Seiten-Ping die Ankunft erst, wenn die Person das Widget selbst öffnet
+  if (ablaufSeiteMerkerGesetzt()) expanded = true;
 
   return expanded;
 }

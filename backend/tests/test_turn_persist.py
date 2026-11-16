@@ -623,6 +623,30 @@ def test_persist_qr_deckel_zaehlt_den_lotsen_nicht(monkeypatch, max_count, erwar
     assert resp.quick_replies == erwartet
 
 
+_DIREKT = '__action__|Themenbaum|ablauf_starten|{"ablauf": "baum", "start_quelle": "ki"}'
+
+
+@pytest.mark.parametrize("max_count", [0, 2])
+def test_persist_direktstart_behaelt_nur_seinen_knopf(monkeypatch, max_count):
+    """Review 2026-11-15, Befund 1: Chips, die nach der Zusammenstellung dazukommen (Facetten,
+    Anmeldung, „Hat das geholfen?“), standen wieder unter der Nachricht, und das Kürzen konnte
+    den Knopf nehmen — dann startete der Ablauf still nicht."""
+    from boerdi.services.ablauf import vorschlag
+
+    dr = {
+        "groups": {}, "quick_replies": {"max_count": max_count},
+        "single_content_box": {"enabled": True},
+    }
+    resp, _ = _run2(
+        monkeypatch, sp=_patch2(monkeypatch, dr=dr),
+        session_state={"turn_count": 4, "entities": {"thema": "Bruch"},
+                       vorschlag.DIREKT_KEY: _DIREKT},
+        quick_replies=["Nur Video (10)", "Nur Arbeitsblatt (3)", _DIREKT], _qr_mode="none",
+    )
+    assert resp.quick_replies == [_DIREKT]
+    assert resp.ui.direkt_start == _DIREKT
+
+
 def test_persist_qr_max_policy_override(monkeypatch):
     resp, _ = _run2(
         monkeypatch, quick_replies=["A", "B", "C", "D"], _qr_mode="none", _qr_max=1,

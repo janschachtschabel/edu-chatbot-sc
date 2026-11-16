@@ -1067,6 +1067,24 @@ def test_greift_der_freitext_nicht_geht_der_zug_den_gewoehnlichen_weg(monkeypatc
     assert out.early_response is None
 
 
+def test_getippter_text_ohne_treffer_kann_einen_lauf_still_beenden(monkeypatch):
+    """Zweites Review WF, Befund M1: nimmt der wartende Schritt den Text nicht, fragt der
+    Preflight ``still_beenden`` (wirkt nur mit ``endet_bei_text``) — danach der gewöhnliche Zug."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    _wahl_spione(monkeypatch, wartet=False)
+    beendet: list = []
+
+    async def still_beenden(session, sid, state):
+        beendet.append(sid)
+        return True
+
+    monkeypatch.setattr(pf_mod.wahl_zug, "still_beenden", still_beenden)
+    out = asyncio.run(preflight(_ctx(None, message="Was kostet das?"), _SESSION))
+    assert out.early_response is None and len(beendet) == 1
+
+
 def test_ohne_freitext_schritt_bleibt_getippter_text_ein_gewoehnlicher_zug(monkeypatch):
     _patch_handlers(monkeypatch)
     _patch_db(monkeypatch)

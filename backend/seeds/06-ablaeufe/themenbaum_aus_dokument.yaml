@@ -46,7 +46,7 @@ schritte:
     optionen:
       - {id: fragen, label: {de: "Ja, mit Fragen", en: "Yes, with questions"}, ziel: hochladen}
       - {id: gleich, label: {de: "Gleich entwerfen", en: "Draft right away"}, ziel: hochladen}
-      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei_anfang}
+      - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei_anfang}
   - id: hochladen
     typ: modul
     modul: ui_upload
@@ -74,7 +74,7 @@ schritte:
     optionen:
       - {id: fragen, label: {de: "Ja, mit Fragen", en: "Yes, with questions"}, ziel: ordnung}
       - {id: gleich, label: {de: "Gleich entwerfen", en: "Draft right away"}, ziel: entwurf}
-      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
+      - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
   - id: ordnung
     typ: nachricht
     text: {de: "Wonach soll die erste Ebene geordnet sein?", en: "What should the first level be ordered by?"}
@@ -131,13 +131,13 @@ schritte:
   - id: frei_anfang
     typ: ende
     ausstieg: true
-    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei weiter.",
-           en: "Alright, without the workflow – let's carry on freely."}
+    text: {de: "Gut, dann ohne Führung – wir machen frei im Chat weiter.",
+           en: "Alright, no guidance then – let's carry on freely in the chat."}
   - id: frei
     typ: ende
     ausstieg: true
-    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei mit deinem Dokument weiter.",
-           en: "Alright, without the workflow – let's carry on freely with your document."}
+    text: {de: "Gut, dann ohne Führung – wir machen frei im Chat mit deinem Dokument weiter.",
+           en: "Alright, no guidance then – let's carry on freely in the chat with your document."}
   # Review TW-4, Befund 4: ohne gelesenes Dokument ein neuer Versuch statt eines harten Endes
   - id: ohne_dokument
     typ: nachricht
@@ -184,7 +184,7 @@ tests:
       - bei: entwurf
         teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
     erwartet: {weg: [einstieg, hochladen, gelesen, nach_lesen, entwurf, ende], status: fertig}
-  - name: Ohne Ablauf gleich am Anfang
+  - name: Ohne Führung gleich am Anfang
     eingaben:
       - {bei: einstieg, option: ohne}
     erwartet: {weg: [einstieg, frei_anfang], status: fertig}
@@ -224,7 +224,7 @@ tests:
         teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
     erwartet: {weg: [gelesen, nach_lesen, gelesen_frage, ordnung, wofuer, entwurf, ende], status: fertig,
                teile: [ordnung, zweck, draft]}
-  - name: Ohne Ablauf
+  - name: Ohne Führung
     ab: gelesen
     teile: {document: {upload_id: 11111111-1111-4111-8111-111111111111, name: Rahmenlehrplan.pdf}}
     eingaben:

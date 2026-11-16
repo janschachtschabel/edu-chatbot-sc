@@ -21,7 +21,7 @@ from typing import Any, Final
 from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.i18n import resolve_locale
 from boerdi.services import arbeitsstand, plan_fortsetzen
-from boerdi.services.ablauf import freigabe_zug, treiber, zug
+from boerdi.services.ablauf import ausloeser, freigabe_zug, treiber, zug
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.llm_auth import hat_zug_schluessel
 
@@ -71,7 +71,10 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
     from boerdi.services import vorgang_aktion
 
     antwort = await basis.nur_text(session, req, _satz(lauf, angelaufen), entities)
-    antwort.quick_replies = vorgang_aktion.knoepfe(lang)
+    # Review WF-1, Befund 4: wie am Ende eines Laufs nur mit Arbeitsstand (L8)
+    ablauf = ausloeser.laden(lauf.get("ablauf"))
+    antwort.quick_replies = (vorgang_aktion.knoepfe(lang)
+                             if ablauf is None or basis.hat_arbeitsstand(ablauf) else [])
     return antwort
 
 

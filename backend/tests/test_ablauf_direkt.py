@@ -115,6 +115,40 @@ async def test_die_zusammenstellung_merkt_den_direktknopf(katalog):
     assert vorschlag.DIREKT_KEY not in zustand
 
 
+async def test_beim_direktstart_steht_nur_der_startknopf(katalog):
+    # Rückmeldung 2026-11-15: unter der Nachricht, nach der der Ablauf von selbst startet, standen
+    # der Startknopf und Schnellantworten der KI („Für Grundschulkinder“) — beides überflüssig, der
+    # Ablauf fragt gleich selbst. Der Knopf bleibt (das Widget drückt nur, was dasteht).
+    import asyncio
+
+    from tests.test_turn_assembly import _call
+
+    async def _vorschlaege():
+        return ["Für Grundschulkinder", "Für die Oberstufe"]
+
+    katalog.append(_direkt("baum"))
+    zustand = {"entities": {}, vorschlag.SITZUNG_KEY: [{"ablauf": "baum"}]}
+    _cards, qrs, *_ = await _call(session_state=zustand,
+                                  _qr_spec_task=asyncio.create_task(_vorschlaege()))
+    assert qrs == [zustand[vorschlag.DIREKT_KEY]]
+
+
+async def test_ein_vorschlag_ohne_direktstart_behaelt_die_schnellantworten(katalog):
+    import asyncio
+
+    from tests.test_turn_assembly import _call
+
+    async def _vorschlaege():
+        return ["Für Grundschulkinder"]
+
+    katalog.append(_roh("baum", schritte=_SCHRITTE, ausloeser=[{"art": "agent"}]))
+    zustand = {"entities": {}, vorschlag.SITZUNG_KEY: [{"ablauf": "baum"}]}
+    _cards, qrs, *_ = await _call(session_state=zustand,
+                                  _qr_spec_task=asyncio.create_task(_vorschlaege()))
+    assert "Für Grundschulkinder" in qrs and len(qrs) == 2
+    assert vorschlag.DIREKT_KEY not in zustand
+
+
 # ── Review TB-E3 ──────────────────────────────────────────────────────────────────────────────
 
 def test_review_1_die_beschreibung_eines_direkten_ablaufs_sagt_dass_er_startet(katalog):

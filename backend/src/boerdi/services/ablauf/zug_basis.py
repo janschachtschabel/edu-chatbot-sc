@@ -126,6 +126,24 @@ AUSSTIEG_KEY: Final = "_ablauf_ausstieg"
 AUSSTIEG_ZUEGE: Final = 3
 #: Die Direktaktion, die einen Ablauf per Knopf startet (``zug.AKTION``; hier ohne Import-Zirkel).
 _START_AKTION: Final = "ablauf_starten"
+#: WF-2 (Plan 2026-11-15): wo der Hinweis ``kein_treffer`` schon stand — Vorgang und Schritt,
+#: keine Inhalte (``wahl_zug``). Einmal je Besuch: :func:`antwort` nimmt die Marke bei jedem neu
+#: gerechneten Schritt.
+KEIN_TREFFER_KEY: Final = "_ablauf_kein_treffer"
+
+
+#: Schrittarten, die einen Arbeitsstand erzeugen (WF-1, L8): ohne sie gibt es am Ende nichts, was
+#: „Neues Vorhaben“ hinter sich ließe oder „Arbeitsstand löschen“ löschte.
+_ARBEITSSTAND_ARTEN: Final = frozenset({"modul", "werkzeug", "agent", "auftrag"})
+
+
+def hat_arbeitsstand(ablauf: Any) -> bool:
+    """Erzeugt der Ablauf einen Arbeitsstand? (WF-1: eine Führung aus Nachrichten, Wahlen und
+    Seiten nicht.) Getippter Text (``freitext``) und Startdaten zählen: was die Person eingibt,
+    steht im Vorgang, und dann braucht sie den Weg, ihn zu löschen (Review WF-1, Befund 1). Eine
+    Wahl schreibt nur die Beschriftung der Redaktion."""
+    return bool(ablauf.start) or any(s.typ in _ARBEITSSTAND_ARTEN or s.freitext is not None
+                                     for s in ablauf.schritte)
 
 
 def ausstieg_merken(session_state: dict, ablauf_id: Any) -> None:
@@ -182,6 +200,9 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
     ausgestiegen = _ist_ausstieg(ablauf, aus)
     if ausgestiegen:
         ausstieg_merken(session_state, ablauf.id)
+    # Review WF-2, Befund 1: ein neu gerechneter Schritt ist ein neuer Besuch — der Hinweis
+    # ``kein_treffer`` darf dort wieder kommen (auch nach einem Rückweg auf denselben Schritt)
+    entities.pop(KEIN_TREFFER_KEY, None)
     await update_session(session, req.session_id, entities=entities)
     # Review S2/S3, Befund 1: ohne ``_``-Schlüssel wie ``turn_persist`` — die offene Abnahme trägt
     # den Schlüssel, ein offener Plan den seinen. Zweite Sicherung neben dem Validator von
@@ -220,10 +241,12 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
         knoepfe = wahl_zug.knoepfe(ablauf.id, aus.wahl)
     if aus.lauf.get("status") in ("fertig", "fehler", "abgebrochen"):
         # Querschnitts-Review 2026-11-06 (Review Q3, Befund 4): der Einstieg zu „neues Vorhaben“
-        # und „Arbeitsstand löschen“ — ``__action__``-Knöpfe schreibt das Modell nicht.
+        # und „Arbeitsstand löschen“ — ``__action__``-Knöpfe schreibt das Modell nicht. WF-1 (L8):
+        # nur, wenn der Ablauf einen Arbeitsstand erzeugt — eine Führung hat keinen.
         from boerdi.services import vorgang_aktion
 
-        knoepfe = vorgang_aktion.knoepfe(resolve_locale(req.environment.locale))
+        knoepfe = (vorgang_aktion.knoepfe(resolve_locale(req.environment.locale))
+                   if hat_arbeitsstand(ablauf) else [])
         if ausgestiegen:
             # Querschnitts-Review TW, Befund 14: nach „Ohne Ablauf“ der Weg zurück, nicht
             # „Neues Vorhaben“ (die Marke steht schon, oben vor dem Speichern)
@@ -245,11 +268,19 @@ async def nur_text(session: Any, req: ChatRequest, schluessel: str,
     """Ein Hinweis als Antwort. Mit ``entities`` werden sie festgeschrieben (Querschnitts-Review
     2026-11-06, M5): frühe Antworten laufen nicht durch ``persist`` — ein hier aufgefrischter oder
     abgebrochener Verweis ginge sonst verloren, und ein veralteter Lauf hinge in der Sitzung."""
+    return await fester_text(session, req, bot_text(resolve_locale(req.environment.locale),
+                                                    schluessel), entities)
+
+
+async def fester_text(session: Any, req: ChatRequest, text: str,
+                      entities: dict[str, Any] | None = None,
+                      knoepfe: list[str] | None = None) -> ChatResponse:
+    """Wie :func:`nur_text`, mit einem Text der Redaktion (etwa ``kein_treffer``, WF-2) und
+    Chips."""
     if entities is not None:
         await update_session(session, req.session_id, entities=entities)
-    text = bot_text(resolve_locale(req.environment.locale), schluessel)
     await save_message(session, req.session_id, "assistant", text, debug={FESTER_TEXT_KEY: True})
-    return ChatResponse(session_id=req.session_id, content=text, quick_replies=[],
+    return ChatResponse(session_id=req.session_id, content=text, quick_replies=knoepfe or [],
                         ui=UiInfo(fester_text=True))
 
 

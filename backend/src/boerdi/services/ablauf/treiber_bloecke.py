@@ -28,8 +28,14 @@ def block(modul: str, daten: dict[str, Any]) -> UiBlock | None:
 
 async def modul_block(modul: str, daten: dict[str, Any], *,
                       simulation: bool = False) -> UiBlock | None:
-    """Erst als fertige Daten, sonst über den Dienst des Moduls — nur für Module ohne Sprachmodell
-    (``ui_upload``: Studio-Schalter). Ein ausgeschaltetes Modul baut kein Block.
+    """Ein Modul ohne Sprachmodell mit eigenem Dienst (``ui_upload``: Studio-Schalter, Grenzen)
+    immer über den Dienst; jedes andere aus fertigen Daten. Ein ausgeschaltetes Modul baut kein
+    Block.
+
+    Rückmeldung 2026-11-15: Vorher kamen erst die fertigen Daten dran. Die Daten des Ablaufs
+    erfüllten den Vertrag von ``ui_upload`` schon mit ``zweck`` — der Dienst, der ``schalter`` und
+    ``grenzen`` einsetzt, lief nie, und das Widget ließ kein Dokument lesen. Der Dienst bekommt nur
+    seine Parameter: Systemfelder setzt er selbst, nie ein (im Studio bearbeitbarer) Ablauf.
 
     ``simulation`` (AS-1): nie über den Dienst — für ein Modul, das der Betrieb über seinen Dienst
     baut, ein Platzhalter-Block mit der Art des Moduls (ein abfragendes wartet wie im Betrieb). Für
@@ -37,14 +43,8 @@ async def modul_block(modul: str, daten: dict[str, Any], *,
     AS-1, Befund 1)."""
     if not schalter.aktiv(modul):
         return None
-    if (fertig := block(modul, daten)) is not None:
-        return fertig
     if modul not in werkzeuge.MODUL_DIENST_OHNE_MODELL:
-        return None
-    if simulation:
-        manifest = katalog.katalog().get(modul)
-        return (None if manifest is None
-                else neuer_block(modul, manifest["version"], manifest["art"], daten, ""))
+        return block(modul, daten)
     from boerdi.ui_module import dienst
     from boerdi.ui_module.aufruf import Umgebung as ModulUmgebung
     from boerdi.ui_module.aufruf import asynchron
@@ -52,7 +52,11 @@ async def modul_block(modul: str, daten: dict[str, Any], *,
     manifest = katalog.katalog().get(modul)
     if manifest is None or not dienst.name(manifest):
         return None
-    return (await asynchron(modul, daten, ModulUmgebung(aus_ablauf=True))).block
+    erlaubt = (manifest["dienst"].get("parameter") or {}).get("properties") or {}
+    args = {k: v for k, v in daten.items() if k in erlaubt}
+    if simulation:
+        return neuer_block(modul, manifest["version"], manifest["art"], args, "")
+    return (await asynchron(modul, args, ModulUmgebung(aus_ablauf=True))).block
 
 
 def fortschritt(ablauf_id: str, job_id: str, text: str, sprache: str) -> UiBlock | None:

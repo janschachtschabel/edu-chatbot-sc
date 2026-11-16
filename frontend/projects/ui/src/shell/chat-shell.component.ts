@@ -71,6 +71,7 @@ import {
   themenbaumZweig,
 } from '../controllers/collection-actions';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
+import { merkerNachStand, setzeAblaufSeiteMerker } from '../controllers/ablauf-seite-merker';
 import { SeitenPing, seitenPingNoetig, UnbestimmtMarke } from '../controllers/seiten-ping';
 import { type AblaufSeite, fuehrungsChips } from '../widget/fuehrung-angebote';
 
@@ -121,7 +122,7 @@ import {
 import { dispatchHostEvent, HOST_EVENTS } from '../host-events/event-names';
 import { antwortAusVerlaufHolen } from './antwort-aus-verlauf';
 import { fokusZurueckholen } from './fokus-nach-dem-zug';
-import { SendMessageContext, runSendMessage } from './send-message';
+import { SendMessageContext, direktStartKnopf, runSendMessage } from './send-message';
 import { ControllerContexts, ShellHost, buildControllerContexts } from './shell-contexts';
 import { LifecycleContext, ShellLifecycle } from './lifecycle';
 import { fehlerKurz } from '../obs/fehler-kurz';
@@ -593,6 +594,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     startReplies: () => this.startReplies(),
     fuehrungsChips: () => fuehrungsChips(this.fuehrungsAngebote(), _aktuellerPfad(), this.locale()),
     seitenPingWartet: () => seitenPingNoetig(this.ablaufStand(), this._unbestimmtMarke.gilt(this._ablaufUnbestimmt())),
+    // WF-5 (Review M1): nach dem Verlauf — wartet nichts mehr, fällt der Merker (auch bei leerem Verlauf)
+    verlaufGeklaert: () => {
+      if (!this._ablaufUnbestimmt() && this.ablaufStand()?.status !== 'wartet_seite') setzeAblaufSeiteMerker(false);
+    },
     showWelcome: () => _attrIsTrue(this.showWelcome()),
     sessionId: () => this.sessionId,
     setSessionId: (id) => { this.sessionId = id; },
@@ -643,6 +648,19 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       this._lifecycle.loadingEnded();
       this._fokusNachholen();
     });
+  });
+
+  /** WF-5 (Plan 2026-11-15): wartet ein Lauf auf eine Seite, steht der Merker, und das Widget
+   *  öffnet sich nach dem Seitenwechsel von selbst (`controllers/ablauf-seite-merker`). Gelöscht
+   *  erst nach einer Serverantwort ohne Warten — nicht, solange nach dem Neuladen der Verlauf
+   *  noch fehlt. */
+  private readonly _ablaufSeiteMerker = effect(() => {
+    // Review m1: ist der Stand unbestimmt (Anmeldung kam nach dem Neuladen zu spät), nichts ändern —
+    // der Seiten-Ping geht trotzdem hinaus, und auf der nächsten Seite muss das Widget aufgehen
+    if (this._ablaufUnbestimmt()) return;
+    const antwortDa = this.messages().some((m) => m.sender === 'bot' && !m.isLoading && !!m.ui);
+    const an = merkerNachStand(this.ablaufStand(), antwortDa);
+    if (an !== null) untracked(() => setzeAblaufSeiteMerker(an));
   });
 
   /** Turn-Lebenszyklus-Seam (8-4S-c). */
@@ -911,9 +929,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  den Schnellantworten steht und `ablauf_starten` auslöst; nur live (`_onResult`). Er wartet in
    *  der Reihe, bis dieser Zug geladen ist. */
   private _direktStarten(resp: ChatResponse): void {
-    const knopf = resp.ui?.direkt_start;
-    if (typeof knopf !== 'string' || !(resp.quick_replies ?? []).includes(knopf)) return;
-    if (knopf.split('|', 4)[0] !== '__action__' || knopf.split('|', 4)[2] !== 'ablauf_starten') return;
+    const knopf = direktStartKnopf(resp);
+    if (!knopf) return;
     // Review TB-E3, Befund 5: vorn in der Reihe — „gleich nach der Antwort“, vor Aufträgen der
     // Gastseite, die schon warten (wie „Stand prüfen“)
     this._wartendeAuftraege.unshift({

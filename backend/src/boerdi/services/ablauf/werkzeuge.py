@@ -142,6 +142,7 @@ def bekannt(name: str) -> bool:
     return name in DIENSTE or name in LESENDE_MCP
 
 
-#: Module, deren Block der Treiber über ihren Dienst bauen darf, wenn die Daten des Schritts nicht
-#: schon fertig zum Vertrag passen — nur Dienste ohne Sprachmodell (Review A1, Befund 4).
+#: Module, deren Block der Treiber immer über ihren Dienst baut — nur Dienste ohne Sprachmodell
+#: (Review A1, Befund 4). Der Dienst setzt Systemfelder wie Schalter und Grenzen; der Schritt gibt
+#: nur dessen Parameter mit (Rückmeldung 2026-11-15, ``treiber_bloecke.modul_block``).
 MODUL_DIENST_OHNE_MODELL: Final = frozenset({UPLOAD})

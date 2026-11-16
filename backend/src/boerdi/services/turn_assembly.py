@@ -407,6 +407,9 @@ async def _assemble_cards_and_qrs(
         # ``ui.direkt_start`` aus, wenn er dann noch dasteht
         if _direkt := ablauf_vorschlag.direkt_knopf(_ablauf_ids, _qr_lang):
             session_state[ablauf_vorschlag.DIREKT_KEY] = _direkt
+            # Rückmeldung 2026-11-15: der Ablauf fragt gleich selbst — weitere Chips unter dieser
+            # Antwort führten nur weg. Der Knopf bleibt: das Widget drückt nur, was dasteht.
+            quick_replies = [_direkt]
     # Paket A2b: „Weiter im Ablauf“, solange ein Lauf am agent-Schritt wartet — dieselben Grenzen.
     # Paket K1a: am Auftragsschritt „Stand prüfen“ — nur dieser eine (zweites Review K2b,
     # Befund 4: zwei Knöpfe verdrängten unter dem Deckel jeden Vorschlag). „Auftrag abbrechen“

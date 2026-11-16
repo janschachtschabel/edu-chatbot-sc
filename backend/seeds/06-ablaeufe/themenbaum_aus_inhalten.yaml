@@ -39,7 +39,7 @@ schritte:
            en: "I'll gladly build a topic tree from your content. I'll guide you in a few steps: questions, upload, metadata, draft. All right?"}
     optionen:
       - {id: fragen, label: {de: "Ja, los geht's", en: "Yes, let's go"}, ziel: wofuer}
-      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
+      - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
   - id: wofuer
     typ: nachricht
     text: {de: "Wofür soll der Themenbaum sein? Wähle aus oder schreib es in eigenen Worten.",
@@ -157,8 +157,8 @@ schritte:
   - id: frei
     typ: ende
     ausstieg: true
-    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei weiter.",
-           en: "Alright, without the workflow – let's carry on freely."}
+    text: {de: "Gut, dann ohne Führung – wir machen frei im Chat weiter.",
+           en: "Alright, no guidance then – let's carry on freely in the chat."}
   - id: nach_dokument
     typ: ende
     text: {de: "Du hast ein Dokument lesen lassen. Für einen Themenbaum daraus starte „Themenbaum · aus einem Dokument“ und wähle das Dokument dort noch einmal.",
@@ -310,7 +310,7 @@ tests:
       weg: [einstieg, wofuer, stufe, thema, hochladen, uebertragen, metadaten_frage, metadaten,
             metadaten_fehlt, lesen, ohne_metadaten, abgebrochen]
       status: fertig
-  - name: Ohne Ablauf
+  - name: Ohne Führung
     eingaben:
       - {bei: einstieg, option: ohne}
     erwartet: {weg: [einstieg, frei], status: fertig}

@@ -72,6 +72,33 @@ def test_rueckwege_und_bei_fehler_zaehlen_nicht():
     assert fortschritt.position(a, "t") == (2, 2)
 
 
+def test_wf1_eine_verzweigung_zaehlt_nicht():
+    # Plan 2026-11-15, WF-1: eine Verzweigung sieht die Person nie — sie zählte als Schritt mit
+    a = _ablauf([_n("a"), {"id": "v", "typ": "verzweigung", "weiter": [{"sonst": "b"}]},
+                 _n("b"), _ENDE])
+    assert [fortschritt.position(a, s) for s in ("a", "b")] == [(1, 2), (2, 2)]
+
+
+def test_wf1_ein_rueckweg_verlaengert_die_gesamtzahl_nicht():
+    """Rückmeldung 2026-11-15: im Dokument-Ablauf sprang die Anzeige von „Schritt 2 von 8“ auf
+    „Schritt 4 von 11“ — die Verzweigung zählte mit, und der längste Weg ab „kein Dokument“
+    lief über „Nochmal wählen“ noch einmal durch den ganzen Ablauf."""
+    a = _ablauf([
+        _n("a"),
+        {"id": "u", "typ": "nachricht", "text": {"de": "?"},
+         "optionen": [{"id": "los", "label": {"de": "Los"}, "ziel": "v"}]},
+        {"id": "v", "typ": "verzweigung",
+         "weiter": [{"wenn_teil": "document", "dann": "c"}, {"sonst": "nochmal"}]},
+        _n("c"), _n("d", weiter="e"),
+        {"id": "nochmal", "typ": "nachricht", "text": {"de": "?"}, "optionen": [
+            {"id": "neu", "label": {"de": "Nochmal"}, "ziel": "u"},
+            {"id": "aus", "label": {"de": "Beenden"}, "ziel": "e"}]},
+        _ENDE])
+    assert fortschritt.position(a, "u") == (2, 4)
+    assert fortschritt.position(a, "c") == (3, 4)
+    assert fortschritt.position(a, "nochmal") == (3, 3)
+
+
 def test_ein_unbekannter_schritt_hat_keine_position():
     assert fortschritt.position(_ablauf([_n("a"), _ENDE]), "weg") is None
 
@@ -457,8 +484,9 @@ def test_ein_neuer_lauf_desselben_ablaufs_hat_eine_neue_laufmarke(umgebung):  # 
     zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
     erste = fortschritt.stand(zustand["entities"], "person-a", "de")["lauf"]
     [v] = umgebung.speicher.v.values()
-    params = json.loads(_abbrechen(zustand).quick_replies[0].split("|", 3)[3])
-    _abbrechen(zustand, **params)
+    # an einer Frage bricht „Abbrechen“ sofort ab (Rückmeldung 13.11.); vorher griff der Test den
+    # ersten Chip danach — „Neues Vorhaben“, den es ohne Arbeitsstand nicht mehr gibt (WF-1)
+    _abbrechen(zustand)
     asyncio.run(zug.starten(_S(), _req(action=zug.AKTION, action_params={"ablauf": "probe"}),
                             zustand))
     zweite = fortschritt.stand(zustand["entities"], "person-a", "de")["lauf"]
@@ -499,3 +527,16 @@ def test_der_verlauf_traegt_den_stand_an_allen_antworten_nach_der_frage():
     ], stand)
     assert "ablauf" not in verlauf[0]["ui"]
     assert verlauf[2]["ui"]["ablauf"] == stand and verlauf[3]["ui"]["ablauf"] == stand
+
+
+def test_wf1_review_rueckwege_auch_hinter_bei_fehler():
+    """Review WF-1, Befund 2: ein Schritt, den nur ``bei_fehler`` erreicht, bekam keine Rückwege
+    ausgeschlossen — in „Themenbaum aus Inhalten“ stand ``ohne_metadaten`` auf 10 von 12."""
+    import pathlib
+
+    import yaml
+
+    roh = yaml.safe_load(pathlib.Path("seeds/06-ablaeufe/themenbaum_aus_inhalten.yaml")
+                         .read_text(encoding="utf-8"))
+    nr, von = fortschritt.position(AblaufArea.model_validate(roh), "ohne_metadaten")
+    assert nr == von

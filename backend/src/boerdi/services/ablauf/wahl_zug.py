@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 AKTION: Final = WAHL_AKTION
 #: So lang darf ein Label im Chip sein (die Prüfung deckelt bei 60).
 _LABEL_ZEICHEN: Final = 60
+#: WF-2 (Plan 2026-11-15): wo der Hinweis ``kein_treffer`` schon stand (``zug_basis``). Einmal je
+#: Besuch des Schritts; danach geht getippter Text wie sonst an die KI.
+KEIN_TREFFER_KEY: Final = basis.KEIN_TREFFER_KEY
 
 
 def knoepfe(ablauf_id: str, wahl: dict[str, Any] | None) -> list[str]:
@@ -90,12 +93,58 @@ wahl_aus_text = treiber.wahl_aus_text
 
 
 def nimmt_getippt(session_id: str, session_state: dict[str, Any], text: str | None) -> bool:
-    """Nimmt der wartende Schritt dieser Person den getippten Text — als Wahl (gleich einem Label)
-    oder als Freitext?"""
+    """Nimmt der wartende Schritt dieser Person den getippten Text — als Wahl (gleich einem Label
+    oder per Synonym), als Freitext oder für den Hinweis ``kein_treffer`` (WF-2)?"""
     if (treffer := _wartend(session_id, session_state)) is None:
         return False
     schritt = treffer[2]
-    return schritt.freitext is not None or wahl_aus_text(schritt, text) is not None
+    return (schritt.freitext is not None or wahl_aus_text(schritt, text) is not None
+            or _hinweis_marke(session_id, session_state, schritt) is not None)
+
+
+def _hinweis_marke(session_id: str, session_state: dict[str, Any], schritt: Schritt) -> str | None:
+    """WF-2: die Marke für den Hinweis ``kein_treffer``, wenn er bei diesem Besuch des Schritts
+    noch nicht stand — sonst ``None``. Nur ohne Freitext (der nähme jeden Text). Gelesen wird nur
+    der Verweis der Sitzung (Review WF-2, Befund 3, hingenommen): hat eine zweite Sitzung den Lauf
+    weitergeschoben, kommt der Hinweis des alten Schritts, und ein Klick sagt „gilt nicht mehr“."""
+    if schritt.kein_treffer is None or schritt.freitext is not None:
+        return None
+    entities = session_state.get("entities") or {}
+    vw = arbeitsstand.verweis(entities, arbeitsstand.aufrufer_fuer(session_id))
+    if not vw:
+        return None
+    marke = f"{vw.get('id')}:{schritt.id}"
+    return None if entities.get(KEIN_TREFFER_KEY) == marke else marke
+
+
+async def still_beenden(session: Any, session_id: str, session_state: dict[str, Any]) -> bool:
+    """Zweites Review WF, Befund M1: getippter Text, den der wartende Schritt (Wahl oder Seite)
+    nicht nimmt, beendet einen Ablauf mit ``endet_bei_text`` still, ohne Antwort und ohne Chips —
+    der Zug geht danach den gewöhnlichen Weg. Der Ausstieg wird gemerkt: die KI schlägt denselben
+    Ablauf nicht gleich wieder vor. ``True``, wenn ein Lauf endete. Fehler lassen alles stehen."""
+    entities = session_state.setdefault("entities", {})
+    aufrufer = arbeitsstand.aufrufer_fuer(session_id)
+    vw = arbeitsstand.verweis(entities, aufrufer)
+    lauf = (vw or {}).get("lauf")
+    wartend = (treiber.WARTET_WAHL, treiber.WARTET_SEITE)
+    if not isinstance(lauf, dict) or lauf.get("status") not in wartend:
+        return False
+    ablauf = laden(lauf.get("ablauf"))
+    if ablauf is None or not ablauf.endet_bei_text:
+        return False
+    try:
+        v = await vorgaenge.lesen(session, vw["id"], aufrufer)
+        echt = (v.akte or {}).get("lauf") if v is not None else None
+        if not isinstance(echt, dict) or echt.get("status") not in wartend:
+            basis.verweis_auffrischen(entities, v, aufrufer)
+            return False
+        if not await basis.abbrechen(session, v, echt, entities, aufrufer):
+            return False
+    except Exception as fehler:  # noqa: BLE001 — ohne Ende geht der Zug den gewöhnlichen Weg
+        logger.warning("Ablauf: stilles Ende nicht möglich (%s)", type(fehler).__name__)
+        return False
+    basis.ausstieg_merken(session_state, ablauf.id)
+    return True
 
 
 async def aufraeumen(session: Any, session_id: str, session_state: dict[str, Any]) -> None:
@@ -163,6 +212,15 @@ async def getippt(session: Any, req: ChatRequest, session_state: dict, *,
         return None
     _lauf, ablauf, schritt = treffer
     wahl = wahl_aus_text(schritt, req.message)
+    if wahl is None and (marke := _hinweis_marke(req.session_id, session_state, schritt)):
+        # WF-2: kein Treffer — einmal der Hinweis des Schritts mit denselben Chips, ohne die KI
+        entities = session_state.setdefault("entities", {})
+        entities[KEIN_TREFFER_KEY] = marke
+        lang = resolve_locale(req.environment.locale)
+        text = ((schritt.kein_treffer or {}).get(lang) or (schritt.kein_treffer or {}).get("de")
+                or "").strip()
+        return await basis.fester_text(session, req, text, entities,
+                                       knoepfe(ablauf.id, treiber.wahl_angebot(schritt, lang)))
     return await _fortsetzen(session, req, session_state, blocked_tools, ablauf_id=ablauf.id,
                              schritt_id=schritt.id, wahl=wahl,
                              text=None if wahl else (req.message or ""))

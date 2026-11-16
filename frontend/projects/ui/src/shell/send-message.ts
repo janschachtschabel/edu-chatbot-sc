@@ -127,6 +127,24 @@ function istBeschaeftigt(err: unknown): boolean {
   return e?.code === 'session_busy' || e?.status === 409;
 }
 
+/** Der Knopf, den die Shell nach dem Zug selbst drückt (Plan 2026-11-10, TB-E3): `ui.direkt_start`,
+ *  nur wenn er unter den Schnellantworten steht und `ablauf_starten` auslöst — sonst `null`. Eine
+ *  Prüfung für Ansicht und Druck (Review 2026-11-15): verschwindet ein Knopf, wird er auch gedrückt. */
+export function direktStartKnopf(resp: ChatResponse): string | null {
+  const knopf = resp.ui?.direkt_start;
+  if (typeof knopf !== 'string' || !(resp.quick_replies ?? []).includes(knopf)) return null;
+  const teile = knopf.split('|', 4);
+  return teile[0] === '__action__' && teile[2] === 'ablauf_starten' ? knopf : null;
+}
+
+/** Die Chips unter der Nachricht. Den Direktstart-Knopf drückt die Shell selbst — unter der
+ *  Nachricht stünde er nur als Doppel des Starts (Rückmeldung 2026-11-15). Die Antwort selbst
+ *  bleibt unverändert. */
+function sichtbareSchnellantworten(resp: ChatResponse): string[] | undefined {
+  const knopf = direktStartKnopf(resp);
+  return knopf ? (resp.quick_replies ?? []).filter((q) => q !== knopf) : resp.quick_replies;
+}
+
 /**
  * Einen Chat-Turn abwickeln. `text` leer → Rückgriff aufs Eingabefeld
  * (`text || currentInput().trim()`, ALT-verbatim); Guard gegen leere Message
@@ -176,7 +194,7 @@ export async function runSendMessage(
     // Loading entfernen, echte Antwort anhängen.
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(
-      resp.content, false, resp.cards, resp.quick_replies, resp.ui,
+      resp.content, false, resp.cards, sichtbareSchnellantworten(resp), resp.ui,
       resp.pagination, resp.query_metas, resp.web_links,
       resp.display_rules, resp.topic_page,
     );

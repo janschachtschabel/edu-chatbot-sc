@@ -65,8 +65,9 @@ def test_ohne_die_neuen_felder_bleibt_die_fassung_gleich():
     ({"optionen": [{"id": "a", "label": {"de": "A"}, "ziel": "neu"},
                    {"id": "a", "label": {"de": "B"}, "ziel": "alt"}]}, "doppelt"),
     ({"optionen": [{"id": "a", "label": {"en": "A"}, "ziel": "neu"}]}, "Beschriftung"),
-    ({"optionen": [{"id": f"o{i}", "label": {"de": "x"}, "ziel": "neu"} for i in range(9)]},
-     "höchstens 8"),
+    # WF-2 (2026-11-15): bis 12 — die Webseitenführung zeigt 11 Gruppen und „unsicher“
+    ({"optionen": [{"id": f"o{i}", "label": {"de": "x"}, "ziel": "neu"} for i in range(13)]},
+     "höchstens 12"),
     ({"freitext": {"ziel": "neu", "schreibt": "Böse"}}, "Teil"),
     ({"weiter": "neu"}, "weiter"),
 ])

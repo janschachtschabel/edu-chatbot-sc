@@ -31,7 +31,7 @@ schritte:
            en: "I'll gladly turn your folder structure into a topic tree draft: choose the folder, view and edit the draft. All right?"}
     optionen:
       - {id: ja, label: {de: "Ja, Ordner wählen", en: "Yes, choose folder"}, ziel: erfassen}
-      - {id: ohne, label: {de: "Ohne Ablauf", en: "Without the workflow"}, ziel: frei}
+      - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
   - id: erfassen
     typ: modul
     modul: ui_upload
@@ -59,8 +59,8 @@ schritte:
   - id: frei
     typ: ende
     ausstieg: true
-    text: {de: "Gut, dann ohne Ablauf – wir arbeiten frei weiter.",
-           en: "Alright, without the workflow – let's carry on freely."}
+    text: {de: "Gut, dann ohne Führung – wir machen frei im Chat weiter.",
+           en: "Alright, no guidance then – let's carry on freely in the chat."}
 tests:
   - name: Vom Ordner zum Entwurf
     eingaben:
@@ -75,7 +75,7 @@ tests:
           strukturdokument: null
           warnungen: []
     erwartet: {weg: [einstieg, erfassen, entwurf, bearbeiten], status: wartet_person}
-  - name: Ohne Ablauf
+  - name: Ohne Führung
     eingaben:
       - {bei: einstieg, option: ohne}
     erwartet: {weg: [einstieg, frei], status: fertig}
