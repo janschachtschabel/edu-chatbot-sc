@@ -268,7 +268,9 @@ async def wahl_einsetzen(text: str, ablauf: AblaufArea, sprache: str,
         option = next((o for s in ablauf.schritte if s.schreibt == name
                        for o in s.optionen or [] if wahl_wert(o) == wert), None)
         if option is not None:
-            ersatz[name] = platzhalter.entschaerft(_label(option, sprache))
+            # Review 16.11. (Führung wie Tour, m2): die Beschriftung ist Text der Redaktion wie
+            # der Schritt selbst — unverändert, sonst stünde „Content\-Abnehmer“ im Verlauf
+            ersatz[name] = " ".join(_label(option, sprache).split())
         else:
             fremd = fremd or bool(wert)
             ersatz[name] = platzhalter.entschaerft(wert) if wert else "—"
@@ -530,7 +532,7 @@ def wahl_angebot(s: Schritt, sprache: str) -> dict[str, Any]:
             "optionen": [(o.id, _label(o, sprache)) for o in s.optionen or []]}
 
 
-def wahl_aus_text(schritt: Schritt, text: str | None) -> str | None:
+def wahl_aus_text(schritt: Schritt, text: str | None, sprache: str | None = None) -> str | None:
     """Die Kennung der Schnellantwort, deren Label (in einer Sprache) der getippte Text ist — wie
     eine Wendung verglichen (klein, Leerraum zusammengezogen). D2: Text, der einer Option
     entspricht, ist diese Wahl. Hier und nicht im Zug, damit die Simulation dasselbe tut
@@ -538,19 +540,30 @@ def wahl_aus_text(schritt: Schritt, text: str | None) -> str | None:
 
     WF-2 (Plan 2026-11-15): ohne genauen Treffer die erste Option mit ``synonyme``, deren
     Beschriftung oder Synonym im Text steht (ab 3 Zeichen) — wie die Gruppenwahl der eingebauten
-    Führung. Optionen ohne Synonyme treffen nur genau; bestehende Abläufe ändern sich nicht."""
+    Führung. Optionen ohne Synonyme treffen nur genau; bestehende Abläufe ändern sich nicht.
+
+    Review 16.11. (Führung wie Tour, m1): Mit ``sprache`` sieht eine Option mit ``synonyme`` nur
+    ihre Beschriftung in dieser Sprache (dazu die Synonyme) — wie die Tour, die nur die Beschriftung
+    der Zugsprache kennt; sonst traf „Impressum“ über das englische „Press“. Optionen ohne
+    Synonyme treffen weiter genau in jeder Sprache."""
     getippt = wendung(text or "")
     if not getippt:
         return None
     optionen = schritt.optionen or []
+
+    def labels(o: Any) -> list[str]:
+        if sprache is None or not o.synonyme:
+            return list(o.label.values())
+        return [o.label.get(sprache) or o.label.get("de") or ""]
+
     genau = next((o.id for o in optionen
-                  if any(wendung(label) == getippt for label in o.label.values())), None)
+                  if any(wendung(label) == getippt for label in labels(o))), None)
     if genau is not None:
         return genau
     for o in optionen:
         if not o.synonyme:
             continue
-        kandidaten = [wendung(w) for w in (*o.label.values(), *o.synonyme)]
+        kandidaten = [wendung(w) for w in (*labels(o), *o.synonyme)]
         if any(len(k) >= _TEILWORT_MIN and k in getippt for k in kandidaten):
             return o.id
     return None

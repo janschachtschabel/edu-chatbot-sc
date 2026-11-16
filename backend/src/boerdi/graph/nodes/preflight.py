@@ -234,8 +234,12 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     # die Abweisung einer Direktaktion zu bekommen.
     # Ebenso eine getippte Nachricht im gesperrten Lauf (K2b) und ein Freitext an einem wartenden
     # Schritt (Review AS-3a, Befund 1): eine Krise bekommt ihre Antwort.
-    if ((a.per_text is not None or a.gesperrt or a.freitext) and not req.action
+    if ((a.per_text is not None or a.gesperrt or a.freitext or a.wiederholen) and not req.action
             and (decision.risk_level == "high" or ohne_pruefung)):
+        if (a.freitext or a.wiederholen) and decision.risk_level == "high":
+            # Review 16.11. (Führung wie Tour, m4): wie die Tour (SF-1c) endet eine Führung bei
+            # einer Krise — sonst bekäme die nächste Nachricht den festen Hilfetext der Wahl.
+            await wahl_zug.still_beenden(session, req.session_id, ctx.session_state)
         if a.gesperrt and decision.risk_level == "high":
             # Zweites Review K2b, Befund 2: danach ruht die Sperre dieses Wartens — sonst bekäme
             # die Antwort auf die Krisenantwort nur den Auftrags-Hinweis.

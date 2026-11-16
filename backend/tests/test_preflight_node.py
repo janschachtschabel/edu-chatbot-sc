@@ -1001,7 +1001,8 @@ def test_neues_vorhaben_und_loeschen_gehen_durch_die_sicherheitspruefung(monkeyp
 
 def _wahl_spione(monkeypatch, *, wartet=True, antwort="FREITEXT"):
     gerufen: dict[str, list] = {"wahl": [], "freitext": [], "aufgeraeumt": []}
-    monkeypatch.setattr(pf_mod.wahl_zug, "nimmt_getippt", lambda sid, state, text: wartet)
+    monkeypatch.setattr(pf_mod.wahl_zug, "nimmt_getippt",
+                        lambda sid, state, text, sprache=None: wartet)
 
     async def aufraeumen(session, sid, state):
         gerufen["aufgeraeumt"].append(sid)
@@ -1083,6 +1084,47 @@ def test_getippter_text_ohne_treffer_kann_einen_lauf_still_beenden(monkeypatch):
     monkeypatch.setattr(pf_mod.wahl_zug, "still_beenden", still_beenden)
     out = asyncio.run(preflight(_ctx(None, message="Was kostet das?"), _SESSION))
     assert out.early_response is None and len(beendet) == 1
+
+
+def _beenden_spion(monkeypatch) -> list:
+    beendet: list = []
+
+    async def still_beenden(session, sid, state):
+        beendet.append(sid)
+        return True
+
+    monkeypatch.setattr(pf_mod.wahl_zug, "still_beenden", still_beenden)
+    return beendet
+
+
+def test_review_1611_krise_an_der_wahl_beendet_die_fuehrung(monkeypatch):
+    """Review 16.11. (Führung wie Tour, m4): wie die Tour (SF-1c) endet ein Ablauf mit
+    ``endet_bei_text`` bei einer Krise — die Krisenantwort kommt auf dem gewöhnlichen Weg."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
+    gerufen = _wahl_spione(monkeypatch)
+    beendet = _beenden_spion(monkeypatch)
+    out = asyncio.run(preflight(_ctx(None, message="Optik"), _SESSION))
+    assert out.early_response is None and gerufen["freitext"] == [] and len(beendet) == 1
+
+
+def test_review_1611_eine_wendung_am_seiten_schritt_zeigt_ihn_erneut(monkeypatch):
+    """Review 16.11. (Führung wie Tour, M1): kein stilles Ende, der Schritt kommt erneut."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    _wahl_spione(monkeypatch, wartet=False)
+    beendet = _beenden_spion(monkeypatch)
+    monkeypatch.setattr(pf_mod.preflight_ablauf.seite_zug, "wiederholt",
+                        lambda sid, state, text: True)
+
+    async def wiederholen(session, req, state):
+        return ChatResponse(session_id="bb-1", content="SCHRITT")
+
+    monkeypatch.setattr(pf_mod.preflight_ablauf.seite_zug, "wiederholen", wiederholen)
+    out = asyncio.run(preflight(_ctx(None, message="starte die tour"), _SESSION))
+    assert out.early_response.content == "SCHRITT" and beendet == []
 
 
 def test_ohne_freitext_schritt_bleibt_getippter_text_ein_gewoehnlicher_zug(monkeypatch):

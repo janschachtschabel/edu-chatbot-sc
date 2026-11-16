@@ -52,6 +52,20 @@ def zaehler() -> int:
     return _gerechnet
 
 
+def _frage(s: Any) -> tuple[str, tuple[str, ...]] | None:
+    return ((s.schreibt, tuple(o.id for o in s.optionen))
+            if s.typ == "nachricht" and s.optionen and s.schreibt else None)
+
+
+def _wiederholte_fragen(ablauf: AblaufArea, weiter: list[list[int]]) -> set[int]:
+    """Review 16.11. (Führung wie Tour, m5): eine Frage, die eine andere mit demselben Teil und
+    denselben Schnellantworten nur noch einmal stellt (der Hilfetext „Bin mir nicht sicher“),
+    zählt nicht als eigener Schritt — sonst sprang die Leiste nach der Wahl von 2 auf 4."""
+    schritte = ablauf.schritte
+    return {i for j, ziele in enumerate(weiter) for i in ziele
+            if i != j and (f := _frage(schritte[i])) is not None and f == _frage(schritte[j])}
+
+
 class _Suche:
     """Längste einfache Wege über die Kanten ``kanten``."""
 
@@ -61,9 +75,11 @@ class _Suche:
         self.index = {s.id: i for i, s in enumerate(ablauf.schritte)}
         self.weiter = [[self.index[z] for z in kanten(ablauf, i) if z in self.index]
                        for i in range(len(ablauf.schritte))]
+        self.wiederholt = _wiederholte_fragen(ablauf, self.weiter)
 
     def _zaehlt(self, i: int) -> int:
-        return 0 if self.ablauf.schritte[i].typ in _ZAEHLT_NICHT else 1
+        return 0 if (self.ablauf.schritte[i].typ in _ZAEHLT_NICHT
+                     or i in self.wiederholt) else 1
 
     def _erreicht(self, ziel: int) -> set[int]:
         """Die Schritte, von denen aus ``ziel`` erreichbar ist (samt ``ziel``)."""
@@ -164,6 +180,11 @@ def _rechnen(ablauf: AblaufArea, i: int) -> tuple[int, int]:
     global _gerechnet
     _gerechnet += 1
     regulaer, alle = _Suche(ablauf, regulaere_nachfolger), _Suche(ablauf, nachfolger)
+    if i in alle.wiederholt:
+        # m5: die wiederholte Frage steht an der Stelle der Frage, die sie wiederholt
+        frage = _frage(ablauf.schritte[i])
+        i = next(j for j, ziele in enumerate(alle.weiter)
+                 if i in ziele and j != i and _frage(ablauf.schritte[j]) == frage)
     # ``bis`` kann 0 sein (nur Verzweigungen davor, die nicht zählen) — dann der Weg über alle
     # Kanten, zuletzt 1. Eine Verzweigung selbst wartet nie, steht also nie in der Leiste.
     nr = regulaer.bis(i) or alle.bis(i) or 1

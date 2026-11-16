@@ -92,13 +92,14 @@ def aktuelle_knoepfe(session_id: str, session_state: dict[str, Any], lang: str) 
 wahl_aus_text = treiber.wahl_aus_text
 
 
-def nimmt_getippt(session_id: str, session_state: dict[str, Any], text: str | None) -> bool:
+def nimmt_getippt(session_id: str, session_state: dict[str, Any], text: str | None,
+                  sprache: str | None = None) -> bool:
     """Nimmt der wartende Schritt dieser Person den getippten Text — als Wahl (gleich einem Label
     oder per Synonym), als Freitext oder für den Hinweis ``kein_treffer`` (WF-2)?"""
     if (treffer := _wartend(session_id, session_state)) is None:
         return False
     schritt = treffer[2]
-    return (schritt.freitext is not None or wahl_aus_text(schritt, text) is not None
+    return (schritt.freitext is not None or wahl_aus_text(schritt, text, sprache) is not None
             or _hinweis_marke(session_id, session_state, schritt) is not None)
 
 
@@ -211,7 +212,7 @@ async def getippt(session: Any, req: ChatRequest, session_state: dict, *,
     if (treffer := _wartend(req.session_id, session_state)) is None:
         return None
     _lauf, ablauf, schritt = treffer
-    wahl = wahl_aus_text(schritt, req.message)
+    wahl = wahl_aus_text(schritt, req.message, resolve_locale(req.environment.locale))
     if wahl is None and (marke := _hinweis_marke(req.session_id, session_state, schritt)):
         # WF-2: kein Treffer — einmal der Hinweis des Schritts mit denselben Chips, ohne die KI
         entities = session_state.setdefault("entities", {})
