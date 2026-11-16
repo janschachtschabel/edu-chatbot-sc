@@ -38,7 +38,8 @@ class Attrappe:
                        platz_frist_s: float) -> dict:
         auftrag = json.loads(nachrichten[-1]["content"].split("\n", 1)[1])
         self.aufrufe.append({"auftrag": auftrag, "frist_s": frist_s, "max_tokens": max_tokens,
-                             "platz_frist_s": platz_frist_s})
+                             "platz_frist_s": platz_frist_s,
+                             "aufgabe": nachrichten[0]["content"].split("Aufgabe:", 1)[-1]})
         self.gleichzeitig += 1
         self.hoechstens = max(self.hoechstens, self.gleichzeitig)
         try:

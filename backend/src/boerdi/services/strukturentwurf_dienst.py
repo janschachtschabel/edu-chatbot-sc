@@ -33,6 +33,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
+from itertools import zip_longest
 from typing import TYPE_CHECKING, Any, Final
 
 from boerdi.services import llm_parallel
@@ -185,6 +186,10 @@ class _Lauf:
                     # Review Q4, Befund 1: die Zeit der Moderation zählt vor dem Modellaufruf.
                     knoten["ausstehend"] = True
                     return
+                # Rückmeldung 16.11.: mit Auszug ist die Schätzung der oberen Ebene nur ein
+                # Hinweis — der Abschnitt bestimmt die Zahl, bis zur Grenze der oberen Ebene
+                if auszug:
+                    anzahl = max(anzahl, prompt.UNTERTHEMEN_OBEN)
                 antwort = await self.rufe(prompt.unterthemen(
                     entwurf=self.daten["titel"], thema=self.auftrag.thema,
                     fach=self.daten.get("fach"), bildungsstufe=self.daten.get("bildungsstufe"),
@@ -273,9 +278,12 @@ async def _neu(lauf: _Lauf) -> Erzeugt:
                  if lauf.plaene.get(k["id"])]
         await _ebene(lauf, ziele, letzte=lauf.auftrag.tiefe == 2)
     if lauf.auftrag.tiefe >= 3:
-        ziele = [(k, lauf.plaene[k["id"]], p, g)
-                 for k, ebene, p, g in _mit_pfad(lauf.daten["knoten"])
-                 if ebene == 2 and lauf.plaene.get(k["id"])]
+        # Review 16.11., MAJOR: reihum über die oberen Punkte (erst je das erste Kind, dann das
+        # zweite …) — in Baumreihenfolge reichte der Deckel bei 5 bis 8 Kindern je Punkt nur für
+        # die ersten drei oberen Punkte.
+        reihen = [[(k, lauf.plaene[k["id"]], p, g) for k, ebene, p, g in _mit_pfad([oben])
+                   if ebene == 2 and lauf.plaene.get(k["id"])] for oben in lauf.daten["knoten"]]
+        ziele = [z for runde in zip_longest(*reihen) for z in runde if z is not None]
         # Drittes Review U2, Befund 3: was über den Deckel geht, ist vorgesehen, aber nicht erzeugt
         # — ``ausstehend`` (die Quittung zählt es), nicht still weg.
         for k, *_ in ziele[EBENE3_HOECHSTENS:]:
