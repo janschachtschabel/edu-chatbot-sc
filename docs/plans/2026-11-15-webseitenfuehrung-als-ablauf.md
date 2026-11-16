@@ -139,3 +139,14 @@ Nach jedem Paket ein unabhängiges Review mit Behebung.
 - **n2:** Synonym „oer“ gestrichen.
 - **n4:** Kommentar zu Enter berichtigt.
 
+
+## Rückmeldung 16.11.: gleiche Texte und Verzweigungen wie die Tour
+
+Der Nutzer verlangt dieselben Texte und Verzweigungen wie die eingebaute Tour. Damit sind die
+Entscheide E3 (Reihenfolge der Gruppen) und n2 (ohne „oer“) aufgehoben, ebenso die Abweichungen
+beim Einstieg, bei den Lösungen und bei der Umschau. Neu:
+- Der Erzeuger `backend/scripts/fuehrung_aus_tour.py` liegt im Repo. Er übernimmt die Texte aus
+  `domain/tour.render`, statt sie nachzubauen.
+- `tests/test_fuehrung_wie_tour.py` hält den Seed und die Tour gleich.
+
+Einzelheiten stehen in `docs/aenderungen/2026-11-16-fuehrung-wie-tour.md`.
