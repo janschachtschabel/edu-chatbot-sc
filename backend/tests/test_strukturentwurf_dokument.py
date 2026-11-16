@@ -248,3 +248,62 @@ async def test_eine_langsame_moderation_haelt_die_frist_des_entwurfs(monkeypatch
     assert mechanik.get("ausstehend") is True and not mechanik.get("kinder")
     assert not [a for a in llm.aufrufe if "knoten" in a["auftrag"]]
     await asyncio.sleep(1.5)                  # die geteilte Prüfung läuft zu Ende
+
+
+# ── Rückmeldung 2026-11-16: auf Ebene 2 immer genau 3 Unterpunkte ──────────────────────────
+
+async def test_rueckmeldung_mit_auszug_traegt_der_abschnitt_die_zahl():
+    """Ebene 1 schätzte die Zahl je Punkt nur nach den Überschriften (und ankerte auf „3“); Ebene
+    2 lieferte dann genau diese Zahl, obwohl sie den Text des Abschnitts kennt. Jetzt ist die
+    Schätzung nur ein Hinweis: so viele, wie der Auszug trägt — höchstens UNTERTHEMEN_OBEN."""
+    from boerdi.services import strukturentwurf_prompt as prompt
+
+    abschnitte, _ = gliederung(_MD)
+    ids = {a.titel: a.id for a in abschnitte}
+    sechs = [_k(f"Begriff {i}") for i in range(6)]
+    llm = Attrappe([_k("Mechanik", 3, abschnitte=[ids["1 Mechanik"]]), _k("Akustik", 0)],
+                   {"Mechanik": sechs})
+    erzeugt = await _erzeugen(llm, tiefe=2)
+    assert len(erzeugt.daten["knoten"][0]["kinder"]) == 6
+    kinder_aufruf = next(a for a in llm.aufrufe if "knoten" in a["auftrag"])
+    assert kinder_aufruf["auftrag"]["anzahl"] == prompt.UNTERTHEMEN_OBEN
+    aufgabe = kinder_aufruf["aufgabe"]
+    assert "höchstens \"anzahl\"" in aufgabe and "genau \"anzahl\"" not in aufgabe
+    # Review: eine Zahl der Person in „hinweise“ geht der Obergrenze vor
+    assert "nennen \"hinweise\" eine Zahl, gilt diese" in aufgabe
+
+
+async def test_rueckmeldung_ohne_auszug_bleibt_es_bei_genau():
+    from tests.test_strukturentwurf_dienst import _erzeugen as ohne_dokument
+
+    llm = Attrappe([_k("Mechanik", 3)], {"Mechanik": [_k(f"B {i}") for i in range(6)]})
+    erzeugt = await ohne_dokument(dienst.Auftrag(thema="Physik", tiefe=2), llm)
+    assert len(erzeugt.daten["knoten"][0]["kinder"]) == 3
+    kinder_aufruf = next(a for a in llm.aufrufe if "knoten" in a["auftrag"])
+    assert "genau \"anzahl\" Punkte" in kinder_aufruf["aufgabe"]
+
+
+def test_rueckmeldung_der_systemteil_ankert_nicht_auf_drei():
+    from boerdi.services import strukturentwurf_prompt as prompt
+
+    assert "möglichst 3" not in prompt._SYSTEM
+    assert "nicht alle gleich viele" in prompt._SYSTEM
+
+
+async def test_review_ebene_drei_reihum_ueber_die_oberen_punkte():
+    """Review 16.11., MAJOR: mit 5 bis 8 Unterpunkten je Punkt reichten die 24 Aufrufe der dritten
+    Ebene in Baumreihenfolge nur für die ersten drei oberen Punkte — die hinteren blieben ohne.
+    Jetzt reihum: erst das erste Kind jedes oberen Punkts, dann das zweite …"""
+    from tests.test_strukturentwurf_dienst import _erzeugen as ohne_dokument
+
+    oben = [_k(f"O{i}", 8) for i in range(4)]
+    zweite = {f"O{i}": [_k(f"O{i}-{j}", 2) for j in range(8)] for i in range(4)}
+    dritte = {f"O{i}-{j}": [_k(f"O{i}-{j}-a"), _k(f"O{i}-{j}-b")]
+              for i in range(4) for j in range(8)}
+    llm = Attrappe(oben, {**zweite, **dritte})
+    erzeugt = await ohne_dokument(dienst.Auftrag(thema="Physik", tiefe=3, anzahl_oben=4), llm)
+    for punkt in erzeugt.daten["knoten"]:
+        mit_ebene_drei = [k for k in punkt["kinder"] if k.get("kinder")]
+        assert len(mit_ebene_drei) == dienst.EBENE3_HOECHSTENS // 4, punkt["titel"]
+    ausstehend = [k for p in erzeugt.daten["knoten"] for k in p["kinder"] if k.get("ausstehend")]
+    assert len(ausstehend) == 32 - dienst.EBENE3_HOECHSTENS

@@ -37,8 +37,9 @@ _SYSTEM: Final = (
     "Regeln für einen guten Themenbaum: Eine Ordnungslogik — alle Punkte sind Themen (worum es "
     "geht), Geschwister haben dieselbe Begriffsart und dieselbe Form. In der Beruflichen Bildung "
     "ordnen Lernfelder bzw. berufliche Handlungen die obere Ebene. Flach und breit, als "
-    "Richtwert: oben 5 bis 15 Punkte, darunter je Punkt keine oder 2 bis 12 Unterpunkte, "
-    "möglichst 3 oder mehr, nie genau einen Unterpunkt; nennt die Aufgabe eine Zahl oder gibt die "
+    "Richtwert: oben 5 bis 15 Punkte, darunter je Punkt keine oder 2 bis 12 Unterpunkte — so "
+    "viele, wie der Stoff des Punkts trägt; umfangreiche Punkte bekommen mehr, nicht alle gleich "
+    "viele; nie genau einen Unterpunkt; nennt die Aufgabe eine Zahl oder gibt die "
     "Quelle eine Ordnung vor, gilt diese. Erfinde keine Punkte, nur um eine Zahl zu erreichen. "
     "Jede Unterordnung besteht den Test „ist ein“ oder „ist Teil von“. Titel 1 bis 4 Wörter, das "
     "Schlüsselwort zuerst, in der Sprache der Lernenden und Lehrenden, keine Sammelpunkte wie "
@@ -144,9 +145,14 @@ def unterthemen(*, entwurf: str, thema: str, fach: str | None, bildungsstufe: st
     aus dem Entwurf der Person — neue ergänzen sie (Review U2, Befund 2). ``auszug`` (U3-2b):
     der Text des Dokuments zu diesem Punkt."""
     grenze = "0 (es ist die letzte Ebene)" if letzte_ebene else f"0 bis {UNTERTHEMEN_TIEF}"
+    # Rückmeldung 16.11.: mit Auszug trägt der Abschnitt die Zahl — die Schätzung der oberen Ebene
+    # kannte nur Überschriften und ergab überall 3. ``anzahl`` ist dann eine Obergrenze.
+    zahl = ("so viele Punkte, wie der Auszug Themen trägt — mindestens 2, höchstens \"anzahl\"; "
+            "nicht immer dieselbe Zahl; nennen \"hinweise\" eine Zahl, gilt diese"
+            if auszug else "genau \"anzahl\" Punkte")
     aufgabe = (
-        "Aufgabe: die Unterpunkte des Punkts \"knoten\" in der Gliederung \"entwurf\" — genau "
-        "\"anzahl\" Punkte, die nur ihn ausfüllen (nicht seine Geschwister, nicht die Punkte über "
+        "Aufgabe: die Unterpunkte des Punkts \"knoten\" in der Gliederung \"entwurf\" — "
+        f"{zahl}, die nur ihn ausfüllen (nicht seine Geschwister, nicht die Punkte über "
         "ihm) und die schon vorhandenen Unterpunkte \"vorhanden\" ergänzen, ohne sie zu "
         f"wiederholen. Antwort: {{\"knoten\": [Punkte]}}. \"unterthemen\" je Punkt {grenze}.")
     if not letzte_ebene:
