@@ -16,6 +16,8 @@ export interface EntwurfDaten {
   readonly bildungsstufe?: string;
   readonly wurzel_wlo_id?: string;
   readonly gekuerzt?: boolean;
+  /** Nachprüfung TG-3d–f, MINOR 2: die block_id der Auswahl (`quelle: ordner`). */
+  readonly quelle_block?: string;
   readonly knoten: Baum;
 }
 

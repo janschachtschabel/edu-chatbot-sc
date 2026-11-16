@@ -6,7 +6,7 @@ import type { ModulKontext } from '../_vertrag/ui-block';
 import { definiere } from './ui-upload.element';
 
 const KONTEXT: ModulKontext = { blockId: 'b1', sprache: 'de', nurLesen: false, antwort: null, schriftSkala: 0.85, anzeigeRegeln: null };
-const DATEN = { zweck: 'sammlungsstruktur', grenzen: { max_dateien: 500, max_tiefe: 8, max_mb_datei: 50 } };
+const DATEN = { zweck: 'bereitstellen', grenzen: { max_dateien: 500, max_tiefe: 8, max_mb_datei: 50 } };
 
 type Host = ElementHost & {
   antworten: ReturnType<typeof vi.fn>; vormerken: ReturnType<typeof vi.fn>; hochladen: ReturnType<typeof vi.fn>;
@@ -59,10 +59,10 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     expect(knopf(wurzel, 'Ordner wählen')).toBeTruthy();
     expect(knopf(wurzel, 'Dateien wählen')).toBeTruthy();
     expect(wurzel.textContent).toContain('Ordner oder Dateien hier ablegen');
-    expect(wurzel.textContent).toContain('Andere Dateinamen und alle Inhalte bleiben auf deinem Gerät');
+    expect(wurzel.textContent).toContain('Ordner- und Dateinamen gehen an den Chat; alle Inhalte bleiben auf deinem Gerät.');
   });
 
-  it('nach der Auswahl: Baum mit Zahlen, Befund vorgemerkt — ohne Dateinamen', async () => {
+  it('nach der Auswahl: Baum mit Zahlen, Befund vorgemerkt — mit Dateien je Ordner (TG-3a)', async () => {
     const { h, wurzel } = erzeuge();
     await waehle(wurzel, [datei('Physik/Mechanik/hebel.pdf'), datei('Physik/plan.docx'), datei('Physik/.DS_Store', 5)]);
     expect(wurzel.textContent).toContain('Physik');
@@ -70,7 +70,10 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     expect(wurzel.textContent).toContain('2 Dateien');
     const vorgemerkt = h.vormerken.mock.calls.at(-1)?.[0];
     expect(vorgemerkt).toMatchObject({ aktion: 'erfasst', zahlen: { inhalte: 2, ignoriert: 1 } });
-    expect(JSON.stringify(vorgemerkt)).not.toContain('hebel');
+    // Plan 2026-11-16, TG-3a: die Dateinamen gehen mit, die Systemdatei nicht; nie Binärdaten
+    expect(vorgemerkt.struktur.kinder[0].dateiliste).toEqual([
+      { i: 1, name: 'hebel.pdf', endung: 'pdf', groesse: expect.any(Number), rolle: 'inhalt' }]);
+    expect(JSON.stringify(vorgemerkt)).not.toContain('DS_Store');
   });
 
   it('ein Ordner klappt per Knopf auf; aria-expanded sagt den Zustand', async () => {
@@ -98,14 +101,18 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     expect(h.vormerken.mock.calls.at(-1)?.[0].strukturdokument).toMatchObject({ name: 'Lehr.pdf' });
   });
 
-  it('„Als Themenbaum-Entwurf übernehmen“ antwortet mit der Ordnerstruktur und einer lesbaren Blase', async () => {
+  // Plan 2026-11-16, TG-1 (G-E4): kein Zielknopf mehr — auch mit Unterordnern ist „Senden“ der Hauptknopf
+  it('TG-1: mit Unterordnern nur „Senden“ (Hauptknopf), es antwortet mit dem Befund', async () => {
     const { h, wurzel } = erzeuge();
     await waehle(wurzel, [datei('Physik/A/x.pdf')]);
-    knopf(wurzel, 'Als Themenbaum-Entwurf übernehmen')!.click();
+    expect(knopf(wurzel, 'Als Themenbaum-Entwurf übernehmen')).toBeUndefined();
+    const senden = knopf(wurzel, 'Senden')!;
+    expect(senden.classList.contains('u__haupt')).toBe(true);
+    senden.click();
     expect(h.antworten).toHaveBeenCalledTimes(1);
     const [daten, text] = h.antworten.mock.calls[0];
-    expect(daten).toMatchObject({ aktion: 'ordner_als_entwurf', struktur: { name: 'Physik' } });
-    expect(text).toBe('Ordnerstruktur „Physik“ als Themenbaum-Entwurf übernehmen');
+    expect(daten).toMatchObject({ aktion: 'erfasst', struktur: { name: 'Physik' } });
+    expect(text).toBe('Ordner „Physik“ erfasst: 2 Ordner, 1 Datei.');
   });
 
   it('solange ein Zug läuft, sind Antwort-Knöpfe gesperrt', async () => {
@@ -113,7 +120,7 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     await waehle(wurzel, [datei('P/A/x.pdf')]);
     el.beschaeftigt = true;
     expect(knopf(wurzel, 'Senden')!.disabled).toBe(true);
-    expect(knopf(wurzel, 'Als Themenbaum-Entwurf übernehmen')!.disabled).toBe(true);
+    expect(knopf(wurzel, 'Andere Auswahl')!.disabled).toBe(false);
   });
 
   it('nur lesend: zeigt die gegebene Antwort, keine Knöpfe', () => {
@@ -199,11 +206,10 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     expect(el.shadowRoot!.textContent).toContain('Wähle den Ordner mit deinen Physik-Materialien.');
   });
 
-  it('Befund 8: ohne Unterordner kein „Als Themenbaum-Entwurf übernehmen“', async () => {
+  it('Befund 8: ohne Unterordner ist „Senden“ ebenso der Hauptknopf', async () => {
     const { wurzel } = erzeuge();
     await waehle(wurzel, [datei('P/a.pdf'), datei('P/b.pdf')]);
-    expect(knopf(wurzel, 'Als Themenbaum-Entwurf übernehmen')).toBeUndefined();
-    expect(knopf(wurzel, 'Senden')).toBeTruthy();
+    expect(knopf(wurzel, 'Senden')!.classList.contains('u__haupt')).toBe(true);
   });
 
   it('Befund 9: Ablegen außerhalb der Fläche öffnet keine Datei (Vorgabe des Browsers verhindert)', async () => {
@@ -278,7 +284,7 @@ const warte = () => new Promise((r) => setTimeout(r, 0));
 describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
   it('ohne Schalter kein Knopf, sondern ein ehrlicher Hinweis', async () => {
     const { wurzel } = await markiert(host(), DATEN);
-    expect(knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')).toBeUndefined();
+    expect(knopf(wurzel, 'Lesen lassen')).toBeUndefined();
     expect(wurzel.textContent).toContain('Lesen lassen kann der Chat es hier nicht');
   });
 
@@ -289,7 +295,7 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     h.hochladen.mockImplementation((_d: File, f: (a: number) => void) => { melde = f; return new Promise((r) => { fertig = r; }); });
     const { wurzel } = await markiert(h);
     expect(wurzel.textContent).toContain('Zum Lesen wird es hochgeladen');
-    knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')!.click();
+    knopf(wurzel, 'Lesen lassen')!.click();
     expect((h.hochladen.mock.calls[0][0] as File).name).toBe('Lehr.pdf');
     melde(0.4);
     expect(wurzel.textContent).toContain('Wird hochgeladen … 40 %');
@@ -300,10 +306,11 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     fertig(BEFUND);
     await warte();
     const [daten, blase] = h.antworten.mock.calls[0];
-    expect(blase).toBe('Themenbaum aus „Lehr.pdf“ erstellen');
+    expect(blase).toBe('Dokument „Lehr.pdf“ lesen lassen');
     expect(daten).toMatchObject({ aktion: 'dokument', dokument: {
-      upload_id: BEFUND.upload_id, name: 'Lehr.pdf', format: 'pdf', ziel: 'themenbaum',
-      vorschau: ['Mechanik', 'Optik'] } });
+      upload_id: BEFUND.upload_id, name: 'Lehr.pdf', format: 'pdf', vorschau: ['Mechanik', 'Optik'] } });
+    // TG-1: kein Ziel mehr — was mit dem Dokument geschieht, klären Ablauf oder KI danach
+    expect(daten.dokument).not.toHaveProperty('ziel');
     // nur die Felder des Antwort-Schemas — `zeichen`, `sprache`, `gekuerzt` bleiben draußen
     expect(daten.dokument.befund).toEqual({ seiten: 3, woerter: 900, abschnitte: 5, gliederung_art: 'ueberschriften', warnungen: ['gekuerzt'] });
   });
@@ -312,7 +319,7 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     const h = host();
     h.hochladen.mockRejectedValue(Object.assign(new Error('x'), { status: 400, code: 'kein_text' }));
     const { wurzel } = await markiert(h);
-    knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')!.click();
+    knopf(wurzel, 'Lesen lassen')!.click();
     await warte();
     expect(wurzel.querySelector('.u__fehler')?.textContent).toContain('kein lesbarer Text');
     expect(knopf(wurzel, 'Noch einmal versuchen')).toBeUndefined();
@@ -325,7 +332,7 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
       .mockRejectedValueOnce(Object.assign(new Error('x'), { status: 429, code: 'fehler' }))
       .mockResolvedValueOnce(BEFUND);
     const { wurzel } = await markiert(h);
-    knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')!.click();
+    knopf(wurzel, 'Lesen lassen')!.click();
     await warte();
     expect(wurzel.textContent).toContain('Keine Verbindung zum Server');
     knopf(wurzel, 'Noch einmal versuchen')!.click();
@@ -340,14 +347,14 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     const h = host();
     h.hochladen.mockResolvedValue(BEFUND);
     const { el, wurzel } = await markiert(h);
-    knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')!.click();
+    knopf(wurzel, 'Lesen lassen')!.click();
     el.beschaeftigt = true;
     await warte();
     expect(h.antworten).not.toHaveBeenCalled();
     expect(wurzel.textContent).toContain('Gelesen: 5 Abschnitte');
-    expect(knopf(wurzel, 'Themenbaum jetzt erstellen')!.disabled).toBe(true);
+    expect(knopf(wurzel, 'Weiter')!.disabled).toBe(true);
     el.beschaeftigt = false;
-    knopf(wurzel, 'Themenbaum jetzt erstellen')!.click();
+    knopf(wurzel, 'Weiter')!.click();
     expect(h.antworten).toHaveBeenCalledTimes(1);
     expect(h.hochladen).toHaveBeenCalledTimes(1);
   });
@@ -356,7 +363,7 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     const h = host();
     h.hochladen.mockResolvedValue({ name: 'x' });
     const { wurzel } = await markiert(h);
-    knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')!.click();
+    knopf(wurzel, 'Lesen lassen')!.click();
     await warte();
     expect(wurzel.textContent).toContain('Das Dokument ließ sich nicht lesen.');
     expect(h.antworten).not.toHaveBeenCalled();
@@ -407,7 +414,7 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     let fertig: (befund: unknown) => void = () => undefined;
     h.hochladen.mockImplementation(() => new Promise((r) => { fertig = r; }));
     const { wurzel } = await markiert(h);
-    knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')!.click();
+    knopf(wurzel, 'Lesen lassen')!.click();
     expect([...wurzel.querySelectorAll('select')].every((s) => s.disabled)).toBe(true);
     expect([...wurzel.querySelectorAll('button[data-ignorieren]')].every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
     fertig(BEFUND);
@@ -420,7 +427,7 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     let melde: (anteil: number) => void = () => undefined;
     h.hochladen.mockImplementation((_d: File, f: (a: number) => void) => { melde = f; return new Promise(() => undefined); });
     const { wurzel } = await markiert(h);
-    knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')!.click();
+    knopf(wurzel, 'Lesen lassen')!.click();
     const balken = wurzel.querySelector('progress');
     melde(0.25);
     melde(0.5);
@@ -433,9 +440,235 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
     const h = host();
     h.hochladen.mockRejectedValue(Object.assign(new Error('x'), { status: 413, code: 'fehler' }));
     const { wurzel } = await markiert(h);
-    knopf(wurzel, 'Themenbaum aus dem Strukturdokument erstellen')!.click();
+    knopf(wurzel, 'Lesen lassen')!.click();
     await warte();
     expect(wurzel.textContent).toContain('Das Dokument ist zu groß.');
     expect(knopf(wurzel, 'Noch einmal versuchen')).toBeUndefined();
+  });
+});
+
+// ── Plan 2026-11-16, TG-1: zielneutral — kein Knopf und kein Text nennt einen Themenbaum ─────────
+
+describe('<boerdi-ui-upload> zielneutral (TG-1)', () => {
+  const THEMENBAUM = /themenbaum|topic.?tree/i;
+  const sichtbar = (w: ShadowRoot) => [w.textContent ?? '',
+    ...[...w.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label') ?? '')].join(' ');
+
+  for (const sprache of ['de', 'en'] as const) {
+    it(`${sprache}: leer, erfasst mit Unterordnern und Strukturdokument, gelesen — nirgends ein Themenbaum`, async () => {
+      const h = host();
+      h.hochladen.mockResolvedValue(BEFUND);
+      const daten = { ...DATEN, schalter: { dokument_im_chat: true, ablage_in_wlo: true } };
+      const { el, wurzel } = erzeuge({ sprache }, h, daten);
+      expect(sichtbar(wurzel)).not.toMatch(THEMENBAUM);
+      await waehle(wurzel, [datei('P/Lehr.pdf'), datei('P/A/b.pdf')]);
+      const rolle = wurzel.querySelector('select[data-datei]') as HTMLSelectElement;
+      rolle.value = 'struktur';
+      rolle.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(sichtbar(wurzel)).not.toMatch(THEMENBAUM);
+      const lesen = [...wurzel.querySelectorAll('button[data-dokument]')] as HTMLButtonElement[];
+      expect(lesen).toHaveLength(1);
+      expect(lesen[0].textContent).toBe(sprache === 'de' ? 'Lesen lassen' : 'Read document');
+      lesen[0].click();
+      el.beschaeftigt = true;     // ein Zug läuft: der Befund wartet auf „Weiter“
+      await warte();
+      expect(sichtbar(wurzel)).not.toMatch(THEMENBAUM);
+      expect(knopf(wurzel, sprache === 'de' ? 'Weiter' : 'Continue')).toBeTruthy();
+    });
+  }
+
+  // Review TG-1, m5: ist ein lesbares Strukturdokument markiert und Lesen erlaubt, ist „Lesen lassen“
+  // der Hauptknopf — sonst „Senden“
+  it('m5: mit lesbarem Strukturdokument ist „Lesen lassen“ der Hauptknopf, sonst „Senden“', async () => {
+    const { wurzel } = await markiert();
+    expect(knopf(wurzel, 'Lesen lassen')!.classList.contains('u__haupt')).toBe(true);
+    expect(knopf(wurzel, 'Senden')!.classList.contains('u__haupt')).toBe(false);
+    const ohne = (await markiert(host(), DATEN)).wurzel;     // Lesen nicht erlaubt
+    expect(knopf(ohne, 'Senden')!.classList.contains('u__haupt')).toBe(true);
+  });
+
+  // Zweites Review TG-1, NIT 10: nach einem endgültigen Lesefehler gibt es kein „Lesen lassen“ mehr —
+  // dann ist „Senden“ wieder der Hauptknopf (eine Leiste ohne Hauptknopf wäre ein toter Weg)
+  it('n10: nach einem endgültigen Lesefehler ist „Senden“ der Hauptknopf', async () => {
+    const h = host();
+    h.hochladen.mockRejectedValue(Object.assign(new Error('x'), { status: 400, code: 'kein_text' }));
+    const { wurzel } = await markiert(h);
+    knopf(wurzel, 'Lesen lassen')!.click();
+    await warte();
+    expect(knopf(wurzel, 'Lesen lassen')).toBeUndefined();
+    expect(knopf(wurzel, 'Senden')!.classList.contains('u__haupt')).toBe(true);
+  });
+
+  it('n10: nach einem Fehler mit neuem Versuch bleibt „Noch einmal versuchen“ der Hauptknopf', async () => {
+    const h = host();
+    h.hochladen.mockRejectedValue(Object.assign(new Error('x'), { status: 0, code: 'netz' }));
+    const { wurzel } = await markiert(h);
+    knopf(wurzel, 'Lesen lassen')!.click();
+    await warte();
+    expect(knopf(wurzel, 'Noch einmal versuchen')!.classList.contains('u__haupt')).toBe(true);
+    expect(knopf(wurzel, 'Senden')!.classList.contains('u__haupt')).toBe(false);
+  });
+
+  // Review TG-1, m4: die Knöpfe nennen, worauf sie wirken
+  it('m4: „Lesen lassen“ beschreibt der Hinweis mit dem Dateinamen, „Weiter“ sagt, was gesendet wird', async () => {
+    const h = host();
+    h.hochladen.mockResolvedValue(BEFUND);
+    const { el, wurzel } = await markiert(h);
+    const lesen = knopf(wurzel, 'Lesen lassen')!;
+    const hinweis = wurzel.getElementById(lesen.getAttribute('aria-describedby') ?? '-');
+    expect(hinweis?.textContent).toContain('Lehr.pdf');
+    lesen.click();
+    el.beschaeftigt = true;
+    await warte();
+    expect(knopf(wurzel, 'Weiter')!.getAttribute('aria-label')).toBe('Weiter: gelesenes Dokument an den Chat');
+  });
+
+  it('die Lehrplan-Automatik merkt das Strukturdokument vor, liest aber nicht von selbst', async () => {
+    const h = host();
+    const { wurzel } = erzeuge({}, h, MIT_DOKUMENT);
+    await waehle(wurzel, [datei('P/Lehrplan_Physik.pdf'), datei('P/b.pdf')]);
+    expect(h.vormerken.mock.calls.at(-1)?.[0].strukturdokument).toMatchObject({ name: 'Lehrplan_Physik.pdf' });
+    expect(knopf(wurzel, 'Lesen lassen')).toBeTruthy();
+    expect(h.hochladen).not.toHaveBeenCalled();
+    expect(h.antworten).not.toHaveBeenCalled();
+  });
+});
+
+
+// ── Plan 2026-11-16, TG-3e: mehrere Strukturdokumente ───────────────────────────────────────────
+
+function befund(n: number, name: string, abschnitte = 3) {
+  return { ...BEFUND, upload_id: `11111111-2222-4333-8444-55555555555${n}`, name,
+           befund: { ...BEFUND.befund, abschnitte } };
+}
+
+async function zweiMarkiert(h = host(), namen = ['A.pdf', 'B.pdf']) {
+  const r = erzeuge({}, h, MIT_DOKUMENT);
+  await waehle(r.wurzel, [...namen.map((n) => datei(`P/${n}`)), datei('P/inhalt.pdf')]);
+  for (const name of namen) {
+    const auswahl = r.wurzel.querySelector(`select[aria-label="Rolle von ${name}"]`) as HTMLSelectElement;
+    auswahl.value = 'struktur';
+    auswahl.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  return r;
+}
+
+describe('<boerdi-ui-upload> mehrere Strukturdokumente (TG-3e)', () => {
+  it('zwei markierte bleiben beide markiert, der Hinweis nennt beide', async () => {
+    const h = host();
+    const { wurzel } = await zweiMarkiert(h);
+    const rollen = [...wurzel.querySelectorAll('select')].map((s) => (s as HTMLSelectElement).value);
+    expect(rollen.filter((r) => r === 'struktur')).toHaveLength(2);
+    expect(wurzel.textContent).toContain('Strukturdokumente: A.pdf, B.pdf.');
+    expect(h.vormerken.mock.calls.at(-1)?.[0].zahlen.strukturdokumente).toBe(2);
+  });
+
+  it('ein sechstes lässt sich nicht als Strukturdokument wählen', async () => {
+    const namen = ['a.pdf', 'b.pdf', 'c.pdf', 'd.pdf', 'e.pdf'];
+    const { wurzel } = await zweiMarkiert(host(), namen);
+    const option = wurzel.querySelector('select[aria-label="Rolle von inhalt.pdf"] option[value="struktur"]') as HTMLOptionElement;
+    expect(option.disabled).toBe(true);
+    const markiert = wurzel.querySelector('select[aria-label="Rolle von a.pdf"] option[value="struktur"]') as HTMLOptionElement;
+    expect(markiert.disabled).toBe(false);
+  });
+
+  it('liest nacheinander, zeigt „Dokument n von m“ und antwortet einmal mit allen', async () => {
+    const h = host();
+    const melder: ((a: number) => void)[] = [];
+    const fertig: ((b: unknown) => void)[] = [];
+    h.hochladen.mockImplementation((_d: File, f: (a: number) => void) => {
+      melder.push(f);
+      return new Promise((r) => { fertig.push(r); });
+    });
+    const { wurzel } = await zweiMarkiert(h);
+    knopf(wurzel, 'Lesen lassen')!.click();
+    melder[0](0.5);
+    expect(wurzel.textContent).toContain('Dokument 1 von 2 wird hochgeladen … 50 %');
+    melder[0](1);
+    expect(wurzel.textContent).toContain('Dokument 1 von 2 wird gelesen');
+    fertig[0](befund(1, 'A.pdf', 3));
+    await warte();
+    expect(h.hochladen).toHaveBeenCalledTimes(2);
+    expect((h.hochladen.mock.calls[1][0] as File).name).toBe('B.pdf');
+    expect(wurzel.textContent).toContain('Dokument 2 von 2 wird hochgeladen');
+    expect(h.antworten).not.toHaveBeenCalled();
+    fertig[1](befund(2, 'B.pdf', 4));
+    await warte();
+    const [daten, blase] = h.antworten.mock.calls[0];
+    expect(blase).toBe('2 Dokumente lesen lassen');
+    expect(daten.dokument.name).toBe('A.pdf');
+    expect(daten.dokumente.map((d: { name: string }) => d.name)).toEqual(['A.pdf', 'B.pdf']);
+  });
+
+  it('ein Fehler nennt das Dokument; „Noch einmal“ liest es erneut, die gelesenen bleiben', async () => {
+    const h = host();
+    h.hochladen.mockResolvedValueOnce(befund(1, 'A.pdf'))
+      .mockRejectedValueOnce(Object.assign(new Error('x'), { status: 0, code: 'netz' }))
+      .mockResolvedValueOnce(befund(2, 'B.pdf'));
+    const { wurzel } = await zweiMarkiert(h);
+    knopf(wurzel, 'Lesen lassen')!.click();
+    await warte();
+    await warte();
+    expect(wurzel.querySelector('.u__fehler')?.textContent).toBe('„B.pdf“: Keine Verbindung zum Server.');
+    knopf(wurzel, 'Noch einmal versuchen')!.click();
+    await warte();
+    expect(h.hochladen).toHaveBeenCalledTimes(3);           // A nicht noch einmal
+    expect(h.antworten.mock.calls[0][0].dokumente).toHaveLength(2);
+  });
+
+  it('„Ohne dieses weiter“ lässt ein unlesbares aus und schickt die übrigen', async () => {
+    const h = host();
+    h.hochladen.mockResolvedValueOnce(befund(1, 'A.pdf'))
+      .mockRejectedValueOnce(Object.assign(new Error('x'), { status: 400, code: 'kein_text' }));
+    const { wurzel } = await zweiMarkiert(h);
+    knopf(wurzel, 'Lesen lassen')!.click();
+    await warte();
+    await warte();
+    expect(knopf(wurzel, 'Noch einmal versuchen')).toBeUndefined();
+    const ohne = knopf(wurzel, 'Ohne dieses weiter')!;
+    expect(ohne.getAttribute('aria-label')).toBe('Ohne „B.pdf“ weiterlesen');
+    expect(ohne.classList.contains('u__haupt')).toBe(true);
+    expect(knopf(wurzel, 'Senden')!.classList.contains('u__haupt')).toBe(false);
+    ohne.click();
+    await warte();
+    const [daten, blase] = h.antworten.mock.calls[0];
+    expect(blase).toBe('Dokument „A.pdf“ lesen lassen');      // eins gelesen: wie vorher
+    expect(daten.dokumente).toBeUndefined();
+  });
+
+  it('läuft ein Zug, nennt der Befund die Zahl der Dokumente', async () => {
+    const h = host();
+    h.hochladen.mockResolvedValueOnce(befund(1, 'A.pdf', 3)).mockResolvedValueOnce(befund(2, 'B.pdf', 4));
+    const { el, wurzel } = await zweiMarkiert(h);
+    knopf(wurzel, 'Lesen lassen')!.click();
+    el.beschaeftigt = true;
+    await warte();
+    await warte();
+    expect(wurzel.textContent).toContain('Gelesen: 2 Dokumente, 7 Abschnitte');
+    expect(knopf(wurzel, 'Weiter')!.getAttribute('aria-label')).toBe('Weiter: gelesene Dokumente an den Chat');
+  });
+
+  it('nur lesend nach dem Lesen: Zahl der Dokumente und alle Abschnitte', () => {
+    const a = befund(1, 'A.pdf', 3);
+    const dok = (b: typeof a) => ({ upload_id: b.upload_id, name: b.name, format: 'pdf', befund: b.befund, vorschau: [] });
+    const { wurzel } = erzeuge({ nurLesen: true, antwort: {
+      aktion: 'dokument', dokument: dok(a), dokumente: [dok(a), dok(befund(2, 'B.pdf', 4))],
+      zahlen: { ordner: 1, dateien: 2, inhalte: 0, ignoriert: 0, strukturdokumente: 2, bytes: 1 } } });
+    expect(wurzel.textContent).toContain('Gelesen: 2 Dokumente, 7 Abschnitte.');
+  });
+
+  it('auf Englisch', async () => {
+    const h = host();
+    h.hochladen.mockImplementation(() => new Promise(() => undefined));
+    const r = erzeuge({ sprache: 'en' }, h, MIT_DOKUMENT);
+    await waehle(r.wurzel, [datei('P/A.pdf'), datei('P/B.pdf')]);
+    for (const name of ['A.pdf', 'B.pdf']) {
+      const auswahl = r.wurzel.querySelector(`select[aria-label="Role of ${name}"]`) as HTMLSelectElement;
+      auswahl.value = 'struktur';
+      auswahl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    expect(r.wurzel.textContent).toContain('Structure documents: A.pdf, B.pdf.');
+    knopf(r.wurzel, 'Read document')!.click();
+    expect(r.wurzel.textContent).toContain('Uploading document 1 of 2 … 0 %');
   });
 });

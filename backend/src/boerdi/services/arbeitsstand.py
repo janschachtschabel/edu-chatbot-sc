@@ -44,8 +44,10 @@ from boerdi.services.arbeitsstand_verweis import (  # noqa: F401
     verweis_weg,
 )
 from boerdi.services.config_loader._store import area
+from boerdi.services.dokumente import strukturdokument_teil as sd
 from boerdi.services.mcp.auth import aufrufer_kennung, has_personal_auth
 from boerdi.services.vorgaenge import VorgangKonflikt
+from boerdi.ui_module.namen import ZWECK_BEREITSTELLEN
 from boerdi.ui_module.rahmen import zeile
 
 logger = logging.getLogger(__name__)
@@ -143,21 +145,124 @@ async def auffrischen(s: Any, session_id: str, entities: dict[str, Any]) -> None
         await verbindung_freigeben(s)
 
 
-async def _dokument_bestaetigt(s: Any, session_id: str, wert: dict[str, Any]
+async def lesbares_dokument(s: Any, session_id: str) -> str | None:
+    """Zweites Review TG-2 (MINOR 5): die Kennung des Dokuments, das diese Sitzung gerade lesen
+    kann (derselbe Leseweg wie der Lader) — ``None`` ohne eins. Ein Lesefehler gilt als keins."""
+    from boerdi.services.dokumente import ablage as dokumente
+
+    try:
+        zeile_db = await dokumente.fuer_aufrufer(
+            s, session_id, aufrufer_kennung() if has_personal_auth() else None)
+    except SQLAlchemyError as fehler:
+        logger.warning("Lesbares Dokument nicht feststellbar (%s)", type(fehler).__name__)
+        return None
+    finally:
+        await verbindung_freigeben(s)
+    return None if zeile_db is None else str(zeile_db.id)
+
+
+async def _lesbare_zeilen(s: Any, session_id: str, merk: dict[str, Any] | None) -> list[Any]:
+    """Review TG-3d–f, NIT: die lesbaren Dokumente der Sitzung — mit ``merk`` einmal je Speichern
+    gelesen, nicht je Teil bzw. Eintrag."""
+    from boerdi.services.dokumente import ablage as dokumente
+
+    if merk is not None and "zeilen" in merk:
+        return merk["zeilen"]
+    zeilen = list(await dokumente.alle_fuer_aufrufer(
+        s, session_id, aufrufer_kennung() if has_personal_auth() else None))
+    if merk is not None:
+        merk["zeilen"] = zeilen
+    return zeilen
+
+
+async def _dokument_bestaetigt(s: Any, session_id: str, wert: dict[str, Any],
+                               merk: dict[str, Any] | None = None
                                ) -> tuple[dict[str, Any], str] | None:
     """Das Dokument der Sitzung statt der Angaben des Widgets (Review V1, Befund 9): nur wenn die
     Kennung zum gespeicherten Dokument passt, als ``dokument:<id>`` mit Befund des Servers."""
-    from boerdi.services.dokumente import ablage as dokumente
-
-    # Review TB-E1, Befund 1: derselbe Leseweg wie der Lader — mit Übernahme nach der Anmeldung
-    zeile_db = await dokumente.fuer_aufrufer(s, session_id,
-                                             aufrufer_kennung() if has_personal_auth() else None)
-    if zeile_db is None or zeile_db.id != wert.get("upload_id"):
+    # Review TB-E1, Befund 1: derselbe Leseweg wie der Lader — mit Übernahme nach der Anmeldung.
+    # TG-3e: eines der lesbaren Dokumente (das erste gelesene ist nicht immer das jüngste)
+    zeile_db = next((z for z in await _lesbare_zeilen(s, session_id, merk)
+                     if z.id == wert.get("upload_id")), None)
+    if zeile_db is None:
         return None
     befund = dict(zeile_db.befund or {})
     return ({"ref": f"dokument:{zeile_db.id}", "name": zeile_db.name, "format": zeile_db.format,
              "befund": befund},
             f"{zeile(zeile_db.name, 80)}, {int(befund.get('abschnitte') or 0)} Abschnitte")
+
+
+async def lesbare_dokumente(s: Any, session_id: str) -> list[tuple[str, str]]:
+    """Plan 2026-11-16, TG-3e: ``(Kennung, Name)`` aller Dokumente, die diese Sitzung gerade lesen
+    kann (derselbe Leseweg wie der Lader), in Lesereihenfolge; leer ohne. Ein Lesefehler gilt als
+    keins."""
+    from boerdi.services.dokumente import ablage as dokumente
+
+    try:
+        zeilen = await dokumente.alle_fuer_aufrufer(
+            s, session_id, aufrufer_kennung() if has_personal_auth() else None)
+    except Exception as fehler:  # noqa: BLE001 — ein Lesefehler heißt „keins“, nie Abbruch
+        logger.warning("Lesbare Dokumente nicht feststellbar (%s)", type(fehler).__name__)
+        return []
+    finally:
+        await verbindung_freigeben(s)
+    return [(str(z.id), str(z.name)) for z in zeilen]
+
+
+async def lesbare_dokument_ids(s: Any, session_id: str) -> list[str]:
+    """TG-3e: nur die Kennungen von :func:`lesbare_dokumente`."""
+    return [kennung for kennung, _ in await lesbare_dokumente(s, session_id)]
+
+
+async def _strukturdokumente_bestaetigt(s: Any, session_id: str, wert: Any, alt: Any,
+                                        merk: dict[str, Any] | None = None
+                                        ) -> tuple[dict[str, Any], str] | None:
+    """TG-3d: je Eintrag dieselbe Prüfung wie :func:`_dokument_bestaetigt` — nur Einträge, deren
+    Dokument diese Sitzung lesen kann, mit dem Namen des Servers; die ``wlo``-Einträge des Vorgangs
+    (nach der Ablage) bleiben. ``None``, wenn keiner der gelesenen passt."""
+    gelesen = []
+    for e in sd.eintraege(wert):
+        if (kennung := sd.upload_id(e)) is None:
+            continue
+        bestaetigt = await _dokument_bestaetigt(s, session_id,
+                                                {"upload_id": kennung, "name": e["name"]}, merk)
+        if bestaetigt is not None:
+            gelesen.append(sd.chatbot(kennung, bestaetigt[0]["name"]))
+    if not gelesen:
+        return None
+    neu = sd.mit_chatbot(alt, gelesen)
+    return neu, sd.zusammenfassung(neu[sd.FELD])
+
+
+async def _entwurf_mit_knoten(s: Any, v: Vorgang, wert: dict[str, Any]) -> dict[str, Any]:
+    """MINOR 8: der Entwurf mit den node_ids seiner Inhalte — nie die, die der Client mitschickte.
+
+    Nachprüfung TG-3d–f, MINOR 2: Der Entwurf nennt seine Auswahl (``quelle_block``). Aus
+    ``ablage`` kommen node_ids nur, wenn ``struktur`` und ``ablage`` gebunden sind UND zu dieser
+    Auswahl gehören — eine neue Auswahl im selben Vorgang vergibt die Nummern ``i`` anders. Sonst
+    bleiben die node_ids des zuletzt gespeicherten Entwurfs derselben Auswahl (sie stammen vom
+    Server)."""
+    from boerdi.services.arbeitsstand_teile import gebunden
+    from boerdi.ui_module.strukturentwurf import knoten_ids_im_entwurf, mit_knoten_ids
+    from boerdi.ui_module.strukturentwurf_ordner import knoten_ids
+
+    if not _hat_inhalte(wert):
+        return wert
+    quelle = wert.get("quelle_block")
+    struktur = await vorgaenge.teil_wert(s, v, "struktur")
+    ablage = await vorgaenge.teil_wert(s, v, "ablage")
+    if (isinstance(quelle, str) and quelle and gebunden(struktur, ablage)
+            and struktur.get("block_id") == quelle):
+        return mit_knoten_ids(wert, knoten_ids(ablage))
+    alt = await vorgaenge.teil_wert(s, v, "draft")
+    gleiche_quelle = isinstance(alt, dict) and quelle and alt.get("quelle_block") == quelle
+    return mit_knoten_ids(wert, knoten_ids_im_entwurf(alt) if gleiche_quelle else {})
+
+
+def _hat_inhalte(wert: dict[str, Any]) -> bool:
+    from boerdi.ui_module.strukturentwurf import alle
+
+    return any(k.get("inhalte") for k, _ in alle(wert.get("knoten") or []))
 
 
 async def _speichern(s: Any, session_id: str, entities: dict[str, Any], teile: list[Teil],
@@ -172,14 +277,30 @@ async def _speichern(s: Any, session_id: str, entities: dict[str, Any], teile: l
     if v is None and has_personal_auth():
         v = await vorgaenge.juengster(s, aufrufer)
     if v is None:
+        # Plan 2026-11-16, TG-2: ohne Ablauf ist der Zweck neutral — das Upload-Feld stellt nur
+        # bereit (gelesen wird ``zweck`` nur als Kennung eines Ablaufs, ``api/ui_vorgaenge``)
         v = await vorgaenge.anlegen(s, aufrufer=aufrufer, session_id=session_id,
-                                    titel=_titel(teile), zweck="sammlungsstruktur", tage=tage())
+                                    titel=_titel(teile), zweck=ZWECK_BEREITSTELLEN, tage=tage())
+    merk: dict[str, Any] = {}
     for name, typ, wert, zusammenfassung in teile:
         if name == "document":
-            if (bestaetigt := await _dokument_bestaetigt(s, session_id, wert)) is None:
+            if (bestaetigt := await _dokument_bestaetigt(s, session_id, wert, merk)) is None:
                 logger.info("Arbeitsstand: Dokument der Antwort passt nicht zur Sitzung")
                 continue
             wert, zusammenfassung = bestaetigt
+        elif name == sd.TEIL and typ == sd.TYP and not sd.hat_wlo(wert):
+            # TG-3d: Einträge aus einer Antwort (nur gelesene Dokumente) prüft der Server; was die
+            # Ablage schreibt (mit ``wlo``-Einträgen, ``vorgang_teil``), stammt aus dem Vorgang
+            alt = await vorgaenge.teil_wert(s, v, name)
+            bestaetigt = await _strukturdokumente_bestaetigt(s, session_id, wert, alt, merk)
+            if bestaetigt is None:
+                logger.info("Arbeitsstand: kein Strukturdokument der Antwort passt zur Sitzung")
+                continue
+            wert, zusammenfassung = bestaetigt
+        elif name == "draft" and isinstance(wert, dict):
+            # Review TG-3d–f, MINOR 8: node_ids eines Entwurfs nie vom Client — neu aus der Ablage
+            # über ``i``, nur wenn Auswahl und Ablage zum selben Upload-Feld gehören
+            wert = await _entwurf_mit_knoten(s, v, wert)
         v = await vorgaenge.teil_setzen(s, v, name, typ=typ, wert=wert,
                                         zusammenfassung=zusammenfassung, tage=tage())
     return v

@@ -9,7 +9,7 @@
  * Änderung neu und setzt den Fokus danach wieder auf denselben Schlüssel.
  */
 import type { Erfassung, OrdnerKnoten } from './upload-erfassen';
-import { kannStrukturSein } from './upload-rollen';
+import { strukturWaehlbar } from './upload-rollen';
 import { groesse, type Sprache, type UploadTexte } from './upload-texte';
 
 export interface BaumSicht<T> {
@@ -51,7 +51,8 @@ function dateiZeile<T>(dok: Document, sicht: BaumSicht<T>, index: number): HTMLL
   for (const rolle of ['inhalt', 'struktur', 'ignorieren'] as const) {
     const o = el(dok, 'option', undefined, sicht.t.rolle[rolle]);
     o.value = rolle;
-    o.disabled = rolle === 'struktur' && !kannStrukturSein(d);
+    // TG-3e: auch gesperrt, wenn schon fünf andere Strukturdokumente markiert sind
+    o.disabled = rolle === 'struktur' && !strukturWaehlbar(sicht.erfassung, index);
     o.selected = d.rolle === rolle;
     auswahl.append(o);
   }

@@ -1,17 +1,36 @@
 /**
  * Was `ui_upload` als Antwort schickt (Paket U3-1a, Plan §16.5): der Ordnerbaum mit Zahlen, die Zahlen
- * je Rolle, Warnungen und — falls markiert — das Strukturdokument. **Keine Dateinamen**: sie bleiben im
- * Browser, kein Schritt in U3-1 braucht sie. Seit U3-2c kann ein markiertes Strukturdokument gelesen
- * werden (`upload-dokument.ts`); dann trägt die Antwort dessen Befund (`dokument`). Ordnernamen sind eine Zeile und höchstens 120 Zeichen; der
- * Baum hat höchstens `MAX_KNOTEN` Ordner (darüber Warnung `zu_viele_ordner`).
+ * je Rolle, Warnungen und — falls markiert — das Strukturdokument. Seit U3-2c kann ein markiertes
+ * Strukturdokument gelesen werden (`upload-dokument.ts`); dann trägt die Antwort dessen Befund
+ * (`dokument`). Ordnernamen sind eine Zeile und höchstens 120 Zeichen; der Baum hat höchstens
+ * `MAX_KNOTEN` Ordner (darüber Warnung `zu_viele_ordner`).
+ *
+ * Plan 2026-11-16, TG-3a (Datenmodell, G-E1): jeder Ordner trägt seine Dateien (`dateiliste`) — je
+ * Datei die feste Nummer `i` (Stelle in `Erfassung.dateien`, stabil über die ganze Auswahl; dieselbe
+ * Nummer schickt die Übertragung nach WLO mit, TG-3b), Name, Endung, Größe und Rolle. Binärdaten
+ * nie. Systemdateien (`.DS_Store` …) fehlen wie im Baum der Ansicht; ihre Nummern bleiben frei. Ein
+ * gekürzter Name (über 120 Zeichen) meldet `namen_gekuerzt` — keine stille Kürzung. Höchstens 500
+ * Dateien kappt schon `erfasse` (`zu_viele`).
  */
-import type { Erfassung, OrdnerKnoten, Warnung } from './upload-erfassen';
+import type { Erfassung, OrdnerKnoten, Rolle, Warnung } from './upload-erfassen';
 
 export const MAX_KNOTEN = 500;
 const MAX_NAME = 120;
 
-export type AntwortAktion = 'erfasst' | 'ordner_als_entwurf' | 'dokument' | 'uebertragen';
-export type AntwortWarnung = Warnung | 'zu_viele_ordner';
+// Plan 2026-11-16, TG-1 (G-E4): ohne `ordner_als_entwurf` — das Feld kennt kein Ziel mehr.
+export type AntwortAktion = 'erfasst' | 'dokument' | 'uebertragen';
+export type AntwortWarnung = Warnung | 'zu_viele_ordner' | 'namen_gekuerzt';
+
+/** TG-3a: eine Datei im Ordner — `i` ist ihre feste Nummer in der Auswahl. Review TG-3a–c, R3-4:
+ *  eine ignorierte Datei geht ohne Namen mit (Datensparsamkeit) — nur Nummer, Endung, Größe. */
+export interface AntwortDatei {
+  readonly i: number;
+  readonly name?: string;
+  /** Kleingeschrieben, nur Buchstaben und Ziffern, höchstens 10; leer ohne Endung. */
+  readonly endung: string;
+  readonly groesse: number;
+  readonly rolle: Rolle;
+}
 
 export interface AntwortOrdner {
   readonly name: string;
@@ -20,6 +39,8 @@ export interface AntwortOrdner {
   /** dasselbe samt aller Unterordner */
   readonly alle_dateien: number;
   readonly kinder: readonly AntwortOrdner[];
+  /** TG-3a: die Dateien direkt in diesem Ordner (auch ignorierte, ohne Systemdateien). */
+  readonly dateiliste: readonly AntwortDatei[];
 }
 
 export interface UploadAntwort {
@@ -33,13 +54,16 @@ export interface UploadAntwort {
   readonly warnungen: readonly AntwortWarnung[];
   /** U3-2c, nur mit `aktion: "dokument"`: der Befund des gelesenen Dokuments (kein Text). */
   readonly dokument?: {
-    readonly upload_id: string; readonly name: string; readonly format: string; readonly ziel: string;
+    readonly upload_id: string; readonly name: string; readonly format: string;
     readonly befund: {
       readonly seiten: number | null; readonly woerter: number; readonly abschnitte: number;
       readonly gliederung_art: string; readonly warnungen: readonly string[];
     };
     readonly vorschau: readonly string[];
   };
+  /** Plan 2026-11-16, TG-3e, nur mit `aktion: "dokument"` und mehr als einem gelesenen Dokument:
+   *  alle in Lesereihenfolge (das erste steht zugleich in `dokument`). */
+  readonly dokumente?: readonly NonNullable<UploadAntwort['dokument']>[];
   /** U3-3b, nur mit `aktion: "uebertragen"`: nur Zahlen der Ablage im persönlichen Bereich. */
   readonly ablage?: {
     readonly layout: 'ordner' | 'flach'; readonly gesamt: number; readonly abgelegt: number;
@@ -53,15 +77,40 @@ export function einZeiler(name: string): string {
   return Array.from(name.replace(/\s+/g, ' ').trim()).slice(0, MAX_NAME).join('');
 }
 
-export function antwortDaten<T>(e: Erfassung<T>, aktion: AntwortAktion): UploadAntwort {
+/** Wird `name` von `einZeiler` gekürzt? */
+function zuLang(name: string): boolean {
+  return Array.from(name.replace(/\s+/g, ' ').trim()).length > MAX_NAME;
+}
+
+/** Die Endung für die Antwort: nach dem letzten Punkt (nicht am Anfang), sonst leer. */
+export function endungVon(name: string): string {
+  const punkt = name.lastIndexOf('.');
+  const endung = punkt > 0 ? name.slice(punkt + 1).toLowerCase() : '';
+  return /^[a-z0-9]{1,10}$/.test(endung) ? endung : '';
+}
+
+/** Review TG-3a–c, NIT: ein Dateiname nur aus Leerzeichen wird ein Platzhalter (`ohneName`, je
+ *  Sprache „(ohne Namen)“ / „(no name)“) — leer verwürfe das Schema die ganze Antwort. */
+export function antwortDaten<T>(e: Erfassung<T>, aktion: AntwortAktion, ohneName = '(ohne Namen)'): UploadAntwort {
   const zaehlt = (i: number): boolean => e.dateien[i].rolle !== 'ignorieren';
   let knoten = 0;
   let gekappt = false;
   let ordner = 0;
+  let gekuerzt = false;
+
+  function datei(i: number): AntwortDatei[] {
+    const d = e.dateien[i];
+    if (d.grund === 'system') return [];
+    // R3-4: ausgeschlossen heißt ohne Namen — er geht nicht an den Chat
+    if (d.rolle === 'ignorieren') return [{ i, endung: endungVon(d.name), groesse: d.groesse, rolle: d.rolle }];
+    if (zuLang(d.name)) gekuerzt = true;
+    return [{ i, name: einZeiler(d.name) || ohneName, endung: endungVon(d.name), groesse: d.groesse, rolle: d.rolle }];
+  }
 
   function baue(k: OrdnerKnoten): AntwortOrdner {
     knoten++;
     if (k.name) ordner++;
+    if (zuLang(k.name)) gekuerzt = true;
     const kinder: AntwortOrdner[] = [];
     let alle = k.dateien.filter(zaehlt).length;
     for (const kind of k.ordner) {
@@ -70,7 +119,10 @@ export function antwortDaten<T>(e: Erfassung<T>, aktion: AntwortAktion): UploadA
       if (knoten < MAX_KNOTEN) kinder.push(baue(kind));
       else gekappt = true;
     }
-    return { name: einZeiler(k.name), dateien: k.dateien.filter(zaehlt).length, alle_dateien: alle, kinder };
+    return {
+      name: einZeiler(k.name), dateien: k.dateien.filter(zaehlt).length, alle_dateien: alle, kinder,
+      dateiliste: k.dateien.flatMap(datei),
+    };
   }
   function summe(k: OrdnerKnoten): number {
     return k.dateien.filter(zaehlt).length + k.ordner.reduce((s, o) => s + summe(o), 0);
@@ -81,6 +133,7 @@ export function antwortDaten<T>(e: Erfassung<T>, aktion: AntwortAktion): UploadA
   const sd = e.dateien.find((d) => d.rolle === 'struktur');
   const warnungen: AntwortWarnung[] = [...e.warnungen];
   if (gekappt) warnungen.push('zu_viele_ordner');
+  if (gekuerzt || (sd && zuLang(sd.name))) warnungen.push('namen_gekuerzt');
   return {
     aktion,
     struktur,
@@ -90,7 +143,7 @@ export function antwortDaten<T>(e: Erfassung<T>, aktion: AntwortAktion): UploadA
       bytes: e.dateien.reduce((s, d) => s + (d.rolle === 'ignorieren' ? 0 : d.groesse), 0),
     },
     strukturdokument: sd
-      ? { name: einZeiler(sd.name), groesse: sd.groesse, endung: (sd.name.split('.').pop() ?? '').toLowerCase().slice(0, 8) }
+      ? { name: einZeiler(sd.name) || ohneName, groesse: sd.groesse, endung: endungVon(sd.name) }
       : null,
     warnungen,
   };

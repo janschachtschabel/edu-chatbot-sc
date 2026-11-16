@@ -19,6 +19,12 @@ def zeile(wert: object, deckel: int = ZEILE) -> str:
     return " ".join(str(wert).split())[:deckel] if wert is not None else ""
 
 
+def name_fuer_ki(name: object, deckel: int = 80) -> str:
+    """Ein Name der Person (Datei, Dokument) für die KI: eine Zeile, ohne Anführungs- und
+    Rahmenzeichen (Review TG-3d–f, MINOR 3; Review der TG-7-Behebung, Befund 4)."""
+    return zeile(name, deckel).translate({ord(c): None for c in "„“”\"[]"})
+
+
 def gerahmt(start: str, zeilen: list[str], ende: str) -> str:
     """Zeilen im Rahmen; Endmarken im Inhalt sind entschärft."""
     return "\n".join([start, entschaerfe_endmarken("\n".join(zeilen)), ende])

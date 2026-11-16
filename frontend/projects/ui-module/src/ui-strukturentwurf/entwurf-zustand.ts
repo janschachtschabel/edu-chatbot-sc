@@ -142,9 +142,11 @@ export class EntwurfZustand {
   }
 
   antwortDaten(uebernommen: boolean): Record<string, unknown> {
-    const { titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt } = this.daten;
+    // Nachprüfung TG-3d–f, MINOR 2: `quelle_block` (die Auswahl, aus der der Entwurf stammt) geht
+    // unverändert zurück — der Server verknüpft damit Inhalte und Ablage
+    const { titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt, quelle_block } = this.daten;
     return {
-      titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt,
+      titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt, quelle_block,
       knoten: bereinigt(this.struktur, this.texte.neuerPunkt), uebernommen, bearbeitet: this.geaendert,
     };
   }

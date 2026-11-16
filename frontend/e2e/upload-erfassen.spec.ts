@@ -5,7 +5,7 @@
  * Warum e2e: Nur hier läuft der ganze Nachlade-Weg (Platzhalter → `<script>` mit SRI von der
  * Widget-Adresse → Custom Element im Shadow Root) und die echte Ordnerauswahl des Browsers
  * (`webkitdirectory`). Dazu der Sendeweg: Vormerkung mit der getippten Nachricht und Antwort per Knopf
- * — ohne Dateinamen.
+ * — seit Plan 2026-11-16, TG-3a mit den Dateinamen je Ordner, nie mit Inhalten.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +20,7 @@ function uploadBlock(blockId = 'u1u2u3u4u5u6u7u8', dokument = false) {
   return {
     block_id: blockId, modul: 'ui_upload', version: 1, art: 'abfragen', status: 'offen',
     daten: {
-      zweck: 'sammlungsstruktur', grenzen: { max_dateien: 500, max_tiefe: 8, max_mb_datei: 50 },
+      zweck: 'bereitstellen', grenzen: { max_dateien: 500, max_tiefe: 8, max_mb_datei: 50 },
       ...(dokument ? { schalter: { dokument_im_chat: true, ablage_in_wlo: false } } : {}),
     },
     text: 'Hier würde ein Auswahlfeld für einen Ordner erscheinen.', antwort: null,
@@ -59,7 +59,7 @@ async function uploadZeigen(page: import('@playwright/test').Page, dokument = fa
 test.describe('ui_upload (U3-1a, nachgeladen)', () => {
   test.afterAll(() => { for (const d of ANGELEGT.splice(0)) rmSync(d, { recursive: true, force: true }); });
 
-  test('lädt das Bündel nach, zeigt den Ordner als Baum und antwortet ohne Dateinamen', async ({ page }) => {
+  test('lädt das Bündel nach, zeigt den Ordner als Baum und antwortet mit Dateien je Ordner (TG-3a)', async ({ page }) => {
     const w = await uploadZeigen(page);
     const modul = page.locator('boerdi-ui-upload');
     await expect(modul.getByRole('heading', { name: 'Ordner und Dateien' })).toBeVisible();
@@ -72,12 +72,17 @@ test.describe('ui_upload (U3-1a, nachgeladen)', () => {
     // der Lehrplan in der Wurzel ist als Strukturdokument vorgeschlagen
     await expect(modul.getByLabel('Rolle von Lehrplan_Physik.pdf')).toHaveValue('struktur');
 
-    await modul.getByRole('button', { name: 'Als Themenbaum-Entwurf übernehmen' }).click();
+    // Plan 2026-11-16, TG-1: kein Zielknopf mehr — „Senden“ schickt den Befund
+    await expect(modul.getByRole('button', { name: 'Als Themenbaum-Entwurf übernehmen' })).toHaveCount(0);
+    await modul.getByRole('button', { name: 'Senden: Auswahl an den Chat' }).click();
     await w.waitForTurns(2);
     const req = w.chatRequests().at(-1)!;
-    expect(req.ui_antwort?.daten).toMatchObject({ aktion: 'ordner_als_entwurf', struktur: { name: 'Physik 7' } });
-    expect(JSON.stringify(req.ui_antwort)).not.toContain('hebel-mueller');
-    expect(req.message).toBe('Ordnerstruktur „Physik 7“ als Themenbaum-Entwurf übernehmen');
+    expect(req.ui_antwort?.daten).toMatchObject({ aktion: 'erfasst', struktur: { name: 'Physik 7' } });
+    // TG-3a: je Ordner seine Dateien mit fester Nummer — Namen, nie Inhalte
+    const struktur = req.ui_antwort?.daten['struktur'] as { kinder: { dateiliste: { i: number; name: string }[] }[] };
+    expect(struktur.kinder[0].dateiliste.map((d) => [d.i, d.name])).toEqual([[0, 'hebel-mueller.pdf'], [1, 'kraft.docx']]);
+    expect(JSON.stringify(req.ui_antwort)).not.toContain('%PDF');
+    expect(req.message).toBe('Ordner „Physik 7“ erfasst: 3 Ordner, 4 Dateien.');
   });
 
   test('nur mit der Tastatur: Ordner aufklappen, Rolle ändern', async ({ page }) => {
@@ -133,17 +138,52 @@ test.describe('ui_upload (U3-1a, nachgeladen)', () => {
     await modul.locator('input[webkitdirectory]').setInputFiles(ordner());
     await expect(modul.getByLabel('Rolle von Lehrplan_Physik.pdf')).toHaveValue('struktur');
 
-    await modul.getByRole('button', { name: 'Themenbaum aus dem Strukturdokument erstellen' }).click();
+    // TG-1: neutral „Lesen lassen“, ohne Ziel
+    await modul.getByRole('button', { name: 'Lesen lassen' }).click();
     await w.waitForTurns(2);
     expect(hochgeladen).toHaveLength(1);
     expect(hochgeladen[0]).toContain('name="block_id"');
     expect(hochgeladen[0]).toContain('filename="Lehrplan_Physik.pdf"');
     expect(hochgeladen[0]).not.toContain('hebel-mueller');
     const req = w.chatRequests().at(-1)!;
-    expect(req.message).toBe('Themenbaum aus „Lehrplan_Physik.pdf“ erstellen');
+    expect(req.message).toBe('Dokument „Lehrplan_Physik.pdf“ lesen lassen');
     expect(req.ui_antwort?.daten).toMatchObject({
-      aktion: 'dokument', dokument: { upload_id: '11111111-2222-4333-8444-555555555555', ziel: 'themenbaum',
+      aktion: 'dokument', dokument: { upload_id: '11111111-2222-4333-8444-555555555555',
         befund: { abschnitte: 6 }, vorschau: ['1 Mechanik', '2 Optik'] } });
-    expect(JSON.stringify(req.ui_antwort)).not.toContain('hebel-mueller');
+    expect(req.ui_antwort?.daten['dokument']).not.toHaveProperty('ziel');
+    expect(JSON.stringify(req.ui_antwort)).not.toContain('%PDF');
+  });
+
+  test('TG-3e: zwei Strukturdokumente nacheinander lesen lassen — eine Antwort mit beiden', async ({ page }) => {
+    const w = await uploadZeigen(page, true);
+    const namen: string[] = [];
+    await page.route('**/api/ui/dokumente', async (route) => {
+      const rumpf = route.request().postDataBuffer()?.toString('latin1') ?? '';
+      const name = /filename="([^"]+)"/.exec(rumpf)?.[1] ?? '';
+      namen.push(name);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        upload_id: `11111111-2222-4333-8444-55555555555${namen.length}`, name, format: 'pdf',
+        befund: { seiten: 1, woerter: 100, abschnitte: 3, gliederung_art: 'nummeriert', warnungen: [] },
+        ueberschriften_vorschau: ['1 Kapitel'],
+      }), headers: { 'Access-Control-Allow-Origin': '*' } });
+    });
+    const modul = page.locator('boerdi-ui-upload');
+    await modul.locator('input[webkitdirectory]').setInputFiles(ordner());
+    await expect(modul.getByLabel('Rolle von Lehrplan_Physik.pdf')).toHaveValue('struktur');
+    // ein zweites Strukturdokument: im Unterordner aufklappen, Rolle setzen — das erste bleibt
+    await modul.getByRole('button', { name: '02_Optik', exact: true }).click();
+    await modul.getByLabel('Rolle von linsen.pdf').selectOption('struktur');
+    await expect(modul.getByLabel('Rolle von Lehrplan_Physik.pdf')).toHaveValue('struktur');
+    await expect(modul).toContainText('Strukturdokumente: ');
+
+    await modul.getByRole('button', { name: 'Lesen lassen' }).click();
+    await w.waitForTurns(2);
+    expect(namen.sort()).toEqual(['Lehrplan_Physik.pdf', 'linsen.pdf']);
+    const req = w.chatRequests().at(-1)!;
+    expect(req.message).toBe('2 Dokumente lesen lassen');
+    const daten = req.ui_antwort?.daten as { dokumente: { name: string }[]; zahlen: { strukturdokumente: number } };
+    expect(daten.dokumente).toHaveLength(2);
+    expect(daten.zahlen.strukturdokumente).toBe(2);
+    expect(JSON.stringify(req.ui_antwort)).not.toContain('%PDF');
   });
 });

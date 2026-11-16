@@ -33,6 +33,11 @@ class Form:
     frage_zeilen: Callable[[_Daten], list[str]]
     #: Was die Sicherheitsprüfung vor der Nachricht liest.
     sicherheit: Callable[[_Daten], str]
+    #: Review TG-3a–c, R3-1: liest ``sicherheit`` für diese Antwort nur **Namen** (Ordner, Dateien,
+    #: Überschriften eines Dokuments, ungeänderte Titel) — keine Äußerung der Person? Dann gehen sie
+    #: nur an die Moderation, nicht an die Krisen- und Drohungsmuster: „Suizid-Prävention.pdf“ ist
+    #: ein Thema, kein Hilferuf.
+    sicherheit_nur_namen: Callable[[_Daten], bool] | None = None
     #: Text-Schlüssel des festen Satzes unter der Frage (``i18n/bot_text``).
     satz: str = "agent.frage"
     #: Nur der Strukturentwurf: sein gemerkter Stand (``strukturentwurf_merken``) ersetzt den
@@ -40,6 +45,9 @@ class Form:
     letzter_entwurf: bool = False
     #: Endmarke je Antwort, wenn ein Modul mehrere Rahmen kennt (``ui_upload``: Ordner/Dokument).
     ende_fuer: Callable[[_Daten], str] | None = None
+    #: Plan 2026-11-16, TG-2: eine alte Antwortform vor der Schema-Prüfung auf die neue heben
+    #: (``ui_upload``: ``ordner_als_entwurf`` → ``erfasst``, ``dokument.ziel`` entfällt).
+    rueckwaerts: Callable[[_Daten], _Daten] | None = None
 
 
 FORMEN: Final[dict[str, Form]] = {
@@ -47,12 +55,16 @@ FORMEN: Final[dict[str, Form]] = {
         merken=entwurf.merken, grund=entwurf.grund, normalisiert=entwurf.normalisiert,
         zeilen=entwurf.zeilen, ende=entwurf.ENTWURF_FRAME_END,
         frage_start=entwurf.LETZTER_FRAME_START, frage_zeilen=entwurf.frage_zeilen,
-        sicherheit=entwurf.sicherheit, satz="agent.entwurf", letzter_entwurf=True),
+        sicherheit=entwurf.sicherheit, satz="agent.entwurf", letzter_entwurf=True,
+        # R3-1: unbearbeitet trägt der Entwurf nur Titel aus Ordnern, WLO oder der KI — keine
+        # Äußerung der Person; hat sie ihn bearbeitet, kann ein Titel ihr eigener Satz sein
+        sicherheit_nur_namen=lambda d: d.get("bearbeitet") is False),
     UPLOAD: Form(
         merken=upload.merken, grund=upload.grund, normalisiert=upload.normalisiert,
         zeilen=upload.zeilen, ende=upload.ORDNER_FRAME_END,
         frage_start=upload.OFFEN_FRAME_START, frage_zeilen=upload.frage_zeilen,
-        sicherheit=upload.sicherheit, ende_fuer=upload.ende),
+        sicherheit=upload.sicherheit, ende_fuer=upload.ende, rueckwaerts=upload.rueckwaerts,
+        sicherheit_nur_namen=lambda _d: True),
 }
 
 

@@ -122,7 +122,9 @@ export class UebertragenAblauf {
       for (const [i, k] of kandidaten.entries()) {
         const sha256 = await (this.u.hashen ?? ((d: File) => sha256Hex(d)))(k.handle);
         if (ueberholt()) return this.verwerfen(nr);
-        eintraege.push({ titel: k.titel, sha256, groesse: k.groesse, art: k.art, rolle: k.rolle });
+        // Plan 2026-11-16, TG-3b: `i` ist die Nummer in der Auswahl, nicht die Stelle in dieser
+        // gefilterten Liste — so finden Ordner (Teil `struktur`) und Knoten (Teil `ablage`) zueinander.
+        eintraege.push({ titel: k.titel, sha256, groesse: k.groesse, art: k.art, rolle: k.rolle, i: k.datei });
         this.lauf = { phase: 'pruefen', fertig: i + 1, gesamt: kandidaten.length };
         this.anOrt(t.prueft(i + 1, kandidaten.length), (i + 1) / kandidaten.length);
       }
@@ -251,7 +253,8 @@ export class UebertragenAblauf {
   }
 
   private optionen() {
-    return { ordnerVerweigert: this.ordnerVerweigert, vorgangAbgelegt: this.vorgang === 'abgelegt' };
+    return { ordnerVerweigert: this.ordnerVerweigert, vorgangAbgelegt: this.vorgang === 'abgelegt',
+      dateiOhneName: this.u.t().dateiOhneName };
   }
 
   /** Die Zahlen gehen auch mit einer GETIPPTEN Nachricht mit (wie der Befund des Erfassens). */

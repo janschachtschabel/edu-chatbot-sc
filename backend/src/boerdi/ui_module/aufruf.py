@@ -42,6 +42,9 @@ class Umgebung:
     #: Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt eines Laufs
     #: (``ki_schritt.vorgaben``) — ein Dienst setzt sie in seinen Systemteil.
     vorgaben: str = ""
+    #: Plan 2026-11-16, TG-5 (G-E8): Argumente von ``ui_strukturentwurf``, die der KI-Schritt eines
+    #: Laufs aus den Antworten vorbelegt (``services/ablauf/vorbelegung``) — die KI geht vor.
+    vorbelegung: dict[str, Any] | None = None
     #: Review TW-6, Befund 7: der Aufruf kommt aus einem Ablauf-Schritt (``treiber_bloecke``) — nur
     #: dort gelten Schalter, die die KI nicht setzen soll (``einzeldatei_als_struktur``).
     aus_ablauf: bool = False

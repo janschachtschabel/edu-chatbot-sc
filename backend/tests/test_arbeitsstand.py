@@ -41,10 +41,13 @@ def test_teile_aus_dem_ordner_ohne_dateinamen():
 
 
 def test_ein_gelesenes_dokument_wird_ein_eigener_teil():
-    dok = {"upload_id": "u-1", "name": "Lehrplan.pdf", "format": "pdf", "ziel": "themenbaum",
+    dok = {"upload_id": "u-1", "name": "Lehrplan.pdf", "format": "pdf",
            "befund": {"abschnitte": 9}, "vorschau": ["A"]}
     teile = {t[0]: t for t in arbeitsstand.teile_aus_antwort(_upload("dokument", dokument=dok))}
-    assert set(teile) == {"structure", "document"}
+    # Plan 2026-11-16, TG-3d: dazu die Verweise auf alle gelesenen (``strukturdokument``)
+    assert set(teile) == {"structure", "document", "strukturdokument"}
+    assert teile["strukturdokument"][2] == {"dokumente": [
+        {"name": "Lehrplan.pdf", "quelle": "chatbot", "ref": "dokument:u-1"}]}
     assert teile["document"][2] == {"upload_id": "u-1", "name": "Lehrplan.pdf", "format": "pdf",
                                     "befund": {"abschnitte": 9}}
     assert teile["document"][3] == "Lehrplan.pdf, 9 Abschnitte"
@@ -114,7 +117,7 @@ class _Ablage:
 
     async def anlegen(self, s, *, aufrufer, session_id, titel, zweck, tage):
         v = SimpleNamespace(id=f"v-{len(self.vorgaenge) + 1}", aufrufer=aufrufer, titel=titel,
-                            status="aktiv",
+                            zweck=zweck, status="aktiv",
                             verfaellt_am=datetime.now(UTC) + timedelta(days=tage),
                             akte={"teile": {}})
         self.vorgaenge[v.id] = v
@@ -128,6 +131,9 @@ class _Ablage:
         v.akte["teile"][name] = {"typ": typ, "version": alt["version"] + 1, "wert": wert,
                                  "zusammenfassung": zusammenfassung}
         return v
+
+    async def teil_wert(self, s, v, name):
+        return (v.akte["teile"].get(name) or {}).get("wert")
 
 
 class _Savepoint:
@@ -155,7 +161,7 @@ class _S:
 @pytest.fixture
 def ablage(monkeypatch):
     a = _Ablage()
-    for name in ("lesen", "anlegen", "teil_setzen", "juengster", "beruehren"):
+    for name in ("lesen", "anlegen", "teil_setzen", "juengster", "beruehren", "teil_wert"):
         monkeypatch.setattr(arbeitsstand.vorgaenge, name, getattr(a, name))
     monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: True)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
@@ -168,6 +174,8 @@ def test_uebernehmen_legt_an_und_setzt_den_verweis(ablage):
     asyncio.run(arbeitsstand.uebernehmen(s, "sitzung-1", entities, _upload()))
     [v] = ablage.vorgaenge.values()
     assert v.aufrufer == "person-a" and v.titel == "Physik 7" and s.commits == 1
+    # Plan 2026-11-16, TG-2: ohne Ablauf ist der Zweck neutral — das Feld stellt nur bereit
+    assert v.zweck == "bereitstellen"
     vw = entities[arbeitsstand.VERWEIS]
     assert vw["id"] == v.id and vw["teile"] == {"structure": {"v": 1, "z": "2 Ordner, 12 Inhalte"}}
     assert vw["b"] == arbeitsstand._besitz("person-a") and "person-a" not in str(vw)
@@ -273,11 +281,16 @@ def test_das_dokument_gilt_nur_wenn_es_zur_sitzung_passt(ablage, monkeypatch):
 
     zeile = SimpleNamespace(id="u-1", name="Lehrplan.pdf", format="pdf", befund={"abschnitte": 4})
 
-    async def aktuelles(s, session_id, aufrufer):
-        return zeile
+    async def alle_lesbaren(s, session_id, aufrufer):
+        return [zeile]
 
-    monkeypatch.setattr(dokumente, "aktuelles", aktuelles)
-    dok = {"upload_id": "u-1", "name": "gefälscht", "format": "pdf", "ziel": "themenbaum",
+    async def zuschreiben(s, session_id, aufrufer):
+        return None
+
+    # TG-3e: der Leseweg liest alle lesbaren Dokumente der Sitzung
+    monkeypatch.setattr(dokumente, "alle_lesbaren", alle_lesbaren)
+    monkeypatch.setattr(dokumente, "zuschreiben", zuschreiben)
+    dok = {"upload_id": "u-1", "name": "gefälscht", "format": "pdf",
            "befund": {"abschnitte": 999}, "vorschau": []}
     entities: dict = {}
     asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-1", entities,
@@ -300,20 +313,22 @@ def test_tb_e1_review_1_anonym_hochgeladen_gilt_nach_der_anmeldung(ablage, monke
 
     zeile = SimpleNamespace(id="u-1", name="Lehrplan.pdf", format="pdf", befund={"abschnitte": 4})
     gefragt: list = []
+    uebernommen: list = []
 
-    async def aktuelles(s, session_id, aufrufer):
-        gefragt.append(("aktuelles", aufrufer))
-        return None                                  # die Person hat noch kein eigenes
+    async def alle_lesbaren(s, session_id, aufrufer):
+        gefragt.append(("alle_lesbaren", aufrufer))
+        return list(uebernommen)                     # erst nach der Übernahme gehört es ihr
 
     async def zuschreiben(s, session_id, aufrufer):
         gefragt.append(("zuschreiben", aufrufer))
+        uebernommen.append(zeile)
         return zeile
 
-    monkeypatch.setattr(dokumente, "aktuelles", aktuelles)
+    monkeypatch.setattr(dokumente, "alle_lesbaren", alle_lesbaren)
     monkeypatch.setattr(dokumente, "zuschreiben", zuschreiben)
     monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: True)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
-    dok = {"upload_id": "u-1", "name": "Lehrplan.pdf", "format": "pdf", "ziel": "themenbaum",
+    dok = {"upload_id": "u-1", "name": "Lehrplan.pdf", "format": "pdf",
            "befund": {"abschnitte": 4}, "vorschau": []}
     asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-1", {}, _upload("dokument", dokument=dok)))
     [v] = ablage.vorgaenge.values()

@@ -7,7 +7,7 @@
 import type { ModulKontext } from '../_vertrag/ui-block';
 import { antwortDaten, type UploadAntwort } from './upload-antwort';
 import { baueBaum } from './upload-baum';
-import { dokumentErlaubt } from './upload-dokument';
+import { abschnitteZusammen, dokumentErlaubt, strukturDateien, wiederholbar } from './upload-dokument';
 import type { DokumentAblauf } from './upload-dokument-ablauf';
 import { dokumentTeile } from './upload-dokument-ansicht';
 import { type Erfassung, GRENZEN, type Grenzen } from './upload-erfassen';
@@ -104,7 +104,10 @@ export function nurLesenOhneStapel(s: UploadSicht): boolean {
 function nurLesenZeile(s: UploadSicht, t: UploadTexte): HTMLElement {
   const a = s.kontext?.antwort as UploadAntwort | null;
   const z = a?.zahlen;
-  const text = a?.dokument ? t.nurLesenDokument(a.dokument.name, t.abschnitte(a.dokument.befund.abschnitte))
+  // TG-3e: mehrere gelesene Dokumente mit ihrer Zahl und allen Abschnitten zusammen
+  const mehrere = a?.dokumente?.length ?? 0;
+  const text = a?.dokument && mehrere > 1 ? t.nurLesenDokumente(mehrere, t.abschnitte(abschnitteZusammen(a)))
+    : a?.dokument ? t.nurLesenDokument(a.dokument.name, t.abschnitte(a.dokument.befund.abschnitte))
     : a?.ablage ? uebertragenTexte(s.sprache).nurLesen(a.ablage.abgelegt, a.ablage.gesamt)
       : z ? t.nurLesen(t.ordner(z.ordner), t.dateien(z.inhalte + z.strukturdokumente)) : t.nichtVerwendet;
   const zeile = knoten('p', 'u__hinweis', text);
@@ -124,7 +127,7 @@ function waehler(s: UploadSicht): Node {
 
 function befund(s: UploadSicht, e: Erfassung<File>): Node[] {
   const t = s.t;
-  const a = antwortDaten(e, 'erfasst');
+  const a = antwortDaten(e, 'erfasst', t.dateiOhneName);
   const kopf = knoten('p', 'u__befund', zusammenfassung(s.t, a));
   kopf.tabIndex = -1;
   kopf.dataset['fokus'] = 's:befund';
@@ -141,19 +144,27 @@ function befund(s: UploadSicht, e: Erfassung<File>): Node[] {
   teile.push(baueBaum(document, { erfassung: e, offen: s.offen, t, sprache: s.sprache, gesperrt: s.auswahlFest }));
   const gesperrt = s.beschaeftigt || s.dokument.laeuft() || s.uebertragen.laeuft();
   if (a.strukturdokument) {
+    // TG-3e: alle markierten Strukturdokumente (bis fünf), in der Reihenfolge, in der sie gelesen werden
     teile.push(...dokumentTeile({
       t, erlaubt: dokumentErlaubt(s.daten), lauf: s.dokument.lauf, gesperrt, beschaeftigt: s.beschaeftigt,
+      ueberspringbar: s.dokument.ueberspringbar(),
       knoten: (tag, klasse, text) => knoten(tag, klasse, text),
       knopf: (text, daten, haupt, aus) => knopf(text, daten, haupt, aus),
-    }, a.strukturdokument.name));
+    }, strukturDateien(e).map((d) => d.name)));
   }
   if (ablageErlaubt(s.daten)) teile.push(ablageTeil(s, e));
   const leiste = knoten('div', 'u__knoepfe');
-  // Ohne Unterordner gäbe es keinen Entwurf (das Backend antwortete nur „keine Unterordner“).
-  if (e.wurzel.ordner.length) leiste.append(knopf(t.alsEntwurf, { antwort: 'ordner_als_entwurf' }, true, gesperrt));
   // TW-5 (Review, Befund 12): sichtbar „Senden“; der Name sagt, was gesendet wird — der Chat hat
   // selbst einen Knopf „Senden“ (Label in Name bleibt erfüllt: der Name enthält „senden“).
-  const senden = knopf(t.befundSenden, { antwort: 'erfasst' }, !e.wurzel.ordner.length, gesperrt);
+  // Plan 2026-11-16, TG-1 (G-E4): ohne „Als Themenbaum-Entwurf übernehmen“ ist „Senden“ der
+  // Hauptknopf — außer ein Strukturdokument ist markiert und darf gelesen werden: dann „Lesen
+  // lassen“ (Review TG-1, m5; nur ein Hauptknopf je Leiste).
+  // Zweites Review, NIT 10: nach einem endgültigen Lesefehler gibt es keinen Lese-Knopf mehr.
+  const lauf = s.dokument.lauf;
+  // TG-3e: kann es ohne das gescheiterte Dokument weitergehen, ist das der Hauptknopf
+  const endgueltig = lauf?.phase === 'fehler' && !wiederholbar(lauf.code) && !s.dokument.ueberspringbar();
+  const lesenHaupt = !!a.strukturdokument && dokumentErlaubt(s.daten) && !endgueltig;
+  const senden = knopf(t.befundSenden, { antwort: 'erfasst' }, !lesenHaupt, gesperrt);
   senden.setAttribute('aria-label', t.befundSendenName);
   leiste.append(
     senden,

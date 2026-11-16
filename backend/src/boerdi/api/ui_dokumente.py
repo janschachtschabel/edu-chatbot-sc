@@ -13,6 +13,12 @@ nur Umwandlung, Gliederung und Moderation; das Ergebnis bleibt an der Sitzung li
   Rumpf-Grenze des Pfads deckelt vorher hart, ``api/body_limit``),
 - Fehlercodes des Dienstes ``services/dokumente/aufnahme`` — ``detail`` nie mit Servertext.
 
+Plan 2026-11-16, TG-3e: Das Modul lässt bis zu fünf markierte Strukturdokumente nacheinander lesen,
+jedes mit einem eigenen Aufruf hier. Die Bremsen gelten je Aufruf: fünf Dokumente zählen fünfmal
+im Fenster der Sitzung (Vorgabe 30 je Minute) — weit unter der Grenze, auch mit dem Zug danach. Die
+offene Frage bleibt bis zur Antwort offen, darum gelingen alle fünf mit derselben ``block_id``. Ein
+sechstes Dokument der Sitzung ersetzt das älteste (``ablage.MAX_JE_SITZUNG``).
+
 Datenschutz: die Rohdatei wird nicht gespeichert (``umwandlung``: Temp-Verzeichnis, gelöscht),
 der Dateiname nie geloggt. Wie beim Zweig geht die Verbindung vor Anmeldung und Umwandlung in den
 Pool zurück (``verbindung_freigeben``) — beides dauert, und „idle in transaction“ sperrt.
@@ -144,9 +150,10 @@ async def dokument_hochladen(
             markdown=erg.markdown, ttl_h=cfg.aufbewahrung_h)
         await session.commit()
     except IntegrityError:
-        # Zwei Uploads derselben Sitzung zugleich (eindeutige Sitzung): einer gewinnt, der andere
-        # erfährt es. Wurde die Sitzung inzwischen gelöscht (Fremdschlüssel), ist das 404
-        # (Review U3-2, Befund 17).
+        # Wurde die Sitzung inzwischen gelöscht (Fremdschlüssel), ist das 404 (Review U3-2,
+        # Befund 17). Plan 2026-11-16, TG-3e: zwei Uploads derselben Sitzung zugleich sind kein
+        # Konflikt mehr (bis zu fünf Dokumente, ``ablage.speichern`` zählt sie nacheinander) — ein
+        # anderer Schlüsselkonflikt bleibt 409.
         await session.rollback()
         if not await sitzung_vorhanden(session, session_id):
             raise HTTPException(status_code=404, detail="sitzung_unbekannt") from None

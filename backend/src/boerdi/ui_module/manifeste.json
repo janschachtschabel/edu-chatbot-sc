@@ -1108,6 +1108,11 @@
           "type": "boolean",
           "description": "Die WLO-Sammlung hatte mehr Punkte, als der Entwurf uebernommen hat."
         },
+        "quelle_block": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{8,32}$",
+          "description": "Mit quelle ordner: die block_id der Auswahl, aus der der Entwurf stammt (verknuepft inhalte mit der Ablage)."
+        },
         "knoten": {
           "type": "array",
           "minItems": 1,
@@ -1136,6 +1141,32 @@
           "type": "string",
           "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
           "description": "Kennung der WLO-Sammlung, aus der der Punkt stammt."
+        },
+        "inhalt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "i",
+            "name"
+          ],
+          "properties": {
+            "i": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4999,
+              "description": "Feste Nummer der Datei in der Auswahl (Teil struktur)."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Dateiname."
+            },
+            "node_id": {
+              "$ref": "#/$defs/wlo_id"
+            }
+          }
         },
         "felder": {
           "type": "object",
@@ -1197,9 +1228,17 @@
               "maxItems": 12,
               "items": {
                 "type": "string",
-                "pattern": "^a[1-9][0-9]{0,2}$"
+                "pattern": "^(a[1-9][0-9]{0,2}|d[1-9][0-9]?(-a[1-9][0-9]{0,2})?)$"
               },
-              "description": "Mit quelle dokument: Kennungen der Abschnitte im Dokument, aus denen der Punkt stammt."
+              "description": "Mit quelle dokument: Kennungen der Abschnitte im Dokument, aus denen der Punkt stammt (bei mehreren Dokumenten mit Praefix, etwa d1-a3)."
+            },
+            "inhalte": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/inhalt"
+              },
+              "description": "Mit quelle ordner: die Dateien des Ordners als Verweise (nur Zahl und Name, keine Inhalte)."
             }
           }
         },
@@ -1298,6 +1337,11 @@
           "type": "boolean",
           "description": "Wie in der Eingabe."
         },
+        "quelle_block": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{8,32}$",
+          "description": "Wie in der Eingabe."
+        },
         "knoten": {
           "type": "array",
           "maxItems": 30,
@@ -1333,6 +1377,32 @@
           "type": "string",
           "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
           "description": "Kennung der WLO-Sammlung."
+        },
+        "inhalt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "i",
+            "name"
+          ],
+          "properties": {
+            "i": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4999,
+              "description": "Feste Nummer der Datei in der Auswahl (Teil struktur)."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[^\\n\\r]*$",
+              "description": "Dateiname."
+            },
+            "node_id": {
+              "$ref": "#/$defs/wlo_id"
+            }
+          }
         },
         "felder": {
           "type": "object",
@@ -1394,9 +1464,17 @@
               "maxItems": 12,
               "items": {
                 "type": "string",
-                "pattern": "^a[1-9][0-9]{0,2}$"
+                "pattern": "^(a[1-9][0-9]{0,2}|d[1-9][0-9]?(-a[1-9][0-9]{0,2})?)$"
               },
               "description": "Abschnitte im Dokument (quelle dokument)."
+            },
+            "inhalte": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/inhalt"
+              },
+              "description": "Dateien des Ordners als Verweise (quelle ordner); bleiben beim Bearbeiten am Punkt."
             }
           }
         },
@@ -1455,7 +1533,9 @@
       ],
       "liest": [
         "structure",
+        "struktur",
         "document",
+        "strukturdokument",
         "draft"
       ]
     },
@@ -2086,12 +2166,11 @@
       "de": "Ordner und Dateien",
       "en": "Folders and files"
     },
-    "beschreibung": "Laesst die Person einen Ordner (oder einzelne Dateien) auswaehlen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Erfasst wird im Browser; hochgeladen wird nur, was die Person ausdruecklich lesen laesst oder (angemeldet) in ihren persoenlichen Bereich in WLO uebertraegt. Die Person kann Dateien ignorieren und ein Strukturdokument (z. B. einen Lehrplan) markieren, danach den Befund schicken oder die Ordnerstruktur als Themenbaum-Entwurf uebernehmen. Zurueck kommen nur Ordnernamen und Zahlen, keine Dateinamen.",
+    "beschreibung": "Laesst die Person einen Ordner (oder einzelne Dateien) auswaehlen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Erfasst wird im Browser; hochgeladen wird nur, was die Person lesen laesst oder (angemeldet) nach WLO uebertraegt. Das Feld stellt nur bereit und kennt kein Ziel: was damit geschieht, klaerst du danach oder ein Ablauf. Zurueck kommen Ordner- und Dateinamen mit Zahlen (du siehst nur eine Zusammenfassung), nie Inhalte.",
     "wann": [
-      "die Person hat Materialien in Ordnern und will daraus eine Sammlungsstruktur oder einen Themenbaum machen",
+      "die Person will eigene Ordner, Dateien oder ein Dokument (etwa einen Lehrplan) einbringen",
       "die Person will einen Ordner mit Dateien einbringen, sichten oder ordnen",
-      "die Person fragt, ob sie Dateien oder einen Ordner hochladen kann",
-      "die Person will aus ihrem Lehrplan oder Strukturdokument eine Struktur machen (Lehrplan einbringen)"
+      "die Person fragt, ob sie Dateien oder einen Ordner hochladen kann"
     ],
     "nicht_wann": [
       "ein Thema ohne eigene Dateien gliedern (dafuer ui_strukturentwurf)",
@@ -2111,9 +2190,10 @@
         "properties": {
           "zweck": {
             "enum": [
+              "bereitstellen",
               "sammlungsstruktur"
             ],
-            "description": "sammlungsstruktur: Ordner erfassen, um daraus eine Sammlungsstruktur bzw. einen Themenbaum zu machen."
+            "description": "bereitstellen: Ordner, Dateien oder ein Dokument bereitstellen, ohne Ziel (Vorgabe). sammlungsstruktur: aelterer Wert, bleibt gueltig; ein passender Ablauf geht dann vor."
           },
           "hinweis": {
             "type": "string",
@@ -2122,7 +2202,7 @@
           },
           "einzeldatei_als_struktur": {
             "type": "boolean",
-            "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer den Ablauf 'Themenbaum aus einem Dokument'. Sonst bleibt sie Inhalt."
+            "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer Ablaeufe, die ein einzelnes Dokument erwarten. Sonst bleibt sie Inhalt."
           }
         }
       }
@@ -2136,9 +2216,10 @@
       "properties": {
         "zweck": {
           "enum": [
+            "bereitstellen",
             "sammlungsstruktur"
           ],
-          "description": "Wozu erfasst wird."
+          "description": "Wozu erfasst wird: bereitstellen (ohne Ziel); sammlungsstruktur ist der aeltere Wert (Rueckwaerts)."
         },
         "hinweis": {
           "type": "string",
@@ -2203,7 +2284,7 @@
         },
         "einzeldatei_als_struktur": {
           "type": "boolean",
-          "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer den Ablauf 'Themenbaum aus einem Dokument'. Sonst bleibt sie Inhalt."
+          "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer Ablaeufe, die ein einzelnes Dokument erwarten. Sonst bleibt sie Inhalt."
         }
       }
     },
@@ -2253,6 +2334,14 @@
                 "$ref": "#/$defs/ordner2"
               },
               "description": "Unterordner."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
           }
         },
@@ -2291,6 +2380,14 @@
                 "$ref": "#/$defs/ordner3"
               },
               "description": "Unterordner."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
           }
         },
@@ -2329,6 +2426,14 @@
                 "$ref": "#/$defs/ordner4"
               },
               "description": "Unterordner."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
           }
         },
@@ -2367,6 +2472,14 @@
                 "$ref": "#/$defs/ordner5"
               },
               "description": "Unterordner."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
           }
         },
@@ -2405,6 +2518,14 @@
                 "$ref": "#/$defs/ordner6"
               },
               "description": "Unterordner."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
           }
         },
@@ -2443,6 +2564,14 @@
                 "$ref": "#/$defs/ordner7"
               },
               "description": "Unterordner."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
           }
         },
@@ -2481,6 +2610,14 @@
                 "$ref": "#/$defs/ordner8"
               },
               "description": "Unterordner."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
           }
         },
@@ -2519,6 +2656,14 @@
                 "$ref": "#/$defs/ordner9"
               },
               "description": "Unterordner."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
           }
         },
@@ -2554,7 +2699,78 @@
               "type": "array",
               "maxItems": 0,
               "description": "Tiefer erfasst das Modul nicht (Wurzel + 8 Ebenen)."
+            },
+            "dateiliste": {
+              "type": "array",
+              "maxItems": 500,
+              "items": {
+                "$ref": "#/$defs/datei"
+              },
+              "description": "Dateien direkt in diesem Ordner (Plan 2026-11-16, TG-3a); fehlt bei Antworten vor TG-3a."
             }
+          }
+        },
+        "datei": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "i",
+            "endung",
+            "groesse",
+            "rolle"
+          ],
+          "properties": {
+            "i": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4999,
+              "description": "Feste Nummer der Datei in der Auswahl (dieselbe bei der Ablage in WLO)."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[^\n\r]*$",
+              "description": "Dateiname (eine Zeile, hoechstens 120 Zeichen); fehlt bei Rolle ignorieren."
+            },
+            "endung": {
+              "type": "string",
+              "maxLength": 10,
+              "pattern": "^[a-z0-9]*$",
+              "description": "Endung, kleingeschrieben; leer ohne Endung."
+            },
+            "groesse": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Groesse in Bytes."
+            },
+            "rolle": {
+              "enum": [
+                "inhalt",
+                "struktur",
+                "ignorieren"
+              ],
+              "description": "Rolle der Datei in der Auswahl."
+            }
+          },
+          "if": {
+            "properties": {
+              "rolle": {
+                "const": "ignorieren"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "name"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "name"
+            ]
           }
         }
       },
@@ -2562,15 +2778,14 @@
         "aktion": {
           "enum": [
             "erfasst",
-            "ordner_als_entwurf",
             "dokument",
             "uebertragen"
           ],
-          "description": "erfasst: nur der Befund; ordner_als_entwurf: die Ordnerstruktur als Themenbaum-Entwurf uebernehmen; dokument: das Dokument wurde gelesen (Feld dokument), die Person will damit weiterarbeiten (ziel). uebertragen: die Dateien wurden in den persoenlichen Bereich in WLO uebertragen (Feld ablage)."
+          "description": "erfasst: der Befund (Ordner und Zahlen); dokument: die markierten Dokumente wurden gelesen (Feld dokument, bei mehreren dazu dokumente); uebertragen: die Dateien wurden in den persoenlichen Bereich in WLO uebertragen (Feld ablage). Kein Ziel: was damit geschieht, entscheiden die naechsten Schritte."
         },
         "struktur": {
           "$ref": "#/$defs/ordner1",
-          "description": "Der erfasste Ordnerbaum (Wurzel + höchstens 8 Ebenen, höchstens 500 Ordner)."
+          "description": "Der erfasste Ordnerbaum (Wurzel + höchstens 8 Ebenen, höchstens 500 Ordner), je Ordner mit seinen Dateien."
         },
         "zahlen": {
           "type": "object",
@@ -2612,8 +2827,8 @@
             "strukturdokumente": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 1,
-              "description": "Markierte Strukturdokumente (hoechstens eins)."
+              "maximum": 5,
+              "description": "Markierte Strukturdokumente (hoechstens fuenf)."
             },
             "bytes": {
               "type": "integer",
@@ -2660,11 +2875,11 @@
               }
             }
           ],
-          "description": "Das markierte Strukturdokument oder null."
+          "description": "Das erste markierte Strukturdokument oder null (alle markierten stehen mit Rolle struktur in dateiliste)."
         },
         "warnungen": {
           "type": "array",
-          "maxItems": 6,
+          "maxItems": 7,
           "items": {
             "enum": [
               "zu_viele",
@@ -2672,7 +2887,8 @@
               "zu_gross",
               "leer",
               "ungueltiger_pfad",
-              "zu_viele_ordner"
+              "zu_viele_ordner",
+              "namen_gekuerzt"
             ]
           },
           "description": "Was beim Erfassen weggefallen ist."
@@ -2684,11 +2900,10 @@
             "upload_id",
             "name",
             "format",
-            "ziel",
             "befund",
             "vorschau"
           ],
-          "description": "Nur mit aktion dokument: was das System beim Lesen festgestellt hat (kein Text des Dokuments).",
+          "description": "Nur mit aktion dokument: was das System beim Lesen festgestellt hat (kein Text des Dokuments); bei mehreren das erste aus dokumente.",
           "properties": {
             "upload_id": {
               "type": "string",
@@ -2710,12 +2925,6 @@
                 "md"
               ],
               "description": "Erkannte Art."
-            },
-            "ziel": {
-              "enum": [
-                "themenbaum"
-              ],
-              "description": "Was die Person mit dem Dokument tun will: themenbaum = einen Themenbaum-Entwurf daraus."
             },
             "befund": {
               "type": "object",
@@ -2850,6 +3059,116 @@
               "description": "vorgang.json liegt im Ordner."
             }
           }
+        },
+        "dokumente": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "upload_id",
+              "name",
+              "format",
+              "befund",
+              "vorschau"
+            ],
+            "properties": {
+              "upload_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "description": "Kennung des gelesenen Dokuments (POST /api/ui/dokumente)."
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\n\r]*$",
+                "description": "Name des Dokuments."
+              },
+              "format": {
+                "enum": [
+                  "pdf",
+                  "docx",
+                  "txt",
+                  "md"
+                ],
+                "description": "Erkannte Art."
+              },
+              "befund": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "seiten",
+                  "woerter",
+                  "abschnitte",
+                  "gliederung_art",
+                  "warnungen"
+                ],
+                "properties": {
+                  "seiten": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000
+                      }
+                    ],
+                    "description": "Seiten (nur PDF)."
+                  },
+                  "woerter": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000000,
+                    "description": "Woerter."
+                  },
+                  "abschnitte": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Abschnitte der Gliederung."
+                  },
+                  "gliederung_art": {
+                    "enum": [
+                      "ueberschriften",
+                      "nummeriert",
+                      "teile"
+                    ],
+                    "description": "Woran gegliedert wurde."
+                  },
+                  "warnungen": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "items": {
+                      "enum": [
+                        "bilder_entfernt",
+                        "wenig_text",
+                        "keine_gliederung",
+                        "gekuerzt"
+                      ]
+                    },
+                    "description": "Hinweise beim Lesen."
+                  }
+                }
+              },
+              "vorschau": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120,
+                  "pattern": "^[^\n\r]*$"
+                },
+                "description": "Die ersten Ueberschriften des Dokuments."
+              }
+            }
+          },
+          "description": "Nur mit aktion dokument und mehr als einem gelesenen Dokument: je Dokument der Befund wie in dokument, in Lesereihenfolge (kein Text)."
         }
       }
     },
@@ -2857,7 +3176,9 @@
     "vorgang": {
       "schreibt": [
         "structure",
-        "document"
+        "struktur",
+        "document",
+        "strukturdokument"
       ]
     },
     "faehigkeiten": [
@@ -2876,7 +3197,7 @@
       {
         "titel": "Bereit zum Erfassen",
         "daten": {
-          "zweck": "sammlungsstruktur",
+          "zweck": "bereitstellen",
           "hinweis": "Waehle den Ordner mit deinen Physik-Materialien.",
           "grenzen": {
             "max_dateien": 500,
@@ -2888,10 +3209,10 @@
       {
         "titel": "Erfasst und beantwortet",
         "daten": {
-          "zweck": "sammlungsstruktur"
+          "zweck": "bereitstellen"
         },
         "antwort": {
-          "aktion": "ordner_als_entwurf",
+          "aktion": "erfasst",
           "struktur": {
             "name": "Physik 7",
             "dateien": 1,
@@ -2901,13 +3222,40 @@
                 "name": "01_Mechanik",
                 "dateien": 6,
                 "alle_dateien": 6,
-                "kinder": []
+                "kinder": [],
+                "dateiliste": [
+                  {
+                    "i": 1,
+                    "name": "Hebelgesetz.pdf",
+                    "endung": "pdf",
+                    "groesse": 120000,
+                    "rolle": "inhalt"
+                  }
+                ]
               },
               {
                 "name": "02_Optik",
                 "dateien": 5,
                 "alle_dateien": 5,
-                "kinder": []
+                "kinder": [],
+                "dateiliste": [
+                  {
+                    "i": 7,
+                    "name": "Linsen.docx",
+                    "endung": "docx",
+                    "groesse": 45000,
+                    "rolle": "inhalt"
+                  }
+                ]
+              }
+            ],
+            "dateiliste": [
+              {
+                "i": 0,
+                "name": "Lehrplan_Physik.pdf",
+                "endung": "pdf",
+                "groesse": 812345,
+                "rolle": "struktur"
               }
             ]
           },

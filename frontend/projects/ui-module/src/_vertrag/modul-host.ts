@@ -89,6 +89,9 @@ export interface AblageEintrag {
   readonly art: string;
   /** W4 (MCP-Stand 2026-11-08): Strukturdokument oder Inhalt — Teil der Freigabe; Vorgabe `inhalt`. */
   readonly rolle?: AblageRolle;
+  /** Plan 2026-11-16, TG-3b: die feste Nummer der Datei in der Auswahl (`i` im Teil `struktur`) —
+   *  das MCP zählt die Freigabe nach der Stelle, das Backend merkt sich je Stelle `i`. */
+  readonly i?: number;
 }
 
 export type AblageRolle = 'inhalt' | 'struktur';

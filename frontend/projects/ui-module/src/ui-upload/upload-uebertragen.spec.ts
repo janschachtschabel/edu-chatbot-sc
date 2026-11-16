@@ -121,7 +121,9 @@ describe('Übertragen — Regeln (U3-3b)', () => {
     expect(nochmalSenden(e)).toEqual([4, 5, 7]);
   });
 
-  it('die Antwort trägt nur Zahlen — keine Kennungen, keine Dateinamen', () => {
+  // Plan 2026-11-16, TG-3a: die Auswahl trägt die Dateinamen je Ordner (`struktur`) — die Ablage
+  // selbst nur Zahlen, keine Kennungen und keine Links
+  it('die Ablage in der Antwort trägt nur Zahlen — keine Kennungen', () => {
     const plan = planAus({ batch_token: 'tok-1234567890', layout: 'flach', ordner: 'Physik', gesamt: 1,
       eintraege: [{ index: 0, titel: 'A', art: 'pdf', groesse: 1, name: 'A.pdf' },
         { index: 1, titel: 'B', art: 'pdf', groesse: 1, name: 'B.pdf' }] }, 2)!;
@@ -131,7 +133,8 @@ describe('Übertragen — Regeln (U3-3b)', () => {
     expect(a.ablage).toEqual({ layout: 'flach', gesamt: 2, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 1,
       ordner_verweigert: true, vorgang_abgelegt: false });
     expect(JSON.stringify(a)).not.toContain('n-1');
-    expect(JSON.stringify(a)).not.toContain('Mechanik');
+    expect(JSON.stringify(a.ablage)).not.toContain('Mechanik');
+    expect(a.struktur.dateiliste.map((d) => d.name)).toContain('01 Mechanik.pdf');
   });
 });
 

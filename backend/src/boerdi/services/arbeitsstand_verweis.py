@@ -51,6 +51,10 @@ def verweis_fuer(v: Vorgang, aufrufer: str) -> dict[str, Any]:
         if isinstance(antworten := lauf.get("antworten"), list):
             vw["lauf"]["antworten"] = [n for n in antworten
                                        if isinstance(n, str) and _TEIL_NAME.match(n)][:20]
+        # Plan 2026-11-16, Review TG-4–6, Befund 10: die Halte des Laufs bis hierher — die Leiste
+        # zählt „Schritt n“ daraus statt aus dem längsten Weg (``fortschritt.position``)
+        if isinstance(halte := lauf.get("halte"), int) and not isinstance(halte, bool):
+            vw["lauf"]["halte"] = max(0, min(halte, 10_000))
     return vw
 
 

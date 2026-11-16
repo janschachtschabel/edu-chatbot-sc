@@ -6,6 +6,9 @@
   von der Person).
 - :func:`quittung` — das kurze Werkzeug-Ergebnis an die KI im Zug, der den Entwurf zeigt.
 
+Plan 2026-11-16, TG-3f: hängen an einem Punkt Inhalte (Dateien seines Ordners), nennt die
+Kompaktfassung nur ihre Zahl („(3 Dateien)“) — nie Namen; die stehen im Teil ``draft``.
+
 Rein und ohne I/O.
 """
 
@@ -13,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from boerdi.ui_module.strukturentwurf import alle, anzahl
+from boerdi.ui_module.strukturentwurf import alle, anzahl, inhalte_zahl
 
 #: Zeichen der Kompaktfassung (≈ 1500 Token): reicht für ~250 kurze Titel.
 KOMPAKT_ZEICHEN: Final = 6000
@@ -40,8 +43,15 @@ def _zeilen(daten: dict[str, Any]) -> list[tuple[str | None, str]]:
         (None, f"{daten.get('titel') or ''}{' (' + ', '.join(angaben) + ')' if angaben else ''}")]
     for k, ebene in alle(daten.get("knoten") or []):
         offen = " (Unterthemen fehlen noch)" if k.get("ausstehend") else ""
-        zeilen.append((k.get("id"), f"{'  ' * (ebene - 1)}- {k['titel']}{offen}"))
+        zeilen.append((k.get("id"), f"{'  ' * (ebene - 1)}- {k['titel']}{_dateien(k)}{offen}"))
     return zeilen
+
+
+def _dateien(knoten: dict[str, Any]) -> str:
+    """TG-3f: die Zahl der Inhalte am Punkt — nie ihre Namen."""
+    if not (n := inhalte_zahl(knoten)):
+        return ""
+    return f" ({n} {'Datei' if n == 1 else 'Dateien'})"
 
 
 def _sichtbar(daten: dict[str, Any], deckel: int) -> tuple[list[tuple[str | None, str]], bool]:

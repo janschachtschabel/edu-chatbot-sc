@@ -70,7 +70,7 @@ DOKUMENT_AUSZUG: Final = 6000
 _TOKENS_KINDER: Final = 1600
 #: Felder der Block-Daten, die aus einer Vorlage übernommen werden (ohne die Antwort-Merker).
 _WURZEL_FELDER: Final = ("titel", "quelle", "thema", "fach", "bildungsstufe", "wurzel_wlo_id",
-                         "gekuerzt", "knoten")
+                         "gekuerzt", "quelle_block", "knoten")
 
 #: (Nachrichten, max_tokens, frist_s, platz_frist_s) → geparstes JSON; wirft bei jedem Fehler.
 LlmJson = Callable[[list[dict[str, Any]], int, float, float], Awaitable[Any]]
@@ -266,6 +266,9 @@ async def _obere_ebene(lauf: _Lauf) -> str | None:
                 dokument_teil.fundstelle(k, p, lauf.dokument)
             d["knoten"].append(k)
             lauf.plaene[k["id"]] = prompt.zahl_unterthemen(p, prompt.UNTERTHEMEN_OBEN)
+    if lauf.dokument is not None:
+        # Durchtest TG-7 (NIT): eine Fundstelle, die an jedem Punkt gleich ist, entfällt
+        dokument_teil.ohne_gleiche_fundstelle(d["knoten"])
     lauf.zahl = len(d["knoten"])
     return None if d["knoten"] else "leer"
 
@@ -326,6 +329,14 @@ async def erzeugen(auftrag: Auftrag, *, llm: LlmJson, frist_ende: float,
     ohne gehen die Auszüge für Ebene 2 ungeprüft ans Modell."""
     if vorlage is not None:
         daten = {f: copy.deepcopy(vorlage[f]) for f in _WURZEL_FELDER if f in vorlage}
+        # Plan 2026-11-16, Durchtest TG-7 (m2): der Kopf der Vorlage (etwa aus den Ordnern) bekommt
+        # Stufe und Fach des Auftrags (die Antworten des Laufs, ``vorbelegung``) und ein Thema, wo
+        # er keins hat — Titel, Quelle und Punkte bleiben die der Vorlage
+        for feld, form in (("fach", se.fach), ("bildungsstufe", se.bildungsstufe)):
+            if wert := form(getattr(auftrag, feld)):
+                daten[feld] = wert
+        if not str(daten.get("thema") or "").strip() and auftrag.thema.strip():
+            daten["thema"] = " ".join(auftrag.thema.split())[:200]
         lauf = _Lauf(auftrag, llm, frist_ende, daten, sichtbar=st.sichtbare_ids(daten))
         lauf.vergeben = {k["id"] for k, _ in se.alle(daten.get("knoten") or [])}
         lauf.zahl = len(lauf.vergeben)

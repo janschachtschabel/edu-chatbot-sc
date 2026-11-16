@@ -19,6 +19,8 @@ Rein und ohne I/O; das Schließen in der Sitzung macht ``services/ui_antwort``.
 from __future__ import annotations
 
 import logging
+import re
+from dataclasses import dataclass
 from typing import Any, Final
 
 from boerdi.api.schemas_ui import UiAntwort, UiBlock
@@ -93,6 +95,11 @@ def _grund(offen: Any, antwort: UiAntwort) -> str | None:
 
 def antwort_pruefen(offen: Any, antwort: UiAntwort) -> dict[str, Any] | None:
     """Die geprüfte Antwort ``{block_id, modul, frage, daten, labels}`` — oder ``None``."""
+    # Plan 2026-11-16, TG-2: eine alte Antwortform aus einem offenen Verlauf erst anheben, dann
+    # gegen das neue Schema prüfen — so geht alles Weitere nur mit der neuen Form um.
+    vorher = form(offen.get("modul")) if isinstance(offen, dict) else None
+    if vorher is not None and vorher.rueckwaerts is not None:
+        antwort = antwort.model_copy(update={"daten": vorher.rueckwaerts(dict(antwort.daten))})
     if grund := _grund(offen, antwort):
         # Ohne Inhalt: Kennungen und Freitext sind Eingaben der Person.
         logger.info("UI-Antwort verworfen: %s", grund.split(":")[0])
@@ -162,6 +169,63 @@ def vorsatz(geprueft: dict[str, Any] | None, geschlossen: dict[str, Any] | None,
     else:
         haupt = ""
     return "\n\n".join(t for t in (haupt, letzter) if t)
+
+
+@dataclass(frozen=True)
+class PruefText:
+    """Review TG-3a–c, R3-1: was die Sicherheitsprüfung liest, getrennt nach Art.
+
+    ``frei`` — Text der Person (Nachricht, Freitext, Titel eines Entwurfs): alle Stufen, auch die
+    Krisen- und Drohungsmuster, und er darf ins Protokoll. ``namen`` — Namen aus einer Auswahl
+    (Ordner, Dateien, Überschriften eines gelesenen Dokuments): nur die Moderation (und die Muster
+    für Prompt-Injection, die nur warnen), nie ins Protokoll."""
+
+    frei: str
+    namen: str = ""
+
+    @property
+    def alles(self) -> str:
+        """Beides, die Namen zuerst — wie vor R3-1 (sie stehen im ganz geprüften Teil)."""
+        return f"{self.namen}\n{self.frei}" if self.namen else self.frei
+
+
+def sicherheits_teile(message: str, geprueft: dict[str, Any] | None) -> PruefText:
+    """Wie :func:`sicherheits_text`, getrennt in freien Text und Namen (R3-1)."""
+    daten = (geprueft or {}).get("daten") or {}
+    if ((f := form((geprueft or {}).get("modul"))) and f.sicherheit_nur_namen is not None
+            and f.sicherheit_nur_namen(daten)):
+        namen = f.sicherheit(daten)
+        return PruefText(frei=bekannte_namen_neutral(message, namen), namen=namen)
+    return PruefText(frei=sicherheits_text(message, geprueft))
+
+
+def bekannte_namen_neutral(message: str, namen: str) -> str:
+    """Nachprüfung TG-3d–f, MAJOR 1: die Blase eines Felds zitiert den Namen („Ordner „…“
+    erfasst“, „Dokument „…“ lesen lassen“, „Entwurf „…“ übernommen“). Ein zitierter Name, der in
+    ``namen`` vorkommt, wird „…“ — er gehört zu den Namen (Moderation, Hinweis ohne Sperre), nicht
+    zum freien Text, den das Regex-Gate sperrt. Ein selbst getipptes Zitat, das kein bekannter Name
+    ist, bleibt stehen und geprüft."""
+    bekannt = " ".join(namen.split()).casefold()
+
+    def ersetze(treffer: re.Match[str]) -> str:
+        innen = " ".join(treffer.group(0)[1:-1].split()).casefold()
+        if innen and innen in bekannt:
+            return f"{treffer.group(0)[0]}…{treffer.group(0)[-1]}"
+        return treffer.group(0)
+
+    return _ZITAT.sub(ersetze, message) if namen else message
+
+
+#: R3-1: Namen in Anführungszeichen, wie die Blasen des Upload-Felds sie setzen
+#: („Ordner „Physik“ erfasst …“, „Dokument „Lehrplan.pdf“ lesen lassen“, englisch “…”).
+_ZITAT: Final = re.compile(r"„[^“\n]{0,240}“|“[^”\n]{0,240}”")
+
+
+def protokoll_text(teile: PruefText) -> str:
+    """Review TG-3a–c, R3-1: was von einem Zug ins Sicherheitsprotokoll darf — nur der freie Text,
+    und trägt der Zug Namen einer Auswahl, auch dort ohne die zitierten Namen (die Blase des Felds
+    nennt Ordner bzw. Dokument). Eine getippte Nachricht bleibt sonst, wie sie ist."""
+    return _ZITAT.sub("„…“", teile.frei) if teile.namen else teile.frei
 
 
 def sicherheits_text(message: str, geprueft: dict[str, Any] | None) -> str:

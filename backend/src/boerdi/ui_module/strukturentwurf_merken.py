@@ -7,8 +7,8 @@ Zug noch einen Gegenstand hat, merkt sich die Sitzung den letzten Entwurf in
 
 - **Woher:** die geprüfte Antwort der Person (:func:`aus_antwort`) oder ein Block, den der Dienst
   in diesem Zug erzeugt hat (:func:`aus_bloecken`). Beides rufen die Antwort-Knoten, also nach
-  ``assess``. Die Brücke aus den Ordnern (``services/ordner_aktion``) merkt ihren Entwurf — die
-  Ordnernamen gingen durch die Prüfung des Zugs. Die Brücke aus dem Bestand
+  ``assess``. (Die Brücke aus den Ordnern, ``services/ordner_aktion``, ist seit Plan 2026-11-16,
+  TG-2, entfallen.) Die Brücke aus dem Bestand
   (``services/strukturentwurf_aktion``) schreibt nichts (Bestandsknoten erreichen die KI erst, wenn
   die Person den Entwurf zurückschickt) und vergisst einen älteren gemerkten Entwurf.
 - **Wie groß:** höchstens :data:`HOECHSTENS_ZEICHEN` als JSON; sonst ohne Beschreibungen und
@@ -39,7 +39,7 @@ ZUEGE: Final = 5
 HOECHSTENS_ZEICHEN: Final = 60_000
 OHNE_TEXTE: Final = "_ohne_texte"
 _FELDER: Final = ("titel", "quelle", "thema", "fach", "bildungsstufe", "wurzel_wlo_id",
-                  "gekuerzt", "knoten")
+                  "gekuerzt", "quelle_block", "knoten")
 RAHMEN_START: Final = (
     "[DEIN LETZTER ENTWURF — so stand die Gliederung zuletzt (Titel und Einrückung). Mit "
     "vorlage: true nimmst du ihn als Grundlage (vertiefen), mit vorlage und erneut_zeigen: true "
@@ -48,9 +48,12 @@ RAHMEN_ENDE: Final = "[ENDE ENTWURF]"
 
 
 def _ohne_texte(knoten: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Plan 2026-11-16, TG-3f: auch ohne ``inhalte`` (bis zu 500 Dateinamen) — sie gehen an kein
+    Modell und stehen im Teil ``draft`` des Vorgangs."""
     aus = []
     for k in knoten:
-        neu = {f: w for f, w in k.items() if f not in ("beschreibung", "keywords", "kinder")}
+        neu = {f: w for f, w in k.items()
+               if f not in ("beschreibung", "keywords", "kinder", "inhalte")}
         if k.get("kinder"):
             neu["kinder"] = _ohne_texte(k["kinder"])
         aus.append(neu)

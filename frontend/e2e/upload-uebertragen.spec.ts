@@ -96,6 +96,8 @@ test.describe('ui_upload Übertragen in WLO (U3-3b)', () => {
     expect(freigabe['ordner']).toBe('Physik 7');
     const eintraege = freigabe['eintraege'] as { titel: string; sha256: string }[];
     expect(eintraege.map((e) => e.titel)).toEqual(['hebel', 'linsen', 'notiz']);
+    // Plan 2026-11-16, TG-3b: die feste Nummer jeder Datei in der Auswahl
+    expect(eintraege.map((e) => (e as { i?: number }).i)).toEqual([0, 1, 2]);
     // die echte Prüfsumme des Browsers: sha256("%PDF-1.7 a")
     expect(eintraege[0].sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(freigabe)).not.toContain('optik/');
@@ -114,7 +116,8 @@ test.describe('ui_upload Übertragen in WLO (U3-3b)', () => {
     expect(req.ui_antwort?.daten).toMatchObject({ aktion: 'uebertragen',
       ablage: { gesamt: 3, abgelegt: 3, vorgang_abgelegt: true } });
     expect(JSON.stringify(req.ui_antwort)).not.toContain('n-0');
-    expect(JSON.stringify(req.ui_antwort)).not.toContain('hebel');
+    // TG-3a: die Auswahl trägt die Dateinamen, die Ablage nur Zahlen
+    expect(JSON.stringify(req.ui_antwort?.daten['ablage'])).not.toContain('hebel');
   });
 
   test('ein Fehler in der Mitte: die anderen Dateien gehen weiter', async ({ page }) => {

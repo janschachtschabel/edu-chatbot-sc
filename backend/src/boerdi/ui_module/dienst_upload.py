@@ -1,6 +1,8 @@
 """Dienst ``upload_angebot`` (Paket U3-1b, Plan 2026-11-04 §16.5): Auswahlfeld von ``ui_upload``.
 
 Die KI nennt nur den Zweck und einen Satz an die Person; Grenzen und Schalter setzt das Backend.
+Seit Plan 2026-11-16, TG-2, ist der Zweck neutral ``bereitstellen`` (``sammlungsstruktur`` bleibt
+gültig): das Feld stellt Daten bereit, was damit geschieht, klärt die KI danach.
 ``dokument_im_chat`` folgt dem Studio-Bereich ``01-base/upload-config`` (U3-2a) und der Anmeldung:
 ohne sie nur, wenn ``dokument_ohne_anmeldung`` an ist. ``ablage_in_wlo`` (U3-3b) folgt dem
 Studio **und** der bestätigten Anmeldung — ohne sie nie; ``grenzen.max_mb_ablage`` ist die
@@ -62,10 +64,11 @@ def nicht_gelesen_satz() -> str:
                 "markieren.")
     # Review Probe 2026-11-10, Befund 2: gerechnet mit dem Stand dieses Zugs — beim Zeigen des
     # Moduls kann der Knopf gefehlt haben (alte Vorgabe, Anmeldung dazwischen); darum nicht
-    # behaupten, sie habe ihn übergangen.
-    return ("Das Strukturdokument wurde NICHT gelesen. Will die Person daraus einen Themenbaum, "
-            "zeige ui_upload noch einmal; dort kann sie jetzt „Themenbaum aus dem "
-            "Strukturdokument erstellen“ wählen.")
+    # behaupten, sie habe ihn übergangen. Plan 2026-11-16, TG-2: neutral, der Knopf hat kein Ziel;
+    # Review M3 (d): das Feld erst auf Wunsch zeigen (wie „Entwirf nichts ungefragt“).
+    return ("Das Strukturdokument wurde NICHT gelesen. Braucht die Person seinen Inhalt, sag ihr, "
+            "dass sie es im Auswahlfeld mit „Lesen lassen“ lesen lassen kann; zeige ui_upload "
+            "dafür erst, wenn sie das will.")
 
 
 def _ohne_grund(cfg_an: bool, anmeldung_hilft: bool) -> str:

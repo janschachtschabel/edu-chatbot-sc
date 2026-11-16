@@ -587,3 +587,79 @@ describe('R4: Hinweise zur Struktur (Leitfaden, nur Warnungen)', () => {
     expect(el.querySelector('details.ui-strukturentwurf__hinweise')).toBeNull();
   });
 });
+
+// ── Plan 2026-11-16, TG-3f: Inhalte (Dateien des Ordners) am Punkt ─────────────────────────────
+
+const NODE = '11111111-2222-3333-4444-555555555555';
+const AUS_ORDNERN = {
+  titel: 'Physik', quelle: 'ordner', knoten: [
+    { id: 'k1', titel: 'Mechanik', inhalte: [{ i: 0, name: 'hebel.pdf' }, { i: 1, name: 'kraft.pdf', node_id: NODE },
+                                             { i: 2, name: 'arbeit.pdf' }] },
+    { id: 'k2', titel: 'Optik', inhalte: [{ i: 3, name: 'linsen.pdf' }] },
+    { id: 'k3', titel: 'Akustik' },
+  ],
+} as unknown as EntwurfDaten;
+
+describe('ui_strukturentwurf: Inhalte am Punkt (TG-3f)', () => {
+  it('zeigt je Punkt die Zahl seiner Dateien — keine Namen —, beschreibt den Eintrag damit', async () => {
+    const { el } = await render(AUS_ORDNERN);
+    const [mechanik, optik, akustik] = items(el);
+    const beschreibung = (i: HTMLElement) => (i.getAttribute('aria-describedby') ?? '').split(' ')
+      .map((id) => el.querySelector(`#${id}`)?.textContent).join(' ');
+    expect(beschreibung(mechanik)).toBe('3 Dateien');
+    expect(beschreibung(optik)).toBe('1 Datei');
+    expect(akustik.hasAttribute('aria-describedby')).toBe(false);
+    expect(text(el)).not.toContain('hebel.pdf');
+  });
+
+  it('auf Englisch', async () => {
+    const { el } = await render(AUS_ORDNERN, { sprache: 'en' });
+    expect(text(el)).toContain('3 files');
+    expect(text(el)).toContain('1 file');
+  });
+
+  it('beim Umbenennen und Verschieben bleiben die Inhalte am Punkt, beim Löschen gehen sie mit', async () => {
+    const { f, el } = await render(AUS_ORDNERN);
+    const [mechanik] = items(el);
+    mechanik.focus();
+    await taste(f, mechanik, 'ArrowDown', { altKey: true, shiftKey: true });
+    expect(titel(el)).toEqual(['Optik', 'Mechanik', 'Akustik']);
+    const feld = el.querySelector<HTMLInputElement>('#se-b0000001-titel')!;
+    feld.value = 'Kräfte';
+    feld.dispatchEvent(new Event('input'));
+    await f.whenStable();
+    const optik = items(el)[0];
+    optik.focus();
+    await taste(f, optik, 'Delete');
+    knopf(el, 'Übernehmen').click();
+    const [daten] = h.antworten.mock.calls[0];
+    expect(daten.knoten.map((k: { titel: string }) => k.titel)).toEqual(['Kräfte', 'Akustik']);
+    expect(daten.knoten[0].inhalte).toEqual(AUS_ORDNERN.knoten[0].inhalte);
+    expect(JSON.stringify(daten)).not.toContain('linsen.pdf');
+  });
+
+  it('das Manifest kennt inhalte an jedem Punkt (Eingabe und Antwort), optional', () => {
+    for (const teil of [manifest.eingabe, manifest.antwort] as unknown as
+      { $defs: Record<string, { properties: Record<string, { items?: { $ref?: string } }>; required?: string[] }> }[]) {
+      expect(teil.$defs['felder'].properties['inhalte'].items?.$ref).toBe('#/$defs/inhalt');
+      expect(teil.$defs['felder'].required).not.toContain('inhalte');
+      expect(teil.$defs['inhalt'].required).toEqual(['i', 'name']);
+    }
+  });
+});
+
+describe('ui_strukturentwurf: Auswahl des Entwurfs (Nachprüfung TG-3d–f, MINOR 2)', () => {
+  it('`quelle_block` geht mit der Antwort unverändert zurück', async () => {
+    const { el } = await render({ ...AUS_ORDNERN, quelle_block: 'bauswahl1' } as unknown as EntwurfDaten);
+    knopf(el, 'Übernehmen').click();
+    const [daten] = h.antworten.mock.calls[0];
+    expect(daten.quelle_block).toBe('bauswahl1');
+  });
+
+  it('das Manifest kennt `quelle_block` in Eingabe und Antwort', () => {
+    for (const teil of [manifest.eingabe, manifest.antwort] as unknown as
+      { properties: Record<string, { pattern?: string }> }[]) {
+      expect(teil.properties['quelle_block'].pattern).toBe('^[a-z0-9]{8,32}$');
+    }
+  });
+});

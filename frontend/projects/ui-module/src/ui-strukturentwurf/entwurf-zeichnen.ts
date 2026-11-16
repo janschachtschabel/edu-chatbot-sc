@@ -219,7 +219,12 @@ export class BaumZeichner {
     }
     li.id = k(`k-${id}`);
     li.setAttribute('aria-labelledby', k(`n-${id}`));
-    if (e.knoten.ausstehend) li.setAttribute('aria-describedby', k(`a-${id}`));
+    // TG-3f: die Zahl der Dateien beschreibt den Punkt wie „Unterthemen fehlen noch“
+    const dateien = e.knoten.inhalte?.length ?? 0;
+    const beschrieben = [
+      ...(e.knoten.ausstehend ? [k(`a-${id}`)] : []), ...(dateien ? [k(`d-${id}`)] : []),
+    ];
+    if (beschrieben.length) li.setAttribute('aria-describedby', beschrieben.join(' '));
     else li.removeAttribute('aria-describedby');
     li.setAttribute('aria-level', String(e.ebene));
     li.setAttribute('aria-setsize', String(e.setsize));
@@ -237,6 +242,12 @@ export class BaumZeichner {
     const titel = el('span', `${P}__titel`, e.knoten.titel);
     titel.id = k(`n-${id}`);
     zeile.append(pfeil, titel);
+    if (dateien) {
+      // Plan 2026-11-16, TG-3f: nur die Zahl, keine Namen (die Liste bearbeitet niemand hier)
+      const zahl = el('span', `${P}__neben ${P}__dateien`, z.texte.dateien(dateien));
+      zahl.id = k(`d-${id}`);
+      zeile.append(zahl);
+    }
     if (e.knoten.ausstehend) {
       const aus = el('span', `${P}__neben ${P}__ausstehend`, z.texte.ausstehend);
       aus.id = k(`a-${id}`);

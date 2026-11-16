@@ -18,6 +18,8 @@ const DE = {
   auswahl: 'Auswahl',
   liste: 'Dateien der Übertragung',
   strukturdokument: 'Strukturdokument',
+  // Review TG-3a–c, NIT: wie `dateiOhneName` im Feld
+  dateiOhneName: '(ohne Namen)',
   angebot: (dateien: string) => `${dateien} kannst du in deinen persönlichen Bereich in WLO übertragen. Erst nach deiner Bestätigung wird etwas hochgeladen.`,
   ausgelassen: (ohneArt: number, zuGross: number, mb: number) => [
     ohneArt ? `${zahl('de', ohneArt)} ${mehrzahl('de', ohneArt, 'Datei hat', 'Dateien haben')} eine Art, die WLO hier nicht annimmt.` : '',
@@ -94,6 +96,7 @@ const EN: typeof DE = {
   auswahl: 'Selection',
   liste: 'Files in the transfer',
   strukturdokument: 'Structure document',
+  dateiOhneName: '(no name)',
   angebot: (dateien: string) => `You can transfer ${dateien} to your personal area in WLO. Nothing is uploaded until you confirm.`,
   ausgelassen: (ohneArt: number, zuGross: number, mb: number) => [
     ohneArt ? `${zahl('en', ohneArt)} ${mehrzahl('en', ohneArt, 'file has', 'files have')} a type WLO does not accept here.` : '',
