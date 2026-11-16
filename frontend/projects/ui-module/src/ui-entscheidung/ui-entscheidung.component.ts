@@ -25,14 +25,14 @@ const FREITEXT_MAX = 1000;
 const TEXTE = {
   de: {
     antworten: 'Antworten', eigen: 'Eigene Antwort', mehrfach: 'Mehrere Antworten möglich.',
-    eigenHinweisEinzel: 'Schreiben wählt „Eigene Antwort“ statt der Möglichkeiten oben.',
-    eigenHinweisMehrfach: 'Schreiben wählt „Eigene Antwort“ mit aus.',
+    eigenHinweisEinzel: 'Schreiben wählt „Eigene Antwort“ statt der Möglichkeiten oben. Enter schickt ab, Umschalt+Enter beginnt eine neue Zeile.',
+    eigenHinweisMehrfach: 'Schreiben wählt „Eigene Antwort“ mit aus. Enter schickt ab, Umschalt+Enter beginnt eine neue Zeile.',
     beantwortet: 'Deine Antwort', veraltet: 'Diese Frage ist nicht mehr offen.',
   },
   en: {
     antworten: 'Answer', eigen: 'Your own answer', mehrfach: 'You can choose more than one.',
-    eigenHinweisEinzel: 'Typing selects “Your own answer” instead of the options above.',
-    eigenHinweisMehrfach: 'Typing also selects “Your own answer”.',
+    eigenHinweisEinzel: 'Typing selects “Your own answer” instead of the options above. Enter sends, Shift+Enter starts a new line.',
+    eigenHinweisMehrfach: 'Typing also selects “Your own answer”. Enter sends, Shift+Enter starts a new line.',
     beantwortet: 'Your answer', veraltet: 'This question is no longer open.',
   },
 } as const;
@@ -95,7 +95,8 @@ const TEXTE = {
               <textarea #freitextFeld class="ui-entscheidung__freitext" [id]="kennung('eingabe-freitext')" rows="2"
                         [maxLength]="freitextMax" [attr.aria-labelledby]="kennung('eingabe-eigen')"
                         [attr.aria-describedby]="kennung('eingabe-eigen-hinweis')"
-                        [value]="freitext()" (input)="freitextEingabe($event)"></textarea>
+                        [value]="freitext()" (input)="freitextEingabe($event)"
+                        (keydown)="tasteImFreitext($event)"></textarea>
               <span class="ui-entscheidung__nur-vorlesen" [id]="kennung('eingabe-eigen-hinweis')">{{
                 mehrfach() ? texte().eigenHinweisMehrfach : texte().eigenHinweisEinzel }}</span>
             }
@@ -171,6 +172,16 @@ export class UiEntscheidung {
     const text = (ereignis.target as HTMLTextAreaElement).value;
     this.freitext.set(text);
     if (text.trim() && !this.eigen()) this.eigenWaehlen(true);
+  }
+
+  /** Enter im Textfeld schickt ab wie eine Nachricht im Chat (Rückmeldung 2026-11-15); Umschalt+Enter
+   *  bricht die Zeile um, und während einer IME-Eingabe (Zeichen werden zusammengesetzt) bleibt
+   *  Enter beim Eingabesystem. Enter wirkt wie „Antworten“: ohne Wahl und ohne Text oder während
+   *  eines Zugs schickt `senden` nichts; mit einer Wahl oben und leerem Feld schickt es die Wahl. */
+  protected tasteImFreitext(ereignis: KeyboardEvent): void {
+    // Safari meldet eine IME-Komposition nur über keyCode 229 (wie die Eingabe der Shell)
+    if (ereignis.key !== 'Enter' || ereignis.shiftKey || ereignis.isComposing || ereignis.keyCode === 229) return;
+    this.senden(ereignis);
   }
 
   /** „Eigene Antwort“ gewählt oder abgehakt — mit Maus, Finger oder Tastatur. Der Zustand kommt

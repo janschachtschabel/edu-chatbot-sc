@@ -25,6 +25,7 @@ import copy
 import hashlib
 import json
 import logging
+import re
 import secrets
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
@@ -75,6 +76,9 @@ WARTET_SEITE: Final = "wartet_seite"
 WARTEND: Final = (WARTET, WARTET_KI, WARTET_AUFTRAG, WARTET_FREIGABE, WARTET_WAHL, WARTET_SEITE)
 #: AS-3a: so lang wird ein getippter Freitext höchstens als Teil gemerkt.
 FREITEXT_ZEICHEN: Final = 2000
+#: WF-2: ein Synonym oder eine Beschriftung zählt als Teilwort erst ab dieser Länge (wie die
+#: Gruppenwahl der eingebauten Führung).
+_TEILWORT_MIN: Final = 3
 
 
 
@@ -231,13 +235,44 @@ async def _start_kennungen(ablauf: AblaufArea, s: Schritt, teile: Callable[[str]
 
 
 async def _einsetzen(aus: Ausgabe, text: str, teile: Callable[[str], Awaitable[Any]],
-                     lauf: dict[str, Any]) -> str:
+                     lauf: dict[str, Any], ablauf: AblaufArea, sprache: str) -> str:
     """Platzhalter einsetzen und merken, ob dabei Inhalt einer KI in den Text kommen kann."""
     arten = platzhalter.herkuenfte(text)
     if "teil" in arten or ("start" in arten
                            and lauf.get("start_quelle") != startdaten.QUELLE_GASTSEITE):
         aus.ki_inhalt = True
+    text, fremd = await wahl_einsetzen(text, ablauf, sprache, teile)
+    if fremd:
+        aus.ki_inhalt = True
     return await platzhalter.einsetzen(text, teile)
+
+
+#: WF-3 (Plan 2026-11-15): ``{wahl.<teil>}`` — die Beschriftung der gewählten Option.
+#: Der Name wie ein Teil (``teil_verweise.NAME``; Review WF-3/4, NIT).
+WAHL_PLATZHALTER: Final = re.compile(r"\{wahl\.([a-z][a-z0-9_]{1,29})\}")
+
+
+async def wahl_einsetzen(text: str, ablauf: AblaufArea, sprache: str,
+                         teile: Callable[[str], Awaitable[Any]]) -> tuple[str, bool]:
+    """``{wahl.<teil>}`` durch die Beschriftung der gewählten Option in ``sprache`` ersetzen (WF-3).
+    Der Teil trägt das deutsche Label (:func:`wahl_wert`); darüber wird die Option gefunden. Ist es
+    keine Option (getippter Freitext), steht der Wert entschärft da — zweiter Rückgabewert
+    ``True``: Eingabe der Person im Text (wie ``{teil.…}``, kein fester Text)."""
+    namen = dict.fromkeys(WAHL_PLATZHALTER.findall(text or ""))
+    if not namen:
+        return text, False
+    fremd = False
+    ersatz: dict[str, str] = {}
+    for name in namen:
+        wert = await teile(name)
+        option = next((o for s in ablauf.schritte if s.schreibt == name
+                       for o in s.optionen or [] if wahl_wert(o) == wert), None)
+        if option is not None:
+            ersatz[name] = platzhalter.entschaerft(_label(option, sprache))
+        else:
+            fremd = fremd or bool(wert)
+            ersatz[name] = platzhalter.entschaerft(wert) if wert else "—"
+    return WAHL_PLATZHALTER.sub(lambda m: ersatz[m.group(1)], text), fremd
 
 
 def _leere_auswahl(definition: dict[str, Any] | None, args: dict[str, Any]) -> bool:
@@ -288,7 +323,7 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
         if s.typ in ("nachricht", "ende", "agent", "seite") or (s.typ == "modul" and s.text):
             if text := _text(s, umgebung.sprache):
                 # AS-3b: Platzhalter aus den Teilen — auch aus diesem Zug (``teile``)
-                aus.texte.append(await _einsetzen(aus, text, teile, lauf))
+                aus.texte.append(await _einsetzen(aus, text, teile, lauf, ablauf, umgebung.sprache))
         if s.typ == "ende":
             lauf["status"] = "fertig"
             return aus
@@ -333,7 +368,8 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                                            "unverändert"))
             else:
                 if text := _freigabe_satz(s, umgebung.sprache):
-                    aus.texte.append(await _einsetzen(aus, text, teile, lauf))
+                    aus.texte.append(await _einsetzen(aus, text, teile, lauf, ablauf,
+                                                      umgebung.sprache))
                 # Review S2/S3, Befund 6: jede Vorlage hat eine Kennung — ein „ja“ zu einer alten
                 # setzt keinen neu gestarteten Lauf fort
                 kennung = secrets.token_hex(6)
@@ -370,7 +406,7 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
             else:
                 # Der Text erst nach dem Start — ein abgewiesener Auftrag kündigt nichts an.
                 if text := _text(s, umgebung.sprache):
-                    text = await _einsetzen(aus, text, teile, lauf)
+                    text = await _einsetzen(aus, text, teile, lauf, ablauf, umgebung.sprache)
                     aus.texte.append(text)
                 if stapel is not None:
                     # Review R1, NIT 8: dass es mehrere Teile werden, steht gleich am Anfang
@@ -498,12 +534,26 @@ def wahl_aus_text(schritt: Schritt, text: str | None) -> str | None:
     """Die Kennung der Schnellantwort, deren Label (in einer Sprache) der getippte Text ist — wie
     eine Wendung verglichen (klein, Leerraum zusammengezogen). D2: Text, der einer Option
     entspricht, ist diese Wahl. Hier und nicht im Zug, damit die Simulation dasselbe tut
-    (Querschnitts-Review AS-3, Befund 2)."""
+    (Querschnitts-Review AS-3, Befund 2).
+
+    WF-2 (Plan 2026-11-15): ohne genauen Treffer die erste Option mit ``synonyme``, deren
+    Beschriftung oder Synonym im Text steht (ab 3 Zeichen) — wie die Gruppenwahl der eingebauten
+    Führung. Optionen ohne Synonyme treffen nur genau; bestehende Abläufe ändern sich nicht."""
     getippt = wendung(text or "")
     if not getippt:
         return None
-    return next((o.id for o in schritt.optionen or []
-                 if any(wendung(label) == getippt for label in o.label.values())), None)
+    optionen = schritt.optionen or []
+    genau = next((o.id for o in optionen
+                  if any(wendung(label) == getippt for label in o.label.values())), None)
+    if genau is not None:
+        return genau
+    for o in optionen:
+        if not o.synonyme:
+            continue
+        kandidaten = [wendung(w) for w in (*o.label.values(), *o.synonyme)]
+        if any(len(k) >= _TEILWORT_MIN and k in getippt for k in kandidaten):
+            return o.id
+    return None
 
 
 def wahl_gilt(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None,

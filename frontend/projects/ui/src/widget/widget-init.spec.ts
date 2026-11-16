@@ -38,6 +38,13 @@ describe('computeInitialExpanded', () => {
     localStorage.setItem('boerdi_tour_active', '0');
     expect(computeInitialExpanded('collapsed')).toBe(false);
   });
+
+  it('WF-5: ein Ablauf wartet auf eine Seite — das Widget öffnet sich wie bei der Web-Tour', () => {
+    localStorage.setItem('boerdi_ablauf_seite', '1');
+    expect(computeInitialExpanded('collapsed')).toBe(true);
+    localStorage.removeItem('boerdi_ablauf_seite');
+    expect(computeInitialExpanded('collapsed')).toBe(false);
+  });
 });
 
 describe('resolveMergedPageContext', () => {

@@ -20,6 +20,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AblaufArea.nicht_wann.label': 'Wann nicht',
     'feld.AblaufArea.nicht_wann.hint': 'Wofür er nicht gedacht ist.',
     'feld.AblaufArea.aktiv.label': 'Eingeschaltet',
+    'feld.AblaufArea.endet_bei_text.label': 'Endet bei eigenem Text',
+    'feld.AblaufArea.endet_bei_text.hint':
+      'An: Tippt die Person an einer Frage oder auf dem Weg zu einer Seite etwas, das der Ablauf nicht nimmt, endet er still, und der Chat antwortet. Für Führungen, die nicht unter jeder Antwort stehen bleiben sollen.',
     'feld.AblaufArea.aktiv.hint': 'Aus = startet nicht. Neue Abläufe sind aus.',
     'feld.AblaufArea.ausloeser.label': 'Auslöser',
     'feld.AblaufArea.ausloeser.hint': 'Womit der Ablauf startet: Knopf, Vorschlag der KI, Wendung, Modul-Antwort, Gastseite (mit Startdaten) oder Seite (Angebot unter der Begrüßung).',
@@ -85,6 +88,16 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.ankunft.label': 'Ankunft',
     'feld.Schritt.ankunft.hint':
       'Pfadmuster mit *. Gesetzt: der Ablauf wartet, bis die Person dort ist. Leer: der Chip steht da, und es geht gleich weiter.',
+    'feld.Schritt.abweichung.label': 'Hinweis auf einer anderen Seite',
+    'feld.Schritt.abweichung.hint':
+      'Je Sprache: Landet die Person auf einer anderen Seite, während der Schritt wartet, erscheint dieser Text mit demselben Chip. Leer: es erscheint nichts. Nur mit Ankunft.',
+    'feld.Schritt.umsehen.label': 'Umschauen',
+    'feld.Schritt.umsehen.hint':
+      'Seiten, auf denen sich die Person in Ruhe umsieht (etwa Angebote): dort statt des Hinweises dieser Text, mit demselben Chip. Nur mit Ankunft.',
+    'feld.Umsehen.muster.label': 'Seiten',
+    'feld.Umsehen.muster.hint': 'Pfadmuster mit *, höchstens 10.',
+    'feld.Umsehen.text.label': 'Text',
+    'feld.Umsehen.text.hint': 'Je Sprache; mindestens Deutsch.',
     'feld.Schritt.flow.label': 'Flow',
     'feld.Schritt.flow.hint':
       'Bei „Auftrag“: der Kestra-Flow hinter der b-api — nur freigegebene Flows '
@@ -163,7 +176,7 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.weiter.hint': 'Nächster Schritt — oder bei einer Verzweigung Regeln (gewählt ist, Teil vorhanden, Wert vergleichen → Ziel, zuletzt sonst).',
     'feld.Schritt.optionen.label': 'Schnellantworten',
     'feld.Schritt.optionen.hint':
-      'Bis zu 8 Knöpfe unter dem Text; jeder führt zu einem Schritt. Mit ihnen wartet der Schritt auf die Wahl — „Weiter“ bleibt leer.',
+      'Bis zu 12 Knöpfe unter dem Text; jeder führt zu einem Schritt. Mit ihnen wartet der Schritt auf die Wahl — „Weiter“ bleibt leer.',
     'feld.Schritt.freitext.label': 'Freitext',
     'feld.Schritt.freitext.hint':
       'Getippter Text gilt hier als Antwort: er wird ein Teil, dann geht es zum Ziel. Ohne Freitext geht getippter Text an die KI, und die Knöpfe bleiben.',
@@ -173,6 +186,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schnellantwort.label.hint': 'Je Sprache, höchstens 60 Zeichen; mindestens Deutsch.',
     'feld.Schnellantwort.ziel.label': 'Ziel',
     'feld.Schnellantwort.ziel.hint': 'Der Schritt nach dieser Wahl.',
+    'feld.Schnellantwort.synonyme.label': 'Synonyme',
+    'feld.Schnellantwort.synonyme.hint':
+      'Wörter, mit denen getippter Text diese Antwort trifft, auch mitten im Satz (ohne Groß/Klein, je 3 bis 60 Zeichen, höchstens 30). Mit Synonymen trifft auch die Beschriftung als Teilwort; zuerst gilt ein genauer Treffer, dann die erste passende Antwort von oben — die Reihenfolge der Antworten entscheidet. Synonyme gelten in jeder Sprache: englische Wörter in dieselbe Liste.',
+    'feld.Schritt.kein_treffer.label': 'Hinweis ohne Treffer',
+    'feld.Schritt.kein_treffer.hint':
+      'Je Sprache: Trifft getippter Text keine Schnellantwort, erscheint dieser Text einmal mit denselben Knöpfen. Danach geht getippter Text an die KI, der Ablauf wartet weiter. Nur mit Schnellantworten und ohne Freitext; der Text steht wörtlich da, ohne Platzhalter.',
     'feld.Freitext.ziel.label': 'Ziel',
     'feld.Freitext.ziel.hint': 'Der Schritt nach dem getippten Text.',
     'feld.Freitext.schreibt.label': 'Schreibt Teil',
@@ -255,6 +274,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AblaufArea.nicht_wann.label': 'When not',
     'feld.AblaufArea.nicht_wann.hint': 'What it is not meant for.',
     'feld.AblaufArea.aktiv.label': 'Switched on',
+    'feld.AblaufArea.endet_bei_text.label': 'Ends on own text',
+    'feld.AblaufArea.endet_bei_text.hint':
+      'On: if the person types something at a question or on the way to a page that the workflow does not take, it ends quietly and the chat answers. For tours that should not linger under every answer.',
     'feld.AblaufArea.aktiv.hint': 'Off = does not start. New workflows are off.',
     'feld.AblaufArea.ausloeser.label': 'Triggers',
     'feld.AblaufArea.ausloeser.hint': 'What starts the workflow: button, AI suggestion, phrase, module answer or host page (with start data) or page (offer below the greeting).',
@@ -319,6 +341,16 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.ankunft.label': 'Arrival',
     'feld.Schritt.ankunft.hint':
       'Path patterns with *. Set: the workflow waits until the person is there. Empty: the chip is shown and it continues right away.',
+    'feld.Schritt.abweichung.label': 'Hint on another page',
+    'feld.Schritt.abweichung.hint':
+      'Per language: if the person lands on another page while the step waits, this text appears with the same chip. Empty: nothing appears. Only with arrival.',
+    'feld.Schritt.umsehen.label': 'Looking around',
+    'feld.Schritt.umsehen.hint':
+      'Pages where the person looks around at leisure (such as offers): there this text instead of the hint, with the same chip. Only with arrival.',
+    'feld.Umsehen.muster.label': 'Pages',
+    'feld.Umsehen.muster.hint': 'Path patterns with *, at most 10.',
+    'feld.Umsehen.text.label': 'Wording',
+    'feld.Umsehen.text.hint': 'Per language; German at least.',
     'feld.Schritt.flow.label': 'Kestra flow',
     'feld.Schritt.flow.hint':
       'For “job”: the Kestra flow behind the b-api — only enabled flows '
@@ -397,7 +429,7 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.weiter.hint': 'Next step — or for a branch, rules (chosen is, part exists, compare value → target, otherwise last).',
     'feld.Schritt.optionen.label': 'Quick replies',
     'feld.Schritt.optionen.hint':
-      'Up to 8 buttons under the text; each leads to a step. With them the step waits for the choice — leave “Next” empty.',
+      'Up to 12 buttons under the text; each leads to a step. With them the step waits for the choice — leave “Next” empty.',
     'feld.Schritt.freitext.label': 'Free text',
     'feld.Schritt.freitext.hint':
       'Typed text counts as the answer here: it becomes a part, then the flow goes to the target. Without free text, typed text goes to the AI and the buttons stay.',
@@ -407,6 +439,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schnellantwort.label.hint': 'Per language, at most 60 characters; German at least.',
     'feld.Schnellantwort.ziel.label': 'Target',
     'feld.Schnellantwort.ziel.hint': 'The step after this choice.',
+    'feld.Schnellantwort.synonyme.label': 'Synonyms',
+    'feld.Schnellantwort.synonyme.hint':
+      'Words that make typed text hit this reply, even inside a sentence (case-insensitive, 3 to 60 characters each, at most 30). With synonyms the label also hits as part of a word; an exact hit comes first, then the first matching reply from the top — the order of the replies decides. Synonyms apply in every language: put English words in the same list.',
+    'feld.Schritt.kein_treffer.label': 'Hint without a hit',
+    'feld.Schritt.kein_treffer.hint':
+      'Per language: if typed text hits no quick reply, this text appears once with the same buttons. After that, typed text goes to the AI and the flow keeps waiting. Only with quick replies and without free text; the text is shown as written, without placeholders.',
     'feld.Freitext.ziel.label': 'Target',
     'feld.Freitext.ziel.hint': 'The step after the typed text.',
     'feld.Freitext.schreibt.label': 'Writes part',

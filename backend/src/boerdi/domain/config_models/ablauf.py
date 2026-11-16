@@ -112,6 +112,16 @@ class AgentSchritt(AreaModel):
                           BeforeValidator(_ohne_leere_saetze)] = None
 
 
+class Umsehen(AreaModel):
+    """WF-4 (Plan 2026-11-15): Auf diesen Seiten sieht sich die Person um, während ein ``seite``-
+    Schritt wartet (die Angebote der Webseitenführung) — statt des Hinweises ``abweichung`` dieser
+    Text, mit demselben Chip."""
+
+    #: Leer ist ein Befund der Prüfung (``minItems`` kennt das Schema-Formular des Studios nicht).
+    muster: list[Annotated[str, Field(max_length=200)]]
+    text: dict[str, Annotated[str, Textarea(), Field(max_length=600)]]
+
+
 class Schnellantwort(AreaModel):
     """AS-3a (Plan 2026-11-09, D2): eine Schnellantwort — ein Chip mit Label je Sprache; die Wahl
     führt zum Schritt ``ziel``."""
@@ -119,6 +129,12 @@ class Schnellantwort(AreaModel):
     id: str = Field(pattern=_ID)
     label: dict[str, Annotated[str, Field(max_length=60)]]
     ziel: Annotated[str, SchrittZiel()] = Field(pattern=_ID)
+    #: WF-2 (Plan 2026-11-15): getippter Text trifft diese Option auch per Teilwort — ihre
+    #: Beschriftungen und diese Wörter, ohne Groß/Klein (``treiber.wahl_aus_text``). Vorgabe
+    #: ``None``, sonst änderte sich die Fassung jedes Ablaufs (``treiber.fassung``).
+    synonyme: Annotated[Annotated[list[Annotated[str, Field(min_length=3, max_length=60)]],
+                                  Field(max_length=30)] | None,
+                        BeforeValidator(_leer_ist_nicht_gesetzt)] = None
 
 
 class Freitext(AreaModel):
@@ -208,13 +224,19 @@ class Schritt(AreaModel):
                       NurBei("typ", "nachricht", "modul", "werkzeug", "verzweigung", "agent",
                              "auftrag", "seite"), WeiterRegeln()] = None
     bei_fehler: Annotated[str | None, NurBei("typ", "modul", "werkzeug", "agent", "auftrag")] = None
-    #: AS-3a: Schnellantworten (höchstens 8, ``pruefung``) — mit ihnen wartet der Schritt, und die
-    #: Wahl verzweigt direkt. Vorgabe ``None`` (wegen ``treiber.fassung``).
+    #: AS-3a: Schnellantworten (höchstens 12, ``pruefung``; WF-2) — mit ihnen wartet der Schritt,
+    #: und die Wahl verzweigt direkt. Vorgabe ``None`` (wegen ``treiber.fassung``).
     optionen: Annotated[Annotated[list[Schnellantwort], Field(max_length=50)] | None,
                         BeforeValidator(_leer_ist_nicht_gesetzt),
                         NurBei("typ", "nachricht", "modul")] = None
     #: AS-3a: getippter Text als Antwort (wird ein Teil) — auch ohne ``optionen``.
     freitext: Annotated[Freitext | None, NurBei("typ", "nachricht", "modul")] = None
+    #: WF-2 (Plan 2026-11-15): Hinweis je Sprache, wenn getippter Text keine Option trifft —
+    #: einmal je Lauf und Schritt, mit denselben Chips; danach geht Text wie sonst an die KI. Nur
+    #: an einem Schritt mit ``optionen`` und ohne ``freitext`` (``pruefung``).
+    kein_treffer: Annotated[dict[str, Annotated[str, Textarea(), Field(max_length=600)]] | None,
+                            BeforeValidator(_ohne_leere_saetze),
+                            NurBei("typ", "nachricht")] = None
     #: ``agent``: Werkzeuge, Hinweis, Ausgabe-Teil und Budget des freien Abschnitts.
     agent: Annotated[AgentSchritt | None, NurBei("typ", "agent")] = None
     #: AS-7a (F-1, F-2): ``seite`` — wohin der Chip führt (Pfad mit ``/`` oder ``https://``) und
@@ -227,6 +249,12 @@ class Schritt(AreaModel):
                      NurBei("typ", "seite")] = None
     ankunft: Annotated[list[Annotated[str, Field(max_length=200)]] | None,
                        BeforeValidator(_leer_ist_nicht_gesetzt), NurBei("typ", "seite")] = None
+    #: WF-4 (Plan 2026-11-15): Hinweis je Sprache, wenn die Person auf einer anderen Seite landet,
+    #: während der Schritt wartet — mit demselben Chip; der Lauf wartet weiter.
+    abweichung: Annotated[dict[str, Annotated[str, Textarea(), Field(max_length=600)]] | None,
+                          BeforeValidator(_ohne_leere_saetze), NurBei("typ", "seite")] = None
+    #: WF-4: Seiten, auf denen sich die Person in Ruhe umsehen soll (eigener Text, derselbe Chip).
+    umsehen: Annotated[Umsehen | None, NurBei("typ", "seite")] = None
 
 
 class Ausloeser(AreaModel):
@@ -363,6 +391,11 @@ class AblaufArea(AreaModel):
     nicht_wann: list[_Wann] = Field(default_factory=list, max_length=5)
     #: Vorgabe aus: ein neuer Ablauf wirkt erst, wenn die Redaktion ihn einschaltet.
     aktiv: bool = False
+    #: Zweites Review WF (Plan 2026-11-15): getippter Text, den ein wartender Schritt (Wahl oder
+    #: Seite) nicht nimmt, beendet den Lauf still — die Nachricht geht an den Chat. Wie die
+    #: eingebaute Web-Tour: eine Führung soll nicht unter jeder Antwort kleben bleiben. Am Ablauf,
+    #: nicht an den Schritten: die Fassung wartender Läufe bleibt.
+    endet_bei_text: bool | None = None
     ausloeser: list[Ausloeser] = []
     voraussetzungen: list[Annotated[str, Choices("anmeldung", "dokument_lesen")]] = []
     #: AS-4a: die Startdaten (höchstens 10 Felder) — Vorgabe ``None``; eine geleerte Liste zählt

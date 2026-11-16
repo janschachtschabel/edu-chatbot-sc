@@ -1,8 +1,9 @@
 """Seiten-Ping eines wartenden Ablaufs (Paket AS-7a, Plan 2026-11-09 §5m, F-4).
 
 Läuft nach ``tour`` und vor dem Speichern der Nutzernachricht: Der Ping ist kein Zug der Person.
-Er endet hier immer, entweder mit dem nächsten Schritt (die Seite passt) oder mit einer leeren
-Antwort, die das Widget nicht zeigt. So wird kein ``[ablauf-seite]`` gespeichert, und weder die
+Er endet hier immer: mit dem nächsten Schritt (die Seite passt), mit dem Hinweis des Schritts
+(``abweichung``/``umsehen``, WF-4 — angezeigt, nicht gespeichert) oder mit einer leeren Antwort,
+die das Widget nicht zeigt. So wird kein ``[ablauf-seite]`` gespeichert, und weder die
 Sicherheitsprüfung noch ein Modell laufen.
 """
 

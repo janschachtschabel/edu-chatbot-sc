@@ -5,7 +5,9 @@ stand bei „Schritt 2 von 6“, obwohl die KI weitere Fragen angekündigt hatte
 
 Regel für die Seeds: Eine Frage, deren Antwort ein Teil wird (``schreibt``), nimmt auch getippten
 Text an (``freitext``). Ausgenommen sind Steuerfragen mit Ausstieg („Ohne Ablauf“). Dort ist ein
-getippter Text ein Gespräch mit der KI.
+getippter Text ein Gespräch mit der KI. Ausgenommen sind auch Fragen mit ``kein_treffer`` (WF-2,
+Plan 2026-11-15, etwa die Gruppenwahl der Führung): Getippter Text trifft dort über Synonyme, ein
+Fehlversuch bekommt den Hinweis — ein Freitext nähme jeden Satz als Antwort.
 """
 
 from __future__ import annotations
@@ -29,7 +31,7 @@ def _ablauf(name: str) -> AblaufArea:
 def _frageschritte(ablauf: AblaufArea):
     ausstiege = {s.id for s in ablauf.schritte if s.typ == "ende" and s.ausstieg}
     for s in ablauf.schritte:
-        if s.typ == "nachricht" and s.optionen and s.schreibt \
+        if s.typ == "nachricht" and s.optionen and s.schreibt and s.kein_treffer is None \
                 and not any(o.ziel in ausstiege for o in s.optionen):
             yield s
 

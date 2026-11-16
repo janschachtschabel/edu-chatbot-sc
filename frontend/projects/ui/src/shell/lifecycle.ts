@@ -8,6 +8,7 @@
  * verbatim aus ALT chat.component.ts (258-315, 322-344, 402-415, 717-766,
  * 1262-1270). KEINE Logik-Änderung.
  */
+import { setzeAblaufSeiteMerker } from '../controllers/ablauf-seite-merker';
 import { WloCard } from '../cards/card-types';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
 import { TourController } from '../controllers/tour.controller';
@@ -125,6 +126,9 @@ export interface LifecycleContext {
   seitenPing?: (neueSeite?: boolean) => Promise<boolean>;
   /** AS-7b: wartet gerade eine Führung auf die Ankunft? (ohne Netz) */
   seitenPingWartet?: () => boolean;
+  /** WF-5 (Review M1): der Verlauf ist da (auch leer) — die Shell prüft, ob noch ein Lauf auf eine
+   *  Seite wartet, und nimmt sonst den Merker (`controllers/ablauf-seite-merker`). */
+  verlaufGeklaert?: () => void;
   /** AS-7b (F-7): Start-Chips passender Führungen für die Begrüßung. */
   fuehrungsChips?: () => string[];
   scrollToLatest: () => void;
@@ -187,7 +191,10 @@ export class ShellLifecycle {
         // Vorher entschied das der Zeitplaner (der Gruß fiel am `isLoading`-Tor still weg).
         const auftragWartet = this.ctx.gastAuftragWartet?.() === true;
         this.ctx.setVerlaufBereit?.(true);
-        if (fertig && !veraltet()) return this._afterResume(auftragWartet);
+        if (fertig && !veraltet()) {
+          this.ctx.verlaufGeklaert?.();   // WF-5: vor dem Seiten-Ping, der den Stand braucht
+          return this._afterResume(auftragWartet);
+        }
         return undefined;
       }, (err: unknown) => {
         clearTimeout(frist);
@@ -195,6 +202,9 @@ export class ShellLifecycle {
         console.warn('boerdi: Verlauf nicht wiederhergestellt —', fehlerKurz(err));
       });
     } else {
+      // WF-5 (Review M1): ein neues Gespräch — kein Lauf wartet, der Merker fällt sofort (sonst
+      // öffnete sich das Widget bei persist-session=false auf jeder Seite)
+      setzeAblaufSeiteMerker(false);
       void this._greetOnFirstLoad();
       this._maybeStartTourTick();
     }
@@ -254,6 +264,7 @@ export class ShellLifecycle {
    *  der alten Sitzung und verwirft sein Ergebnis (`send-message.ts`). */
   restart(): void {
     this._neugrussOffen = false;  // die neue Sitzung begrüßt sich selbst
+    setzeAblaufSeiteMerker(false);  // WF-5: kein Lauf der alten Sitzung wartet mehr
     this.ctx.setVerlaufBereit?.(true);  // ein alter Verlauf zählt nicht mehr (Review RB-3, Befund 1)
     const id = generateSessionId();
     this.ctx.setSessionId(id);
@@ -281,7 +292,9 @@ export class ShellLifecycle {
     // Review K2a, Befund 4: bis der Verlauf da ist, nimmt die Eingabe nichts an.
     this.ctx.setLoading(true);
     try {
-      return await this._restoreHistory();
+      const fertig = await this._restoreHistory();
+      if (fertig && this.ctx.sessionId() === id) this.ctx.verlaufGeklaert?.();   // WF-5
+      return fertig;
     } finally {
       this.ctx.setLoading(false);
     }
@@ -294,6 +307,7 @@ export class ShellLifecycle {
     // Paket 19 (H-4): auch der Eulen-Merker — er stand früher mit voller ID dort.
     try { localStorage.removeItem(OWL_HINT_KEY); } catch { /* ignore */ }
     deleteSessionCookie(this.ctx.sessionKey(), this.ctx.sessionCookieDomain());
+    setzeAblaufSeiteMerker(false);  // WF-5
     this._neugrussOffen = false;
     this.ctx.setVerlaufBereit?.(true);  // Review RB-3, Befund 1
     const id = generateSessionId();

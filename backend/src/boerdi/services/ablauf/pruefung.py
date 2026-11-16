@@ -58,7 +58,8 @@ MAX_AGENT_ZUEGE: Final = 20
 #: Wie ``ki_schritt.HINWEIS_ZEICHEN`` — länger würde in der Zeile abgeschnitten.
 MAX_AGENT_HINWEIS: Final = 200
 #: AS-3a: so viele Schnellantworten zeigt ein Schritt höchstens (Chips unter der Antwort).
-MAX_OPTIONEN: Final = 8
+#: WF-2 (Plan 2026-11-15): 12 — die Webseitenführung zeigt 11 Gruppen und „Bin mir nicht sicher“.
+MAX_OPTIONEN: Final = 12
 _MODI: Final = frozenset({"vorschlagen", "direkt"})  # TB-E3
 
 
@@ -193,11 +194,27 @@ def _modul(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
         return [_t(lang, "modul", s=s.id, m=s.modul)]
     # nur Verweise, die der Treiber einsetzt — ein zu tiefer schaltet die Vertragsprüfung nicht
     # ab (Querschnitts-Review AS-D, Befund 6; ``zu_tief`` meldet ihn)
-    if s.modul in werkzeuge.MODUL_DIENST_OHNE_MODELL or typen.verweise(s.daten):
+    if s.modul in werkzeuge.MODUL_DIENST_OHNE_MODELL:
+        return _dienst_daten(s, manifest, lang)
+    if typen.verweise(s.daten):
         return []
     if fehler := katalog.daten_fehler(manifest, s.daten or {}):
         return [_t(lang, "daten", s=s.id, m=s.modul, f="; ".join(fehler)[:160])]
     return []
+
+
+def _dienst_daten(s: Schritt, manifest: dict[str, Any], lang: str) -> list[str]:
+    """Ein Modul, das der Treiber über seinen Dienst baut, bekommt nur dessen Parameter
+    (``treiber_bloecke.modul_block``) — ein Tippfehler oder ein Systemfeld fiele sonst still weg
+    (Review 2026-11-15)."""
+    parameter = (manifest.get("dienst") or {}).get("parameter") or {}
+    erlaubt = parameter.get("properties") or {}
+    da = set(s.daten or {})
+    b = [_t(lang, "modul_feld", s=s.id, m=s.modul, a=a[:40], e=", ".join(sorted(erlaubt)))
+         for a in sorted(da - set(erlaubt))]
+    b += [_t(lang, "modul_feld_fehlt", s=s.id, m=s.modul, a=a)
+          for a in sorted(set(parameter.get("required") or ()) - da)]
+    return b
 
 
 def _schritt(s: Schritt, module: dict[str, Any], lang: str,
@@ -312,7 +329,27 @@ def _seite(s: Schritt, lang: str) -> list[str]:
         if (s.ankunft and url_ok(s.url) and not muster_befunde(s.ankunft, wo, lang)
                 and not seiten_muster.passt(s.url, s.ankunft)):
             b.append(_t(lang, "seite_unerreichbar", s=s.id))
-    elif s.url is not None or s.label is not None or s.ankunft is not None:
+        # WF-4: Hinweis und Umschau-Text wirken nur, solange der Schritt wartet (``ankunft``)
+        if (s.abweichung is not None or s.umsehen is not None) and not s.ankunft:
+            b.append(_t(lang, "seite_hinweis_ohne_ankunft", s=s.id))
+        # Review WF-3/4, Befund m3: ohne Deutsch bliebe der Hinweis in einer deutschen Sitzung still
+        if s.abweichung is not None and not (s.abweichung.get("de") or "").strip():
+            b.append(_t(lang, "seite_abweichung_text", s=s.id))
+        hinweise = [*(s.abweichung or {}).values(),
+                    *((s.umsehen.text if s.umsehen is not None else {}) or {}).values()]
+        # Befund m2: die Hinweise stehen wörtlich da — ein Platzhalter bliebe roh
+        if any("{teil." in t or "{wahl." in t or "{start." in t for t in hinweise):
+            b.append(_t(lang, "seite_hinweis_platzhalter", s=s.id))
+        if s.umsehen is not None:
+            b += muster_befunde(s.umsehen.muster, wo, lang)
+            if not s.umsehen.muster or not (s.umsehen.text.get("de") or "").strip():
+                b.append(_t(lang, "seite_umsehen_text", s=s.id))
+            # Befund m5: ein Umschau-Muster, das schon die Ankunft trifft, wirkt nie
+            if s.ankunft and any("*" not in m and seiten_muster.passt(m, s.ankunft)
+                                 for m in s.umsehen.muster):
+                b.append(_t(lang, "seite_umsehen_ankunft", s=s.id))
+    elif (s.url is not None or s.label is not None or s.ankunft is not None
+          or s.abweichung is not None or s.umsehen is not None):
         b.append(_t(lang, "seite_felder", s=s.id))
     for r in s.weiter if isinstance(s.weiter, list) else []:
         b += muster_befunde(r.wenn_seite, wo, lang)
@@ -409,9 +446,18 @@ def _wahl(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
     abfragendes Modul (das wartet schon selbst auf seine Antwort)."""
     if (s.optionen or s.freitext) and s.typ not in ("nachricht", "modul"):
         return [_t(lang, "wahl_typ", s=s.id)]
-    if not mit_wahl(s):
-        return []
     b: list[str] = []
+    # WF-2: der Hinweis ohne Treffer gilt nur, wo getippter Text sonst an die KI ginge — mit
+    # Freitext ist jeder Text die Antwort, ohne Optionen gibt es nichts zu treffen
+    if s.kein_treffer is not None and (not s.optionen or s.freitext is not None
+                                       or not (s.kein_treffer.get("de") or "").strip()):
+        b.append(_t(lang, "kein_treffer", s=s.id))
+    # Review WF-2, NIT 5: der Hinweis steht wörtlich da — ein Platzhalter bliebe roh
+    if any("{teil." in t or "{wahl." in t or "{start." in t
+           for t in (s.kein_treffer or {}).values()):
+        b.append(_t(lang, "kein_treffer_platzhalter", s=s.id))
+    if not mit_wahl(s):
+        return b
     optionen = s.optionen or []
     if len(optionen) > MAX_OPTIONEN:
         b.append(_t(lang, "optionen_anzahl", s=s.id, max=MAX_OPTIONEN))
@@ -769,6 +815,17 @@ def pruefe(ablauf: AblaufArea, lang: str = "de") -> list[str]:
     return [text for _schritt_id, text in pruefe_gegliedert(ablauf, lang)]
 
 
+def _wahl_platzhalter(s: Schritt, wahl_teile: frozenset[str], lang: str) -> list[str]:
+    """WF-3 (Plan 2026-11-15): ``{wahl.<teil>}`` in Text oder Hinweis nennt einen Teil, den ein
+    Schritt mit Schnellantworten schreibt — sonst gäbe es keine Beschriftung zum Einsetzen."""
+    from boerdi.services.ablauf.treiber import WAHL_PLATZHALTER
+
+    # Review WF-3/4, Befund m4: der Treiber setzt auch im Satz einer Freigabe ein
+    texte = [*(s.text or {}).values(), *(s.freigabe or {}).values()]
+    namen = dict.fromkeys(n for t in texte for n in WAHL_PLATZHALTER.findall(t or ""))
+    return [_t(lang, "wahl_platzhalter", s=s.id, n=n) for n in namen if n not in wahl_teile]
+
+
 def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
     """Paket K2c-1: dieselben Befunde in derselben Reihenfolge, je mit dem Index des Schritts, an
     dem sie stehen (``None``: der ganze Ablauf) — für „Prüfen“ im Studio."""
@@ -790,6 +847,8 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
     kennungen = (startdaten.kennungsfelder(ablauf)
                  if any(a.art == "extern" for a in ablauf.ausloeser) else frozenset())
     rueckfrage = False
+    # WF-3: ``{wahl.<teil>}`` gilt für Teile, die ein Schritt mit Schnellantworten schreibt
+    wahl_teile = frozenset(s.schreibt for s in ablauf.schritte if s.optionen and s.schreibt)
     for i, s in enumerate(ablauf.schritte):
         befunde += [(i, text) for text in _schritt(s, module, lang, kennungen)]
         # Review TB-F1, Befund 2 (Plan N15): vor einem Flow, der ins Repositorium schreibt, steht
@@ -805,6 +864,7 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
             befunde.append((i, _t(lang, "auftrag_frei", s=s.id, f=s.flow)))
         befunde += [(i, text) for text in _platzhalter(s, davor.get(i, set()), geschrieben,
                                                        lang, startfelder)]
+        befunde += [(i, text) for text in _wahl_platzhalter(s, wahl_teile, lang)]
         # AS-4a: ``start`` tragen nur die Startdaten
         if typen.START_TEIL in typen.schritt_ausgaben(s, module):
             befunde.append((i, _t(lang, "start_reserviert", s=s.id)))

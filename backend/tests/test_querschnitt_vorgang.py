@@ -213,8 +213,14 @@ def test_ein_geschlossener_vorgang_faellt_aus_dem_verweis(umgebung):  # noqa: F8
 
 def test_nach_einem_fertigen_ablauf_stehen_neues_vorhaben_und_loeschen_da(umgebung):  # noqa: F811
     """Review Q3, Befund 4: die Aktionen brauchen einen Einstieg — das Modell darf keine
-    ``__action__``-Knöpfe schreiben, also setzt sie das Backend."""
-    _mit_gruss(umgebung)
+    ``__action__``-Knöpfe schreiben, also setzt sie das Backend. Seit WF-1 (2026-11-15) nur nach
+    einem Ablauf mit Arbeitsstand (hier ein Werkzeug-Schritt); ein bloßer Gruß hat keinen."""
+    mit_stand = {**_GRUSS, "schritte": [
+        {"id": "t", "typ": "werkzeug", "werkzeug": "abdeckung_zaehlen",
+         "argumente": {"entwurf": {"$teil": "draft"}}, "schreibt": "z", "bei_fehler": "ende"},
+        *_GRUSS["schritte"]]}
+    umgebung.katalog["wert"] = {**umgebung.katalog["wert"],
+                                "ablaeufe": [*umgebung.katalog["wert"]["ablaeufe"], mit_stand]}
     antwort = _gruss({"entities": {}})
     aktionen = [k.split("|")[2] for k in antwort.quick_replies]
     assert aktionen == [vorgang_aktion.AKTION_NEU, vorgang_aktion.AKTION_LOESCHEN]

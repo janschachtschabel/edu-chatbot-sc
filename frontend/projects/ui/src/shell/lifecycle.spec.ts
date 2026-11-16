@@ -102,6 +102,25 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     expect(api.loadHistory).toHaveBeenCalledWith(VALID_SID, 20);
   });
 
+  it('WF-5 (Review M1): ein neues Gespräch beim Laden nimmt den Merker sofort', () => {
+    // persist-session=false: jede Seite beginnt neu, eine Serverantwort mit Stand kommt nie
+    localStorage.setItem('boerdi_ablauf_seite', '1');
+    const { ctx } = makeCtx({ persistSession: () => false });
+    new ShellLifecycle(ctx).init();
+    expect(localStorage.getItem('boerdi_ablauf_seite')).toBeNull();
+  });
+
+  it('WF-5 (Review M1): nach dem Verlauf ruft das Lifecycle `verlaufGeklaert` — vor dem Seiten-Ping', async () => {
+    localStorage.setItem(KEY, VALID_SID);
+    const reihe: string[] = [];
+    const verlaufGeklaert = vi.fn(() => { reihe.push('geklaert'); });
+    const seitenPing = vi.fn(async () => { reihe.push('ping'); return false; });
+    const { ctx } = makeCtx({ persistSession: () => true, verlaufGeklaert, seitenPing });
+    new ShellLifecycle(ctx).init();
+    await vi.waitFor(() => expect(seitenPing).toHaveBeenCalled());
+    expect(reihe).toEqual(['geklaert', 'ping']);
+  });
+
   it('AS-7b: nach dem Verlauf zuerst der Seiten-Ping — erscheint seine Antwort, entfällt der Kontext-Gruß', async () => {
     const seite = JSON.stringify({ page_kind: 'collection', collection_id: '9e7ae956-e9df-430f-bace-f3db4b910013' });
     for (const [gezeigt, gruss] of [[true, 0], [false, 1]] as const) {
@@ -234,6 +253,18 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     lc.restart();
     lc.resetSession();
     expect(rec.loading).toEqual([false, false]);
+  });
+
+  it('WF-5: ein neues Gespräch nimmt den Merker „Ablauf wartet auf eine Seite“', () => {
+    // Sonst öffnete sich das Widget auf jeder Seite, bis eine Serverantwort kommt.
+    const { ctx } = makeCtx({ showWelcome: () => false });
+    const lc = new ShellLifecycle(ctx);
+    localStorage.setItem('boerdi_ablauf_seite', '1');
+    lc.restart();
+    expect(localStorage.getItem('boerdi_ablauf_seite')).toBeNull();
+    localStorage.setItem('boerdi_ablauf_seite', '1');
+    lc.resetSession();
+    expect(localStorage.getItem('boerdi_ablauf_seite')).toBeNull();
   });
 
   it('showWelcome=false hält den Erstaufruf leer, ohne den Kontext-Ping zu unterdrücken', async () => {

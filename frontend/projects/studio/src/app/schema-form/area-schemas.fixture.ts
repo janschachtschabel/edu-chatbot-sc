@@ -346,6 +346,24 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Ziel",
             "type": "string",
             "x-widget": "schritt-ziel"
+          },
+          "synonyme": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 60,
+                  "minLength": 3,
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Synonyme"
           }
         },
         "required": [
@@ -736,6 +754,29 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               ]
             }
           },
+          "kein_treffer": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 600,
+                  "type": "string",
+                  "x-widget": "textarea"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Kein Treffer",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "nachricht"
+              ]
+            }
+          },
           "agent": {
             "anyOf": [
               {
@@ -809,6 +850,46 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ],
             "default": null,
             "title": "Ankunft",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
+          },
+          "abweichung": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 600,
+                  "type": "string",
+                  "x-widget": "textarea"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Abweichung",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
+          },
+          "umsehen": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Umsehen"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
             "x-nur-bei": {
               "feld": "typ",
               "werte": [
@@ -1051,6 +1132,35 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "title": "TestErwartung",
         "type": "object"
       },
+      "Umsehen": {
+        "additionalProperties": true,
+        "description": "WF-4 (Plan 2026-11-15): Auf diesen Seiten sieht sich die Person um, während ein ``seite``-\nSchritt wartet (die Angebote der Webseitenführung) — statt des Hinweises ``abweichung`` dieser\nText, mit demselben Chip.",
+        "properties": {
+          "muster": {
+            "items": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "title": "Muster",
+            "type": "array"
+          },
+          "text": {
+            "additionalProperties": {
+              "maxLength": 600,
+              "type": "string",
+              "x-widget": "textarea"
+            },
+            "title": "Text",
+            "type": "object"
+          }
+        },
+        "required": [
+          "muster",
+          "text"
+        ],
+        "title": "Umsehen",
+        "type": "object"
+      },
       "Weiter": {
         "additionalProperties": true,
         "description": "Eine Regel der Verzweigung — die erste passende gilt; ``sonst`` zuletzt.",
@@ -1224,6 +1334,18 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": false,
         "title": "Aktiv",
         "type": "boolean"
+      },
+      "endet_bei_text": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Endet Bei Text"
       },
       "ausloeser": {
         "default": [],

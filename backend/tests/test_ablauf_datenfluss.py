@@ -13,7 +13,9 @@ from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.services.ablauf import typen
 from boerdi.services.ablauf.pruefung import pruefe, warnungen
 
-_UPLOAD = {"id": "up", "typ": "modul", "modul": "ui_upload", "daten": {}, "bei_fehler": "e"}
+# ``zweck`` ist Pflicht: ohne ihn baute der Dienst nie einen Block (Prüfung seit 2026-11-15)
+_UPLOAD = {"id": "up", "typ": "modul", "modul": "ui_upload",
+           "daten": {"zweck": "sammlungsstruktur"}, "bei_fehler": "e"}
 _ENTWURF = {"id": "entwurf", "typ": "werkzeug", "werkzeug": "strukturentwurf_aus_ordnern",
             "argumente": {"struktur": {"$teil": "structure"}}, "schreibt": "eigener",
             "bei_fehler": "e"}

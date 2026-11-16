@@ -12,6 +12,32 @@ _T: Final[dict[str, dict[str, str]]] = {
     "doppelt": {"de": "Schritt-IDs doppelt: {ids}", "en": "Duplicate step ids: {ids}"},
     "optionen_anzahl": {"de": "Schritt {s}: höchstens {max} Schnellantworten",
                         "en": "Step {s}: at most {max} quick replies"},
+    "wahl_platzhalter": {"de": "Schritt {s}: {{wahl.{n}}} — diesen Teil schreibt kein Schritt "
+                               "mit Schnellantworten",
+                         "en": "Step {s}: {{wahl.{n}}} — no step with quick replies writes this "
+                               "part"},
+    "seite_hinweis_ohne_ankunft": {"de": "Schritt {s}: abweichung und umsehen wirken nur mit "
+                                         "ankunft (der Schritt wartet sonst nicht)",
+                                   "en": "Step {s}: abweichung and umsehen only work with ankunft "
+                                         "(otherwise the step does not wait)"},
+    "seite_abweichung_text": {"de": "Schritt {s}: abweichung braucht einen deutschen Text",
+                              "en": "Step {s}: abweichung needs a German text"},
+    "seite_hinweis_platzhalter": {"de": "Schritt {s}: in abweichung und umsehen gibt es keine "
+                                        "Platzhalter",
+                                  "en": "Step {s}: abweichung and umsehen take no placeholders"},
+    "seite_umsehen_ankunft": {"de": "Schritt {s}: ein Muster von umsehen trifft schon die ankunft "
+                                    "— dort geht der Lauf weiter, der Text käme nie",
+                              "en": "Step {s}: an umsehen pattern already hits ankunft — the "
+                                    "run continues there, the text would never show"},
+    "seite_umsehen_text": {"de": "Schritt {s}: umsehen braucht Seiten und einen deutschen Text",
+                           "en": "Step {s}: umsehen needs pages and a German text"},
+    "kein_treffer_platzhalter": {"de": "Schritt {s}: im Hinweis ohne Treffer gibt es keine "
+                                       "Platzhalter",
+                                 "en": "Step {s}: the hint without a hit takes no placeholders"},
+    "kein_treffer": {"de": "Schritt {s}: kein_treffer braucht Schnellantworten, keinen Freitext "
+                           "und einen deutschen Text",
+                     "en": "Step {s}: kein_treffer needs quick replies, no free text and a German "
+                           "text"},
     "optionen_doppelt": {"de": "Schritt {s}: Kennungen der Schnellantworten doppelt: {ids}",
                          "en": "Step {s}: duplicate quick reply ids: {ids}"},
     "optionen_label_doppelt": {"de": "Schritt {s}: Schnellantworten gleich beschriftet: {l}",
@@ -154,6 +180,12 @@ _T: Final[dict[str, dict[str, str]]] = {
               "en": "Step {s}: module {m!r} does not exist"},
     "daten": {"de": "Schritt {s}: Daten passen nicht zum Modul {m} ({f})",
               "en": "Step {s}: data do not fit module {m} ({f})"},
+    "modul_feld": {"de": "Schritt {s}: Modul {m} kennt das Feld {a} nicht (erlaubt: {e}; "
+                         "Grenzen und Schalter setzt das System)",
+                   "en": "Step {s}: module {m} does not know the field {a} (allowed: {e}; "
+                         "limits and switches are set by the system)"},
+    "modul_feld_fehlt": {"de": "Schritt {s}: Modul {m} braucht das Feld {a}",
+                         "en": "Step {s}: module {m} needs the field {a}"},
     "schreibend": {"de": "Schritt {s}: Werkzeug {w} ist schreibend — das geht nur in einem "
                          "werkzeug-Schritt mit Freigabe, mit einem bestätigbaren WLO-Werkzeug, das "
                          "nicht löscht",

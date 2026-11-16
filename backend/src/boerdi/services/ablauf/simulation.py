@@ -267,8 +267,10 @@ async def _eingeben(ablauf: AblaufArea, lauf: dict[str, Any], e: TestEingabe, st
             stand.teile[name] = wert
         return await treiber.weiter(ablauf, lauf, e.antwort or {}, umgebung)
     if status == treiber.WARTET_WAHL:
-        # wie ``wahl_zug.getippt``: Text gleich einem Label ist diese Wahl (Querschnitts-Review
-        # AS-3, Befund 2)
+        # wie ``wahl_zug.getippt``: Text gleich einem Label (oder per Synonym, WF-2) ist diese Wahl
+        # (Querschnitts-Review AS-3, Befund 2). Den Hinweis ``kein_treffer`` kennt die Simulation
+        # nicht: er ändert den Lauf nicht, ein Fehlversuch bleibt hier wie im Betrieb ohne Wirkung.
+        # Ebenso ``abweichung``/``umsehen`` an einem ``seite``-Schritt (WF-4): reine Hinweise.
         schritt = next((s for s in ablauf.schritte if s.id == lauf.get("schritt")), None)
         wahl = e.option or (treiber.wahl_aus_text(schritt, e.text) if schritt else None)
         return await treiber.weiter_wahl(ablauf, lauf, wahl, None if wahl else e.text, umgebung)

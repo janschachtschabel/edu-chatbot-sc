@@ -235,3 +235,76 @@ def test_quer_5_angebote_ohne_ablaeufe_die_eine_anmeldung_brauchen(umgebung):  #
     mit = {**_mit_seiten_ausloeser(), "id": "angemeldet", "voraussetzungen": ["anmeldung"]}
     umgebung.katalog["wert"] = {"ablaeufe": [_mit_seiten_ausloeser(), mit]}
     assert [a["id"] for a in ausloeser.seiten_angebote()] == ["fuehrung"]
+
+
+# ── WF-4 (Plan 2026-11-15): Hinweis auf einer anderen Seite, Umschau-Text ───────────────────
+
+_HIN_WF4 = {**_HIN, "abweichung": {"de": "Du bist woanders — weiter geht's hier:",
+                                   "en": "You're somewhere else — carry on here:"},
+            "umsehen": {"muster": ["/angebote/*"],
+                        "text": {"de": "Schau dich in Ruhe um. Dann weiter:"}}}
+
+
+def test_wf4_auf_einer_anderen_seite_der_hinweis_mit_dem_chip(umgebung):  # noqa: F811
+    zustand, _ = _starten(umgebung, _roh(_HIN_WF4, _ENDE))
+    antwort = _ping(zustand, "/home/")
+    assert antwort.content == "Du bist woanders — weiter geht's hier:"
+    assert antwort.quick_replies == ["__fuehrung__|Zur Mitmach-Seite|/mitmachen/"]
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["lauf"]["status"] == treiber.WARTET_SEITE        # der Lauf wartet weiter
+
+
+def test_wf4_auf_einer_umschau_seite_der_umschau_text(umgebung):  # noqa: F811
+    zustand, _ = _starten(umgebung, _roh(_HIN_WF4, _ENDE))
+    antwort = _ping(zustand, "/angebote/bildungs-api/")
+    assert antwort.content == "Schau dich in Ruhe um. Dann weiter:"
+    assert antwort.quick_replies == ["__fuehrung__|Zur Mitmach-Seite|/mitmachen/"]
+
+
+def test_wf4_der_hinweis_in_der_sprache_des_zugs(umgebung):  # noqa: F811
+    zustand, _ = _starten(umgebung, _roh(_HIN_WF4, _ENDE))
+    antwort = asyncio.run(seite_zug.angekommen(_S(), _req(
+        "/home/", message="[ablauf-seite]", env={"page_event": seite_zug.PING, "locale": "en"}),
+        zustand))
+    assert antwort.content == "You're somewhere else — carry on here:"
+
+
+def test_wf4_die_zielseite_setzt_weiter_fort(umgebung):  # noqa: F811
+    zustand, _ = _starten(umgebung, _roh(_HIN_WF4, _ENDE))
+    assert _ping(zustand, "/mitmachen/").content == "Angekommen."
+
+
+def test_wf4_die_pruefung_will_ankunft_und_deutschen_text():
+    from boerdi.services.ablauf.pruefung import pruefe
+
+    ohne_ankunft = {k: v for k, v in _HIN_WF4.items() if k != "ankunft"}
+    befunde = pruefe(AblaufArea.model_validate(_roh(ohne_ankunft, _ENDE)))
+    assert any("ankunft" in b.lower() for b in befunde)
+    ohne_deutsch = {**_HIN_WF4, "umsehen": {"muster": ["/angebote/*"], "text": {"en": "x"}}}
+    assert any("umsehen" in b for b in pruefe(AblaufArea.model_validate(_roh(ohne_deutsch, _ENDE))))
+
+
+def test_wf4_review_der_hinweis_landet_nicht_im_verlauf(umgebung):  # noqa: F811
+    """Review WF-3/4, Befund M1: jeder Hinweis aus dem Seiten-Ping stand im Verlauf — nach N Seiten
+    N gleiche Hinweise. Wie die eingebaute Tour (nudge/explore) wird er nicht gespeichert."""
+    zustand, _ = _starten(umgebung, _roh(_HIN_WF4, _ENDE))
+    vorher = list(umgebung.gesendet)
+    assert _ping(zustand, "/home/").content
+    assert umgebung.gesendet == vorher
+
+
+def test_wf4_review_ohne_hinweis_bleibt_der_ping_leer(umgebung):  # noqa: F811
+    zustand, _ = _starten(umgebung, _roh())
+    assert _ping(zustand, "/angebote/x/").content == ""
+
+
+def test_wf4_review_pruefung_deutsch_platzhalter_ueberschneidung():
+    from boerdi.services.ablauf.pruefung import pruefe
+
+    def befunde(**mehr):
+        return pruefe(AblaufArea.model_validate(_roh({**_HIN, **mehr}, _ENDE)))
+
+    assert any("abweichung" in b for b in befunde(abweichung={"en": "Elsewhere"}))
+    assert any("Platzhalter" in b for b in befunde(abweichung={"de": "Hallo {teil.x}"}))
+    assert any("ankunft" in b for b in befunde(
+        umsehen={"muster": ["/mitmachen/faq"], "text": {"de": "Schau."}}))

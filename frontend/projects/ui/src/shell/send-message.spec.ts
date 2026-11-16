@@ -173,6 +173,24 @@ describe('runSendMessage — Lifecycle', () => {
     expect(r.focus).toBe(1);
   });
 
+  it('Direktstart (Rückmeldung 2026-11-15): der Knopf, den die Shell selbst drückt, steht nicht unter der Nachricht', async () => {
+    const knopf = '__action__|Themenbaum|ablauf_starten|{"ablauf":"baum"}';
+    const resp = makeResp({ quick_replies: [knopf], ui: { pattern: 'M06', direkt_start: knopf } });
+    const r = makeCtx({ input: '', stream: () => Promise.resolve(resp) });
+    await runSendMessage('Baum zu Karate', undefined, undefined, r.ctx);
+    expect(r.bots[1].rest[1]).toEqual([]);
+    // onResult bekommt die Antwort unverändert — dort drückt die Shell den Knopf
+    expect(r.results[0].resp.quick_replies).toEqual([knopf]);
+  });
+
+  it('Direktstart: ein Knopf, den die Shell nicht drückt (kein ablauf_starten), bleibt sichtbar', async () => {
+    const knopf = '__action__|Etwas|anderes|{}';
+    const resp = makeResp({ quick_replies: [knopf], ui: { pattern: 'M06', direkt_start: knopf } });
+    const r = makeCtx({ input: '', stream: () => Promise.resolve(resp) });
+    await runSendMessage('x', undefined, undefined, r.ctx);
+    expect(r.bots[1].rest[1]).toEqual([knopf]);
+  });
+
   it('U1-d1: eine Modul-Antwort reist mit Strom und POST-Rückfall; sie ist kein getippter Text', async () => {
     const antwort = { block_id: 'b0000001', daten: { gewaehlt: ['a'] } };
     const r = makeCtx({ stream: () => Promise.reject(new TypeError('Netz weg')) });

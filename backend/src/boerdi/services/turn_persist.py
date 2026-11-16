@@ -569,6 +569,16 @@ async def persist_and_build_response(
         quick_replies = [_confirm_chip, *(
             q for q in quick_replies if q != _confirm_chip and not is_affirmation(q))]
 
+    # Rückmeldung 2026-11-15 (Review, Befund 1): startet ein Ablauf direkt, bleibt nur sein Knopf —
+    # auch gegen Chips, die nach der Zusammenstellung dazukamen (Facetten, Anmeldung, „Hat das
+    # geholfen?“), und gegen das Kürzen darunter: ohne den Knopf startete der Ablauf still nicht.
+    _direkt = session_state.get(ablauf_vorschlag.DIREKT_KEY)
+    if isinstance(_direkt, str) and _direkt in (quick_replies or []):
+        quick_replies = [_direkt]
+        _direkt_bleibt = True
+    else:
+        _direkt_bleibt = False
+
     # Welle E — Quick-Replies-Limit aus display_rules; per-Pattern ``_qr_max``
     # überschreibt den globalen Deckel. max_count: 0 → keine Pillen.
     try:
@@ -579,7 +589,7 @@ async def persist_and_build_response(
             _qr_trim_max = _qr_max
         # Der Lotse zählt nicht mit — er wird nie eine Pille (Review 2026-09-29,
         # ``begrenze_pillen``); ``0`` heißt weiter: gar nichts.
-        if quick_replies:
+        if quick_replies and not _direkt_bleibt:
             # ``0`` heißt keine Pillen — die Chips einer Ablauf-Wahl bleiben (Befund 1)
             _gekuerzt = (begrenze_pillen(quick_replies, _qr_trim_max) if _qr_trim_max
                          else [q for q in quick_replies if ist_steuer_knopf(q)])  # R2-e
