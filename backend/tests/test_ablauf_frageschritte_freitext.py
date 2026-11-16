@@ -7,7 +7,10 @@ Regel für die Seeds: Eine Frage, deren Antwort ein Teil wird (``schreibt``), ni
 Text an (``freitext``). Ausgenommen sind Steuerfragen mit Ausstieg („Ohne Ablauf“). Dort ist ein
 getippter Text ein Gespräch mit der KI. Ausgenommen sind auch Fragen mit ``kein_treffer`` (WF-2,
 Plan 2026-11-15, etwa die Gruppenwahl der Führung): Getippter Text trifft dort über Synonyme, ein
-Fehlversuch bekommt den Hinweis — ein Freitext nähme jeden Satz als Antwort.
+Fehlversuch bekommt den Hinweis — ein Freitext nähme jeden Satz als Antwort. Und in Abläufen mit
+``endet_bei_text`` die Wiederholung einer solchen Frage mit demselben Teil und denselben Knöpfen
+(Rückmeldung 16.11., der Hilfetext der Führung): Dort beendet getippter Text ohne Treffer den Lauf
+mit Absicht, wie in der Tour, und der Chat antwortet.
 """
 
 from __future__ import annotations
@@ -28,11 +31,20 @@ def _ablauf(name: str) -> AblaufArea:
         yaml.safe_load((_ORDNER / f"{name}.yaml").read_text(encoding="utf-8")))
 
 
+def _frage(s):
+    return (s.schreibt, tuple(o.id for o in s.optionen or []))
+
+
 def _frageschritte(ablauf: AblaufArea):
     ausstiege = {s.id for s in ablauf.schritte if s.typ == "ende" and s.ausstieg}
+    # Review 16.11., m8: nur die Wiederholung einer Frage mit ``kein_treffer`` — nicht jede Frage
+    # eines Ablaufs mit ``endet_bei_text``
+    wiederholt = ({_frage(s) for s in ablauf.schritte if s.kein_treffer is not None}
+                  if ablauf.endet_bei_text else set())
     for s in ablauf.schritte:
         if s.typ == "nachricht" and s.optionen and s.schreibt and s.kein_treffer is None \
-                and not any(o.ziel in ausstiege for o in s.optionen):
+                and not any(o.ziel in ausstiege for o in s.optionen) \
+                and _frage(s) not in wiederholt:
             yield s
 
 

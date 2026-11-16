@@ -272,7 +272,8 @@ async def _eingeben(ablauf: AblaufArea, lauf: dict[str, Any], e: TestEingabe, st
         # nicht: er ändert den Lauf nicht, ein Fehlversuch bleibt hier wie im Betrieb ohne Wirkung.
         # Ebenso ``abweichung``/``umsehen`` an einem ``seite``-Schritt (WF-4): reine Hinweise.
         schritt = next((s for s in ablauf.schritte if s.id == lauf.get("schritt")), None)
-        wahl = e.option or (treiber.wahl_aus_text(schritt, e.text) if schritt else None)
+        wahl = e.option or (treiber.wahl_aus_text(schritt, e.text, umgebung.sprache)
+                            if schritt else None)
         return await treiber.weiter_wahl(ablauf, lauf, wahl, None if wahl else e.text, umgebung)
     if status == treiber.WARTET_SEITE:
         # AS-7a: wie der Seiten-Ping — die Seite dieser Eingabe gilt ab hier (auch für

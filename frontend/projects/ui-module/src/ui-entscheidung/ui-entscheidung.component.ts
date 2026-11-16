@@ -73,6 +73,7 @@ const TEXTE = {
             <label class="ui-entscheidung__option">
               <input [type]="mehrfach() ? 'checkbox' : 'radio'" [name]="gruppe()" [value]="o.id"
                      [checked]="gewaehlt().includes(o.id)" (change)="umschalten(o.id)"
+                     (keydown)="tasteInOption($event)"
                      [attr.aria-describedby]="o.hinweis ? kennung('opt-' + o.id) : null" />
               <span class="ui-entscheidung__text">
                 <span class="ui-entscheidung__label">{{ o.label }}</span>
@@ -86,6 +87,7 @@ const TEXTE = {
             <label class="ui-entscheidung__option" (pointerdown)="zeiger = true">
               <input data-eigen [type]="mehrfach() ? 'checkbox' : 'radio'" [name]="gruppe()" value=""
                      [checked]="eigenAngehakt()" (change)="eigenUmschalten($event)" (click)="eigenKlick($event)"
+                     (keydown)="tasteInOption($event)"
                      [attr.aria-controls]="kontext().nurLesen ? null : kennung('eingabe-freitext')" />
               <span class="ui-entscheidung__text">
                 <span class="ui-entscheidung__label" [id]="kennung('eingabe-eigen')">{{ texte().eigen }}</span>
@@ -181,6 +183,15 @@ export class UiEntscheidung {
   protected tasteImFreitext(ereignis: KeyboardEvent): void {
     // Safari meldet eine IME-Komposition nur über keyCode 229 (wie die Eingabe der Shell)
     if (ereignis.key !== 'Enter' || ereignis.shiftKey || ereignis.isComposing || ereignis.keyCode === 229) return;
+    this.senden(ereignis);
+  }
+
+  /** Enter auf einer Option schickt ab, sobald die Wahl im Zustand steht (CI-Kippler 16.11.): die
+   *  implizite Absendung des Browsers hängt am Knopf im DOM, den OnPush erst später freigibt — kam
+   *  Enter davor, verwarf der Browser sie still. Darum hier selbst, und die implizite unterdrückt
+   *  (sonst zweimal). Ohne Wahl oder während eines Zugs schickt `senden` nichts. */
+  protected tasteInOption(ereignis: KeyboardEvent): void {
+    if (ereignis.key !== 'Enter' || ereignis.isComposing || ereignis.keyCode === 229) return;
     this.senden(ereignis);
   }
 

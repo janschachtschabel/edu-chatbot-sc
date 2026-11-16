@@ -15,8 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from boerdi.api.schemas import ChatResponse
 from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
+from boerdi.i18n import resolve_locale
 from boerdi.services import plan_fortsetzen, vorgang_aktion
-from boerdi.services.ablauf import abbruch_zug, auftrag_zug, freigabe_zug, wahl_zug
+from boerdi.services.ablauf import abbruch_zug, auftrag_zug, freigabe_zug, seite_zug, wahl_zug
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.ordner_aktion import ist_ordner_als_entwurf
 
@@ -40,11 +41,14 @@ class Ausloeser:
     #: AS-3a: getippter Text ist die Antwort am wartenden Schritt (gleich einem Label oder
     #: ``freitext``).
     freitext: bool = False
+    #: Review 16.11. (Führung wie Tour, M1): eine Wendung des Ablaufs, der an einem
+    #: ``seite``-Schritt wartet — der Schritt wird erneut gezeigt.
+    wiederholen: bool = False
 
     @property
     def irgendeiner(self) -> bool:
         return bool(self.ordner or self.im_lauf or self.per_modul or self.per_text
-                    or self.gesperrt or self.freitext)
+                    or self.gesperrt or self.freitext or self.wiederholen)
 
 
 def abgewiesen(aktion: str | None, gesperrt: str | None) -> bool:
@@ -98,12 +102,16 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
                and not ist_hintergrund_anfrage(req.environment))
     if getippt:
         await wahl_zug.aufraeumen(session, req.session_id, ctx.session_state)
-    freitext = getippt and wahl_zug.nimmt_getippt(req.session_id, ctx.session_state, req.message)
+    freitext = getippt and wahl_zug.nimmt_getippt(req.session_id, ctx.session_state, req.message,
+                                                  resolve_locale(req.environment.locale))
+    wiederholen = (getippt and not freitext
+                   and seite_zug.wiederholt(req.session_id, ctx.session_state, req.message))
     # Zweites Review WF, Befund M1: nimmt der wartende Schritt den Text nicht, endet ein Ablauf mit
     # ``endet_bei_text`` still — der Zug geht den gewöhnlichen Weg (wie die eingebaute Tour)
-    if getippt and not freitext:
+    if getippt and not freitext and not wiederholen:
         await wahl_zug.still_beenden(session, req.session_id, ctx.session_state)
-    return Ausloeser(bool(im_lauf), per_modul, bool(ordner), per_text, gesperrt, freitext)
+    return Ausloeser(bool(im_lauf), per_modul, bool(ordner), per_text, gesperrt, freitext,
+                     bool(wiederholen))
 
 
 async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
@@ -141,6 +149,8 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
     if a.freitext:
         # ``None``: der Lauf wartet nicht mehr auf Text — der Zug geht den gewöhnlichen Weg
         return Antwort(await wahl_zug.getippt(session, req, state, blocked_tools=gesperrt))
+    if a.wiederholen:
+        return Antwort(await seite_zug.wiederholen(session, req, state))
     if req.action == ablauf_zug.AKTION_WEITER:
         return Antwort(await ablauf_zug.weiter_nach_ki(session, req, state,
                                                        blocked_tools=gesperrt))

@@ -29,9 +29,9 @@ from boerdi.domain.hintergrund_zug import ABLAUF_SEITE
 from boerdi.domain.wahl_knopf import FUEHRUNG_PRAEFIX
 from boerdi.i18n import resolve_locale
 from boerdi.services import arbeitsstand, vorgaenge
-from boerdi.services.ablauf import treiber
+from boerdi.services.ablauf import platzhalter, treiber
 from boerdi.services.ablauf import zug_basis as basis
-from boerdi.services.ablauf.ausloeser import laden
+from boerdi.services.ablauf.ausloeser import laden, trifft_text
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,31 @@ def aktueller_knopf(session_id: str, session_state: dict[str, Any], lang: str) -
 def aktueller_knopf_von(schritt: Schritt, lang: str) -> list[str]:
     """Der Chip eines ``seite``-Schritts."""
     return [knopf({"url": schritt.url or "", "label": treiber.seiten_label(schritt, lang)})]
+
+
+def wiederholt(session_id: str, session_state: dict[str, Any], text: str | None) -> bool:
+    """Review 16.11. (Führung wie Tour, M1): Tippt die Person an einem wartenden ``seite``-Schritt
+    eine Wendung DESSELBEN Ablaufs („starte die Tour“), meint sie die Führung — der Schritt wird
+    erneut gezeigt, statt dass ``endet_bei_text`` den Lauf beendet. So macht es die Tour seit
+    2026-08-19 (``graph/nodes/tour``, ``wiederholen``). Nur aus dem Verweis, ohne Datenbank."""
+    treffer = wartend(session_id, session_state)
+    return treffer is not None and trifft_text(treffer[1], text)
+
+
+async def wiederholen(session: Any, req: ChatRequest, session_state: dict) -> ChatResponse | None:
+    """Den wartenden ``seite``-Schritt erneut zeigen: sein Text (mit Platzhaltern) und sein Chip.
+    Der Lauf bleibt, wie er ist; die Antwort wird gespeichert (wie die Tour). ``None``: der Lauf
+    wartet nicht mehr — der Zug geht den gewöhnlichen Weg."""
+    if (treffer := wartend(req.session_id, session_state)) is None:
+        return None
+    _lauf, ablauf, s = treffer
+    entities = session_state.setdefault("entities", {})
+    lang = resolve_locale(req.environment.locale)
+    text = ((s.text or {}).get(lang) or (s.text or {}).get("de") or "").strip()
+    teile = basis.umgebung(session, req, entities, ()).teile
+    text, _fremd = await treiber.wahl_einsetzen(text, ablauf, lang, teile)
+    text = await platzhalter.einsetzen(text, teile)
+    return await basis.fester_text(session, req, text, entities, aktueller_knopf_von(s, lang))
 
 
 def _leer(req: ChatRequest) -> ChatResponse:

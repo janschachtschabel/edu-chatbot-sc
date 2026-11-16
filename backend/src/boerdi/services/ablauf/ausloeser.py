@@ -167,6 +167,14 @@ def per_text(nachricht: str | None) -> AblaufArea | None:
     return bester[1] if bester else None
 
 
+def trifft_text(ablauf: AblaufArea, nachricht: str | None) -> bool:
+    """Steht eine Wendung dieses Ablaufs in ``nachricht``? (Review 16.11., M1: eine Wendung des
+    laufenden Ablaufs zeigt den wartenden Schritt erneut, wie die Tour.)"""
+    text = wendung((nachricht or "")[:_TEXT_ZEICHEN])
+    return bool(text) and any(w in text for aus in ablauf.ausloeser if aus.art == "text"
+                              for roh in aus.wendungen if (w := wendung(roh)))
+
+
 def per_modul(geprueft: dict[str, Any] | None) -> tuple[AblaufArea, int] | None:
     """Ablauf und Startschritt für eine geprüfte Modul-Antwort (``None``: kein Auslöser passt)."""
     if not geprueft or not isinstance(modul := geprueft.get("modul"), str):
