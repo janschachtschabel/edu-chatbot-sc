@@ -352,6 +352,14 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Rückmeldung Abläufe (2026-11-15):** Dokument im Ablauf lesen (Fehler), Enter in der
+  Entscheidungsfrage, keine Chips beim Direktstart, „Ohne Führung, frei im Chat“. Notiz
+  `aenderungen/2026-11-15-rueckmeldung-ablaeufe.md`. Nach dem Deploy
+  `import-config --werksabgleich` (neue Texte der Abläufe).
+- **Webseitenführung als Ablauf (2026-11-16):** WF-1 bis WF-6, Notiz
+  `aenderungen/2026-11-16-webseitenfuehrung-als-ablauf.md`. Nach dem Deploy
+  `import-config --werksabgleich`. Offen: der Umstieg (Redaktion schaltet die Führung ein und die
+  eingebaute Tour aus) und eine Probe im Browser danach.
 - **Anmeldung aus der WLO-Sitzung (2026-11-15):** Das Widget übernimmt auf Seiten des
   Repositorys die angemeldete Sitzung, ohne Ticket und ohne Anmeldung im Widget. Plan
   `plans/2026-11-15-anmeldung-aus-der-sitzung.md` (SA-1 bis SA-15), Notiz
