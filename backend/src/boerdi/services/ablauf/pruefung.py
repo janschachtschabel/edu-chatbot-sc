@@ -611,6 +611,10 @@ def warnungen(ablauf: AblaufArea, lang: str = "de") -> list[str]:
         w += _auswahl_listen(s, ausgaben, gespraech_typen, lang)
         if s.typ == "auftrag" and s.flow and not ablauf.aktiv and not _flow_frei(s.flow):
             w.append(_t(lang, "auftrag_frei", s=s.id, f=s.flow))   # TB-F1: ausgeschaltet → Hinweis
+        elif s.typ == "auftrag" and s.flow and s.bei_fehler and not _flow_frei(s.flow):
+            # Rückmeldung 16.11.: eingeschaltet mit Ersatzweg — zur Laufzeit startet der Auftrag
+            # nicht, und der Schritt nimmt ``bei_fehler``
+            w.append(_t(lang, "auftrag_frei_ersatz", s=s.id, f=s.flow, b=s.bei_fehler))
         if (s.typ == "werkzeug" and s.werkzeug == "metadaten_lesen" and s.schreibt
                 and s.schreibt != "metadaten"):
             # Review TB-T1, Befund 7: ``ui_strukturentwurf`` (aus_inhalten) liest fest ``metadaten``
@@ -859,8 +863,11 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
         rueckfrage = rueckfrage or s.typ == "modul" or bool(s.optionen) or s.freitext is not None
         rueckfrage = rueckfrage or (s.typ == "werkzeug" and s.freigabe is not None)
         # TB-F1: ein Flow, den der Betrieb nicht freischaltet, sperrt nur einen eingeschalteten
-        # Ablauf — ein ausgeschalteter (etwa ein Seed) sperrte sonst den Werksabgleich
-        if s.typ == "auftrag" and s.flow and ablauf.aktiv and not _flow_frei(s.flow):
+        # Ablauf — ein ausgeschalteter (etwa ein Seed) sperrte sonst den Werksabgleich. Rückmeldung
+        # 16.11.: und nur einen Schritt ohne Ersatzweg (``bei_fehler``) — mit ihm läuft der Ablauf
+        # weiter, wo die b-api keine Aufträge einrichtet (der WLO-Weg ist ab Werk an)
+        if (s.typ == "auftrag" and s.flow and ablauf.aktiv and not s.bei_fehler
+                and not _flow_frei(s.flow)):
             befunde.append((i, _t(lang, "auftrag_frei", s=s.id, f=s.flow)))
         befunde += [(i, text) for text in _platzhalter(s, davor.get(i, set()), geschrieben,
                                                        lang, startfelder)]

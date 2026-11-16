@@ -2086,7 +2086,7 @@
       "de": "Ordner und Dateien",
       "en": "Folders and files"
     },
-    "beschreibung": "Laesst die Person einen Ordner (oder einzelne Dateien) auswaehlen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Erfasst wird nur im Browser, hochgeladen wird nichts. Die Person kann Dateien ignorieren und ein Strukturdokument (z. B. einen Lehrplan) markieren, danach den Befund schicken oder die Ordnerstruktur als Themenbaum-Entwurf uebernehmen. Zurueck kommen nur Ordnernamen und Zahlen, keine Dateinamen.",
+    "beschreibung": "Laesst die Person einen Ordner (oder einzelne Dateien) auswaehlen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Erfasst wird im Browser; hochgeladen wird nur, was die Person ausdruecklich lesen laesst oder (angemeldet) in ihren persoenlichen Bereich in WLO uebertraegt. Die Person kann Dateien ignorieren und ein Strukturdokument (z. B. einen Lehrplan) markieren, danach den Befund schicken oder die Ordnerstruktur als Themenbaum-Entwurf uebernehmen. Zurueck kommen nur Ordnernamen und Zahlen, keine Dateinamen.",
     "wann": [
       "die Person hat Materialien in Ordnern und will daraus eine Sammlungsstruktur oder einen Themenbaum machen",
       "die Person will einen Ordner mit Dateien einbringen, sichten oder ordnen",
@@ -2194,6 +2194,10 @@
             "ablage_in_wlo": {
               "type": "boolean",
               "description": "Duerfen Inhalte in WLO abgelegt werden."
+            },
+            "ablage_nach_anmeldung": {
+              "type": "boolean",
+              "description": "Inhalte liessen sich nach der WLO-Anmeldung in WLO ablegen (Rueckmeldung 16.11.)."
             }
           }
         },

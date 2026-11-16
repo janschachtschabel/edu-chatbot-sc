@@ -80,6 +80,10 @@ export function ansichtTeile(s: UploadSicht): Node[] {
   } else {
     teile.push(...befund(s, s.erfassung));
   }
+  // Rückmeldung 16.11.: die Ablage ist ab Werk an — ohne Anmeldung die Voraussetzung nennen, vor
+  // und nach dem Erfassen (Review n11: danach fehlte der Übertragen-Abschnitt sonst ohne Grund)
+  const ablageSchalter = s.daten['schalter'] as Record<string, unknown> | undefined;
+  if (ablageSchalter?.['ablage_nach_anmeldung'] === true) teile.push(knoten('p', 'u__hinweis', t.ablageNachAnmeldung));
   teile.push(knoten('p', 'u__hinweis', datenschutz(s, t)));
   return teile;
 }

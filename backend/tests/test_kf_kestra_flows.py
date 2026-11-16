@@ -81,9 +81,28 @@ def test_ohne_studio_liste_gilt_die_umgebung_wie_bisher(umgebung, monkeypatch):
     assert client.erlaubt("wlo/volltext") and client.freigeschaltete_flows() == ["wlo/volltext"]
 
 
-def test_ohne_freigabe_sind_auftraege_aus(umgebung):
-    assert not client.freigeschaltet() and not client.erlaubt("wlo/volltext")
-    assert client.freigeschaltete_flows() == []
+def test_ohne_freigabe_gilt_die_werksvorgabe(umgebung):
+    """Rückmeldung 16.11. (Review M1/M2): ohne Studio-Liste und ohne ``B_API_JOBS_FLOWS`` ist der
+    Metadaten-Flow freigegeben — im Code, nicht im Seed: ein Seed nähme Anlagen mit gesetzter
+    Variable still Flows weg und sperrte ihren Werksabgleich."""
+    assert not client.erlaubt("wlo/volltext")
+    assert client.freigeschaltete_flows() == ["edusharing.chatbot/node-metadata-write"]
+
+
+def test_eine_gesetzte_umgebung_schlaegt_die_werksvorgabe(umgebung, monkeypatch):
+    monkeypatch.setenv("B_API_JOBS_FLOWS", "wlo/volltext, wlo/datei-zu-markdown")
+    get_settings.cache_clear()
+    assert client.freigeschaltete_flows() == ["wlo/datei-zu-markdown", "wlo/volltext"]
+    assert not client.erlaubt("edusharing.chatbot/node-metadata-write")
+
+
+def test_der_seed_der_freigabe_bleibt_leer():
+    import pathlib
+
+    import yaml
+
+    seed = pathlib.Path(__file__).parents[1] / "seeds" / "01-base" / "kestra-flows.yaml"
+    assert yaml.safe_load(seed.read_text(encoding="utf-8"))["kestra"]["flows"] == []
 
 
 def test_ein_unsicherer_start_pfad_schaltet_aus(umgebung, monkeypatch):
@@ -339,3 +358,56 @@ def test_review_tw6_5_der_waechter_nur_einzeln_und_nur_fuer_entzogenes(monkeypat
     # ein Satz Bereiche (Werksabgleich, Wiederherstellen) prüft den Wächter nicht
     monkeypatch.setattr(client, "load_kestra_flows", lambda: ["wlo/nie-frei"])
     pruefe_bereiche({"01-base/kestra-flows": {"kestra": {"flows": []}}}, "de")
+
+
+# ── Rückmeldung 16.11.: ein Flow ohne Freigabe sperrt nur einen Schritt ohne Ersatzweg ─────────
+
+def _mit_auftrag(**auftrag):
+    from boerdi.domain.config_models.ablauf import AblaufArea
+
+    return AblaufArea.model_validate({
+        "id": "probe", "titel": {"de": "Probe"}, "aktiv": True, "ausloeser": [{"art": "knopf"}],
+        "voraussetzungen": ["anmeldung"],
+        "schritte": [
+            {"id": "frage", "typ": "nachricht", "text": {"de": "Los?"}, "optionen": [
+                {"id": "ja", "label": {"de": "Ja"}, "ziel": "job"}]},
+            {"id": "job", "typ": "auftrag", "flow": "wlo/volltext", "argumente": {},
+             "schreibt": "ergebnis", "repo_schreibt": True, **auftrag},
+            {"id": "ende", "typ": "ende", "text": {"de": "Fertig."}},
+            {"id": "ersatz", "typ": "ende", "text": {"de": "Ohne Flow weiter."}}]})
+
+
+def test_rueckmeldung_1611_mit_ersatzweg_ist_ein_fehlender_flow_nur_ein_hinweis(umgebung):
+    """Der WLO-Weg ist ab Werk an. Wo die b-api keine Aufträge einrichtet, nimmt der Schritt zur
+    Laufzeit ``bei_fehler`` — eine Sperre brach sonst den Werksabgleich."""
+    from boerdi.services.ablauf import pruefung
+
+    ablauf = _mit_auftrag(bei_fehler="ersatz")
+    assert pruefung.pruefe(ablauf) == []
+    assert any("wlo/volltext" in w and "ersatz" in w for w in pruefung.warnungen(ablauf))
+
+
+def test_rueckmeldung_1611_ohne_ersatzweg_sperrt_er_weiter(umgebung):
+    from boerdi.services.ablauf import pruefung
+
+    assert any("wlo/volltext" in b for b in pruefung.pruefe(_mit_auftrag()))
+
+
+def test_rueckmeldung_1611_ein_schritt_mit_ersatzweg_sperrt_das_entziehen_nicht(monkeypatch):
+    """Review m4: die Prüfung duldet einen nicht freigegebenen Flow mit ``bei_fehler`` — dann darf
+    die Redaktion ihn auch aus der Freigabe nehmen (etwa den ab Werk aktiven Metadaten-Ablauf)."""
+    from boerdi.api.config_guards import _assert_area_document_safe
+    from boerdi.domain.config_models.ablauf import AblaufArea
+    from boerdi.services.ablauf import ausloeser
+
+    mit_ersatz = AblaufArea.model_validate({
+        "id": "mit_ersatz", "titel": {"de": "A"}, "aktiv": True,
+        "voraussetzungen": ["anmeldung"], "ausloeser": [{"art": "knopf"}],
+        "schritte": [{"id": "lauf", "typ": "auftrag", "flow": "wlo/volltext",
+                      "schreibt": "text", "weiter": "ende", "bei_fehler": "ende"},
+                     {"id": "ende", "typ": "ende", "text": {"de": "fertig"}}]})
+    monkeypatch.delenv("B_API_JOBS_FLOWS", raising=False)
+    get_settings.cache_clear()
+    monkeypatch.setattr(ausloeser, "katalog", lambda: [mit_ersatz])
+    monkeypatch.setattr(client, "load_kestra_flows", lambda: ["wlo/volltext"])
+    _assert_area_document_safe("01-base/kestra-flows", {"kestra": {"an": False, "flows": []}}, "de")

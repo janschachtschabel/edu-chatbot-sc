@@ -170,7 +170,9 @@ def test_der_starter_der_probe_braucht_keine_b_api(monkeypatch):
     probe.binde(True)
     starte = auftrag_zug.starter()
     assert starte is not None
-    job = asyncio.run(starte("ns/flow", {"a": 1}))
+    # Rückmeldung 16.11.: ab Werk gilt der Metadaten-Flow als freigegeben — ein anderer scheitert
+    # in der Probe wie im Betrieb (Review AS-8a, Befund 5)
+    job = asyncio.run(starte("edusharing.chatbot/node-metadata-write", {"a": 1}))
     assert auftraege.ist_trocken(job) and auftraege._ID.fullmatch(job)
 
 

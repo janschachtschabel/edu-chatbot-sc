@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Final
 from boerdi.api.schemas_debug import ToolOutcome
 from boerdi.domain.ui_bloecke import neuer_block
 from boerdi.services.config_loader.upload import load_upload_config
+from boerdi.services.mcp import faehigkeiten
 from boerdi.services.mcp.auth import has_personal_auth
 from boerdi.ui_module import katalog
 from boerdi.ui_module.datenquelle import Ergebnis
@@ -25,12 +26,15 @@ if TYPE_CHECKING:
     from boerdi.ui_module.aufruf import Umgebung
 
 GRENZEN: Final = {"max_dateien": 500, "max_tiefe": 8, "max_mb_datei": 50}
+#: Das erste Werkzeug der Stapel-Ablage (``services/ablage/mcp_ablage``).
+ABLAGE_WERKZEUG: Final = "wlo_prepare_file_batch"
 
 #: Textfassung für Widgets ohne das Modul (ältere Einbettung, Bündel nicht ladbar).
 TEXTFASSUNG: Final = ("Hier würde ein Auswahlfeld für einen Ordner erscheinen. Lädt es nicht, "
                       "bitte das Chat-Fenster neu laden.")
 QUITTUNG: Final = ("OK: Unter deiner Antwort steht ein Auswahlfeld, in dem die Person einen "
-                   "Ordner wählen oder ablegen kann; hochgeladen wird dabei nichts. Sag in einem "
+                   "Ordner wählen oder ablegen kann; hochgeladen wird nur, was sie ausdrücklich "
+                   "lesen lässt oder nach WLO überträgt. Sag in einem "
                    "Satz, was sie tun soll. Ihr Befund (Ordner und Zahlen) kommt im nächsten Zug. "
                    "Dein Zug endet hier — rufe kein weiteres Werkzeug.")
 FEHLER: Final = "Fehler: Das Auswahlfeld ließ sich nicht erzeugen. Antworte ohne es."
@@ -74,12 +78,18 @@ def _ohne_grund(cfg_an: bool, anmeldung_hilft: bool) -> str:
 
 def schalter() -> dict[str, bool]:
     cfg = load_upload_config()
+    # Rückmeldung 16.11. (Review m6): die Ablage nur, wenn der MCP-Server die Stapel-Ablage führt
+    ablage = cfg.ablage_in_wlo and faehigkeiten.kennt_werkzeug(ABLAGE_WERKZEUG)
     werte = {"dokument_im_chat": dokument_erlaubt(),
-             "ablage_in_wlo": cfg.ablage_in_wlo and has_personal_auth()}
+             "ablage_in_wlo": ablage and has_personal_auth()}
     if cfg.dokument_im_chat and not cfg.dokument_ohne_anmeldung and not has_personal_auth():
         # Paket R3-b: den Hinweis schreibt die KI, bevor sie die Schalter kennt — das Modul nennt
         # gleich darunter, dass Lesen erst nach der Anmeldung geht
         werte["lesen_nach_anmeldung"] = True
+    if ablage and not has_personal_auth():
+        # Rückmeldung 16.11.: die Ablage ist ab Werk an — ohne Anmeldung nennt das Feld die
+        # Voraussetzung, statt den Weg zu verstecken
+        werte["ablage_nach_anmeldung"] = True
     return werte
 
 
@@ -97,8 +107,20 @@ async def upload_angebot(manifest: Manifest, args: dict[str, Any], umgebung: Umg
     if katalog.daten_fehler(manifest, daten):
         return Ergebnis(None, FEHLER, ToolOutcome(tool=modul, status="error", error="abweichung"))
     block = neuer_block(modul, manifest["version"], manifest["art"], daten, TEXTFASSUNG)
-    return Ergebnis(block, QUITTUNG + _was_geht(daten["schalter"]),
+    schalter_ = daten["schalter"]
+    return Ergebnis(block, QUITTUNG + _was_geht(schalter_) + _ablage_satz(schalter_),
                     ToolOutcome(tool=modul, status="success", item_count=1))
+
+
+def _ablage_satz(schalter: dict[str, bool]) -> str:
+    """Rückmeldung 16.11. (Review m5): die Ablage ist ab Werk an — die KI soll sie nicht verneinen
+    und die Voraussetzung kennen."""
+    if schalter.get("ablage_in_wlo"):
+        return (" Die Person kann die erfassten Dateien im Feld in ihren persönlichen Bereich in "
+                "WLO übertragen; dort entstehen Volltexte und auf Wunsch Metadaten.")
+    if schalter.get("ablage_nach_anmeldung"):
+        return " Nach WLO übertragen kann sie die Dateien, wenn sie bei WLO angemeldet ist."
+    return ""
 
 
 def _was_geht(schalter: dict[str, bool]) -> str:

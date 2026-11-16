@@ -160,7 +160,9 @@ def test_der_flow_katalog_ist_leer_ohne_eingerichtete_auftraege(monkeypatch):
     monkeypatch.setenv("B_API_JOBS_START_PATH", "")
     get_settings.cache_clear()
     try:
-        assert config_choices._SOURCES["ablauf_flows"]() == []
+        # Rückmeldung 16.11.: ohne Studio-Liste und Variable gilt die Werksvorgabe des Codes
+        assert [z["value"] for z in config_choices._SOURCES["ablauf_flows"]()] == [
+            "edusharing.chatbot/node-metadata-write"]
         monkeypatch.setenv("B_API_JOBS_FLOWS", "wlo/volltext")
         monkeypatch.setenv("B_API_JOBS_START_PATH", "//boese.example/{flow}")
         get_settings.cache_clear()
@@ -214,6 +216,9 @@ _GOLD = {
 def _gold_faelle() -> dict:
     a = copy.deepcopy(_SCHRITTE)
     a[0] = {**a[0], "weiter": "nirgends"}
+    # Rückmeldung 16.11.: mit Ersatzweg sperrt ein nicht freigegebener Flow nicht mehr — ohne ihn
+    # meldet die Prüfung wie vor K2c-1
+    a[0].pop("bei_fehler", None)
     a.append({"id": "fertig", "typ": "ende", "text": {"de": "Nochmal."}})
     b = [{"id": "start", "typ": "nachricht", "text": {"de": "Hallo"}, "weiter": "mitte"},
          {"id": "insel", "typ": "nachricht"},

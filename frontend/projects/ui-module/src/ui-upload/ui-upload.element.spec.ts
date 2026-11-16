@@ -376,6 +376,20 @@ describe('<boerdi-ui-upload> Strukturdokument lesen (U3-2c)', () => {
       .not.toContain('Ein Dokument lesen lassen geht erst, wenn du bei WLO angemeldet bist.');
   });
 
+  it('Rückmeldung 16.11.: ohne Anmeldung nennt das Feld die Voraussetzung der Ablage', () => {
+    const satz = 'Dateien in deinen persönlichen Bereich in WLO übertragen – dort entstehen Volltexte '
+      + 'und Metadaten – geht, wenn du bei WLO angemeldet bist.';
+    const { wurzel } = erzeuge({}, host(), {
+      ...DATEN, schalter: { dokument_im_chat: true, ablage_in_wlo: false, ablage_nach_anmeldung: true },
+    });
+    expect([...wurzel.querySelectorAll('.u__hinweis')].map((p) => p.textContent)).toContain(satz);
+    const angemeldet = erzeuge({}, host(), {
+      ...DATEN, schalter: { dokument_im_chat: true, ablage_in_wlo: true },
+    }).wurzel;
+    expect([...angemeldet.querySelectorAll('.u__hinweis')].map((p) => p.textContent))
+      .not.toContain(satz);
+  });
+
   it('Datenschutz-Hinweis sagt, dass nur ein Strukturdokument hochgeladen wird', () => {
     const { wurzel } = erzeuge({}, host(), MIT_DOKUMENT);
     expect(wurzel.textContent).toContain('erst hochgeladen, wenn du es lesen lässt');

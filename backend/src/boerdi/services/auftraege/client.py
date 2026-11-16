@@ -118,6 +118,14 @@ class Stand:
 START_PFAD_VORGABE: Final = "/api/v1/jobs/flows/{flow}"
 
 
+#: Rückmeldung 16.11. (Review M1/M2): ab Werk freigegeben, solange weder das Studio noch
+#: ``B_API_JOBS_FLOWS`` etwas festlegen — der Metadaten-Flow des Wegs „Themenbaum aus eigenen
+#: Inhalten“ (der MCP legt die Knoten an, der Flow erzeugt mit ihren IDs Volltexte und Metadaten).
+#: Im Code, nicht im Seed: ein Seed-Eintrag wirkte als Studio-Liste und nähme einer Anlage mit
+#: gesetzter Variable still alle anderen Flows; sein Werksabgleich scheiterte sonst an der Grenze.
+WERKSVORGABE: Final = frozenset({"edusharing.chatbot/node-metadata-write"})
+
+
 def _obergrenze() -> frozenset[str] | None:
     """``B_API_JOBS_FLOWS`` — ``None``, wenn nicht gesetzt."""
     roh = frozenset(f.strip() for f in get_settings().b_api_jobs_flows.split(",") if f.strip())
@@ -129,7 +137,7 @@ def _flows() -> frozenset[str]:
     obergrenze = _obergrenze()
     studio = studio_flows()
     if studio is None:
-        return obergrenze or frozenset()
+        return obergrenze or WERKSVORGABE
     return frozenset(studio) if obergrenze is None else frozenset(studio) & obergrenze
 
 

@@ -46,6 +46,13 @@ def kennt(werkzeug: str, parameter: str) -> bool:
     return parameter in _parameter.get(werkzeug, {})
 
 
+def kennt_werkzeug(werkzeug: str) -> bool:
+    """Führt der Server ``werkzeug`` überhaupt? ``False``, solange das offen ist (Rückmeldung
+    16.11., Review m6: die Ablage nach WLO ist ab Werk an — angeboten nur, wenn der Server die
+    Stapel-Ablage kennt; sonst scheiterte sie erst nach der Vorschau)."""
+    return werkzeug in _parameter
+
+
 def kennt_wert(werkzeug: str, parameter: str, wert: str) -> bool:
     """Nennt der Server ``wert`` in der Aufzählung (``enum``) von ``parameter``? N2 (2026-11-14):
     ein neuer Wert an einem alten Parameter, etwa ``contentType`` an ``vocabulary``."""

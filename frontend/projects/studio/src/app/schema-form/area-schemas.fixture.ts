@@ -4854,7 +4854,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "boolean"
           },
           "ablage_in_wlo": {
-            "default": false,
+            "default": true,
             "title": "Ablage In Wlo",
             "type": "boolean"
           },
@@ -4891,7 +4891,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": {
           "dokument_im_chat": true,
           "dokument_ohne_anmeldung": true,
-          "ablage_in_wlo": false,
+          "ablage_in_wlo": true,
           "max_mb": 10,
           "max_seiten": 300,
           "aufbewahrung_h": 24

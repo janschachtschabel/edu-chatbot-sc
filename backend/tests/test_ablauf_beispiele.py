@@ -23,7 +23,9 @@ def test_die_beispiele_des_handbuchs_liegen_als_seeds_vor():
     assert {"sammlungsstruktur", "sammlung_pruefen", "fuehrung"} <= namen
 
 
-_AN = {"themenbaum_aus_thema", "themenbaum_aus_dokument", "sammlungsstruktur"}
+# Rückmeldung 16.11.: der WLO-Weg für eigene Inhalte ist ab Werk an
+_AN = {"themenbaum_aus_thema", "themenbaum_aus_dokument", "sammlungsstruktur",
+       "themenbaum_aus_inhalten"}
 
 
 @pytest.mark.parametrize("datei", _BEISPIELE, ids=lambda p: p.stem)

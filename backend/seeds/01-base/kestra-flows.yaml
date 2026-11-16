@@ -5,5 +5,9 @@
 # - Leer: es gelten die Flows aus B_API_JOBS_FLOWS (wie vor dem Paket).
 # - Datenschutz: Eingaben und Ausgaben eines Auftrags liegen bei Kestra 30 Tage im Klartext.
 #   Nur Flows freigeben, deren Eingaben (Teile des Vorgangs, etwa ein Dokument) dort liegen dürfen.
+# - Leer und ohne B_API_JOBS_FLOWS (Rückmeldung 16.11.): die Werksvorgabe des Codes
+#   (services/auftraege/client.WERKSVORGABE), der Metadaten-Flow edusharing.chatbot/node-metadata-write
+#   des Ablaufs „Themenbaum · aus eigenen Inhalten“. Bewusst nicht hier: ein Eintrag wirkte als
+#   Studio-Liste und nähme einer Anlage mit gesetzter Variable alle anderen Flows.
 kestra:
   flows: []
