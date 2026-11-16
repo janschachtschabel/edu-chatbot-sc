@@ -378,7 +378,7 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 | [`ui_trefferliste`](../frontend/projects/ui-module/src/ui-trefferliste/README.md) | anzeigen | abgeleitet aus `cards`, `query_metas`, `pagination` | — | oeffnen | unten | U1-c2 |
 | [`ui_entscheidung`](../frontend/projects/ui-module/src/ui-entscheidung/README.md) | abfragen | Modul-Werkzeug (`agent: true`) | — | antworten | oben | U1-d |
 | [`ui_themenbaum`](../frontend/projects/ui-module/src/ui-themenbaum/README.md) | anzeigen | Modul-Werkzeug; Direktaktion `show_collection_tree` | `browse_collection_tree` (mit `order: "position"`, wenn der Server den Wert führt, SW-5) (`depth: 2`, `maxResults: 31`) | oeffnen, nachladen | oben | U1-e, U1-h |
-| [`ui_strukturentwurf`](../frontend/projects/ui-module/src/ui-strukturentwurf/README.md) | abfragen, **nachgeladen** (seit BU-2) | Modul-Werkzeug mit **Dienst** `strukturentwurf`; Direktaktion `edit_collection_as_draft` (Brücke aus dem Themenbaum); „Als Themenbaum-Entwurf übernehmen“ in `ui_upload` (`quelle: ordner`) | — | antworten, herunterladen | oben | U2 |
+| [`ui_strukturentwurf`](../frontend/projects/ui-module/src/ui-strukturentwurf/README.md) | abfragen, **nachgeladen** (seit BU-2) | Modul-Werkzeug mit **Dienst** `strukturentwurf`; Direktaktion `edit_collection_as_draft` (Brücke aus dem Themenbaum); Werkzeug `strukturentwurf_aus_ordnern` im Ablauf „aus Ordnern“ (`quelle: ordner`; der Knopf in `ui_upload` ist seit TG-2 entfallen) | — | antworten, herunterladen | oben | U2 |
 | [`ui_upload`](../frontend/projects/ui-module/src/ui-upload/README.md) | abfragen, **nachgeladen** (`laden: bei_bedarf`) | Modul-Werkzeug mit **Dienst** `upload_angebot` | — | antworten, hochladen, oeffnen | oben | U3-1, U3-2, U3-3 |
 | [`ui_strukturabgleich`](../frontend/projects/ui-module/src/ui-strukturabgleich/README.md) | anzeigen, **nachgeladen** | Modul-Werkzeug mit **Dienst** `strukturabgleich` (ohne LLM; liest den Teil `draft`); mit `abdeckung: true` Lücken in ganz WLO | `browse_collection_tree` im Dienst (`depth: 2`, mit Inhaltszahlen; `dienst.braucht`); führt der Server `list_collection_tree`, liest der Dienst damit bis Ebene 4 (SW-4); `count_wlo_content_matches` nur, wenn im Zug angeboten | oeffnen | oben | U4, U5 |
 | [`ui_fortschritt`](../frontend/projects/ui-module/src/ui-fortschritt/README.md) | anzeigen, **nachgeladen** | nur der Ablauf-Treiber, wenn ein `auftrag`-Schritt startet (`agent: false`) | — | auftrag | oben | K1b, K2b (Abbrechen) |
@@ -392,11 +392,18 @@ entwerfen“; „entwirf / gliedere / neue Struktur / Unterrichtsreihe“ → En
 
 **Ordner erfassen (U3-1):** `ui_upload` liest einen Ordner im Browser (Knopf oder Ablegen) und zeigt
 ihn als Baum mit Dateizahlen; die Person setzt Rollen (Inhalt, Strukturdokument, ignorieren). Zurück
-gehen nur Ordnernamen und Zahlen, nie Dateinamen; hochgeladen wird nichts. „Als Themenbaum-Entwurf
-übernehmen“ formt die Ordner im Backend ohne LLM zu einem Strukturentwurf
-(`ui_module/strukturentwurf_ordner.py`, `services/ordner_aktion.py`, Haken in `graph/nodes/preflight`
-hinter derselben Sicherheitsprüfung wie Direktaktionen). Die Antwortformen abfragender Module stehen
-seit U3-1 in einem Verzeichnis (`ui_module/antwort_formen.py`).
+gehen Ordner- und Dateinamen mit Zahlen; hochgeladen wird nichts. Seit Plan 2026-11-16, TG-3a trägt
+jeder Ordner seine Dateien (`dateiliste`: feste Nummer `i`, Name, Endung, Größe, Rolle) — daraus wird
+der Teil `struktur` (`wlo.auswahl@1`), daneben bleibt `structure` (nur Ordner) als abgeleitete
+Sicht. Die KI sieht davon nur eine Zusammenfassung („12 Dateien in 3 Ordnern, davon 1
+Strukturdokument“), nie die Namen; die Sicherheitsprüfung liest sie gedeckelt. Beim Übertragen nach
+WLO trägt jede Datei dieselbe Nummer `i` (TG-3b, Teil `ablage`). Seit Plan 2026-11-16
+(TG-1/TG-2) ist das Feld **zielneutral** (`zweck: bereitstellen`): es stellt nur bereit, der Knopf
+„Als Themenbaum-Entwurf übernehmen“ (Entwurf ohne LLM) ist entfallen. Die Rahmen `[ORDNER …]` und
+`[DOKUMENT …]` sagen, was bereitliegt; die KI fragt, was die Person damit will, und schlägt Abläufe
+vor. Alte Antworten (`ordner_als_entwurf`, `dokument.ziel`) hebt die Antwortform vor der
+Schema-Prüfung an (`Form.rueckwaerts`). Die Antwortformen abfragender Module stehen seit U3-1 in
+einem Verzeichnis (`ui_module/antwort_formen.py`).
 
 **Strukturdokument lesen (U3-2):** Ist in `ui_upload` ein Strukturdokument markiert und erlaubt es
 das System (Studio „UI-Module → Hochladen“, Bereich `01-base/upload-config`; ohne WLO-Anmeldung nur
@@ -404,8 +411,14 @@ mit `dokument_ohne_anmeldung`), lädt das Modul genau diese Datei über die Host
 an `POST /api/ui/dokumente`. Das Backend wandelt sie um (Kindprozess, Frist), gliedert sie, lässt
 Übersicht und Anfang moderieren und legt Markdown + Gliederung an der Sitzung ab
 (`dokument_uploads`, Frist nach letzter Nutzung, Aufbewahrungslauf); die Rohdatei bleibt nicht
-liegen. Das Modul antwortet mit dem Befund und einem **Ziel** (heute `themenbaum`); der Rahmen
-`[DOKUMENT DER PERSON …]` sagt der KI, `ui_strukturentwurf` mit `aus_dokument: true` zu rufen. Der
+liegen. Das Modul antwortet auf „Lesen lassen“ mit dem Befund, ohne Ziel (TG-1); der Rahmen
+`[DOKUMENT DER PERSON …]` sagt der KI nur, was bereitliegt. Plan 2026-11-16, TG-3d/TG-3e: bis zu
+fünf Strukturdokumente je Sitzung (Migration 0023), nacheinander gelesen; der Teil
+`strukturdokument` im Vorgang verweist auf alle (Quelle `chatbot` mit `dokument:<id>`, nach der
+Ablage in WLO Quelle `wlo` mit der node_id), ein Leser (`services/dokumente/strukturdokument`) holt
+den Text je Quelle. Mehrere werden für den Entwurf ein Dokument mit einem Abschnitt oberster Ebene je
+Dokument (Kennungen `d1-a3`, Fundstelle „Dokument › Abschnitt“), alle Deckel gelten insgesamt. Will die Person einen Themenbaum
+daraus, ruft ein Ablauf oder die KI `ui_strukturentwurf` mit `aus_dokument: true`. Der
 Dienst liest das Dokument serverseitig über einen Lader in der Umgebung (`services/dokumente/stand`):
 Ebene 1 sieht Gliederung (≤ 8000) und Anfang (≤ 1500), Ebene 2 den Text der zugeordneten Abschnitte
 (≤ 6000) — jeder solche Auszug geht vorher einmal durch die Moderation (beanstandet oder ohne Urteil
