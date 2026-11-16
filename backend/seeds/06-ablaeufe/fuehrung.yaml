@@ -1,29 +1,31 @@
-# Ablauf „Führung durch WLO“ — Nachbau der eingebauten Web-Tour (Plan
-# docs/plans/2026-11-15-webseitenfuehrung-als-ablauf.md, WF-6). Erzeugt aus
-# 01-base/website-tour.yaml: dieselben Texte (de/en), Gruppen, Synonyme, Zielseiten und Angebote.
-# Ändert die Redaktion die eingebaute Tour, gilt diese Fassung weiter, bis sie hier nachzieht.
+# Ablauf „Führung durch WLO“ — Nachbau der eingebauten Web-Tour mit denselben Texten und
+# Verzweigungen. ERZEUGT von backend/scripts/fuehrung_aus_tour.py aus 01-base/website-tour.yaml
+# (die Texte kommen aus domain/tour.render) — nicht von Hand ändern, sondern das Skript neu laufen
+# lassen. tests/test_fuehrung_wie_tour.py vergleicht beide.
 #
-# Bewusste Abweichungen vom Original (Plan, Entscheide E2, E3 und WF-2):
-# - Pfade relativ statt base_host: der Chip öffnet die Seite auf dem Host, auf dem das Widget läuft.
-# - Lehrkraft, Lernende und Eltern stehen vor Content-Abnehmer — „Lehrerin an einer Grundschule“
-#   landete im Original wegen „schule“ bei Content-Abnehmer.
-# - Wie im Original endet die Führung still, wenn die Person in einem Seiten-Schritt etwas Eigenes
-#   tippt oder an der Gruppenwahl zum zweiten Mal nichts trifft (endet_bei_text); die Nachricht
-#   geht an den Chat.
-# - Das Synonym „oer“ fehlt (es steckt in „Boerdi“); „OER-Community“ und „oer community“ treffen.
-# - Das Widget öffnet sich von selbst, solange ein Seiten-Schritt wartet (das Original in jedem
-#   Schritt).
-# - Beim Einstieg mitten drin folgt auf den Einstiegstext der volle Lösungen-Text.
+# Das Skript liest den Seed website-tour.yaml, nicht eine im Studio geänderte Tour: Ändert die
+# Redaktion die Tour im Studio, bleibt die Führung, bis jemand den Seed nachzieht und das Skript
+# neu laufen lässt.
 #
-# Aus, bis die Redaktion sie einschaltet (aktiv: true) und die eingebaute Tour abschaltet
-# (01-base/website-tour.yaml: enabled: false).
+# Was eine Führung als Ablauf anders macht als die eingebaute Tour:
+# - Pfade relativ statt base_host — der Chip und die Links in den Texten öffnen die Seite auf dem
+#   Host, auf dem das Widget läuft (in einer Studio-Probe oder Fremdeinbettung der Chatbot-Host).
+# - Die Ablauf-Leiste („Schritt n von m“, „Ablauf abbrechen“) steht über dem Chat.
+# - Das Widget öffnet sich von selbst, solange ein Seiten-Schritt wartet (die Tour in jedem
+#   Schritt); ein Seitenwechsel während der Gruppenwahl zeigt die Wahl nicht erneut.
+# - „Bin mir nicht sicher“ im Hilfetext zeigt den Hilfetext noch einmal; die Tour endete dort.
+# - Die Antworten tragen nicht das Etikett „KI-generierte Antwort“ (fester Text der Redaktion).
+#
+# Aus, bis die Redaktion sie einschaltet (aktiv) und die eingebaute Tour abschaltet
+# (Tour & Lotse: website_tour.enabled = false).
 id: fuehrung
 titel:
   de: Führung durch WLO
   en: Tour of WLO
-beschreibung: 'Führt in wenigen Schritten durch WirLernenOnline: Selbstzuordnung, die Seite der eigenen
-  Gruppe, die Bildungsinhalte, passende Angebote und am Ende die Mitmach-Seite für eine Anfrage. Steigt
-  mitten ein, wenn die Person schon auf einer Zielgruppen- oder Angebotsseite ist.'
+beschreibung: 'Nachbau der eingebauten Web-Tour mit denselben Texten und Verzweigungen: Selbstzuordnung,
+  die Seite der eigenen Gruppe, die Bildungsinhalte, passende Angebote und am Ende die Mitmach-Seite.
+  Steigt wie die Tour mitten ein, wenn die Person schon auf einer Zielgruppen-, Angebots- oder Mitmach-Seite
+  ist.'
 wann:
 - Die Person möchte WLO kennenlernen, eine Führung über die Webseite oder sucht den Weg zum Mitmachen
 aktiv: false
@@ -71,28 +73,40 @@ schritte:
     - /angebote/wlo-redaktionssoftware
     - /angebote/redaktionelle-arbeiten
     - /angebote/metadaten-verbessern-lassen
+    dann: einstieg_redaktionen
+  - wenn_seite:
     - /mitmachen/ueber-wlo
     - /mitmachen/faq
+    dann: einstieg_presse
+  - wenn_seite:
     - /home/contentanbieter
     - /angebote/wlo-inhalte-fuer-deine-suchmaschine
     - /angebote/automatisierte-quellenerschliessung
-    - /home/oer-community
-    dann: einstieg
+    dann: einstieg_contentanbieter
   - wenn_seite:
-    - /fachportale
-    - /bildungsinhalte
-    - /bildungsinhalte/oer
     - /home/abnehmer-bildungs-und-wissensinhalte
     - /angebote/integrationen-fuer-lernplattformen-und-web-cms
     - /angebote/bildungs-api
+    dann: einstieg_abnehmer
+  - wenn_seite:
+    - /home/oer-community
+    - /fachportale
+    - /bildungsinhalte
+    - /bildungsinhalte/oer
+    dann: einstieg_lehrkraft
+  - wenn_seite:
     - /angebote/think-tank
+    dann: einstieg_oer_community
+  - wenn_seite:
     - /home/software-betreiber
     - /angebote/souveraenes-ki-oekosystem
+    dann: einstieg_software_betreiber
+  - wenn_seite:
     - /home/bildungsinfrastruktur-mitgestalten
-    dann: einstieg
+    dann: einstieg_software_hersteller
   - wenn_seite:
     - /home/wlo-fuer-politik
-    dann: einstieg
+    dann: einstieg_politik
   - wenn_seite:
     - /mitmachen/*
     dann: kontakt
@@ -100,35 +114,51 @@ schritte:
 - id: intro
   typ: seite
   text:
-    de: Schön, dass du da bist! 🎉 Ich zeig dir in ein paar Schritten, was WirLernenOnline für **dich**
-      bietet — und bring dich am Ende direkt dahin, wo du eine Anfrage stellen oder mitmachen kannst.
-      Los geht's auf der Startseite. 👇
-    en: Great to have you here! 🎉 In a few steps I'll show you what WirLernenOnline has for **you** —
-      and at the end I'll take you straight to where you can send an enquiry or get involved. Let's start
-      on the home page. 👇
+    de: 'Schön, dass du da bist! 🎉 Ich zeig dir in ein paar Schritten, was
+
+      WirLernenOnline für **dich** bietet — und bring dich am Ende direkt
+
+      dahin, wo du eine Anfrage stellen oder mitmachen kannst. Los geht''s
+
+      auf der Startseite. 👇'
+    en: 'Great to have you here! 🎉 In a few steps I''ll show you what
+
+      WirLernenOnline has for **you** — and at the end I''ll take you straight to
+
+      where you can send an enquiry or get involved. Let''s start on the home
+
+      page. 👇'
   url: /home/
   label:
     de: Zur Startseite
     en: To the home page
   ankunft:
   - /home
-  abweichung: &id001
-    de: 'Du bist gerade woanders unterwegs. Wenn du mit der Tour weitermachen möchtest, bring ich dich
-      zum nächsten Halt: 👇'
-    en: 'You''re somewhere else at the moment. If you''d like to carry on with the tour, I''ll take you
-      to the next stop: 👇'
+  abweichung: &id003
+    de: 'Du bist gerade woanders unterwegs. Wenn du mit der Tour weitermachen
+
+      möchtest, bring ich dich zum nächsten Halt: 👇'
+    en: 'You''re somewhere else at the moment. If you''d like to carry on with the
+
+      tour, I''ll take you to the next stop: 👇'
   weiter: gruppe
 - id: gruppe
   typ: nachricht
   text:
-    de: 'Du bist auf der **Startseite**. 👇 Weiter unten stellen wir die verschiedenen Besucher-Gruppen
-      vor — du kannst dich aber auch direkt hier einordnen. Damit ich dir die passenden Angebote zeigen
-      kann: Als was bist du gerade unterwegs?'
-    en: 'You''re on the **home page**. 👇 Further down we introduce the different visitor groups — but
-      you can also place yourself right here. So I can show you the offers that fit: what brings you here
-      today?'
+    de: 'Du bist auf der **Startseite**. 👇 Weiter unten stellen wir die
+
+      verschiedenen Besucher-Gruppen vor — du kannst dich aber auch direkt
+
+      hier einordnen. Damit ich dir die passenden Angebote zeigen kann:
+
+      Als was bist du gerade unterwegs?'
+    en: 'You''re on the **home page**. 👇 Further down we introduce the
+
+      different visitor groups — but you can also place yourself right here.
+
+      So I can show you the offers that fit: what brings you here today?'
   schreibt: gruppe
-  optionen:
+  optionen: &id002
   - id: redaktionen
     label:
       de: Redaktionen
@@ -173,6 +203,19 @@ schritte:
     - material anbieten
     - inhalte anbieten
     - inhalte bereitstellen
+  - id: abnehmer
+    label:
+      de: Content-Abnehmer
+      en: Content consumers
+    ziel: zur_gruppenseite
+    synonyme:
+    - abnehmer
+    - content abnehmer
+    - inhalte nutzen
+    - inhalte beziehen
+    - lernplattform
+    - schule
+    - nutze inhalte
   - id: lehrkraft
     label:
       de: Lehrkraft
@@ -232,25 +275,13 @@ schritte:
     - zuhause lernen
     - hausaufgaben
     - nachhilfe
-  - id: abnehmer
-    label:
-      de: Content-Abnehmer
-      en: Content consumers
-    ziel: zur_gruppenseite
-    synonyme:
-    - abnehmer
-    - content abnehmer
-    - inhalte nutzen
-    - inhalte beziehen
-    - lernplattform
-    - schule
-    - nutze inhalte
   - id: oer_community
     label:
       de: OER-Community
       en: OER community
     ziel: zur_gruppenseite
     synonyme:
+    - oer
     - community
     - oer community
     - freie bildungsmaterialien
@@ -317,19 +348,38 @@ schritte:
       de: Bin mir nicht sicher
       en: I'm not sure
     ziel: unsicher
-  kein_treffer:
-    de: Kein Problem! Sag mir einfach grob, was dich zu WLO führt — zum Beispiel „ich suche Material",
-      „ich biete Inhalte an" oder „ich entwickle Software" — dann ordne ich dich passend ein.
-    en: No problem! Just tell me roughly what brings you to WLO — for example "I'm looking for material",
-      "I offer content" or "I develop software" — and I'll place you accordingly.
+  kein_treffer: &id001
+    de: 'Kein Problem! Sag mir einfach grob, was dich zu WLO führt — zum
+
+      Beispiel „ich suche Material", „ich biete Inhalte an" oder „ich
+
+      entwickle Software" — dann ordne ich dich passend ein.
+
+
+      Du bist auf der **Startseite**. 👇 Weiter unten stellen wir die
+
+      verschiedenen Besucher-Gruppen vor — du kannst dich aber auch direkt
+
+      hier einordnen. Damit ich dir die passenden Angebote zeigen kann:
+
+      Als was bist du gerade unterwegs?'
+    en: 'No problem! Just tell me roughly what brings you to WLO — for example
+
+      "I''m looking for material", "I offer content" or "I develop software" —
+
+      and I''ll place you accordingly.
+
+
+      You''re on the **home page**. 👇 Further down we introduce the
+
+      different visitor groups — but you can also place yourself right here.
+
+      So I can show you the offers that fit: what brings you here today?'
 - id: unsicher
   typ: nachricht
-  text:
-    de: Kein Problem! Sag mir einfach grob, was dich zu WLO führt — zum Beispiel „ich suche Material",
-      „ich biete Inhalte an" oder „ich entwickle Software" — dann ordne ich dich passend ein.
-    en: No problem! Just tell me roughly what brings you to WLO — for example "I'm looking for material",
-      "I offer content" or "I develop software" — and I'll place you accordingly.
-  weiter: gruppe
+  text: *id001
+  schreibt: gruppe
+  optionen: *id002
 - id: zur_gruppenseite
   typ: verzweigung
   weiter:
@@ -339,14 +389,14 @@ schritte:
     dann: seite_presse
   - wenn_gewaehlt: contentanbieter
     dann: seite_contentanbieter
+  - wenn_gewaehlt: abnehmer
+    dann: seite_abnehmer
   - wenn_gewaehlt: lehrkraft
     dann: seite_lehrkraft
   - wenn_gewaehlt: lernende
     dann: seite_lernende
   - wenn_gewaehlt: eltern
     dann: seite_eltern
-  - wenn_gewaehlt: abnehmer
-    dann: seite_abnehmer
   - wenn_gewaehlt: oer_community
     dann: seite_oer_community
   - wenn_gewaehlt: software_betreiber
@@ -355,188 +405,216 @@ schritte:
     dann: seite_software_hersteller
   - wenn_gewaehlt: politik
     dann: seite_politik
-  - sonst: inhalte
+  - sonst: kontakt
 - id: seite_redaktionen
   typ: seite
   text:
-    de: Super — **Redaktionen**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **Editorial teams**. I'll take you straight to your page, where everything is gathered
-      for you. 👇
+    de: 'Super — **Redaktionen**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Editorial teams**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
   url: /home/redaktionen/
   label:
     de: Zur Seite für Redaktionen
     en: To the page for Editorial teams
   ankunft:
   - /home/redaktionen
-  abweichung: *id001
+  abweichung: *id003
   weiter: inhalte
 - id: seite_presse
   typ: seite
   text:
-    de: Super — **Presse**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **Press**. I'll take you straight to your page, where everything is gathered for you.
-      👇
+    de: 'Super — **Presse**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Press**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
   url: /mitmachen/ueber-wlo/
   label:
     de: Zur Seite für Presse
     en: To the page for Press
   ankunft:
   - /mitmachen/ueber-wlo
-  abweichung: *id001
+  abweichung: *id003
   weiter: inhalte
 - id: seite_contentanbieter
   typ: seite
   text:
-    de: Super — **Contentanbieter**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **Content providers**. I'll take you straight to your page, where everything is gathered
-      for you. 👇
+    de: 'Super — **Contentanbieter**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Content providers**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
   url: /home/contentanbieter/
   label:
     de: Zur Seite für Contentanbieter
     en: To the page for Content providers
   ankunft:
   - /home/contentanbieter
-  abweichung: *id001
-  weiter: inhalte
-- id: seite_lehrkraft
-  typ: seite
-  text:
-    de: Super — **Lehrkraft**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **Teachers**. I'll take you straight to your page, where everything is gathered for you.
-      👇
-  url: /home/oer-community/
-  label:
-    de: Zur Seite für Lehrkraft
-    en: To the page for Teachers
-  ankunft:
-  - /home/oer-community
-  abweichung: *id001
-  weiter: inhalte
-- id: seite_lernende
-  typ: seite
-  text:
-    de: Super — **Lernende**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **Learners**. I'll take you straight to your page, where everything is gathered for you.
-      👇
-  url: /home/oer-community/
-  label:
-    de: Zur Seite für Lernende
-    en: To the page for Learners
-  ankunft:
-  - /home/oer-community
-  abweichung: *id001
-  weiter: inhalte
-- id: seite_eltern
-  typ: seite
-  text:
-    de: Super — **Eltern**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **Parents**. I'll take you straight to your page, where everything is gathered for you.
-      👇
-  url: /home/oer-community/
-  label:
-    de: Zur Seite für Eltern
-    en: To the page for Parents
-  ankunft:
-  - /home/oer-community
-  abweichung: *id001
+  abweichung: *id003
   weiter: inhalte
 - id: seite_abnehmer
   typ: seite
   text:
-    de: Super — **Content-Abnehmer**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **Content consumers**. I'll take you straight to your page, where everything is gathered
-      for you. 👇
+    de: 'Super — **Content-Abnehmer**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Content consumers**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
   url: /home/abnehmer-bildungs-und-wissensinhalte/
   label:
     de: Zur Seite für Content-Abnehmer
     en: To the page for Content consumers
   ankunft:
   - /home/abnehmer-bildungs-und-wissensinhalte
-  abweichung: *id001
+  abweichung: *id003
+  weiter: inhalte
+- id: seite_lehrkraft
+  typ: seite
+  text:
+    de: 'Super — **Lehrkraft**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Teachers**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
+  url: /home/oer-community/
+  label:
+    de: Zur Seite für Lehrkraft
+    en: To the page for Teachers
+  ankunft:
+  - /home/oer-community
+  abweichung: *id003
+  weiter: inhalte
+- id: seite_lernende
+  typ: seite
+  text:
+    de: 'Super — **Lernende**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Learners**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
+  url: /home/oer-community/
+  label:
+    de: Zur Seite für Lernende
+    en: To the page for Learners
+  ankunft:
+  - /home/oer-community
+  abweichung: *id003
+  weiter: inhalte
+- id: seite_eltern
+  typ: seite
+  text:
+    de: 'Super — **Eltern**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Parents**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
+  url: /home/oer-community/
+  label:
+    de: Zur Seite für Eltern
+    en: To the page for Parents
+  ankunft:
+  - /home/oer-community
+  abweichung: *id003
   weiter: inhalte
 - id: seite_oer_community
   typ: seite
   text:
-    de: Super — **OER-Community**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **OER community**. I'll take you straight to your page, where everything is gathered for
-      you. 👇
+    de: 'Super — **OER-Community**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **OER community**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
   url: /home/oer-community/
   label:
     de: Zur Seite für OER-Community
     en: To the page for OER community
   ankunft:
   - /home/oer-community
-  abweichung: *id001
+  abweichung: *id003
   weiter: inhalte
 - id: seite_software_betreiber
   typ: seite
   text:
-    de: Super — **Infrastruktur-Betreiber**. Ich bring dich direkt zu eurer Seite, dort ist alles für
-      euch zusammengefasst. 👇
-    en: Great — **Infrastructure operators**. I'll take you straight to your page, where everything is
-      gathered for you. 👇
+    de: 'Super — **Infrastruktur-Betreiber**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Infrastructure operators**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
   url: /home/software-betreiber/
   label:
     de: Zur Seite für Infrastruktur-Betreiber
     en: To the page for Infrastructure operators
   ankunft:
   - /home/software-betreiber
-  abweichung: *id001
+  abweichung: *id003
   weiter: inhalte
 - id: seite_software_hersteller
   typ: seite
   text:
-    de: Super — **Entwickler**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch zusammengefasst.
-      👇
-    en: Great — **Developers**. I'll take you straight to your page, where everything is gathered for
-      you. 👇
+    de: 'Super — **Entwickler**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Developers**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
   url: /home/bildungsinfrastruktur-mitgestalten/
   label:
     de: Zur Seite für Entwickler
     en: To the page for Developers
   ankunft:
   - /home/bildungsinfrastruktur-mitgestalten
-  abweichung: *id001
+  abweichung: *id003
   weiter: inhalte
 - id: seite_politik
   typ: seite
   text:
-    de: Super — **Politik / Rahmensetzer**. Ich bring dich direkt zu eurer Seite, dort ist alles für euch
-      zusammengefasst. 👇
-    en: Great — **Policy makers**. I'll take you straight to your page, where everything is gathered for
-      you. 👇
+    de: 'Super — **Politik / Rahmensetzer**. Ich bring dich direkt zu eurer Seite, dort ist
+
+      alles für euch zusammengefasst. 👇'
+    en: 'Great — **Policy makers**. I''ll take you straight to your page, where
+
+      everything is gathered for you. 👇'
   url: /home/wlo-fuer-politik/
   label:
     de: Zur Seite für Politik / Rahmensetzer
     en: To the page for Policy makers
   ankunft:
   - /home/wlo-fuer-politik
-  abweichung: *id001
+  abweichung: *id003
   weiter: inhalte
 - id: inhalte
   typ: seite
   text:
-    de: 'Kurzer Zwischenstopp: Hier siehst du, woher die Bildungsinhalte auf WLO kommen — Fachportale,
-      Datenquellen und ein paar Zahlen aus der OER-Statistik. Schau rein, dann geht''s zu den Lösungen
-      für **{wahl.gruppe}**. 👇'
-    en: 'A quick stop: here you can see where the educational content on WLO comes from — subject portals,
-      data sources and a few figures from the OER statistics. Have a look, then we''ll go on to the solutions
-      for **{wahl.gruppe}**. 👇'
+    de: 'Kurzer Zwischenstopp: Hier siehst du, woher die Bildungsinhalte auf
+
+      WLO kommen — Fachportale, Datenquellen und ein paar Zahlen aus der
+
+      OER-Statistik. Schau rein, dann geht''s zu den Lösungen für **{wahl.gruppe}**. 👇'
+    en: 'A quick stop: here you can see where the educational content on WLO
+
+      comes from — subject portals, data sources and a few figures from the
+
+      OER statistics. Have a look, then we''ll go on to the solutions for
+
+      **{wahl.gruppe}**. 👇'
   url: /bildungsinhalte/
   label:
     de: Zu den Bildungsinhalten
     en: To the educational content
   ankunft:
   - /bildungsinhalte
-  abweichung: *id001
+  abweichung: *id003
   weiter: zu_loesungen
 - id: zu_loesungen
   typ: verzweigung
@@ -547,14 +625,14 @@ schritte:
     dann: loesungen_presse
   - wenn_gewaehlt: contentanbieter
     dann: loesungen_contentanbieter
+  - wenn_gewaehlt: abnehmer
+    dann: loesungen_abnehmer
   - wenn_gewaehlt: lehrkraft
     dann: loesungen_lehrkraft
   - wenn_gewaehlt: lernende
     dann: loesungen_lernende
   - wenn_gewaehlt: eltern
     dann: loesungen_eltern
-  - wenn_gewaehlt: abnehmer
-    dann: loesungen_abnehmer
   - wenn_gewaehlt: oer_community
     dann: loesungen_oer_community
   - wenn_gewaehlt: software_betreiber
@@ -563,76 +641,19 @@ schritte:
     dann: loesungen_software_hersteller
   - wenn_gewaehlt: politik
     dann: loesungen_politik
-  - sonst: loesungen_lehrkraft
-- id: einstieg
-  typ: nachricht
-  text:
-    de: Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt hier ein — kein Grund, von
-      vorn anzufangen. Das sind die für dich passenden Lösungen; schau dir eine an, danach bring ich dich
-      direkt zur Anfrage. 👇
-    en: You're already right in the middle of WLO! 🎉 So let's pick up here — no need to start from the
-      beginning. These are the solutions that fit you; take a look at one, then I'll take you straight
-      to the enquiry. 👇
-  weiter: einstieg_wo
-- id: einstieg_wo
-  typ: verzweigung
-  weiter:
-  - wenn_seite:
-    - /home/redaktionen
-    - /angebote/wlo-redaktionssoftware
-    - /angebote/redaktionelle-arbeiten
-    - /angebote/metadaten-verbessern-lassen
-    dann: loesungen_redaktionen
-  - wenn_seite:
-    - /mitmachen/ueber-wlo
-    - /mitmachen/faq
-    dann: loesungen_presse
-  - wenn_seite:
-    - /home/contentanbieter
-    - /angebote/wlo-inhalte-fuer-deine-suchmaschine
-    - /angebote/automatisierte-quellenerschliessung
-    dann: loesungen_contentanbieter
-  - wenn_seite:
-    - /home/oer-community
-    - /fachportale
-    - /bildungsinhalte
-    - /bildungsinhalte/oer
-    dann: loesungen_lehrkraft
-  - wenn_seite:
-    - /home/abnehmer-bildungs-und-wissensinhalte
-    - /angebote/integrationen-fuer-lernplattformen-und-web-cms
-    - /angebote/bildungs-api
-    dann: loesungen_abnehmer
-  - wenn_seite:
-    - /angebote/think-tank
-    dann: loesungen_oer_community
-  - wenn_seite:
-    - /home/software-betreiber
-    - /angebote/souveraenes-ki-oekosystem
-    dann: loesungen_software_betreiber
-  - wenn_seite:
-    - /home/bildungsinfrastruktur-mitgestalten
-    dann: loesungen_software_hersteller
-  - wenn_seite:
-    - /home/wlo-fuer-politik
-    dann: loesungen_politik
-  - sonst: loesungen_lehrkraft
+  - sonst: kontakt
 - id: loesungen_redaktionen
-  typ: nachricht
+  typ: seite
   text:
-    de: 'Das sind die für **Redaktionen** besonders relevanten Lösungen. Schau dir eine in Ruhe an — und
-      wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
+    de: 'Das sind die für **Redaktionen** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
 
 
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
 
 
       **Für Redaktionen besonders relevant:**
@@ -642,19 +663,15 @@ schritte:
       - [Redaktionelle Arbeiten](/angebote/redaktionelle-arbeiten/)
 
       - [Metadaten verbessern lassen](/angebote/metadaten-verbessern-lassen/)'
-    en: 'These are the solutions that are particularly relevant for **Editorial teams**. Take your time
-      with one — and if something fits, I''ll take you straight to the enquiry. 👇
+    en: 'These are the solutions that are particularly relevant for **Editorial teams**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
 
 
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
 
 
       **Particularly relevant for Editorial teams:**
@@ -664,23 +681,43 @@ schritte:
       - [Editorial services](/angebote/redaktionelle-arbeiten/)
 
       - [Metadata improvement](/angebote/metadaten-verbessern-lassen/)'
-  weiter: zur_anfrage
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/wlo-redaktionssoftware
+    - /angebote/redaktionelle-arbeiten
+    - /angebote/metadaten-verbessern-lassen
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/redaktionen
+    text: &id004
+      de: 'Schau dich hier ruhig in Ruhe um. Wenn du bereit für die Anfrage bist,
+
+        geht''s weiter: 👇'
+      en: 'Feel free to look around here as long as you like. When you''re ready for
+
+        the enquiry, we''ll move on: 👇'
+  weiter: kontakt
 - id: loesungen_presse
-  typ: nachricht
+  typ: seite
   text:
-    de: 'Das sind die für **Presse** besonders relevanten Lösungen. Schau dir eine in Ruhe an — und wenn
-      etwas passt, bring ich dich direkt zur Anfrage. 👇
+    de: 'Das sind die für **Presse** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
 
 
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
 
 
       **Für Presse besonders relevant:**
@@ -688,19 +725,15 @@ schritte:
       - [Über WLO](/mitmachen/ueber-wlo/)
 
       - [FAQ](/mitmachen/faq/)'
-    en: 'These are the solutions that are particularly relevant for **Press**. Take your time with one
-      — and if something fits, I''ll take you straight to the enquiry. 👇
+    en: 'These are the solutions that are particularly relevant for **Press**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
 
 
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
 
 
       **Particularly relevant for Press:**
@@ -708,23 +741,35 @@ schritte:
       - [About WLO](/mitmachen/ueber-wlo/)
 
       - [FAQ](/mitmachen/faq/)'
-  weiter: zur_anfrage
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /mitmachen/ueber-wlo
+    - /mitmachen/faq
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    text: *id004
+  weiter: kontakt
 - id: loesungen_contentanbieter
-  typ: nachricht
+  typ: seite
   text:
-    de: 'Das sind die für **Contentanbieter** besonders relevanten Lösungen. Schau dir eine in Ruhe an
-      — und wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
+    de: 'Das sind die für **Contentanbieter** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
 
 
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
 
 
       **Für Contentanbieter besonders relevant:**
@@ -734,19 +779,15 @@ schritte:
       - [Automatisierte Quellenerschließung](/angebote/automatisierte-quellenerschliessung/)
 
       - [Metadaten verbessern lassen](/angebote/metadaten-verbessern-lassen/)'
-    en: 'These are the solutions that are particularly relevant for **Content providers**. Take your time
-      with one — and if something fits, I''ll take you straight to the enquiry. 👇
+    en: 'These are the solutions that are particularly relevant for **Content providers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
 
 
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
 
 
       **Particularly relevant for Content providers:**
@@ -756,167 +797,37 @@ schritte:
       - [Automated source indexing](/angebote/automatisierte-quellenerschliessung/)
 
       - [Metadata improvement](/angebote/metadaten-verbessern-lassen/)'
-  weiter: zur_anfrage
-- id: loesungen_lehrkraft
-  typ: nachricht
-  text:
-    de: 'Das sind die für **Lehrkraft** besonders relevanten Lösungen. Schau dir eine in Ruhe an — und
-      wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
-
-
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
-
-
-      **Für Lehrkraft besonders relevant:**
-
-      - [Fachportale](/fachportale/)
-
-      - [Bildungsinhalte entdecken](/bildungsinhalte/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)'
-    en: 'These are the solutions that are particularly relevant for **Teachers**. Take your time with
-      one — and if something fits, I''ll take you straight to the enquiry. 👇
-
-
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
-
-
-      **Particularly relevant for Teachers:**
-
-      - [Subject portals](/fachportale/)
-
-      - [Discover educational content](/bildungsinhalte/)
-
-      - [What is OER?](/bildungsinhalte/oer/)'
-  weiter: zur_anfrage
-- id: loesungen_lernende
-  typ: nachricht
-  text:
-    de: 'Das sind die für **Lernende** besonders relevanten Lösungen. Schau dir eine in Ruhe an — und
-      wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
-
-
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
-
-
-      **Für Lernende besonders relevant:**
-
-      - [Fachportale](/fachportale/)
-
-      - [Bildungsinhalte entdecken](/bildungsinhalte/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)'
-    en: 'These are the solutions that are particularly relevant for **Learners**. Take your time with
-      one — and if something fits, I''ll take you straight to the enquiry. 👇
-
-
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
-
-
-      **Particularly relevant for Learners:**
-
-      - [Subject portals](/fachportale/)
-
-      - [Discover educational content](/bildungsinhalte/)
-
-      - [What is OER?](/bildungsinhalte/oer/)'
-  weiter: zur_anfrage
-- id: loesungen_eltern
-  typ: nachricht
-  text:
-    de: 'Das sind die für **Eltern** besonders relevanten Lösungen. Schau dir eine in Ruhe an — und wenn
-      etwas passt, bring ich dich direkt zur Anfrage. 👇
-
-
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
-
-
-      **Für Eltern besonders relevant:**
-
-      - [Fachportale](/fachportale/)
-
-      - [Bildungsinhalte entdecken](/bildungsinhalte/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)'
-    en: 'These are the solutions that are particularly relevant for **Parents**. Take your time with one
-      — and if something fits, I''ll take you straight to the enquiry. 👇
-
-
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
-
-
-      **Particularly relevant for Parents:**
-
-      - [Subject portals](/fachportale/)
-
-      - [Discover educational content](/bildungsinhalte/)
-
-      - [What is OER?](/bildungsinhalte/oer/)'
-  weiter: zur_anfrage
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/wlo-inhalte-fuer-deine-suchmaschine
+    - /angebote/automatisierte-quellenerschliessung
+    - /angebote/metadaten-verbessern-lassen
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/contentanbieter
+    text: *id004
+  weiter: kontakt
 - id: loesungen_abnehmer
-  typ: nachricht
+  typ: seite
   text:
-    de: 'Das sind die für **Content-Abnehmer** besonders relevanten Lösungen. Schau dir eine in Ruhe an
-      — und wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
+    de: 'Das sind die für **Content-Abnehmer** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
 
 
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
 
 
       **Für Content-Abnehmer besonders relevant:**
@@ -926,19 +837,15 @@ schritte:
       - [Bildungs-API](/angebote/bildungs-api/)
 
       - [WLO-Inhalte für deine Suchmaschine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)'
-    en: 'These are the solutions that are particularly relevant for **Content consumers**. Take your time
-      with one — and if something fits, I''ll take you straight to the enquiry. 👇
+    en: 'These are the solutions that are particularly relevant for **Content consumers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
 
 
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
 
 
       **Particularly relevant for Content consumers:**
@@ -948,23 +855,205 @@ schritte:
       - [Education API](/angebote/bildungs-api/)
 
       - [WLO content for your search engine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)'
-  weiter: zur_anfrage
-- id: loesungen_oer_community
-  typ: nachricht
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/integrationen-fuer-lernplattformen-und-web-cms
+    - /angebote/bildungs-api
+    - /angebote/wlo-inhalte-fuer-deine-suchmaschine
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/abnehmer-bildungs-und-wissensinhalte
+    text: *id004
+  weiter: kontakt
+- id: loesungen_lehrkraft
+  typ: seite
   text:
-    de: 'Das sind die für **OER-Community** besonders relevanten Lösungen. Schau dir eine in Ruhe an —
-      und wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
+    de: 'Das sind die für **Lehrkraft** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
 
 
-      **Mehr zu den Inhalten:**
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Lehrkraft besonders relevant:**
 
       - [Fachportale](/fachportale/)
 
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      - [Bildungsinhalte entdecken](/bildungsinhalte/)
 
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
+      - [Was ist OER?](/bildungsinhalte/oer/)'
+    en: 'These are the solutions that are particularly relevant for **Teachers**.
 
-      - [Was ist OER?](/bildungsinhalte/oer/)
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Teachers:**
+
+      - [Subject portals](/fachportale/)
+
+      - [Discover educational content](/bildungsinhalte/)
+
+      - [What is OER?](/bildungsinhalte/oer/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /fachportale
+    - /bildungsinhalte
+    - /bildungsinhalte/oer
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /home/oer-community
+    text: *id004
+  weiter: kontakt
+- id: loesungen_lernende
+  typ: seite
+  text:
+    de: 'Das sind die für **Lernende** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Lernende besonders relevant:**
+
+      - [Fachportale](/fachportale/)
+
+      - [Bildungsinhalte entdecken](/bildungsinhalte/)
+
+      - [Was ist OER?](/bildungsinhalte/oer/)'
+    en: 'These are the solutions that are particularly relevant for **Learners**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Learners:**
+
+      - [Subject portals](/fachportale/)
+
+      - [Discover educational content](/bildungsinhalte/)
+
+      - [What is OER?](/bildungsinhalte/oer/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /fachportale
+    - /bildungsinhalte
+    - /bildungsinhalte/oer
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /home/oer-community
+    text: *id004
+  weiter: kontakt
+- id: loesungen_eltern
+  typ: seite
+  text:
+    de: 'Das sind die für **Eltern** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Eltern besonders relevant:**
+
+      - [Fachportale](/fachportale/)
+
+      - [Bildungsinhalte entdecken](/bildungsinhalte/)
+
+      - [Was ist OER?](/bildungsinhalte/oer/)'
+    en: 'These are the solutions that are particularly relevant for **Parents**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Parents:**
+
+      - [Subject portals](/fachportale/)
+
+      - [Discover educational content](/bildungsinhalte/)
+
+      - [What is OER?](/bildungsinhalte/oer/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /fachportale
+    - /bildungsinhalte
+    - /bildungsinhalte/oer
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /home/oer-community
+    text: *id004
+  weiter: kontakt
+- id: loesungen_oer_community
+  typ: seite
+  text:
+    de: 'Das sind die für **OER-Community** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
 
 
       **Für OER-Community besonders relevant:**
@@ -972,19 +1061,15 @@ schritte:
       - [Redaktionelle Arbeiten](/angebote/redaktionelle-arbeiten/)
 
       - [Think Tank](/angebote/think-tank/)'
-    en: 'These are the solutions that are particularly relevant for **OER community**. Take your time
-      with one — and if something fits, I''ll take you straight to the enquiry. 👇
+    en: 'These are the solutions that are particularly relevant for **OER community**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
 
 
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
 
 
       **Particularly relevant for OER community:**
@@ -992,23 +1077,36 @@ schritte:
       - [Editorial services](/angebote/redaktionelle-arbeiten/)
 
       - [Think tank](/angebote/think-tank/)'
-  weiter: zur_anfrage
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/redaktionelle-arbeiten
+    - /angebote/think-tank
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/oer-community
+    text: *id004
+  weiter: kontakt
 - id: loesungen_software_betreiber
-  typ: nachricht
+  typ: seite
   text:
-    de: 'Das sind die für **Infrastruktur-Betreiber** besonders relevanten Lösungen. Schau dir eine in
-      Ruhe an — und wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
+    de: 'Das sind die für **Infrastruktur-Betreiber** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
 
 
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
 
 
       **Für Infrastruktur-Betreiber besonders relevant:**
@@ -1018,19 +1116,15 @@ schritte:
       - [Bildungs-API](/angebote/bildungs-api/)
 
       - [Souveränes KI-Ökosystem](/angebote/souveraenes-ki-oekosystem/)'
-    en: 'These are the solutions that are particularly relevant for **Infrastructure operators**. Take
-      your time with one — and if something fits, I''ll take you straight to the enquiry. 👇
+    en: 'These are the solutions that are particularly relevant for **Infrastructure operators**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
 
 
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
 
 
       **Particularly relevant for Infrastructure operators:**
@@ -1040,23 +1134,37 @@ schritte:
       - [Education API](/angebote/bildungs-api/)
 
       - [Sovereign AI ecosystem](/angebote/souveraenes-ki-oekosystem/)'
-  weiter: zur_anfrage
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/integrationen-fuer-lernplattformen-und-web-cms
+    - /angebote/bildungs-api
+    - /angebote/souveraenes-ki-oekosystem
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/software-betreiber
+    text: *id004
+  weiter: kontakt
 - id: loesungen_software_hersteller
-  typ: nachricht
+  typ: seite
   text:
-    de: 'Das sind die für **Entwickler** besonders relevanten Lösungen. Schau dir eine in Ruhe an — und
-      wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
+    de: 'Das sind die für **Entwickler** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
 
 
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
 
 
       **Für Entwickler besonders relevant:**
@@ -1066,19 +1174,15 @@ schritte:
       - [Souveränes KI-Ökosystem](/angebote/souveraenes-ki-oekosystem/)
 
       - [Integrationen für Lernplattformen & Web-CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)'
-    en: 'These are the solutions that are particularly relevant for **Developers**. Take your time with
-      one — and if something fits, I''ll take you straight to the enquiry. 👇
+    en: 'These are the solutions that are particularly relevant for **Developers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
 
 
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
 
 
       **Particularly relevant for Developers:**
@@ -1088,23 +1192,37 @@ schritte:
       - [Sovereign AI ecosystem](/angebote/souveraenes-ki-oekosystem/)
 
       - [Integrations for learning platforms & web CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)'
-  weiter: zur_anfrage
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/bildungs-api
+    - /angebote/souveraenes-ki-oekosystem
+    - /angebote/integrationen-fuer-lernplattformen-und-web-cms
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/bildungsinfrastruktur-mitgestalten
+    text: *id004
+  weiter: kontakt
 - id: loesungen_politik
-  typ: nachricht
+  typ: seite
   text:
-    de: 'Das sind die für **Politik / Rahmensetzer** besonders relevanten Lösungen. Schau dir eine in
-      Ruhe an — und wenn etwas passt, bring ich dich direkt zur Anfrage. 👇
+    de: 'Das sind die für **Politik / Rahmensetzer** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
 
 
-      **Mehr zu den Inhalten:**
-
-      - [Fachportale](/fachportale/)
-
-      - [OER-Statistik](/bildungsinhalte/oer-statistik/)
-
-      - [Datenquellen](/bildungsinhalte/datenquellen/)
-
-      - [Was ist OER?](/bildungsinhalte/oer/)
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
 
 
       **Für Politik / Rahmensetzer besonders relevant:**
@@ -1114,19 +1232,15 @@ schritte:
       - [Think Tank](/angebote/think-tank/)
 
       - [Bildungs-API](/angebote/bildungs-api/)'
-    en: 'These are the solutions that are particularly relevant for **Policy makers**. Take your time
-      with one — and if something fits, I''ll take you straight to the enquiry. 👇
+    en: 'These are the solutions that are particularly relevant for **Policy makers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
 
 
-      **More about the content:**
-
-      - [Subject portals](/fachportale/)
-
-      - [OER statistics](/bildungsinhalte/oer-statistik/)
-
-      - [Data sources](/bildungsinhalte/datenquellen/)
-
-      - [What is OER?](/bildungsinhalte/oer/)
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
 
 
       **Particularly relevant for Policy makers:**
@@ -1136,85 +1250,562 @@ schritte:
       - [Think tank](/angebote/think-tank/)
 
       - [Education API](/angebote/bildungs-api/)'
-  weiter: zur_anfrage
-- id: zur_anfrage
-  typ: seite
-  text:
-    de: 'Wenn du so weit bist: 👇'
-    en: 'When you''re ready: 👇'
   url: /mitmachen/
   label:
     de: Weiter zur Anfrage
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id001
+  abweichung: *id003
   umsehen:
     muster:
-    - /angebote/*
-    - /bildungsinhalte/*
-    - /fachportale/*
-    - /home/*
-    - /mitmachen/ueber-wlo
-    - /mitmachen/faq
-    text:
-      de: 'Schau dich hier ruhig in Ruhe um. Wenn du bereit für die Anfrage bist, geht''s weiter: 👇'
-      en: 'Feel free to look around here as long as you like. When you''re ready for the enquiry, we''ll
-        move on: 👇'
+    - /angebote/souveraenes-ki-oekosystem
+    - /angebote/think-tank
+    - /angebote/bildungs-api
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/wlo-fuer-politik
+    text: *id004
   weiter: kontakt
-- id: kontakt
-  typ: ende
+- id: einstieg_redaktionen
+  typ: seite
   text:
-    de: 'Fast geschafft! 🎯 Hier auf der **Mitmach-Seite** kannst du deine Anfrage stellen oder direkt
-      Kontakt aufnehmen — alles Wichtige dazu findest du hier, ganz unkompliziert. Danke fürs Mitkommen
-      — und meld dich jederzeit, wenn noch etwas offen ist!
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
 
 
-      **Das brauchst du noch:**
+      **Für Redaktionen besonders relevant:**
+
+      - [WLO-Redaktionssoftware](/angebote/wlo-redaktionssoftware/)
+
+      - [Redaktionelle Arbeiten](/angebote/redaktionelle-arbeiten/)
+
+      - [Metadaten verbessern lassen](/angebote/metadaten-verbessern-lassen/)'
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
+
+
+      **Particularly relevant for Editorial teams:**
+
+      - [WLO editorial software](/angebote/wlo-redaktionssoftware/)
+
+      - [Editorial services](/angebote/redaktionelle-arbeiten/)
+
+      - [Metadata improvement](/angebote/metadaten-verbessern-lassen/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/wlo-redaktionssoftware
+    - /angebote/redaktionelle-arbeiten
+    - /angebote/metadaten-verbessern-lassen
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/redaktionen
+    text: *id004
+  weiter: kontakt
+- id: einstieg_presse
+  typ: seite
+  text:
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
+
+
+      **Für Presse besonders relevant:**
 
       - [Über WLO](/mitmachen/ueber-wlo/)
 
       - [FAQ](/mitmachen/faq/)'
-    en: 'Almost there! 🎯 Here on the **get-involved page** you can send your enquiry or get in touch directly
-      — everything that matters is right here, no fuss. Thanks for coming along — and get in touch any
-      time if anything is still open!
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
 
 
-      **You might still need this:**
+      **Particularly relevant for Press:**
 
       - [About WLO](/mitmachen/ueber-wlo/)
 
       - [FAQ](/mitmachen/faq/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /mitmachen/ueber-wlo
+    - /mitmachen/faq
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    text: *id004
+  weiter: kontakt
+- id: einstieg_contentanbieter
+  typ: seite
+  text:
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
+
+
+      **Für Contentanbieter besonders relevant:**
+
+      - [WLO-Inhalte für deine Suchmaschine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)
+
+      - [Automatisierte Quellenerschließung](/angebote/automatisierte-quellenerschliessung/)
+
+      - [Metadaten verbessern lassen](/angebote/metadaten-verbessern-lassen/)'
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
+
+
+      **Particularly relevant for Content providers:**
+
+      - [WLO content for your search engine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)
+
+      - [Automated source indexing](/angebote/automatisierte-quellenerschliessung/)
+
+      - [Metadata improvement](/angebote/metadaten-verbessern-lassen/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/wlo-inhalte-fuer-deine-suchmaschine
+    - /angebote/automatisierte-quellenerschliessung
+    - /angebote/metadaten-verbessern-lassen
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/contentanbieter
+    text: *id004
+  weiter: kontakt
+- id: einstieg_abnehmer
+  typ: seite
+  text:
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
+
+
+      **Für Content-Abnehmer besonders relevant:**
+
+      - [Integrationen für Lernplattformen & Web-CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)
+
+      - [Bildungs-API](/angebote/bildungs-api/)
+
+      - [WLO-Inhalte für deine Suchmaschine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)'
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
+
+
+      **Particularly relevant for Content consumers:**
+
+      - [Integrations for learning platforms & web CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)
+
+      - [Education API](/angebote/bildungs-api/)
+
+      - [WLO content for your search engine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/integrationen-fuer-lernplattformen-und-web-cms
+    - /angebote/bildungs-api
+    - /angebote/wlo-inhalte-fuer-deine-suchmaschine
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/abnehmer-bildungs-und-wissensinhalte
+    text: *id004
+  weiter: kontakt
+- id: einstieg_lehrkraft
+  typ: seite
+  text:
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
+
+
+      **Für Lehrkraft besonders relevant:**
+
+      - [Fachportale](/fachportale/)
+
+      - [Bildungsinhalte entdecken](/bildungsinhalte/)
+
+      - [Was ist OER?](/bildungsinhalte/oer/)'
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
+
+
+      **Particularly relevant for Teachers:**
+
+      - [Subject portals](/fachportale/)
+
+      - [Discover educational content](/bildungsinhalte/)
+
+      - [What is OER?](/bildungsinhalte/oer/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /fachportale
+    - /bildungsinhalte
+    - /bildungsinhalte/oer
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /home/oer-community
+    text: *id004
+  weiter: kontakt
+- id: einstieg_oer_community
+  typ: seite
+  text:
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
+
+
+      **Für OER-Community besonders relevant:**
+
+      - [Redaktionelle Arbeiten](/angebote/redaktionelle-arbeiten/)
+
+      - [Think Tank](/angebote/think-tank/)'
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
+
+
+      **Particularly relevant for OER community:**
+
+      - [Editorial services](/angebote/redaktionelle-arbeiten/)
+
+      - [Think tank](/angebote/think-tank/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/redaktionelle-arbeiten
+    - /angebote/think-tank
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/oer-community
+    text: *id004
+  weiter: kontakt
+- id: einstieg_software_betreiber
+  typ: seite
+  text:
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
+
+
+      **Für Infrastruktur-Betreiber besonders relevant:**
+
+      - [Integrationen für Lernplattformen & Web-CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)
+
+      - [Bildungs-API](/angebote/bildungs-api/)
+
+      - [Souveränes KI-Ökosystem](/angebote/souveraenes-ki-oekosystem/)'
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
+
+
+      **Particularly relevant for Infrastructure operators:**
+
+      - [Integrations for learning platforms & web CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)
+
+      - [Education API](/angebote/bildungs-api/)
+
+      - [Sovereign AI ecosystem](/angebote/souveraenes-ki-oekosystem/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/integrationen-fuer-lernplattformen-und-web-cms
+    - /angebote/bildungs-api
+    - /angebote/souveraenes-ki-oekosystem
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/software-betreiber
+    text: *id004
+  weiter: kontakt
+- id: einstieg_software_hersteller
+  typ: seite
+  text:
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
+
+
+      **Für Entwickler besonders relevant:**
+
+      - [Bildungs-API](/angebote/bildungs-api/)
+
+      - [Souveränes KI-Ökosystem](/angebote/souveraenes-ki-oekosystem/)
+
+      - [Integrationen für Lernplattformen & Web-CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)'
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
+
+
+      **Particularly relevant for Developers:**
+
+      - [Education API](/angebote/bildungs-api/)
+
+      - [Sovereign AI ecosystem](/angebote/souveraenes-ki-oekosystem/)
+
+      - [Integrations for learning platforms & web CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/bildungs-api
+    - /angebote/souveraenes-ki-oekosystem
+    - /angebote/integrationen-fuer-lernplattformen-und-web-cms
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/bildungsinfrastruktur-mitgestalten
+    text: *id004
+  weiter: kontakt
+- id: einstieg_politik
+  typ: seite
+  text:
+    de: 'Schön, du bist schon mitten drin bei WLO! 🎉 Dann steigen wir direkt
+
+      hier ein — kein Grund, von vorn anzufangen. Das sind die für dich
+
+      passenden Lösungen; schau dir eine an, danach bring ich dich direkt
+
+      zur Anfrage. 👇
+
+
+      **Für Politik / Rahmensetzer besonders relevant:**
+
+      - [Souveränes KI-Ökosystem](/angebote/souveraenes-ki-oekosystem/)
+
+      - [Think Tank](/angebote/think-tank/)
+
+      - [Bildungs-API](/angebote/bildungs-api/)'
+    en: 'You''re already right in the middle of WLO! 🎉 So let''s pick up
+
+      here — no need to start from the beginning. These are the solutions that
+
+      fit you; take a look at one, then I''ll take you straight to the
+
+      enquiry. 👇
+
+
+      **Particularly relevant for Policy makers:**
+
+      - [Sovereign AI ecosystem](/angebote/souveraenes-ki-oekosystem/)
+
+      - [Think tank](/angebote/think-tank/)
+
+      - [Education API](/angebote/bildungs-api/)'
+  url: /mitmachen/
+  label:
+    de: Weiter zur Anfrage
+    en: On to the enquiry
+  ankunft:
+  - /mitmachen
+  abweichung: *id003
+  umsehen:
+    muster:
+    - /angebote/souveraenes-ki-oekosystem
+    - /angebote/think-tank
+    - /angebote/bildungs-api
+    - /fachportale
+    - /bildungsinhalte/oer-statistik
+    - /bildungsinhalte/datenquellen
+    - /bildungsinhalte/oer
+    - /home/wlo-fuer-politik
+    text: *id004
+  weiter: kontakt
+- id: kontakt
+  typ: ende
+  text:
+    de: 'Fast geschafft! 🎯 Hier auf der **Mitmach-Seite** kannst du deine
+
+      Anfrage stellen oder direkt Kontakt aufnehmen — alles Wichtige dazu
+
+      findest du hier, ganz unkompliziert. Danke fürs Mitkommen — und meld
+
+      dich jederzeit, wenn noch etwas offen ist!
+
+
+      **Das brauchst du noch:** [Über WLO](/mitmachen/ueber-wlo/) · [FAQ](/mitmachen/faq/)'
+    en: 'Almost there! 🎯 Here on the **get-involved page** you can send
+
+      your enquiry or get in touch directly — everything that matters is
+
+      right here, no fuss. Thanks for coming along — and get in touch any
+
+      time if anything is still open!
+
+
+      **You might still need this:** [About WLO](/mitmachen/ueber-wlo/) · [FAQ](/mitmachen/faq/)'
 tests:
-- name: Von der Startseite mit getippter Gruppe bis zur Anfrage
+- name: Von der Startseite mit Chip bis zur Anfrage
   seite: /home/
   eingaben:
   - bei: gruppe
-    text: Ich bin Lehrerin an einer Grundschule
-  - bei: seite_lehrkraft
-    seite: /home/oer-community/
+    option: redaktionen
+  - bei: seite_redaktionen
+    seite: /home/redaktionen/
   - bei: inhalte
     seite: /bildungsinhalte/
-  - bei: zur_anfrage
+  - bei: loesungen_redaktionen
     seite: /mitmachen/
   erwartet:
     weg:
     - wo
     - gruppe
     - zur_gruppenseite
-    - seite_lehrkraft
+    - seite_redaktionen
     - inhalte
     - zu_loesungen
-    - loesungen_lehrkraft
-    - zur_anfrage
+    - loesungen_redaktionen
     - kontakt
     status: fertig
+- name: Getippte Gruppe trifft wie in der Tour über Synonyme
+  seite: /home/
+  eingaben:
+  - bei: gruppe
+    text: Ich bin Lehrer
+  erwartet:
+    weg:
+    - wo
+    - gruppe
+    - zur_gruppenseite
+    - seite_lehrkraft
+    ende: seite_lehrkraft
 - name: 'Unbekannte Seite: erst zur Startseite'
   seite: /impressum/
   erwartet:
     status: wartet_seite
     ende: intro
-- name: 'Auf der Startseite: gleich die Gruppenwahl'
+- name: 'Bin mir nicht sicher: Hilfetext mit denselben Chips'
   seite: /home/
   eingaben:
   - bei: gruppe
@@ -1224,29 +1815,22 @@ tests:
     - wo
     - gruppe
     - unsicher
-    - gruppe
-    ende: gruppe
+    ende: unsicher
 - name: 'Auf einer Zielgruppenseite: Einstieg bei den Lösungen'
   seite: /home/redaktionen/
   erwartet:
     weg:
     - wo
-    - einstieg
-    - einstieg_wo
-    - loesungen_redaktionen
-    - zur_anfrage
+    - einstieg_redaktionen
     status: wartet_seite
-    ende: zur_anfrage
+    ende: einstieg_redaktionen
 - name: 'Auf einer Angebotsseite: Einstieg bei der Gruppe, die es zuerst nennt'
   seite: /angebote/bildungs-api/
   erwartet:
     weg:
     - wo
-    - einstieg
-    - einstieg_wo
-    - loesungen_abnehmer
-    - zur_anfrage
-    ende: zur_anfrage
+    - einstieg_abnehmer
+    ende: einstieg_abnehmer
 - name: Schon auf der Mitmach-Seite
   seite: /mitmachen/
   erwartet:
