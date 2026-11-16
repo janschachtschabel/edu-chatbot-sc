@@ -335,8 +335,10 @@ ihren Rechten. Ohne WLO-Anmeldung startet kein Auftrag.
   startet nie direkt.
 - Vor einem schreibenden Auftrag gehört eine Wahl, die sagt, was geschieht. Zum Beispiel: „Ich
   erzeuge jetzt Metadaten für deine N Dateien und schreibe sie hinein. Weiter?“
-- Ein Flow, der nicht freigegeben ist, sperrt nur einen **eingeschalteten** Ablauf. Bei einem
-  ausgeschalteten erscheint er als Hinweis.
+- Ein Flow, der nicht freigegeben ist, sperrt nur einen **eingeschalteten** Ablauf, und nur, wenn
+  sein Auftragsschritt keinen Ersatzweg (`bei_fehler`) hat. Bei einem ausgeschalteten Ablauf oder
+  mit Ersatzweg erscheint er als Hinweis (Rückmeldung 16.11.). Zur Laufzeit startet der Auftrag
+  dann nicht, und der Schritt nimmt `bei_fehler`. Dasselbe gilt beim Entziehen einer Freigabe.
 
 ### Kestra-Flows freigeben (Paket KF)
 
@@ -348,8 +350,15 @@ darf (`namespace/flowId`). Die Änderung wirkt ohne Neustart.
   (`GET /api/v1/jobs/flows`, `B_API_KEY`, 5 Minuten zwischengespeichert). Freitext geht auch.
 - **Obergrenze:** Ist `B_API_JOBS_FLOWS` gesetzt, wirken nur Flows aus dieser Liste. Ist im Studio
   nichts freigegeben, gelten ihre Flows wie vor dem Paket.
+- **Werksvorgabe (16.11.):** Ist weder im Studio etwas freigegeben noch `B_API_JOBS_FLOWS`
+  gesetzt, gilt `edusharing.chatbot/node-metadata-write`. Das ist der Metadaten-Flow des Ablaufs
+  „Themenbaum · aus eigenen Inhalten“, ab Werk an.
+  - Sie steht im Code (`auftraege/client.WERKSVORGABE`), nicht im Seed. Ein Seed-Eintrag wirkte
+    als Studio-Liste und nähme einer Anlage mit gesetzter Variable alle anderen Flows.
+  - Wer die Variable setzt und den Ablauf nutzen will, nimmt den Flow dort auf.
 - **Start-Pfad:** Leer heißt Vorgabe `/api/v1/jobs/flows/{flow}`. Aufträge sind an, sobald
   ein Flow wirksam freigegeben ist.
 - **Datenschutz:** Eingaben und Ausgaben liegen bei Kestra 30 Tage im Klartext. Nur Flows
-  freigeben, deren Eingaben dort liegen dürfen.
+  freigeben, deren Eingaben dort liegen dürfen. Das gilt auch für die Werksvorgabe: Die
+  erzeugten Metadaten privater Dateien liegen 30 Tage bei Kestra.
 
