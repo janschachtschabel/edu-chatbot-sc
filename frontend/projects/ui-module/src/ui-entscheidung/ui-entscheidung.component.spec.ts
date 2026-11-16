@@ -124,6 +124,27 @@ describe('UiEntscheidung', () => {
     expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: ['klasse_9_10'] }, 'Klasse 9–10');
   });
 
+  // CI-Kippler 16.11. (PR 82): Enter auf einer Option kurz nach der Wahl — der Knopf war im DOM noch
+  // `disabled` (OnPush rendert später), und der Browser verwarf die implizite Absendung still.
+  it('Tastatur: Enter auf einer Option antwortet, auch bevor der Knopf neu gezeichnet ist', async () => {
+    const { el, h } = await render(EINZEL);
+    const option = el.querySelector<HTMLInputElement>('input[value="klasse_9_10"]')!;
+    option.checked = true;
+    option.dispatchEvent(new Event('change'));          // ohne whenStable: noch nicht gerendert
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    option.dispatchEvent(enter);
+    expect(h.antworten).toHaveBeenCalledTimes(1);
+    expect(h.antworten).toHaveBeenCalledWith({ gewaehlt: ['klasse_9_10'] }, 'Klasse 9–10');
+    expect(enter.defaultPrevented).toBe(true);          // keine zweite, implizite Absendung
+  });
+
+  it('Tastatur: Enter auf einer Option ohne Wahl schickt nichts', async () => {
+    const { el, h } = await render(EINZEL);
+    const option = el.querySelector<HTMLInputElement>('input[value="klasse_9_10"]')!;
+    option.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(h.antworten).not.toHaveBeenCalled();
+  });
+
   // Review U1 gesamt, Befund 6 (WCAG 2.4.3): während eines Zugs `aria-disabled` statt `disabled` —
   // ein gesperrter Knopf fiele aus der Tab-Reihenfolge, und der Fokus ginge verloren.
   it('während eines Zugs ist der Knopf gesperrt (aria-disabled, bleibt fokussierbar) — Klick und Enter senden nichts', async () => {

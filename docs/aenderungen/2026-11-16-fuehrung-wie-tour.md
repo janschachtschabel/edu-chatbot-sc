@@ -125,3 +125,19 @@ Diese Punkte stehen im Kopf von `fuehrung.yaml`:
 - Image neu bauen. Keine Migration.
 - `import-config --werksabgleich`. Die Werksfassung der Führung ändert sich; die eigene Fassung auf
   Staging bleibt, bis die Redaktion umschaltet.
+
+## Nachtrag: CI-Kippler in der Entscheidungsfrage
+
+Der E2E-Test „per Tastatur: Pfeiltaste wählt, Enter antwortet“ scheiterte im PR-Lauf, im Push-Lauf
+desselben Commits nicht. Mit der Führung hat das nichts zu tun.
+
+- **Ursache:** Enter auf einer Option löst die implizite Absendung des Browsers aus, und die hängt
+  am Knopf „Antworten“ im DOM. Den gibt Angular (OnPush) erst beim nächsten Rendern frei. Im CI kam
+  Enter 3 ms nach der Wahl, also davor, und der Browser verwarf die Absendung still.
+- **Behebung:** `ui-entscheidung` schickt bei Enter auf einer Option selbst ab, sobald die Wahl im
+  Zustand steht (`tasteInOption`). Die implizite Absendung ist dabei unterdrückt, damit nichts
+  zweimal ankommt. Ohne Wahl oder während eines Zugs schickt Enter weiterhin nichts.
+- **Geprüft:**
+  - zwei neue Specs: „vor dem Neuzeichnen“ und „ohne Wahl“;
+  - `ui-module`: 390 grün, ESLint sauber;
+  - die E2E-Datei 15-mal gegen das gebaute Widget: 150 von 150 grün.
