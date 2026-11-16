@@ -41,7 +41,15 @@ def _pruefe(daten: dict) -> dict | None:
     return antwort.antwort_pruefen(_offen(), UiAntwort(block_id="b0000001", daten=daten))
 
 
-def test_der_dienst_zeigt_das_auswahlfeld_mit_grenzen_und_schaltern():
+@pytest.fixture
+def stapel_ablage(monkeypatch):
+    """Der MCP-Server führt die Stapel-Ablage (Review m6: sonst bietet das Feld sie nicht an)."""
+    from boerdi.services.mcp import faehigkeiten
+
+    monkeypatch.setattr(faehigkeiten, "kennt_werkzeug", lambda w: w == "wlo_prepare_file_batch")
+
+
+def test_der_dienst_zeigt_das_auswahlfeld_mit_grenzen_und_schaltern(stapel_ablage):
     args = {"zweck": "sammlungsstruktur", "hinweis": "Wähle"}
     erg = asyncio.run(dienst.aufruf(_manifest(), args, Umgebung()))
     assert erg.block is not None
@@ -51,8 +59,10 @@ def test_der_dienst_zeigt_das_auswahlfeld_mit_grenzen_und_schaltern():
     assert d["grenzen"] == {"max_dateien": 500, "max_tiefe": 8, "max_mb_datei": 50,
                             "max_mb_ablage": 10}
     # Nutzer-Entscheid 2026-11-10: Lesen und Entwurf auch anonym (das Repositorium ist nicht
-    # beteiligt); die Ablage in WLO bleibt an die Anmeldung gebunden.
-    assert d["schalter"] == {"dokument_im_chat": True, "ablage_in_wlo": False}
+    # beteiligt); die Ablage in WLO bleibt an die Anmeldung gebunden. Rückmeldung 16.11.: ab Werk an
+    # — ohne Anmeldung sagt das Feld, dass sie danach geht, statt sie zu verstecken
+    assert d["schalter"] == {"dokument_im_chat": True, "ablage_in_wlo": False,
+                             "ablage_nach_anmeldung": True}
     assert not katalog.daten_fehler(_manifest(), d)
     assert "Zug endet hier" in erg.text
     assert erg.block.text                 # Textfassung für Widgets ohne das Modul
@@ -62,7 +72,8 @@ def test_die_vorgabe_erlaubt_lesen_ohne_anmeldung():
     from boerdi.domain.config_models.upload import UploadSettings
 
     assert UploadSettings().dokument_ohne_anmeldung is True
-    assert UploadSettings().ablage_in_wlo is False
+    # Rückmeldung 16.11.: der WLO-Weg (Ablage, Metadaten, Themenbaum) ist ab Werk an
+    assert UploadSettings().ablage_in_wlo is True
 
 
 @pytest.mark.parametrize(("im_chat", "ohne", "person", "erwartet"), [
@@ -71,7 +82,8 @@ def test_die_vorgabe_erlaubt_lesen_ohne_anmeldung():
     (True, True, False, True),
     (False, True, True, False),       # Studio aus schlägt alles
 ])
-def test_die_schalter_folgen_studio_und_anmeldung(monkeypatch, im_chat, ohne, person, erwartet):
+def test_die_schalter_folgen_studio_und_anmeldung(monkeypatch, stapel_ablage, im_chat, ohne, person,
+                                                  erwartet):
     from boerdi.domain.config_models.upload import UploadSettings
     from boerdi.ui_module import dienst_upload
 
@@ -83,7 +95,31 @@ def test_die_schalter_folgen_studio_und_anmeldung(monkeypatch, im_chat, ohne, pe
     # R3-b: hilft die Anmeldung beim Lesen, sagt der Schalter es dem Modul
     hilft = im_chat and not ohne and not person
     assert erg.block.daten["schalter"] == {"dokument_im_chat": erwartet, "ablage_in_wlo": person,
-                                           **({"lesen_nach_anmeldung": True} if hilft else {})}
+                                           **({"lesen_nach_anmeldung": True} if hilft else {}),
+                                           **({} if person else {"ablage_nach_anmeldung": True})}
+
+
+@pytest.mark.parametrize("person", [True, False])
+def test_review_1611_m6_ohne_stapel_ablage_des_mcp_kein_angebot_und_kein_hinweis(monkeypatch,
+                                                                              person):
+    """Kennt der MCP-Server ``wlo_prepare_file_batch`` nicht, zeigt das Feld weder den Weg noch
+    den Hinweis auf die Anmeldung — sonst scheiterte die Ablage erst nach der Vorschau."""
+    from boerdi.ui_module import dienst_upload
+
+    monkeypatch.setattr(dienst_upload.faehigkeiten, "kennt_werkzeug", lambda _w: False)
+    monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: person)
+    schalter = dienst_upload.schalter()
+    assert schalter["ablage_in_wlo"] is False and "ablage_nach_anmeldung" not in schalter
+
+
+def test_review_1611_n10_ablage_im_studio_aus_ohne_hinweis(monkeypatch, stapel_ablage):
+    from boerdi.domain.config_models.upload import UploadSettings
+    from boerdi.ui_module import dienst_upload
+
+    monkeypatch.setattr(dienst_upload, "load_upload_config",
+                        lambda: UploadSettings(ablage_in_wlo=False))
+    monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: False)
+    assert "ablage_nach_anmeldung" not in dienst_upload.schalter()
 
 
 def test_der_dienst_lehnt_falsche_argumente_ab():
@@ -362,3 +398,33 @@ def test_review_1211_einzeldatei_als_struktur_nur_auf_wunsch_des_blocks():
         _manifest(), {"zweck": "sammlungsstruktur", "einzeldatei_als_struktur": True},
         Umgebung(aus_ablauf=True)))
     assert mit.block.daten["einzeldatei_als_struktur"] is True
+
+
+# ── Rückmeldung 16.11.: der WLO-Weg ab Werk an ────────────────────────────────────────────────
+
+def test_rueckmeldung_1611_der_wlo_weg_ist_ab_werk_freigegeben():
+    """Ablage (MCP), Metadaten (Kestra-Flow mit den node_ids) und der Ablauf, der sie zum
+    Themenbaum nutzt — vorher dreifach aus."""
+    import pathlib
+
+    import yaml
+
+    seeds = pathlib.Path(__file__).parents[1] / "seeds"
+    from boerdi.services.auftraege import client
+
+    assert "edusharing.chatbot/node-metadata-write" in client.WERKSVORGABE
+    ablauf = yaml.safe_load((seeds / "06-ablaeufe" / "themenbaum_aus_inhalten.yaml")
+                            .read_text(encoding="utf-8"))
+    assert ablauf["aktiv"] is True and ablauf["voraussetzungen"] == ["anmeldung"]
+
+
+def test_review_1611_m5_die_quittung_verneint_die_ablage_nicht(monkeypatch, stapel_ablage):
+    from boerdi.ui_module import dienst_upload
+
+    monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: True)
+    erg = asyncio.run(dienst.aufruf(_manifest(), {"zweck": "sammlungsstruktur"}, Umgebung()))
+    assert "hochgeladen wird dabei nichts" not in erg.text
+    assert "persönlichen Bereich in WLO übertragen" in erg.text
+    monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: False)
+    erg = asyncio.run(dienst.aufruf(_manifest(), {"zweck": "sammlungsstruktur"}, Umgebung()))
+    assert "wenn sie bei WLO angemeldet ist" in erg.text

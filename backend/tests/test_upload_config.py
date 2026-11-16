@@ -24,9 +24,10 @@ def test_der_bereich_ist_registriert_und_wirkt_in_beiden_modi():
 def test_leer_gilt_die_vorgabe(monkeypatch):
     monkeypatch.setattr(lader, "area", lambda key: {})
     werte = lader.load_upload_config()
-    # Nutzer-Entscheid 2026-11-10: Lesen auch anonym; Ablage in WLO weiter aus.
+    # Nutzer-Entscheid 2026-11-10: Lesen auch anonym. Rückmeldung 16.11.: die Ablage in WLO ist ab
+    # Werk an (wirkt nur mit bestätigter Anmeldung).
     assert (werte.dokument_im_chat, werte.dokument_ohne_anmeldung, werte.ablage_in_wlo) == (
-        True, True, False)
+        True, True, True)
     assert (werte.max_mb, werte.max_seiten, werte.aufbewahrung_h) == (10, 300, 24)
 
 

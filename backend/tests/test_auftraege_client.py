@@ -39,12 +39,25 @@ def betrieb(monkeypatch):
     get_settings.cache_clear()
 
 
-def test_ohne_freigegebenen_flow_sind_auftraege_aus(monkeypatch):
-    # Paket KF: ein leerer Start-Pfad hat eine Vorgabe — aus sind Aufträge ohne Freigabe
+def test_ohne_freigegebenen_flow_gilt_nur_die_werksvorgabe(monkeypatch):
+    # Paket KF: ein leerer Start-Pfad hat eine Vorgabe. Rückmeldung 16.11.: ohne Freigabe im Studio
+    # und ohne B_API_JOBS_FLOWS gilt die Werksvorgabe (der Metadaten-Flow) — sonst nichts
     monkeypatch.delenv("B_API_JOBS_START_PATH", raising=False)
+    monkeypatch.delenv("B_API_JOBS_FLOWS", raising=False)
+    monkeypatch.setattr(client, "load_kestra_flows", lambda: None)
+    get_settings.cache_clear()
+    assert client.freigeschaltet() is True
+    assert client.erlaubt("edusharing.chatbot/node-metadata-write") is True
+    assert client.erlaubt("wlo/datei-zu-markdown") is False
+
+
+def test_im_studio_abgeschaltet_sind_auftraege_aus(monkeypatch):
+    """Wer Aufträge ganz abschalten will: im Studio „aus“ (eine leere Liste schlägt die
+    Werksvorgabe)."""
+    monkeypatch.delenv("B_API_JOBS_FLOWS", raising=False)
+    monkeypatch.setattr(client, "load_kestra_flows", lambda: [])
     get_settings.cache_clear()
     assert client.freigeschaltet() is False
-    assert client.erlaubt("wlo/datei-zu-markdown") is False
 
 
 def test_nur_freigeschaltete_flows(betrieb):

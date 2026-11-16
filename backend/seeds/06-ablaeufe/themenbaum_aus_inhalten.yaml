@@ -5,11 +5,13 @@
 # daraus mit ui_strukturentwurf (aus_inhalten) einen Themenbaum im Chat. Danach endet der Ablauf —
 # Sammlungen daraus anzulegen, kommt später (N15).
 #
-# Voraussetzungen im Betrieb:
-# - Studio „Datei-Upload“: Ablage in WLO an (ablage_in_wlo), die Person ist bei WLO angemeldet;
-# - der Flow steht in B_API_JOBS_FLOWS, und der B-API-Schlüssel darf ihn starten (Plan F9).
-# Ohne Freischaltung ist das im Studio nur ein Hinweis (der Ablauf ist aus); eingeschaltet sperrt
-# die Prüfung ihn (auftrag_frei).
+# Voraussetzungen im Betrieb (ab Werk erfüllt bis auf Anmeldung und Schlüssel, Rückmeldung 16.11.):
+# - Studio „Datei-Upload“: Ablage in WLO an (ablage_in_wlo, ab Werk an), die Person ist bei WLO
+#   angemeldet — sonst nennt der Ablauf die Anmeldung (voraussetzungen) und das Upload-Feld sagt,
+#   dass Übertragen danach geht;
+# - der Flow ist freigegeben (01-base/kestra-flows, ab Werk; mit B_API_JOBS_FLOWS auch dort), und
+#   der B-API-Schlüssel der Person darf ihn starten (Plan F9). Ohne geht es mit den Angaben weiter,
+#   die das Repositorium schon hat (metadaten_fehlt).
 id: themenbaum_aus_inhalten
 titel: {de: "Themenbaum · aus eigenen Inhalten", en: "Topic tree · from own content"}
 beschreibung: >-
@@ -20,7 +22,7 @@ wann:
   - Die Person will aus ihren eigenen Dateien oder Materialien einen Themenbaum bauen
 nicht_wann:
   - Die Person will den Baum aus einem einzelnen Dokument wie einem Lehrplan
-aktiv: false
+aktiv: true
 voraussetzungen: [anmeldung]
 ausloeser:
   - {art: knopf}
@@ -35,8 +37,8 @@ schritte:
   # TW-4 (N16): zuerst die Wahl, den Ablauf zu nutzen — ohne ihn geht es frei weiter.
   - id: einstieg
     typ: nachricht
-    text: {de: "Gern baue ich aus deinen Inhalten einen Themenbaum. Ich führe dich in wenigen Schritten durch: Fragen, Upload, Metadaten, Entwurf. Einverstanden?",
-           en: "I'll gladly build a topic tree from your content. I'll guide you in a few steps: questions, upload, metadata, draft. All right?"}
+    text: {de: "Gern baue ich aus deinen Inhalten einen Themenbaum. Ich führe dich in wenigen Schritten durch: Fragen, Upload, Metadaten, Entwurf. Deine Dateien landen dabei in deinem persönlichen Bereich in WLO; dort entstehen Volltexte und, wenn du willst, Metadaten – das dauert einige Minuten. Einverstanden?",
+           en: "I'll gladly build a topic tree from your content. I'll guide you in a few steps: questions, upload, metadata, draft. Your files are stored in your personal area in WLO; full texts and, if you like, metadata are created there – this takes a few minutes. All right?"}
     optionen:
       - {id: fragen, label: {de: "Ja, los geht's", en: "Yes, let's go"}, ziel: wofuer}
       - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
@@ -117,8 +119,8 @@ schritte:
     weiter: [{sonst: lesen}]
   - id: metadaten_fehlt
     typ: nachricht
-    text: {de: "Die Metadaten ließen sich gerade nicht erzeugen. Ich nehme die Angaben, die schon da sind.",
-           en: "The metadata could not be created right now. I'll use the details that are already there."}
+    text: {de: "Die Metadaten ließen sich gerade nicht erzeugen – der Dienst dafür ist hier nicht eingerichtet oder nicht freigegeben, dein Zugang darf ihn nicht starten, oder er ist gerade nicht erreichbar. Ich nehme die Angaben, die WLO schon hat.",
+           en: "The metadata could not be created right now – the service for it is not set up or not enabled here, your access may not start it, or it is not reachable at the moment. I'll use the details WLO already has."}
   - id: lesen
     typ: werkzeug
     werkzeug: metadaten_lesen
@@ -163,10 +165,19 @@ schritte:
     typ: ende
     text: {de: "Du hast ein Dokument lesen lassen. Für einen Themenbaum daraus starte „Themenbaum · aus einem Dokument“ und wähle das Dokument dort noch einmal.",
            en: "You had a document read. For a topic tree from it, start “Topic tree · from a document” and choose the document there again."}
+  # Rückmeldung 16.11. (Review m7): angemeldet ist die Person hier schon (voraussetzungen) — der
+  # Grund ist, dass nur die Übersicht kam; ein neuer Versuch statt eines Endes (sonst drei Fragen neu)
   - id: ohne_ablage
+    typ: nachricht
+    text: {de: "Es liegen noch keine Dateien in WLO – „Senden“ schickt nur die Übersicht. Wähle im Auswahlfeld deine Dateien und übertrage sie in deinen persönlichen Bereich in WLO.",
+           en: "There are no files in WLO yet – “Send” only sends the overview. Choose your files in the selection field and transfer them to your personal area in WLO."}
+    optionen:
+      - {id: nochmal, label: {de: Nochmal auswählen, en: Choose again}, ziel: hochladen}
+      - {id: beenden, label: {de: Beenden, en: Stop}, ziel: ohne_ablage_ende}
+  - id: ohne_ablage_ende
     typ: ende
-    text: {de: "Ohne Dateien in WLO kann ich keinen Themenbaum aus deinen Inhalten bauen. Probier sonst „Themenbaum · aus einem Thema“.",
-           en: "Without files in WLO I can't build a topic tree from your content. Otherwise try “Topic tree · from a topic”."}
+    text: {de: "Gut, dann ohne Themenbaum aus deinen Inhalten. Probier sonst „Themenbaum · aus einem Thema“.",
+           en: "Alright, no topic tree from your content then. Otherwise try “Topic tree · from a topic”."}
   # Nach dem Flow wäre ein Neustart teuer (neu hochladen, zweiter Flow) — darum ein neuer Versuch.
   - id: ohne_metadaten
     typ: nachricht
@@ -282,7 +293,7 @@ tests:
           warnungen: []
     erwartet:
       weg: [einstieg, wofuer, stufe, thema, hochladen, uebertragen, ohne_ablage]
-      status: fertig
+      ende: ohne_ablage
   # Querschnitts-Review F/T, Befund 1: eine Übertragung ohne abgelegte Datei startet keinen Flow
   # (leere Auswahl → bei_fehler) — dann bleibt nur Beenden.
   - name: Übertragen, aber nichts abgelegt

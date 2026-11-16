@@ -11,8 +11,9 @@ export const FIELDS_UPLOAD: CataloguePart = {
   de: {
     'curated.uiModule.upload.label': 'Hochladen',
     'curated.uiModule.upload.hint':
-      'Was das Auswahlfeld „Ordner oder Dateien“ (ui_upload) mit einem Dokument tun darf. Es wird '
-      + 'im Chat gelesen, nicht im Repositorium abgelegt; die Datei selbst wird nicht gespeichert.',
+      'Was das Auswahlfeld „Ordner oder Dateien“ (ui_upload) tun darf. Ein Dokument wird im Chat '
+      + 'gelesen, nicht im Repositorium abgelegt, und die Datei selbst nicht gespeichert. Dateien '
+      + 'in WLO ablegen ist ein eigener Schalter (nur angemeldet).',
     'feld.UploadConfigArea.upload.label': 'Dokumente im Chat',
     'feld.UploadConfigArea.upload.hint':
       'Gilt in beiden Maschinen ab dem nächsten Auswahlfeld.',
@@ -30,7 +31,10 @@ export const FIELDS_UPLOAD: CataloguePart = {
     'feld.UploadSettings.ablage_in_wlo.hint':
       'An = eine angemeldete Person kann die erfassten Dateien per Klick in ihren persönlichen '
       + 'Bereich in WLO übertragen (nach einer Vorschau, je Datei höchstens so groß wie unten). '
-      + 'Ohne WLO-Anmeldung nie. Wirkt erst, wenn der MCP-Server die Stapel-Ablage anbietet.',
+      + 'Ohne WLO-Anmeldung nie — das Feld sagt dann, dass es nach der Anmeldung geht. Ab Werk '
+      + 'an: der MCP legt die Knoten an, der Kestra-Flow erzeugt mit ihren IDs Volltexte und '
+      + 'Metadaten (Freigabe unter „Abläufe“). Wirkt erst, wenn der MCP-Server die Stapel-Ablage '
+      + 'anbietet.',
     'feld.UploadSettings.max_mb.label': 'Größe je Dokument (MB)',
     'feld.UploadSettings.max_mb.hint': 'Höchstens so groß darf ein Dokument sein — auch jede Datei, die in WLO abgelegt wird, 1 bis 25.',
     'feld.UploadSettings.max_seiten.label': 'Seiten je PDF',
@@ -44,8 +48,9 @@ export const FIELDS_UPLOAD: CataloguePart = {
   en: {
     'curated.uiModule.upload.label': 'Uploads',
     'curated.uiModule.upload.hint':
-      'What the “folder or files” picker (ui_upload) may do with a document. It is read in the '
-      + 'chat, not stored in the repository; the file itself is not kept.',
+      'What the “folder or files” picker (ui_upload) may do. A document is read in the chat, not '
+      + 'stored in the repository, and the file itself is not kept. Storing files in WLO is a '
+      + 'separate switch (signed-in people only).',
     'feld.UploadConfigArea.upload.label': 'Documents in the chat',
     'feld.UploadConfigArea.upload.hint': 'Applies in both engines from the next picker.',
     'feld.UploadSettings.dokument_im_chat.label': 'Read a document in the chat',
@@ -60,7 +65,9 @@ export const FIELDS_UPLOAD: CataloguePart = {
     'feld.UploadSettings.ablage_in_wlo.hint':
       'On = a signed-in person can transfer the captured files to their personal area in WLO '
       + 'with a click (after a preview, each at most the size below). Never without the WLO '
-      + 'sign-in. Takes effect only once the MCP server offers batch storage.',
+      + 'sign-in — the picker then says it works after signing in. On by default: the MCP creates '
+      + 'the nodes, the Kestra flow uses their IDs to create full texts and metadata (release '
+      + 'under “Workflows”). Takes effect only once the MCP server offers batch storage.',
     'feld.UploadSettings.max_mb.label': 'Size per document (MB)',
     'feld.UploadSettings.max_mb.hint': 'A document may be at most this large — so may each file stored in WLO, 1 to 25.',
     'feld.UploadSettings.max_seiten.label': 'Pages per PDF',

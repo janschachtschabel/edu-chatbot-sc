@@ -27,8 +27,9 @@ class UploadSettings(AreaModel):
     #: Umwandlung, Größe/Seiten, Moderation und Frist. Aus = nur angemeldete Personen.
     dokument_ohne_anmeldung: bool = True
     #: Inhalte im persönlichen Bereich von WLO anlegen (U3-3; nur mit bestätigter Anmeldung;
-    #: je Datei höchstens ``max_mb``).
-    ablage_in_wlo: bool = False
+    #: je Datei höchstens ``max_mb``). Ab Werk an (Rückmeldung 16.11.): der MCP legt die Knoten an,
+    #: der Kestra-Flow erzeugt mit ihren node_ids Volltexte und Metadaten, der Chatbot holt sie.
+    ablage_in_wlo: bool = True
     max_mb: int = Field(default=10, ge=1, le=OBERGRENZE_MB)
     max_seiten: int = Field(default=300, ge=1, le=1000)
     #: Frist nach der letzten Nutzung; danach löscht der Aufbewahrungslauf das Dokument.

@@ -154,12 +154,14 @@ def _assert_aktive_ablaeufe_behalten_ihre_flows(data: dict, lang: Locale) -> Non
         frei = frozenset(kestra.flows) & obergrenze if obergrenze is not None \
             else frozenset(kestra.flows)
     else:
-        frei = obergrenze or frozenset()
+        frei = obergrenze or client.WERKSVORGABE
     # Review TW-6, Befund 5: nur, was heute freigegeben ist und jetzt wegfiele — ein Flow, der
-    # nie freigegeben war, sperrt das Speichern nicht
+    # nie freigegeben war, sperrt das Speichern nicht. Rückmeldung 16.11. (Review m4): ein Schritt
+    # mit Ersatzweg (``bei_fehler``) bricht nicht — wie in der Prüfung der Abläufe
     entzogen = client.freigegebene_flows() - frei
     betroffen = sorted({f"{a.id} ({s.flow})" for a in ausloeser.katalog() if a.aktiv
-                        for s in a.schritte if s.typ == "auftrag" and s.flow in entzogen})
+                        for s in a.schritte
+                        if s.typ == "auftrag" and s.flow in entzogen and not s.bei_fehler})
     if betroffen:
         raise HTTPException(400, msg(lang, "kestra.genutzt", value=", ".join(betroffen)[:400]))
 

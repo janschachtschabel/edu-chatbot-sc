@@ -104,7 +104,12 @@ def test_ein_nicht_freigeschalteter_flow_sperrt_nur_einen_eingeschalteten_ablauf
     aus = _ablauf(False)
     assert not any("fremd/nicht-frei" in b for b in pruefung.pruefe(aus))
     assert any("fremd/nicht-frei" in w for w in pruefung.warnungen(aus))
-    assert any("fremd/nicht-frei" in b for b in pruefung.pruefe(_ablauf(True)))
+    # Rückmeldung 16.11.: eingeschaltet sperrt er nur ohne Ersatzweg — mit ``bei_fehler`` nimmt der
+    # Schritt zur Laufzeit diesen Weg, die Prüfung warnt nur
+    assert any("fremd/nicht-frei" in b for b in pruefung.pruefe(_ablauf(True, bei_fehler=None)))
+    mit_ersatz = _ablauf(True)
+    assert not any("fremd/nicht-frei" in b for b in pruefung.pruefe(mit_ersatz))
+    assert any("fremd/nicht-frei" in w for w in pruefung.warnungen(mit_ersatz))
 
 
 def test_der_vermerk_repo_schreibt_gilt_am_auftrag(betrieb):

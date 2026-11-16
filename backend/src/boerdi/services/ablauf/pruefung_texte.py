@@ -284,6 +284,12 @@ _T: Final[dict[str, dict[str, str]]] = {
     "auftrag_frei": {"de": "Schritt {s}: Flow {f!r} ist nicht freigegeben (Abläufe → "
                            "Kestra-Flows freigeben)",
                      "en": "Step {s}: flow {f!r} is not enabled (Workflows → Enable Kestra flows)"},
+    # Rückmeldung 16.11.: eingeschaltet, aber mit Ersatzweg — ein Hinweis, keine Sperre
+    "auftrag_frei_ersatz": {"de": "Schritt {s}: Flow {f!r} ist nicht freigegeben (Abläufe → "
+                                  "Kestra-Flows freigeben) — bis dahin nimmt der Schritt den "
+                                  "Ersatzweg {b!r}",
+                            "en": "Step {s}: flow {f!r} is not enabled (Workflows → Enable Kestra "
+                                  "flows) — until then the step takes the fallback {b!r}"},
     "auftrag_schreibt": {"de": "Schritt {s}: Ergebnis-Teil (schreibt) fehlt",
                          "en": "Step {s}: result part (schreibt) missing"},
     # Paket R1: Teilaufträge
