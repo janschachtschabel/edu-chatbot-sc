@@ -25,6 +25,16 @@ export const QUELLE = /^teil\.([a-z][a-z0-9_]{1,29})(?:\.[A-Za-z0-9_-]{1,64}(?:\
 /** Wie `vergleich.zahl`: Vorzeichen, Ziffern, ein Dezimalkomma oder -punkt. */
 const ZAHL = /^[+-]?\d{1,40}(?:[.,]\d{1,40})?$/;
 
+/** Plan 2026-11-16, Nachprüfung TG-4–6 (MINOR 5), wie `vergleich.wert_quelle`: ein Wert, der mit
+ *  `{teil.` beginnt, ist eine Stelle (`{teil.struktur.block_id}`) — `gut` in der Form der Quelle,
+ *  sonst `falsch`; jeder andere Wert `keine`. */
+export function stelleImWert(wert: string): 'keine' | 'gut' | 'falsch' {
+  const w = wert.trim();
+  if (!w.startsWith('{teil.')) return 'keine';
+  const innen = /^\{([^{}]+)\}$/.exec(w);
+  return innen && QUELLE.test(innen[1]) ? 'gut' : 'falsch';
+}
+
 export interface RegelZeile {
   readonly bedingung: Bedingung;
   /** Die Wahl (Kennung einer Möglichkeit), der Name eines Teils bzw. der Vergleichswert; leer bei
@@ -38,7 +48,7 @@ export interface RegelZeile {
 
 export interface RegelFehler {
   readonly art: 'leer' | 'wert' | 'ziel' | 'sonstZuletzt' | 'sonstFehlt' | 'nurVerzweigung' | 'wahlWeiter'
-    | 'quelle' | 'quelleForm' | 'zahl' | 'muster';
+    | 'quelle' | 'quelleForm' | 'zahl' | 'muster' | 'wertForm';
   readonly zeile: number;
 }
 
@@ -133,8 +143,10 @@ export function fehlerVon(zeilen: readonly RegelZeile[]): RegelFehler | null {
     if (braucht && !z.wert.trim()) return { art: 'wert', zeile: i };
     // Review AS-7b, Befund 9: nur Kommas sind kein Muster (das Backend läse eine leere Liste als keine)
     if (z.bedingung === 'seite' && !musterAus(z.wert).length) return { art: 'wert', zeile: i };
+    const stelle = z.bedingung === 'wert' ? stelleImWert(z.wert) : 'keine';
+    if (stelle === 'falsch') return { art: 'wertForm', zeile: i };
     if (z.bedingung === 'wert' && (z.vergleich === 'groesser' || z.vergleich === 'kleiner')
-        && !ZAHL.test(z.wert.trim())) return { art: 'zahl', zeile: i };
+        && stelle === 'keine' && !ZAHL.test(z.wert.trim())) return { art: 'zahl', zeile: i };
     // AS-7b: wie die Prüfung im Backend (`seiten_muster.fehler`) — jedes Muster ist ein Pfad
     if (z.bedingung === 'seite' && musterAus(z.wert).some((m) => !m.startsWith('/'))) {
       return { art: 'muster', zeile: i };

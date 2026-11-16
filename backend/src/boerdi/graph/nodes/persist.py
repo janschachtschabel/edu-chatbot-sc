@@ -177,6 +177,7 @@ async def persist(
         gelieferte_dokumente=ctx.gelieferte_dokumente or _aus_dem_musterweg,
         ui_bloecke=ctx.ui_bloecke,
         mehrfachsuche=_MEHRFACH_SUCHE in (ctx.tools_called or []),
+        ui_antwort=ctx.ui_antwort,
     )
     # Das maschinenlesbare Ergebnis der Agent-Schleife (2026-08-14). NACH dem
     # Bau angehängt statt durch die Signatur gereicht: die trägt schon zwanzig

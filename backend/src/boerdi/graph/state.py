@@ -90,6 +90,10 @@ class TurnContext(BaseModel):
     #: Review U1-d1, Befund 3: die Frage, die dieser Zug geschlossen hat (``merke_frage``) — ohne
     #: geprüfte Antwort steht sie gerahmt vor der Nachricht an die KI (``antwort.frage_block``).
     geschlossene_frage: dict[str, Any] | None = None
+    #: Plan 2026-11-16, Review TG-3d–f, MINOR 1: Krisenmuster in den Namen einer Auswahl — die
+    #: Antwort bekommt die Hilfsnummern angehängt (``graph.build._krisenhilfe``, aus ``run_turn``),
+    #: ohne den Zug zu verwerfen.
+    krisenhilfe: bool = False
     # Früh-Ausstieg (Tour/Kontext-Begrüßung/Preflight) → im Graphen eine
     # bedingte Kante. Gesetzt ⇒ Assessment/Route/Respond werden übersprungen.
     early_response: ChatResponse | None = None

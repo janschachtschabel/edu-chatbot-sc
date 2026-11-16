@@ -58,6 +58,9 @@ TEIL_LADER_KEY: Final = "_teil_lader_zug"
 #: Plan 2026-11-11, TW-2: die Vorgaben des KI-Schritts eines Laufs (``ki_schritt.vorgaben``) und
 #: die Werkzeuge des Schritts, für die sie gelten — nur für diesen Zug.
 VORGABEN_KEY: Final = "_modul_vorgaben_zug"
+#: Plan 2026-11-16, TG-5: die Vorbelegung des KI-Schritts (``ablauf/vorbelegung``) und die
+#: Werkzeuge des Schritts, für die sie gilt — nur für diesen Zug, wie die Vorgaben.
+VORBELEGUNG_KEY: Final = "_modul_vorbelegung_zug"
 
 
 @dataclass(slots=True)
@@ -81,6 +84,13 @@ def _vorgaben_fuer(name: str, eintrag: Any) -> str:
     if isinstance(eintrag, tuple) and len(eintrag) == 2 and name in eintrag[1]:
         return str(eintrag[0] or "")
     return ""
+
+
+def _vorbelegung_fuer(name: str, eintrag: Any) -> dict[str, Any] | None:
+    """Plan 2026-11-16, TG-5: die Vorbelegung nur für ein Modul, das der KI-Schritt nennt."""
+    if isinstance(eintrag, tuple) and len(eintrag) == 2 and name in eintrag[1]:
+        return eintrag[0] if isinstance(eintrag[0], dict) and eintrag[0] else None
+    return None
 
 
 def _anzeigende(session_state: dict) -> int:
@@ -125,7 +135,8 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
                 usage_acc=usage_acc, vorlage=entwurf_vorlage(session_state.get("entities") or {}),
                 dokument=session_state.get(DOKUMENT_LADER_KEY),
                 teile=session_state.get(TEIL_LADER_KEY), verfuegbar=frozenset(angeboten),
-                vorgaben=_vorgaben_fuer(name, session_state.get(VORGABEN_KEY))))
+                vorgaben=_vorgaben_fuer(name, session_state.get(VORGABEN_KEY)),
+                vorbelegung=_vorbelegung_fuer(name, session_state.get(VORBELEGUNG_KEY))))
         outcomes.append(ergebnis.outcome)
         if ergebnis.block is not None:
             session_state.setdefault(MODUL_BLOECKE_KEY, []).append(ergebnis.block)

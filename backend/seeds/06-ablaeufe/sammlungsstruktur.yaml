@@ -1,3 +1,5 @@
+# ABGELÖST durch themenbaum („Themenbaum erstellen“, Plan 2026-11-16, TG-6, G-E2): ab Werk aus,
+# nicht gelöscht. Die Wendungen kollidieren nicht mit denen von themenbaum, solange er aus ist.
 # Ablauf „Themenbaum aus Ordnern“ (Paket A1, Plan docs/plans/2026-11-05-vorgang-und-ablaeufe.md §4;
 # seit AS-0 ein Dokument je Ablauf, Plan docs/plans/2026-11-09-ablaeufe-im-studio.md). Der Schlüssel
 # 06-ablaeufe/<id> ist die Kennung. Gelesen vom lokalen Treiber (services/ablauf). Ein Ablauf führt
@@ -15,7 +17,8 @@ nicht_wann:
   - Die Person nennt nur ein Thema, ohne eigene Ordner (dafür „Themenbaum · aus einem Thema“)
   - Die Person will den Baum aus einem einzelnen Dokument wie einem Lehrplan
 # Im Werkszustand an (Nutzer-Entscheid 11.11.): schreibt nichts ins Repositorium.
-aktiv: true
+# Plan 2026-11-16, TG-6: abgelöst durch themenbaum — bleibt als Werksfassung, ab Werk aus.
+aktiv: false
 # knopf: Direktaktion ablauf_starten; agent: die KI schlägt ihn vor (Knopf unter der Antwort);
 # text: eine dieser Wendungen in der Nachricht startet ihn (keine regulären Ausdrücke).
 ausloeser:
@@ -24,6 +27,19 @@ ausloeser:
   - {art: agent, modus: direkt}
   - {art: text, wendungen: [themenbaum aus meinem ordner, themenbaum aus meinen ordnern]}
 schritte:
+  # Zweites Review TG-2 (MINOR 4–6): zuerst, was im Vorgang nutzbar bereitliegt (ohne LLM) — Ordner
+  # nur mit Unterordnern (sonst gäbe es keinen Entwurf); dann eine von zwei Fassungen des Einstiegs,
+  # damit die Leiste ohne Sprung zählt
+  - id: bereit
+    typ: werkzeug
+    werkzeug: bereitgestellt
+    schreibt: bereit
+    bei_fehler: einstieg
+  - id: vorhanden
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.bereit.ordner.unterordner, vergleich: groesser, wert: "0"}, dann: einstieg_mit}
+      - {sonst: einstieg}
   # TW-6: zuerst die Wahl, den Ablauf zu nutzen (wie die anderen Themenbaum-Abläufe)
   - id: einstieg
     typ: nachricht
@@ -31,6 +47,17 @@ schritte:
            en: "I'll gladly turn your folder structure into a topic tree draft: choose the folder, view and edit the draft. All right?"}
     optionen:
       - {id: ja, label: {de: "Ja, Ordner wählen", en: "Yes, choose folder"}, ziel: erfassen}
+      - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
+  # Review TG-2, M4 (G-E6): im freien Chat schon erfasste Ordner mit Unterordnern liegen bereit —
+  # die zweite Fassung des Einstiegs bietet sie an; „Andere wählen“ verwirft sie (MAJOR 1) — seit
+  # Plan 2026-11-16, TG-3a auch die Auswahl mit Dateien (`struktur`) derselben Ordner.
+  - id: einstieg_mit
+    typ: nachricht
+    text: {de: "Gern mache ich aus deinen Ordnern „{teil.bereit.ordner.name}“ einen Themenbaum-Entwurf, den du ansehen und bearbeiten kannst. Soll ich diese Ordner verwenden?",
+           en: "I'll gladly turn your folders “{teil.bereit.ordner.name}” into a topic tree draft you can view and edit. Shall I use these folders?"}
+    optionen:
+      - {id: verwenden, label: {de: "Ja, diese verwenden", en: "Yes, use them"}, ziel: entwurf}
+      - {id: andere, label: {de: Andere wählen, en: Choose others}, ziel: erfassen, verwirft: [structure, struktur]}
       - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
   - id: erfassen
     typ: modul
@@ -52,10 +79,14 @@ schritte:
   - id: ende
     typ: ende
     text: {de: "Dein Entwurf ist gespeichert.", en: "Your draft is saved."}
+  # Plan 2026-11-16, TG-6 (kein stummes Ende): die Sackgasse aus dem Anlass — jetzt mit Ausweg
   - id: ohne_ordner
-    typ: ende
-    text: {de: "Ohne Unterordner gibt es noch keinen Themenbaum.",
-           en: "Without subfolders there is no topic tree yet."}
+    typ: nachricht
+    text: {de: "Ohne Unterordner gibt es noch keinen Themenbaum aus Ordnern. Wähle einen Ordner mit Unterordnern – oder mach frei im Chat weiter.",
+           en: "Without subfolders there is no topic tree from folders yet. Choose a folder with subfolders – or carry on freely in the chat."}
+    optionen:
+      - {id: nochmal, label: {de: Nochmal wählen, en: Choose again}, ziel: erfassen, verwirft: [structure]}
+      - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
   - id: frei
     typ: ende
     ausstieg: true
@@ -74,8 +105,46 @@ tests:
           zahlen: {ordner: 3, dateien: 6, inhalte: 6, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
           strukturdokument: null
           warnungen: []
-    erwartet: {weg: [einstieg, erfassen, entwurf, bearbeiten], status: wartet_person}
+    erwartet: {weg: [bereit, vorhanden, einstieg, erfassen, entwurf, bearbeiten], status: wartet_person}
   - name: Ohne Führung
     eingaben:
       - {bei: einstieg, option: ohne}
-    erwartet: {weg: [einstieg, frei], status: fertig}
+    erwartet: {weg: [bereit, vorhanden, einstieg, frei], status: fertig}
+  # Review TG-2, M4: die Ordner liegen schon im Vorgang (im freien Chat erfasst)
+  - name: Schon erfasste Ordner verwenden
+    teile:
+      structure:
+        struktur: {name: Physik, dateien: 0, alle_dateien: 6, kinder: [
+          {name: Optik, dateien: 3, alle_dateien: 3, kinder: []},
+          {name: Mechanik, dateien: 3, alle_dateien: 3, kinder: []}]}
+        zahlen: {ordner: 3, dateien: 6, inhalte: 6, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+    eingaben:
+      - {bei: einstieg_mit, option: verwenden}
+    erwartet: {weg: [bereit, vorhanden, einstieg_mit, entwurf, bearbeiten], status: wartet_person}
+  - name: Schon erfasste Ordner, aber andere wählen
+    teile:
+      structure:
+        struktur: {name: Alt, dateien: 0, alle_dateien: 2, kinder: [
+          {name: Teil, dateien: 2, alle_dateien: 2, kinder: []}]}
+        zahlen: {ordner: 2, dateien: 2, inhalte: 2, ignoriert: 0, strukturdokumente: 0, bytes: 10}
+    eingaben:
+      - {bei: einstieg_mit, option: andere}
+      - bei: erfassen
+        antwort:
+          aktion: erfasst
+          struktur: {name: Physik, dateien: 0, alle_dateien: 3, kinder: [
+            {name: Optik, dateien: 3, alle_dateien: 3, kinder: []}]}
+          zahlen: {ordner: 2, dateien: 3, inhalte: 3, ignoriert: 0, strukturdokumente: 0, bytes: 100}
+          strukturdokument: null
+          warnungen: []
+    erwartet: {weg: [bereit, vorhanden, einstieg_mit, erfassen, entwurf, bearbeiten],
+               status: wartet_person}
+  # Zweites Review TG-2, MINOR 4: Ordner ohne Unterordner ergeben keinen Entwurf — kein Angebot
+  - name: Erfasste Ordner ohne Unterordner werden nicht angeboten
+    teile:
+      structure:
+        struktur: {name: Flach, dateien: 3, alle_dateien: 3, kinder: []}
+        zahlen: {ordner: 1, dateien: 3, inhalte: 3, ignoriert: 0, strukturdokumente: 0, bytes: 10}
+    eingaben:
+      - {bei: einstieg, option: ohne}
+    erwartet: {weg: [bereit, vorhanden, einstieg, frei], status: fertig}

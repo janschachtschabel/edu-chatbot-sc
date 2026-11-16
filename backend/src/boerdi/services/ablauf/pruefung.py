@@ -448,8 +448,11 @@ def _wahl(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
         return [_t(lang, "wahl_typ", s=s.id)]
     b: list[str] = []
     # WF-2: der Hinweis ohne Treffer gilt nur, wo getippter Text sonst an die KI ginge — mit
-    # Freitext ist jeder Text die Antwort, ohne Optionen gibt es nichts zu treffen
-    if s.kein_treffer is not None and (not s.optionen or s.freitext is not None
+    # Freitext ist jeder Text die Antwort, ohne Optionen gibt es nichts zu treffen. Plan
+    # 2026-11-16, Nachprüfung TG-4–6 (MINOR 3): mit ``synonyme_im_satz`` auch neben Freitext — dort
+    # nimmt der Freitext einen Satz nicht, der mehrere Optionen trifft (``treiber.mehrdeutig``)
+    mit_freitext = s.freitext is not None and not s.synonyme_im_satz
+    if s.kein_treffer is not None and (not s.optionen or mit_freitext
                                        or not (s.kein_treffer.get("de") or "").strip()):
         b.append(_t(lang, "kein_treffer", s=s.id))
     # Review WF-2, NIT 5: der Hinweis steht wörtlich da — ein Platzhalter bliebe roh
@@ -545,21 +548,38 @@ def _wenn_wert(s: Schritt, davor: set[str], geschrieben: set[str], lang: str) ->
     for r in s.weiter:
         if (w := r.wenn_wert) is None:
             continue
-        q = vergleich.quelle(w.quelle)
-        if q is None:
-            b.append(_t(lang, "wert_quelle", s=s.id, q=w.quelle[:80]))
-        elif q[0] not in geschrieben:
-            b.append(_t(lang, "wert_teil", s=s.id, q=w.quelle[:80], t=q[0]))
-        elif q[0] not in davor:
-            b.append(_t(lang, "wert_spaeter", s=s.id, q=w.quelle[:80], t=q[0]))
-        hat_wert = bool((w.wert or "").strip())
+        b += _stelle(s, w.quelle, vergleich.quelle(w.quelle), davor, geschrieben, lang)
+        # Plan 2026-11-16, Nachprüfung TG-4–6 (MINOR 5): ein Wert ``{teil.…}`` ist eine Stelle
+        # (``vergleich.wert_quelle``) — geprüft wie die Quelle; wer ``{teil.`` schreibt, meint eine
+        # Stelle, eine falsche Form ist ein Befund (kein Text, der still nie gleich ist)
+        wert =(w.wert or "").strip()
+        stelle = vergleich.wert_quelle(wert)
+        if stelle is not None:
+            b += _stelle(s, wert, stelle, davor, geschrieben, lang)
+        elif wert.startswith("{teil."):
+            b.append(_t(lang, "wert_stelle", s=s.id, w=wert[:80]))
+        hat_wert = bool(wert)
         if w.vergleich in vergleich.MIT_WERT and not hat_wert:
             b.append(_t(lang, "wert_fehlt", s=s.id, v=w.vergleich))
         elif w.vergleich not in vergleich.MIT_WERT and hat_wert:
             b.append(_t(lang, "wert_ohne", s=s.id, v=w.vergleich))
-        elif w.vergleich in vergleich.ZAHL_NOETIG and vergleich.zahl(w.wert) is None:
+        elif (w.vergleich in vergleich.ZAHL_NOETIG and not wert.startswith("{teil.")
+              and vergleich.zahl(w.wert) is None):
             b.append(_t(lang, "wert_zahl", s=s.id, v=w.vergleich))
     return list(dict.fromkeys(b))
+
+
+def _stelle(s: Schritt, text: str, q: tuple[str, str | None] | None, davor: set[str],
+            geschrieben: set[str], lang: str) -> list[str]:
+    """Eine Stelle (Quelle oder Wert einer Regel): in Form, ein Teil, den der Ablauf schreibt,
+    und einer, der vor dem Schritt entsteht."""
+    if q is None:
+        return [_t(lang, "wert_quelle", s=s.id, q=text[:80])]
+    if q[0] not in geschrieben:
+        return [_t(lang, "wert_teil", s=s.id, q=text[:80], t=q[0])]
+    if q[0] not in davor:
+        return [_t(lang, "wert_spaeter", s=s.id, q=text[:80], t=q[0])]
+    return []
 
 
 def _verweis_namen(s: Schritt) -> list[str]:
@@ -615,9 +635,10 @@ def warnungen(ablauf: AblaufArea, lang: str = "de") -> list[str]:
             # Rückmeldung 16.11.: eingeschaltet mit Ersatzweg — zur Laufzeit startet der Auftrag
             # nicht, und der Schritt nimmt ``bei_fehler``
             w.append(_t(lang, "auftrag_frei_ersatz", s=s.id, f=s.flow, b=s.bei_fehler))
-        if (s.typ == "werkzeug" and s.werkzeug == "metadaten_lesen" and s.schreibt
-                and s.schreibt != "metadaten"):
+        if (s.typ == "werkzeug" and s.werkzeug in ("metadaten_lesen", "inhalte_aus_dateien")
+                and s.schreibt and s.schreibt != "metadaten"):
             # Review TB-T1, Befund 7: ``ui_strukturentwurf`` (aus_inhalten) liest fest ``metadaten``
+            # — Plan 2026-11-16, TG-4: ebenso das Ergebnis aus den Dateinamen
             w.append(_t(lang, "metadaten_teil", s=s.id, t=s.schreibt[:40]))
         if (s.typ == "auftrag" and not rueckfrage
                 and typen.START_TEIL in typen.verweis_namen(s)):
@@ -631,6 +652,11 @@ def warnungen(ablauf: AblaufArea, lang: str = "de") -> list[str]:
             # schreibt ihn der Ablauf selbst, nur später — oder gar nicht (dann aus dem Gespräch)
             schluessel = "verweis_spaeter" if n in im_ablauf else "verweis_gespraech"
             w.append(_t(lang, schluessel, s=s.id, t=n[:40]))
+    # Plan 2026-11-16, TG-6: ein Ende ohne Ausstieg, das ein Lauf ohne Ergebnis und ohne Wahl der
+    # Person erreicht (Sackgasse) — ein Hinweis, damit ältere eigene Abläufe weiter speichern
+    from boerdi.services.ablauf.stumme_enden import stumme_enden
+
+    w += [_t(lang, "ende_stumm", s=sid) for sid in stumme_enden(ablauf, module)]
     return list(dict.fromkeys(w))
 
 
@@ -860,6 +886,12 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
         # auf jedem Weg: eine Wahl, deren Antwort zu ihm führt, oder eine Freigabe
         if s.typ == "auftrag" and s.repo_schreibt and not _direkt_gefragt(ablauf, i):
             befunde.append((i, _t(lang, "auftrag_rueckfrage", s=s.id)))
+        # Plan 2026-11-16, Nachprüfung TG-4–6 (MINOR 4): die Zustimmung zu einem schreibenden Flow
+        # trägt kein Synonym — ohne Freitext träfe „Nein, nicht erzeugen“ über „erzeugen“
+        if s.typ == "auftrag" and s.repo_schreibt:
+            befunde += [(j, _t(lang, "auftrag_synonym", s=v.id, o=o.id))
+                        for j, v in enumerate(ablauf.schritte) if mit_wahl(v)
+                        for o in v.optionen or [] if o.ziel == s.id and o.synonyme]
         rueckfrage = rueckfrage or s.typ == "modul" or bool(s.optionen) or s.freitext is not None
         rueckfrage = rueckfrage or (s.typ == "werkzeug" and s.freigabe is not None)
         # TB-F1: ein Flow, den der Betrieb nicht freischaltet, sperrt nur einen eingeschalteten
@@ -872,6 +904,14 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
         befunde += [(i, text) for text in _platzhalter(s, davor.get(i, set()), geschrieben,
                                                        lang, startfelder)]
         befunde += [(i, text) for text in _wahl_platzhalter(s, wahl_teile, lang)]
+        # Zweites Review TG-2 (MAJOR 1): ``verwirft`` nennt nur Teile, die der Ablauf kennt — ein
+        # Tippfehler verwürfe still nichts; ``start`` tragen nur die Startdaten
+        befunde += [(i, _t(lang, "verwirft", s=s.id, o=o.id, t=t)) for o in s.optionen or []
+                    for t in o.verwirft or []
+                    if t == typen.START_TEIL or t not in geschrieben | set(gespraech)]
+        # Nachprüfung TG-2, 5: Verweise auf Knoten im Repositorium bleiben
+        befunde += [(i, _t(lang, "verwirft_repo", s=s.id, o=o.id, t=t)) for o in s.optionen or []
+                    for t in o.verwirft or [] if t in typen.NICHT_VERWERFBAR]
         # AS-4a: ``start`` tragen nur die Startdaten
         if typen.START_TEIL in typen.schritt_ausgaben(s, module):
             befunde.append((i, _t(lang, "start_reserviert", s=s.id)))
@@ -894,11 +934,15 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
         befunde += _laeufe(ablauf, lang)
     befunde += [(None, _t(lang, "voraussetzung", v=v)) for v in ablauf.voraussetzungen
                 if v not in VORAUSSETZUNGEN]
-    if (any(s.typ == "auftrag" for s in ablauf.schritte)
+    # Plan 2026-11-16, TG-6: ohne die Voraussetzung genügt ein Ersatzweg (``bei_fehler``) — ohne
+    # Anmeldung startet kein Auftrag (``auftrag_zug.starter``) und ``metadaten_lesen`` liest nichts
+    # (``metadaten.lesen``), der Schritt nimmt dann ``bei_fehler``. So kann ein Ablauf wie
+    # „Themenbaum erstellen“ anonym starten und den WLO-Weg nur angemeldet gehen.
+    if (any(s.typ == "auftrag" and not s.bei_fehler for s in ablauf.schritte)
             and "anmeldung" not in ablauf.voraussetzungen):
         befunde.append((None, _t(lang, "auftrag_anmeldung")))
-    if (any(s.typ == "werkzeug" and s.werkzeug == "metadaten_lesen" for s in ablauf.schritte)
-            and "anmeldung" not in ablauf.voraussetzungen):
+    if (any(s.typ == "werkzeug" and s.werkzeug == "metadaten_lesen" and not s.bei_fehler
+            for s in ablauf.schritte) and "anmeldung" not in ablauf.voraussetzungen):
         # Review TB-F2, Befund 2: liest private Nodes der Person — nur unter ihrer Anmeldung
         befunde.append((None, _t(lang, "metadaten_anmeldung")))
     if (any(s.typ == "werkzeug" and werkzeuge.schreibend(s.werkzeug or "")
@@ -908,7 +952,8 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
     for a in ablauf.ausloeser:
         befunde += [(None, text) for text in _ausloeser(ablauf, a, module, lang)]
         # TB-E3: ``direkt`` nur ohne Schreiben — sonst bleibt es ein Vorschlag
-        if a.art == "agent" and a.modus == "direkt" and werkzeuge.ablauf_schreibt_selbst(ablauf):
+        # Plan 2026-11-16, TG-6: ein Auftrag mit Rückfrage direkt davor zählt nicht (wie TW-6)
+        if a.art == "agent" and a.modus == "direkt" and werkzeuge.ablauf_schreibt_ungefragt(ablauf):
             befunde.append((None, _t(lang, "direkt_schreibt")))
     befunde += [(None, text) for text in _startschema(ablauf, lang)]
     return befunde

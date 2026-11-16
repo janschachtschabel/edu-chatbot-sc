@@ -323,8 +323,9 @@ def test_vorgehen_md_nennt_nur_existierende_werkzeuge(text: str) -> None:
     # (Agent-Runde 2, 2026-09-28) — der Chat-Zug legt es immer dazu. Dazu das
     # Antwort-Werkzeug samt seinem Feld ``quick_replies`` und die Modul-Werkzeuge
     # aus den Manifesten (``ui_entscheidung``, ``ui_themenbaum``; Paket U1).
+    # Plan 2026-11-16, Durchtest TG-7 (M2): ``dokument_lesen`` (mit gelesenem Dokument).
     virtuell = {"wissen_suchen", "liefere_ergebnis", INHALTSRAHMEN, RESPOND_TO_USER,
-                "quick_replies", *modul_werkzeug_titel()}
+                "quick_replies", "dokument_lesen", *modul_werkzeug_titel()}
     # ``search_skill`` nennt der Skill nur, um es zu VERNEINEN („existiert
     # nicht") — die Nennung ist gewollt, das Werkzeug bleibt draußen.
     unbekannt = genannt - katalog - virtuell - {"search_skill"}
@@ -472,7 +473,8 @@ def test_knapp_ordner_oder_lehrplan_und_abgleich(knapp: str) -> None:
     """Plan 2026-11-04 §9 U3-5 und Plan 2026-11-08 E-9: die Beschreibung allein reichte bei
     ui_entscheidung nicht (Golden-Lauf 2026-11-03) — eine Regel im Master-Skill."""
     oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
-    assert "→ `ui_upload` mit `zweck: sammlungsstruktur`" in oberflaeche
+    # Plan 2026-11-16, TG-2: das Feld ist zielneutral
+    assert "→ `ui_upload` mit `zweck: bereitstellen`" in oberflaeche
     assert "nur per Klick im Modul — nie selbst anstoßen" in oberflaeche
     # 2026-11-10: Lesen und Entwerfen gehen anonym, nur das Übertragen braucht die Anmeldung
     assert "ohne Anmeldung sagen, dass erst das Übertragen eine" in oberflaeche
@@ -510,9 +512,26 @@ def test_knapp_ablauf_geht_modul_und_platzhalter_frage_vor(knapp: str) -> None:
     # Lehrplan“, „aus meinen Ordnern“ und „aus meinen Dateien“ direkt
     finden = _abschnitt(knapp, "Finden")
     assert "ansteuern“) — außer ein passender Ablauf" in finden
-    assert "`zweck: sammlungsstruktur` — außer ein passender Ablauf" in oberflaeche
+    assert "`zweck: bereitstellen` — außer ein passender Ablauf" in oberflaeche
     assert "nie nur „lade" in oberflaeche                 # keine Sackgasse ohne Feld
 
+
+
+def test_knapp_nach_dem_hochladen_fragen_und_ablaeufe_vorschlagen(knapp: str) -> None:
+    """Plan 2026-11-16, TG-2 (G-E5): das Upload-Feld stellt nur bereit, die Rahmen sind neutral.
+    Danach fragt die KI, was die Person mit den Daten will, schlägt passende Abläufe vor und ruft
+    nichts von selbst — sonst bliebe sie unschlüssig oder entwürfe ungefragt (Risiko im Plan)."""
+    oberflaeche = _abschnitt(knapp, "Oberfläche ansteuern")
+    assert "**Nach dem Hochladen**" in oberflaeche
+    # Review TG-2, M3: derselbe Wortlaut wie der Rahmen — ein Ablauf-Vorschlag ist ein Aufruf
+    assert "Geht aus dem Verlauf und der Nachricht nicht hervor" in oberflaeche
+    assert "frag kurz und nenne passende Möglichkeiten" in oberflaeche
+    assert "ruf den passenden Ablauf auf bzw. schlag ihn vor" in oberflaeche
+    assert "Entwirf nichts ungefragt." in oberflaeche
+    assert "Ruf nichts von selbst" not in oberflaeche
+    assert "Das Feld stellt nur bereit" in oberflaeche
+    # Review TG-2, m3: Ordner → Themenbaum ohne angebotenen Ablauf
+    assert "die oberen Ordner als `hinweise`" in oberflaeche
 
 def test_formeln_stehen_als_latex_in_den_begrenzern(text: str) -> None:
     r"""Plan 2026-11-10, TB-E4 (Querschnitts-Review Gruppe E, Befund 5): das Widget zeichnet

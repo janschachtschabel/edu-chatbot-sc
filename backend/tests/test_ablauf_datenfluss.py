@@ -24,6 +24,12 @@ _ZAEHLEN = {"id": "zaehlen", "typ": "werkzeug", "werkzeug": "abdeckung_zaehlen",
             "bei_fehler": "e"}
 
 
+def _datenfluss(ablauf: AblaufArea) -> list[str]:
+    """Die Hinweise zum Datenfluss — ohne den Hinweis „Ende ohne Ergebnis“ (Plan 2026-11-16,
+    TG-6): diese Mini-Abläufe enden absichtlich gleich nach den Diensten."""
+    return [w for w in warnungen(ablauf) if "Ende ohne Ausstieg" not in w]
+
+
 def _ablauf(*schritte) -> AblaufArea:
     return AblaufArea.model_validate({"id": "d", "titel": {"de": "D"}, "schritte": [
         *schritte, {"id": "e", "typ": "ende"}]})
@@ -32,7 +38,7 @@ def _ablauf(*schritte) -> AblaufArea:
 def test_ein_passender_datenfluss_hat_weder_befund_noch_warnung():
     ablauf = _ablauf(_UPLOAD | {"weiter": "entwurf"}, _ENTWURF | {"weiter": "zaehlen"}, _ZAEHLEN)
     assert pruefe(ablauf) == []
-    assert warnungen(ablauf) == []
+    assert _datenfluss(ablauf) == []
 
 
 def test_ein_teil_den_nichts_schreibt_ist_ein_befund():
@@ -95,7 +101,7 @@ def test_der_mitgelieferte_ablauf_bleibt_ohne_befund_und_warnung():
     seed = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe" / "sammlungsstruktur.yaml"
     ablauf = AblaufArea.model_validate(yaml.safe_load(seed.read_text(encoding="utf-8")))
     assert pruefe(ablauf) == []
-    assert warnungen(ablauf) == []
+    assert _datenfluss(ablauf) == []
 
 
 
@@ -119,7 +125,7 @@ def test_die_ablage_nach_dem_upload_ist_bekannt(monkeypatch, request):
         **_ablauf(_UPLOAD | {"weiter": "lesen"}, lesen).model_dump(exclude_none=True),
         "voraussetzungen": ["anmeldung"]})
     assert pruefe(ablauf) == []
-    assert warnungen(ablauf) == []
+    assert _datenfluss(ablauf) == []
 
 
 def test_ein_strukturabgleich_nimmt_keinen_entwurf():
@@ -137,7 +143,7 @@ def test_der_treiber_speichert_den_typ_der_tabelle(monkeypatch):
 
     from boerdi.services.ablauf import treiber, werkzeuge
 
-    async def entwurf(_args):
+    async def entwurf(_args, _kontext=None):   # Dienste bekommen einen Kontext (TG-2)
         return {"titel": "Physik", "knoten": []}
 
     monkeypatch.setitem(werkzeuge.DIENSTE, "strukturentwurf_aus_ordnern", entwurf)

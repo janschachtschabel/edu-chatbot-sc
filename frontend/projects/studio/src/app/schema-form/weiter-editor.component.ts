@@ -103,7 +103,9 @@ const BEDINGUNGEN: readonly Bedingung[] = ['gewaehlt', 'teil', 'wert', 'seite', 
                       }
                     </select>
                     @if (mitWert(z)) {
+                      <!-- Nachprüfung TG-4–6, MINOR 5: der Wert darf eine Stelle {teil.…} sein -->
                       <input class="sf-input" type="text" [id]="controlId() + '-wert-' + i" [value]="z.wert"
+                        [attr.placeholder]="t('weiter.wert.wert.platzhalter')"
                         [attr.aria-label]="t('weiter.wert.wert', { n: i + 1 })"
                         [attr.aria-invalid]="ungueltig('wert', i)" [attr.aria-describedby]="fehlerId('wert', i)"
                         (input)="wert(i, $event)" />
@@ -225,6 +227,7 @@ export class WeiterEditorComponent {
       case 'quelle':
       case 'quelleForm': return `quelle-${f.zeile}`;
       case 'zahl':
+      case 'wertForm':
       case 'muster': return `wert-${f.zeile}`;
     }
   });

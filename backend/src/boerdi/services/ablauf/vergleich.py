@@ -129,11 +129,29 @@ def _gleich(wert: Any, soll: str) -> bool:
     return _norm(_text(wert)) == _norm(soll)
 
 
+#: Plan 2026-11-16, zweites Review TG-4–6 (H): der Wert einer Regel kann eine andere Stelle sein —
+#: ``{teil.<name>.<pfad>}`` wie in Texten. So vergleicht ein Ablauf zwei Teile, etwa ob die Ablage
+#: zur jetzigen Auswahl gehört (``{teil.struktur.block_id}``).
+_STELLE_ALS_WERT: Final = re.compile(r"^\{(teil\.[^{}]+)\}\Z")
+
+
+def wert_quelle(soll: str | None) -> tuple[str, str | None] | None:
+    """Name und Pfad, wenn der Wert ``soll`` eine Stelle ``{teil.…}`` ist — sonst ``None``."""
+    treffer = _STELLE_ALS_WERT.match((soll or "").strip())
+    return quelle(treffer.group(1)) if treffer else None
+
+
 async def greift(quelle_text: str, vergleich: str, soll: str | None,
                  teile: Callable[[str], Awaitable[Any]]) -> bool:
-    """Die Regel gegen die Teile des Laufs — eine ungültige Quelle greift nie."""
+    """Die Regel gegen die Teile des Laufs — eine ungültige Quelle greift nie. Ist der Wert eine
+    Stelle ``{teil.…}`` (H), gilt deren Wert; fehlt sie, greift die Regel nicht."""
     q = quelle(quelle_text)
     if q is None:
         return False
+    if (andere := wert_quelle(soll)) is not None:
+        gegen = stelle(await teile(andere[0]), andere[1])
+        if gegen is None:
+            return False
+        soll = _text(gegen)
     name, pfad = q
     return vergleiche(stelle(await teile(name), pfad), vergleich, soll)

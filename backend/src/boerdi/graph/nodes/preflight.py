@@ -62,22 +62,26 @@ from boerdi.services import abnahme_hinweis, arbeitsstand, plan_fortsetzen, vorg
 from boerdi.services.ablauf import abbruch_zug, auftrag_zug, freigabe_zug, wahl_zug
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.content_text_action import _handle_show_content_text
-from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.db_sessions import save_message
 from boerdi.services.direct_actions import (
     _direct_action_safety_text,
     _handle_browse_collection,
     _handle_curate_collection,
     _handle_generate_learning_path,
 )
-from boerdi.services.ordner_aktion import handle_folders_as_draft
 from boerdi.services.rate_limits import check_rate_limit
 from boerdi.services.safety import assess_safety
-from boerdi.services.safety.service import regex_rueckfall, sperrt_ohne_moderation
+from boerdi.services.safety.service import (
+    NAMEN_KRISE,
+    namen_pruefung,
+    regex_rueckfall,
+    sperrt_ohne_moderation,
+)
 from boerdi.services.strukturentwurf_aktion import handle_edit_collection_as_draft
 from boerdi.services.themenbaum_aktion import handle_show_collection_tree
 from boerdi.services.turn_quality import log_turn_quality
 from boerdi.services.write_approval import redeem_write_approval
-from boerdi.ui_module.antwort import sicherheits_text
+from boerdi.ui_module.antwort import protokoll_text, sicherheits_teile
 
 logger = logging.getLogger(__name__)
 
@@ -202,8 +206,10 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             await _log_early_quality(ctx, session)
             return ctx
 
-    # Auslöser ohne Knopf: Ordner-Aktion, offener Block eines Laufs, Modul-Antwort, Wendung
-    # (``preflight_ablauf.bestimmen``).
+    # Auslöser ohne Knopf: offener Block eines Laufs, Modul-Antwort, Wendung
+    # (``preflight_ablauf.bestimmen``). Plan 2026-11-16, TG-2: die Ordner-Aktion („Als
+    # Themenbaum-Entwurf übernehmen“, Entwurf ohne LLM) ist entfallen — eine Ordner-Antwort geht
+    # den gewöhnlichen Weg, und ``persist`` übernimmt die Teile in den Vorgang.
     a = await preflight_ablauf.bestimmen(ctx, session)
     if req.action not in _DIRECT_ACTIONS and not a.irgendeiner:
         return ctx
@@ -212,18 +218,28 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     # nur 500 Zeichen wie bei einer Direktaktion (eine Krise dahinter bliebe sonst ungesehen).
     # K2b: im gesperrten Lauf gilt das auch für die erlaubten Knöpfe — ihre Parameter sind nur
     # Kennungen und Wahrheitswerte, die Nachricht ist die Beschriftung.
-    safety_text = (sicherheits_text(req.message, ctx.ui_antwort) if a.irgendeiner
-                   else _direct_action_safety_text(req))
+    # Review TG-3a–c, R3-1: Namen einer Auswahl nur an die Moderation — nicht an die Krisenmuster
+    # und nicht ins Protokoll (``log_safety_event`` bekommt nur den freien Text).
+    teile = sicherheits_teile(req.message, ctx.ui_antwort) if a.irgendeiner else None
+    safety_text = teile.frei if teile is not None else _direct_action_safety_text(req)
+    namen = {"nur_moderation": teile.namen} if teile is not None and teile.namen else {}
     signals = ctx.session_state.get("signal_history", [])
     # ``assess_safety`` runs the regex gate first internally and short-circuits
     # on a hard hit, so one call gives the full multi-stage gate; on failure we
     # fall back to the pure regex gate.
     try:
-        decision = await assess_safety(safety_text, signals, usage_acc=ctx.usage)
+        decision = await assess_safety(safety_text, signals, usage_acc=ctx.usage, **namen)
     except Exception as err:
         # Nur die Art (Review Q4, älter): der Ausnahmetext kann Inhalt der Nachricht tragen.
         logger.warning("direct-action safety assess failed: %s", type(err).__name__)
         decision = regex_rueckfall(safety_text, signals)
+
+    # Review TG-3d–f, MINOR 1: Krisen- und Drohungsmuster in den Namen einer Auswahl — Hinweis,
+    # keine Sperre (Grund im Protokoll ohne Namen, Hilfsnummern an der Antwort)
+    namen_grund = namen_pruefung(teile.namen) if teile is not None else None
+    if namen_grund:
+        decision.reasons.append(namen_grund)
+        ctx.krisenhilfe = namen_grund == NAMEN_KRISE and decision.risk_level != "high"
 
     # Paket 18A: mit ``MODERATION_FAILURE_MODE=closed`` gilt eine Direkt-Aktion
     # ohne Moderation wie ein freier Zug (``pruefung_fehlt``) — keine Antwort.
@@ -246,9 +262,14 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             auftrag_zug.sperre_aussetzen(req.session_id, ctx.session_state)
         return ctx
     if decision.risk_level == "high" or ohne_pruefung:
-        if not ohne_pruefung:
+        # Nachprüfung TG-3d–f, NIT 7: auch ohne Moderation, wenn Namen ein Muster tragen — der
+        # Grund steht sonst nirgends (der Zug endet hier)
+        if not ohne_pruefung or namen_grund:
+            # R3-1: keine Namen einer Auswahl ins Protokoll
             await log_safety_event(
-                session, req.session_id, safety_text, decision=decision, ip=ctx.client_ip,
+                session, req.session_id,
+                protokoll_text(teile) if teile is not None else safety_text,
+                decision=decision, ip=ctx.client_ip,
             )
         err_debug = DebugInfo(
             pattern=("SAFETY: moderation_unavailable" if ohne_pruefung
@@ -311,14 +332,10 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
                                                    decision.blocked_tools)) is not None:
         # Abläufe, Aufträge und Vorgangs-Aktionen (``preflight_ablauf.antwort``).
         ctx.early_response = ablauf.antwort
-    elif a.ordner and ctx.ui_antwort is not None:
-        # Paket V1: dieser Zug erreicht ``persist`` nie — die Ordner werden hier Teil des Vorgangs.
-        _entities = ctx.session_state.setdefault("entities", {})
-        await arbeitsstand.uebernehmen(session, req.session_id, _entities, ctx.ui_antwort)
-        # Review V1, Befund 7: der Verweis geht fest, auch wenn der Handler früh (nur Text) endet.
-        await update_session(session, req.session_id, entities=_entities)
-        ctx.early_response = await handle_folders_as_draft(
-            session, req, ctx.session_state, ctx.ui_antwort)
+    if namen_grund and ctx.early_response is not None and teile is not None:
+        # MINOR 1: endet der Zug hier, erreicht er ``safety_log`` nicht — der Grund, ohne Namen
+        await log_safety_event(session, req.session_id, protokoll_text(teile),
+                               decision=decision, ip=ctx.client_ip)
     await _log_early_quality(ctx, session)
     return ctx
 
@@ -344,7 +361,7 @@ async def _log_early_quality(ctx: TurnContext, session: AsyncSession) -> None:
     if antwort is None:
         return
     await log_turn_quality(
-        session, ctx.req, antwort.debug,
+        session, ctx.req, antwort.debug, ui_antwort=ctx.ui_antwort,
         turn_count=int(ctx.session_state.get("turn_count") or 0),
         response_length=len(antwort.content or ""),
         cards_count=len(antwort.cards or []),

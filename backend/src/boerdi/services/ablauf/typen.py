@@ -31,7 +31,13 @@ from boerdi.services.teil_verweise import NAME, TIEFE, alle_verweise, ist_auswah
 
 TEXT: Final = "text"
 ORDNERBAUM: Final = "wlo.ordnerbaum@1"
+#: Plan 2026-11-16, TG-3a: die Auswahl mit Dateien je Ordner (Teil ``struktur``, wie
+#: ``arbeitsstand_teile.AUSWAHL``).
+AUSWAHL: Final = "wlo.auswahl@1"
 DOKUMENT: Final = "wlo.dokument-verweis@1"
+#: Plan 2026-11-16, TG-3d: die Verweise auf alle Strukturdokumente (Teil ``strukturdokument``,
+#: wie ``dokumente/strukturdokument_teil.TYP``).
+STRUKTURDOKUMENTE: Final = "wlo.strukturdokumente@1"
 STRUKTUR: Final = "wlo.sammlungsstruktur@1"
 ABLAGE: Final = "wlo.ablage@1"
 AUFTRAG: Final = "wlo.auftrag@1"
@@ -51,7 +57,8 @@ def _werkzeug_typ(werkzeug: str) -> str:
 
 #: Die Teile, die Module hinterlassen: Name → Typ (``arbeitsstand_teile._teile``,
 #: ``ablage/vorgang_teil``).
-MODUL_TEILE: Final[dict[str, str]] = {"structure": ORDNERBAUM, "document": DOKUMENT,
+MODUL_TEILE: Final[dict[str, str]] = {"structure": ORDNERBAUM, "struktur": AUSWAHL,
+                                      "document": DOKUMENT, "strukturdokument": STRUKTURDOKUMENTE,
                                       "draft": STRUKTUR, "ablage": ABLAGE}
 #: Teile, die ein Modul außerhalb von ``vorgang.schreibt`` hinterlässt (Review AS-Db, Befund 1).
 ZUSATZ_TEILE: Final[dict[str, tuple[str, ...]]] = {"ui_upload": ("ablage",)}
@@ -59,12 +66,40 @@ ZUSATZ_TEILE: Final[dict[str, tuple[str, ...]]] = {"ui_upload": ("ablage",)}
 ANGELEGT: Final = _werkzeug_typ("wlo_create_collection_tree")
 #: Plan 2026-11-10, TB-F2: die Metadaten abgelegter Nodes (``services/ablauf/metadaten``).
 METADATEN: Final = "wlo.metadaten@1"
+#: Zweites Review TG-2: ``{dokument, ordner}`` — was im Vorgang nutzbar bereitliegt.
+BEREIT: Final = "wlo.bereit@1"
+#: Nachprüfung TG-2, 5: Teile, die auf Knoten im Repositorium verweisen — eine Schnellantwort darf
+#: sie nicht verwerfen (``verwirft``): die Knoten blieben, nur der Weg zu ihnen ginge verloren.
+#: Erweiterbar, wenn ein weiterer Teil Kennungen des Repositoriums trägt.
+NICHT_VERWERFBAR: Final = frozenset({"ablage"})
+#: Plan 2026-11-16, Review TG-3a–c, R3-5: Teile, die dieselben Daten in zwei Formen tragen (die alte
+#: Sicht und die neue). Wer den einen verwirft, verwirft den anderen mit — sonst bliebe die
+#: abgelehnte Auswahl in der anderen Form liegen (``treiber.weiter_wahl``, Simulation ebenso).
+ALIAS_PAARE: Final[tuple[tuple[str, str], ...]] = (("structure", "struktur"),
+                                                   ("document", "strukturdokument"))
+
+
+def mit_aliassen(namen: list[str] | tuple[str, ...]) -> list[str]:
+    """R3-5: ``namen`` samt ihren Alias-Partnern, ohne Doppel, in der genannten Reihenfolge."""
+    aus: list[str] = []
+    for name in namen:
+        partner = [b if a == name else a for a, b in ALIAS_PAARE if name in (a, b)]
+        for n in (name, *partner):
+            if n not in aus:
+                aus.append(n)
+    return aus
+
+
 DIENST_AUSGABE: Final[dict[str, str]] = {
     "strukturentwurf_aus_ordnern": STRUKTUR,
     "abdeckung_zaehlen": "wlo.abdeckung@1",
     "struktur_mit_nodeids": STRUKTUR,
     "baum_aus_entwurf": _werkzeug_typ("baum_aus_entwurf"),
     "metadaten_lesen": METADATEN,
+    # Zweites Review TG-2: was im Vorgang nutzbar bereitliegt (``werkzeuge._bereitgestellt``)
+    "bereitgestellt": BEREIT,
+    # Plan 2026-11-16, TG-4: dasselbe Format wie ``metadaten_lesen`` — aus den Dateinamen
+    "inhalte_aus_dateien": METADATEN,
 }
 #: Dienst → Argument → erwarteter Typ, wenn das Argument ein ganzer Teil ist. Zugleich die Liste
 #: aller Argumente eines Dienstes (alle Pflicht) — die Prüfung meldet unbekannte und fehlende.
@@ -74,6 +109,8 @@ DIENST_EINGABE: Final[dict[str, dict[str, str]]] = {
     "struktur_mit_nodeids": {"entwurf": STRUKTUR, "angelegt": ANGELEGT},
     "baum_aus_entwurf": {"entwurf": STRUKTUR},
     "metadaten_lesen": {"ablage": ABLAGE},
+    "bereitgestellt": {},
+    "inhalte_aus_dateien": {"struktur": AUSWAHL},
 }
 #: Dienst-Argumente, die auch eine Liste nehmen — eine Auswahl ist dort kein Befund.
 LISTE_ERLAUBT: Final = frozenset({("struktur_mit_nodeids", "angelegt")})
@@ -84,6 +121,7 @@ LISTEN: Final[dict[str, frozenset[str]]] = {
     ANGELEGT: frozenset({"nodes"}),
     ABLAGE: frozenset({"inhalte", "frueher"}),
     METADATEN: frozenset({"inhalte", "fehlend"}),
+    STRUKTURDOKUMENTE: frozenset({"dokumente"}),
 }
 #: Modul → erwarteter Typ, wenn ``daten`` als Ganzes ein Teil ist (``daten: {"$teil": "draft"}``).
 MODUL_EINGABE: Final[dict[str, str]] = {"ui_strukturentwurf": STRUKTUR,
@@ -195,6 +233,9 @@ def gelesene_teile(s: Schritt) -> list[str]:
             if r.wenn_teil:
                 namen.append(r.wenn_teil)
             if r.wenn_wert is not None and (q := vergleich.quelle(r.wenn_wert.quelle)) is not None:
+                namen.append(q[0])
+            # zweites Review TG-4–6, H: der Wert kann eine zweite Stelle ``{teil.…}`` sein
+            if r.wenn_wert is not None and (q := vergleich.wert_quelle(r.wenn_wert.wert)):
                 namen.append(q[0])
     return [n for n in dict.fromkeys(namen) if NAME.match(n)]
 

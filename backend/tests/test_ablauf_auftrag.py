@@ -66,8 +66,16 @@ def test_befunde_am_auftrag_schritt(freigeschaltet, aenderung, erwartet):
 
 
 def test_ein_auftrag_braucht_die_anmeldung(freigeschaltet):
-    befunde = pruefe(AblaufArea.model_validate(_roh(voraussetzungen=[])))
+    """Plan 2026-11-16, TG-6: ohne die Voraussetzung genügt ein Ersatzweg (``bei_fehler``) —
+    ohne Anmeldung startet der Auftrag nicht, der Schritt nimmt den Ersatzweg."""
+    roh = _roh(voraussetzungen=[])
+    roh["schritte"][0]["bei_fehler"] = None
+    befunde = pruefe(AblaufArea.model_validate(roh))
     assert any("Anmeldung" in b for b in befunde), befunde
+    mit_ersatz = _roh(voraussetzungen=[])
+    mit_ersatz["schritte"][0]["bei_fehler"] = mit_ersatz["schritte"][-1]["id"]
+    assert not any("Voraussetzung Anmeldung" in b
+                   for b in pruefe(AblaufArea.model_validate(mit_ersatz)))
 
 
 def test_ohne_einrichtung_ist_jeder_flow_ohne_ersatzweg_ein_befund(monkeypatch):

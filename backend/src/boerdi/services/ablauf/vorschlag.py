@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Collection
 from typing import Any, Final
 
@@ -32,6 +33,7 @@ from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
 from boerdi.services.ablauf import ausloeser, startdaten
 from boerdi.services.ablauf import werkzeuge as werkzeuge_mod
 from boerdi.ui_module.antwort import NACH_DER_FRAGE
+from boerdi.ui_module.namen import ZWECK_BEREITSTELLEN
 
 logger = logging.getLogger(__name__)
 
@@ -121,9 +123,10 @@ def _schreibt(ablauf: Any) -> bool:
 
 def _direkt(ablauf: Any) -> bool:
     """TB-E3: startet die KI diesen Ablauf direkt? Nur mit ``modus: direkt`` am Auslöser ``agent``
-    und nur, wenn er nicht selbst schreibt (TW-6: ein Upload-Feld allein zählt nicht)."""
+    und nur, wenn er nicht selbst schreibt (TW-6: ein Upload-Feld allein zählt nicht; Plan
+    2026-11-16, TG-6: ein Auftrag mit Rückfrage direkt davor auch nicht)."""
     return (any(a.art == "agent" and a.modus == "direkt" for a in ablauf.ausloeser)
-            and not werkzeuge_mod.ablauf_schreibt_selbst(ablauf))
+            and not werkzeuge_mod.ablauf_schreibt_ungefragt(ablauf))
 
 
 def werkzeuge(lang: str, nur: Collection[str] | None = None,
@@ -155,10 +158,37 @@ _MIT_GRUNDLAGE: Final = ("vorlage", "vertiefen", "wurzel_wlo_id", "aus_dokument"
                          "erneut_zeigen")
 #: TW-6: welche Module ein Ablauf statt der KI anbietet.
 UMLENKBAR: Final = frozenset({"ui_strukturentwurf", "ui_upload"})
+#: Im ``session_state`` (nur dieser Zug, Review TG-2, M3 c): die Nachricht nennt einen Themenbaum
+#: (:func:`themenbaum_bezug`) — dann lenkt auch ein zielneutrales Upload-Feld um.
+THEMENBAUM_KEY: Final = "_ablauf_themenbaum"
+#: Woran eine Nachricht als Themenbaum-Wunsch erkennbar ist (de/en). Zweites Review TG-2,
+#: MINOR 3: mit Wortgrenzen — „Struktur“ und „Gliederung“ nur als ganzes Wort (auch Mehrzahl),
+#: nie in Komposita wie „Strukturdokument“, „Ordnerstruktur“ oder „Zellstruktur“.
+_THEMENBAUM: Final = re.compile(
+    r"\b(?:themen[\s-]*b(?:a|ä)um\w*|sammlungsstruktur(?:en)?|sammlungsb(?:a|ä)um\w*"
+    r"|topic[\s-]*trees?|collection\s+(?:structure|tree)s?|struktur(?:en)?|gliederung(?:en)?)\b",
+    re.IGNORECASE)
 #: Im ``session_state`` (nur dieser Zug): eine Arbeitsgrundlage liegt vor (``respond`` setzt es)
 #: bzw. ein Modul wurde in diesem Zug schon einmal umgelenkt.
 GRUNDLAGE_KEY: Final = "_ablauf_grundlage"
 UMGELENKT_KEY: Final = "_ablauf_umgelenkt"
+
+
+def themenbaum_bezug(nachricht: str | None) -> bool:
+    """Review TG-2, M3 (c): nennt die Nachricht einen Themenbaum (oder eine Struktur, Gliederung)?
+    Nur die Nachricht des Zugs — den Verlauf sieht die Umlenkung nicht; nennt ihn die Person nur
+    früher, fragt die KI nach dem Hochladen (G-E5) und schlägt den Ablauf vor."""
+    return bool(_THEMENBAUM.search(nachricht or ""))
+
+
+def zug_merken(session_state: dict[str, Any], entities: dict[str, Any], aufrufer: str,
+               nachricht: str | None) -> None:
+    """Je Zug neu (zweites Review TG-2, MINOR 7): die Arbeitsgrundlage, der Themenbaum-Bezug der
+    Nachricht und das Vergessen der Umlenkung des vorigen Zugs — eine Stelle für beide
+    Antwort-Knoten (``respond``, ``respond_agent``)."""
+    session_state[GRUNDLAGE_KEY] = arbeitsgrundlage(entities, aufrufer)
+    session_state.pop(UMGELENKT_KEY, None)
+    session_state[THEMENBAUM_KEY] = themenbaum_bezug(nachricht)
 
 
 def arbeitsgrundlage(entities: dict[str, Any], aufrufer: str) -> bool:
@@ -187,8 +217,9 @@ def umlenkung(modul: str, args: Any, angeboten: Collection[str],
     Arbeitsgrundlage (:func:`arbeitsgrundlage`, Argumente wie ``vorlage`` oder
     ``wurzel_wlo_id``), und beim zweiten Versuch im selben Zug — ein Fluchtweg: die KI entscheidet
     ihn, etwa weil die Nachricht dieses Zugs ausdrücklich „ohne Ablauf“ sagt (zweites Review
-    TW-6, Befund 8). Für ``ui_strukturentwurf`` zählen nur Abläufe ohne Upload-Schritt (ein
-    Thema), für ``ui_upload`` die mit. ``merken=False`` prüft nur (ohne den Versuch zu zählen).
+    TW-6, Befund 8). Für ``ui_strukturentwurf`` zählen Abläufe ohne Upload-Schritt (ein
+    Thema) — seit Plan 2026-11-16, TG-6 ohne solche die mit Upload, die ihn nutzen („Themenbaum
+    erstellen“); für ``ui_upload`` die mit. ``merken=False`` prüft nur (ohne den Versuch zu zählen).
     """
     from boerdi.services.ablauf.zug_basis import abgelehnt
 
@@ -197,10 +228,22 @@ def umlenkung(modul: str, args: Any, angeboten: Collection[str],
         return None
     if isinstance(args, dict) and any(args.get(k) for k in _MIT_GRUNDLAGE):
         return None
+    # Plan 2026-11-16, TG-2: ein zielneutrales Upload-Feld kann ebenso einem Dokument oder dem
+    # Übertragen nach WLO dienen — nach dem Hochladen fragt die KI und schlägt Abläufe vor (G-E5).
+    # Review M3 (c): nennt die Nachricht des Zugs einen Themenbaum, greift das Netz aus TW-6 aber
+    # weiter (die KI griff dort trotz Regel zum Modul). Der alte Zweck lenkt immer um.
+    if (modul == "ui_upload" and isinstance(args, dict)
+            and args.get("zweck") == ZWECK_BEREITSTELLEN and not zustand.get(THEMENBAUM_KEY)):
+        return None
     if modul in (zustand.get(UMGELENKT_KEY) or []):
         return None
     katalog = {a.id: a for a in ausloeser.vorschlaege()}
     ziele: list[str] = []
+    #: Plan 2026-11-16, TG-6: Abläufe mit Upload, die ``ui_strukturentwurf`` nutzen — „Themenbaum
+    #: erstellen“ deckt auch das Thema ab (eine Grundlage unter mehreren). Sie gelten für
+    #: ``ui_strukturentwurf`` nur, wenn kein Ablauf ohne Upload passt (so wie vorher, solange etwa
+    #: „Themenbaum · aus einem Thema“ an ist).
+    mit_upload_auch: list[str] = []
     for name in angeboten:
         if not ist_ablauf_werkzeug(name) or (a := katalog.get(kennung(name))) is None:
             continue
@@ -210,6 +253,9 @@ def umlenkung(modul: str, args: Any, angeboten: Collection[str],
                     for s in a.schritte)
         if nutzt and (modul == "ui_upload") == mit_upload:
             ziele.append(f"{name} („{_titel(a, lang)}“)")
+        elif nutzt and mit_upload:
+            mit_upload_auch.append(f"{name} („{_titel(a, lang)}“)")
+    ziele = ziele or mit_upload_auch
     if not ziele:
         return None
     if merken:
@@ -269,14 +315,29 @@ def schnellantworten(vorschlaege: list[Any] | None, lang: str) -> list[str]:
     return aus
 
 
-def direkt_knopf(vorschlaege: list[Any] | None, lang: str) -> str | None:
-    """TB-E3: der Knopf des (einen) Vorschlags, wenn sein Ablauf direkt startet — sonst ``None``."""
+def direkt_knopf(vorschlaege: list[Any] | None, lang: str,
+                 verweis: dict[str, Any] | None = None) -> str | None:
+    """TB-E3: der Knopf des (einen) Vorschlags, wenn sein Ablauf direkt startet — sonst ``None``.
+
+    Plan 2026-11-16, zweites Review TG-4–6, F: schließt der Start den Vorgang der Person (ein
+    schreibender Ablauf, und dort liegt eine Ablage, ein Metadaten-Lauf oder ein offener Lauf —
+    ``werkzeuge.frisch_noetig``, ``verweis`` aus der Sitzung), bleibt es ein Knopf: Sie verliert
+    nichts ohne Klick."""
     vorschlagbar = {a.id: a for a in ausloeser.vorschlaege()}
     for eintrag in vorschlaege or []:
         if (v := _vorschlag(eintrag)) and (a := vorschlagbar.get(v[0])) and _direkt(a):
+            if _schliesst(a, verweis):
+                return None
             [knopf] = schnellantworten([eintrag], lang)
             return knopf
     return None
+
+
+def _schliesst(ablauf: Any, verweis: dict[str, Any] | None) -> bool:
+    """F: schlösse der Start dieses Ablaufs den Vorgang im Verweis?"""
+    if not isinstance(verweis, dict) or not werkzeuge_mod.ablauf_schreibt_selbst(ablauf):
+        return False
+    return werkzeuge_mod.frisch_noetig(verweis.get("teile") or {}, verweis.get("lauf"))
 
 
 def direkt_fuer_antwort(session_state: Any, quick_replies: list[str] | None) -> str | None:

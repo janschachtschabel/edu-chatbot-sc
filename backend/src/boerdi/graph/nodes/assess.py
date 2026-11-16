@@ -38,8 +38,8 @@ from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.rag.vorab import rag_einbettung_vorab
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.regex_gate import regex_gate
-from boerdi.services.safety.service import regex_rueckfall
-from boerdi.ui_module.antwort import sicherheits_text
+from boerdi.services.safety.service import NAMEN_KRISE, namen_pruefung, regex_rueckfall
+from boerdi.ui_module.antwort import sicherheits_teile
 from boerdi.ui_module.antwort import vorsatz as frage_vorsatz
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,10 @@ async def assess(
     signals = ss.get("signal_history", [])
     # Review U1-d1, Befund 1: die Ergänzung einer geprüften Modul-Antwort steht gerahmt im
     # Prompt — sie geht durch dieselbe Prüfung wie die Nachricht. Sonst ist es die Nachricht.
-    pruef_text = sicherheits_text(ctx.req.message, ctx.ui_antwort)
+    # Review TG-3a–c, R3-1: Namen einer Auswahl (Ordner, Dateien) nur an die Moderation, nicht an
+    # die Krisen- und Drohungsmuster.
+    teile = sicherheits_teile(ctx.req.message, ctx.ui_antwort)
+    pruef_text = teile.frei
     quick_gate = regex_gate(pruef_text, signals)
 
     if quick_gate.risk_level == "high":
@@ -116,7 +119,8 @@ async def assess(
         # Regex + Moderation ohne eigenen LLM-Aufruf — steht sonst nirgends im
         # Debug-Block (Plan 2026-09-30, T8).
         with schritt("assess.safety", ctx.usage):
-            return await assess_safety(pruef_text, signals, usage_acc=ctx.usage)
+            namen = {"nur_moderation": teile.namen} if teile.namen else {}
+            return await assess_safety(pruef_text, signals, usage_acc=ctx.usage, **namen)
 
     async def _classify():
         # A4b: Der Agent-Modus hat keinen Klassifikator — das ist sein Zweck
@@ -183,6 +187,11 @@ async def assess(
         logger.warning("memory fetch failed (will use empty list): %s", memories)
         memories = []
 
+    # Review TG-3d–f, MINOR 1: die Namen einer Auswahl durch die Krisen- und Drohungsmuster — als
+    # Hinweis (Grund im Protokoll, Hilfsnummern an der Antwort), nie als Sperre
+    if grund := namen_pruefung(teile.namen):
+        safety.reasons.append(grund)
+        ctx.krisenhilfe = grund == NAMEN_KRISE and safety.risk_level != "high"
     ctx.safety = safety
     ctx.classification = classification
     ctx.memories = memories

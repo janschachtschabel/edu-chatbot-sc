@@ -70,8 +70,13 @@ async def log_turn_quality(
     cards_count: int = 0,
     page: str = "",
     device: str = "",
+    ui_antwort: dict[str, Any] | None = None,
 ) -> None:
     """Schreibe den Qualitäts-Eintrag dieses Zuges — wenn beide Tore offen sind.
+
+    Plan 2026-11-16, Review TG-3d–f, MINOR 6: trägt der Zug eine Auswahl (``ui_antwort``), kommt
+    die Nachricht ohne deren Namen ins Protokoll (``antwort.protokoll_text``) — wie im
+    Sicherheitsprotokoll (R3-1).
 
     ``page``/``device`` reicht der Aufrufer herein statt sie hier aus
     ``req.environment`` zu ziehen: der Hauptweg liest sie aus dem
@@ -88,10 +93,12 @@ async def log_turn_quality(
             return
 
         from boerdi.obs.quality_events import log_quality_event
+        from boerdi.ui_module.antwort import protokoll_text, sicherheits_teile
+
         await log_quality_event(
             session,
             req.session_id,
-            req.message,
+            protokoll_text(sicherheits_teile(req.message, ui_antwort)),
             turn_count,
             debug.model_dump() if isinstance(debug, DebugInfo) else dict(debug or {}),
             response_length=response_length,

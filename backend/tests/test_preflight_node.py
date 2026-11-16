@@ -637,10 +637,12 @@ def test_ein_anderes_anliegen_bekommt_keinen_hinweis(monkeypatch):
     assert out.early_response is None
 
 
-# ── Paket U3-1b: „Ordnerstruktur als Entwurf“ aus ui_upload ────────────────
+# ── Paket U3-1b, seit Plan 2026-11-16 TG-2: eine Ordner-Antwort aus ui_upload ─────────────────
+# Der direkte Entwurf ohne LLM („Als Themenbaum-Entwurf übernehmen“) ist entfallen (G-E4). Eine alte
+# Antwort ``ordner_als_entwurf`` ist nach der Prüfung (``antwort_pruefen``) schon ``erfasst``.
 
-def _ordner_ctx(aktion: str = "ordner_als_entwurf") -> state_mod.TurnContext:
-    ctx = _ctx(None, message="Ordnerstruktur „Physik“ als Themenbaum-Entwurf übernehmen")
+def _ordner_ctx(aktion: str = "erfasst") -> state_mod.TurnContext:
+    ctx = _ctx(None, message="Ordner „Physik“ erfasst: 2 Ordner, 1 Datei.")
     ctx.ui_antwort = {"block_id": "b0000001", "modul": "ui_upload", "frage": "Ordner erfassen",
                       "labels": [], "daten": {"aktion": aktion, "struktur": {
                           "name": "Physik", "dateien": 0, "alle_dateien": 1,
@@ -649,66 +651,15 @@ def _ordner_ctx(aktion: str = "ordner_als_entwurf") -> state_mod.TurnContext:
     return ctx
 
 
-def test_ordner_als_entwurf_wird_geprueft_und_ohne_llm_beantwortet(monkeypatch):
-    _patch_handlers(monkeypatch)
-    _patch_db(monkeypatch)
-    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
-    handler = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
-    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", handler)
-    uebernommen: list = []
+def test_tg2_kein_direkter_entwurf_aus_dem_upload_feld():
+    """G-E4: die Ordner-Aktion gibt es nicht mehr — weder im Preflight noch als Auslöser."""
+    import dataclasses
 
-    async def uebernehmen(session, session_id, entities, geprueft):
-        uebernommen.append(geprueft)
+    from boerdi.graph.nodes import preflight_ablauf
 
-    gespeichert: list = []
-
-    async def update_session(session, session_id, **felder):
-        gespeichert.append(felder)
-
-    monkeypatch.setattr(pf_mod.arbeitsstand, "uebernehmen", uebernehmen)
-    monkeypatch.setattr(pf_mod, "update_session", update_session)
-    ctx = _ordner_ctx()
-    out = asyncio.run(preflight(ctx, _SESSION))
-    assert out.early_response.content == "ORDNER-OK"
-    # Paket V1: die Ordner werden Teil des Vorgangs (dieser Zug erreicht ``persist`` nie), und der
-    # Verweis geht sofort fest (Review V1, Befund 7)
-    assert uebernommen == [ctx.ui_antwort] and "entities" in gespeichert[0]
-    # die Sicherheitsprüfung las die Ordnernamen (nicht nur die Blase)
-    assert "Böses <Ordner>" in safety.calls[0]["args"][0]
-    assert handler.calls[0]["args"][3] is ctx.ui_antwort
-
-
-def test_ordner_als_entwurf_wird_bei_hohem_risiko_nicht_gebaut(monkeypatch):
-    _patch_handlers(monkeypatch)
-    _patch_db(monkeypatch)
-    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
-    handler = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
-    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", handler)
-    out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
-    assert out.early_response.content != "ORDNER-OK" and handler.calls == []
-
-
-def test_nur_der_befund_geht_den_gewoehnlichen_weg(monkeypatch):
-    _patch_handlers(monkeypatch)
-    _patch_db(monkeypatch)
-    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
-    handler = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
-    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", handler)
-    out = asyncio.run(preflight(_ordner_ctx("erfasst"), _SESSION))
-    assert out.early_response is None and handler.calls == [] and safety.calls == []
-
-
-def test_ordner_als_entwurf_ohne_moderation_wird_nicht_gebaut(monkeypatch):
-    """Review U3-1, Befund 10: ``MODERATION_FAILURE_MODE=closed`` gilt auch hier."""
-    _patch_handlers(monkeypatch)
-    _patch_db(monkeypatch)
-    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
-    monkeypatch.setattr(pf_mod, "sperrt_ohne_moderation", lambda _d: True)
-    handler = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
-    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", handler)
-    out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
-    assert out.early_response is not None and out.early_response.content != "ORDNER-OK"
-    assert handler.calls == []
+    assert not hasattr(pf_mod, "handle_folders_as_draft")
+    assert not hasattr(preflight_ablauf, "ist_ordner_als_entwurf")
+    assert "ordner" not in {f.name for f in dataclasses.fields(preflight_ablauf.Ausloeser)}
 
 
 # ── Paket A1 (Review, Befund 1/2/13): Abläufe im Preflight ─────────────────────────────────
@@ -734,38 +685,31 @@ def _lauf_spione(monkeypatch, wartet=True):
 
 
 def test_der_ordner_knopf_im_lauf_setzt_den_ablauf_fort(monkeypatch):
-    """Befund 1: ``ordner_als_entwurf`` auf den offenen Block eines Laufs gehört dem Treiber."""
+    """Befund 1: die Antwort von ui_upload auf den offenen Block eines Laufs gehört dem Treiber."""
     _patch_handlers(monkeypatch)
     _patch_db(monkeypatch)
     safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="medium",
                                                        blocked_tools=["search_wlo_all"]))
-    ordner = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
-    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", ordner)
     gerufen = _lauf_spione(monkeypatch)
     ctx = _ordner_ctx()
     out = asyncio.run(preflight(ctx, _SESSION))
-    assert out.early_response.content == "ABLAUF-WEITER" and ordner.calls == []
+    assert out.early_response.content == "ABLAUF-WEITER"
     [(geprueft, k)] = gerufen["fortsetzen"]
     assert geprueft is ctx.ui_antwort and k["blocked_tools"] == ["search_wlo_all"]
-    # die Ordnernamen gingen durch die Sicherheitsprüfung
-    assert "Böses <Ordner>" in safety.calls[0]["args"][0]
+    # die Ordnernamen gingen durch die Sicherheitsprüfung — seit R3-1 (Review TG-3a–c) nur an die
+    # Moderation, nicht an die Krisenmuster
+    assert "Böses <Ordner>" in safety.calls[0]["kwargs"]["nur_moderation"]
+    assert "Böses <Ordner>" not in safety.calls[0]["args"][0]
 
 
-def test_ohne_lauf_bleibt_der_ordner_knopf_beim_ordner_weg(monkeypatch):
+def test_ohne_lauf_geht_die_ordner_antwort_den_gewoehnlichen_weg(monkeypatch):
+    """TG-2: ohne Lauf und ohne Modul-Auslöser antwortet die KI (neutraler Rahmen)."""
     _patch_handlers(monkeypatch)
     _patch_db(monkeypatch)
-    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
-    ordner = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
-    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", ordner)
-
-    async def nichts(*_a, **_k):
-        return None
-
-    monkeypatch.setattr(pf_mod.arbeitsstand, "uebernehmen", nichts)
-    monkeypatch.setattr(pf_mod, "update_session", nichts)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
     gerufen = _lauf_spione(monkeypatch, wartet=False)
     out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
-    assert out.early_response.content == "ORDNER-OK" and gerufen["fortsetzen"] == []
+    assert out.early_response is None and gerufen["fortsetzen"] == [] and safety.calls == []
 
 
 def test_ablauf_starten_gibt_die_werkzeugsperren_weiter(monkeypatch):
@@ -853,18 +797,17 @@ def test_ohne_wendung_geht_der_zug_den_gewoehnlichen_weg(monkeypatch):
     assert out.early_response is None and safety.calls == []
 
 
-def test_ein_modul_ausloeser_geht_vor_der_ordner_aktion(monkeypatch):
+def test_ein_modul_ausloeser_startet_den_ablauf_nach_der_pruefung(monkeypatch):
     _patch_handlers(monkeypatch)
     _patch_db(monkeypatch)
     safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
-    ordner = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
-    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", ordner)
     _lauf_spione(monkeypatch, wartet=False)
     gerufen = _ausloeser_spione(monkeypatch, modul=("ABLAUF", 1))
     out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
-    assert out.early_response.content == "ABLAUF-MODUL" and ordner.calls == []
+    assert out.early_response.content == "ABLAUF-MODUL"
     assert gerufen["modul"] == [(("ABLAUF", 1), {"blocked_tools": []})]
-    assert "Böses <Ordner>" in safety.calls[0]["args"][0]
+    # R3-1: die Ordnernamen nur an die Moderation
+    assert "Böses <Ordner>" in safety.calls[0]["kwargs"]["nur_moderation"]
 
 
 def test_ablauf_weiter_ist_eine_direktaktion_hinter_der_pruefung(monkeypatch):
@@ -890,19 +833,11 @@ def test_eine_modul_antwort_im_wartenden_lauf_startet_keinen_neuen(monkeypatch):
     _patch_handlers(monkeypatch)
     _patch_db(monkeypatch)
     _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
-    ordner = _Spy(ChatResponse(session_id="bb-1", content="ORDNER-OK"))
-    monkeypatch.setattr(pf_mod, "handle_folders_as_draft", ordner)
     _lauf_spione(monkeypatch, wartet=False)
     gerufen = _ausloeser_spione(monkeypatch, modul=("ABLAUF", 1))
     monkeypatch.setattr(pf_mod.ablauf_zug, "lauf_wartet", lambda sid, state: True)
-
-    async def nichts(*_a, **_k):
-        return None
-
-    monkeypatch.setattr(pf_mod.arbeitsstand, "uebernehmen", nichts)
-    monkeypatch.setattr(pf_mod, "update_session", nichts)
-    asyncio.run(preflight(_ordner_ctx(), _SESSION))
-    assert gerufen["modul"] == []
+    out = asyncio.run(preflight(_ordner_ctx(), _SESSION))
+    assert gerufen["modul"] == [] and out.early_response is None
 
 
 # ── Querschnitts-Review 2026-11-06 (Q2) ─────────────────────────────────────────────────────

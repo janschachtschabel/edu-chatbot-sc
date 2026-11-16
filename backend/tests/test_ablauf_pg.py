@@ -123,7 +123,8 @@ def test_start_und_fortsetzen_mit_echtem_vorgang(welt):
         return await _vorgaenge(s)
 
     [(status, akte)] = _lauf(welt, ablauf)
-    assert set(akte["teile"]) == {"structure", "draft"}
+    # ``bereit``: was zu Beginn nutzbar bereitlag (zweites Review TG-2)
+    assert set(akte["teile"]) == {"bereit", "structure", "draft"}
     assert akte["lauf"]["schritt"] == "bearbeiten" and status == "wartet_person"
 
 

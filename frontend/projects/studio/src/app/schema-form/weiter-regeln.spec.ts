@@ -146,6 +146,15 @@ describe('weiter-regeln — Review AS-3c', () => {
     expect(fehlerVon([regel({ vergleich: 'groesser', wert: 'viel' }), sonst])).toEqual({ art: 'zahl', zeile: 0 });
     expect(fehlerVon([regel({ vergleich: 'kleiner', wert: '1,5' }), sonst])).toBeNull();
   });
+  // Plan 2026-11-16, Nachprüfung TG-4–6 (MINOR 5): der Wert darf eine Stelle sein
+  it('ein Wert {teil.…} ist eine Stelle — Form wie die Quelle, keine Zahl nötig', () => {
+    expect(fehlerVon([regel({ wert: '{teil.struktur.block_id}' }), sonst])).toBeNull();
+    expect(fehlerVon([regel({ vergleich: 'groesser', wert: '{teil.zahlen.inhalte}' }), sonst])).toBeNull();
+    expect(fehlerVon([regel({ wert: '{teil.}' }), sonst])).toEqual({ art: 'wertForm', zeile: 0 });
+    expect(fehlerVon([regel({ wert: '{teil.x}' }), sonst])).toEqual({ art: 'wertForm', zeile: 0 });
+    expect(fehlerVon([regel({ wert: '{teil.zahlen' }), sonst])).toEqual({ art: 'wertForm', zeile: 0 });
+    expect(fehlerVon([regel({ vergleich: 'groesser', wert: '{teil.}' }), sonst])).toEqual({ art: 'wertForm', zeile: 0 });
+  });
   it('die Teil-Vorschläge zählen schreibt nur an Werkzeug und Auftrag', () => {
     expect(teileAus({ schritte: [{ id: 'n', typ: 'nachricht', schreibt: 'geist' }] })).toEqual([]);
   });

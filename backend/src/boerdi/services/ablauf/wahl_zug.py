@@ -212,13 +212,21 @@ async def getippt(session: Any, req: ChatRequest, session_state: dict, *,
     if (treffer := _wartend(req.session_id, session_state)) is None:
         return None
     _lauf, ablauf, schritt = treffer
-    wahl = wahl_aus_text(schritt, req.message, resolve_locale(req.environment.locale))
-    if wahl is None and (marke := _hinweis_marke(req.session_id, session_state, schritt)):
+    lang = resolve_locale(req.environment.locale)
+    wahl = wahl_aus_text(schritt, req.message, lang)
+    # Plan 2026-11-16, Nachprüfung TG-4–6 (MINOR 3): ein Satz, der an einer Frage mit
+    # ``synonyme_im_satz`` mehrere Optionen trifft, ist weder Wahl noch Freitext — jedes Mal der
+    # Hinweis, der Schritt wartet weiter
+    mehrdeutig = (wahl is None and schritt.kein_treffer is not None
+                  and treiber.mehrdeutig(schritt, req.message, lang))
+    marke = None if wahl is not None or mehrdeutig else _hinweis_marke(
+        req.session_id, session_state, schritt)
+    if mehrdeutig or marke:
         # WF-2: kein Treffer — einmal der Hinweis des Schritts mit denselben Chips, ohne die KI
         entities = session_state.setdefault("entities", {})
-        entities[KEIN_TREFFER_KEY] = marke
-        lang = resolve_locale(req.environment.locale)
-        text = ((schritt.kein_treffer or {}).get(lang) or (schritt.kein_treffer or {}).get("de")
+        if marke:
+            entities[KEIN_TREFFER_KEY] = marke
+        text =((schritt.kein_treffer or {}).get(lang) or (schritt.kein_treffer or {}).get("de")
                 or "").strip()
         return await basis.fester_text(session, req, text, entities,
                                        knoepfe(ablauf.id, treiber.wahl_angebot(schritt, lang)))

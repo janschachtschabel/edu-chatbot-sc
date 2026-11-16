@@ -94,12 +94,35 @@ def kuerzel(job_id: str) -> str:
     return hashlib.sha256(job_id.encode()).hexdigest()[:12]
 
 
+#: Plan 2026-11-16, Durchtest TG-7 (m5): die Fehlercodes der b-api, die ins Log dürfen — eine
+#: feste Liste, nie freier Servertext (``test_log_ohne_inhalt``). Gemessen 16.11.: ein Start mit
+#: einem Konto, das die b-api nicht kennt bzw. freigibt, antwortet 403 ``EDU_USER_NOT_VERIFIED``.
+BEKANNTE_CODES: Final = frozenset({"EDU_USER_NOT_VERIFIED"})
+
+
 class AuftragFehler(Exception):
-    def __init__(self, grund: str, *, warte_s: int | None = None) -> None:
+    def __init__(self, grund: str, *, warte_s: int | None = None, code: str | None = None) -> None:
         super().__init__(grund)
         self.grund = grund
         #: Bei ``voll``: die Wartezeit der B-API (``Retry-After``), sonst ``None``.
         self.warte_s = warte_s
+        #: m5: bei ``abgewiesen`` ein Code aus :data:`BEKANNTE_CODES`, sonst ``None``.
+        self.code = code
+
+
+def _abweisungs_code(antwort: httpx.Response) -> str | None:
+    """m5: der Code einer Abweisung (``error.code`` oder ``code``), nur aus der festen Liste."""
+    try:
+        daten = antwort.json()
+    except ValueError:
+        return None
+    if not isinstance(daten, dict):
+        return None
+    fehler = daten.get("error")
+    for roh in (fehler.get("code") if isinstance(fehler, dict) else None, daten.get("code")):
+        if isinstance(roh, str) and roh in BEKANNTE_CODES:
+            return roh
+    return None
 
 
 @dataclass
@@ -236,7 +259,11 @@ def _pruefe_antwort(antwort: httpx.Response) -> dict[str, Any]:
         # ``X-Edu-User-Id`` (ohne bestätigte Anmeldung, TB-F1).
         raise AuftragFehler("eingaben")
     if antwort.status_code in (401, 403):
-        raise AuftragFehler("abgewiesen")
+        # Durchtest TG-7, m5: mit dem Code der b-api (aus der festen Liste) — sonst blieb im Log
+        # nur „abgewiesen“, und niemand sah, dass die b-api die Person nicht freigibt
+        code, status = _abweisungs_code(antwort), antwort.status_code
+        logger.warning("Auftrag: b-api weist ab (%d, Code %s)", status, code or "unbekannt")
+        raise AuftragFehler("abgewiesen", code=code)
     if antwort.status_code == 404:
         raise AuftragFehler("unbekannt")
     code = antwort.status_code

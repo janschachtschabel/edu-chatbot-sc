@@ -105,3 +105,64 @@ def test_pruefen_ohne_merken_zaehlt_keinen_versuch(ablauf_mit_upload):
     assert vorschlag.umlenkung(UPLOAD, {}, {UPLOAD, ABLAUF}, zustand, merken=False)
     assert vorschlag.umlenkung(UPLOAD, {}, {UPLOAD, ABLAUF}, zustand)      # noch umgelenkt
     assert vorschlag.umlenkung(UPLOAD, {}, {UPLOAD, ABLAUF}, zustand) is None  # Fluchtweg
+
+
+def test_tg2_ein_zielneutrales_upload_feld_lenkt_nur_mit_themenbaum_bezug_um(ablauf_mit_upload):
+    """Plan 2026-11-16, TG-2, nach Review M3 (c): mit ``zweck: bereitstellen`` kann das Feld ebenso
+    einem Dokument oder dem Übertragen nach WLO dienen — dann nicht umlenken. Nennt die Nachricht
+    des Zugs aber einen Themenbaum (``THEMENBAUM_KEY``, gesetzt von ``respond``), greift das Netz
+    aus TW-6 weiter. Der alte Zweck ``sammlungsstruktur`` lenkt wie bisher immer um."""
+    assert vorschlag.umlenkung(UPLOAD, {"zweck": "bereitstellen"}, {UPLOAD, ABLAUF},
+                               {"entities": {}}) is None
+    mit_bezug = {"entities": {}, vorschlag.THEMENBAUM_KEY: True}
+    assert vorschlag.umlenkung(UPLOAD, {"zweck": "bereitstellen"}, {UPLOAD, ABLAUF},
+                               mit_bezug) is not None
+    assert vorschlag.umlenkung(UPLOAD, {"zweck": "sammlungsstruktur"}, {UPLOAD, ABLAUF},
+                               {"entities": {}}) is not None
+
+
+@pytest.mark.parametrize(("nachricht", "bezug"), [
+    ("Mach mir aus meinem Lehrplan einen Themenbaum", True),
+    ("Zwei Themenbäume aus meinen Ordnern", True),
+    ("Mach mir aus meinem Lehrplan eine Struktur", True),
+    ("Ich will eine Gliederung aus meinen Ordnern", True),
+    ("Eine Sammlungsstruktur bitte", True),
+    ("Baue einen Sammlungsbaum", True),
+    ("Create a topic tree from my folder", True),
+    # Nachprüfung TG-2, NIT 7
+    ("Make a topic-tree from it", True),
+    ("Build a collection structure", True),
+    ("Two collection trees please", True),
+    ("Einen Themen-Baum bitte", True),
+    ("Einen Themen baum bitte", True),
+    ("Kann ich ein PDF hochladen?", False),
+    ("Ich will meine Dateien nach WLO übertragen", False),
+    # Zweites Review TG-2, MINOR 3: Komposita mit „struktur“ sind kein Themenbaum-Wunsch
+    ("Das ist mein Strukturdokument", False),
+    ("Meine Ordnerstruktur ist chaotisch", False),
+    ("Material zur Infrastruktur", False),
+    ("Arbeitsblatt zur Zellstruktur", False),
+    ("Unterricht zum Strukturwandel", False),
+    ("", False),
+])
+def test_tg2_themenbaum_bezug_der_nachricht(nachricht, bezug):
+    assert vorschlag.themenbaum_bezug(nachricht) is bezug
+
+
+def test_zweites_review_m7_der_zugstand_wird_je_zug_neu_gesetzt():
+    """Zweites Review TG-2, MINOR 7: ``zug_merken`` setzt Grundlage und Themenbaum-Bezug je Zug neu
+    und vergisst die Umlenkung des vorigen Zugs — beide Antwort-Knoten rufen es."""
+    import inspect
+
+    from boerdi.graph.nodes import respond, respond_agent
+
+    zustand: dict = {vorschlag.UMGELENKT_KEY: ["ui_upload"]}
+    vorschlag.zug_merken(zustand, {}, "person-a", "Mach mir einen Themenbaum")
+    assert zustand[vorschlag.THEMENBAUM_KEY] is True and vorschlag.UMGELENKT_KEY not in zustand
+    assert zustand[vorschlag.GRUNDLAGE_KEY] is False
+    vorschlag.zug_merken(zustand, {}, "person-a", "Kann ich ein PDF hochladen?")
+    assert zustand[vorschlag.THEMENBAUM_KEY] is False
+    for knoten in (respond, respond_agent):
+        quelle = inspect.getsource(knoten)
+        assert "ablauf_vorschlag.zug_merken(" in quelle
+        assert "THEMENBAUM_KEY]" not in quelle and "GRUNDLAGE_KEY]" not in quelle

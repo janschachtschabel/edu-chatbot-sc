@@ -80,6 +80,29 @@ def sperrt_ohne_moderation(decision: SafetyDecision | None) -> bool:
     )
 
 
+#: Plan 2026-11-16, Review TG-3d–f, MINOR 1: Krisen- bzw. Drohungsmuster in **Namen** einer
+#: Auswahl (Ordner, Dateien, unbearbeitete Titel). Ein Hinweis, keine Sperre — der Upload bleibt,
+#: die Antwort trägt die Hilfsnummern (``krisenhilfe``); im Protokoll steht nur der Grund.
+NAMEN_KRISE = "crisis_signal_in_names"
+NAMEN_DROHUNG = "threat_signal_in_names"
+
+
+def namen_pruefung(namen: str) -> str | None:
+    """MINOR 1: laufen die Krisen- und Drohungsmuster über die Namen an? Dann der Grund
+    (:data:`NAMEN_KRISE` / :data:`NAMEN_DROHUNG`), sonst ``None``. Gilt in jeder Sicherheitsstufe,
+    auch ohne Moderation („regex“) — so bleibt kein Weg ganz ungeprüft. Ein als Name getarnter Satz
+    bekommt so wenigstens die Krisenhilfe; sperren tut er nicht, weil „Suizid-Prävention.pdf“ ein
+    Thema ist."""
+    if not namen:
+        return None
+    entscheid = regex_gate(namen, [])
+    if "crisis_signal_detected" in entscheid.reasons:
+        return NAMEN_KRISE
+    if "threat_signal_detected" in entscheid.reasons:
+        return NAMEN_DROHUNG
+    return None
+
+
 def regex_rueckfall(message: str, signals: list[str] | None) -> SafetyDecision:
     """Die Entscheidung, wenn ``assess_safety`` als Ganzes scheitert: nur das
     Regex-Gate — und keine Stufe hat moderiert. Bisher fehlte der Grund, und der
@@ -232,6 +255,8 @@ async def assess_safety(
     message: str,
     signals: list[str] | None = None,
     usage_acc: dict | None = None,
+    *,
+    nur_moderation: str = "",
 ) -> SafetyDecision:
     """Multi-stage safety assessment.
 
@@ -242,6 +267,12 @@ async def assess_safety(
     ``usage_acc`` (K1d) is the turn's token accumulator, handed to the legal
     classifier — the only stage here that spends chat tokens (moderation uses
     its own endpoint). Both callers pass it: the assess node and preflight.
+
+    ``nur_moderation`` (Plan 2026-11-16, Review TG-3a–c, R3-1): Namen aus einer Auswahl (Ordner,
+    Dateien). Sie gehen an die Moderation — zusammen mit ``message``, die Namen zuerst — und an die
+    Muster für Prompt-Injection (die heben nur auf ``medium``; Ordnernamen sieht die KI), nicht an
+    die Krisen- und Drohungsmuster (``regex_gate``) und nicht an die Rechtsprüfung: eine Datei
+    „Suizid-Prävention.pdf“ ist ein Thema, kein Hilferuf.
     """
     signals = signals or []
     decision = regex_gate(message, signals)
@@ -255,12 +286,15 @@ async def assess_safety(
     esc = cfg.get("escalation", {}) or {}
     decision.reasons.append(f"level:{preset['level']}")
     msg_lower = normalize_for_matching(message)
+    # R3-1: die Injection-Muster lesen auch die Namen (sie heben nur auf ``medium``)
+    mit_namen = (normalize_for_matching(f"{nur_moderation}\n{message}") if nur_moderation
+                 else msg_lower)
 
     # Stage: Prompt-Injection (regex, optional per preset).
     if preset["prompt_injection"]:
         decision.stages_run.append("prompt_injection")
         for pat in INJECTION_PATTERNS:
-            if re.search(pat, msg_lower):
+            if re.search(pat, mit_namen):
                 if decision.risk_level == "low":
                     decision.risk_level = "medium"
                 decision.reasons.append("possible_prompt_injection")
@@ -283,7 +317,8 @@ async def assess_safety(
 
     tasks: list[tuple[str, Any]] = []
     if run_moderation:
-        tasks.append(("openai", moderation.moderate(message)))
+        tasks.append(("openai", moderation.moderate(
+            f"{nur_moderation}\n{message}" if nur_moderation else message)))
         decision.stages_run.append("openai_moderation")
     if run_legal:
         tasks.append(("legal", legal.classify_legal(message, usage_acc=usage_acc)))

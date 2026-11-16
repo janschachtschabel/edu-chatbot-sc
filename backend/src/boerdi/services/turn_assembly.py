@@ -52,6 +52,8 @@ from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.ablauf import auftrag_zug, freigabe_zug, ki_schritt, seite_zug, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
+from boerdi.services.arbeitsstand import aufrufer_fuer
+from boerdi.services.arbeitsstand import verweis as arbeitsstand_verweis
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.guide_markers import _attach_guide_qr
 from boerdi.services.guide_qr_injector import ist_lotse
@@ -84,6 +86,7 @@ async def _assemble_cards_and_qrs(
     response_text: str,
     wlo_cards_raw: list,
     _host_qr_max: int | None = None,
+    safety: Any = None,
 ) -> tuple:
     """Phasen P20–P24 von ``_chat_impl``: preview_url-Synthese +
     Themenseiten-Default-Description (Card-Enrichment), _build_cards +
@@ -405,7 +408,11 @@ async def _assemble_cards_and_qrs(
             hoechstens=_host_qr_max)
         # TB-E3: ein direkt startender Ablauf — ``turn_persist`` gibt den Knopf als
         # ``ui.direkt_start`` aus, wenn er dann noch dasteht
-        if _direkt := ablauf_vorschlag.direkt_knopf(_ablauf_ids, _qr_lang):
+        # Zweites Review TG-4–6, F: schlösse der Start den Vorgang, bleibt es ein Knopf
+        _verweis = arbeitsstand_verweis(
+            (session_state.get("entities") or {}) if isinstance(session_state, dict) else {},
+            aufrufer_fuer(req.session_id))
+        if _direkt := ablauf_vorschlag.direkt_knopf(_ablauf_ids, _qr_lang, _verweis):
             session_state[ablauf_vorschlag.DIREKT_KEY] = _direkt
             # Rückmeldung 2026-11-15: der Ablauf fragt gleich selbst — weitere Chips unter dieser
             # Antwort führten nur weg. Der Knopf bleibt: das Widget drückt nur, was dasteht.
@@ -414,8 +421,12 @@ async def _assemble_cards_and_qrs(
     # Paket K1a: am Auftragsschritt „Stand prüfen“ — nur dieser eine (zweites Review K2b,
     # Befund 4: zwei Knöpfe verdrängten unter dem Deckel jeden Vorschlag). „Auftrag abbrechen“
     # steht unter der Antwort von „Stand prüfen“ und im Fortschritt-Modul.
-    _ki_weiter = (ki_schritt.weiter_knopf(req.session_id, session_state, _qr_lang)
-                  if isinstance(session_state, dict) else None)
+    # Review der TG-7-Behebung, Befund 1: im Krisen- bzw. Drohungszug kein Ablauf-Bezug (wie
+    # ``ki_schritt.fuer_zug``) — hier geprüft, damit auch der Steuerchip unten nie erscheint
+    _ki_knopf = (ki_schritt.weiter_knopf(req.session_id, session_state, _qr_lang)
+                 if isinstance(session_state, dict) and not ki_schritt.vorgegeben(safety)
+                 else None)
+    _ki_weiter = _ki_knopf
     # Paket S: am Freigabe-Schritt ohne bereitliegende Abnahme „Vorschau erneut zeigen“.
     _ki_weiter = _ki_weiter or (freigabe_zug.weiter_knopf(req.session_id, session_state, _qr_lang)
                                 if isinstance(session_state, dict) else None)
@@ -429,10 +440,19 @@ async def _assemble_cards_and_qrs(
     _weiter = ([_ki_weiter] if _ki_weiter else _wahl if _wahl
                else auftrag_zug.pruefen_knoepfe(req.session_id, session_state, _qr_lang)[:1]
                if isinstance(session_state, dict) else [])
+    # Plan 2026-11-16, Durchtest TG-7 (M1a): „Weiter im Ablauf“ am KI-Schritt ist ein Steuerchip
+    # des Ablaufs — er steht auch ohne Schnellantworten (Agent-Muster: ``mode=none``) und neben
+    # Chips des Gastgebers da, sonst kommt die Person nach dem Entwurf nicht zum Ende. Die Knöpfe
+    # einer Frage und „Stand prüfen“ bleiben an die Grenzen gebunden.
+    _steuer = bool(_ki_weiter) and _ki_weiter == _ki_knopf
     if _weiter and _qr_mode != "none" and not _canvas_forced_quick_replies:
         quick_replies = ablauf_vorschlag.anhaengen(quick_replies, _weiter,
                                                    hoechstens=_host_qr_max,
                                                    alle=_weiter is _wahl)
+    elif _steuer:
+        # Review der TG-7-Behebung, Befund 2 (O-B2): die Chips des Gastgebers bleiben vorn und
+        # ungekürzt — der Steuerchip kommt hinten dazu (Grenze + 1)
+        quick_replies = [*(q for q in quick_replies or [] if q != _ki_weiter), _ki_weiter]
     quick_replies = inject_auth_qr(
         quick_replies,
         blocked=curation_blocked_by_mode(pattern_output),

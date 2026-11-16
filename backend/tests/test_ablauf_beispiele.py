@@ -23,18 +23,18 @@ def test_die_beispiele_des_handbuchs_liegen_als_seeds_vor():
     assert {"sammlungsstruktur", "sammlung_pruefen", "fuehrung"} <= namen
 
 
-# Rückmeldung 16.11.: der WLO-Weg für eigene Inhalte ist ab Werk an
-_AN = {"themenbaum_aus_thema", "themenbaum_aus_dokument", "sammlungsstruktur",
-       "themenbaum_aus_inhalten"}
+# Plan 2026-11-16, TG-6 (G-E2): „Themenbaum erstellen“ löst die vier Themenbaum-Abläufe ab — er
+# ist ab Werk an (mit dem WLO-Weg, Rückmeldung 16.11.), die vier bleiben als Werksfassung aus
+_AN = {"themenbaum"}
 
 
 @pytest.mark.parametrize("datei", _BEISPIELE, ids=lambda p: p.stem)
 def test_jedes_beispiel_besteht_pruefung_und_eigene_tests(datei):
     ablauf = AblaufArea.model_validate(yaml.safe_load(datei.read_text(encoding="utf-8")))
     assert ablauf.id == datei.stem
-    # Nutzer-Entscheid 11.11.: die Themenbaum-Abläufe ohne Schreiben sind im Werkszustand an, alle
-    # anderen aus, bis die Redaktion sie einschaltet — ein schreibender sperrte sonst den
-    # Werksabgleich, wo sein Flow nicht freigeschaltet ist (``auftrag_frei``)
+    # Nutzer-Entscheid 11.11.: Themenbaum-Abläufe sind im Werkszustand an, alle anderen aus, bis
+    # die Redaktion sie einschaltet — seit TG-6 nur noch „Themenbaum erstellen“ (sein Auftrag hat
+    # einen Ersatzweg, ein nicht freigeschalteter Flow sperrt den Werksabgleich also nicht)
     assert ablauf.aktiv is (ablauf.id in _AN)
     assert pruefe(ablauf) == []
     ergebnisse = asyncio.run(simulation.alle(ablauf))

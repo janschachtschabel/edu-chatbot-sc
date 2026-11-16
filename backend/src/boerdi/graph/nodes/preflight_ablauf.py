@@ -17,9 +17,15 @@ from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.services import plan_fortsetzen, vorgang_aktion
-from boerdi.services.ablauf import abbruch_zug, auftrag_zug, freigabe_zug, seite_zug, wahl_zug
+from boerdi.services.ablauf import (
+    abbruch_zug,
+    auftrag_zug,
+    freigabe_zug,
+    ki_schritt,
+    seite_zug,
+    wahl_zug,
+)
 from boerdi.services.ablauf import zug as ablauf_zug
-from boerdi.services.ordner_aktion import ist_ordner_als_entwurf
 
 #: Was ein gesperrter Lauf (K2b, ``warten: gesperrt``) durchlässt — alles andere bekommt den
 #: Hinweis.
@@ -34,7 +40,6 @@ _IM_GESPERRTEN_LAUF: frozenset[str] = frozenset({
 class Ausloeser:
     im_lauf: bool
     per_modul: Any
-    ordner: bool
     per_text: Any
     #: K2b: die Kennung des Ablaufs, dessen wartender Auftragsschritt die Eingabe sperrt.
     gesperrt: str | None = None
@@ -44,11 +49,14 @@ class Ausloeser:
     #: Review 16.11. (Führung wie Tour, M1): eine Wendung des Ablaufs, der an einem
     #: ``seite``-Schritt wartet — der Schritt wird erneut gezeigt.
     wiederholen: bool = False
+    #: Plan 2026-11-16, Durchtest TG-7 (M1b): die Person übernimmt den Entwurf eines wartenden
+    #: KI-Schritts (seine ``ausgabe``) — der Lauf geht ohne weiteren KI-Zug weiter.
+    uebernahme: bool = False
 
     @property
     def irgendeiner(self) -> bool:
-        return bool(self.ordner or self.im_lauf or self.per_modul or self.per_text
-                    or self.gesperrt or self.freitext or self.wiederholen)
+        return bool(self.im_lauf or self.per_modul or self.per_text
+                    or self.gesperrt or self.freitext or self.wiederholen or self.uebernahme)
 
 
 def abgewiesen(aktion: str | None, gesperrt: str | None) -> bool:
@@ -66,16 +74,19 @@ class Antwort:
 
 async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     req = ctx.req
-    # Paket U3-1b: „Ordnerstruktur als Entwurf“ aus ``ui_upload`` ist wie eine Direktaktion — der
-    # Entwurf entsteht ohne LLM. Geprüft wird, was die Person schickt: Blase UND Ordnernamen
-    # (``antwort.sicherheits_text``), durch dasselbe Tor wie jede Direktaktion.
+    # Plan 2026-11-16, TG-2: die Ordner-Aktion aus ``ui_upload`` (Entwurf ohne LLM, U3-1b) ist
+    # entfallen; eine alte Antwort ``ordner_als_entwurf`` ist nach der Prüfung schon ``erfasst``.
     # Paket A1: eine Antwort auf den offenen Block eines Laufs setzt den Ablauf fort (ohne KI) —
     # zuerst geprüft, auch für den Ordner-Knopf von ui_upload (Review A1, Befund 1).
     im_lauf = (not req.action and ctx.ui_antwort is not None
                and await ablauf_zug.wartet_auf(session, req.session_id, ctx.session_state,
                                                ctx.ui_antwort))
-    # Paket A2a: Auslöser ohne Knopf — eine Modul-Antwort (vor der Ordner-Aktion: der Ablauf führt
-    # sie weiter) oder eine Wendung in einer getippten Nachricht.
+    # Plan 2026-11-16, Durchtest TG-7 (M1b): „Übernehmen“ am Entwurf eines wartenden KI-Schritts
+    uebernahme = (not req.action and ctx.ui_antwort is not None and not im_lauf
+                  and ki_schritt.uebernimmt(ctx.session_state, req.session_id,
+                                            ctx.ui_antwort) is not None)
+    # Paket A2a: Auslöser ohne Knopf — eine Modul-Antwort oder eine Wendung in einer getippten
+    # Nachricht.
     # Nicht, solange ein Lauf wartet (Review A2b, Befund 2): eine Modul-Antwort im agent-Schritt
     # ersetzte ihn sonst still.
     # Review TW-4, Befund 2: der eben abgelehnte Ablauf startet nicht wieder von selbst
@@ -83,8 +94,6 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     per_modul = (ablauf_zug.modul_ausloeser(ctx.ui_antwort, ohne=abgelehnt)
                  if not req.action and not im_lauf and ctx.ui_antwort is not None
                  and not ablauf_zug.lauf_wartet(req.session_id, ctx.session_state) else None)
-    ordner = (not req.action and not im_lauf and per_modul is None
-              and ist_ordner_als_entwurf(ctx.ui_antwort))
     # Review A2a, Befund 1: getippter Text während eines wartenden Laufs ist ein gewöhnlicher Zug
     # (F1) — eine Wendung ersetzte sonst still den Lauf.
     per_text = (ablauf_zug.text_ausloeser(req.message, ohne=abgelehnt)
@@ -110,8 +119,8 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     # ``endet_bei_text`` still — der Zug geht den gewöhnlichen Weg (wie die eingebaute Tour)
     if getippt and not freitext and not wiederholen:
         await wahl_zug.still_beenden(session, req.session_id, ctx.session_state)
-    return Ausloeser(bool(im_lauf), per_modul, bool(ordner), per_text, gesperrt, freitext,
-                     bool(wiederholen))
+    return Ausloeser(bool(im_lauf), per_modul, per_text, gesperrt, freitext,
+                     bool(wiederholen), uebernahme)
 
 
 async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
@@ -154,6 +163,11 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
     if req.action == ablauf_zug.AKTION_WEITER:
         return Antwort(await ablauf_zug.weiter_nach_ki(session, req, state,
                                                        blocked_tools=gesperrt))
+    if a.uebernahme and ctx.ui_antwort is not None and (
+            uebernommen := await ablauf_zug.nach_uebernahme(session, req, state, ctx.ui_antwort,
+                                                            blocked_tools=gesperrt)) is not None:
+        # Durchtest TG-7, M1b: ``None`` — der Lauf wartet nicht mehr dort, der Zug geht weiter
+        return Antwort(uebernommen)
     if a.per_modul is not None and ctx.ui_antwort is not None:
         return Antwort(await ablauf_zug.per_modul_starten(
             session, req, state, ctx.ui_antwort, a.per_modul, blocked_tools=gesperrt))

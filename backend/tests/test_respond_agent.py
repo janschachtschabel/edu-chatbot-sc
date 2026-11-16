@@ -91,13 +91,15 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
                     on_token=None, start=None, modul_vorlage=None, modul_dokument=None,
-                    modul_teile=None, modul_vorgaben="", modul_umlenkung=None):
+                    modul_teile=None, modul_vorgaben="", modul_vorbelegung=None,
+                    modul_umlenkung=None, dokument_leser=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
             "usage_acc": usage_acc, "progress": progress,
             "on_tool_result": on_tool_result, "wissen": wissen,
             "on_offene_abnahme": on_offene_abnahme, "on_token": on_token,
             "start": start, "modul_vorlage": modul_vorlage,
+            "modul_vorbelegung": modul_vorbelegung,
         }
         if on_token is not None:
             on_token("Hallo [Li")  # wie ein Antwort-Aufruf mit offenem Link am Ende
@@ -1606,6 +1608,39 @@ async def test_am_agent_schritt_stehen_die_antworten_des_ablaufs_in_der_nachrich
     nachricht = seen["run_agent_loop"]["messages"][-1]["content"]
     assert "[ABLAUFDATEN — " in nachricht and "thema: „Karate“" in nachricht
     assert nachricht.index("[ABLAUFSCHRITT — ") < nachricht.index("[ABLAUFDATEN — ")
+    # ohne ``agent.vorbelegen`` keine Vorbelegung (bestehende Abläufe bleiben, wie sie sind)
+    assert seen["run_agent_loop"]["modul_vorbelegung"] is None
+    assert "[VORBELEGT — " not in nachricht
+
+
+@pytest.mark.anyio
+async def test_tg5_am_agent_schritt_reist_die_vorbelegung_zum_modul(monkeypatch):
+    """Plan 2026-11-16, TG-5: mit ``agent.vorbelegen`` gehen die Antworten des Laufs als
+    Vorbelegung an die Schleife (``modul_vorbelegung``), und die KI liest ``[VORBELEGT — …]``."""
+    from boerdi.domain.config_models.ablauf import AblaufArea
+
+    ablauf = AblaufArea.model_validate({
+        "id": "baum", "titel": {"de": "Baum"}, "aktiv": True, "schritte": [
+            {"id": "umfang", "typ": "nachricht", "text": {"de": "Wie fein?"},
+             "freitext": {"ziel": "k", "schreibt": "umfang"}},
+            {"id": "k", "typ": "agent", "agent": {"werkzeuge": ["ui_strukturentwurf"],
+                                                  "vorbelegen": True}},
+            {"id": "e", "typ": "ende"}]})
+    monkeypatch.setattr(agent_mod.ki_schritt, "aktueller",
+                        lambda state, sid: (ablauf, ablauf.schritte[1]))
+
+    def lader(_session, _sid, _entities):
+        async def teil(name):
+            return {"umfang": "Ausführlich (3 Ebenen, etwa 12 oben)"}.get(name)
+        return teil
+
+    monkeypatch.setattr(agent_mod.arbeitsstand, "teil_lader", lader)
+    monkeypatch.setattr(agent_mod.ki_schritt, "beantwortet", lambda state, sid: ["umfang"])
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    await respond_agent(_ctx())
+    assert seen["run_agent_loop"]["modul_vorbelegung"] == {"tiefe": 3, "anzahl_oben": 12}
+    assert "[VORBELEGT — " in seen["run_agent_loop"]["messages"][-1]["content"]
 
 
 @pytest.mark.anyio

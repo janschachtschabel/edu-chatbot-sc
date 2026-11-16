@@ -68,7 +68,10 @@ class WennWert(AreaModel):
     vergleich: Annotated[str, Choices("gleich", "enthaelt", "vorhanden", "leer", "groesser",
                                       "kleiner")] = Field(
         pattern=r"^(gleich|enthaelt|vorhanden|leer|groesser|kleiner)$")
-    #: Leer bei ``vorhanden`` und ``leer``; bei ``groesser``/``kleiner`` eine Zahl.
+    #: Leer bei ``vorhanden`` und ``leer``; bei ``groesser``/``kleiner`` eine Zahl. Plan 2026-11-16
+    #: (zweites Review TG-4–6, H; Nachprüfung, MINOR 5): oder eine Stelle ``{teil.<name>[.<pfad>]}``
+    #: — verglichen wird mit deren Wert (fehlt sie, greift die Regel nicht); die Prüfung prüft sie
+    #: wie die Quelle (``pruefung._stelle``), eine Zahl ist dann nicht nötig.
     wert: str | None = Field(default=None, max_length=200)
 
 
@@ -110,6 +113,12 @@ class AgentSchritt(AreaModel):
     #: Text geht als Nachricht der Person an die KI, die dann loslegt. Vorgabe ``None``.
     startknopf: Annotated[dict[str, Annotated[str, Field(max_length=STARTKNOPF_ZEICHEN)]] | None,
                           BeforeValidator(_ohne_leere_saetze)] = None
+    #: Plan 2026-11-16, TG-5 (G-E8): die Antworten dieses Laufs belegen die Argumente von
+    #: ``ui_strukturentwurf`` vor (``umfang`` → ``tiefe``/``anzahl_oben``, ``stufe`` →
+    #: ``bildungsstufe``, ``thema``; ``zweck``, ``publikum``, ``soll_ist``, ``hinweise`` als
+    #: Hinweise; ``services/ablauf/vorbelegung``). Ein Argument der KI geht vor. Abgewählt
+    #: (``False``) ist nicht gesetzt — Vorgabe ``None`` (wegen ``treiber.fassung``).
+    vorbelegen: Annotated[bool | None, BeforeValidator(lambda w: None if w is False else w)] = None
 
 
 class Umsehen(AreaModel):
@@ -134,6 +143,12 @@ class Schnellantwort(AreaModel):
     #: ``None``, sonst änderte sich die Fassung jedes Ablaufs (``treiber.fassung``).
     synonyme: Annotated[Annotated[list[Annotated[str, Field(min_length=3, max_length=60)]],
                                   Field(max_length=30)] | None,
+                        BeforeValidator(_leer_ist_nicht_gesetzt)] = None
+    #: Plan 2026-11-16, zweites Review TG-2 (MAJOR 1): Teile, die diese Wahl aus dem Vorgang
+    #: entfernt, bevor es weitergeht — etwa „Andere wählen“ das schon bereitgestellte ``document``.
+    #: Vorgabe ``None`` wie ``synonyme`` (``treiber.fassung``).
+    verwirft: Annotated[Annotated[list[Annotated[str, Field(pattern=_ID)]],
+                                  Field(max_length=10)] | None,
                         BeforeValidator(_leer_ist_nicht_gesetzt)] = None
 
 
@@ -231,6 +246,13 @@ class Schritt(AreaModel):
                         NurBei("typ", "nachricht", "modul")] = None
     #: AS-3a: getippter Text als Antwort (wird ein Teil) — auch ohne ``optionen``.
     freitext: Annotated[Freitext | None, NurBei("typ", "nachricht", "modul")] = None
+    #: Plan 2026-11-16, zweites Review TG-4–6 (A): an einer Frage mit Freitext treffen ``synonyme``
+    #: nur, wenn der ganze getippte Text gleich ist — mit ``synonyme_im_satz`` auch als ganzes Wort
+    #: mitten im Satz (nicht hinter einer Verneinung; trifft er mehrere Optionen, ist er Freitext).
+    #: Für Fragen, die einen Satz einer Option zuordnen, etwa die Grundlage eines Themenbaums.
+    #: Abgewählt ist nicht gesetzt — Vorgabe ``None`` (wegen ``treiber.fassung``).
+    synonyme_im_satz: Annotated[bool | None, BeforeValidator(lambda w: None if w is False else w),
+                                NurBei("typ", "nachricht")] = None
     #: WF-2 (Plan 2026-11-15): Hinweis je Sprache, wenn getippter Text keine Option trifft —
     #: einmal je Lauf und Schritt, mit denselben Chips; danach geht Text wie sonst an die KI. Nur
     #: an einem Schritt mit ``optionen`` und ohne ``freitext`` (``pruefung``).

@@ -338,6 +338,7 @@ async def persist_and_build_response(
     gelieferte_dokumente: list[dict[str, Any]] | None = None,
     ui_bloecke: list[UiBlock] | None = None,
     mehrfachsuche: bool = False,
+    ui_antwort: dict[str, Any] | None = None,
 ) -> ChatResponse:
     """Phasen P29-P33: DebugInfo-Anreicherung + Assistant-Persist + Quality-Log,
     guide_urls, finale QR-Politur + display_rules-Gruppen-Trims, Inline-Document-
@@ -440,6 +441,8 @@ async def persist_and_build_response(
         cards_count=len(cards),
         page=env.get("page", "/"),
         device=env.get("device", "desktop"),
+        # Review TG-3d–f, MINOR 6: ohne Namen einer Auswahl
+        ui_antwort=ui_antwort,
     )
 
     # Webseiten-Guide-Modus: enrich cards with same-tab navigation URLs.

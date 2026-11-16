@@ -47,7 +47,9 @@ _ANFUEHRUNG: Final = str.maketrans({z: "'" for z in "„“”\"«»‟❝❞＂
 #: In ``entities``: die Züge am aktuellen Schritt —
 #: ``{"schritt": "<ablauf>/<schritt>", "zuege": n}``.
 ZUEGE_KEY: Final = "_ablauf_ki_zuege"
-_VIRTUELL: Final = frozenset({RESPOND_TO_USER, INHALTSRAHMEN, LIEFERE_ERGEBNIS})
+#: Plan 2026-11-16, Durchtest TG-7 (M2): ``dokument_lesen`` bleibt am KI-Schritt im Angebot — der
+#: Schritt arbeitet oft mit dem gelesenen Dokument der Person.
+_VIRTUELL: Final = frozenset({RESPOND_TO_USER, INHALTSRAHMEN, LIEFERE_ERGEBNIS, "dokument_lesen"})
 _ZEILE_ZEICHEN: Final = 500
 #: Hinweis und Titel gedeckelt, damit Budget und Knopf nie abgeschnitten werden (Review A2b, 3).
 HINWEIS_ZEICHEN: Final = 200
@@ -59,10 +61,17 @@ def fuer_zug(session_state: dict[str, Any], session_id: str, safety: Any
     """:func:`aktueller` — aber nicht in einem Zug, dem die Sicherheitsprüfung ein Muster vorgibt
     (Krise M01, Ablehnung M02) oder ein hohes Risiko bescheinigt: dort weder Zeile noch Zählung
     (Review A2b, Befund 1)."""
-    if safety is not None and (getattr(safety, "enforced_pattern", None)
-                               or getattr(safety, "risk_level", "") == "high"):
+    if vorgegeben(safety):
         return None
     return aktueller(session_state, session_id)
+
+
+def vorgegeben(safety: Any) -> bool:
+    """Gibt die Sicherheitsprüfung diesem Zug ein Muster vor (Krise M01, Drohung bzw. Ablehnung M02)
+    oder bescheinigt sie ein hohes Risiko? Dann kein Bezug auf einen Ablauf (Review A2b, Befund 1)
+    — auch nicht der Steuerchip „Weiter im Ablauf“ (Review der TG-7-Behebung, Befund 1)."""
+    return safety is not None and bool(getattr(safety, "enforced_pattern", None)
+                                       or getattr(safety, "risk_level", "") == "high")
 
 
 def aktueller(session_state: dict[str, Any], session_id: str) -> tuple[AblaufArea, Schritt] | None:
@@ -79,6 +88,33 @@ def aktueller(session_state: dict[str, Any], session_id: str) -> tuple[AblaufAre
     if schritt is None or schritt.typ != "agent" or schritt.agent is None:
         return None
     return ablauf, schritt
+
+
+def uebernimmt(session_state: dict[str, Any], session_id: str, geprueft: Any
+               ) -> tuple[AblaufArea, Schritt] | None:
+    """Plan 2026-11-16, Durchtest TG-7 (M1b): übernimmt die Person mit dieser geprüften Antwort
+    das Ergebnis des wartenden KI-Schritts? Ja, wenn das Modul zu seinen Werkzeugen gehört, die
+    Antwort ``uebernommen: true`` trägt („Übernehmen“ im ``ui_strukturentwurf``) und genau den
+    Teil seiner ``ausgabe`` schreibt (``draft``). Dann geht der Lauf ohne weiteren KI-Zug weiter —
+    sonst entwarf die KI nach dem Übernehmen oft neu, und der Lauf blieb offen."""
+    if (not isinstance(geprueft, dict)
+            or (geprueft.get("daten") or {}).get("uebernommen") is not True):
+        return None
+    if (treffer := aktueller(session_state, session_id)) is None:
+        return None
+    _ablauf, schritt = treffer
+    agent = schritt.agent
+    if (agent is None or not agent.ausgabe
+            or geprueft.get("modul") not in (agent.werkzeuge or [])):
+        return None
+    from boerdi.services.arbeitsstand_teile import teile_aus_antwort
+
+    wert = next((t[2] for t in teile_aus_antwort(geprueft) if t[0] == agent.ausgabe), None)
+    # Review der TG-7-Behebung, NIT 6: ein leerer Entwurf ist keine Übernahme — er endete sonst
+    # ohne Rückfrage mit „gespeichert“
+    if wert is None or (isinstance(wert, dict) and "knoten" in wert and not wert["knoten"]):
+        return None
+    return treffer
 
 
 def mit_schrittmodulen(pattern_output: dict[str, Any], schritt: Schritt) -> dict[str, Any]:
@@ -291,8 +327,10 @@ def knopf(ablauf_id: str, lang: str) -> str:
     return f"__action__|{label}|{AKTION}|" + json.dumps({"ablauf": ablauf_id}, ensure_ascii=False)
 
 
-def weiter_knopf(session_id: str, session_state: dict[str, Any], lang: str) -> str | None:
-    """Der Knopf „Weiter im Ablauf“, solange ein Lauf am ``agent``-Schritt wartet."""
-    if (treffer := aktueller(session_state, session_id)) is None:
+def weiter_knopf(session_id: str, session_state: dict[str, Any], lang: str,
+                 safety: Any = None) -> str | None:
+    """Der Knopf „Weiter im Ablauf“, solange ein Lauf am ``agent``-Schritt wartet — nicht in einem
+    Zug mit vorgegebenem Schutzmuster (:func:`fuer_zug`)."""
+    if (treffer := fuer_zug(session_state, session_id, safety)) is None:
         return None
     return knopf(treffer[0].id, lang)

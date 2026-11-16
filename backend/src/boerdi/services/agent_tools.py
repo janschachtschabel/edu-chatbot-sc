@@ -152,6 +152,7 @@ def build_agent_tools(
     wissen_tool: dict[str, Any] | None = None,
     antwort_tool: dict[str, Any] | None = None,
     ablauf_tools: list[dict[str, Any]] | None = None,
+    lese_tool: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Der volle Katalog plus ``submit_result``.
 
@@ -239,6 +240,11 @@ def build_agent_tools(
     tools.extend(ablauf_tools or [])
     if wissen_tool:
         tools.append(wissen_tool)
+    # Plan 2026-11-16, Durchtest TG-7 (M2): ``dokument_lesen`` — nur mit einem lesbaren Dokument der
+    # Sitzung (``services/dokument_lesen``). Virtuell und nicht sperrbar wie ``wissen_suchen``: es
+    # liest nur, was die Person selbst hochgeladen hat, geprüft und gerahmt.
+    if lese_tool:
+        tools.append(lese_tool)
     if include_dokument:
         tools.append(dokument_werkzeug())
     if ui_module:

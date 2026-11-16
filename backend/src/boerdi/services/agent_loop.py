@@ -85,6 +85,7 @@ from boerdi.services.agent_knowledge import WISSEN_SUCHEN
 from boerdi.services.agent_tools import SUBMIT_RESULT
 from boerdi.services.agent_trace import Rundenbuch
 from boerdi.services.agent_write import WriteGate
+from boerdi.services.dokument_lesen import WERKZEUG as DOKUMENT_LESEN
 from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
@@ -275,7 +276,9 @@ async def run_agent_loop(
     modul_dokument: DokumentLader | None = None,
     modul_teile: TeilLader | None = None,
     modul_vorgaben: str = "",
+    modul_vorbelegung: dict[str, Any] | None = None,
     modul_umlenkung: Callable[..., str | None] | None = None,
+    dokument_leser: Callable[[dict[str, Any]], Awaitable[str]] | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -712,7 +715,9 @@ async def run_agent_loop(
                 umgebung = ModulUmgebung(usage_acc=acc, frist_ende=ende, vorlage=modul_vorlage,
                                          dokument=modul_dokument, teile=modul_teile,
                                          verfuegbar=frozenset(angeboten),
-                                         vorgaben=modul_vorgaben)
+                                         vorgaben=modul_vorgaben,
+                                         # Plan 2026-11-16, TG-5: Antworten des Laufs
+                                         vorbelegung=modul_vorbelegung)
                 try:
                     with schritt("respond.werkzeuge"):
                         ergebnis = await innerhalb(ende, modul_asynchron(name, args, umgebung))
@@ -765,6 +770,19 @@ async def run_agent_loop(
                 except FristAbgelaufen:
                     return frist_mitten_in_der_runde(i)
                 messages.append(_tool_turn(tc.id, wissen_text))
+                continue
+
+            # Plan 2026-11-16, Durchtest TG-7 (M2): das gelesene Dokument der Person — virtuell wie
+            # die Wissensdatenbank; der Leser prüft und rahmt den Text selbst
+            # (``services/dokument_lesen``).
+            if dokument_leser is not None and name == DOKUMENT_LESEN:
+                progress.record("agent_tool", f"Werkzeug: {name}", {"tool": name})
+                run.tools_called.append(name)
+                try:
+                    gelesen = await innerhalb(ende, dokument_leser(args))
+                except FristAbgelaufen:
+                    return frist_mitten_in_der_runde(i)
+                messages.append(_tool_turn(tc.id, gelesen))
                 continue
 
             progress.record("agent_tool", f"Werkzeug: {name}", {"tool": name})

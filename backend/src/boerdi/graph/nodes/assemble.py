@@ -89,6 +89,8 @@ async def assemble(ctx: TurnContext) -> TurnContext:
             _effective_pattern_id=ctx.effective_pattern_id,
             response_text=ctx.response_text,
             wlo_cards_raw=ctx.wlo_cards_raw,
+            # Review der TG-7-Behebung, Befund 1: der Steuerchip nie im Krisenzug
+            safety=ctx.safety,
         )
     )
     # Zeigte dieser Zug eine Sammlung mit freigegebenen Anleitungen? Dann für
