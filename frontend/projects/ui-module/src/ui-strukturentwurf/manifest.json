@@ -101,6 +101,7 @@
       "bildungsstufe": { "$ref": "#/$defs/stufe" },
       "wurzel_wlo_id": { "$ref": "#/$defs/wlo_id" },
       "gekuerzt": { "type": "boolean", "description": "Die WLO-Sammlung hatte mehr Punkte, als der Entwurf uebernommen hat." },
+      "quelle_block": { "type": "string", "pattern": "^[a-z0-9]{8,32}$", "description": "Mit quelle ordner: die block_id der Auswahl, aus der der Entwurf stammt (verknuepft inhalte mit der Ablage)." },
       "knoten": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "$ref": "#/$defs/ebene1" }, "description": "Die Punkte der oberen Ebene." }
     },
     "$defs": {
@@ -112,6 +113,16 @@
         "type": "string",
         "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
         "description": "Kennung der WLO-Sammlung, aus der der Punkt stammt."
+      },
+      "inhalt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["i", "name"],
+        "properties": {
+          "i": { "type": "integer", "minimum": 0, "maximum": 4999, "description": "Feste Nummer der Datei in der Auswahl (Teil struktur)." },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\n\\r]*$", "description": "Dateiname." },
+          "node_id": { "$ref": "#/$defs/wlo_id" }
+        }
       },
       "felder": {
         "type": "object",
@@ -126,7 +137,8 @@
           "wlo_id": { "$ref": "#/$defs/wlo_id" },
           "ausstehend": { "type": "boolean", "description": "Unterthemen sind vorgesehen, aber (noch) nicht erzeugt." },
           "fundstelle": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Mit quelle dokument: Titel des Abschnitts im Dokument, aus dem der Punkt stammt." },
-          "abschnitte": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^a[1-9][0-9]{0,2}$" }, "description": "Mit quelle dokument: Kennungen der Abschnitte im Dokument, aus denen der Punkt stammt." }
+          "abschnitte": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^(a[1-9][0-9]{0,2}|d[1-9][0-9]?(-a[1-9][0-9]{0,2})?)$" }, "description": "Mit quelle dokument: Kennungen der Abschnitte im Dokument, aus denen der Punkt stammt (bei mehreren Dokumenten mit Praefix, etwa d1-a3)." },
+          "inhalte": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/inhalt" }, "description": "Mit quelle ordner: die Dateien des Ordners als Verweise (nur Zahl und Name, keine Inhalte)." }
         }
       },
       "ebene4": { "$ref": "#/$defs/felder", "unevaluatedProperties": false },
@@ -159,6 +171,7 @@
       "bildungsstufe": { "$ref": "#/$defs/stufe" },
       "wurzel_wlo_id": { "$ref": "#/$defs/wlo_id" },
       "gekuerzt": { "type": "boolean", "description": "Wie in der Eingabe." },
+      "quelle_block": { "type": "string", "pattern": "^[a-z0-9]{8,32}$", "description": "Wie in der Eingabe." },
       "knoten": { "type": "array", "maxItems": 30, "items": { "$ref": "#/$defs/ebene1" }, "description": "Der Stand der Person." },
       "uebernommen": { "type": "boolean", "description": "true: die Person hat 'Uebernehmen' gewaehlt; false: der Stand ging mit einer getippten Nachricht mit." },
       "bearbeitet": { "type": "boolean", "description": "Die Person hat den Entwurf veraendert." }
@@ -173,6 +186,16 @@
         "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
         "description": "Kennung der WLO-Sammlung."
       },
+      "inhalt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["i", "name"],
+        "properties": {
+          "i": { "type": "integer", "minimum": 0, "maximum": 4999, "description": "Feste Nummer der Datei in der Auswahl (Teil struktur)." },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\n\\r]*$", "description": "Dateiname." },
+          "node_id": { "$ref": "#/$defs/wlo_id" }
+        }
+      },
       "felder": {
         "type": "object",
         "required": ["id", "titel"],
@@ -186,7 +209,8 @@
           "wlo_id": { "$ref": "#/$defs/wlo_id" },
           "ausstehend": { "type": "boolean", "description": "Unterthemen fehlen noch." },
           "fundstelle": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Abschnitt im Dokument (quelle dokument)." },
-          "abschnitte": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^a[1-9][0-9]{0,2}$" }, "description": "Abschnitte im Dokument (quelle dokument)." }
+          "abschnitte": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^(a[1-9][0-9]{0,2}|d[1-9][0-9]?(-a[1-9][0-9]{0,2})?)$" }, "description": "Abschnitte im Dokument (quelle dokument)." },
+          "inhalte": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/inhalt" }, "description": "Dateien des Ordners als Verweise (quelle ordner); bleiben beim Bearbeiten am Punkt." }
         }
       },
       "ebene4": { "$ref": "#/$defs/felder", "unevaluatedProperties": false },
@@ -208,7 +232,7 @@
     }
   },
   "datenquelle": null,
-  "vorgang": { "schreibt": ["draft"], "liest": ["structure", "document", "draft"] },
+  "vorgang": { "schreibt": ["draft"], "liest": ["structure", "struktur", "document", "strukturdokument", "draft"] },
   "faehigkeiten": ["antworten", "herunterladen"],
   "textfassung": { "vorlage": "markdown" },
   "darstellung": { "breit": false, "platz": "oben" },

@@ -197,6 +197,16 @@ Die zugehörigen Pläne:
   - **Erledigt (Ablauf-Leiste AS-Ub, R2-e).** Unter gewöhnlichen Antworten steht nur „Vorschau erneut zeigen“, ohne „Ablauf abbrechen“ (Deckel der
     Schnellantworten).
   - Browser-Abnahme (Studio-Formular, Widget-Box) offen.
+- **Durchtest TG-7 (2026-11-16), offen nach der Behebung:**
+  [`aenderungen/2026-11-16-durchtest-themenbaum.md`](aenderungen/2026-11-16-durchtest-themenbaum.md)
+  - **Zuordnung Datei → Punkt (n3):** Ein Entwurf aus losen Dateien (`aus_inhalten`) trägt keine
+    `inhalte` je Punkt; nur der Ordner-Weg hat sie (TG-3f). Fürs spätere Befüllen der Sammlungen: die
+    KI ordnet die Titel der Materialien den Punkten zu, der Dienst schreibt daraus `inhalte` (mit `i`
+    bzw. `node_id` über die Ablage). Nicht im Paket TG-7; `quelle` ist dort jetzt `ki`.
+  - **`dokument_lesen` im Muster-Weg:** Das Lesewerkzeug hat nur die Agent-Schleife (Engine `agent`,
+    Vorgabe). Im Muster-Weg sagt der Rahmen, dass die KI den Text dort nicht lesen kann.
+  - **B1 (b-api):** Start von `node-metadata-write` → 403 `EDU_USER_NOT_VERIFIED`; klärt das b-api-Team
+    (K18). Der Chatbot loggt den Code jetzt und sagt der Person den Grund (m5).
 - **Review K2c-1/K2c-4 (2026-11-08), älter:** erledigt — `bei_fehler` nur bei `modul`, `werkzeug`, `agent`,
   `auftrag` (Befund sonst), `weiter` als Liste außerhalb einer Verzweigung gilt im Treiber wie kein `weiter`
   ([`aenderungen/2026-11-08-kleine-punkte-nach-k2d.md`](aenderungen/2026-11-08-kleine-punkte-nach-k2d.md)).
@@ -352,6 +362,11 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Strukturdokumente und Ordner mit Inhalten (2026-11-16, TG-3d–f):** **Migration 0023**
+  (`dokument_uploads.session_id` nicht mehr eindeutig, bis zu fünf Dokumente je Sitzung) einspielen,
+  Image neu bauen (Widget, Module `ui-upload`/`ui-strukturentwurf`, Studio). Notiz
+  `aenderungen/2026-11-16-strukturdokumente-und-ordnerinhalte.md`. Offen: der WLO-Weg des Lesers
+  (Volltext über `get_wlo_content_text`) ist gegen das echte Repositorium noch nicht gemessen (TG-7).
 - **Rückmeldung Abläufe (2026-11-15):** Dokument im Ablauf lesen (Fehler), Enter in der
   Entscheidungsfrage, keine Chips beim Direktstart, „Ohne Führung, frei im Chat“. Notiz
   `aenderungen/2026-11-15-rueckmeldung-ablaeufe.md`. Nach dem Deploy
@@ -556,9 +571,15 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Abläufe im Studio AS-D (2026-11-09):** keine Migration, keine neue Variable; Image neu bauen
   (Studio, Backend). `POST /api/config/ablauf-pruefen` liefert dazu `teile` (Sicht „Daten“).
   **Offen:**
-  - der Dienst `ablage_zuordnen` (Plan §5e): Der Teil `ablage` trägt keinen Ordnerpfad je Datei (der
+  - ~~der Dienst `ablage_zuordnen` (Plan §5e): Der Teil `ablage` trägt keinen Ordnerpfad je Datei (der
     MCP legt flach ab), und der Ordnerbaum trägt keine Dateien, nur Zahlen je Ordner. Nötig ist ein
-    Ordnerpfad oder Index je Datei im Upload und in `ablage`; wartet auf Teamfrage T1.
+    Ordnerpfad oder Index je Datei im Upload und in `ablage`; wartet auf Teamfrage T1.~~
+    **Erledigt mit Plan 2026-11-16, TG-3a/TG-3b:** Der Teil `struktur` (`wlo.auswahl@1`) trägt je
+    Ordner seine Dateien mit fester Nummer `i`; die Übertragung schickt dieselbe Nummer, und der Teil
+    `ablage` merkt sie sich je Eintrag (`i` neben `index`, der Stelle in der Freigabe des MCP).
+    Ordner und node_id sind so über `i` verknüpfbar; ein eigener Dienst `ablage_zuordnen` entfällt —
+    die Abnehmer (TG-3f, „Sammlungen 1:1“) lesen `struktur` und `ablage` direkt. Notiz
+    `aenderungen/2026-11-16-datenmodell-struktur.md`.
   - P1 (`plans/2026-11-09-p1-chatbot-umwandlung.md`): Entscheide für AS-T offen (T1 zuerst, dann
     Option A–E, Aufbewahrung der Texte, PPTX), Staging-Messung von `textContent` für private
     Uploads, Messung auf dem vServer.

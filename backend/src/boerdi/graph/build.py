@@ -93,6 +93,7 @@ from boerdi.services.config_loader import load_safety_config
 from boerdi.services.db_sessions import get_memory, nutzer_debug, save_message
 from boerdi.services.llm_parallel import binde_zug as binde_llm_zug
 from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
+from boerdi.services.safety.service import NAMEN_DROHUNG, NAMEN_KRISE
 from boerdi.services.zugakte import binde_zugakte
 from boerdi.ui_module.antwort import DEBUG_KEY as UI_ANTWORT_KEY
 
@@ -153,11 +154,19 @@ async def _log_turn_safety(ctx: TurnContext, session: AsyncSession) -> TurnConte
     too. Telemetry only: never let a log failure break the turn."""
     try:
         log_cfg = load_safety_config().get("logging") or {}
+        # Review TG-3d–f, MINOR 1: ein Krisen- oder Drohungsmuster in den Namen einer Auswahl
+        # kommt ins Protokoll (nur der Grund, nie die Namen), auch bei niedrigem Risiko
+        in_namen = any(r in (NAMEN_KRISE, NAMEN_DROHUNG) for r in ctx.safety.reasons)
         if log_cfg.get("enabled", True) and (
-            log_cfg.get("log_all_turns", False) or ctx.safety.risk_level != "low"
+            log_cfg.get("log_all_turns", False) or ctx.safety.risk_level != "low" or in_namen
         ):
+            # Review TG-3a–c, R3-1: mit einer Auswahl ohne deren Namen (die Blase nennt sie)
+            from boerdi.ui_module.antwort import protokoll_text, sicherheits_teile
+
             await log_safety_event(
-                session, ctx.req.session_id, ctx.req.message, ctx.safety, ip=ctx.client_ip,
+                session, ctx.req.session_id,
+                protokoll_text(sicherheits_teile(ctx.req.message, ctx.ui_antwort)),
+                ctx.safety, ip=ctx.client_ip,
             )
     except Exception as err:
         # The ``commit`` inside ``log_safety_event`` can fail and leave the
@@ -311,6 +320,24 @@ def begin_turn(ctx: TurnContext) -> None:
     probe.binde(ctx.probe, resolve_locale(ctx.req.environment.locale), vorschau=ctx.vorschau)
 
 
+def _krisenhilfe(state: dict[str, Any]) -> None:
+    """Review TG-3d–f, MINOR 1: trug eine Auswahl Krisenmuster in ihren Namen, hängt die Antwort
+    die Hilfsnummern an — an jede Antwort dieses Zugs (auch die eines Ablaufs aus ``preflight``).
+    Nicht im Verlauf gespeichert: ein fester Sicherheitssatz, kein Teil des Gesprächs für die KI."""
+    if not state.get("krisenhilfe"):
+        return
+    antwort = state.get("early_response") or state.get("response")
+    if antwort is None or not hasattr(antwort, "content"):
+        return
+    from boerdi.i18n import bot_text
+
+    req = state.get("req")
+    satz = bot_text(resolve_locale(req.environment.locale if req is not None else None),
+                    "safety.krisenhilfeNamen")
+    if satz not in (antwort.content or ""):
+        antwort.content = f"{antwort.content}\n\n{satz}" if antwort.content else satz
+
+
 async def run_turn(graph: CompiledStateGraph, ctx: TurnContext) -> dict[str, Any]:
     """Einen Zug durch ``graph`` laufen lassen — mit gebundenen Sammlern.
 
@@ -324,6 +351,8 @@ async def run_turn(graph: CompiledStateGraph, ctx: TurnContext) -> dict[str, Any
     """
     begin_turn(ctx)
     try:
-        return await graph.ainvoke(ctx)
+        state = await graph.ainvoke(ctx)
+        _krisenhilfe(state)
+        return state
     finally:
         await raeume_zug_aufgaben()

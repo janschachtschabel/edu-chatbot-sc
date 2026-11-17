@@ -92,14 +92,28 @@ def test_eine_fremde_rolle_wird_abgewiesen(client, lage, rolle):  # noqa: F811
     assert not [m for m in lage.mcp if m[0] == "vorbereiten"]
 
 
+def _struktur(n: int) -> dict:
+    return {**_EINTRAEGE[0], "titel": f"Lehrplan {n}", "rolle": "struktur", "i": n}
+
+
 @pytest.mark.parametrize("eintraege", [
-    [{**_EINTRAEGE[0], "rolle": "struktur"}, {**_EINTRAEGE[1], "rolle": "struktur"}],
+    # Plan 2026-11-16, TG-3e: bis zu fünf Strukturdokumente — sechs sind zu viele
+    [_struktur(n) for n in range(6)],
     [{**_EINTRAEGE[0], "art": "png", "rolle": "struktur"}, _EINTRAEGE[1]],
-], ids=["zwei", "bild"])
-def test_hoechstens_ein_strukturdokument_einer_lesbaren_art(client, lage, eintraege):  # noqa: F811
+], ids=["sechs", "bild"])
+def test_hoechstens_fuenf_strukturdokumente_einer_lesbaren_art(client, lage, eintraege):  # noqa: F811
     """Review W4, Befund 4: die Regel des Moduls gilt auch am öffentlichen Endpunkt."""
     assert _vorbereiten(client, eintraege=eintraege).status_code == 422
     assert not [m for m in lage.mcp if m[0] == "vorbereiten"]
+
+
+def test_tg3e_zwei_strukturdokumente_sind_erlaubt():
+    """TG-3e: die Prüfung des Endpunkts nimmt mehrere Strukturdokumente (bis fünf)."""
+    from boerdi.api.ui_ablage import Vorbereiten
+
+    v = Vorbereiten(session_id="sitzung-0123456789", block_id="b0000001", ordner="Physik",
+                    eintraege=[_struktur(0), _struktur(1), {**_EINTRAEGE[1], "i": 2}])
+    assert [e.rolle for e in v.eintraege] == ["struktur", "struktur", "inhalt"]
 
 
 def test_ein_ersetzter_stapel_behaelt_die_rolle_seiner_abgelegten():

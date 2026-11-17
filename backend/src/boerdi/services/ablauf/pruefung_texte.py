@@ -35,9 +35,15 @@ _T: Final[dict[str, dict[str, str]]] = {
                                        "Platzhalter",
                                  "en": "Step {s}: the hint without a hit takes no placeholders"},
     "kein_treffer": {"de": "Schritt {s}: kein_treffer braucht Schnellantworten, keinen Freitext "
-                           "und einen deutschen Text",
-                     "en": "Step {s}: kein_treffer needs quick replies, no free text and a German "
-                           "text"},
+                           "(außer mit synonyme_im_satz) und einen deutschen Text",
+                     "en": "Step {s}: kein_treffer needs quick replies, no free text (unless "
+                           "synonyme_im_satz) and a German text"},
+    "auftrag_synonym": {"de": "Schritt {s}: die Antwort {o} führt zu einem Flow, der ins "
+                              "Repositorium schreibt — ohne Synonym: ein getipptes Teilwort "
+                              "(„nicht erzeugen“) gälte sonst als Zustimmung",
+                        "en": "Step {s}: the answer {o} leads to a flow that writes to the "
+                              "repository — without a synonym: a typed partial word (“do not "
+                              "create”) would otherwise count as consent"},
     "optionen_doppelt": {"de": "Schritt {s}: Kennungen der Schnellantworten doppelt: {ids}",
                          "en": "Step {s}: duplicate quick reply ids: {ids}"},
     "optionen_label_doppelt": {"de": "Schritt {s}: Schnellantworten gleich beschriftet: {l}",
@@ -102,10 +108,11 @@ _T: Final[dict[str, dict[str, str]]] = {
     "direkt_nur_agent": {"de": "Auslöser {a}: modus direkt gibt es nur am Auslöser agent",
                          "en": "Trigger {a}: mode direkt exists only for the trigger agent"},
     "direkt_schreibt": {"de": "Auslöser agent mit modus direkt: der Ablauf schreibt (Werkzeug "
-                              "oder Auftrag) — er startet daher nie direkt, die KI schlägt ihn per "
-                              "Knopf vor",
-                        "en": "Trigger agent with mode direkt: the workflow writes (tool or job) "
-                              "— so it never starts directly, the AI offers a button"},
+                              "oder Auftrag ohne Rückfrage direkt davor) — er startet daher nie "
+                              "direkt, die KI schlägt ihn per Knopf vor",
+                        "en": "Trigger agent with mode direkt: the workflow writes (tool, or job "
+                              "without a question directly before it) — so it never starts "
+                              "directly, the AI offers a button"},
     "start_doppelt": {"de": "Startdaten: Feld doppelt: {f}",
                       "en": "Start data: duplicate field: {f}"},
     "start_pflicht_ausloeser": {"de": "Auslöser {a} startet nie: Pflichtfelder in den Startdaten "
@@ -161,6 +168,18 @@ _T: Final[dict[str, dict[str, str]]] = {
                   "en": "Step {s}: the comparison {v} checks without a value — leave it empty"},
     "wert_zahl": {"de": "Schritt {s}: der Vergleich {v} braucht eine Zahl als Wert",
                   "en": "Step {s}: the comparison {v} needs a number as value"},
+    "wert_stelle": {"de": "Schritt {s}: Wert {w} — eine Stelle als Wert heißt {{teil.<name>}} "
+                          "oder {{teil.<name>.<pfad>}}",
+                    "en": "Step {s}: value {w} — a location as value reads {{teil.<name>}} or "
+                          "{{teil.<name>.<pfad>}}"},
+    "verwirft": {"de": "Schritt {s}: Antwort {o} verwirft den Teil {t}, den der Ablauf nicht "
+                        "kennt (kein Schritt schreibt ihn, oder es sind Startdaten)",
+                 "en": "Step {s}: answer {o} discards part {t}, which the workflow does not know "
+                       "(no step writes it, or it is the start data)"},
+    "verwirft_repo": {"de": "Schritt {s}: Antwort {o} darf den Teil {t} nicht verwerfen — er "
+                             "verweist auf Knoten im Repositorium",
+                      "en": "Step {s}: answer {o} must not discard part {t} — it points to nodes "
+                            "in the repository"},
     "platzhalter_label": {"de": "Schritt {s}: in Beschriftungen von Schnellantworten wirken "
                                 "Platzhalter nicht",
                           "en": "Step {s}: placeholders do not work in quick reply labels"},
@@ -321,6 +340,13 @@ _T: Final[dict[str, dict[str, str]]] = {
                             "the choice becomes the part)"},
     "auftrag_anmeldung": {"de": "Aufträge brauchen die Voraussetzung Anmeldung",
                           "en": "Jobs need the requirement sign-in"},
+    # Plan 2026-11-16, TG-6 (``stumme_enden``): ein Hinweis, kein Befund
+    "ende_stumm": {"de": "Schritt {s}: ein Ende ohne Ausstieg, das der Lauf ohne Ergebnis und "
+                         "ohne Wahl der Person erreichen kann (etwa nach bei_fehler) — biete davor "
+                         "einen Ausweg an („Nochmal“, „Frei weiter“) oder markiere es als Ausstieg",
+                   "en": "Step {s}: an end without exit that the run can reach without a result "
+                         "and without the person's choice (e.g. after bei_fehler) — offer a way "
+                         "out before it (“Try again”, “Continue freely”) or mark it as exit"},
     "metadaten_teil": {"de": "Schritt {s}: der Teil heißt {t} — ui_strukturentwurf liest mit "
                              "aus_inhalten nur den Teil metadaten",
                        "en": "Step {s}: the part is called {t} — ui_strukturentwurf with "

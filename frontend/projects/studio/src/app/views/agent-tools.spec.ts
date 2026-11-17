@@ -83,6 +83,10 @@ describe('lockText (ST-8b)', () => {
       .toBe('Nur mit mindestens einem Wissensbereich für den Agenten.');
     expect(lockText({ code: 'host_schema' }, de))
       .toBe('Nur wenn die Einbettung ein Ergebnis-Schema erklärt.');
+    // Plan 2026-11-16, Durchtest TG-7 (M2): `dokument_lesen` nur mit gelesenem Dokument.
+    expect(lockText({ code: 'session_document' }, de))
+      .toBe('Nur wenn die Person im Chat ein Dokument hat lesen lassen.');
+    expect(lockText({ code: 'session_document' }, wörter('en'))).not.toContain('agentTools.');
     // U1-d2: UI-Module als Werkzeuge nur, wenn das Widget sie meldet.
     expect(lockText({ code: 'widget_module' }, de))
       .toBe('Nur wenn das Widget das Modul meldet — ältere Widgets, Gastanwendungen mit eigenem '

@@ -26,6 +26,8 @@ export const TEXTE = {
     gekuerztOrdner: 'Der Ordner hat mehr Ebenen oder Unterordner, als der Entwurf übernommen hat.',
     leer: 'Der Entwurf ist leer.',
     ausstehend: 'Unterthemen fehlen noch',
+    // Plan 2026-11-16, TG-3f: die Dateien des Ordners am Punkt — nur ihre Zahl
+    dateien: (n: number) => zahl(n, 'Datei', 'Dateien', 'de-DE'),
     allesAuf: 'Alles aufklappen',
     allesZu: 'Alles zuklappen',
     bearbeiten: (t: string) => `Bearbeiten: ${t}`,
@@ -100,6 +102,7 @@ export const TEXTE = {
     gekuerztOrdner: 'The folder has more levels or subfolders than the draft took over.',
     leer: 'The draft is empty.',
     ausstehend: 'subtopics still missing',
+    dateien: (n: number) => zahl(n, 'file', 'files', 'en'),
     allesAuf: 'Expand all',
     allesZu: 'Collapse all',
     bearbeiten: (t: string) => `Edit: ${t}`,

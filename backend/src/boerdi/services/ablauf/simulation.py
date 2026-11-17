@@ -173,6 +173,8 @@ class _Stand:
         self.texte: list[str] = []
         self.werkzeuge = test.werkzeuge
         self.frist = frist
+        self.sprache = "de"
+        self.angemeldet = test.angemeldet
         #: Die offene Frage des letzten abfragenden Blocks — wie ``entities`` im Betrieb.
         self.fragen: dict[str, Any] = {}
 
@@ -205,7 +207,12 @@ class _Stand:
         # Querschnitts-Review AS-D, Befund 1: ein reiner Dienst rechnet wie im Betrieb — ein Eintrag
         # des Testfalls (auch ``null``) überschreibt ihn
         if schritt not in self.werkzeuge and name in werkzeuge.REINE_DIENSTE:
-            return await werkzeuge.DIENSTE[name](args)
+            # zweites Review TG-2: ohne Sitzung gilt ein Dokument im Vorgang als lesbar
+            # Plan 2026-11-16, TG-6: die Ablage in WLO gilt wie Aufträge nur angemeldet
+            return await werkzeuge.DIENSTE[name](args, werkzeuge.DienstKontext(
+                teile=self.teil, sprache=self.sprache,
+                wlo_ablage=lambda: self.angemeldet,
+                wlo_erschliessen=lambda: self.angemeldet))
         wert = self.werkzeuge.get(schritt)
         # Review AS-1, Befund 2: im Betrieb liefert ein lesendes MCP-Werkzeug Text (``zug_basis``)
         if name in werkzeuge.LESENDE_MCP and wert is not None and not isinstance(wert, str):
@@ -224,6 +231,8 @@ class _Stand:
         return treiber.Vorlage(f"(Simulation) {name}: {eingesetzt}", "simulation")
 
     def umgebung(self, sprache: str, angemeldet: bool, seite: str = "/") -> treiber.Umgebung:
+        self.sprache = sprache
+        self.angemeldet = angemeldet
         # ohne Anmeldung gibt es im Betrieb weder Aufträge noch Vorlagen (``auftrag_zug.starter``)
         return treiber.Umgebung(
             teile=self.teil, sprache=sprache, ersatz=self.ersatz, simulation=True,
@@ -231,6 +240,9 @@ class _Stand:
             vorlegen=self.vorlegen if angemeldet else None, seite=seite)
 
     def uebernehmen(self, aus: treiber.Ausgabe | None) -> None:
+        # Zweites Review TG-2 (MAJOR 1): verworfene Teile zuerst, wie ``zug_basis.festhalten``
+        for name in (aus.verworfen if aus else []):
+            self.teile.pop(name, None)
         for name, _typ, wert, _z in (aus.neue_teile if aus else []):
             self.teile[name] = wert
         vorschau = [aus.freigabe["vorschau"]] if aus and aus.freigabe else []
@@ -257,20 +269,46 @@ def _passt(status: Any, e: TestEingabe) -> bool:
     return True
 
 
+def _nur_hinweis(ablauf: AblaufArea, lauf: dict[str, Any], e: TestEingabe, sprache: str,
+                 gezeigt: set[tuple[Any, Any]]) -> bool:
+    """Plan 2026-11-16, Nachprüfung TG-4–6 (MAJOR 1, MINOR 3): wie ``wahl_zug.getippt`` bekommt
+    getippter Text, den der Schritt nicht nimmt, den Hinweis ``kein_treffer`` — der Lauf wartet
+    weiter, die nächste Eingabe gilt demselben Schritt. Ohne Freitext einmal je Besuch (danach ginge
+    der Text im Betrieb an die KI, hier bleibt es eine Abweichung); ein Satz, der mehrere Optionen
+    trifft (``treiber.mehrdeutig``), jedes Mal."""
+    if lauf.get("status") != treiber.WARTET_WAHL or e.option or not e.text:
+        return False
+    s = next((x for x in ablauf.schritte if x.id == lauf.get("schritt")), None)
+    if s is None or s.kein_treffer is None or treiber.wahl_aus_text(s, e.text, sprache):
+        return False
+    if treiber.mehrdeutig(s, e.text, sprache):
+        return True
+    marke = (s.id, lauf.get("halte"))
+    if s.freitext is not None or marke in gezeigt:
+        return False
+    gezeigt.add(marke)
+    return True
+
+
 async def _eingeben(ablauf: AblaufArea, lauf: dict[str, Any], e: TestEingabe, stand: _Stand,
                     umgebung: treiber.Umgebung) -> treiber.Ausgabe | None:
     """Eine Eingabe am wartenden Schritt — wie der Zug des Betriebs sie dem Treiber reicht."""
     status = lauf.get("status")
     if status == treiber.WARTET:
         modul = next((s.modul for s in ablauf.schritte if s.id == lauf.get("schritt")), None)
-        for name, _typ, wert, _z in teile_aus_antwort({"modul": modul, "daten": e.antwort or {}}):
+        # zweites Review TG-4–6, H: mit der Kennung des offenen Felds wie im Zug — sonst trüge
+        # ``struktur`` keine ``block_id``, und keine Ablage gehörte je zur Auswahl
+        antwort = {"modul": modul, "daten": e.antwort or {}}
+        if isinstance(block_id := lauf.get("offener_block"), str):
+            antwort["block_id"] = block_id
+        for name, _typ, wert, _z in teile_aus_antwort(antwort):
             stand.teile[name] = wert
         return await treiber.weiter(ablauf, lauf, e.antwort or {}, umgebung)
     if status == treiber.WARTET_WAHL:
         # wie ``wahl_zug.getippt``: Text gleich einem Label (oder per Synonym, WF-2) ist diese Wahl
-        # (Querschnitts-Review AS-3, Befund 2). Den Hinweis ``kein_treffer`` kennt die Simulation
-        # nicht: er ändert den Lauf nicht, ein Fehlversuch bleibt hier wie im Betrieb ohne Wirkung.
-        # Ebenso ``abweichung``/``umsehen`` an einem ``seite``-Schritt (WF-4): reine Hinweise.
+        # (Querschnitts-Review AS-3, Befund 2). Den Hinweis ``kein_treffer`` hat ``testen`` schon
+        # bedacht (:func:`_nur_hinweis`). ``abweichung``/``umsehen`` an einem ``seite``-Schritt
+        # (WF-4) kennt die Simulation nicht: reine Hinweise.
         schritt = next((s for s in ablauf.schritte if s.id == lauf.get("schritt")), None)
         wahl = e.option or (treiber.wahl_aus_text(schritt, e.text, umgebung.sprache)
                             if schritt else None)
@@ -342,6 +380,7 @@ async def testen(ablauf: AblaufArea, test: AblaufTest, lang: str = "de",
                                     if test.start is not None else None)
         stand.uebernehmen(aus)
         lauf = aus.lauf
+    gezeigt: set[tuple[Any, Any]] = set()
     while eingaben and lauf.get("status") in _WARTEND:
         stand.fristen()
         e = eingaben.pop(0)
@@ -358,6 +397,8 @@ async def testen(ablauf: AblaufArea, test: AblaufTest, lang: str = "de",
                 abweichungen.append(_t(lang, "antwort", bei=e.bei))
                 break
             e = e.model_copy(update={"antwort": geprueft.get("daten") or {}})
+        if _nur_hinweis(ablauf, lauf, e, umgebung.sprache, gezeigt):
+            continue
         weiter = await _eingeben(ablauf, dict(lauf), e, stand, umgebung)
         if weiter is None:
             if lauf.get("status") == treiber.WARTET_WAHL:

@@ -55,7 +55,11 @@ async def modul_block(modul: str, daten: dict[str, Any], *,
     erlaubt = (manifest["dienst"].get("parameter") or {}).get("properties") or {}
     args = {k: v for k, v in daten.items() if k in erlaubt}
     if simulation:
-        return neuer_block(modul, manifest["version"], manifest["art"], args, "")
+        # Plan 2026-11-16, zweites Review TG-4–6 (H): eine feste Kennung je Modul — ein Testfall
+        # kann so eine Ablage desselben Felds vorlegen (``block_id`` wie die der Auswahl,
+        # ``arbeitsstand_teile.gebunden``); im Betrieb vergibt der Dienst eine frische
+        blk = neuer_block(modul, manifest["version"], manifest["art"], args, "")
+        return blk.model_copy(update={"block_id": ("simulation" + modul.replace("_", ""))[:32]})
     return (await asynchron(modul, args, ModulUmgebung(aus_ablauf=True))).block
 
 

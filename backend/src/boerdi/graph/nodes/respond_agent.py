@@ -75,12 +75,13 @@ from boerdi.obs.tasks import cancel_and_drain
 from boerdi.services import (
     arbeitsstand,
     betriebsschalter,
+    dokument_lesen,
     master_skill,
     page_context,
     prompt_ablage,
     seitenkontext_prompt,
 )
-from boerdi.services.ablauf import ki_schritt, wahl_zug
+from boerdi.services.ablauf import ki_schritt, vorbelegung, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.agent_abschluss import abschluss_nachholen, antwort_oder_ersatz
@@ -331,6 +332,10 @@ async def respond_agent(
     # ``services/agent_knowledge``.
     # Im agent-Schritt eines Laufs nicht: er nennt seine Werkzeuge selbst (Review A2b, Befund 5).
     _wissen_tool = None if _ki else wissen_werkzeug(ctx.rag_config or {})
+    # Plan 2026-11-16, Durchtest TG-7 (M2): ein gelesenes Dokument der Sitzung liest die KI selbst
+    # (``dokument_lesen``) — im freien Chat und am KI-Schritt; angeboten nur, wenn eins da ist.
+    _lese_tool = dokument_lesen.definition(
+        await dokument_lesen.dokumente(session, ctx.req.session_id))
 
     # Werkzeug im Katalog ⇔ Regel im Prompt — dieselbe Kopplung wie beim
     # ``result_schema`` oben. ``wissen_suchen`` ist virtuell und damit nicht
@@ -359,10 +364,10 @@ async def respond_agent(
         ctx.req.environment.quick_replies_max)) else ablauf_vorschlag.werkzeuge(
         sprache, tool_mode=ctx.req.environment.tool_mode,
         ohne=ablauf_zug.abgelehnt(ctx.req.session_id, ctx.session_state))
-    # TW-6: ohne Arbeitsgrundlage lenkt ein Modul-Aufruf auf einen passenden Ablauf um
-    ctx.session_state[ablauf_vorschlag.GRUNDLAGE_KEY] = ablauf_vorschlag.arbeitsgrundlage(
-        _entities, arbeitsstand.aufrufer_fuer(ctx.req.session_id))
-    ctx.session_state.pop(ablauf_vorschlag.UMGELENKT_KEY, None)
+    # TW-6: ohne Arbeitsgrundlage lenkt ein Modul-Aufruf auf einen passenden Ablauf um; ein
+    # zielneutrales Upload-Feld nur bei einem Themenbaum-Wunsch (Review TG-2, M3 c)
+    ablauf_vorschlag.zug_merken(ctx.session_state, _entities,
+                                arbeitsstand.aufrufer_fuer(ctx.req.session_id), ctx.req.message)
     _werkzeuge = build_agent_tools(
             allow_curation=_darf_schreiben,
             blocked_tools=ctx.safety.blocked_tools,
@@ -378,7 +383,9 @@ async def respond_agent(
             tool_mode=ctx.req.environment.tool_mode,
             wissen_tool=_wissen_tool,
             antwort_tool=_antwort_tool,
-            ablauf_tools=_ablauf_werkzeuge)
+            ablauf_tools=_ablauf_werkzeuge,
+            lese_tool=_lese_tool)
+    _vorbelegt: dict[str, Any] = {}
     if _ki:
         _werkzeuge = ki_schritt.einengen(_werkzeuge, _ki[1])
         _ki_zeile = ki_schritt.zeile(*_ki, sprache, zuege=_ki_zug, angeboten={
@@ -390,8 +397,14 @@ async def respond_agent(
         _ki_daten = await ki_schritt.daten_zeile(
             _ki[0], arbeitsstand.teil_lader(session, ctx.req.session_id, _entities),
             ki_schritt.beantwortet(ctx.session_state, ctx.req.session_id))
+        # Plan 2026-11-16, TG-5 (G-E8): die Antworten des Laufs belegen den Auftrag vor
+        _vorbelegt = await vorbelegung.vorbelegung(
+            _ki[1], arbeitsstand.teil_lader(session, ctx.req.session_id, _entities),
+            ki_schritt.beantwortet(ctx.session_state, ctx.req.session_id), sprache,
+            ablauf=_ki[0])
         _nutzer["content"] = "\n\n".join(
-            t for t in (_ki_zeile, _ki_daten, _nutzer["content"]) if t)
+            t for t in (_ki_zeile, _ki_daten, vorbelegung.zeile(_vorbelegt, sprache),
+                        _nutzer["content"]) if t)
     elif not ctx.req.action and not ablauf_zug.lauf_wartet(ctx.req.session_id, ctx.session_state) \
             and (_anmelde := ablauf_zug.anmelde_zeile(
                 ctx.req.message, sprache,
@@ -410,16 +423,21 @@ async def respond_agent(
         # Paket U2 (T-5): der Strukturentwurf, den die Person mit dieser Nachricht schickte.
         modul_vorlage=entwurf_merken.vorlage(_entities),
         # U3-2b: das Dokument der Sitzung, gelesen erst, wenn ein Dienst es braucht.
-        modul_dokument=dokument_lader(session, ctx.req.session_id),
+        # TG-3d: die Strukturdokumente des Vorgangs (Teil ``strukturdokument``), sonst der Sitzung
+        modul_dokument=dokument_lader(session, ctx.req.session_id, arbeitsstand.teil_lader(
+            session, ctx.req.session_id, _entities)),
         modul_teile=arbeitsstand.teil_lader(session, ctx.req.session_id, _entities),
         # Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt des Laufs
         modul_vorgaben=ki_schritt.vorgaben(_ki[1], sprache) if _ki else "",
+        modul_vorbelegung=_vorbelegt or None,
         # TW-6: ohne Arbeitsgrundlage geht ein passender Ablauf vor (``vorschlag.umlenkung``)
         modul_umlenkung=None if _ki else (
             lambda name, args, angeboten, merken=True: ablauf_vorschlag.umlenkung(
                 name, args, angeboten, ctx.session_state, merken=merken, lang=sprache)),
         on_tool_result=lambda name, text: ernten.append(collect_cards(all_cards, name, text)),
         wissen=_wissen if _wissen_tool else None,
+        dokument_leser=(dokument_lesen.leser(session, ctx.req.session_id)
+                        if _lese_tool else None),
         # Paket 2: eine nicht eingelöste Schreib-Vorschau nimmt die Person im
         # nächsten Zug an — Box und Merkposten wie im Muster-Weg. Nur mit
         # Schreibrecht (Nutzer-Entscheid 2026-08-12, Paket 7 S4): sonst liefe das

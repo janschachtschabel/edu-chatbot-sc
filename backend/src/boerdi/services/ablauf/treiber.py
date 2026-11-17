@@ -123,6 +123,16 @@ class Umgebung:
     #: AS-8a (P-6): Probe der Studio-Vorschau — der neue Lauf trägt ``probe`` und darf damit auch
     #: einen ausgeschalteten Ablauf weiterführen (:func:`gilt`).
     probe: bool = False
+    #: Zweites Review TG-2: die Kennung des lesbaren Dokuments der Sitzung (für den Dienst
+    #: ``bereitgestellt``); ``None`` = nicht prüfbar (Simulation, Studio-Probe).
+    dokument_id: Callable[[], Awaitable[str | None]] | None = None
+    #: Plan 2026-11-16, TG-3e: die Kennungen aller lesbaren Dokumente der Sitzung.
+    dokument_ids: Callable[[], Awaitable[list[str]]] | None = None
+    #: Plan 2026-11-16, TG-6: bietet das Upload-Feld die Ablage in WLO an (für ``bereitgestellt``,
+    #: ``werkzeuge.DienstKontext.wlo_ablage``); ``None`` = nein.
+    wlo_ablage: Callable[[], bool] | None = None
+    #: Review TG-4–6, MINOR 8: geht der gründliche Weg ganz (Ablage, Auftrag, Flow freigegeben)?
+    wlo_erschliessen: Callable[[], bool] | None = None
 
 
 @dataclass
@@ -150,6 +160,9 @@ class Ausgabe:
     #: AS-7a (F-2): die Wege der ``seite``-Schritte dieses Aufrufs ``[{url, label}]`` — der Aufrufer
     #: zeigt sie als Navigations-Chips (``__fuehrung__``, ``seite_zug.knopf``).
     navigation: list[dict[str, str]] = field(default_factory=list)
+    #: Zweites Review TG-2 (MAJOR 1): Teile, die eine gewählte Schnellantwort verwirft
+    #: (``verwirft``) — der Aufrufer entfernt sie aus dem Vorgang, VOR den ``neue_teile``.
+    verworfen: list[str] = field(default_factory=list)
 
 
 #: Ein beendeter Lauf (für Leiste, Zug und Prüfungen — eine Stelle, Kleinigkeit 9 des zweiten
@@ -208,10 +221,19 @@ async def _werkzeug(s: Schritt, args: dict[str, Any], umgebung: Umgebung) -> Any
     if umgebung.ersatz is not None:
         return await umgebung.ersatz(s.id, name, args)
     if name in werkzeuge.DIENSTE:
-        return await werkzeuge.DIENSTE[name](args)
+        return await werkzeuge.DIENSTE[name](args, dienst_kontext(umgebung))
     if name in werkzeuge.LESENDE_MCP and umgebung.mcp is not None:
         return await umgebung.mcp(name, args)
     return None
+
+
+def dienst_kontext(umgebung: Umgebung) -> werkzeuge.DienstKontext:
+    """Was ein Dienst außer seinen Argumenten liest (zweites Review TG-2) — aus der Umgebung."""
+    return werkzeuge.DienstKontext(teile=umgebung.teile, sprache=umgebung.sprache,
+                                   dokument_id=umgebung.dokument_id,
+                                   dokument_ids=umgebung.dokument_ids,
+                                   wlo_ablage=umgebung.wlo_ablage,
+                                   wlo_erschliessen=umgebung.wlo_erschliessen)
 
 
 async def _start_kennungen(ablauf: AblaufArea, s: Schritt, teile: Callable[[str], Awaitable[Any]],
@@ -307,8 +329,36 @@ async def _waehle(s: Schritt, teile: _Teile, gewaehlt: list[str], seite: str) ->
     return None
 
 
+#: Plan 2026-11-16, Review TG-4–6, Befund 10: an diesen Status wartet der Lauf auf die Person —
+#: ein Halt, den die Leiste zählt (``lauf["halte"]``, ``fortschritt.position``).
+_HALT_STATUS: Final = frozenset({WARTET, WARTET_KI, WARTET_AUFTRAG, WARTET_FREIGABE,
+                                 WARTET_WAHL, WARTET_SEITE})
+
+
 async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                   umgebung: Umgebung) -> Ausgabe:
+    """Die Schritte ab ``start`` rechnen (:func:`_rechne_schritte`) und den Halt zählen.
+
+    Befund 10: Ein Lauf mit ``halte`` (seit dieser Fassung, :func:`starten`) zählt jeden Halt —
+    nicht, wenn er am selben Schritt wieder hält, an dem er wartete (``erneut_vorlegen``, eine Wahl
+    auf sich selbst), und nicht an einer Frage, die nur eine andere wiederholt (Hilfetext der
+    Führung, ``fortschritt.wiederholt``). Ein älterer Lauf ohne ``halte`` bleibt ohne."""
+    vorher = lauf.get("schritt")
+    zaehlt = isinstance(lauf.get("halte"), int)
+    erneut = zaehlt and lauf["halte"] > 0 and vorher == ablauf.schritte[start].id
+    aus = await _rechne_schritte(ablauf, lauf, start, umgebung)
+    neu = aus.lauf
+    if zaehlt and neu.get("status") in _HALT_STATUS and not (
+            erneut and neu.get("schritt") == vorher):
+        from boerdi.services.ablauf.fortschritt import wiederholt
+
+        if neu.get("schritt") not in wiederholt(ablauf):
+            neu["halte"] = int(neu.get("halte") or 0) + 1
+    return aus
+
+
+async def _rechne_schritte(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
+                           umgebung: Umgebung) -> Ausgabe:
     aus = Ausgabe(lauf=lauf)
     teile = _Teile(umgebung.teile)
     index = {s.id: i for i, s in enumerate(ablauf.schritte)}
@@ -393,7 +443,8 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                 # Review AS-Db, Befund 3: derselbe Typ wie in der Prüfung (``typen``)
                 typ = "text" if isinstance(wert, str) else typen.dienst_typ(s.werkzeug or "")
                 teile.neu[s.schreibt] = wert
-                aus.neue_teile.append((s.schreibt, typ, wert, _zusammenfassung(wert)))
+                kurz = werkzeuge.ZUSAMMENFASSUNG.get(s.werkzeug or "", _zusammenfassung)
+                aus.neue_teile.append((s.schreibt, typ, wert, kurz(wert)[:80]))
         elif s.typ == "auftrag":
             args, stuecke, fehlt = await _auftrag_stuecke(s, teile, umgebung.sprache)
             stapel = None
@@ -405,6 +456,11 @@ async def _rechne(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                    else await umgebung.auftrag_starten(s.flow or "", stuecke[0]))
             if job is None:
                 fehler = True
+                # Plan 2026-11-16, Durchtest TG-7 (m5): hat die b-api abgewiesen, sagt die Naht
+                # warum (``auftrag_zug._Starter.hinweis``) — vor dem Text des Ersatzwegs
+                hinweis = getattr(umgebung.auftrag_starten, "hinweis", None)
+                if callable(hinweis) and (satz := hinweis(umgebung.sprache)):
+                    aus.texte.append(satz)
             else:
                 # Der Text erst nach dem Start — ein abgewiesener Auftrag kündigt nichts an.
                 if text := _text(s, umgebung.sprache):
@@ -466,7 +522,9 @@ async def starten(ablauf: AblaufArea, umgebung: Umgebung, ab: int = 0,
     # daran einen neuen Lauf desselben Ablaufs (sonst bliebe sie nach „Neu starten“ zugeklappt).
     lauf = {"ablauf": ablauf.id, "fassung": fassung(ablauf), "schritt": ablauf.schritte[ab].id,
             "offener_block": None, "status": "laeuft", "gewaehlt": list(gewaehlt or []),
-            "start": secrets.token_hex(4)}
+            "start": secrets.token_hex(4),
+            # Befund 10 (Review TG-4–6): die Halte des Laufs für die Leiste (``_rechne``)
+            "halte": 0}
     if umgebung.probe:
         lauf["probe"] = True
     if start is not None:
@@ -550,23 +608,101 @@ def wahl_aus_text(schritt: Schritt, text: str | None, sprache: str | None = None
     if not getippt:
         return None
     optionen = schritt.optionen or []
-
-    def labels(o: Any) -> list[str]:
-        if sprache is None or not o.synonyme:
-            return list(o.label.values())
-        return [o.label.get(sprache) or o.label.get("de") or ""]
-
     genau = next((o.id for o in optionen
-                  if any(wendung(label) == getippt for label in labels(o))), None)
+                  if any(wendung(label) == getippt for label in _labels(o, sprache))), None)
     if genau is not None:
         return genau
+    if schritt.freitext is not None:
+        return _mit_freitext(schritt, getippt, sprache)
     for o in optionen:
         if not o.synonyme:
             continue
-        kandidaten = [wendung(w) for w in (*labels(o), *o.synonyme)]
+        kandidaten = [wendung(w) for w in (*_labels(o, sprache), *o.synonyme)]
         if any(len(k) >= _TEILWORT_MIN and k in getippt for k in kandidaten):
             return o.id
     return None
+
+
+def _labels(o: Any, sprache: str | None) -> list[str]:
+    """Die Beschriftungen, die getippter Text treffen kann (Review 16.11., m1: mit Synonymen nur
+    die der Zugsprache)."""
+    if sprache is None or not o.synonyme:
+        return list(o.label.values())
+    return [o.label.get(sprache) or o.label.get("de") or ""]
+
+
+def mehrdeutig(schritt: Schritt, text: str | None, sprache: str | None = None) -> bool:
+    """Plan 2026-11-16, Nachprüfung TG-4–6 (MINOR 3): trifft der Satz an einer Frage mit
+    ``synonyme_im_satz`` mehrere Optionen („Dateien aus meinem Ordner“, „meine PDF-Dateien“)? Dann
+    ist er weder Wahl noch Freitext — die Frage zeigt ihren Hinweis ``kein_treffer`` und wartet
+    weiter (``wahl_zug.getippt``; ``wahl_gilt`` lehnt den Text ab, die Simulation wartet)."""
+    getippt = wendung(text or "")
+    if not getippt or not schritt.synonyme_im_satz:
+        return False
+    if any(wendung(label) == getippt
+           for o in schritt.optionen or [] for label in _labels(o, sprache)):
+        return False
+    return len(_satz_treffer(schritt, getippt, sprache)) > 1
+
+
+#: Zweites Review TG-4–6, A/D: ein Treffer hinter einer Verneinung zählt nicht („Ich habe keinen
+#: Lehrplan“). Nachprüfung, MINOR 2: nur im selben Satzteil (bis zu ``_SATZTEIL``) — in den zwei
+#: Wörtern davor oder im Wort direkt dahinter („Lehrplan nicht, Ordner“); „nicht nur“ bejaht.
+_VERNEINT: Final = frozenset({"kein", "keine", "keinen", "keinem", "keiner", "keines", "nicht",
+                              "ohne", "no", "not", "without"})
+_NUR: Final = frozenset({"nur", "bloß", "bloss", "only", "just"})
+_SATZTEIL: Final = re.compile(r"[,;.!?]")
+
+
+def _ganz(text: str) -> str:
+    """Nachprüfung TG-4–6, NIT 8: die Wörter eines Texts ohne Satzzeichen — „nein, danke!“ und
+    „Nein danke“ sind gleich."""
+    return " ".join(re.findall(r"\w+", wendung(text)))
+
+
+def _mit_freitext(schritt: Schritt, getippt: str, sprache: str | None) -> str | None:
+    """Plan 2026-11-16, Review TG-4–6 (MAJOR 3) und zweites Review (A): an einem Schritt, der auch
+    Freitext annimmt, ist ein Satz eine freie Antwort — „Keine Atomphysik“ ist ein Hinweis, nicht
+    die Option „Nein, weiter“, „Passt nicht, bitte verfeinern“ nicht „So lassen“. Darum trifft dort
+    ein Synonym nur, wenn der **ganze** Text gleich dem Synonym ist (die Wörter ohne Satzzeichen,
+    :func:`_ganz`).
+
+    Ausnahme ``synonyme_im_satz`` (die Frage ordnet einen Satz einer Option zu, etwa die Grundlage
+    „aus meinem Lehrplan“): ein Synonym trifft als ganzes Wort im Satz, nicht verneint
+    (:func:`_im_satz`). Trifft der Satz mehrere Optionen, ist er keine Wahl (:func:`mehrdeutig`)."""
+    if not schritt.synonyme_im_satz:
+        kern = _ganz(getippt)
+        for o in schritt.optionen or []:
+            if any(_ganz(w) == kern for w in (*_labels(o, sprache), *(o.synonyme or ())) if w):
+                return o.id
+        return None
+    getroffen = _satz_treffer(schritt, getippt, sprache)
+    return getroffen[0] if len(getroffen) == 1 else None
+
+
+def _satz_treffer(schritt: Schritt, getippt: str, sprache: str | None) -> list[str]:
+    """Die Optionen, deren Beschriftung oder Synonym im Satz steht (``synonyme_im_satz``)."""
+    return [o.id for o in schritt.optionen or []
+            if o.synonyme and any(len(k) >= _TEILWORT_MIN and _im_satz(k, getippt)
+                                  for k in (wendung(w)
+                                            for w in (*_labels(o, sprache), *o.synonyme)))]
+
+
+def _im_satz(k: str, getippt: str) -> bool:
+    """``k`` als ganzes Wort (bzw. Wortfolge) in ``getippt``, nicht verneint: im selben Satzteil
+    weder in den zwei Wörtern davor (außer „nicht nur“) noch im Wort direkt dahinter."""
+    for treffer in re.finditer(rf"(?<!\w){re.escape(k)}(?!\w)", getippt):
+        anfang = max((m.end() for m in _SATZTEIL.finditer(getippt, 0, treffer.start())),
+                     default=0)
+        schluss = _SATZTEIL.search(getippt, treffer.end())
+        davor = re.findall(r"\w+", getippt[anfang:treffer.start()])[-2:]
+        danach = re.findall(r"\w+", getippt[treffer.end():schluss.start() if schluss
+                                            else len(getippt)])[:1]
+        verneint = any(w in _VERNEINT and (davor[n + 1:n + 2] or [""])[0] not in _NUR
+                       for n, w in enumerate(davor))
+        if not (verneint or _VERNEINT & set(danach)):
+            return True
+    return False
 
 
 def wahl_gilt(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None,
@@ -580,7 +716,9 @@ def wahl_gilt(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None,
         return False
     if wahl is not None:
         return any(o.id == wahl for o in s.optionen or [])
-    return s.freitext is not None and bool((text or "").strip())
+    # Nachprüfung TG-4–6, MINOR 3: ein mehrdeutiger Satz ist kein Freitext
+    return (s.freitext is not None and bool((text or "").strip())
+            and not mehrdeutig(s, text))
 
 
 async def weiter_wahl(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None,
@@ -600,8 +738,21 @@ async def weiter_wahl(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None
     option = next((o for o in s.optionen or [] if o.id == wahl), None)
     # TB-T1: nur an einer ``nachricht`` schreibt die Wahl ihr Label (Review TB-T1, Befund 5)
     wahl_teil = s.schreibt if s.typ == "nachricht" else None
+    verworfen: list[str] = []
     if option is not None:
         ziel, neu["gewaehlt"] = option.ziel, [option.id]
+        if option.verwirft:
+            # Zweites Review TG-2, MAJOR 1: die verworfenen Teile gibt es ab hier nicht mehr — auch
+            # nicht für die Schritte dieses Zugs (``wenn_teil`` sähe sonst das abgelehnte Dokument)
+            # Review TG-3a–c, R3-5: mit den Alias-Partnern (``structure`` ↔ ``struktur``,
+            # ``document`` ↔ ``strukturdokument``)
+            verworfen = typen.mit_aliassen(option.verwirft)
+            lader_vorher = umgebung.teile
+
+            async def ohne_verworfene(teil: str) -> Any:
+                return None if teil in verworfen else await lader_vorher(teil)
+
+            umgebung = replace(umgebung, teile=ohne_verworfene)
         if (s.freitext is not None and s.freitext.schreibt != wahl_teil
                 and await umgebung.teile(s.freitext.schreibt) not in (None, "")):
             # Querschnitts-Review AS-3, Befund 3: ein Freitext aus einem früheren Durchgang gilt
@@ -661,9 +812,10 @@ async def weiter_wahl(ablauf: AblaufArea, lauf: dict[str, Any], wahl: str | None
         neu["antworten"] = list(dict.fromkeys([*(lauf.get("antworten") or []), *beantwortet]))
     if ziel not in index:
         neu["status"] = "fertig"
-        return Ausgabe(lauf=neu, neue_teile=neue_teile)
+        return Ausgabe(lauf=neu, neue_teile=neue_teile, verworfen=verworfen)
     aus = await _rechne(ablauf, neu, index[ziel], umgebung)
     aus.neue_teile[:0] = neue_teile
+    aus.verworfen = verworfen
     return aus
 
 

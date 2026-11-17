@@ -96,6 +96,11 @@ class _Speicher:
                                            "zusammenfassung": zusammenfassung}
         return copy.deepcopy(gespeichert)
 
+    async def teil_entfernen(self, s, v, name, *, tage):
+        gespeichert = self.v[v.id]
+        gespeichert.akte["teile"].pop(name, None)
+        return copy.deepcopy(gespeichert)
+
     async def lauf_setzen(self, s, v, lauf, *, status, tage):
         gespeichert = self.v[v.id]
         gespeichert.akte["lauf"] = copy.deepcopy(lauf)
@@ -130,7 +135,8 @@ class _S:
 @pytest.fixture
 def umgebung(monkeypatch):
     sp = _Speicher()
-    for name in ("lesen", "juengster", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
+    for name in ("lesen", "juengster", "anlegen", "teil_setzen", "teil_entfernen",
+                 "lauf_setzen", "teil_wert",
                  "beruehren", "loeschen", "alle_loeschen", "sperren", "alle_sperren",
                  "anonyme_der_sitzung_loeschen", "sitzung_setzen"):
         monkeypatch.setattr(vorgaenge, name, getattr(sp, name))
@@ -198,7 +204,10 @@ def test_der_start_zeigt_das_erste_modul_und_haelt_den_lauf(umgebung):
     # ``start``: Marke des Laufs für die Leiste im Widget (zweites Review AS-U, Befund 2)
     assert vw["lauf"] == {"ablauf": "sammlungsstruktur", "schritt": "erfassen",
                           "status": "wartet_person", "fassung": v.akte["lauf"]["fassung"],
-                          "start": v.akte["lauf"]["start"], "freigabe_id": ""}
+                          "start": v.akte["lauf"]["start"], "freigabe_id": "",
+                          # Plan 2026-11-16, Review TG-4–6, Befund 10: Einstieg und Upload-Feld
+                          # sind zwei Halte — die Leiste zählt daraus
+                          "halte": 2}
     assert "Ablauf sammlungsstruktur: Schritt erfassen" in arbeitsstand.kennzeile(
         state["entities"], "person-a")
 
@@ -217,7 +226,8 @@ def test_die_antwort_auf_den_offenen_block_setzt_bis_zum_entwurf_fort(umgebung):
     [entwurf] = antwort.ui.ui_bloecke
     assert entwurf.modul == STRUKTURENTWURF and entwurf.daten["quelle"] == "ordner"
     [v] = umgebung.speicher.v.values()
-    assert set(v.akte["teile"]) == {"structure", "draft"}
+    # ``bereit``: was zu Beginn nutzbar bereitlag (zweites Review TG-2)
+    assert set(v.akte["teile"]) == {"bereit", "structure", "draft"}
     assert v.akte["lauf"]["schritt"] == "bearbeiten"
 
 
@@ -244,7 +254,7 @@ def test_die_voraussetzung_anmeldung(umgebung, monkeypatch):
 
 # ── Review A1: Besitz, abgebrochene Läufe, Konflikt, Ordner-Knopf, Voraussetzungen, Fehler ──────
 
-def _geprueft(block, aktion="ordner_als_entwurf"):
+def _geprueft(block, aktion="erfasst"):
     return {"modul": UPLOAD, "block_id": block.block_id, "daten": {
         "aktion": aktion,
         "struktur": {"name": "Physik", "dateien": 0, "alle_dateien": 2, "kinder": [
@@ -254,7 +264,8 @@ def _geprueft(block, aktion="ordner_als_entwurf"):
 
 
 def test_der_ordner_knopf_setzt_den_lauf_fort(umgebung):
-    """Befund 1: der Hauptknopf von ui_upload (``ordner_als_entwurf``) gehört zum Lauf."""
+    """Befund 1: der Hauptknopf von ui_upload („Senden“, seit TG-2 auch der alte
+    ``ordner_als_entwurf`` nach der Prüfung) gehört zum Lauf."""
     state: dict = {"entities": {}}
     block = _start(state).ui.ui_bloecke[0]
     antwort = asyncio.run(zug.fortsetzen(_S(), _req(), state, _geprueft(block)))
@@ -455,3 +466,255 @@ def test_ein_neuer_lauf_zaehlt_seine_ki_zuege_neu(umgebung):
                                                         "zuege": 9}}}
     _start(state)
     assert ki_schritt.ZUEGE_KEY not in state["entities"]
+
+
+# ── Zweites Review TG-2: freie Arbeit nach einem beendeten Lauf, Übernahme, „Andere wählen“ ──────
+
+_DOK_SEED = _SEED.with_name("themenbaum_aus_dokument.yaml")
+_UPLOAD_ID = "11111111-1111-4111-8111-111111111111"
+_ORDNER = {"aktion": "erfasst", "struktur": {"name": "Physik", "dateien": 0, "alle_dateien": 2,
+                                           "kinder": [
+    {"name": "01_Mechanik", "dateien": 1, "alle_dateien": 1, "kinder": []},
+    {"name": "02_Optik", "dateien": 1, "alle_dateien": 1, "kinder": []}]},
+    "zahlen": {"ordner": 3, "inhalte": 2}}
+
+
+def _wahl(antwort, state, wahl):
+    """Den Chip ``wahl`` der Antwort drücken (wie das Widget)."""
+    for chip in antwort.quick_replies:
+        _praefix, _label, aktion, params = chip.split("|", 3)
+        if aktion == wahl_zug.AKTION and json.loads(params)["wahl"] == wahl:
+            return asyncio.run(wahl_zug.waehlen(
+                _S(), _req(action=wahl_zug.AKTION, action_params=json.loads(params)), state))
+    raise AssertionError(f"kein Chip {wahl}: {antwort.quick_replies}")
+
+
+def _wahlen(antwort) -> set[str]:
+    return {json.loads(chip.split("|", 3)[3])["wahl"] for chip in antwort.quick_replies
+            if chip.split("|", 3)[2] == wahl_zug.AKTION}
+
+
+def _starte(state, ablauf_id):
+    return asyncio.run(zug.starten(
+        _S(), _req(action=zug.AKTION, action_params={"ablauf": ablauf_id}), state))
+
+
+def test_zweites_review_m2_freie_arbeit_nach_beendetem_lauf_wird_uebernommen(umgebung):
+    """MAJOR 2, nach der Nachprüfung: ein Lauf endet (hier: „Ohne Führung“), danach erfasst die
+    Person im freien Chat Ordner — sie landen im selben Vorgang (wie vor der zweiten Behebung). Der
+    nächste Start schließt ihn und übernimmt die Bereitstellungs-Teile in den neuen; kein
+    ``draft``, kein Lauf, keine Antworten des alten."""
+    state: dict = {"entities": {}}
+    _wahl(_starte(state, "sammlungsstruktur"), state, "ohne")
+    [alt] = umgebung.speicher.v.values()
+    assert alt.akte["lauf"]["status"] == "fertig"
+    assert asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-0123456789", state["entities"],
+                                                {"modul": UPLOAD, "block_id": "b1",
+                                                 "daten": _ORDNER}))
+    assert list(umgebung.speicher.v) == ["v-1"] and "structure" in alt.akte["teile"]
+    antwort = _starte(state, "sammlungsstruktur")
+    alt, neu = umgebung.speicher.v["v-1"], umgebung.speicher.v["v-2"]
+    assert alt.status == "fertig"
+    assert set(neu.akte["teile"]) == {"structure", "bereit"}
+    assert neu.akte["teile"]["structure"]["wert"] == alt.akte["teile"]["structure"]["wert"]
+    assert state["entities"][arbeitsstand.VERWEIS]["id"] == "v-2"
+    assert _wahlen(antwort) == {"verwenden", "andere", "ohne"}
+    assert "„Physik“" in antwort.content
+    entwurf = _wahl(antwort, state, "verwenden")
+    assert entwurf.ui.ui_bloecke[0].modul == STRUKTURENTWURF
+
+
+def test_zweites_review_m2_ein_wartender_lauf_nimmt_die_freie_arbeit_weiter_auf(umgebung):
+    """Gegenprobe: nur ein BEENDETER Lauf trennt; ohne Lauf bleibt alles in einem Vorgang."""
+    state: dict = {"entities": {}}
+    for _ in range(2):
+        asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-0123456789", state["entities"],
+                                             {"modul": UPLOAD, "block_id": "b1",
+                                              "daten": _ORDNER}))
+    assert list(umgebung.speicher.v) == ["v-1"]
+
+
+def _dokument_umgebung(umgebung, monkeypatch, lesbar=_UPLOAD_ID):
+    umgebung.katalog["wert"] = {"ablaeufe": [{**yaml.safe_load(
+        _DOK_SEED.read_text(encoding="utf-8")), "aktiv": True}]}
+
+    async def bestaetigt(s, session_id, wert, *_merk):
+        return ({"ref": f"dokument:{wert['upload_id']}", "name": wert["name"], "format": "pdf",
+                 "befund": {}}, "Lehrplan")
+
+    async def lesbares(s, session_id):
+        return lesbar
+
+    monkeypatch.setattr(arbeitsstand, "_dokument_bestaetigt", bestaetigt)
+    monkeypatch.setattr(arbeitsstand, "lesbares_dokument", lesbares)
+
+
+def _dokument_antwort(block_id="b1", upload_id=_UPLOAD_ID):
+    return {"modul": UPLOAD, "block_id": block_id, "daten": {
+        "aktion": "dokument", "struktur": {"name": "", "dateien": 1, "alle_dateien": 1,
+                                           "kinder": []},
+        "zahlen": {"ordner": 0, "inhalte": 0, "strukturdokumente": 1},
+        "dokument": {"upload_id": upload_id, "name": "Lehrplan.pdf", "format": "pdf",
+                     "befund": {"abschnitte": 3}, "vorschau": []}}}
+
+
+def test_zweites_review_m2_dokument_nach_beendetem_lauf_wird_angeboten(umgebung, monkeypatch):
+    """MAJOR 2 mit „aus einem Dokument“: Ablauf beendet → Dokument im freien Chat gelesen → Start
+    → die Frage nennt das Dokument und bietet es an."""
+    _dokument_umgebung(umgebung, monkeypatch)
+    state: dict = {"entities": {}}
+    _wahl(_starte(state, "themenbaum_aus_dokument"), state, "ohne")
+    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-0123456789", state["entities"],
+                                         _dokument_antwort()))
+    antwort = _starte(state, "themenbaum_aus_dokument")
+    assert _wahlen(antwort) == {"verwenden", "andere", "ohne"}
+    assert "Lehrplan" in antwort.content
+
+
+def test_zweites_review_m5_ein_unlesbares_dokument_wird_nicht_angeboten(umgebung, monkeypatch):
+    """MINOR 5: das Dokument einer anderen Sitzung (oder abgelaufen) ist nicht lesbar — dann der
+    gewöhnliche Einstieg."""
+    _dokument_umgebung(umgebung, monkeypatch, lesbar=None)
+    state: dict = {"entities": {}}
+    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-0123456789", state["entities"],
+                                         _dokument_antwort()))
+    assert _wahlen(_starte(state, "themenbaum_aus_dokument")) == {"fragen", "gleich", "ohne"}
+
+
+def test_zweites_review_m1_andere_waehlen_verwirft_das_alte_dokument(umgebung, monkeypatch):
+    """MAJOR 1: „Anderes wählen“ entfernt das alte Dokument aus dem Vorgang; schickt die Person
+    danach nur „Senden“, kommt die Rückfrage — nicht still der Entwurf aus dem alten."""
+    _dokument_umgebung(umgebung, monkeypatch)
+    state: dict = {"entities": {}}
+    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-0123456789", state["entities"],
+                                         _dokument_antwort()))
+    upload = _wahl(_starte(state, "themenbaum_aus_dokument"), state, "andere")
+    [v] = umgebung.speicher.v.values()
+    assert "document" not in v.akte["teile"]
+    assert "document" not in state["entities"][arbeitsstand.VERWEIS]["teile"]
+    block = upload.ui.ui_bloecke[0]
+    nur_senden = {"modul": UPLOAD, "block_id": block.block_id, "daten": {
+        **_ORDNER, "struktur": {"name": "", "dateien": 1, "alle_dateien": 1, "kinder": []}}}
+    antwort = asyncio.run(zug.fortsetzen(_S(), _req(), state, nur_senden))
+    assert umgebung.speicher.v[v.id].akte["lauf"]["schritt"] == "ohne_dokument"
+    assert _wahlen(antwort) == {"nochmal", "beenden"}
+
+
+# ── Nachprüfung TG-2: Übernahme beim Start statt Trennung beim Speichern (Fälle 1–4) ─────────────
+
+def _beide_ablaeufe(umgebung):
+    umgebung.katalog["wert"] = {"ablaeufe": [
+        {**yaml.safe_load(_SEED.read_text(encoding="utf-8")), "aktiv": True},
+        {**yaml.safe_load(_DOK_SEED.read_text(encoding="utf-8")), "aktiv": True}]}
+
+
+def test_nachpruefung_fall3_upload_waehrend_fremdem_lauf_geht_beim_start_mit(umgebung,
+                                                                             monkeypatch):
+    """Fall 3: ein anderer Ablauf wartet (hier „aus Ordnern“ am Einstieg); im freien Chat liest die
+    Person ein Dokument — es landet in dessen Vorgang. Startet sie „aus einem Dokument“, schließt
+    der Start den fremden Vorgang und übernimmt das Dokument (als Verweis auf das
+    Sitzungsdokument); der Einstieg bietet es an."""
+    _dokument_umgebung(umgebung, monkeypatch)
+    _beide_ablaeufe(umgebung)
+    state: dict = {"entities": {}}
+    _starte(state, "sammlungsstruktur")                       # wartet auf die Wahl
+    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-0123456789", state["entities"],
+                                         _dokument_antwort()))
+    antwort = _starte(state, "themenbaum_aus_dokument")
+    assert _wahlen(antwort) == {"verwenden", "andere", "ohne"}
+    alt, neu = umgebung.speicher.v["v-1"], umgebung.speicher.v["v-2"]
+    assert alt.status == "fertig" and alt.akte["lauf"]["status"] == "abgebrochen"
+    dok = neu.akte["teile"]["document"]["wert"]
+    assert dok["ref"] == f"dokument:{_UPLOAD_ID}" and dok["name"] == "Lehrplan.pdf"
+
+
+def test_nachpruefung_fall1_ein_fremder_wartender_lauf_bleibt_unberuehrt(umgebung):
+    """Fall 1 (zwei Tabs derselben Person): Tab A wartet in „aus Ordnern“; Tab B erfasst im freien
+    Chat Ordner. Die Teile landen im jüngsten Vorgang (wie vor der zweiten Behebung), der Lauf von
+    Tab A bleibt, wo er war, und es entsteht kein weiterer Vorgang."""
+    tab_a: dict = {"entities": {}}
+    _starte(tab_a, "sammlungsstruktur")
+    vorher = copy.deepcopy(umgebung.speicher.v["v-1"].akte["lauf"])
+    tab_b: dict = {}
+    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-zweiter-tab-01", tab_b,
+                                         {"modul": UPLOAD, "block_id": "b9", "daten": _ORDNER}))
+    assert list(umgebung.speicher.v) == ["v-1"]
+    assert umgebung.speicher.v["v-1"].akte["lauf"] == vorher
+
+
+def test_nachpruefung_fall2_entwurf_nach_dem_ende_bleibt_im_selben_vorgang(umgebung):
+    """Fall 2 (M6): nach dem Ende bearbeitet die Person den Entwurf im freien Chat weiter — er
+    bleibt im selben Vorgang bei seiner Quelle, nichts wird getrennt."""
+    state: dict = {"entities": {}}
+    block = _start(state).ui.ui_bloecke[0]
+    entwurf = asyncio.run(zug.fortsetzen(_S(), _req(), state, {
+        "modul": UPLOAD, "block_id": block.block_id, "daten": _ORDNER})).ui.ui_bloecke[0]
+    daten = {**entwurf.daten, "uebernommen": True}
+    asyncio.run(zug.fortsetzen(_S(), _req(), state, {
+        "modul": STRUKTURENTWURF, "block_id": entwurf.block_id, "daten": daten}))
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["lauf"]["status"] == "fertig"
+    weiter = {**daten, "titel": "Physik, überarbeitet"}
+    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-0123456789", state["entities"],
+                                         {"modul": STRUKTURENTWURF, "block_id": "frei1",
+                                          "daten": weiter}))
+    [v] = umgebung.speicher.v.values()
+    assert v.akte["teile"]["draft"]["wert"]["titel"] == "Physik, überarbeitet"
+    assert "structure" in v.akte["teile"]
+
+
+def test_nachpruefung_fall4_die_zahl_der_vorgaenge_steigt_nur_beim_start(umgebung):
+    """Fall 4: freie Arbeit legt keinen Vorgang an, solange einer da ist — nur ein Start, der einen
+    beendeten oder fremden schließt (wie vor der zweiten Behebung)."""
+    state: dict = {"entities": {}}
+    _wahl(_starte(state, "sammlungsstruktur"), state, "ohne")
+    for block in ("b1", "b2", "b3"):
+        asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-0123456789", state["entities"],
+                                             {"modul": UPLOAD, "block_id": block,
+                                              "daten": _ORDNER}))
+    assert len(umgebung.speicher.v) == 1
+
+
+def test_nachpruefung_uebernommen_wird_nur_was_es_gibt_und_nur_bereitstellung(umgebung):
+    """Nur Bereitstellungs-Teile (``arbeitsstand_teile.BEREITSTELLUNG``), nur die vorhandenen: kein
+    ``draft``, kein ``document`` ohne Dokument, keine Antworten des alten Laufs."""
+    from boerdi.services.arbeitsstand_teile import BEREITSTELLUNG
+
+    # Plan 2026-11-16, TG-3a: dazu die Auswahl mit Dateien (``struktur``); TG-3d die Verweise auf
+    # die Strukturdokumente (``strukturdokument``)
+    assert set(BEREITSTELLUNG) == {"structure", "struktur", "document", "strukturdokument"}
+    state: dict = {"entities": {}}
+    block = _start(state).ui.ui_bloecke[0]
+    asyncio.run(zug.fortsetzen(_S(), _req(), state, {
+        "modul": UPLOAD, "block_id": block.block_id, "daten": _ORDNER}))
+    alt = umgebung.speicher.v["v-1"]
+    assert {"structure", "draft"} <= set(alt.akte["teile"])
+    _beide_ablaeufe(umgebung)
+    umgebung.katalog["wert"]["ablaeufe"][1]["voraussetzungen"] = []
+    _starte(state, "themenbaum_aus_dokument")                  # ein anderer Ablauf: neuer Vorgang
+    neu = umgebung.speicher.v["v-2"]
+    assert set(neu.akte["teile"]) == {"structure", "bereit"}
+
+
+def test_tg3a_die_auswahl_mit_dateien_geht_beim_start_mit(umgebung):
+    """Plan 2026-11-16, TG-3a: eine Antwort mit Dateien je Ordner hinterlässt ``struktur`` neben
+    ``structure`` — ein neuer Vorgang übernimmt beide (``BEREITSTELLUNG``)."""
+    datei = {"i": 0, "name": "hebel.pdf", "endung": "pdf", "groesse": 5, "rolle": "inhalt"}
+    kinder = _ORDNER["struktur"]["kinder"]
+    mit = {**_ORDNER, "struktur": {**_ORDNER["struktur"], "dateiliste": [], "kinder": [
+        {**k, "dateiliste": [{**datei, "i": n}]} for n, k in enumerate(kinder)]},
+        "zahlen": {"ordner": 3, "dateien": 2, "inhalte": 2, "ignoriert": 0, "strukturdokumente": 0,
+                   "bytes": 10},
+        "strukturdokument": None, "warnungen": []}
+    state: dict = {"entities": {}}
+    block = _start(state).ui.ui_bloecke[0]
+    asyncio.run(zug.fortsetzen(_S(), _req(), state, {
+        "modul": UPLOAD, "block_id": block.block_id, "daten": mit}))
+    alt = umgebung.speicher.v["v-1"]
+    assert {"structure", "struktur"} <= set(alt.akte["teile"])
+    _beide_ablaeufe(umgebung)
+    umgebung.katalog["wert"]["ablaeufe"][1]["voraussetzungen"] = []
+    _starte(state, "themenbaum_aus_dokument")
+    neu = umgebung.speicher.v["v-2"]
+    assert set(neu.akte["teile"]) == {"structure", "struktur", "bereit"}
+    assert neu.akte["teile"]["struktur"]["typ"] == "wlo.auswahl@1"

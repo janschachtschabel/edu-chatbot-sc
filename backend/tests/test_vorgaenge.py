@@ -113,6 +113,51 @@ def test_grosse_teile_liegen_in_der_ablage(db_url):
     assert "wert" not in eintrag and eintrag["ref"] == "draft@1" and wert == gross
 
 
+
+def test_zweites_review_tg2_teil_entfernen_samt_ablage_und_historie(db_url):
+    """Plan 2026-11-16, zweites Review TG-2, MAJOR 1: eine Schnellantwort mit ``verwirft`` nimmt
+    einen Teil ganz aus dem Vorgang — auch seine große Fassung in der Ablage und die Historie;
+    andere Teile bleiben, und ein veralteter Stand fällt auf wie beim Setzen."""
+    from sqlalchemy import select
+
+    from boerdi.db.models import VorgangAblage
+    from boerdi.services import vorgaenge
+
+    gross = {"knoten": [{"id": f"k{i}", "titel": "x" * 50} for i in range(400)]}
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            v = await _neu(s)
+            v = await vorgaenge.teil_setzen(s, v, "draft", typ="t", wert=gross,
+                                            zusammenfassung="400", tage=3)
+            v = await vorgaenge.teil_setzen(s, v, "draft", typ="t", wert=gross,
+                                            zusammenfassung="400", tage=3)
+            v = await vorgaenge.teil_setzen(s, v, "structure", typ="t", wert={"a": 1},
+                                            zusammenfassung="", tage=3)
+            vid = v.id
+            await s.commit()
+        async with sitzungen() as a, sitzungen() as b:
+            alt_b = await vorgaenge.lesen(b, vid, "person-a")      # Stand vor dem Entfernen
+            v = await vorgaenge.lesen(a, vid, "person-a")
+            await vorgaenge.teil_entfernen(a, v, "draft", tage=3)
+            await a.commit()
+            veraltet = None
+            try:
+                await vorgaenge.teil_entfernen(b, alt_b, "structure", tage=3)
+            except vorgaenge.VorgangKonflikt as fehler:
+                veraltet = fehler
+            await b.rollback()
+        async with sitzungen() as s:
+            frisch = await vorgaenge.lesen(s, vid, "person-a")
+            ablage = (await s.execute(select(VorgangAblage.schluessel).where(
+                VorgangAblage.vorgang_id == vid))).scalars().all()
+            ohne = await vorgaenge.teil_entfernen(s, frisch, "gibt_es_nicht", tage=3)
+            return frisch.akte, list(ablage), veraltet, ohne is frisch
+
+    akte, ablage, veraltet, unveraendert = _lauf(db_url, ablauf)
+    assert set(akte["teile"]) == {"structure"} and "draft" not in akte.get("historie", {})
+    assert ablage == [] and veraltet is not None and unveraendert
+
 def test_gleichzeitiges_schreiben_faellt_auf(db_url):
     from boerdi.services import vorgaenge
 

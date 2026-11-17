@@ -200,6 +200,18 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ],
             "default": null,
             "title": "Startknopf"
+          },
+          "vorbelegen": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Vorbelegen"
           }
         },
         "title": "AgentSchritt",
@@ -364,6 +376,23 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ],
             "default": null,
             "title": "Synonyme"
+          },
+          "verwirft": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[a-z][a-z0-9_]{0,39}$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Verwirft"
           }
         },
         "required": [
@@ -750,6 +779,24 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               "feld": "typ",
               "werte": [
                 "modul",
+                "nachricht"
+              ]
+            }
+          },
+          "synonyme_im_satz": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Synonyme Im Satz",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
                 "nachricht"
               ]
             }

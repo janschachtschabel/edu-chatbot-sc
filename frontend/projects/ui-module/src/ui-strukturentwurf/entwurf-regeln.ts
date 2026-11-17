@@ -7,6 +7,15 @@
  * (`ui_module/strukturentwurf.py`): sonst verwürfe der Server die Antwort still.
  */
 
+/** Plan 2026-11-16, TG-3f: eine Datei des Ordners als Verweis — `i` ist ihre feste Nummer in der
+ *  Auswahl, `node_id` steht da, sobald sie nach WLO übertragen ist. Nur angezeigt wird ihre Zahl;
+ *  bearbeitet wird sie hier nicht. */
+export interface EntwurfInhalt {
+  readonly i: number;
+  readonly name: string;
+  readonly node_id?: string;
+}
+
 export interface EntwurfKnoten {
   readonly id: string;
   readonly titel: string;
@@ -19,6 +28,10 @@ export interface EntwurfKnoten {
   /** U3-2b, `quelle: dokument`: Titel und Kennungen der Abschnitte, aus denen der Punkt stammt. */
   readonly fundstelle?: string;
   readonly abschnitte?: readonly string[];
+  /** TG-3f, `quelle: ordner`: die Dateien des Ordners. Alle Regeln hier übernehmen sie mit dem
+   *  Punkt (`...rest`): umbenennen, verschieben, ein- und ausrücken lassen sie am Punkt, löschen
+   *  nimmt sie mit dem Punkt weg. */
+  readonly inhalte?: readonly EntwurfInhalt[];
   readonly kinder?: readonly EntwurfKnoten[];
 }
 

@@ -1,11 +1,12 @@
 """Review TW-4, Befunde 1 und 11: die echten Themenbaum-Seeds lösen richtig aus.
 
-Alle Abläufe aus ``seeds/06-ablaeufe`` sind hier eingeschaltet, wie im Betrieb. Geprüft werden:
+Alle Abläufe aus ``seeds/06-ablaeufe`` sind hier eingeschaltet — bis auf die vier, die seit Plan
+2026-11-16 (TG-6) „Themenbaum erstellen“ ablöst; sie sind im Betrieb aus. Geprüft werden:
 
 - **Wendungen:** Neuanlagen landen im passenden Ablauf, auch in natürlicher Satzstellung.
   „Überarbeiten“, „zusammenfassen“ und Wissensfragen starten nichts.
-- **Modul-Auslöser:** Die Antwort „Themenbaum aus dem Strukturdokument“ startet den
-  Dokument-Ablauf an ``gelesen``, ein bloßes „Senden“ (erfasst) startet nichts.
+- **Modul-Auslöser:** Seit Plan 2026-11-16 (TG-2, G-E6) startet ein gelesenes Dokument nichts
+  von selbst — das Upload-Feld ist zielneutral, die KI fragt und schlägt vor. Ebenso „Senden“.
 - **Direktstart:** Nur der Ablauf ohne Schreiben startet über die KI direkt.
 """
 
@@ -22,13 +23,19 @@ from boerdi.services.ablauf import ausloeser, vorschlag
 SEEDS = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "06-ablaeufe"
 
 
+#: Plan 2026-11-16, TG-6: abgelöst durch ``themenbaum`` — ab Werk aus (auch hier).
+_ABGELOEST = {"themenbaum_aus_thema", "themenbaum_aus_dokument", "themenbaum_aus_inhalten",
+              "sammlungsstruktur"}
+
+
 @pytest.fixture
 def alle_an(monkeypatch):
     ablaeufe = []
     for datei in sorted(SEEDS.glob("*.yaml")):
         roh = yaml.safe_load(datei.read_text(encoding="utf-8"))
         roh.pop("tests", None)
-        ablaeufe.append(AblaufArea.model_validate({**roh, "aktiv": True}))
+        ablaeufe.append(AblaufArea.model_validate(
+            {**roh, "aktiv": datei.stem not in _ABGELOEST}))
     monkeypatch.setattr(ausloeser, "katalog", lambda: ablaeufe)
     monkeypatch.setattr(ausloeser, "laden",
                         lambda k: next((a for a in ablaeufe if a.id == k), None))
@@ -36,30 +43,31 @@ def alle_an(monkeypatch):
 
 
 @pytest.mark.parametrize(("satz", "erwartet"), [
-    ("Bitte einen Themenbaum aus einem Thema", "themenbaum_aus_thema"),
-    ("ich will einen themenbaum zu einem thema erstellen", "themenbaum_aus_thema"),
+    # TG-6: alle Wendungen der vier abgelösten Abläufe führen zu „Themenbaum erstellen“
+    ("Bitte einen Themenbaum aus einem Thema", "themenbaum"),
+    ("ich will einen themenbaum zu einem thema erstellen", "themenbaum"),
     # Zweites Review TW, Befund 2: allgemeine Neuanlagen entscheidet die KI (sie sieht
     # ``nicht_wann``), die Quelle in der Bitte führt zum passenden Ablauf
     ("Erstelle einen Themenbaum zu Karate", None),
     ("Kannst du einen neuen Themenbaum für Physik anlegen?", None),
     ("Wie kann ich einen Themenbaum erstellen?", None),
-    ("Erstelle einen Themenbaum aus diesem PDF", "themenbaum_aus_dokument"),
-    ("Erstelle einen Themenbaum aus dem Bildungsplan Biologie", "themenbaum_aus_dokument"),
-    ("Erstelle einen Themenbaum aus meinen Materialien", "themenbaum_aus_inhalten"),
-    ("Mach mir einen Themenbaum aus meinen Unterlagen", "themenbaum_aus_inhalten"),
-    ("Kannst du aus meinen Dateien einen Themenbaum erstellen?", "themenbaum_aus_inhalten"),
-    ("Bitte einen Themenbaum aus meinen Inhalten", "themenbaum_aus_inhalten"),
+    ("Erstelle einen Themenbaum aus diesem PDF", "themenbaum"),
+    ("Erstelle einen Themenbaum aus dem Bildungsplan Biologie", "themenbaum"),
+    ("Erstelle einen Themenbaum aus meinen Materialien", "themenbaum"),
+    ("Mach mir einen Themenbaum aus meinen Unterlagen", "themenbaum"),
+    ("Kannst du aus meinen Dateien einen Themenbaum erstellen?", "themenbaum"),
+    ("Bitte einen Themenbaum aus meinen Inhalten", "themenbaum"),
     # Rückmeldung 11.11.: „mit“ statt „aus“
-    ("Themenbaum mit Dateien erstellen", "themenbaum_aus_inhalten"),
-    ("Ich möchte einen Themenbaum mit meinen Dateien bauen", "themenbaum_aus_inhalten"),
+    ("Themenbaum mit Dateien erstellen", "themenbaum"),
+    ("Ich möchte einen Themenbaum mit meinen Dateien bauen", "themenbaum"),
     # zusammenhängend — „Aus meinem Lehrplan bitte einen …“ trennt die Wendung, das übernimmt
     # der KI-Weg (``nicht_wann``)
-    ("Aus meinem Lehrplan einen Themenbaum erstellen", "themenbaum_aus_dokument"),
-    ("Mach einen Themenbaum aus dem Dokument", "themenbaum_aus_dokument"),
+    ("Aus meinem Lehrplan einen Themenbaum erstellen", "themenbaum"),
+    ("Mach einen Themenbaum aus dem Dokument", "themenbaum"),
     # Nach-Review: „zu meinem Lehrplan“ traf auch „Ich habe schon einen Themenbaum zu meinem
     # Lehrplan, kannst du ihn prüfen?“ — das entscheidet jetzt die KI
     ("Ich habe schon einen Themenbaum zu meinem Lehrplan, kannst du ihn prüfen?", None),
-    ("Themenbaum aus dem Rahmenlehrplan", "themenbaum_aus_dokument"),
+    ("Themenbaum aus dem Rahmenlehrplan", "themenbaum"),
     # Querschnitts-Review TW, Befund 1: Bestand, Überarbeiten und Wissen starten nichts — und
     # „einen Themenbaum zu X erstellen“ entscheidet die KI (direkt)
     ("Gibt es in WLO einen Themenbaum für Chemie?", None),
@@ -75,30 +83,54 @@ def test_wendungen_der_seeds(alle_an, satz, erwartet):
     assert (treffer.id if treffer else None) == erwartet
 
 
-def test_der_modul_ausloeser_des_dokument_ablaufs(alle_an):
+def test_tg2_ein_gelesenes_dokument_startet_keinen_ablauf(alle_an):
+    """Plan 2026-11-16, TG-2 (G-E6): der Modul-Auslöser ``wenn_teil: document`` ist entfallen —
+    ein gelesenes Dokument startet nichts von selbst, die KI fragt und schlägt vor (G-E5)."""
     grund = {"struktur": {"name": "RLP", "dateien": 1, "alle_dateien": 1, "kinder": []},
              "zahlen": {"ordner": 1, "inhalte": 1}}
     dokument = {"modul": "ui_upload", "block_id": "b", "daten": {
         **grund, "aktion": "dokument", "dokument": {
             "upload_id": "11111111-1111-4111-8111-111111111111", "name": "RLP.pdf",
-            "format": "pdf", "ziel": "themenbaum", "befund": {}, "vorschau": []}}}
-    ablauf, ab = ausloeser.per_modul(dokument)
-    assert ablauf.id == "themenbaum_aus_dokument" and ablauf.schritte[ab].id == "gelesen"
+            "format": "pdf", "befund": {}, "vorschau": []}}}
+    assert ausloeser.per_modul(dokument) is None
     erfasst = {"modul": "ui_upload", "block_id": "b", "daten": {**grund, "aktion": "erfasst"}}
     assert ausloeser.per_modul(erfasst) is None
+    assert not any(a.art == "modul" for a in alle_an["themenbaum_aus_dokument"].ausloeser)
+
+
+def test_tg2_kein_seed_nennt_die_alten_knoepfe_des_upload_felds():
+    """G-E4: die Knöpfe „Themenbaum aus dem Strukturdokument erstellen“ und „Als
+    Themenbaum-Entwurf übernehmen“ gibt es nicht mehr; der Dokument-Ablauf nennt „Lesen lassen“."""
+    alt = ("Strukturdokument erstellen", "Themenbaum-Entwurf übernehmen", "jetzt erstellen",
+           "from the structure document", "as topic tree draft")
+    for datei in SEEDS.glob("*.yaml"):
+        text = datei.read_text(encoding="utf-8")
+        assert not [a for a in alt if a in text], datei.name
+    dokument = yaml.safe_load((SEEDS / "themenbaum_aus_dokument.yaml").read_text(encoding="utf-8"))
+    texte = {s["id"]: s["text"] for s in dokument["schritte"] if "text" in s}
+    assert "„Lesen lassen“" in texte["hochladen"]["de"]
+    assert "“Read document”" in texte["hochladen"]["en"]
+    assert "„Lesen lassen“" in texte["ohne_dokument"]["de"]
 
 
 def test_nur_der_ablauf_ohne_schreiben_startet_direkt(alle_an):
     """TW-6 (Durchtest 12.11.): auch Dokument und Ordner starten direkt — sie beginnen mit einer
     Frage, und ein Upload-Feld allein schreibt nichts. „Aus eigenen Inhalten“ startet einen
     schreibenden Auftrag und bleibt ein Vorschlag."""
+    # Plan 2026-11-16, TG-6: „Themenbaum erstellen“ startet direkt — sein Auftrag hat die
+    # Rückfrage direkt davor (``werkzeuge.ablauf_schreibt_ungefragt``)
+    assert vorschlag._direkt(alle_an["themenbaum"])
     assert vorschlag._direkt(alle_an["themenbaum_aus_thema"])
     assert vorschlag._direkt(alle_an["themenbaum_aus_dokument"])
     assert vorschlag._direkt(alle_an["sammlungsstruktur"])
     assert not vorschlag._direkt(alle_an["themenbaum_aus_inhalten"])
     for ablauf in alle_an.values():                 # jeder Themenbaum-Ablauf fragt zuerst
         if ablauf.id.startswith("themenbaum") or ablauf.id == "sammlungsstruktur":
-            assert ablauf.schritte[0].optionen, ablauf.id
+            # Zweites Review TG-2: vor der Frage darf nur stehen, was nichts zeigt — die Prüfung,
+            # was bereitliegt (``bereitgestellt``), und eine Verzweigung
+            erste = next(s for s in ablauf.schritte if not (
+                s.typ == "verzweigung" or (s.typ == "werkzeug" and s.werkzeug == "bereitgestellt")))
+            assert erste.optionen, ablauf.id
 
 
 def test_review_qtw_2_keine_beschreibung_wird_gekuerzt(alle_an, monkeypatch):
@@ -150,8 +182,9 @@ def test_rueckmeldung_ohne_anmeldung_sagt_die_ki_es_statt_still(alle_an, monkeyp
     monkeypatch.setattr(ausloeser, "fehlt", lambda _a: "anmeldung")  # R2-b
     assert zug.text_ausloeser(satz) is None
     zeile = zug.anmelde_zeile(satz, "de")
-    assert zeile and zeile.startswith("[ABLAUF OHNE ANMELDUNG") and "aus eigenen Inhalten" in zeile
-    assert zug.anmelde_zeile(satz, "de", ohne="themenbaum_aus_inhalten") is None
+    # TG-6: die Wendung gehört jetzt zu „Themenbaum erstellen“
+    assert zeile and zeile.startswith("[ABLAUF OHNE ANMELDUNG") and "Themenbaum erstellen" in zeile
+    assert zug.anmelde_zeile(satz, "de", ohne="themenbaum") is None
     assert zug.anmelde_zeile("Was ist Photosynthese?", "de") is None
     monkeypatch.setattr(ausloeser, "fehlt", lambda _a: None)
     assert zug.anmelde_zeile(satz, "de") is None          # angemeldet: der Ablauf startet selbst
@@ -170,7 +203,7 @@ def test_tw6_der_satz_zur_anmeldung_kommt_vom_system(alle_an, monkeypatch):
 
     monkeypatch.setattr(ausloeser, "fehlt", lambda _a: "anmeldung")
     satz = zug.anmelde_satz("Themenbaum mit meinen Dateien erstellen", "de")
-    assert satz and "aus eigenen Inhalten" in satz and "melde dich" in satz
+    assert satz and "Themenbaum erstellen" in satz and "melde dich" in satz   # TG-6
     assert zug.anmelde_satz("Wie geht es dir?", "de") is None
     monkeypatch.setattr(ausloeser, "fehlt", lambda _a: None)
     assert zug.anmelde_satz("Themenbaum mit meinen Dateien erstellen", "de") is None
@@ -184,10 +217,11 @@ def test_tw6_ohne_arbeitsgrundlage_lenkt_ein_modul_auf_den_ablauf_um(alle_an, mo
     angeboten = {w["function"]["name"] for w in vorschlag.werkzeuge("de")}
     zustand: dict = {"entities": {}, "turn_count": 1}
     entwurf = vorschlag.umlenkung("ui_strukturentwurf", {"thema": "Optik"}, angeboten, zustand)
-    assert entwurf and "ablauf-themenbaum_aus_thema" in entwurf
-    assert "aus_dokument" not in entwurf and "sammlungsstruktur" not in entwurf  # nur ohne Upload
+    # Plan 2026-11-16, TG-6: ohne Ablauf ohne Upload (die alten sind aus) „Themenbaum erstellen“
+    assert entwurf and "ablauf-themenbaum (" in entwurf
+    assert "aus_dokument" not in entwurf and "sammlungsstruktur" not in entwurf
     upload = vorschlag.umlenkung("ui_upload", {"zweck": "sammlungsstruktur"}, angeboten, zustand)
-    assert upload and "ablauf-themenbaum_aus_dokument" in upload and "sammlungsstruktur" in upload
+    assert upload and "ablauf-themenbaum (" in upload
     # der zweite Versuch im selben Zug läuft durch (die Person will es ausdrücklich ohne)
     assert vorschlag.umlenkung("ui_strukturentwurf", {"thema": "Optik"}, angeboten, zustand) is None
     # nie mit Arbeitsgrundlage: Argumente, gemerkte Grundlage, Ausstieg, kein Ablauf angeboten

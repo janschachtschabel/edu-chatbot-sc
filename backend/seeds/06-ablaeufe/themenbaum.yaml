@@ -1,0 +1,992 @@
+# Ablauf „Themenbaum erstellen“ (Plan docs/plans/2026-11-16-themenbaum-generisch.md, TG-6 und
+# Review TG-4–6; G-E2, G-E6, G-E7, G-E9, G-E10). Ein Ablauf für alle Grundlagen — er löst die vier
+# Abläufe „Themenbaum · aus einem Thema / aus einem Dokument / aus eigenen Inhalten / aus Ordnern“ ab.
+#
+# Erst die Grundlage und ihre Daten, dann die Fragen, die dort wirken, dann der Entwurf (Review
+# TG-4–6, MAJOR 4 — „erst bereitstellen, dann entscheiden“):
+# 1. ``bereit`` (Dienst ``bereitgestellt``) sagt, was im Vorgang nutzbar liegt (``art``,
+#    ``wlo_erschliessen``). Liegt etwas bereit, bietet ``einstieg_mit`` es an — sonst ``einstieg``.
+# 2. ``grundlage``: getippt ist es das Thema; sonst ein Dokument mit Gliederung, Ordner oder Dateien
+#    (Synonyme nur als ganze Wörter, MAJOR 3).
+# 3. Daten: Dokument → Upload mit „Einzeldatei als Struktur“; Ordner → Upload → Entwurf aus den
+#    Ordnern → Prüfpunkt → „So lassen“ (fertig, Inhalte gemerkt) oder „Mit deinen Angaben
+#    verfeinern“; ohne Unterordner der Weg Dateien. Dateien → „gründlich über WLO“ nur, wenn Ablage
+#    UND Metadaten-Auftrag gehen (``bereit.wlo_erschliessen``), sonst nur die Dateinamen
+#    (``inhalte_aus_dateien``). Überträgt die Person im Upload-Feld nach WLO (Ordner oder Dateien),
+#    folgen Rückfrage, Kestra-Metadaten und ``metadaten_lesen``.
+# 4. Fragen (wofür, für wen/Stufe, Umfang, Hinweise; Soll oder Ist nur bei Dateien), dann der
+#    KI-Schritt der Grundlage mit ``vorbelegen`` (TG-5). Auf dem Ordner-Weg nur nach „verfeinern“,
+#    dann mit ``vorlage``.
+# 5. Ende mit gespeichertem Entwurf. Jeder Fehlerweg bietet „Nochmal“, „Andere Grundlage“ bzw.
+#    „Frei weiter“ — kein stummes Ende (``stumme_enden``).
+#
+# Verzweigt wird auf das deutsche Label der Grundlage (``gleich``) bzw. nach „Ja, verwenden“ auf
+# ``bereit.art``; nach einem Upload auf die Teile selbst. Ein Entwurf aus freier Arbeit kann im
+# Vorgang liegen (MAJOR 2) — darum prüft keine Regel ``draft``, sondern Teile dieses Laufs
+# (``ordnerweg``, ``metadaten``). Die Leiste zählt die Halte des Laufs (Befund 10). 40 Schritte.
+#
+# Ohne Voraussetzung: anonym gehen Thema, Dokument, Ordner und der schnelle Weg; Auftrag und
+# ``metadaten_lesen`` haben einen Ersatzweg (``bei_fehler``) und starten ohne Anmeldung nicht.
+# Ab Werk an. Direktstart der KI: Der Auftrag startet nur nach „Ja, Metadaten erzeugen“, daneben
+# steht „Nein, so lassen“ (``werkzeuge.ablauf_schreibt_ungefragt``, MAJOR 1).
+id: themenbaum
+titel: {de: Themenbaum erstellen, en: Create a topic tree}
+beschreibung: >-
+  Ein geführter Weg zum Themenbaum: zuerst die Grundlage (ein Thema, ein Dokument wie ein Lehrplan,
+  eigene Ordner oder Dateien), dann kurze Fragen und ein bearbeitbarer Entwurf im Chat.
+  Bereitgestellte Ordner, Dateien und Dokumente übernimmt er.
+wann:
+  - Die Person will einen Themenbaum oder eine Sammlungsstruktur neu erstellen
+  - Grundlage ist ein Thema, ein Dokument wie ein Lehrplan oder eigene Ordner oder Dateien
+nicht_wann:
+  - Die Person will einen vorhandenen WLO-Themenbaum sehen, prüfen oder überarbeiten
+  - Die Person will einen Text, ein Referat oder eine Arbeit gliedern
+aktiv: true
+ausloeser:
+  - {art: knopf}
+  - {art: agent, modus: direkt}
+  # Die Wendungen der vier abgelösten Abläufe (je Auslöser höchstens 10)
+  - art: text
+    wendungen: [themenbaum aus einem thema, themenbaum zu einem thema,
+                themenbaum aus einem lehrplan, themenbaum aus einem dokument,
+                themenbaum aus meinem ordner, themenbaum aus meinen ordnern,
+                themenbaum aus meinen inhalten, themenbaum aus meinen dateien,
+                themenbaum aus meinen materialien, themenbaum aus meinen unterlagen]
+  - art: text
+    wendungen: [themenbaum aus meinem lehrplan, aus meinem lehrplan einen themenbaum,
+                aus meinen dateien einen themenbaum, aus meinen inhalten einen themenbaum,
+                themenbaum mit meinen dateien, themenbaum mit dateien, themenbaum aus dateien,
+                themenbaum aus dem lehrplan, themenbaum aus dem dokument, themenbaum aus diesem pdf]
+  - art: text
+    wendungen: [themenbaum aus dem rahmenlehrplan, themenbaum aus dem bildungsplan,
+                themenbaum aus dem kerncurriculum]
+schritte:
+  # ── Einstieg: was liegt bereit? ───────────────────────────────────────────────────────────────
+  - id: bereit
+    typ: werkzeug
+    werkzeug: bereitgestellt
+    schreibt: bereit
+    bei_fehler: einstieg
+  - id: vorhanden
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.bereit.art, vergleich: vorhanden}, dann: einstieg_mit}
+      - {sonst: einstieg}
+  # Ohne Nutzbares wird verworfen, was im Vorgang liegt — ein Teil ``structure`` heißt danach
+  # „in diesem Lauf hochgeladen“
+  - id: einstieg
+    typ: nachricht
+    schreibt: vorhaben
+    text: {de: "Gern baue ich mit dir einen Themenbaum. Ich frage nach der Grundlage und kurz nach Zweck und Umfang, dann entsteht ein Entwurf, den du bearbeiten kannst. Einverstanden?",
+           en: "I'll gladly build a topic tree with you. I'll ask about the basis and briefly about purpose and scope, then you get a draft you can edit. All right?"}
+    optionen:
+      - {id: neu, label: {de: "Ja, neue Struktur mit Unterstützung", en: "Yes, new structure with guidance"}, ziel: grundlage, verwirft: [structure, document]}
+      - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  # MINOR 9: „Anderes wählen“ verwirft die Daten, nicht ``bereit`` — ``wlo_erschliessen`` gilt
+  # weiter; ``art`` liest danach keine Regel mehr (die Grundlage steht dann fest)
+  - id: einstieg_mit
+    typ: nachricht
+    schreibt: vorhaben
+    text: {de: "Gern baue ich mit dir einen Themenbaum. Du hast schon {teil.bereit.name} bereitgestellt. Soll ich das verwenden?",
+           en: "I'll gladly build a topic tree with you. You have already provided {teil.bereit.name}. Shall I use it?"}
+    optionen:
+      - {id: verwenden, label: {de: "Ja, verwenden", en: "Yes, use it"}, ziel: daten}
+      - {id: andere, label: {de: Anderes wählen, en: Choose something else}, ziel: grundlage, verwirft: [structure, document]}
+      - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  # NIT 15: ein getippter Text ist das Thema (keine zweite Frage danach). Die Synonyme ordnen einen
+  # Satz zu (``synonyme_im_satz``, zweites Review A/D): nur ganze Wörter, nicht hinter einer
+  # Verneinung im selben Satzteil („keinen Lehrplan“, „Lehrplan nicht, Ordner“). Trifft der Satz
+  # mehrere Optionen („Dateien aus meinem Ordner“), ist er weder Wahl noch Thema: der Hinweis
+  # ``kein_treffer`` fragt nach (Nachprüfung TG-4–6, MINOR 3), der Schritt wartet weiter.
+  - id: grundlage
+    typ: nachricht
+    schreibt: grundlage
+    synonyme_im_satz: true
+    text: {de: "Worauf soll die Struktur aufbauen? Schreib einfach dein Thema, etwa „Optik (Physik)“ oder „Karate“ – oder wähle, was du mitbringst.",
+           en: "What should the structure be based on? Just type your topic, e.g. “Optics (physics)” or “Karate” – or pick what you bring along."}
+    optionen:
+      - {id: dokument, label: {de: "Ein Dokument mit Gliederung, etwa ein Lehrplan", en: "A document with an outline, e.g. a curriculum"}, ziel: dokument_laden,
+         synonyme: [Dokument, Dokumente, Lehrplan, Lehrplans, Lehrpläne, Lehrplänen, Rahmenlehrplan, Rahmenlehrpläne,
+                    Bildungsplan, Bildungsplans, Bildungspläne, Kerncurriculum, Kerncurriculums, Curriculum,
+                    Curricula, PDF, PDFs, document, syllabus]}
+      - {id: ordner, label: {de: Meine Ordner, en: My folders}, ziel: ordner_laden,
+         synonyme: [Ordner, Ordnern, Ordners, folder, folders, my folders]}
+      - {id: dateien, label: {de: Meine Dateien, en: My files}, ziel: dateien_weg,
+         synonyme: [Datei, Dateien, Materialien, Unterlagen, files, my files, my documents]}
+    freitext: {ziel: wofuer, schreibt: grundlage}
+    kein_treffer: {de: "Meinst du deine Ordner, deine Dateien oder ein Dokument? Wähle bitte einen Knopf – oder schreib nur dein Thema.",
+                   en: "Do you mean your folders, your files or a document? Please choose a button – or just type your topic."}
+  # Nach „Ja, verwenden“ und nach „Nochmal auswählen“: wohin mit den Daten
+  - id: daten
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: "Ein Dokument mit Gliederung, etwa ein Lehrplan"}, dann: dokument_laden}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Ordner}, dann: ordner_laden}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Dateien}, dann: dateien_weg}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: vorhanden}, dann: wofuer}
+      - {wenn_wert: {quelle: teil.bereit.art, vergleich: gleich, wert: dokument}, dann: wofuer}
+      # zweites Review G: bereitgestellte Ordner nur, solange sie noch da sind — nach „Nochmal
+      # auswählen“ (``structure`` verworfen) das Upload-Feld
+      - {wenn_wert: {quelle: teil.structure.struktur.kinder, vergleich: vorhanden}, dann: aus_ordnern}
+      - {wenn_wert: {quelle: teil.bereit.art, vergleich: gleich, wert: ordner}, dann: ordner_laden}
+      - {wenn_wert: {quelle: teil.bereit.art, vergleich: gleich, wert: dateien}, dann: dateien_weg}
+      - {sonst: wofuer}
+  # ── Dokument ──────────────────────────────────────────────────────────────────────────────────
+  - id: dokument_laden
+    typ: modul
+    modul: ui_upload
+    text: {de: "Wähle das Dokument (etwa einen Lehrplan, auch mehrere) und klick auf „Lesen lassen“.",
+           en: "Choose the document (such as a curriculum, several are fine) and click “Read document”."}
+    daten: {zweck: bereitstellen, einzeldatei_als_struktur: true}
+  - id: dokument_gelesen
+    typ: verzweigung
+    weiter:
+      - {wenn_teil: strukturdokument, dann: wofuer}
+      - {wenn_teil: document, dann: wofuer}
+      - {sonst: ohne_daten}
+  # ── Ordner (G-E10: Ordner sind Herkunft, nicht Ziel) ──────────────────────────────────────────
+  - id: ordner_laden
+    typ: modul
+    modul: ui_upload
+    text: {de: "Wähle den Ordner mit deinen Unterlagen und klick auf „Senden“. Bist du angemeldet, kannst du die Dateien dabei auch in deinen Bereich in WLO übertragen – dann beschreibt WLO sie mit Metadaten.",
+           en: "Choose the folder with your materials and click “Send”. If you are signed in, you can also transfer the files to your area in WLO – then WLO describes them with metadata."}
+    daten: {zweck: bereitstellen}
+  # Zweites Review H: die Ablage zählt nur, wenn sie zu dieser Auswahl gehört (dasselbe Feld,
+  # ``block_id``) — nach „Andere Grundlage“ läge sonst die Ablage der früheren Auswahl da
+  - id: ordner_geladen
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.ablage.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: metadaten_frage}
+      - {wenn_wert: {quelle: teil.structure.struktur.kinder, vergleich: vorhanden}, dann: aus_ordnern}
+      - {wenn_wert: {quelle: teil.struktur.zahlen.inhalte, vergleich: groesser, wert: "0"}, dann: dateien_weg}
+      - {sonst: ohne_daten}
+  - id: aus_ordnern
+    typ: werkzeug
+    werkzeug: strukturentwurf_aus_ordnern
+    argumente: {struktur: {$teil: structure}}
+    schreibt: draft
+    bei_fehler: ohne_daten
+  - id: ordner_pruefen
+    typ: modul
+    modul: ui_strukturentwurf
+    weiter: ordner_weiter
+    text: {de: "So sehen deine Ordner als Themenbaum aus; je Punkt sind die Dateien seines Ordners gemerkt. Ordner sind dein Ausgangspunkt — benenne und ordne um, was nicht fachlich ist (etwa Jahre, Klassen oder Formate).",
+           en: "This is your folder structure as a topic tree; each item keeps the files of its folder. Folders are your starting point — rename and rearrange what is not about the subject (such as years, grades or formats)."}
+    daten: {$teil: draft}
+  # MAJOR 4: erst hier die Fragen — nur, wenn die Person verfeinern will (dann wirken sie).
+  # Nachprüfung TG-4–6, MAJOR 1: eine Entweder-oder-Frage nimmt keinen Freitext und keine Synonyme
+  # („Passt so“ oder „Ja“ hießen sonst „verfeinern“) — ohne Treffer der Hinweis, die Knöpfe bleiben
+  - id: ordner_weiter
+    typ: nachricht
+    schreibt: ordnerweg
+    text: {de: "Passt das so, oder soll ich den Entwurf mit deinen Angaben zu Zweck, Stufe und Umfang verfeinern?",
+           en: "Is this fine, or shall I refine the draft with your details on purpose, level and scope?"}
+    optionen:
+      - {id: lassen, label: {de: So lassen, en: Leave it}, ziel: ende}
+      - {id: verfeinern, label: {de: Mit deinen Angaben verfeinern, en: Refine with your details}, ziel: wofuer}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  # ── Dateien ───────────────────────────────────────────────────────────────────────────────────
+  # Schon in WLO (im Upload-Feld übertragen, zur Auswahl gehörig) → Metadaten; der ganze WLO-Weg geht → fragen; sonst
+  # nur die Dateinamen, in einem Satz gesagt (G-E9)
+  - id: dateien_weg
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.ablage.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: metadaten_frage}
+      - {wenn_wert: {quelle: teil.bereit.wlo_erschliessen, vergleich: gleich, wert: ja}, dann: wlo_frage}
+      - {sonst: schnell}
+  - id: wlo_frage
+    typ: nachricht
+    schreibt: weg
+    text: {de: "Soll WLO deine Dateien gründlich beschreiben? Dann überträgst du sie im nächsten Feld in deinen Bereich in WLO; dort entstehen Volltexte und Metadaten – das dauert einige Minuten. Sonst nehme ich nur die Dateinamen.",
+           en: "Shall WLO describe your files thoroughly? You then transfer them to your area in WLO in the next field, where full texts and metadata are created – this takes a few minutes. Otherwise I'll use just the file names."}
+    optionen:
+      - {id: gruendlich, label: {de: "Gründlich über WLO (einige Minuten)", en: "Thoroughly via WLO (a few minutes)"}, ziel: dateien_laden}
+      - {id: schnell, label: {de: Nur die Dateinamen, en: Just the file names}, ziel: schnell_da}
+    # Nachprüfung TG-4–6, MAJOR 1: wie ``ordner_weiter`` — „Ja, gründlich“ ist keine Antwort, die ein
+    # Synonym sicher zuordnet
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  - id: schnell
+    typ: nachricht
+    weiter: schnell_da
+    text: {de: "Ich nehme nur die Dateinamen als Grundlage – die Inhalte der Dateien lese ich dabei nicht.",
+           en: "I'll use only the file names as the basis – I won't read the content of the files."}
+  - id: schnell_da
+    typ: verzweigung
+    weiter:
+      - {wenn_teil: metadaten, dann: wofuer}
+      - {wenn_wert: {quelle: teil.struktur.zahlen.inhalte, vergleich: groesser, wert: "0"}, dann: aus_dateien}
+      - {sonst: dateien_laden}
+  - id: dateien_laden
+    typ: modul
+    modul: ui_upload
+    text: {de: "Wähle deine Dateien oder einen Ordner und klick auf „Senden“.",
+           en: "Choose your files or a folder and click “Send”."}
+    daten: {zweck: bereitstellen}
+  - id: dateien_geladen
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.ablage.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: metadaten_frage}
+      - {wenn_wert: {quelle: teil.weg, vergleich: enthaelt, wert: gründlich}, dann: ohne_daten}
+      - {wenn_wert: {quelle: teil.struktur.zahlen.inhalte, vergleich: groesser, wert: "0"}, dann: aus_dateien}
+      - {sonst: ohne_daten}
+  - id: aus_dateien
+    typ: werkzeug
+    werkzeug: inhalte_aus_dateien
+    argumente: {struktur: {$teil: struktur}}
+    schreibt: metadaten
+    weiter: wofuer
+    bei_fehler: ohne_daten
+  # ── Gründlich über WLO: Rückfrage, Kestra-Metadaten, lesen ────────────────────────────────────
+  # Die Rückfrage vor dem schreibenden Flow (Prüfung auftrag_rueckfrage, TB-F1) — mit „Nein“
+  # daneben (MAJOR 1: nur dann zählt sie für den Direktstart)
+  - id: metadaten_frage
+    typ: nachricht
+    text:
+      de: >-
+        Soll WLO Metadaten für die eben übertragenen Dateien erzeugen? Das ersetzt je Datei Titel,
+        Beschreibung, Schlagworte, Sprache, Fach, Bildungsstufe, Zielgruppe und Ressourcentyp –
+        jede Änderung als neue Version.
+      en: >-
+        Should WLO create metadata for the files you just transferred? For each file this replaces
+        title, description, keywords, language, subject, educational level, audience and resource
+        type – each change as a new version.
+    optionen:
+      - {id: ja, label: {de: "Ja, Metadaten erzeugen", en: "Yes, create metadata"}, ziel: metadaten}
+      - {id: nein, label: {de: "Nein, so lassen", en: "No, leave as is"}, ziel: lesen}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  - id: metadaten
+    typ: auftrag
+    flow: edusharing.chatbot/node-metadata-write
+    repo_schreibt: true
+    weiter: lesen
+    text: {de: "Ich lasse die Metadaten erzeugen. Das kann ein paar Minuten dauern.",
+           en: "I'm having the metadata created. This can take a few minutes."}
+    argumente:
+      # MINOR 7: nur Inhalte — ein Strukturdokument bekommt keine Metadaten des Materials
+      node_ids: {$teil: ablage, liste: inhalte, wo: {stand: stored, rolle: inhalt}, feld: node_id}
+      language: {$sprache: true}
+    # Paket R1 (N14): höchstens 50 Dateien je Job, die Teile laufen nacheinander
+    aufteilen: {argument: node_ids, hoechstens: 50}
+    schreibt: metadatenlauf
+    bei_fehler: ohne_metadaten
+  - id: lesen
+    typ: werkzeug
+    werkzeug: metadaten_lesen
+    argumente: {ablage: {$teil: ablage}}
+    schreibt: metadaten
+    bei_fehler: ohne_metadaten
+  # Ordner mit Unterordnern → Entwurf aus den Ordnern (mit node_ids); Dateien → Fragen bzw. ohne
+  # Angaben aus WLO aus den Dateinamen (``schnell_da``)
+  - id: nach_lesen
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Dateien}, dann: schnell_da}
+      - {wenn_wert: {quelle: teil.structure.struktur.kinder, vergleich: vorhanden}, dann: aus_ordnern}
+      - {sonst: schnell_da}
+  # ── Fragen, die wirken (G-E7) ─────────────────────────────────────────────────────────────────
+  - id: wofuer
+    typ: nachricht
+    schreibt: zweck
+    text: {de: "Wofür ist der Baum? Wähle aus oder schreib es in eigenen Worten.",
+           en: "What is the tree for? Pick one or tell me in your own words."}
+    optionen:
+      - {id: unterricht, label: {de: Unterricht planen, en: Plan lessons}, ziel: stufe}
+      - {id: material, label: {de: Material finden, en: Find material}, ziel: stufe}
+      - {id: teilen, label: {de: Teilen oder Redaktion, en: Sharing or editorial work}, ziel: stufe}
+      - {id: webseite, label: {de: Überblick für eine Webseite, en: Overview for a website}, ziel: stufe}
+    freitext: {ziel: stufe, schreibt: zweck}
+  # „Für wen“ und „Stufe“ in einer Frage (Platz: 40 Schritte)
+  - id: stufe
+    typ: nachricht
+    schreibt: stufe
+    text: {de: "Für wen ist er – welche Stufe? Wähle aus oder schreib es mir.",
+           en: "Who is it for – which level? Pick one or tell me."}
+    optionen:
+      - {id: grundschule, label: {de: Grundschule, en: Primary school}, ziel: umfang}
+      - {id: sek1, label: {de: Sekundarstufe I, en: Lower secondary}, ziel: umfang}
+      - {id: sek2, label: {de: Sekundarstufe II, en: Upper secondary}, ziel: umfang}
+      - {id: beruf, label: {de: Berufliche Bildung, en: Vocational training}, ziel: umfang}
+      - {id: hochschule, label: {de: Hochschule, en: Higher education}, ziel: umfang}
+      - {id: alle, label: {de: Für alle, en: Everyone}, ziel: umfang}
+    freitext: {ziel: umfang, schreibt: stufe}
+  - id: umfang
+    typ: nachricht
+    schreibt: umfang
+    text: {de: "Wie fein soll er werden?", en: "How detailed should it be?"}
+    optionen:
+      - {id: kompakt, label: {de: "Kompakt (1 Ebene, etwa 6 Punkte)", en: "Compact (1 level, about 6 items)"}, ziel: hinweise}
+      - {id: mittel, label: {de: "Mittel (2 Ebenen, etwa 10 oben)", en: "Medium (2 levels, about 10 at the top)"}, ziel: hinweise}
+      - {id: ausfuehrlich, label: {de: "Ausführlich (3 Ebenen, etwa 12 oben)", en: "Detailed (3 levels, about 12 at the top)"}, ziel: hinweise}
+    freitext: {ziel: hinweise, schreibt: umfang}
+  - id: hinweise
+    typ: nachricht
+    text: {de: "Muss etwas unbedingt vorkommen oder wegfallen? Schreib es mir – oder weiter ohne.",
+           en: "Must anything be included or left out? Tell me – or continue without."}
+    optionen:
+      # NIT 16: ein getipptes „nein“ ist „keine Hinweise“ — nur als ganzer Text (Freitext geht vor);
+      # Satzzeichen zählen nicht, „nein, danke“ = „Nein danke“ (Nachprüfung, NIT 8)
+      - {id: keine, label: {de: "Nein, weiter", en: "No, continue"}, ziel: zum_entwurf,
+         synonyme: [nein, nein danke, keine, keine hinweise, nichts, none, nothing, no thanks]}
+    freitext: {ziel: zum_entwurf, schreibt: hinweise}
+  # ── Entwurf je Grundlage ──────────────────────────────────────────────────────────────────────
+  # Soll oder Ist nur bei Dateien (die Metadaten liegen dann vor), gefragt vor dem Entwurf; auf dem
+  # Ordner-Weg gilt Ist. Durchtest TG-7, m4: unter 5 Inhalten (kein fünfter Eintrag in
+  # ``metadaten.inhalte``) eine eigene Frage — mit „Ist“ würde der Baum sehr klein. Hier statt in
+  # einer eigenen Verzweigung nach der Stufe: so bleibt es bei 40 Schritten. Die Antworten führen
+  # direkt zum Entwurf (kein Kreis über ``zum_entwurf`` — die Leiste zählte ihn sonst als Rückweg);
+  # „Nochmal versuchen“ kommt über die Regel ``soll_ist`` dorthin. Gezählt werden nur die Einträge
+  # in ``metadaten.inhalte`` — Dateien unter ``fehlend`` (ohne Angaben aus WLO) zählen nicht mit.
+  - id: zum_entwurf
+    typ: verzweigung
+    weiter:
+      - {wenn_teil: ordnerweg, dann: entwurf_ordner}
+      - {wenn_teil: soll_ist, dann: entwurf_inhalte}
+      - {wenn_wert: {quelle: teil.metadaten.inhalte.4, vergleich: vorhanden}, dann: soll_ist}
+      - {wenn_teil: metadaten, dann: soll_wenig}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: "Ein Dokument mit Gliederung, etwa ein Lehrplan"}, dann: entwurf_dokument}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: vorhanden}, dann: entwurf_thema}
+      - {wenn_wert: {quelle: teil.bereit.art, vergleich: gleich, wert: dokument}, dann: entwurf_dokument}
+      - {sonst: entwurf_thema}
+  - id: soll_ist
+    typ: nachricht
+    schreibt: soll_ist
+    text: {de: "Soll der Baum alles zeigen, was zum Stoff gehört – auch wo dir noch Material fehlt –, oder nur, was deine Dateien abdecken?",
+           en: "Should the tree show everything that belongs to the subject matter – even where you still lack material – or only what your files cover?"}
+    optionen:
+      - {id: soll, label: {de: "Alles, was zum Stoff gehört", en: "Everything in the subject"}, ziel: entwurf_inhalte}
+      - {id: ist, label: {de: "Nur, was meine Dateien abdecken", en: "Only what my files cover"}, ziel: entwurf_inhalte}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  - id: soll_wenig
+    typ: nachricht
+    schreibt: soll_ist
+    text: {de: "Mit so wenigen Dateien wird der Baum sehr klein. Lieber nach Stoff (Soll) aufbauen?",
+           en: "With so few files the tree will be very small. Build it by subject matter (target) instead?"}
+    optionen:
+      - {id: soll, label: {de: "Nach Stoff (Soll)", en: "By subject matter (target)"}, ziel: entwurf_inhalte}
+      - {id: ist, label: {de: "Trotzdem nur meine Dateien", en: "Only my files anyway"}, ziel: entwurf_inhalte}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  - id: entwurf_thema
+    typ: agent
+    weiter: ende
+    text: {de: "Danke! Ich erstelle jetzt den Entwurf zu deinem Thema – klick auf „Entwurf erstellen“ oder schreib mir noch etwas dazu.",
+           en: "Thanks! I'll now create the draft for your topic – click “Create draft” or tell me anything else."}
+    agent:
+      werkzeuge: [ui_strukturentwurf]
+      hinweis:
+        de: "Erst Fragen beantworten. Den Entwurf einmal mit ui_strukturentwurf; thema = getippte Grundlage, nie nur das Fach. Nach der Übernahme nicht neu entwerfen."
+        en: "Answer questions first. Create the draft once with ui_strukturentwurf; thema = the typed grundlage, never just the subject. Once accepted, do not draft again."
+      startknopf: {de: Entwurf erstellen, en: Create draft}
+      vorbelegen: true
+      vorgaben:
+        de: |-
+          Regeln für einen guten Themenbaum:
+          - Oben 5 bis 15 Punkte, darunter je 3 bis 20; kein Punkt mit nur einem Unterpunkt (dann zusammenlegen).
+          - Der Baum gilt dem Thema aus dem Auftrag, nie dem ganzen Fach.
+          - Facetten sind keine Punkte: Stufe, Klasse, Format, Zielgruppe, Methode und Jahr gehören in Schlagworte.
+          - Nach dem Zweck: „Unterricht planen“ in sinnvoller Unterrichtsreihenfolge; „Material finden“ nach der Fachsystematik (Fach → Themenfeld → Thema), länderneutral; „Teilen oder Redaktion“ mit publikumsnahen Titeln; „Überblick für eine Webseite“ die Hauptaspekte in verständlichen Worten.
+          - Die Stufe bestimmt Wortwahl und Tiefe der Begriffe. In der Beruflichen Bildung ordnen Lernfelder bzw. berufliche Handlungen die obere Ebene.
+          - Den Stoff vollständig abbilden.
+        en: |-
+          Rules for a good topic tree (the person's answers arrive as German labels):
+          - 5 to 15 items at the top, 3 to 20 below each; no item with a single sub-item (merge it instead).
+          - The tree is about the topic in the request, never the whole school subject.
+          - Facets are not items: level, grade, format, audience, method and year belong in keywords.
+          - By purpose: "Unterricht planen" (plan lessons) in a sensible teaching order; "Material finden" (find material) by subject systematics (subject → topic field → topic), independent of any state; "Teilen oder Redaktion" (sharing, editorial) with audience-friendly titles; "Überblick für eine Webseite" (overview for a website) the main aspects in plain words.
+          - The level shapes wording and depth of terms. In vocational training ("Berufliche Bildung"), learning fields or occupational tasks order the top level.
+          - Cover the subject matter completely.
+      ausgabe: draft
+      zuege: 3
+    bei_fehler: ohne_entwurf
+  - id: entwurf_dokument
+    typ: agent
+    weiter: ende
+    text: {de: "Danke! Ich erstelle den Entwurf aus deinem Dokument – klick auf „Entwurf erstellen“ oder schreib mir noch etwas dazu.",
+           en: "Thanks! I'll create the draft from your document – click “Create draft” or tell me anything else."}
+    agent:
+      werkzeuge: [ui_strukturentwurf]
+      hinweis:
+        de: "Rufe ui_strukturentwurf einmal mit aus_dokument: true auf (thema ist vorbelegt). Nach der Übernahme nicht neu entwerfen."
+        en: "Call ui_strukturentwurf once with aus_dokument: true (thema is prefilled). Once accepted, do not draft again."
+      startknopf: {de: Entwurf erstellen, en: Create draft}
+      vorbelegen: true
+      vorgaben:
+        de: |-
+          Das Dokument ist meist ein Lehrplan oder eine Systematik. So wird es ein Themenbaum:
+          - Ebene 1: die tragende Ordnung des Dokuments (Lernfelder vor Themenfeldern vor Kapiteln), in seiner Reihenfolge, Titel kurz nach dem Thema, ohne Nummern wie „LF 3“.
+          - Ebene 2: Themen des Abschnitts — Fachbegriffe und Inhalte, in der Berufsschule die Inhalte bzw. Handlungsschritte des Lernfelds.
+          - Oben 5 bis 15 Punkte, darunter je 3 bis 20; kein Punkt mit nur einem Unterpunkt.
+          - Keine Punkte: Kompetenzerwartungen, Kompetenzbereiche, Basiskonzepte, Differenzierung, Leistungsbewertung, didaktische Hinweise, Stundentafeln, Zeitrichtwerte, Vorwort; ebenso keine Facetten wie Stufe, Klasse, Format oder Zielgruppe.
+          - Nach dem Zweck: „Unterricht planen“ übernimmt die Reihenfolge des Dokuments, „Material finden“ sachliche Titel, „Teilen oder Redaktion“ und „Überblick für eine Webseite“ publikumsnahe Titel.
+        en: |-
+          The document is usually a curriculum or a scheme (the person's answers arrive as German labels). This is how it becomes a topic tree:
+          - Level 1: the document's main order (learning fields before topic fields before chapters), in its order, short topic titles, no numbers like "LF 3".
+          - Level 2: the topics of the section — subject terms and content, in vocational school the content or task steps of the learning field.
+          - 5 to 15 items at the top, 3 to 20 below each; no item with a single sub-item.
+          - Not items: expected competences, competence areas, basic concepts, differentiation, assessment, didactic notes, timetables, time guidelines, preface; nor facets such as level, grade, format or audience.
+          - By purpose: "Unterricht planen" (plan lessons) keeps the document's order, "Material finden" (find material) factual titles, "Teilen oder Redaktion" and "Überblick für eine Webseite" audience-friendly titles.
+      ausgabe: draft
+      zuege: 3
+    bei_fehler: ohne_entwurf
+  - id: entwurf_inhalte
+    typ: agent
+    weiter: ende
+    text: {de: "Die Angaben zu deinen Dateien liegen bereit. Ich ordne sie zu Themen – klick auf „Entwurf erstellen“ oder schreib mir noch etwas dazu.",
+           en: "The details of your files are ready. I'll group them into topics – click “Create draft” or tell me anything else."}
+    agent:
+      werkzeuge: [ui_strukturentwurf]
+      hinweis:
+        de: "Rufe ui_strukturentwurf einmal mit aus_inhalten: true auf; thema = worum es in den Dateien geht, nie der Zweck und kein Platzhalter. Nach der Übernahme nicht neu entwerfen."
+        en: "Call ui_strukturentwurf once with aus_inhalten: true; thema = what the files are about, never the purpose and no placeholder. Once accepted, do not draft again."
+      startknopf: {de: Entwurf erstellen, en: Create draft}
+      vorbelegen: true
+      vorgaben:
+        de: |-
+          Der Baum entsteht von unten aus den Materialien der Person (Titel, Beschreibungen, Schlagworte; ohne WLO nur aus Dateinamen):
+          - Ordne nach Themen, worum es in den Materialien geht. Ordnernamen, Dateinamen-Reste, Jahre, Klassen, Arbeitsstände und Formate sind Herkunft, keine Punkte (Eingangsstruktur ist nicht Zielstruktur).
+          - Oben 5 bis 15 Punkte, darunter je 3 bis 20; kein Punkt mit nur einem Unterpunkt. Facetten wie Stufe, Format oder Zielgruppe werden nie Punkte.
+          - Das Thema leitest du aus den Inhalten ab — nie den Zweck als Thema („Unterricht planen“ ist kein Thema) und kein Platzhalter („Themen aus den Dateien“); nenne das gemeinsame Sachgebiet, etwa „Fotosynthese und Zellatmung“.
+          - „Nur, was meine Dateien abdecken“ bzw. „Trotzdem nur meine Dateien“ (Ist): nur Themen, die Materialien tragen; mindestens 2 Punkte oben, auch bei wenigen Materialien (dann trägt ein Material einen Punkt); Einzelkinder vermeiden. „Alles, was zum Stoff gehört“ bzw. „Nach Stoff (Soll)“: ergänze fehlende Themen des Stoffs als Punkte (sie bleiben zunächst leer).
+          - Nach dem Zweck: „Unterricht planen“ als Planungsbaum der eigenen Themen, „Material finden“ nach der Fachsystematik, „Teilen oder Redaktion“ mit publikumsnahen Bezeichnungen, „Überblick für eine Webseite“ die Hauptaspekte in verständlichen Worten.
+        en: |-
+          The tree grows bottom-up from the person's materials (titles, descriptions, keywords; without WLO only file names). The person's answers arrive as German labels:
+          - Order by topics, i.e. what the materials are about. Folder names, file name remnants, years, grades, work states and formats are provenance, not items (input structure is not target structure).
+          - 5 to 15 items at the top, 3 to 20 below each; no item with a single sub-item. Facets such as level, format or audience never become items.
+          - Derive the topic from the content — never use the purpose as the topic ("Unterricht planen" is not a topic) and no placeholder ("topics from the files"); name the shared subject area, e.g. "Photosynthesis and cellular respiration".
+          - "Nur, was meine Dateien abdecken" or "Trotzdem nur meine Dateien" (actual): only topics backed by materials; at least 2 items at the top, even with few materials (then one material may carry an item); avoid single children. "Alles, was zum Stoff gehört" or "Nach Stoff (Soll)" (target): add missing topics of the subject matter as items (they stay empty for now).
+          - By purpose: "Unterricht planen" (plan lessons) as a planning tree of one's own topics, "Material finden" (find material) by subject systematics, "Teilen oder Redaktion" with audience-friendly labels, "Überblick für eine Webseite" (overview for a website) the main aspects in plain words.
+      ausgabe: draft
+      zuege: 3
+    bei_fehler: ohne_entwurf
+  # MAJOR 4: auf dem Ordner-Weg verfeinert die KI den geprüften Entwurf (``vorlage``) mit den
+  # Antworten — Ist: was die Ordner tragen
+  - id: entwurf_ordner
+    typ: agent
+    weiter: ende
+    text: {de: "Danke! Ich verfeinere deinen Entwurf aus den Ordnern – klick auf „Entwurf verfeinern“ oder schreib mir noch etwas dazu.",
+           en: "Thanks! I'll refine your draft from the folders – click “Refine draft” or tell me anything else."}
+    agent:
+      werkzeuge: [ui_strukturentwurf]
+      hinweis:
+        de: "Rufe ui_strukturentwurf einmal mit vorlage: true auf (der geprüfte Entwurf aus den Ordnern). Ordner sind Herkunft. Nach der Übernahme nicht neu entwerfen."
+        en: "Call ui_strukturentwurf once with vorlage: true (the checked draft from the folders). Folders are provenance. Once accepted, do not draft again."
+      startknopf: {de: Entwurf verfeinern, en: Refine draft}
+      vorbelegen: true
+      vorgaben:
+        de: |-
+          Der Entwurf stammt aus den Ordnern der Person und ist von ihr geprüft:
+          - Behalte ihre Punkte, wo sie fachlich sind; Ordnernamen wie Jahre, Klassen, Arbeitsstände oder Formate sind Herkunft, keine Punkte.
+          - Vertiefe nach dem Umfang; oben 5 bis 15 Punkte, darunter je 3 bis 20; kein Punkt mit nur einem Unterpunkt. Facetten wie Stufe, Format oder Zielgruppe werden nie Punkte.
+          - Nur, was die Ordner tragen (Ist) — keine Themen ohne Material dazuerfinden.
+          - Nach dem Zweck: „Unterricht planen“ in Unterrichtsreihenfolge, „Material finden“ nach der Fachsystematik, „Teilen oder Redaktion“ und „Überblick für eine Webseite“ mit publikumsnahen Titeln.
+        en: |-
+          The draft comes from the person's folders and was checked by them (their answers arrive as German labels):
+          - Keep their items where they are about the subject; folder names such as years, grades, work states or formats are provenance, not items.
+          - Deepen according to the scope; 5 to 15 items at the top, 3 to 20 below each; no item with a single sub-item. Facets such as level, format or audience never become items.
+          - Only what the folders cover (actual) — do not invent topics without material.
+          - By purpose: "Unterricht planen" (plan lessons) in teaching order, "Material finden" (find material) by subject systematics, "Teilen oder Redaktion" and "Überblick für eine Webseite" with audience-friendly titles.
+      ausgabe: draft
+      zuege: 3
+    bei_fehler: ohne_entwurf
+  # ── Enden und Auswege ─────────────────────────────────────────────────────────────────────────
+  - id: ende
+    typ: ende
+    text: {de: "Dein Themenbaum-Entwurf ist gespeichert. Als Nächstes kannst du ihn hier im Chat weiter bearbeiten oder herunterladen; Sammlungen daraus anzulegen und mit Inhalten zu befüllen, kommt in einem eigenen Schritt.",
+           en: "Your topic tree draft is saved. Next, you can keep editing it here in the chat or download it; creating collections from it and filling them with content comes as a separate step."}
+  - id: frei
+    typ: ende
+    ausstieg: true
+    text: {de: "Gut, dann ohne Führung – wir machen frei im Chat weiter.",
+           en: "Alright, no guidance then – let's carry on freely in the chat."}
+  - id: ohne_entwurf
+    typ: nachricht
+    text: {de: "Diesmal ist kein Entwurf entstanden. Soll ich es noch einmal versuchen?",
+           en: "No draft came out this time. Shall I try again?"}
+    optionen:
+      - {id: nochmal, label: {de: Nochmal versuchen, en: Try again}, ziel: zum_entwurf}
+      # zweites Review D: wie in ``ohne_daten``
+      - {id: andere, label: {de: Andere Grundlage, en: Different basis}, ziel: grundlage, verwirft: [grundlage, structure, document, weg, metadaten, ordnerweg, soll_ist]}
+      - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  - id: ohne_daten
+    typ: nachricht
+    text: {de: "Damit komme ich noch nicht weiter: Es fehlt ein gelesenes Dokument, ein Ordner mit Unterordnern oder Dateien mit Namen – oder, beim gründlichen Weg, die Übertragung nach WLO. Wähle noch einmal aus, nimm eine andere Grundlage oder mach frei im Chat weiter.",
+           en: "I can't continue with this yet: a read document, a folder with subfolders or files with names are missing – or, on the thorough way, the transfer to WLO. Choose again, take a different basis or carry on freely in the chat."}
+    optionen:
+      # zurück zu ``daten``: Auswahl und Wahl des Wegs sind verworfen — Dokument, Ordner und Dateien
+      # führen wieder zu ihrem Upload-Feld (bereitgestellte Ordner nur, solange ``structure`` da
+      # ist); ein Thema geht zu den Fragen
+      - {id: nochmal, label: {de: Nochmal auswählen, en: Choose again}, ziel: daten, verwirft: [structure, weg]}
+      # MAJOR 3: ein Ausweg, wenn die Grundlage falsch getroffen war
+      - {id: andere, label: {de: Andere Grundlage, en: Different basis}, ziel: grundlage, verwirft: [grundlage, structure, document, weg, metadaten, ordnerweg, soll_ist]}
+      - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  - id: ohne_metadaten
+    typ: nachricht
+    text: {de: "Die Metadaten ließen sich gerade nicht erzeugen oder lesen – der Dienst ist hier nicht eingerichtet oder freigegeben, er ist nicht erreichbar, oder deine Anmeldung ist abgelaufen. Wie soll es weitergehen?",
+           en: "The metadata could not be created or read right now – the service is not set up or enabled here, not reachable, or your sign-in has expired. How shall we continue?"}
+    optionen:
+      - {id: lesen, label: {de: Angaben aus WLO lesen, en: Read details from WLO}, ziel: lesen}
+      - {id: ohne, label: {de: Ohne Angaben aus WLO weiter, en: Continue without WLO details}, ziel: nach_lesen}
+      - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+tests:
+  - name: Thema getippt bis zum Entwurf
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, text: "Optik (Physik)"}
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: ausfuehrlich}
+      - {bei: hinweise, option: keine}
+      - bei: entwurf_thema
+        teile: {draft: {titel: Optik, quelle: ki, knoten: [{titel: Linsen}, {titel: Spiegel}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, entwurf_thema, ende]
+      status: fertig
+      teile: [bereit, vorhaben, grundlage, zweck, stufe, umfang, draft]
+  # MAJOR 3: Teilwörter treffen nicht — der Text ist ein Thema (weitere Fehltreffer prüft
+  # tests/test_tg6_themenbaum.py)
+  - name: Lerninhalte sind ein Thema
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, text: "Lerninhalte der Zellbiologie"}
+      - {bei: wofuer, text: "für eine Webseite"}
+      - {bei: stufe, option: alle}
+      - {bei: umfang, text: "nicht zu fein, eher grob"}
+      - {bei: hinweise, text: "nein"}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, entwurf_thema]
+      status: wartet_ki
+      teile: [grundlage, zweck, umfang]
+  - name: Dokument neu lesen lassen
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, text: "aus meinem Lehrplan"}
+      - bei: dokument_laden
+        antwort: &dokument
+          aktion: dokument
+          struktur: {name: Auswahl, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 0, dateien: 1, inhalte: 0, ignoriert: 0, strukturdokumente: 1, bytes: 1000}
+          strukturdokument: {name: Rahmenlehrplan.pdf, groesse: 1000, endung: pdf}
+          warnungen: []
+          dokument:
+            upload_id: 11111111-1111-4111-8111-111111111111
+            name: Rahmenlehrplan.pdf
+            format: pdf
+            befund: {seiten: 40, woerter: 9000, abschnitte: 12, gliederung_art: ueberschriften, warnungen: []}
+            vorschau: []
+      - {bei: wofuer, option: material}
+      - {bei: stufe, option: beruf}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - bei: entwurf_dokument
+        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, wofuer, stufe,
+            umfang, hinweise, zum_entwurf, entwurf_dokument, ende]
+      status: fertig
+      teile: [document, strukturdokument, draft]
+  - name: Mehrere Dokumente
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: dokument}
+      - bei: dokument_laden
+        antwort:
+          aktion: dokument
+          struktur:
+            name: Lehrpläne
+            dateien: 2
+            alle_dateien: 2
+            kinder: []
+            dateiliste:
+              - {i: 0, name: Lehrplan A.pdf, endung: pdf, groesse: 10, rolle: struktur}
+              - {i: 1, name: Lehrplan B.pdf, endung: pdf, groesse: 10, rolle: struktur}
+          zahlen: {ordner: 1, dateien: 2, inhalte: 0, ignoriert: 0, strukturdokumente: 2, bytes: 20}
+          strukturdokument: {name: Lehrplan A.pdf, groesse: 10, endung: pdf}
+          warnungen: []
+          dokument: &lehrplan_a
+            upload_id: 22222222-2222-4222-8222-222222222222
+            name: Lehrplan A.pdf
+            format: pdf
+            befund: {seiten: 3, woerter: 100, abschnitte: 4, gliederung_art: ueberschriften, warnungen: []}
+            vorschau: [Kapitel 1]
+          dokumente:
+            - *lehrplan_a
+            - upload_id: 33333333-3333-4333-8333-333333333333
+              name: Lehrplan B.pdf
+              format: pdf
+              befund: {seiten: 3, woerter: 100, abschnitte: 4, gliederung_art: ueberschriften, warnungen: []}
+              vorschau: [Kapitel 1]
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek2}
+      - {bei: umfang, option: kompakt}
+      - {bei: hinweise, option: keine}
+      - bei: entwurf_dokument
+        teile: {draft: {titel: Lehrpläne, quelle: dokument, knoten: [{titel: Mechanik}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, wofuer, stufe,
+            umfang, hinweise, zum_entwurf, entwurf_dokument, ende]
+      status: fertig
+      teile: [strukturdokument, draft]
+  - name: Dokument schon gelesen, verwenden
+    teile: {document: {ref: "dokument:11111111-1111-4111-8111-111111111111", name: Rahmenlehrplan.pdf}}
+    eingaben:
+      - {bei: einstieg_mit, option: verwenden}
+      - {bei: wofuer, option: teilen}
+      - {bei: stufe, option: beruf}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - bei: entwurf_dokument
+        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg_mit, daten, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, entwurf_dokument, ende]
+      status: fertig
+  # MINOR 9/12: nach „Anderes wählen“ bleibt ``bereit`` — angemeldet geht der gründliche Weg
+  - name: Dokument da, anderes wählen, Dateien angemeldet
+    teile: {document: {ref: "dokument:11111111-1111-4111-8111-111111111111", name: Alt.pdf}}
+    eingaben:
+      - {bei: einstieg_mit, option: andere}
+      - {bei: grundlage, option: dateien}
+      - {bei: wlo_frage, option: schnell}
+      - {bei: dateien_laden, antwort: &flach
+          {aktion: erfasst,
+           struktur: {name: Unterlagen, dateien: 3, alle_dateien: 3, kinder: [],
+                      dateiliste: [{i: 0, name: 01_Linsen-Gesetz.pdf, endung: pdf, groesse: 10, rolle: inhalt},
+                                   {i: 1, name: Spiegel_Bilder.docx, endung: docx, groesse: 10, rolle: inhalt},
+                                   {i: 2, name: Brechung.pptx, endung: pptx, groesse: 10, rolle: inhalt}]},
+           zahlen: {ordner: 1, dateien: 3, inhalte: 3, ignoriert: 0, strukturdokumente: 0, bytes: 30},
+           strukturdokument: null, warnungen: []}}
+      - {bei: wofuer, option: material}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - {bei: soll_wenig, option: ist}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg_mit, grundlage, dateien_weg, wlo_frage, schnell_da,
+            dateien_laden, dateien_geladen, aus_dateien, wofuer, stufe, umfang,
+            hinweise, zum_entwurf, soll_wenig, entwurf_inhalte]
+      status: wartet_ki
+  # Nachprüfung TG-4–6: ein mehrdeutiger Satz und „Passt so“ bekommen den Hinweis, der Lauf wartet
+  - name: Ordner, anonym, so lassen
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, text: "Dateien aus meinem Ordner"}
+      - {bei: grundlage, text: "Lehrplan nicht, lieber meine Ordner"}
+      - bei: ordner_laden
+        antwort: &ordner
+          aktion: erfasst
+          struktur:
+            name: Physik
+            dateien: 0
+            alle_dateien: 4
+            dateiliste: []
+            kinder:
+              - name: Optik
+                dateien: 2
+                alle_dateien: 2
+                kinder: []
+                dateiliste:
+                  - {i: 0, name: Linsen.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+                  - {i: 1, name: Spiegel.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+              - name: Mechanik
+                dateien: 2
+                alle_dateien: 2
+                kinder: []
+                dateiliste:
+                  - {i: 2, name: Hebel.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+                  - {i: 3, name: Kraft.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+          zahlen: {ordner: 3, dateien: 4, inhalte: 4, ignoriert: 0, strukturdokumente: 0, bytes: 40}
+          strukturdokument: null
+          warnungen: []
+      - bei: ordner_pruefen
+        antwort: &geprueft {titel: Physik, quelle: ordner, knoten: [{id: k1, titel: Optik}, {id: k2, titel: Mechanik}],
+                            uebernommen: true, bearbeitet: false}
+      - {bei: ordner_weiter, text: "Passt so"}
+      - {bei: ordner_weiter, option: lassen}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, aus_ordnern,
+            ordner_pruefen, ordner_weiter, ende]
+      status: fertig
+      teile: [structure, struktur, draft, ordnerweg]
+  - name: Ordner mit Angaben verfeinern
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: ordner}
+      - {bei: ordner_laden, antwort: *ordner}
+      - {bei: ordner_pruefen, antwort: *geprueft}
+      - {bei: ordner_weiter, text: "Ja"}
+      - {bei: ordner_weiter, option: verfeinern}
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: ausfuehrlich}
+      - {bei: hinweise, text: "Experimente nicht vergessen"}
+      - bei: entwurf_ordner
+        teile: {draft: {titel: Physik, quelle: ordner, knoten: [{titel: Optik}, {titel: Mechanik}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, aus_ordnern,
+            ordner_pruefen, ordner_weiter, wofuer, stufe, umfang, hinweise, zum_entwurf,
+            entwurf_ordner, ende]
+      status: fertig
+  # Ordner im Feld nach WLO übertragen (die Ablage schreibt der Endpunkt, hier liegt sie schon da):
+  # erst die Metadaten, dann der Entwurf aus den Ordnern mit den node_ids
+  - name: Ordner nach WLO übertragen und erschließen
+    teile:
+      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
+               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+    werkzeuge:
+      lesen: {format: wlo.metadaten@1, titel: Metadaten zu 1 Inhalten, fehlend: [],
+              inhalte: [{node_id: 11111111-1111-4111-8111-111111111111, i: 0, rolle: inhalt, titel: Linsen}]}
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: ordner}
+      - {bei: ordner_laden, antwort: *ordner}
+      - {bei: metadaten_frage, option: ja}
+      - {bei: metadaten, ergebnis: {status: SUCCEEDED, outputs: {report: []}}}
+      - {bei: ordner_pruefen, antwort: *geprueft}
+      - {bei: ordner_weiter, option: lassen}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, metadaten_frage,
+            metadaten, lesen, nach_lesen, aus_ordnern, ordner_pruefen, ordner_weiter, ende]
+      status: fertig
+      teile: [metadatenlauf, metadaten, draft]
+  - name: Ordner ohne Unterordner wird der Weg Dateien
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: ordner}
+      - {bei: ordner_laden, antwort: *flach}
+      - {bei: wofuer, option: material}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: kompakt}
+      - {bei: hinweise, option: keine}
+      - {bei: soll_wenig, option: ist}
+      - bei: entwurf_inhalte
+        teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, dateien_weg,
+            schnell, schnell_da, aus_dateien, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, soll_wenig, entwurf_inhalte, ende]
+      status: fertig
+      teile: [struktur, metadaten, draft]
+  - name: Dateien anonym aus den Namen
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, text: "aus meinen Dateien"}
+      - {bei: dateien_laden, antwort:
+          {aktion: erfasst,
+           struktur: {name: Unterlagen, dateien: 5, alle_dateien: 5, kinder: [],
+                      dateiliste: [{i: 0, name: Linsen.pdf, endung: pdf, groesse: 10, rolle: inhalt},
+                                   {i: 1, name: Spiegel.pdf, endung: pdf, groesse: 10, rolle: inhalt},
+                                   {i: 2, name: Brechung.pdf, endung: pdf, groesse: 10, rolle: inhalt},
+                                   {i: 3, name: Prismen.pdf, endung: pdf, groesse: 10, rolle: inhalt},
+                                   {i: 4, name: Farben.pdf, endung: pdf, groesse: 10, rolle: inhalt}]},
+           zahlen: {ordner: 1, dateien: 5, inhalte: 5, ignoriert: 0, strukturdokumente: 0, bytes: 50},
+           strukturdokument: null, warnungen: []}}
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: grundschule}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, text: "Experimente"}
+      - {bei: soll_ist, option: soll}
+      - bei: entwurf_inhalte
+        teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, dateien_weg, schnell, schnell_da, dateien_laden,
+            dateien_geladen, aus_dateien, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, soll_ist, entwurf_inhalte, ende]
+      status: fertig
+      teile: [metadaten, draft]
+  - name: Dateien schon erfasst, verwenden, anonym
+    angemeldet: false
+    teile:
+      structure: {struktur: {name: Unterlagen, dateien: 3, alle_dateien: 3, kinder: []},
+                  zahlen: {ordner: 1, dateien: 3, inhalte: 3}}
+      struktur:
+        block_id: b0000001
+        zahlen: {ordner: 1, dateien: 3, inhalte: 3}
+        warnungen: []
+        struktur:
+          name: Unterlagen
+          dateien: 3
+          kinder: []
+          dateiliste:
+            - {i: 0, name: Linsen.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+            - {i: 1, name: Spiegel.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+            - {i: 2, name: Prismen.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+    eingaben:
+      - {bei: einstieg_mit, option: verwenden}
+      - {bei: wofuer, option: material}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - {bei: soll_wenig, option: ist}
+      - bei: entwurf_inhalte
+        teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg_mit, daten, dateien_weg, schnell, schnell_da, aus_dateien,
+            wofuer, stufe, umfang, hinweise, zum_entwurf, soll_wenig, entwurf_inhalte, ende]
+      status: fertig
+  # Gründlich: die Ablage schreibt der Ablage-Endpunkt beim Übertragen (nicht die Antwort) — hier
+  # liegt sie wie danach im Vorgang; der Test beginnt an der Frage nach dem Weg
+  - name: Dateien gründlich über WLO mit Kestra
+    ab: wlo_frage
+    teile:
+      grundlage: Meine Dateien
+      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
+               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+    werkzeuge:
+      lesen: {format: wlo.metadaten@1, titel: Metadaten zu 1 Inhalten, fehlend: [],
+              inhalte: [{node_id: 11111111-1111-4111-8111-111111111111, i: 0, rolle: inhalt,
+                         titel: Linsen, beschreibung: Sammellinsen im Alltag, schlagworte: [Linse],
+                         faecher: [Physik], stufen: [], arten: [], lizenz: CC BY-SA}]}
+    eingaben:
+      - {bei: wlo_frage, text: "Ja, gründlich"}
+      - {bei: wlo_frage, option: gruendlich}
+      - bei: dateien_laden
+        antwort: &uebertragen
+          aktion: uebertragen
+          struktur: {name: Optik, dateien: 1, alle_dateien: 1, kinder: [],
+                     dateiliste: [{i: 0, name: Linsen.pdf, endung: pdf, groesse: 1000, rolle: inhalt}]}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+          ablage: {layout: flach, gesamt: 1, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 0,
+                   ordner_verweigert: false, vorgang_abgelegt: false}
+      - {bei: metadaten_frage, option: ja}
+      - {bei: metadaten, ergebnis: {status: SUCCEEDED, outputs: {report: []}}}
+      - {bei: wofuer, option: material}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - {bei: soll_wenig, option: soll}
+      - bei: entwurf_inhalte
+        teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
+    erwartet:
+      weg: [wlo_frage, dateien_laden, dateien_geladen, metadaten_frage, metadaten, lesen,
+            nach_lesen, schnell_da, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, soll_wenig, entwurf_inhalte, ende]
+      status: fertig
+      teile: [weg, ablage, metadatenlauf, metadaten, draft]
+  - name: Dateien gründlich, aber nichts übertragen
+    ab: wlo_frage
+    teile: {grundlage: Meine Dateien}
+    eingaben:
+      - {bei: wlo_frage, text: "gründlich bitte"}
+      - {bei: wlo_frage, option: gruendlich}
+      - {bei: dateien_laden, antwort: *flach}
+      - {bei: ohne_daten, option: frei}
+    erwartet:
+      weg: [wlo_frage, dateien_laden, dateien_geladen, ohne_daten, frei]
+      status: fertig
+  - name: Kestra scheitert, weiter mit den Dateinamen
+    ab: wlo_frage
+    teile:
+      grundlage: Meine Dateien
+      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
+               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+    eingaben:
+      - {bei: wlo_frage, option: gruendlich}
+      - {bei: dateien_laden, antwort: *uebertragen}
+      - {bei: metadaten_frage, option: ja}
+      - {bei: metadaten, fehler: true}
+      - {bei: ohne_metadaten, option: ohne}
+    erwartet:
+      weg: [wlo_frage, dateien_laden, dateien_geladen, metadaten_frage, metadaten, ohne_metadaten,
+            nach_lesen, schnell_da, aus_dateien, wofuer]
+      status: wartet_wahl
+  - name: Ohne Führung
+    eingaben:
+      - {bei: einstieg, option: ohne}
+    erwartet: {weg: [bereit, vorhanden, einstieg, frei], status: fertig}
+  - name: Nichts Brauchbares hochgeladen, nochmal
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: ordner}
+      - bei: ordner_laden
+        antwort:
+          aktion: erfasst
+          struktur: {name: Leer, dateien: 0, alle_dateien: 0, kinder: [], dateiliste: []}
+          zahlen: {ordner: 1, dateien: 0, inhalte: 0, ignoriert: 0, strukturdokumente: 0, bytes: 0}
+          strukturdokument: null
+          warnungen: []
+      - {bei: ohne_daten, option: nochmal}
+      - {bei: ordner_laden, antwort: *ordner}
+      - {bei: ordner_pruefen, antwort: *geprueft}
+      - {bei: ordner_weiter, option: lassen}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, ohne_daten, daten,
+            ordner_laden, ordner_geladen, aus_ordnern, ordner_pruefen, ordner_weiter, ende]
+      status: fertig
+  # MAJOR 3: falsch getroffen — über „Andere Grundlage“ zurück zur Frage
+  - name: Andere Grundlage nach einem leeren Upload
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: dokument}
+      - bei: dokument_laden
+        antwort:
+          aktion: erfasst
+          struktur: {name: Unterlagen, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+      - {bei: ohne_daten, option: andere}
+      - {bei: grundlage, text: Optik}
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, ohne_daten,
+            grundlage, wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_thema]
+      status: wartet_ki
+  - name: Dokument nicht gelesen, nochmal
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: dokument}
+      - bei: dokument_laden
+        antwort:
+          aktion: erfasst
+          struktur: {name: Unterlagen, dateien: 1, alle_dateien: 1, kinder: []}
+          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
+          strukturdokument: null
+          warnungen: []
+      - {bei: ohne_daten, option: nochmal}
+      - {bei: dokument_laden, antwort: *dokument}
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - bei: entwurf_dokument
+        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, ohne_daten,
+            daten, dokument_laden, dokument_gelesen, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, entwurf_dokument, ende]
+      status: fertig
+  - name: Kein Entwurf, nochmal versuchen
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, text: Säuren}
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek2}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - {bei: entwurf_thema}
+      - {bei: ohne_entwurf, option: nochmal}
+      - bei: entwurf_thema
+        teile: {draft: {titel: Säuren, quelle: ki, knoten: [{titel: pH-Wert}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, entwurf_thema, ohne_entwurf, zum_entwurf, entwurf_thema, ende]
+      status: fertig

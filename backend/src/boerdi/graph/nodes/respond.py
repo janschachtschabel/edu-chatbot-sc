@@ -51,7 +51,7 @@ from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception, cancel_and_drain, merke_zug_aufgabe
 from boerdi.obs.zeiten import schritt
 from boerdi.services import arbeitsstand
-from boerdi.services.ablauf import ki_schritt, wahl_zug
+from boerdi.services.ablauf import ki_schritt, vorbelegung, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.agent_tools import verborgene_werkzeuge
@@ -70,6 +70,7 @@ from boerdi.services.tool_loop_module import (
     DOKUMENT_LADER_KEY,
     MODUL_BLOECKE_KEY,
     TEIL_LADER_KEY,
+    VORBELEGUNG_KEY,
     VORGABEN_KEY,
 )
 from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
@@ -447,14 +448,17 @@ async def respond(
         # Gegenreview 2026-11-05: der Antwort-Zug zählt nicht zu den Folgezügen.
         _letzter = entwurf_merken.rahmen_fuer_zug(_entities, ctx.ui_antwort)
         # U3-2b: ein Dienst (Strukturentwurf ``aus_dokument``) liest das Dokument erst bei Bedarf.
-        session_state[DOKUMENT_LADER_KEY] = dokument_lader(session, req.session_id)
         session_state[TEIL_LADER_KEY] = arbeitsstand.teil_lader(session, req.session_id, _entities)
+        # Plan 2026-11-16, TG-3d: welche Strukturdokumente gelten, sagt der Vorgang (Teil
+        # ``strukturdokument``), sonst alle lesbaren der Sitzung
+        session_state[DOKUMENT_LADER_KEY] = dokument_lader(session, req.session_id,
+                                                           session_state[TEIL_LADER_KEY])
         # Den Verweis hat der Preflight aufgefrischt (``arbeitsstand.auffrischen``).
         _kennzeile = arbeitsstand.kennzeile(_entities, arbeitsstand.aufrufer_fuer(req.session_id))
-        # TW-6: ohne Arbeitsgrundlage lenkt ein Modul-Aufruf auf einen passenden Ablauf um
-        session_state[ablauf_vorschlag.GRUNDLAGE_KEY] = ablauf_vorschlag.arbeitsgrundlage(
-            _entities, arbeitsstand.aufrufer_fuer(req.session_id))
-        session_state.pop(ablauf_vorschlag.UMGELENKT_KEY, None)
+        # TW-6: ohne Arbeitsgrundlage lenkt ein Modul-Aufruf auf einen passenden Ablauf um; ein
+        # zielneutrales Upload-Feld nur bei einem Themenbaum-Wunsch (Review TG-2, M3 c)
+        ablauf_vorschlag.zug_merken(session_state, _entities,
+                                    arbeitsstand.aufrufer_fuer(req.session_id), req.message)
         # Paket A2b: am agent-Schritt eines Laufs die Zeile dazu (Werkzeuge engt nur der Agent ein).
         # Nicht unter einem von der Sicherheitsprüfung vorgegebenen Muster (Review A2b, Befund 1).
         _ki = ki_schritt.fuer_zug(session_state, req.session_id, safety)
@@ -464,6 +468,13 @@ async def respond(
             session_state[VORGABEN_KEY] = (
                 ki_schritt.vorgaben(_ki[1], resolve_locale(req.environment.locale)),
                 frozenset(_ki[1].agent.werkzeuge if _ki[1].agent else ()))
+            # Plan 2026-11-16, TG-5 (G-E8): die Antworten des Laufs belegen den Auftrag vor
+            _vorbelegt = await vorbelegung.vorbelegung(
+                _ki[1], arbeitsstand.teil_lader(session, req.session_id, _entities),
+                ki_schritt.beantwortet(session_state, req.session_id),
+                resolve_locale(req.environment.locale), ablauf=_ki[0])
+            session_state[VORBELEGUNG_KEY] = (
+                _vorbelegt, frozenset(_ki[1].agent.werkzeuge if _ki[1].agent else ()))
             _kennzeile = "\n\n".join(t for t in (_kennzeile, ki_schritt.zeile(
                 *_ki, resolve_locale(req.environment.locale),
                 zuege=ki_schritt.zaehlen(_entities, *_ki), eingeengt=False,
@@ -473,7 +484,8 @@ async def respond(
                 # der Werkzeug-Schleife gelesen, sähe ein späteres ``$teil`` neue Teile nicht.
                 await ki_schritt.daten_zeile(
                     _ki[0], arbeitsstand.teil_lader(session, req.session_id, _entities),
-                    ki_schritt.beantwortet(session_state, req.session_id))) if t)
+                    ki_schritt.beantwortet(session_state, req.session_id)),
+                vorbelegung.zeile(_vorbelegt, resolve_locale(req.environment.locale))) if t)
         elif not req.action and not ablauf_zug.lauf_wartet(req.session_id, session_state) \
                 and (_anmelde := ablauf_zug.anmelde_zeile(
                     req.message, resolve_locale(req.environment.locale),
@@ -576,6 +588,7 @@ async def respond(
         session_state.pop(DOKUMENT_LADER_KEY, None)
         session_state.pop(TEIL_LADER_KEY, None)
         session_state.pop(VORGABEN_KEY, None)
+        session_state.pop(VORBELEGUNG_KEY, None)
         ctx.ui_bloecke = regeln_anwenden(list(session_state.pop(MODUL_BLOECKE_KEY, None) or []))
         entwurf_merken.aus_bloecken(session_state.setdefault("entities", {}), ctx.ui_bloecke)
         if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):

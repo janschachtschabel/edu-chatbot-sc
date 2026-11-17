@@ -4,9 +4,12 @@ Das Modul ``ui_upload`` überträgt einen erfassten Ordner, nachdem die Person d
 und „Jetzt übertragen“ gewählt hat. Kein Zug und keine KI — das Backend reicht an das MCP durch
 (``services/ablage/mcp_ablage``, MA-1…MA-4):
 
-1. ``vorbereiten`` (JSON: Ordnername, je Datei Titel, sha256, Größe, Art) → Vorschau des Servers
-   (normalisierte Namen, Ordner oder flach) und der Freigabe-Schlüssel. Die Vorschau wird Teil
-   ``ablage`` im Vorgang (``services/ablage/vorgang_teil``; nur ein Prüf-Kürzel des Schlüssels).
+1. ``vorbereiten`` (JSON: Ordnername, je Datei Titel, sha256, Größe, Art, Rolle und die feste
+   Nummer ``i`` der Auswahl) → Vorschau des Servers (normalisierte Namen, Ordner oder flach) und der
+   Freigabe-Schlüssel. Die Vorschau wird Teil ``ablage`` im Vorgang
+   (``services/ablage/vorgang_teil``; nur ein Prüf-Kürzel des Schlüssels). Plan 2026-11-16, TG-3b:
+   das MCP zählt die Einträge nach ihrer Stelle (``index`` 0…n−1, auch für ``datei``); ``i`` merkt
+   sich das Backend je Eintrag im Teil — so verknüpft es Ordner (Teil ``struktur``) und Knoten.
 2. ``datei`` (multipart: Schlüssel, Index, Datei — **nacheinander**, eine Datei zur Zeit) → die
    Bytes als Strom in einen Upload-Platz des MCP, dann als Eintrag ``index`` ablegen; der Stand geht
    in den Teil. Ein Index mit endgültigem Stand (auch ``failed``) gibt ihn zurück, ohne das MCP zu
@@ -89,10 +92,15 @@ class Eintrag(BaseModel):
     art: str = Field(pattern=_ART)
     #: W4-Anbindung (MCP-Stand 2026-11-08): Strukturdokument oder Inhalt — Teil der Freigabe.
     rolle: str = Field(default="inhalt", pattern=r"^(inhalt|struktur)$")
+    #: Plan 2026-11-16, TG-3b: die feste Nummer der Datei in der Auswahl (``i`` im Teil
+    #: ``struktur``); geht nicht an das MCP. Fehlt bei einem Widget vor TG-3b.
+    i: int | None = Field(default=None, ge=0, le=4999)
 
 
 #: Review W4, Befund 4: die Regel des Moduls (``upload-rollen.ts``), am öffentlichen Endpunkt.
 _STRUKTUR_ARTEN = frozenset({"pdf", "docx", "txt", "md"})
+#: TG-3e: wie ``dokumente/ablage.MAX_JE_SITZUNG`` und ``MAX_STRUKTUR`` im Modul.
+_STRUKTUR_HOECHSTENS = 5
 
 
 class Vorbereiten(BaseModel):
@@ -104,8 +112,15 @@ class Vorbereiten(BaseModel):
     @model_validator(mode="after")
     def _ein_strukturdokument(self) -> Vorbereiten:
         struktur = [e for e in self.eintraege if e.rolle == "struktur"]
-        if len(struktur) > 1 or any(e.art not in _STRUKTUR_ARTEN for e in struktur):
-            raise ValueError("höchstens ein Strukturdokument (pdf, docx, txt, md)")
+        # Plan 2026-11-16, TG-3e: bis zu fünf Strukturdokumente (wie ``upload-rollen.ts``); das
+        # MCP nimmt je Eintrag eine Rolle und begrenzt ihre Zahl nicht
+        if (len(struktur) > _STRUKTUR_HOECHSTENS
+                or any(e.art not in _STRUKTUR_ARTEN for e in struktur)):
+            raise ValueError("höchstens fünf Strukturdokumente (pdf, docx, txt, md)")
+        nummern = [e.i for e in self.eintraege if e.i is not None]
+        if len(set(nummern)) != len(nummern):
+            # TG-3b: eine Nummer verknüpft genau eine Datei — doppelt wäre die Zuordnung falsch
+            raise ValueError("jede Nummer i höchstens einmal")
         return self
 
 
@@ -214,7 +229,10 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
     letzte = await _letzte_abwarten(liste)
     token = str(plan["batchToken"])
     rollen = [e.rolle for e in anfrage.eintraege]
-    teil = vorgang_teil.aus_plan(plan, token, anfrage.block_id, vorher, rollen=rollen)
+    # TG-3b: Stelle in der Freigabe → feste Nummer der Auswahl
+    nummern = [e.i for e in anfrage.eintraege]
+    teil = vorgang_teil.aus_plan(plan, token, anfrage.block_id, vorher, rollen=rollen,
+                                 nummern=nummern)
 
     dazwischen = False
 
@@ -227,7 +245,8 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
             dazwischen = True
             return None
         # Review W4, Befund 1: der GESPEICHERTE Teil (die erbetene Rolle kam nur in die Antwort).
-        return vorgang_teil.aus_plan(plan, token, anfrage.block_id, frisch, rollen=rollen)
+        return vorgang_teil.aus_plan(plan, token, anfrage.block_id, frisch, rollen=rollen,
+                                     nummern=nummern)
 
     if not await vorgang_teil.speichern(session, anfrage.session_id, entities, teil, neu=neu):
         # Der wahre Grund statt „noch einmal versuchen“ (Review 2026-11-07, UI-Backend Befund 6).

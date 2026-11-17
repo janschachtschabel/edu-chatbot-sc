@@ -519,3 +519,35 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
   });
 });
 
+
+// Plan 2026-11-16, TG-3b: die Freigabe trägt je Datei ihre feste Nummer `i` aus der Auswahl — nicht
+// die Stelle in der gefilterten Übertragungsliste.
+describe('<boerdi-ui-upload> feste Nummer je Datei (TG-3b)', () => {
+  it('eine zu große Datei fehlt in der Freigabe — die übrigen behalten ihr `i`', async () => {
+    const h = host();
+    backend(h);
+    const el = document.createElement('boerdi-ui-upload') as NachladeElement;
+    el.host = h;
+    el.daten = { ...DATEN, grenzen: { ...DATEN.grenzen, max_mb_ablage: 1 } };
+    el.kontext = KONTEXT;
+    el.beschaeftigt = false;
+    document.body.appendChild(el);
+    const wurzel = el.shadowRoot as ShadowRoot;
+    const input = wurzel.querySelector('input[webkitdirectory]') as HTMLInputElement;
+    // sortiert nach Pfad: 0 Grosse.pdf (2 MB, über der Grenze der Ablage), 1 Hebel.pdf, 2 Linse.pdf
+    Object.defineProperty(input, 'files', {
+      value: [datei('Physik/Hebel.pdf'), datei('Physik/Grosse.pdf', 2 * 1024 * 1024), datei('Physik/Linse.pdf')],
+      configurable: true,
+    });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await warte();
+    const nummern = (h.vormerken.mock.calls.at(-1)?.[0] as { struktur: { dateiliste: { name: string; i: number }[] } })
+      .struktur.dateiliste.map((d) => [d.name, d.i]);
+    expect(nummern).toEqual([['Grosse.pdf', 0], ['Hebel.pdf', 1], ['Linse.pdf', 2]]);
+    knopf(wurzel, 'Übertragen vorbereiten …')!.click();
+    for (let n = 0; n < 10 && !knopf(wurzel, 'Jetzt übertragen'); n++) await warte();
+    const vorbereiten = h.ablegen.mock.calls[0][0];
+    expect(vorbereiten.eintraege.map((e: { titel: string; i: number }) => [e.titel, e.i]))
+      .toEqual([['Hebel', 1], ['Linse', 2]]);
+  });
+});

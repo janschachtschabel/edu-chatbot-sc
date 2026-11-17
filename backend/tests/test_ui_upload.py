@@ -31,7 +31,7 @@ def _antwort_daten(aktion: str = "erfasst", name: str = "Physik 7") -> dict:
 
 def _offen() -> dict:
     block = UiBlock(block_id="b0000001", modul=UPLOAD, version=1, art="abfragen",
-                    daten={"zweck": "sammlungsstruktur"}, text="t", status="offen")
+                    daten={"zweck": "bereitstellen"}, text="t", status="offen")
     entities: dict = {}
     antwort.merke_frage(entities, block)
     return entities[antwort.OFFENE_FRAGE]
@@ -50,12 +50,12 @@ def stapel_ablage(monkeypatch):
 
 
 def test_der_dienst_zeigt_das_auswahlfeld_mit_grenzen_und_schaltern(stapel_ablage):
-    args = {"zweck": "sammlungsstruktur", "hinweis": "Wähle"}
+    args = {"zweck": "bereitstellen", "hinweis": "Wähle"}
     erg = asyncio.run(dienst.aufruf(_manifest(), args, Umgebung()))
     assert erg.block is not None
     assert erg.block.modul == UPLOAD and erg.block.art == "abfragen"
     d = erg.block.daten
-    assert d["zweck"] == "sammlungsstruktur" and d["hinweis"] == "Wähle"
+    assert d["zweck"] == "bereitstellen" and d["hinweis"] == "Wähle"
     assert d["grenzen"] == {"max_dateien": 500, "max_tiefe": 8, "max_mb_datei": 50,
                             "max_mb_ablage": 10}
     # Nutzer-Entscheid 2026-11-10: Lesen und Entwurf auch anonym (das Repositorium ist nicht
@@ -120,6 +120,51 @@ def test_review_1611_n10_ablage_im_studio_aus_ohne_hinweis(monkeypatch, stapel_a
                         lambda: UploadSettings(ablage_in_wlo=False))
     monkeypatch.setattr(dienst_upload, "has_personal_auth", lambda: False)
     assert "ablage_nach_anmeldung" not in dienst_upload.schalter()
+
+
+def test_tg2_der_zweck_bereitstellen_ist_eine_konstante():
+    """Review TG-2, n3: eine Stelle für den neutralen Zweck (Vorgang, Umlenkung, Manifest)."""
+    import pathlib
+
+    from boerdi.ui_module.namen import ZWECK_BEREITSTELLEN
+
+    assert ZWECK_BEREITSTELLEN in _manifest()["dienst"]["parameter"]["properties"]["zweck"]["enum"]
+    quellen = pathlib.Path(__file__).parents[1] / "src" / "boerdi"
+    mit_wort = {p.name for p in quellen.rglob("*.py") if '"bereitstellen"' in p.read_text("utf-8")}
+    assert mit_wort == {"namen.py"}
+
+
+def test_tg2_eine_alte_ordner_antwort_setzt_den_wartenden_lauf_aus_ordnern_fort():
+    """Testlücke aus dem Review: eine alte Antwort ``ordner_als_entwurf`` aus einem offenen Verlauf
+    geht über ``antwort_pruefen`` (die Simulation nutzt denselben Weg wie der Betrieb) in den
+    wartenden Lauf „aus Ordnern“ und führt bis zum Entwurf."""
+    import pathlib
+
+    import yaml
+
+    from boerdi.domain.config_models.ablauf import AblaufArea, AblaufTest
+    from boerdi.services.ablauf import simulation
+
+    datei = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe" / "sammlungsstruktur.yaml"
+    ablauf = AblaufArea.model_validate(yaml.safe_load(datei.read_text(encoding="utf-8")))
+    test = AblaufTest.model_validate({
+        "name": "Alte Antwort", "eingaben": [
+            {"bei": "einstieg", "option": "ja"},
+            {"bei": "erfassen", "antwort": {**_antwort_daten("ordner_als_entwurf"),
+                                           "strukturdokument": None,
+                                           "zahlen": {**_antwort_daten()["zahlen"],
+                                                      "strukturdokumente": 0}}}],
+        "erwartet": {"weg": ["bereit", "vorhanden", "einstieg", "erfassen", "entwurf",
+                             "bearbeiten"],
+                     "status": "wartet_person"}})
+    ergebnis = asyncio.run(simulation.testen(ablauf, test))
+    assert ergebnis.ok, ergebnis.abweichungen
+
+
+def test_tg2_der_alte_zweck_sammlungsstruktur_bleibt_gueltig(stapel_ablage):
+    """Plan 2026-11-16, TG-2: Abläufe und ein älterer Master-Skill nennen noch den alten Zweck."""
+    erg = asyncio.run(dienst.aufruf(_manifest(), {"zweck": "sammlungsstruktur"}, Umgebung()))
+    assert erg.block is not None and erg.block.daten["zweck"] == "sammlungsstruktur"
 
 
 def test_der_dienst_lehnt_falsche_argumente_ab():
@@ -213,7 +258,7 @@ def test_die_uebersicht_kuerzt_mit_marke():
 
 def test_frage_satz_und_vorsatz_mit_ui_upload():
     block = UiBlock(block_id="b0000002", modul=UPLOAD, version=1, art="abfragen",
-                    daten={"zweck": "sammlungsstruktur"}, text="t", status="offen")
+                    daten={"zweck": "bereitstellen"}, text="t", status="offen")
     assert antwort.frage_satz([block]) == "agent.frage"
     geprueft = _pruefe(_antwort_daten())
     # der gemerkte Entwurf (U2) bleibt neben einer Upload-Antwort stehen
@@ -221,18 +266,134 @@ def test_frage_satz_und_vorsatz_mit_ui_upload():
     assert vorsatz.endswith("[DEIN LETZTER ENTWURF]")
 
 
-def test_bei_ordner_als_entwurf_liest_die_sicherheitspruefung_jeden_entwurfspunkt():
-    """Review U3-1, Befund 6: die Übersicht ist gedeckelt, der Entwurf nimmt aber bis zu 30 obere
-    Ordner — auch ein später oberer Ordner muss im Sicherheitstext stehen."""
-    daten = _antwort_daten("ordner_als_entwurf")
+# ── Plan 2026-11-16, TG-2: zielneutrale Rahmen, alte Antworten werden noch angenommen ──────────
+
+def test_tg2_der_ordner_rahmen_ist_neutral_und_laesst_fragen():
+    """G-E5 (Wortlaut nach Review TG-2, M3): der Rahmen sagt, was bereitliegt — keine Anweisung,
+    einen Entwurf zu rufen. Unklar → kurz fragen; klar → den Ablauf rufen bzw. vorschlagen (ein
+    Vorschlag IST ein Werkzeugaufruf ``ablauf-…``, darum kein „ruf kein Werkzeug“ mehr)."""
+    text = antwort.antwort_block(_pruefe(_antwort_daten()))
+    assert "ui_strukturentwurf" not in text and "Themenbaum-Entwurf" not in text
+    assert "Geht aus dem Verlauf und der Nachricht nicht hervor, was sie mit den Daten will" in text
+    assert "frag kurz und nenne passende Möglichkeiten" in text
+    assert "ruf den passenden Ablauf auf bzw. schlag ihn vor" in text
+    assert "Entwirf nichts ungefragt." in text
+    assert "ruf kein Werkzeug von selbst" not in text
+
+
+def _mit_schaltern(monkeypatch, **werte):
+    from boerdi.ui_module import dienst_upload
+
+    monkeypatch.setattr(dienst_upload, "schalter", lambda: {
+        "dokument_im_chat": False, "ablage_in_wlo": False, **werte})
+
+
+def test_m2_die_moeglichkeiten_folgen_den_schaltern_des_zugs(monkeypatch):
+    """Review TG-2, m2: nur nennen, was hier geht — kein Übertragen ohne Ablage oder Anmeldung, kein
+    „mit dem Dokument arbeiten“ ohne Dokument."""
+    _mit_schaltern(monkeypatch)
+    ordner = antwort.antwort_block(_pruefe(_antwort_daten()))
+    assert "einen Themenbaum daraus" in ordner
+    assert "nach WLO übertragen" not in ordner and "mit dem Dokument arbeiten" not in ordner
+    assert "das Strukturdokument lesen lassen" not in ordner
+    _mit_schaltern(monkeypatch, ablage_in_wlo=True, dokument_im_chat=True)
+    ordner = antwort.antwort_block(_pruefe(_antwort_daten()))
+    assert "die Dateien nach WLO übertragen" in ordner
+    assert "das Strukturdokument lesen lassen" in ordner      # markiert und lesbar
+    dokument = antwort.antwort_block(_pruefe(_dokument_daten()))
+    assert "mit dem Dokument arbeiten" in dokument and "die Dateien nach WLO übertragen" in dokument
+    assert "das Strukturdokument lesen lassen" not in dokument
+
+
+
+def test_zweites_review_n11_themenbaum_nur_wenn_angeboten(monkeypatch):
+    """Zweites Review TG-2, NIT 11: „einen Themenbaum daraus“ nur, wenn es dafür etwas gibt — ein
+    Themenbaum-Ablauf oder ``ui_strukturentwurf``; sonst verspräche der Rahmen einen Weg."""
+    from boerdi.services.ablauf import ausloeser
+    from boerdi.ui_module import schalter
+
+    _mit_schaltern(monkeypatch)
+    monkeypatch.setattr(schalter, "aktiv", lambda modul: False)
+    monkeypatch.setattr(ausloeser, "vorschlaege", lambda: [])
+    text = antwort.antwort_block(_pruefe(_antwort_daten()))
+    assert "einen Themenbaum daraus" not in text
+    assert "frag kurz und nenne passende Möglichkeiten" in text
+    monkeypatch.setattr(schalter, "aktiv", lambda modul: modul == "ui_strukturentwurf")
+    assert "einen Themenbaum daraus" in antwort.antwort_block(_pruefe(_antwort_daten()))
+
+def test_nachpruefung_n8_der_entwurfsweg_passt_zur_art(monkeypatch):
+    """Nachprüfung TG-2, NIT 8: ohne ``ui_strukturentwurf`` zählt für Ordner nur ein Ablauf mit
+    Entwurf aus Ordnern, für ein Dokument nur einer mit Entwurf aus dem Dokument."""
+    import pathlib
+
+    import yaml
+
+    from boerdi.domain.config_models.ablauf import AblaufArea
+    from boerdi.services.ablauf import ausloeser
+    from boerdi.ui_module import schalter
+
+    seeds = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe"
+    ordner_ablauf = AblaufArea.model_validate(yaml.safe_load(
+        (seeds / "sammlungsstruktur.yaml").read_text(encoding="utf-8")))
+    dokument_ablauf = AblaufArea.model_validate(yaml.safe_load(
+        (seeds / "themenbaum_aus_dokument.yaml").read_text(encoding="utf-8")))
+    _mit_schaltern(monkeypatch)
+    monkeypatch.setattr(schalter, "aktiv", lambda modul: False)
+    monkeypatch.setattr(ausloeser, "vorschlaege", lambda: [ordner_ablauf])
+    assert "einen Themenbaum daraus" in antwort.antwort_block(_pruefe(_antwort_daten()))
+    assert "einen Themenbaum daraus" not in antwort.antwort_block(_pruefe(_dokument_daten()))
+    monkeypatch.setattr(ausloeser, "vorschlaege", lambda: [dokument_ablauf])
+    assert "einen Themenbaum daraus" not in antwort.antwort_block(_pruefe(_antwort_daten()))
+    assert "einen Themenbaum daraus" in antwort.antwort_block(_pruefe(_dokument_daten()))
+
+
+def test_m2_erfasst_liest_die_sicherheitspruefung_jeden_entwurfspunkt():
+    """Review TG-2, M2 (früher Review U3-1, Befund 6, für ``ordner_als_entwurf``): der Ablauf „aus
+    Ordnern“ baut aus ``erfasst`` den ganzen Entwurf — die Übersicht ist gedeckelt, der Entwurf
+    nimmt aber bis zu 30 obere Ordner. Auch ein später oberer Ordner steht im Sicherheitstext."""
+    daten = _antwort_daten("erfasst")
     gross = [{"name": "u" * 100, "dateien": 0, "alle_dateien": 0, "kinder": []} for _ in range(40)]
     daten["struktur"]["kinder"] = [{"name": "Erster", "dateien": 0, "alle_dateien": 0,
                                     "kinder": gross}] + [
         {"name": f"Oben {i}", "dateien": 0, "alle_dateien": 0, "kinder": []} for i in range(2, 30)]
     daten["struktur"]["kinder"].append({"name": "Spaeter Boese", "dateien": 0, "alle_dateien": 0,
                                         "kinder": []})
+    from boerdi.ui_module.upload_antwort import uebersicht
+
+    assert "Spaeter Boese" not in uebersicht(daten["struktur"])       # die Übersicht reicht nicht
     text = antwort.sicherheits_text("Hallo", _pruefe(daten))
     assert "Spaeter Boese" in text and text.index("Spaeter Boese") < text.index("Hallo")
+
+
+def test_m2_ohne_unterordner_kein_entwurf_im_sicherheitstext():
+    daten = _antwort_daten()
+    daten["struktur"]["kinder"] = []
+    daten["struktur"]["alle_dateien"] = 1
+    text = antwort.sicherheits_text("Hallo", _pruefe(daten))
+    assert "Physik 7" in text and text.index("Physik 7") < text.index("Hallo")
+
+
+def test_tg2_eine_alte_antwort_ordner_als_entwurf_gilt_als_erfasst():
+    """G-E4: offene Verläufe mit dem alten Knopf — angenommen wie „Senden“, ohne Entwurf."""
+    geprueft = _pruefe(_antwort_daten("ordner_als_entwurf"))
+    assert geprueft is not None and geprueft["daten"]["aktion"] == "erfasst"
+    text = antwort.antwort_block(geprueft)
+    assert text.startswith("[ORDNER DER PERSON") and "Die Person hat den Befund geschickt." in text
+    gelesen = antwort.sicherheits_text("Hallo", geprueft)
+    assert "01_Mechanik" in gelesen and gelesen.index("01_Mechanik") < gelesen.index("Hallo")
+
+
+def test_tg2_eine_alte_dokument_antwort_mit_ziel_gilt_ohne_ziel():
+    geprueft = _pruefe(_dokument_daten(ziel="themenbaum"))
+    assert geprueft is not None and "ziel" not in geprueft["daten"]["dokument"]
+    text = antwort.antwort_block(geprueft)
+    assert text.startswith("[DOKUMENT DER PERSON") and "aus_dokument" not in text
+
+
+def test_tg2_das_anheben_aendert_die_eingabe_nicht():
+    daten = _dokument_daten(ziel="themenbaum")
+    _pruefe(daten)
+    assert daten["dokument"]["ziel"] == "themenbaum"
 
 
 # ── Probe 2026-11-10 (Lehrplan-PDF → Themenbaum): markiert, aber nicht gelesen ──
@@ -268,12 +429,13 @@ def test_bei_abgeschaltetem_lesen_nennt_der_rahmen_das_studio(monkeypatch):
 def test_mit_erlaubtem_lesen_verweist_der_rahmen_auf_den_knopf(monkeypatch):
     text = _nicht_gelesen_rahmen(monkeypatch, im_chat=True, ohne=False, person=True)
     assert "NICHT gelesen" in text
-    assert "Themenbaum aus dem Strukturdokument erstellen" in text
+    # TG-2: neutral — der Knopf heißt „Lesen lassen“, kein Ziel; Review M3 (d): das Feld erst
+    # zeigen, wenn die Person es will
+    assert "„Lesen lassen“" in text and "Strukturdokument erstellen" not in text
+    assert "erst, wenn sie das will" in text
 
 
-def test_ohne_strukturdokument_oder_beim_ordner_entwurf_kein_satz_zum_lesen(monkeypatch):
-    assert "NICHT gelesen" not in _nicht_gelesen_rahmen(
-        monkeypatch, im_chat=True, ohne=False, person=False, aktion="ordner_als_entwurf")
+def test_ohne_strukturdokument_kein_satz_zum_lesen():
     daten = _antwort_daten()
     daten["strukturdokument"] = None
     daten["zahlen"]["strukturdokumente"] = 0
@@ -289,17 +451,19 @@ def _dokument_daten(**mehr) -> dict:
     daten = _antwort_daten(aktion="dokument")
     daten["dokument"] = {
         "upload_id": _UPLOAD_ID, "name": "Lehrplan Physik.pdf", "format": "pdf",
-        "ziel": "themenbaum",
         "befund": {"seiten": 12, "woerter": 3400, "abschnitte": 9,
                    "gliederung_art": "nummeriert", "warnungen": ["bilder_entfernt"]},
         "vorschau": ["1 Mechanik", "2 Optik"], **mehr}
     return daten
 
 
-def test_dokument_rahmen_nennt_befund_ziel_und_ueberschriften_aber_keinen_text():
+def test_dokument_rahmen_nennt_befund_und_ueberschriften_aber_keinen_text():
     text = antwort.antwort_block(_pruefe(_dokument_daten()))
     assert text.startswith("[DOKUMENT DER PERSON") and text.rstrip().endswith("[ENDE DOKUMENT]")
-    assert "aus_dokument: true" in text and "Lehrplan Physik.pdf" in text
+    assert "Lehrplan Physik.pdf" in text
+    # TG-2 (G-E5): neutral — keine Anweisung zum Entwurf, die KI fragt, was die Person will
+    assert "aus_dokument" not in text and "ui_strukturentwurf" not in text
+    assert "frag kurz und nenne passende Möglichkeiten" in text
     assert "12 Seiten" in text and "9 Abschnitte" in text and "- 2 Optik" in text
     assert "Bilder" in text
     assert "[ENDE ORDNER]" not in text
@@ -413,9 +577,12 @@ def test_rueckmeldung_1611_der_wlo_weg_ist_ab_werk_freigegeben():
     from boerdi.services.auftraege import client
 
     assert "edusharing.chatbot/node-metadata-write" in client.WERKSVORGABE
-    ablauf = yaml.safe_load((seeds / "06-ablaeufe" / "themenbaum_aus_inhalten.yaml")
-                            .read_text(encoding="utf-8"))
-    assert ablauf["aktiv"] is True and ablauf["voraussetzungen"] == ["anmeldung"]
+    # Plan 2026-11-16, TG-6: den WLO-Weg trägt jetzt „Themenbaum erstellen“ (ab Werk an, ohne
+    # Voraussetzung — angemeldet auf dem gründlichen Weg mit dem Metadaten-Auftrag)
+    ablauf = yaml.safe_load((seeds / "06-ablaeufe" / "themenbaum.yaml").read_text(encoding="utf-8"))
+    assert ablauf["aktiv"] is True
+    assert any(s.get("flow") == "edusharing.chatbot/node-metadata-write"
+               for s in ablauf["schritte"])
 
 
 def test_review_1611_m5_die_quittung_verneint_die_ablage_nicht(monkeypatch, stapel_ablage):

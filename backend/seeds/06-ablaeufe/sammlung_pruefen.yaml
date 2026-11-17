@@ -72,10 +72,17 @@ schritte:
   - id: ende
     typ: ende
     text: {de: "Fertig. Dein Entwurf bleibt gespeichert.", en: "Done. Your draft stays saved."}
+  # Plan 2026-11-16, TG-6 (kein stummes Ende): ohne Unterordner ein neuer Versuch oder das Ende
   - id: ohne_ordner
+    typ: nachricht
+    text: {de: "Ohne Unterordner gibt es noch keinen Entwurf zum Abgleichen. Wähle einen Ordner mit Unterordnern – oder beende den Ablauf.",
+           en: "Without subfolders there is no draft to compare yet. Choose a folder with subfolders – or end the workflow."}
+    optionen:
+      - {id: nochmal, label: {de: Nochmal wählen, en: Choose again}, ziel: erfassen}
+      - {id: beenden, label: {de: Beenden, en: End}, ziel: beendet}
+  - id: beendet
     typ: ende
-    text: {de: "Ohne Unterordner gibt es noch keinen Themenbaum.",
-           en: "Without subfolders there is no topic tree yet."}
+    text: {de: "Gut, ich höre hier auf.", en: "Alright, I'll stop here."}
 # Der Entwurf entsteht in den Tests echt aus der Ordnerstruktur (reiner Dienst); nur die Zählung
 # in WLO ist nachgestellt.
 tests:
@@ -88,7 +95,9 @@ tests:
   - name: Ohne Unterordner
     ab: entwurf
     teile: {structure: {struktur: {name: Physik}}}
-    erwartet: {weg: [entwurf, ohne_ordner], status: fertig}
+    eingaben:
+      - {bei: ohne_ordner, option: beenden}
+    erwartet: {weg: [entwurf, ohne_ordner, beendet], status: fertig}
   # So sieht ein Ausfall der Zählung im Betrieb aus (Querschnitts-Review AS-8, Befund 1).
   - name: Zählung ohne Ergebnis
     ab: entwurf

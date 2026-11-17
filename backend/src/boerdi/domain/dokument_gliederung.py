@@ -12,6 +12,10 @@ Gliederung entsteht deshalb in drei Stufen:
 Höchstens :data:`MAX_ABSCHNITTE` Abschnitte (die tiefsten Ebenen fallen zuerst weg). Kennungen
 ``a1``, ``a2`` … der Reihe nach. Der Dienst des Entwurfs liest die Abschnitte per Kennung
 serverseitig (:func:`abschnitt_text`); an die KI geht nur die gedeckelte :func:`uebersicht`.
+
+Plan 2026-11-16, TG-3e: mehrere Dokumente werden eines (:func:`zusammenfuehren`) — je Dokument ein
+Abschnitt oberster Ebene (``d1``, Titel = Name), seine Abschnitte eine Ebene tiefer mit Präfix
+(``d1-a3``). So gelten Gliederung, Auszug und Deckel des Generators für alle zusammen.
 """
 
 from __future__ import annotations
@@ -137,13 +141,15 @@ def gliederung(md: str) -> tuple[list[Abschnitt], GliederungArt]:
     return abschnitte, art
 
 
-def uebersicht(abschnitte: list[Abschnitt], max_zeichen: int) -> tuple[str, bool]:
-    """Eingerückte Liste der Titel bis Ebene 3; abgeschnitten mit Marke, wenn sie zu lang wird —
-    die Marke zählt mit, das Ergebnis bleibt ≤ ``max_zeichen``."""
+def uebersicht(abschnitte: list[Abschnitt], max_zeichen: int, bis_ebene: int = 3
+               ) -> tuple[str, bool]:
+    """Eingerückte Liste der Titel bis Ebene ``bis_ebene`` (sonst 3; TG-3e: 4 bei mehreren
+    Dokumenten, weil jedes eine Ebene vorne dazubekommt); abgeschnitten mit Marke, wenn sie zu lang
+    wird — die Marke zählt mit, das Ergebnis bleibt ≤ ``max_zeichen``."""
     zeilen: list[str] = []
     laenge = 0
     for a in abschnitte:
-        if a.ebene > 3:
+        if a.ebene > bis_ebene:
             continue
         zeile = f"{'  ' * (a.ebene - 1)}- {a.titel} [{a.id}]"
         if laenge + len(zeile) + 1 + len(_GEKUERZT) > max_zeichen:
@@ -175,3 +181,42 @@ def abschnitt_text(md: str, abschnitte: list[Abschnitt], ids: list[str], max_zei
         return ""
     je = max(1, (max_zeichen - len(gewaehlt)) // len(gewaehlt))
     return "\n".join(md[a.start:a.ende].strip()[:je] for a in gewaehlt)[:max_zeichen]
+
+
+#: TG-3e: Kennung eines Dokuments beim Zusammenführen (``d1`` …) und Trenner zum Abschnitt.
+DOKUMENT_KENNUNG: Final = "d{n}"
+PRAEFIX_TRENNER: Final = "-"
+
+
+def zusammenfuehren(dokumente: list[tuple[str, list[Abschnitt], str]]
+                    ) -> tuple[list[Abschnitt], str]:
+    """Plan 2026-11-16, TG-3e: ``(Name, Abschnitte, Markdown)`` je Dokument → ein Dokument.
+
+    Jedes Dokument wird ein Abschnitt oberster Ebene (``d1`` … mit dem Namen als Titel und einer
+    Überschrift ``# Name`` im Text); seine Abschnitte rücken eine Ebene tiefer und bekommen den
+    Präfix (``d1-a3``). Die Stellen verschieben sich mit — :func:`abschnitt_text` und
+    :func:`mit_unterabschnitten` gelten unverändert. Mit einem Dokument nicht nötig (der Aufrufer
+    nimmt es dann so, wie es ist)."""
+    abschnitte: list[Abschnitt] = []
+    stuecke: list[str] = []
+    pos = 0
+    for n, (name, eigene, md) in enumerate(dokumente, 1):
+        kennung = DOKUMENT_KENNUNG.format(n=n)
+        titel = _eine_zeile(name) or f"Dokument {n}"
+        kopf = f"# {titel}\n\n"
+        versatz = pos + len(kopf)
+        # Der Abschnitt des Dokuments trägt seinen Vorspann bis zum ersten eigenen Abschnitt.
+        abschnitte.append(Abschnitt(id=kennung, ebene=1, titel=titel, start=pos,
+                                    ende=versatz + (eigene[0].start if eigene else len(md))))
+        abschnitte += [Abschnitt(id=f"{kennung}{PRAEFIX_TRENNER}{a.id}", ebene=a.ebene + 1,
+                                 titel=a.titel, start=a.start + versatz, ende=a.ende + versatz)
+                       for a in eigene]
+        stuecke.append(kopf + md)
+        pos += len(kopf) + len(md) + 2          # die Leerzeile zwischen zwei Dokumenten
+    return abschnitte, "\n\n".join(stuecke)
+
+
+def dokument_von(kennung: str) -> str | None:
+    """TG-3e: ``d1-a3`` → ``d1``; ``None`` für eine Kennung ohne Präfix (ein Dokument)."""
+    kopf, trenner, _ = kennung.partition(PRAEFIX_TRENNER)
+    return kopf if trenner and kopf.startswith("d") else None

@@ -56,6 +56,7 @@ async def pruefung_fehlt(ctx: TurnContext, session: AsyncSession) -> TurnContext
         turn_count=int(ctx.session_state.get("turn_count") or 0),
         response_length=len(absage), cards_count=0,
         page=ctx.req.environment.page, device=ctx.req.environment.device,
+        ui_antwort=ctx.ui_antwort,
     )
     return ctx
 

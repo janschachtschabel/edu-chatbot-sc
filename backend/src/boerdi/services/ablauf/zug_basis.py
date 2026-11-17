@@ -55,7 +55,41 @@ def umgebung(session: Any, req: ChatRequest, entities: dict[str, Any],
                             # AS-7a (F-6): die Seite dieses Zugs — für ``wenn_seite`` und Ankunft
                             seite=req.environment.page or "/",
                             # AS-8a (P-6): Probe der Studio-Vorschau — der Lauf merkt es sich
-                            probe=probe.recht())
+                            probe=probe.recht(),
+                            # Zweites Review TG-2 (MINOR 5): nur ein lesbares Dokument liegt bereit
+                            dokument_id=lambda: arbeitsstand.lesbares_dokument(
+                                session, req.session_id),
+                            # Plan 2026-11-16, TG-3e: bis zu fünf lesbare Dokumente
+                            dokument_ids=lambda: arbeitsstand.lesbare_dokument_ids(
+                                session, req.session_id),
+                            # Plan 2026-11-16, TG-6: die Systemfelder des Upload-Dienstes —
+                            # „gründlich über WLO“ fragt der Ablauf nur, wenn das Feld ablegen kann
+                            wlo_ablage=_wlo_ablage,
+                            # Review TG-4–6, MINOR 8: „gründlich“ braucht auch den Metadaten-Flow
+                            wlo_erschliessen=_wlo_erschliessen)
+
+
+#: Der Kestra-Flow, der die Metadaten der abgelegten Inhalte erzeugt (Seed „Themenbaum erstellen“).
+METADATEN_FLOW: Final = "edusharing.chatbot/node-metadata-write"
+
+
+def _wlo_ablage() -> bool:
+    """TG-6: bietet das Upload-Feld die Ablage in WLO an (Studio-Schalter, MCP, Anmeldung)?"""
+    from boerdi.ui_module.dienst_upload import schalter
+
+    return bool(schalter().get("ablage_in_wlo"))
+
+
+def _wlo_erschliessen() -> bool:
+    """Review TG-4–6, MINOR 8: geht der ganze gründliche Weg — Ablage im Feld, ein Auftrag lässt
+    sich starten (Einrichtung, Anmeldung, Schlüssel der Person, ``auftrag_zug.starter``) und der
+    Metadaten-Flow ist freigegeben (``client.erlaubt``)? Sonst nähme der Ablauf Dateien gründlich an
+    und könnte keine Metadaten erzeugen."""
+    from boerdi.services.ablauf import auftrag_zug
+    from boerdi.services.auftraege import client
+
+    return (_wlo_ablage() and auftrag_zug.starter() is not None
+            and client.erlaubt(METADATEN_FLOW))
 
 
 async def festhalten(session: Any, v: Any, aus: treiber.Ausgabe, *,
@@ -71,6 +105,10 @@ async def festhalten(session: Any, v: Any, aus: treiber.Ausgabe, *,
         # auf einen Auftrag oder auf die Person (Review K2a, Befund 1: ein Gespräch B, das den Lauf
         # aus A übernahm und weiterführte, ist danach sein Gespräch, nicht mehr A).
         await vorgaenge.sitzung_setzen(session, v.id, session_id)
+    # Zweites Review TG-2 (MAJOR 1): verworfene Teile zuerst — ein Schritt danach kann denselben
+    # Teil neu schreiben (dann steht er in ``neue_teile``)
+    for name in aus.verworfen:
+        v = await vorgaenge.teil_entfernen(session, v, name, tage=arbeitsstand.tage())
     for name, typ, wert, zusammenfassung in aus.neue_teile:
         v = await vorgaenge.teil_setzen(session, v, name, typ=typ, wert=wert,
                                         zusammenfassung=zusammenfassung, tage=arbeitsstand.tage())

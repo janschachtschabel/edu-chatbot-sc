@@ -23,6 +23,7 @@ from jsonschema import Draft202012Validator
 
 from boerdi.api.schemas_debug import ToolOutcome
 from boerdi.domain.ui_bloecke import neuer_block
+from boerdi.services.dokumente.stand import OhneVolltext
 from boerdi.ui_module import katalog
 from boerdi.ui_module import strukturentwurf as se
 from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
@@ -47,6 +48,31 @@ _FEHLER: Final = {
     "kein_dokument": ("Fehler: Es liegt kein Dokument der Person vor (nicht hochgeladen, oder es "
                       "ist abgelaufen). Rufe {name} nicht mit aus_dokument auf; bitte die Person, "
                       "das Dokument im Auswahlfeld (ui_upload) noch einmal zu wählen."),
+    # Review TG-3d–f, MINOR 3: nur Strukturdokumente aus WLO, und keins hat schon einen Volltext
+    # Plan 2026-11-16, Durchtest TG-7 (m3): ein Lesefehler (Frist, Abruf) — der Text ist womöglich
+    # da, nur gerade nicht zu bekommen
+    "volltext_fehlt": ("Fehler: Den Volltext der Strukturdokumente der Person ({namen}) konnte "
+                       "WLO gerade nicht liefern. Rufe {name} jetzt nicht noch einmal auf; sag "
+                       "der Person, dass es in einigen Minuten noch einmal geht."),
+    # m3: ``not_extracted`` heißt „aus der Datei kam (noch) kein Text“ — für eine Datei, deren Text
+    # gerade entsteht, ebenso wie für einen Scan oder ein Bild, das nie Text hat. Das MCP
+    # unterscheidet beides nicht; der Satz nennt beides ehrlich.
+    "volltext_fehlt_datei": ("Fehler: Aus den Strukturdokumenten der Person ({namen}) hat WLO "
+                             "(noch) keinen Text gewonnen — entweder entsteht er gerade, oder die "
+                             "Datei enthält keinen lesbaren Text (etwa ein Scan oder ein Bild). "
+                             "Rufe {name} jetzt nicht noch einmal auf; sag der Person beides: in "
+                             "ein paar Minuten noch einmal versuchen, und geht es dann nicht, eine "
+                             "Fassung mit Text hochladen (etwa ein PDF mit Textschicht oder "
+                             "Word)."),
+    # Nachprüfung TG-3d–f, MINOR 4: derselbe Code, der Satz nach dem Grund
+    "volltext_fehlt_anmeldung": ("Fehler: Die Strukturdokumente der Person liegen in ihrem "
+                                 "persönlichen Bereich in WLO ({namen}); ohne Anmeldung lassen "
+                                 "sie sich nicht lesen. Rufe {name} jetzt nicht noch einmal auf; "
+                                 "bitte die Person, sich bei WLO anzumelden."),
+    "volltext_fehlt_zugriff": ("Fehler: Auf die Strukturdokumente der Person ({namen}) gibt es "
+                               "keinen Zugriff, oder WLO findet sie nicht mehr. Rufe {name} nicht "
+                               "noch einmal auf; sag der Person, dass sie die Dokumente neu "
+                               "hochladen oder lesen lassen kann."),
     "keine_inhalte": ("Fehler: Im Vorgang liegen keine Metadaten der Materialien (Teil "
                       "metadaten). Rufe {name} nicht mit aus_inhalten auf; sag der Person, dass "
                       "die Materialien erst hochgeladen und gelesen sein müssen."),
@@ -173,9 +199,20 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
         if args.get("vorlage") is True:
             return _fehlschlag(modul, _FEHLER["dokument_vorlage"].format(name=modul), "argumente")
         dokument = await umgebung.dokument() if umgebung.dokument is not None else None
+        if isinstance(dokument, OhneVolltext):
+            return _fehlschlag(modul, _FEHLER[_volltext_satz(dokument.fehlend)].format(
+                name=modul, namen=_namen(dokument.fehlend)), "volltext_fehlt")
         if dokument is None:
             return _fehlschlag(modul, _FEHLER["kein_dokument"].format(name=modul),
                                "kein_dokument")
+        if getattr(dokument, "ungeprueft", False):
+            # Plan 2026-11-16, TG-3d: ein Volltext aus WLO sah beim Lesen keine Moderation (anders
+            # als ein im Chat hochgeladenes Dokument) — Übersicht und Anfang vor Ebene 1 prüfen
+            from boerdi.services.strukturentwurf_dokument import uebersicht_und_anfang
+
+            if (abgewiesen := await _ebene_eins_pruefen("\n".join(
+                    uebersicht_und_anfang(dokument)))):
+                return _fehlschlag(modul, _FEHLER[abgewiesen].format(name=modul), abgewiesen)
     auftrag = dienst.Auftrag(
         thema=" ".join(args["thema"].split()), fach=args.get("fach"),
         bildungsstufe=args.get("bildungsstufe"), anzahl_oben=args.get("anzahl_oben", 10),
@@ -188,11 +225,64 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
         moderieren=_moderation() if dokument is not None else None)
     latenz_ms = int((time.monotonic() - t0) * 1000)
     daten = erzeugt.daten
+    if daten is not None and args.get("aus_inhalten") is True:
+        # Plan 2026-11-16, Durchtest TG-7 (NIT): die Materialien der Person sind kein Dokument mit
+        # Gliederung — die Struktur ordnet die KI (das Format kennt ki, wlo, ordner, dokument)
+        daten = {**daten, "quelle": "ki"}
     if daten is None:
         grund = erzeugt.grund or "fehler"
         return _fehlschlag(modul, _FEHLER.get(grund, _FEHLER_SONST).format(name=modul), grund,
                            latenz_ms)
-    return _block(manifest, daten, latenz_ms)
+    ergebnis = _block(manifest, daten, latenz_ms)
+    if fehlend := getattr(dokument, "fehlend", ()):
+        # MINOR 3: gemischt — die KI erfährt, welches Dokument noch keinen Volltext hat
+        ergebnis = ergebnis._replace(text=f"{ergebnis.text}\n{_ohne_volltext(fehlend)}")
+    return ergebnis
+
+
+def _namen(fehlend: tuple[tuple[str, str], ...]) -> str:
+    """Die Namen fehlender Dokumente für die KI — eine Zeile je Name, ohne Anführungs- und
+    Rahmenzeichen (Text der Person, Review TG-3d–f, MINOR 3)."""
+    from boerdi.ui_module.rahmen import name_fuer_ki
+
+    return ", ".join(f"„{name_fuer_ki(n)}“" for n, _grund in fehlend[:5])
+
+
+def _volltext_satz(fehlend: tuple[tuple[str, str], ...]) -> str:
+    """Nachprüfung TG-3d–f, MINOR 4: welcher Satz zu ``volltext_fehlt`` passt — später (der Text
+    entsteht noch), Anmeldung fehlt, oder kein Zugriff bzw. nicht gefunden."""
+    from boerdi.services.dokumente.strukturdokument import NICHT_EXTRAHIERT, SPAETER
+
+    gruende = {g for _n, g in fehlend}
+    if NICHT_EXTRAHIERT in gruende:
+        # Durchtest TG-7, m3: vor dem Lesefehler — „noch nicht oder nie“ ist die ehrlichere Auskunft
+        return "volltext_fehlt_datei"
+    if gruende & SPAETER:
+        return "volltext_fehlt"
+    if gruende == {"ohne_anmeldung"}:
+        return "volltext_fehlt_anmeldung"
+    return "volltext_fehlt_zugriff"
+
+
+def _ohne_volltext(fehlend: tuple[tuple[str, str], ...]) -> str:
+    from boerdi.services.dokumente.strukturdokument import ABGELAUFEN, NICHT_EXTRAHIERT, SPAETER
+
+    def satz(n: str, g: str) -> str:
+        name = _namen(((n, g),))
+        if g == NICHT_EXTRAHIERT:
+            # Durchtest TG-7, m3
+            return (f"Dokument {name}: (noch) keinen lesbaren Text — entsteht er gerade oder ist "
+                    "es ein Scan; sonst eine Fassung mit Text hochladen.")
+        if g in SPAETER:
+            return f"Dokument {name}: Volltext gerade nicht lesbar, später erneut."
+        if g == ABGELAUFEN:
+            # Nachprüfung, NIT 6: ein Sitzungsdokument, das nicht mehr lesbar ist
+            return f"Dokument {name}: nicht mehr lesbar (abgelaufen), bitte neu lesen lassen."
+        if g == "ohne_anmeldung":
+            return f"Dokument {name}: nur mit Anmeldung bei WLO lesbar."
+        return f"Dokument {name}: kein Volltext lesbar."
+
+    return " ".join(satz(n, g) for n, g in fehlend[:5])
 
 
 def _block(manifest: Manifest, daten: dict[str, Any], latenz_ms: int) -> Ergebnis:
@@ -230,6 +320,12 @@ async def aufruf(manifest: Manifest, args: Any, umgebung: Umgebung) -> Ergebnis:
     dienst_name = name(manifest)
     if dienst_name not in _DIENSTE:
         return _fehlschlag(modul, f"Fehler: {modul} ist kein UI-Modul mit Dienst.", "modul")
+    if dienst_name == "strukturentwurf" and umgebung.vorbelegung:
+        # Plan 2026-11-16, TG-5 (G-E8): die Antworten des Laufs füllen, was die KI nicht setzt —
+        # vor der Prüfung, damit auch ein vorbelegtes ``thema`` zählt und die Werte geprüft sind
+        from boerdi.services.ablauf.vorbelegung import vorbelegt
+
+        args = vorbelegt(args, umgebung.vorbelegung)
     pruefer = Draft202012Validator(manifest["dienst"]["parameter"])
     if not isinstance(args, dict) or (fehler := [f.message for f in pruefer.iter_errors(args)]):
         abweichung = "; ".join(fehler) if isinstance(args, dict) else "kein Objekt"

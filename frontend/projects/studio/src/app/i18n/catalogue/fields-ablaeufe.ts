@@ -131,6 +131,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AgentSchritt.startknopf.label': 'Startknopf',
     'feld.AgentSchritt.startknopf.hint':
       'Je Sprache, höchstens 60 Zeichen, ohne | und nicht mit __ am Anfang: eine Schnellantwort beim Eintritt in den Schritt (und wenn „Weiter“ zu früh kam). Ihr Text geht als Nachricht der Person an die KI.',
+    'feld.AgentSchritt.vorbelegen.label': 'Antworten vorbelegen',
+    'feld.AgentSchritt.vorbelegen.hint':
+      'An: die Antworten dieses Laufs belegen den Strukturentwurf vor — Umfang wird Tiefe und Breite (kompakt 1/6, mittel 2/10, ausführlich 3/12), Stufe die Bildungsstufe, Thema das Thema; Zweck, für wen, Soll oder Ist und Hinweise gehen als Zeilen in die Hinweise. Was die KI selbst angibt, geht vor.',
     'feld.Schritt.typ.wahl.nachricht': 'Nachricht',
     'feld.Schritt.typ.wahl.modul': 'Modul',
     'feld.Schritt.typ.wahl.werkzeug': 'Werkzeug',
@@ -143,7 +146,7 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.daten.label': 'Daten',
     'feld.Schritt.daten.hint': 'Daten des Moduls (JSON); {"$teil": "name"} liest einen Teil des Vorgangs.',
     'feld.Schritt.werkzeug.label': 'Werkzeug',
-    'feld.Schritt.werkzeug.hint': 'Ein Dienst (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen) oder ein WLO-Werkzeug — ein schreibendes nur mit Freigabe.',
+    'feld.Schritt.werkzeug.hint': 'Ein Dienst (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen, bereitgestellt, inhalte_aus_dateien) oder ein WLO-Werkzeug — ein schreibendes nur mit Freigabe.',
     'feld.Schritt.argumente.label': 'Argumente',
     'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} setzt einen Teil des Vorgangs ein. Eine Auswahl filtert eine Liste und zieht ein Feld heraus: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}. {"$sprache": true} (nur am Auftrag, oberste Ebene) wird die Sprache der Person (de/en).',
     'feld.Schritt.schreibt.label': 'Ergebnis als Teil',
@@ -180,6 +183,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.freitext.label': 'Freitext',
     'feld.Schritt.freitext.hint':
       'Getippter Text gilt hier als Antwort: er wird ein Teil, dann geht es zum Ziel. Ohne Freitext geht getippter Text an die KI, und die Knöpfe bleiben.',
+    'feld.Schritt.synonyme_im_satz.label': 'Synonyme im Satz',
+    'feld.Schritt.synonyme_im_satz.hint':
+      'Nur mit Freitext: An: ein Synonym trifft auch als ganzes Wort mitten im Satz („aus meinem Lehrplan“) — nicht verneint im selben Satzteil („kein Lehrplan“, „Lehrplan nicht“). Trifft der Satz mehrere Optionen, ist er weder Wahl noch Freitext: es erscheint der Hinweis ohne Treffer. Aus: ein Synonym trifft nur, wenn der ganze Text gleich ist.',
     'feld.Schnellantwort.id.label': 'Kennung',
     'feld.Schnellantwort.id.hint': 'Kleinbuchstaben, Ziffern, Unterstrich — eine folgende Verzweigung prüft sie mit „gewählt ist“.',
     'feld.Schnellantwort.label.label': 'Beschriftung',
@@ -189,9 +195,13 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schnellantwort.synonyme.label': 'Synonyme',
     'feld.Schnellantwort.synonyme.hint':
       'Wörter, mit denen getippter Text diese Antwort trifft, auch mitten im Satz (ohne Groß/Klein, je 3 bis 60 Zeichen, höchstens 30). Mit Synonymen trifft auch die Beschriftung als Teilwort; zuerst gilt ein genauer Treffer, dann die erste passende Antwort von oben — die Reihenfolge der Antworten entscheidet. Synonyme gelten in jeder Sprache: englische Wörter in dieselbe Liste.',
+    // Plan 2026-11-16, zweites Review TG-2 (MAJOR 1)
+    'feld.Schnellantwort.verwirft.label': 'Verwirft Teile',
+    'feld.Schnellantwort.verwirft.hint':
+      'Namen von Teilen, die diese Wahl aus dem Vorgang entfernt, bevor es weitergeht — etwa „document“ an „Anderes wählen“, damit nicht still das alte Dokument weiterläuft. Nur Teile, die der Ablauf kennt (Kleinbuchstaben, Ziffern, Unterstrich; höchstens 10).',
     'feld.Schritt.kein_treffer.label': 'Hinweis ohne Treffer',
     'feld.Schritt.kein_treffer.hint':
-      'Je Sprache: Trifft getippter Text keine Schnellantwort, erscheint dieser Text einmal mit denselben Knöpfen. Danach geht getippter Text an die KI, der Ablauf wartet weiter. Nur mit Schnellantworten und ohne Freitext; der Text steht wörtlich da, ohne Platzhalter.',
+      'Je Sprache: Trifft getippter Text keine Schnellantwort, erscheint dieser Text einmal mit denselben Knöpfen. Danach geht getippter Text an die KI, der Ablauf wartet weiter. Nur mit Schnellantworten und ohne Freitext — außer mit „Synonyme im Satz“: dann erscheint er, wenn ein Satz mehrere Optionen trifft (jedes Mal). Der Text steht wörtlich da, ohne Platzhalter.',
     'feld.Freitext.ziel.label': 'Ziel',
     'feld.Freitext.ziel.hint': 'Der Schritt nach dem getippten Text.',
     'feld.Freitext.schreibt.label': 'Schreibt Teil',
@@ -384,6 +394,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AgentSchritt.startknopf.label': 'Start button',
     'feld.AgentSchritt.startknopf.hint':
       'Per language, at most 60 characters, no | and not starting with __: a quick reply when the step is entered (and when “Continue” came too early). Its text is sent to the AI as the person’s message.',
+    'feld.AgentSchritt.vorbelegen.label': 'Prefill answers',
+    'feld.AgentSchritt.vorbelegen.hint':
+      'On: the answers of this run prefill the structure draft — scope becomes depth and breadth (compact 1/6, medium 2/10, detailed 3/12), level the educational level, topic the topic; purpose, audience, target or actual and notes go into the hints as lines. What the AI sets itself takes precedence.',
     'feld.Schritt.typ.wahl.nachricht': 'Message',
     'feld.Schritt.typ.wahl.modul': 'Module',
     'feld.Schritt.typ.wahl.werkzeug': 'Tool',
@@ -396,7 +409,7 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.daten.label': 'Data',
     'feld.Schritt.daten.hint': 'Data of the module (JSON); {"$teil": "name"} reads a part of the work item.',
     'feld.Schritt.werkzeug.label': 'Tool',
-    'feld.Schritt.werkzeug.hint': 'A service (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen) or a WLO tool — a writing one only with approval.',
+    'feld.Schritt.werkzeug.hint': 'A service (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen, bereitgestellt, inhalte_aus_dateien) or a WLO tool — a writing one only with approval.',
     'feld.Schritt.argumente.label': 'Arguments',
     'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} inserts a part of the work item. A selection filters a list and extracts a field: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}. {"$sprache": true} (auftrag only, top level) becomes the language of the person (de/en).',
     'feld.Schritt.schreibt.label': 'Result as part',
@@ -433,6 +446,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.freitext.label': 'Free text',
     'feld.Schritt.freitext.hint':
       'Typed text counts as the answer here: it becomes a part, then the flow goes to the target. Without free text, typed text goes to the AI and the buttons stay.',
+    'feld.Schritt.synonyme_im_satz.label': 'Synonyms within a sentence',
+    'feld.Schritt.synonyme_im_satz.hint':
+      'Only with free text: On: a synonym also matches as a whole word within a sentence (“from my curriculum”) — not negated in the same clause (“no curriculum”, “curriculum not”). If the sentence matches several options it is neither a choice nor free text: the hint without a hit appears. Off: a synonym only matches if the whole text is equal.',
     'feld.Schnellantwort.id.label': 'Id',
     'feld.Schnellantwort.id.hint': 'Lowercase letters, digits, underscore — a later branch checks it with “chosen is”.',
     'feld.Schnellantwort.label.label': 'Label',
@@ -442,9 +458,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schnellantwort.synonyme.label': 'Synonyms',
     'feld.Schnellantwort.synonyme.hint':
       'Words that make typed text hit this reply, even inside a sentence (case-insensitive, 3 to 60 characters each, at most 30). With synonyms the label also hits as part of a word; an exact hit comes first, then the first matching reply from the top — the order of the replies decides. Synonyms apply in every language: put English words in the same list.',
+    'feld.Schnellantwort.verwirft.label': 'Discards parts',
+    'feld.Schnellantwort.verwirft.hint':
+      'Names of parts this choice removes from the record before going on — for example “document” on “Choose another”, so the old document does not silently carry on. Only parts the workflow knows (lowercase letters, digits, underscore; at most 10).',
     'feld.Schritt.kein_treffer.label': 'Hint without a hit',
     'feld.Schritt.kein_treffer.hint':
-      'Per language: if typed text hits no quick reply, this text appears once with the same buttons. After that, typed text goes to the AI and the flow keeps waiting. Only with quick replies and without free text; the text is shown as written, without placeholders.',
+      'Per language: if typed text hits no quick reply, this text appears once with the same buttons. After that, typed text goes to the AI and the flow keeps waiting. Only with quick replies and without free text — except with “Synonyms within a sentence”: then it appears whenever a sentence matches several options. The text is shown as written, without placeholders.',
     'feld.Freitext.ziel.label': 'Target',
     'feld.Freitext.ziel.hint': 'The step after the typed text.',
     'feld.Freitext.schreibt.label': 'Writes part',

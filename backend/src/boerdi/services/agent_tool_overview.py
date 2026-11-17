@@ -40,6 +40,7 @@ from typing import Any
 from boerdi.domain.host_capabilities import KURATIEREND, LESEND, erlaubt
 from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.result_delivery import ergebnis_werkzeug
+from boerdi.services import dokument_lesen
 from boerdi.services.agent_knowledge import WISSEN_SUCHEN, wissen_werkzeug
 from boerdi.services.agent_tools import build_agent_tools, verborgene_werkzeuge
 from boerdi.services.config_loader import load_policy_config, load_rag_config
@@ -166,6 +167,10 @@ def werkzeugliste() -> dict[str, Any]:
     ergebnis = ergebnis_werkzeug(None)
     zeilen += [
         _virtuell(wissen, WISSEN_SUCHEN, angeboten, "knowledge_areas"),
+        # Plan 2026-11-16, Durchtest TG-7 (M2): nur mit einem gelesenen Dokument der Sitzung —
+        # die Beschreibung mit einem Platzhalter statt echter Namen
+        _virtuell(dokument_lesen.definition([("…", "…")]), dokument_lesen.WERKZEUG, angeboten,
+                  "session_document"),
         _virtuell(dokument, dokument["function"]["name"], angeboten, None),
         # Nur wenn der Gastgeber ein ``result_schema`` erklärt (J1).
         _virtuell(ergebnis, ergebnis["function"]["name"], angeboten, "host_schema"),

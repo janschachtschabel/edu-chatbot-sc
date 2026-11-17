@@ -192,12 +192,35 @@ def bezeichnung(name: str, pfad: str | None) -> str:
     return name if pfad is None else f"{name}.{pfad}"
 
 
+#: Plan 2026-11-16, Review TG-3a–c, R3-3: Teile, die auch ein kuratierendes Werkzeug (mit Vorschau
+#: und Abnahme) nicht pauschal bekommt — nur ein Modul, das sie unter ``vorgang.liest`` nennt.
+#: ``struktur`` trägt bis zu 500 Dateinamen (personenbezogen möglich, „Zeugnis_Müller.pdf“); kein
+#: Schreibwerkzeug braucht die ganze Liste. ``document`` und ``strukturdokument`` bleiben frei:
+#: sie tragen nur die Namen der Dokumente, die die Person selbst hat lesen lassen, und Verweise.
+NUR_UEBER_LIEST: Final = frozenset({"struktur"})
+
+
+def _abgespeckt(werkzeug: str | None, name: str, inhalt: Any) -> Any:
+    """Review TG-3d–f, MINOR 7: ein kuratierendes Werkzeug bekommt den Entwurf (``draft``) ohne
+    ``inhalte`` — es braucht Titel und Beschreibungen, nicht die Dateinamen; ein Modul, das
+    ``draft`` unter ``liest`` nennt (``ui_strukturentwurf``), bekommt ihn ganz. Abgespeckt statt
+    gesperrt: Schreibwege wie „Sammlungen aus dem Entwurf anlegen“ nehmen ``{"$teil": "draft"}``."""
+    if werkzeug is None or name != "draft":
+        return inhalt
+    from boerdi.domain.write_confirm import is_confirmable
+    from boerdi.ui_module import katalog
+    from boerdi.ui_module.strukturentwurf import ohne_inhalte
+
+    liest = ((katalog.katalog().get(werkzeug) or {}).get("vorgang") or {}).get("liest") or []
+    return ohne_inhalte(inhalt) if is_confirmable(werkzeug) and name not in liest else inhalt
+
+
 def darf(werkzeug: str, teil: str) -> bool:
     """Darf ``werkzeug`` den Teil ``teil`` bekommen? (siehe Modulkopf)"""
     from boerdi.domain.write_confirm import is_confirmable
     from boerdi.ui_module import katalog
 
-    if is_confirmable(werkzeug):
+    if is_confirmable(werkzeug) and teil not in NUR_UEBER_LIEST:
         return True
     manifest = katalog.katalog().get(werkzeug) or {}
     return teil in ((manifest.get("vorgang") or {}).get("liest") or [])
@@ -228,6 +251,7 @@ async def einsetzen(args: dict[str, Any], teile: TeilLader | None, werkzeug: str
             erlaubt = werkzeug is None or darf(werkzeug, name)
             inhalt = (await teile(name) if erlaubt and teile is not None and NAME.match(name)
                       else None)
+            inhalt = _abgespeckt(werkzeug, name, inhalt) if inhalt is not None else None
             # K2d-1: die Freigabe gilt dem Teil, die Grenze unten dem ausgewählten Wert;
             # AS-Da: auch einer Auswahl
             inhalt = aufloesen(inhalt, wert) if inhalt is not None else None

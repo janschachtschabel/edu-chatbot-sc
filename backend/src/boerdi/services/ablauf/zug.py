@@ -41,6 +41,7 @@ from boerdi.services import arbeitsstand, probe, vorgaenge
 from boerdi.services.ablauf import ausloeser, ki_schritt, startdaten, treiber, typen, werkzeuge
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden
+from boerdi.services.arbeitsstand_teile import BEREITSTELLUNG
 from boerdi.ui_module import strukturentwurf_merken
 
 logger = logging.getLogger(__name__)
@@ -293,9 +294,11 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
     # Zweites Review TW, Befund 8: „Doch mit Ablauf“ (oder ein anderer Start) hebt den Ausstieg auf
     if (entities.get(basis.AUSSTIEG_KEY) or {}).get("ablauf") == ablauf.id:
         entities.pop(basis.AUSSTIEG_KEY, None)
-    # Querschnitts-Review F/T, Befund 1: ein Ablauf, der ins Repositorium schreibt, beginnt immer
-    # in einem frischen Vorgang — eine alte Ablage ginge sonst als „frisch hochgeladen“ an einen
-    # schreibenden Flow (N14). Der Modul-Auslöser (``frisch=False``) bleibt: er hat sein Ziel schon
+    # Querschnitts-Review F/T, Befund 1: ein Ablauf, der ins Repositorium schreibt, beginnt in
+    # einem frischen Vorgang — eine alte Ablage ginge sonst als „frisch hochgeladen“ an einen
+    # schreibenden Flow (N14). Seit Review TG-4–6 (MAJOR 2) nur, wenn dort eine Ablage, ein
+    # Metadaten-Lauf oder ein offener Lauf liegt (``_frisch_noetig``); sonst bleibt freie
+    # Arbeit. Der Modul-Auslöser (``frisch=False``) bleibt: er hat sein Ziel schon
     # vorbereitet und die Antwort dort gespeichert.
     if not await _ziel_vorbereiten(session, req, entities, ablauf,
                                    # Review TW-6, Befund 4: nur, wer selbst schreibt (N14) —
@@ -352,7 +355,13 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
     neuer Vorgang, wenn keiner da ist) — der Modul-Auslöser speichert dann nur dorthin (Review Q3,
     Nachprüfung, Befund 3). Mit ``frisch`` (ein schreibender Ablauf) wird jeder vorhandene Vorgang
     geschlossen, auch freie Arbeit und ein wartender Lauf desselben Ablaufs (Querschnitts-Review
-    F/T, Befund 1). ``False`` bei einem Konflikt."""
+    F/T, Befund 1). ``False`` bei einem Konflikt.
+
+    Plan 2026-11-16, Nachprüfung TG-2: der neue Vorgang übernimmt aus dem geschlossenen die
+    Bereitstellungs-Teile (``arbeitsstand_teile.BEREITSTELLUNG``) — Ordner und Dokument, die die
+    Person im freien Chat bereitgestellt hat, gingen sonst mit dem alten verloren. Nur Teile, die es
+    dort gibt, mit ihrem Inhalt bzw. Verweis (``document`` zeigt auf das Sitzungsdokument); kein
+    Entwurf, kein Lauf, keine Antworten, keine Historie. Das gilt für jeden Start."""
     aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
     vw = arbeitsstand.verweis(entities, aufrufer)
     v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
@@ -361,6 +370,11 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
     if v is None:
         arbeitsstand.verweis_weg(entities, aufrufer)
     lauf = (v.akte or {}).get("lauf") if v is not None else None
+    if frisch and v is not None and not _frisch_noetig(v, lauf):
+        # Plan 2026-11-16, Review TG-4–6, MAJOR 2: N14 schützt den Flow vor einer ALTEN Ablage —
+        # liegt keine im Vorgang (auch kein Metadaten-Lauf) und läuft dort nichts, gibt es nichts
+        # zu mischen; die freie Arbeit samt Entwurf bleibt (wie TW-6, Befund 4)
+        frisch = False
     if v is not None and not frisch and (
             not isinstance(lauf, dict) or (lauf.get("ablauf") == ablauf.id
                                            and lauf.get("status") not in _BEENDET)):
@@ -369,11 +383,15 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
         return True
     alter_job = None
     try:
+        mitnehmen = await _bereitstellung(session, v) if v is not None else []
         if v is not None:
             alter_job = await basis.schliessen(session, v)
             # Ein neues Vorhaben: der gemerkte Entwurf des alten ist kein Gegenstand mehr.
             entities.pop(strukturentwurf_merken.KEY, None)
         neu = await _anlegen(session, req, aufrufer, ablauf)
+        for name, typ, wert, kurz in mitnehmen:
+            neu = await vorgaenge.teil_setzen(session, neu, name, typ=typ, wert=wert,
+                                              zusammenfassung=kurz, tage=arbeitsstand.tage())
         await session.commit()
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
@@ -381,6 +399,25 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
     basis.bei_der_b_api_abbrechen(alter_job)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(neu, aufrufer)
     return True
+
+
+def _frisch_noetig(v: Any, lauf: Any) -> bool:
+    """MAJOR 2: braucht ein schreibender Ablauf einen frischen Vorgang?
+    (``werkzeuge.frisch_noetig``)"""
+    return werkzeuge.frisch_noetig((v.akte or {}).get("teile") or {}, lauf)
+
+
+async def _bereitstellung(session: Any, v: Any) -> list[tuple[str, str, Any, str]]:
+    """Die Bereitstellungs-Teile von ``v``, die es gibt: (Name, Typ, Wert, Kurzbeschreibung)."""
+    teile = (v.akte or {}).get("teile") or {}
+    mit: list[tuple[str, str, Any, str]] = []
+    for name in BEREITSTELLUNG:
+        if not isinstance(eintrag := teile.get(name), dict):
+            continue
+        if (wert := await vorgaenge.teil_wert(session, v, name)) is not None:
+            mit.append((name, str(eintrag.get("typ") or ""), wert,
+                        str(eintrag.get("zusammenfassung") or "")))
+    return mit
 
 
 async def _alten_auftrag_schliessen(session: Any, v: Any, aus: treiber.Ausgabe) -> str | None:
@@ -491,6 +528,42 @@ async def weiter_nach_ki(session: Any, req: ChatRequest, session_state: dict, *,
     v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
     lauf = (v.akte or {}).get("lauf") if v is not None else None
     gewollt = (req.action_params or {}).get("ablauf")
+    return await _weiter_ki(session, req, session_state, v, lauf, gewollt, blocked_tools)
+
+
+async def nach_uebernahme(session: Any, req: ChatRequest, session_state: dict,
+                          geprueft: dict[str, Any], *,
+                          blocked_tools: Iterable[str] = ()) -> ChatResponse | None:
+    """Plan 2026-11-16, Durchtest TG-7 (M1b): die Person übernimmt den Entwurf des wartenden
+    KI-Schritts (``ki_schritt.uebernimmt``) — den Teil speichern (nur in den Vorgang des Laufs) und
+    weiter wie „Weiter im Ablauf“, ohne KI-Zug dazwischen. ``None``, wenn es keine solche Übernahme
+    ist (dann ist nichts gespeichert, der Zug geht den gewöhnlichen Weg)."""
+    if (treffer := ki_schritt.uebernimmt(session_state, req.session_id, geprueft)) is None:
+        return None
+    entities = session_state.setdefault("entities", {})
+    aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
+    vw = arbeitsstand.verweis(entities, aufrufer)
+    v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
+    lauf = (v.akte or {}).get("lauf") if v is not None else None
+    # Review der TG-7-Behebung, Befund 3: auch derselbe Schritt — ein veralteter Verweis (der Lauf
+    # steht schon an einem anderen KI-Schritt) übernimmt nicht in den falschen
+    if (not isinstance(lauf, dict) or lauf.get("ablauf") != treffer[0].id
+            or lauf.get("status") != treiber.WARTET_KI
+            or lauf.get("schritt") != treffer[1].id):
+        return None
+    if not await arbeitsstand.uebernehmen(session, req.session_id, entities, geprueft,
+                                          nur_dieser=True):
+        return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
+    v = await vorgaenge.lesen(session, v.id, aufrufer)
+    lauf = (v.akte or {}).get("lauf") if v is not None else None
+    return await _weiter_ki(session, req, session_state, v, lauf, treffer[0].id, blocked_tools)
+
+
+async def _weiter_ki(session: Any, req: ChatRequest, session_state: dict, v: Any, lauf: Any,
+                     gewollt: Any, blocked_tools: Iterable[str]) -> ChatResponse:
+    """„Weiter im Ablauf“ bzw. nach der Übernahme (M1b): der Treiber setzt am KI-Schritt fort."""
+    entities = session_state.setdefault("entities", {})
+    aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
     if (not isinstance(lauf, dict) or lauf.get("ablauf") != gewollt
             or lauf.get("status") != treiber.WARTET_KI):
         # Querschnitts-Review M5: der Verweis folgt dem Vorgang (zweite Sitzung, verdrängt).

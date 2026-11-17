@@ -19,12 +19,13 @@ export const FIELDS_UPLOAD: CataloguePart = {
       'Gilt in beiden Maschinen ab dem nächsten Auswahlfeld.',
     'feld.UploadSettings.dokument_im_chat.label': 'Dokument im Chat lesen',
     'feld.UploadSettings.dokument_im_chat.hint':
-      'Die Person kann ein Dokument (PDF, Word, Text, Markdown) hochladen; der Chat liest es, '
-      + 'etwa um daraus einen Themenbaum zu entwerfen. Aus = das Auswahlfeld erfasst nur noch '
-      + 'Ordner und Dateinamen.',
+      // Plan 2026-11-16, TG-1/TG-2: der Knopf heißt neutral „Lesen lassen“; das Ziel klärt der Chat
+      'Die Person kann ein Dokument (PDF, Word, Text, Markdown) mit „Lesen lassen“ hochladen; der '
+      + 'Chat liest es und fragt danach, was sie damit machen will (etwa einen Themenbaum), oder ein '
+      + 'Ablauf führt weiter. Aus = das Auswahlfeld erfasst nur noch Ordner und Dateinamen.',
     'feld.UploadSettings.dokument_ohne_anmeldung.label': 'Auch ohne WLO-Anmeldung',
     'feld.UploadSettings.dokument_ohne_anmeldung.hint':
-      'An (Vorgabe) = jede Person kann ein Dokument lesen lassen und daraus einen Entwurf machen; '
+      'An (Vorgabe) = jede Person kann ein Dokument lesen lassen und damit weiterarbeiten; '
       + 'das Repositorium ist dabei nicht beteiligt. Aus = nur angemeldete Personen — jede '
       + 'Umwandlung kostet Rechenzeit auf dem Server.',
     'feld.UploadSettings.ablage_in_wlo.label': 'Inhalte in WLO ablegen',
@@ -55,12 +56,13 @@ export const FIELDS_UPLOAD: CataloguePart = {
     'feld.UploadConfigArea.upload.hint': 'Applies in both engines from the next picker.',
     'feld.UploadSettings.dokument_im_chat.label': 'Read a document in the chat',
     'feld.UploadSettings.dokument_im_chat.hint':
-      'People can upload a document (PDF, Word, text, Markdown); the chat reads it, for example to '
-      + 'draft a topic tree from it. Off = the picker only captures folders and file names.',
+      'People can upload a document (PDF, Word, text, Markdown) with “Read document”; the chat '
+      + 'reads it and then asks what they want to do with it (for example a topic tree), or a '
+      + 'workflow continues. Off = the picker only captures folders and file names.',
     'feld.UploadSettings.dokument_ohne_anmeldung.label': 'Also without WLO sign-in',
     'feld.UploadSettings.dokument_ohne_anmeldung.hint':
-      'On (default) = anyone can have a document read and draft from it; the repository is not '
-      + 'involved. Off = signed-in people only — every conversion costs server time.',
+      'On (default) = anyone can have a document read and keep working with it; the repository '
+      + 'is not involved. Off = signed-in people only — every conversion costs server time.',
     'feld.UploadSettings.ablage_in_wlo.label': 'Store contents in WLO',
     'feld.UploadSettings.ablage_in_wlo.hint':
       'On = a signed-in person can transfer the captured files to their personal area in WLO '

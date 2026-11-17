@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { antwortDaten, MAX_KNOTEN } from './upload-antwort';
 import { erfasse, type Quelle } from './upload-erfassen';
-import { alleIgnorieren, setzeRolle, vorschlagen } from './upload-rollen';
+import {
+  alleIgnorieren, MAX_STRUKTUR, setzeRolle, strukturWaehlbar, strukturZahl, vorschlagen,
+} from './upload-rollen';
 
 function q(relPfad: string, size = 10, type = 'application/pdf'): Quelle<null> {
   return { relPfad, name: relPfad.split('/').pop() ?? relPfad, size, type, handle: null };
@@ -38,11 +40,18 @@ describe('Rollen (U3-1a)', () => {
     expect(bild.dateien[0].rolle).toBe('inhalt');
   });
 
-  it('höchstens ein Strukturdokument: das neue verdrängt das alte', () => {
-    let e = erfasse([q('P/a.pdf'), q('P/b.pdf')]);
+  it('TG-3e: bis zu fünf Strukturdokumente — ein weiteres verdrängt keins, ein sechstes geht nicht', () => {
+    let e = erfasse(['a', 'b', 'c', 'd', 'e', 'f'].map((n) => q(`P/${n}.pdf`)));
     e = setzeRolle(e, 0, 'struktur');
     e = setzeRolle(e, 1, 'struktur');
-    expect(e.dateien.map((d) => d.rolle)).toEqual(['inhalt', 'struktur']);
+    expect(e.dateien.map((d) => d.rolle).slice(0, 2)).toEqual(['struktur', 'struktur']);
+    for (const i of [2, 3, 4]) e = setzeRolle(e, i, 'struktur');
+    expect(strukturZahl(e)).toBe(MAX_STRUKTUR);
+    expect(strukturWaehlbar(e, 5)).toBe(false);
+    expect(strukturWaehlbar(e, 4)).toBe(true);           // ein markiertes bleibt wählbar
+    expect(setzeRolle(e, 5, 'struktur')).toBe(e);        // unverändert, keine stille Verdrängung
+    e = setzeRolle(e, 0, 'inhalt');
+    expect(setzeRolle(e, 5, 'struktur').dateien[5].rolle).toBe('struktur');
   });
 
   it('ein Bild oder eine zu große Datei wird kein Strukturdokument', () => {
@@ -71,16 +80,78 @@ describe('Rollen (U3-1a)', () => {
 });
 
 describe('antwortDaten (U3-1a)', () => {
-  it('nur der Ordnerbaum mit Zahlen — keine Dateinamen, außer dem Strukturdokument', () => {
-    let e = erfasse([q('P/Lehrplan.pdf', 300), q('P/A/geheim-Mueller.pdf', 100), q('P/A/.DS_Store', 5)]);
+  // Plan 2026-11-16, TG-3a: der Baum trägt je Ordner seine Dateien mit fester Nummer `i`
+  it('der Ordnerbaum mit Zahlen und den Dateien je Ordner (TG-3a), ohne Systemdateien', () => {
+    let e = erfasse([q('P/Lehrplan.pdf', 300), q('P/A/blatt.pdf', 100), q('P/A/.DS_Store', 5), q('P/A/leer.txt', 0)]);
     e = setzeRolle(e, e.dateien.findIndex((d) => d.name === 'Lehrplan.pdf'), 'struktur');
     const a = antwortDaten(e, 'erfasst');
     expect(a.aktion).toBe('erfasst');
+    // sortiert nach Pfad: 0 P/A/.DS_Store, 1 P/A/blatt.pdf, 2 P/A/leer.txt, 3 P/Lehrplan.pdf
     expect(a.struktur).toEqual({ name: 'P', dateien: 1, alle_dateien: 2,
-      kinder: [{ name: 'A', dateien: 1, alle_dateien: 1, kinder: [] }] });
-    expect(a.zahlen).toEqual({ ordner: 2, dateien: 3, inhalte: 1, ignoriert: 1, strukturdokumente: 1, bytes: 400 });
+      dateiliste: [{ i: 3, name: 'Lehrplan.pdf', endung: 'pdf', groesse: 300, rolle: 'struktur' }],
+      kinder: [{ name: 'A', dateien: 1, alle_dateien: 1, kinder: [], dateiliste: [
+        { i: 1, name: 'blatt.pdf', endung: 'pdf', groesse: 100, rolle: 'inhalt' },
+        // Review TG-3a–c, R3-4: ausgeschlossen heißt ohne Namen
+        { i: 2, endung: 'txt', groesse: 0, rolle: 'ignorieren' }] }] });
+    expect(a.zahlen).toEqual({ ordner: 2, dateien: 4, inhalte: 1, ignoriert: 2, strukturdokumente: 1, bytes: 400 });
     expect(a.strukturdokument).toEqual({ name: 'Lehrplan.pdf', groesse: 300, endung: 'pdf' });
-    expect(JSON.stringify(a)).not.toContain('geheim');
+    expect(JSON.stringify(a)).not.toContain('DS_Store');
+  });
+
+  it('TG-3a: `i` bleibt dieselbe Nummer, wenn sich Rollen ändern', () => {
+    let e = erfasse([q('P/a.pdf'), q('P/b.pdf'), q('P/c.pdf')]);
+    const vorher = antwortDaten(e, 'erfasst').struktur.dateiliste.map((d) => d.i);
+    e = alleIgnorieren(e, 'P', true);
+    e = setzeRolle(e, 2, 'struktur');
+    const nachher = antwortDaten(e, 'erfasst').struktur.dateiliste;
+    expect(nachher.map((d) => d.i)).toEqual(vorher);
+    expect(nachher.map((d) => d.name)).toEqual([undefined, undefined, 'c.pdf']);   // R3-4
+    expect(nachher.map((d) => d.rolle)).toEqual(['ignorieren', 'ignorieren', 'struktur']);
+  });
+
+  it('TG-3a: Endung kleingeschrieben, ohne Endung leer, eine Datei mit Punkt vorn hat keine', () => {
+    const a = antwortDaten(erfasse([q('P/Bild.JPEG'), q('P/LIESMICH'), q('P/x.tar.gz')]), 'erfasst');
+    expect(a.struktur.dateiliste.map((d) => [d.name, d.endung])).toEqual([
+      ['Bild.JPEG', 'jpeg'], ['LIESMICH', ''], ['x.tar.gz', 'gz']]);
+  });
+
+  it('TG-3a: ein Dateiname über 120 Zeichen wird gekürzt und gemeldet — keine stille Kürzung', () => {
+    const lang = 'n'.repeat(130) + '.pdf';
+    const a = antwortDaten(erfasse([q(`P/${lang}`), q('P/kurz.pdf')]), 'erfasst');
+    const erste = a.struktur.dateiliste.find((d) => d.name?.startsWith('n'))!;
+    expect(Array.from(erste.name ?? '')).toHaveLength(120);
+    expect(erste.endung).toBe('pdf');
+    expect(a.warnungen).toEqual(['namen_gekuerzt']);
+    expect(antwortDaten(erfasse([q('P/kurz.pdf')]), 'erfasst').warnungen).toEqual([]);
+  });
+
+  it('TG-3a: über 500 Dateien meldet „zu_viele“ — höchstens 500 in den Listen', () => {
+    const quellen = Array.from({ length: 503 }, (_, n) => q(`P/d${String(n).padStart(4, '0')}.pdf`));
+    const a = antwortDaten(erfasse(quellen), 'erfasst');
+    expect(a.struktur.dateiliste).toHaveLength(500);
+    expect(a.struktur.dateiliste.at(-1)?.i).toBe(499);
+    expect(a.warnungen).toContain('zu_viele');
+  });
+
+  it('Review TG-3a–c, R3-4: eine ausgeschlossene Datei geht ohne Namen mit — nur Nummer, Endung, Größe', () => {
+    let e = erfasse([q('P/Zeugnis_Mueller.pdf', 50), q('P/blatt.pdf')]);
+    e = setzeRolle(e, e.dateien.findIndex((d) => d.name.startsWith('Zeugnis')), 'ignorieren');
+    const a = antwortDaten(e, 'erfasst');
+    // nach Pfad sortiert: 0 Zeugnis_Mueller.pdf, 1 blatt.pdf
+    expect(a.struktur.dateiliste).toEqual([
+      { i: 0, endung: 'pdf', groesse: 50, rolle: 'ignorieren' },
+      { i: 1, name: 'blatt.pdf', endung: 'pdf', groesse: 10, rolle: 'inhalt' }]);
+    expect(JSON.stringify(a)).not.toContain('Zeugnis');
+  });
+
+  it('Review TG-3a–c, NIT: ein Name nur aus Leerzeichen wird „(ohne Namen)“ — die Antwort kippt nicht', () => {
+    const e = erfasse([q('P/   ', 10, 'text/plain'), q('P/b.pdf')]);
+    const de = antwortDaten(e, 'erfasst');
+    expect(de.struktur.dateiliste.map((d) => d.name)).toEqual(['(ohne Namen)', 'b.pdf']);
+    expect(antwortDaten(e, 'erfasst', '(no name)').struktur.dateiliste[0].name).toBe('(no name)');
+    // als Strukturdokument ebenso
+    const sd = antwortDaten(setzeRolle(erfasse([q('P/  .md', 10, 'text/markdown')]), 0, 'struktur'), 'erfasst');
+    expect(sd.strukturdokument?.name).toBe('.md');
   });
 
   it('Review U3-1, Befund 13: Kürzen auf 120 Zeichen zerbricht kein Emoji', () => {
@@ -92,10 +163,10 @@ describe('antwortDaten (U3-1a)', () => {
   });
 
   it('ohne Strukturdokument null; Warnungen werden durchgereicht', () => {
-    const a = antwortDaten(erfasse([q('P/x.pdf', 0)]), 'ordner_als_entwurf');
+    const a = antwortDaten(erfasse([q('P/x.pdf', 0)]), 'uebertragen');
     expect(a.strukturdokument).toBeNull();
     expect(a.warnungen).toEqual(['leer']);
-    expect(a.aktion).toBe('ordner_als_entwurf');
+    expect(a.aktion).toBe('uebertragen');
   });
 
   it('Ordnernamen eine Zeile, höchstens 120 Zeichen; die künstliche Wurzel heißt leer', () => {
@@ -103,6 +174,8 @@ describe('antwortDaten (U3-1a)', () => {
     const a = antwortDaten(erfasse([q(`${lang}/a.pdf`), q('b.pdf')]), 'erfasst');
     expect(a.struktur.name).toBe('');
     expect(a.struktur.kinder[0].name).toHaveLength(120);
+    // TG-3a: auch ein gekürzter Ordnername wird gemeldet
+    expect(a.warnungen).toEqual(['namen_gekuerzt']);
   });
 
   it(`höchstens ${MAX_KNOTEN} Ordnerknoten, dann Warnung zu_viele_ordner`, () => {

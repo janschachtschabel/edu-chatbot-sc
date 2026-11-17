@@ -179,11 +179,13 @@ def test_auswahl_an_einem_einzelnen_wert_ist_ein_befund():
 def test_die_typen_der_module_stimmen_mit_typen_ueberein():
     upload = arbeitsstand_teile._teile({"modul": "ui_upload", "daten": {
         "struktur": {"name": "x"}, "zahlen": {}, "aktion": "dokument",
-        "dokument": {"name": "a", "befund": {}}}})
+        "dokument": {"upload_id": "u-1", "name": "a", "befund": {}}}})
     entwurf = arbeitsstand_teile._teile({"modul": "ui_strukturentwurf", "daten": _ENTWURF})
     for name, typ, _w, _z in upload + entwurf:
         assert typen.MODUL_TEILE[name] == typ, name
-    assert {n for n, *_ in upload + entwurf} == {"structure", "document", "draft"}
+    # Plan 2026-11-16, TG-3d: dazu ``strukturdokument`` (die Verweise auf die gelesenen)
+    assert {n for n, *_ in upload + entwurf} == {"structure", "document", "strukturdokument",
+                                                 "draft"}
     assert vorgang_teil.TEIL in typen.MODUL_TEILE
     assert typen.MODUL_TEILE[vorgang_teil.TEIL] == vorgang_teil.TYP == typen.ABLAGE
 

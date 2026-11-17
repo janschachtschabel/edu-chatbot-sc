@@ -60,15 +60,35 @@ def starter() -> Callable[[str, dict[str, Any]], Awaitable[str | None]] | None:
         return _trocken_starten if has_personal_auth() else None
     if not client.freigeschaltet() or not has_personal_auth() or not hat_zug_schluessel():
         return None
+    return _Starter()
 
-    async def starte(flow: str, eingaben: dict[str, Any]) -> str | None:
+
+#: Plan 2026-11-16, Durchtest TG-7 (m5): der Satz an die Person je Code der b-api.
+_ABGELEHNT: Final = {"EDU_USER_NOT_VERIFIED": "action.ablauf.auftragAbgelehntKonto"}
+
+
+class _Starter:
+    """Die Start-Naht (``treiber.Umgebung.auftrag_starten``). m5: nach einer Abweisung der b-api
+    sagt :meth:`hinweis` der Person, warum — der Treiber stellt den Satz vor den Text des
+    Ersatzwegs (``bei_fehler``), der sonst nur allgemeine Gründe nennt."""
+
+    def __init__(self) -> None:
+        self._fehler: client.AuftragFehler | None = None
+
+    async def __call__(self, flow: str, eingaben: dict[str, Any]) -> str | None:
+        self._fehler = None
         try:
             return await client.starten(flow, eingaben)
         except client.AuftragFehler as fehler:
             logger.info("Auftrag nicht gestartet (%s)", fehler.grund)
+            self._fehler = fehler
             return None
 
-    return starte
+    def hinweis(self, sprache: str) -> str | None:
+        if self._fehler is None or self._fehler.grund != "abgewiesen":
+            return None
+        return bot_text(sprache, _ABGELEHNT.get(self._fehler.code or "",
+                                                "action.ablauf.auftragAbgelehnt"))
 
 
 async def _trocken_starten(flow: str, _eingaben: dict[str, Any]) -> str | None:

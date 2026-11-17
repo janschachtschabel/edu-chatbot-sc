@@ -291,14 +291,16 @@ class RagChunk(Base):
 class DokumentUpload(Base):
     """Ein im Chat hochgeladenes Strukturdokument (Paket U3-2a, Migration 0017).
 
-    Nur das bereinigte Markdown, die Gliederung und der Befund — nie die Rohdatei. Eins je Sitzung.
+    Nur das bereinigte Markdown, die Gliederung und der Befund — nie die Rohdatei. Plan
+    2026-11-16, TG-3e (Migration 0023): bis zu fünf je Sitzung (``dokumente/ablage``), die Sitzung
+    ist nur noch indiziert, nicht mehr eindeutig.
     """
 
     __tablename__ = "dokument_uploads"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     session_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("sessions.session_id", ondelete="CASCADE"), unique=True
+        Text, ForeignKey("sessions.session_id", ondelete="CASCADE"), index=True
     )
     block_id: Mapped[str] = mapped_column(Text)
     #: Kennzeichen der angemeldeten Person (``aufrufer_kennung``), sonst NULL.

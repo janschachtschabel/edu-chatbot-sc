@@ -22,6 +22,9 @@ ENTSCHEIDUNG: Final = "ui_entscheidung"
 STRUKTURENTWURF: Final = "ui_strukturentwurf"
 #: Paket U3-1: Ordner und Dateien im Browser erfassen (nachgeladenes Modul).
 UPLOAD: Final = "ui_upload"
+#: Plan 2026-11-16, TG-2 (Review n3): der zielneutrale Zweck von ``ui_upload`` — auch der Zweck
+#: eines Vorgangs, den kein Ablauf angelegt hat, und der Zweck, der nicht auf Abläufe umlenkt.
+ZWECK_BEREITSTELLEN: Final = "bereitstellen"
 #: Paket K1b: Stand eines Ablauf-Auftrags (nachgeladen; nur der Treiber baut es).
 FORTSCHRITT: Final = "ui_fortschritt"
 

@@ -74,6 +74,9 @@ export function lockText(lock: AgentToolLock, w: LockWords): string {
       return w.t('agentTools.lock.knowledgeAreas');
     case 'host_schema':
       return w.t('agentTools.lock.hostSchema');
+    // Plan 2026-11-16, Durchtest TG-7 (M2): `dokument_lesen` nur mit einem gelesenen Dokument.
+    case 'session_document':
+      return w.t('agentTools.lock.sessionDocument');
     case 'widget_module':
       return w.t('agentTools.lock.widgetModule');
     case 'data_source':

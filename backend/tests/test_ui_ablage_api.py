@@ -479,3 +479,32 @@ def test_in_einer_probe_sitzung_weist_die_ablage_vor_jedem_mcp_aufruf_ab(client,
         "session_id": _SITZUNG, "block_id": _BLOCK, "batch_token": _TOKEN})
     assert (r.status_code, r.json()["detail"]) == (409, "trockenlauf")
     assert lage.mcp == []
+
+
+# ── Plan 2026-11-16, TG-3b: ``i`` (feste Nummer der Auswahl) je Eintrag im Teil ``ablage`` ───────
+
+def test_tg3b_eine_gefilterte_auswahl_ergibt_die_richtigen_nummern(client, lage):
+    """Die Auswahl hatte drei Dateien (``i`` 0, 1, 2); die mittlere war zu groß und fehlt in der
+    Freigabe. Das MCP zählt nach der Stelle (``index`` 0, 1) — der Teil merkt sich ``i`` 0 und 2,
+    so finden Ordner (Teil ``struktur``) und Knoten zueinander."""
+    eintraege = [{**_EINTRAEGE[0], "i": 0}, {**_EINTRAEGE[1], "i": 2}]
+    r = _vorbereiten(client, eintraege=eintraege)
+    assert r.status_code == 200, r.text
+    assert [(e["index"], e["i"]) for e in lage.teil["inhalte"]] == [(0, 0), (1, 2)]
+    # an das MCP geht die Nummer nicht — es kennt nur die Stelle
+    assert lage.mcp[0][2][1]["i"] == 2
+    _datei(client, index=1)
+    assert [(e["index"], e["i"], e["stand"]) for e in lage.teil["inhalte"]] == [
+        (0, 0, "offen"), (1, 2, "stored")]
+
+
+def test_tg3b_ohne_nummern_bleibt_der_teil_wie_vorher(client, lage):
+    """Ein Widget vor TG-3b schickt kein ``i`` — der Eintrag hat dann keins (kein Raten)."""
+    assert _vorbereiten(client).status_code == 200
+    assert all("i" not in e for e in lage.teil["inhalte"])
+
+
+def test_tg3b_eine_nummer_doppelt_wird_abgewiesen(client, lage):
+    eintraege = [{**_EINTRAEGE[0], "i": 4}, {**_EINTRAEGE[1], "i": 4}]
+    assert _vorbereiten(client, eintraege=eintraege).status_code == 422
+    assert lage.mcp == []

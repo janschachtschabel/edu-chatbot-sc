@@ -142,19 +142,6 @@ BOT_TEXT: Final[Catalogue] = {
             'Entwürfe sind hier abgeschaltet — die Gliederung von "{title}" kann ich nicht als '
             "Entwurf öffnen."
         ),
-        # Paket U3-1b: „Als Themenbaum-Entwurf übernehmen“ in ui_upload.
-        "action.folderDraft.header": (
-            'Die Ordnerstruktur von "{title}" als Entwurf — unten bearbeiten, herunterladen oder '
-            "übernehmen."
-        ),
-        "action.folderDraft.empty": (
-            'In "{title}" gibt es keine Unterordner, aus denen ein Themenbaum werden könnte.'
-        ),
-        "action.folderDraft.ohneTitel": "Gliederung aus Ordnern",
-        "action.folderDraft.inactive": (
-            'Entwürfe sind hier abgeschaltet — die Ordnerstruktur von "{title}" kann ich nicht als '
-            "Entwurf öffnen."
-        ),
         # Paket A1: Abläufe aus dem Katalog (``services/ablauf/zug``).
         "action.ablauf.unbekannt": "Diesen Ablauf gibt es hier nicht oder er ist ausgeschaltet.",
         "action.ablauf.wahlVeraltet": (
@@ -261,6 +248,11 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragAbgewiesen": (
             "Den Stand dieses Auftrags darf ich mit deiner Anmeldung nicht abrufen. Melde dich "
             "bitte neu an und starte den Ablauf noch einmal."),
+        # Plan 2026-11-16, Durchtest TG-7 (m5): der Start eines Auftrags wurde abgewiesen
+        "action.ablauf.auftragAbgelehnt": "Der Dienst hat den Auftrag abgelehnt.",
+        "action.ablauf.auftragAbgelehntKonto": (
+            "Der Dienst hat den Auftrag abgelehnt: Dein Konto ist dort noch nicht "
+            "freigeschaltet."),
         "action.ablauf.auftragLaeuft": (
             "Der Auftrag läuft noch. Schau gern später wieder nach — tippe dann auf "
             "„Stand prüfen“."),
@@ -624,6 +616,12 @@ BOT_TEXT: Final[Catalogue] = {
             "Materialien."),
         "facets.licenseSuggestion": "Meintest du {values}?",
         "qr.passQuality": "Hat das geholfen?",
+        # Plan 2026-11-16, Review TG-3d–f, MINOR 1: Krisenmuster in Datei- oder Ordnernamen —
+        # ein Hinweis an der Antwort, keine Sperre (die Nummern wie im Muster M01)
+        "safety.krisenhilfeNamen": (
+            "Falls dich das Thema gerade selbst betrifft: Die Telefonseelsorge ist kostenfrei "
+            "und rund um die Uhr da — 0800 111 0 111, 0800 111 0 222 oder 116 123."
+        ),
         # ── Was der Nutzer sieht, wenn etwas nicht geht ────────────────
         "error.safetyBlocked": (
             "Diese Anfrage konnte ich nicht bearbeiten — sie verletzt "
@@ -777,17 +775,6 @@ BOT_TEXT: Final[Catalogue] = {
         "action.draft.inactive": (
             'Drafts are switched off here — I cannot open the structure of "{title}" as a draft.'
         ),
-        "action.folderDraft.header": (
-            'The folder structure of "{title}" as a draft — edit, download or accept it below.'
-        ),
-        "action.folderDraft.empty": (
-            '"{title}" has no subfolders that could become a topic tree.'
-        ),
-        "action.folderDraft.ohneTitel": "Structure from folders",
-        "action.folderDraft.inactive": (
-            'Drafts are switched off here — I cannot open the folder structure of "{title}" as a '
-            "draft."
-        ),
         "action.ablauf.unbekannt": "This workflow does not exist here or is switched off.",
         "action.ablauf.wahlVeraltet": "This choice no longer applies — the workflow has moved on.",
         "action.ablauf.anmeldung": "Please sign in to WLO for this workflow.",
@@ -884,6 +871,9 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragAbgewiesen": (
             "I am not allowed to fetch the status of this job with your sign-in. Please sign in "
             "again and start the workflow once more."),
+        "action.ablauf.auftragAbgelehnt": "The service declined the job.",
+        "action.ablauf.auftragAbgelehntKonto": (
+            "The service declined the job: your account is not yet enabled there."),
         "action.ablauf.auftragLaeuft": (
             "The job is still running. Feel free to check back later — then tap “Check status”."),
         "action.ablauf.auftragTeil": (
@@ -1155,6 +1145,10 @@ BOT_TEXT: Final[Catalogue] = {
             "Note: I do not know the licence {value}, so I find no materials with it."),
         "facets.licenseSuggestion": "Did you mean {values}?",
         "qr.passQuality": "Did that help?",
+        "safety.krisenhilfeNamen": (
+            "If this topic affects you personally right now: crisis support in Germany is free "
+            "and available around the clock — 0800 111 0 111, 0800 111 0 222 or 116 123."
+        ),
         "error.safetyBlocked": (
             "I could not process this request — it breaks our safety or "
             "content rules. Please try rephrasing it."

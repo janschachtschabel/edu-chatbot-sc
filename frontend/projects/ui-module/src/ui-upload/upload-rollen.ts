@@ -1,13 +1,18 @@
 /**
  * Rollen der erfassten Dateien (Paket U3-1a) — reine Regeln, jede Änderung gibt eine neue Erfassung.
  *
- * Höchstens **ein** Strukturdokument (z. B. ein Lehrplan) je Erfassung, nur PDF, DOCX, TXT oder MD —
- * das liest der Chatbot später selbst (U3-2). Leere und zu große Dateien bleiben ignoriert, auch wenn die
- * Person einen ganzen Ordner wieder einschließt.
+ * Strukturdokumente (z. B. ein Lehrplan), nur PDF, DOCX, TXT oder MD — die liest der Chatbot selbst
+ * (U3-2). Plan 2026-11-16, TG-3e (Nutzer: „aus einem oder mehreren Strukturdokumenten“): bis zu
+ * {@link MAX_STRUKTUR} je Erfassung (vorher genau eins; ein zweites nahm dem ersten die Rolle). Mehr
+ * lässt die Rolle nicht zu — das Auswahlfeld sperrt die Wahl dann. Leere und zu große Dateien bleiben
+ * ignoriert, auch wenn die Person einen ganzen Ordner wieder einschließt.
  */
 import type { Erfassung, ErfassteDatei, Rolle } from './upload-erfassen';
 
 const STRUKTUR_ENDUNG = /\.(pdf|docx|txt|md)$/i;
+/** TG-3e: so viele Strukturdokumente je Erfassung — wie `dokumente/ablage.MAX_JE_SITZUNG` im
+ *  Backend (dort ersetzte ein sechstes das älteste) und die Antwortform (`zahlen.strukturdokumente`). */
+export const MAX_STRUKTUR = 5;
 const LEHRPLAN = /(lehrplan|curricul|bildungsplan|rahmenplan|fachanforderung|kompetenzraster)/i;
 
 export function kannStrukturSein(d: Pick<ErfassteDatei<unknown>, 'name' | 'typ' | 'grund'>): boolean {
@@ -28,6 +33,8 @@ function mitRollen<T>(e: Erfassung<T>, neu: (d: ErfassteDatei<T>, i: number) => 
  * (Rückmeldung 11.11.: dort blieb sonst „Senden“ der Hauptknopf). Review 12.11., Befund 1: nicht in
  * jedem Upload-Feld — beim Übertragen nach WLO wäre die Datei sonst still als Strukturdokument
  * markiert. Sonst bleibt alles, wie es ist.
+ *
+ * Plan 2026-11-16, TG-1 (G-E4): die Automatik merkt nur vor — gelesen wird erst auf „Lesen lassen“.
  */
 export function vorschlagen<T>(e: Erfassung<T>, einzelneAlsStruktur = false): Erfassung<T> {
   const nutzbar = e.dateien.filter((d) => d.rolle === 'inhalt');
@@ -43,14 +50,24 @@ export function vorschlagen<T>(e: Erfassung<T>, einzelneAlsStruktur = false): Er
   return setzeRolle(e, kandidaten[0], 'struktur');
 }
 
+/** Wie viele Dateien gerade die Rolle `struktur` tragen. */
+export function strukturZahl<T>(e: Erfassung<T>): number {
+  return e.dateien.filter((d) => d.rolle === 'struktur').length;
+}
+
+/** Kann diese Datei (noch) Strukturdokument werden? Sie muss lesbar sein, und es dürfen nicht schon
+ *  {@link MAX_STRUKTUR} andere markiert sein (TG-3e). */
+export function strukturWaehlbar<T>(e: Erfassung<T>, index: number): boolean {
+  const d = e.dateien[index];
+  return !!d && kannStrukturSein(d) && (d.rolle === 'struktur' || strukturZahl(e) < MAX_STRUKTUR);
+}
+
 export function setzeRolle<T>(e: Erfassung<T>, index: number, rolle: Rolle): Erfassung<T> {
   const ziel = e.dateien[index];
   if (!ziel || ziel.grund) return e;
-  if (rolle === 'struktur' && !kannStrukturSein(ziel)) return e;
-  return mitRollen(e, (d, i) => {
-    if (i === index) return rolle;
-    return rolle === 'struktur' && d.rolle === 'struktur' ? 'inhalt' : d.rolle;
-  });
+  // TG-3e: andere Strukturdokumente behalten ihre Rolle; über der Grenze bleibt alles, wie es ist
+  if (rolle === 'struktur' && !strukturWaehlbar(e, index)) return e;
+  return mitRollen(e, (d, i) => (i === index ? rolle : d.rolle));
 }
 
 /** Alle Dateien unter `ordnerPfad` ignorieren (`an`) oder wieder als Inhalt einschließen. */

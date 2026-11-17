@@ -11,6 +11,15 @@
 - :func:`stand`: der öffentliche Stand ``ui.ablauf`` (U-1, U-2) aus dem Sitzungsverweis, ohne die
   Datenbank. Ohne den Teil ``start`` und ohne Kennungen in UUID-Form (D10: „ohne nodeIds“).
 
+Plan 2026-11-16, Review TG-4–6, Befund 10: In einem stark verzweigten Ablauf („Themenbaum
+erstellen“) sprang „n“ nach dem längsten Weg (9 → 14 → 19), und ein übernommener Einstieg stand
+auf 2, die nächste Frage auf 4. Seitdem zählt ein Lauf seine **Halte** selbst (``lauf["halte"]``,
+``treiber``): jedes Mal, wenn er an einem Schritt auf die Person wartet (Frage, Modul, KI-Schritt,
+Auftrag, Freigabe, Seite) — nicht an Werkzeugen, Diensten, Verzweigungen oder Nachrichten ohne
+Wahl. Dann ist ``n`` = die Halte und ``m`` = ``n`` − 1 + die meisten Halte, die ab hier noch kommen
+können (ohne Rückwege, ``_rest``). Ein Lauf ohne ``halte`` (begonnen vor dieser Fassung)
+behält die Rechnung über den längsten Weg.
+
 Die Suche nach längsten einfachen Wegen ist im schlimmsten Fall teuer. Darum (Review AS-Ua,
 Befunde 3 und 4): je Suche ein eigenes Besuchsbudget, ``bis`` geht nur über Schritte, die das Ziel
 erreichen können, und das Ergebnis ist je Fassung des Ablaufs zwischengespeichert — es ändert sich
@@ -26,7 +35,12 @@ from typing import Any, Final
 from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.services import arbeitsstand
 from boerdi.services.ablauf import ausloeser, treiber, typen
-from boerdi.services.ablauf.pruefung import nachfolger, regulaere_nachfolger
+from boerdi.services.ablauf.pruefung import (
+    _wartet,
+    mit_wahl,
+    nachfolger,
+    regulaere_nachfolger,
+)
 
 #: Ein beendeter Lauf hat keine Leiste.
 BEENDET: Final = frozenset(treiber.BEENDET)
@@ -43,7 +57,7 @@ _UUID_REST: Final = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F-]*$")
 #: Schritte, die nicht als „Schritt n“ zählen: das Ende und die unsichtbare Verzweigung (WF-1).
 _ZAEHLT_NICHT: Final = frozenset({"ende", "verzweigung"})
 
-_speicher: dict[tuple[str, str, str], tuple[int, int]] = {}
+_speicher: dict[tuple[str, ...], tuple[int, int]] = {}
 _gerechnet = 0
 
 
@@ -70,14 +84,23 @@ class _Suche:
     """Längste einfache Wege über die Kanten ``kanten``."""
 
     def __init__(self, ablauf: AblaufArea,
-                 kanten: Callable[[AblaufArea, int], list[str]]) -> None:
+                 kanten: Callable[[AblaufArea, int], list[str]],
+                 nur_halte: bool = False) -> None:
         self.ablauf = ablauf
+        #: Befund 10: zählt nur Halte (wartende Schritte), für ``m`` eines Laufs mit ``halte``.
+        self.nur_halte = nur_halte
         self.index = {s.id: i for i, s in enumerate(ablauf.schritte)}
-        self.weiter = [[self.index[z] for z in kanten(ablauf, i) if z in self.index]
+        # Plan 2026-11-16, TG-6: jede Kante einmal — mehrere Regeln einer Verzweigung mit demselben
+        # Ziel („Themenbaum erstellen“: Grundlage oder bereitgestellte Art) vervielfachten sonst
+        # die Wege, und das Besuchsbudget reichte nicht für den längsten
+        self.weiter = [list(dict.fromkeys(self.index[z] for z in kanten(ablauf, i)
+                                          if z in self.index))
                        for i in range(len(ablauf.schritte))]
         self.wiederholt = _wiederholte_fragen(ablauf, self.weiter)
 
     def _zaehlt(self, i: int) -> int:
+        if self.nur_halte:
+            return 0 if i in self.wiederholt or not halt(self.ablauf.schritte[i]) else 1
         return 0 if (self.ablauf.schritte[i].typ in _ZAEHLT_NICHT
                      or i in self.wiederholt) else 1
 
@@ -94,6 +117,10 @@ class _Suche:
                     gesehen.add(i)
                     offen.append(i)
         return gesehen
+
+    def _erreicht_von(self, start: int) -> set[int]:
+        """Von ``start`` erreichbar (samt ``start``), über die Kanten dieser Suche."""
+        return self._von(start)
 
     def _vorher(self, start: int) -> set[int]:
         """Die Schritte vor ``start``: vom ersten Schritt aus erreichbar, ohne über ``start`` zu
@@ -191,11 +218,65 @@ def _rechnen(ablauf: AblaufArea, i: int) -> tuple[int, int]:
     return nr, max(nr, nr - 1 + regulaer.ab(i, alle.rueckwege(i)))
 
 
-def position(ablauf: AblaufArea, schritt: Any) -> tuple[int, int] | None:
-    """``(n, m)`` für den Schritt ``schritt`` — ``None``, wenn es ihn nicht gibt."""
+def halt(s: Any) -> bool:
+    """Befund 10: wartet der Lauf an diesem Schritt auf die Person (``pruefung._wartet``, dazu eine
+    Seite mit Ankunft)? Nur solche Schritte zählen als Halt."""
+    return _wartet(s) or (s.typ == "seite" and bool(s.ankunft))
+
+
+def wiederholt(ablauf: AblaufArea) -> frozenset[str]:
+    """Befund 10: die Schritte, die nur eine andere Frage wiederholen (m5, Hilfetext der Führung)
+    — sie zählen auch im Lauf nicht als neuer Halt."""
+    suche = _Suche(ablauf, nachfolger)
+    return frozenset(ablauf.schritte[i].id for i in suche.wiederholt)
+
+
+def _ohne_rueckkanten(suche: _Suche, ausser: int) -> None:
+    """Zweites Review TG-4–6, B: im Halte-Modus fallen nur **Kanten** weg, keine ganzen Schritte —
+    die einer Wahl (Fehler- oder Wahlschritt, etwa „Nochmal“, „Andere Grundlage“) auf einen
+    früheren Schritt (in der Liste davor), von dem aus man wieder zu ihr kommt. Vorher schloss die
+    Regel der Rückwege alle Schritte aus, die vor ``i`` liegen und zu ``i`` zurückführen — in
+    „Themenbaum erstellen“ führt über ``daten`` fast alles zurück, und ``m`` fiel auf ``n``.
+
+    Die Rückkanten des Schritts ``ausser`` (der, an dem der Lauf gerade hält) bleiben: an „Damit
+    komme ich nicht weiter“ zählt ``m`` die Halte nach „Nochmal“ mit, statt auf ``n`` zu fallen."""
+    for j, s in enumerate(suche.ablauf.schritte):
+        if j == ausser or not mit_wahl(s):
+            continue
+        frueher = [k for k in suche.weiter[j] if k <= j and j in suche._erreicht_von(k)]
+        if frueher:
+            suche.weiter[j] = [k for k in suche.weiter[j] if k not in frueher]
+
+
+def _rest(ablauf: AblaufArea, i: int) -> int:
+    """Befund 10: die meisten Halte ab Schritt ``i`` (samt ``i``) — über die regulären Kanten ohne
+    die Rückkanten von Wahlschritten (:func:`_ohne_rueckkanten`)."""
+    global _gerechnet
+    _gerechnet += 1
+    regulaer = _Suche(ablauf, regulaere_nachfolger, nur_halte=True)
+    _ohne_rueckkanten(regulaer, i)
+    if i in regulaer.wiederholt:
+        frage = _frage(ablauf.schritte[i])
+        i = next(j for j, ziele in enumerate(_Suche(ablauf, nachfolger).weiter)
+                 if i in ziele and j != i and _frage(ablauf.schritte[j]) == frage)
+    return regulaer.ab(i, set())
+
+
+def position(ablauf: AblaufArea, schritt: Any, halte: int | None = None
+             ) -> tuple[int, int] | None:
+    """``(n, m)`` für den Schritt ``schritt`` — ``None``, wenn es ihn nicht gibt. Mit ``halte``
+    (Befund 10, die Halte des Laufs bis hierher, ab 1) ist ``n`` = ``halte`` und ``m`` = ``n`` − 1 +
+    die meisten Halte ab hier; sonst beides über die längsten Wege."""
     index = {s.id: i for i, s in enumerate(ablauf.schritte)}
     if not isinstance(schritt, str) or (i := index.get(schritt)) is None:
         return None
+    if isinstance(halte, int) and not isinstance(halte, bool) and halte >= 1:
+        schluessel_rest = (ablauf.id, treiber.fassung(ablauf), schritt, "rest")
+        if (rest := _speicher.get(schluessel_rest)) is None:
+            if len(_speicher) >= _SPEICHER_HOECHSTENS:
+                _speicher.clear()
+            rest = _speicher[schluessel_rest] = (_rest(ablauf, i), 0)
+        return halte, max(halte, halte - 1 + max(rest[0], 1))
     schluessel = (ablauf.id, treiber.fassung(ablauf), schritt)
     if (gespeichert := _speicher.get(schluessel)) is not None:
         return gespeichert
@@ -216,7 +297,7 @@ def stand(entities: dict[str, Any], aufrufer: str, lang: str) -> dict[str, Any] 
     ablauf = ausloeser.laden(lauf.get("ablauf"))
     if not treiber.gilt(ablauf, lauf):
         return None
-    if (pos := position(ablauf, lauf.get("schritt"))) is None:
+    if (pos := position(ablauf, lauf.get("schritt"), lauf.get("halte"))) is None:
         return None
     titel = (ablauf.titel.get(lang) or ablauf.titel.get("de") or ablauf.id).strip()
     teile = (vw or {}).get("teile") or {}

@@ -70,20 +70,58 @@ def test_speichern_lesen_nur_in_derselben_sitzung_und_fuer_denselben_aufrufer(db
     assert aktuell is not None and aktuell.id == gleich.id
 
 
-def test_ein_neues_dokument_ersetzt_das_alte_der_sitzung(db_url):
+def test_tg3e_bis_fuenf_dokumente_je_sitzung_das_sechste_ersetzt_nur_das_aelteste(db_url):
+    """Plan 2026-11-16, TG-3e: mehrere Strukturdokumente je Sitzung — ein sechstes ersetzt nur das
+    älteste; gelesen wird weiter je Kennung oder alle in Lesereihenfolge."""
     from boerdi.services.dokumente import ablage
 
     async def ablauf(sitzungen):
         async with sitzungen() as s:
-            alt = await _neu(s, sid="sitzung-zwei-0002", name="alt.pdf")
-            await s.commit()
-            neu = await _neu(s, sid="sitzung-zwei-0002", name="neu.pdf")
-            await s.commit()
-            return (await ablage.lesen(s, "sitzung-zwei-0002", alt, None),
-                    await ablage.lesen(s, "sitzung-zwei-0002", neu, None))
+            await ablage.der_sitzung_loeschen(s, "sitzung-zwei-0002")
+            kennungen = []
+            for n in range(ablage.MAX_JE_SITZUNG + 1):
+                kennungen.append(await _neu(s, sid="sitzung-zwei-0002", name=f"d{n}.pdf"))
+                await s.commit()
+            alle = await ablage.alle_lesbaren(s, "sitzung-zwei-0002", None)
+            erstes = await ablage.lesen(s, "sitzung-zwei-0002", kennungen[0], None)
+            zweites = await ablage.lesen(s, "sitzung-zwei-0002", kennungen[1], None)
+            juengstes = await ablage.aktuelles(s, "sitzung-zwei-0002", None)
+            return kennungen, alle, erstes, zweites, juengstes
 
-    alt, neu = _lauf(db_url, ablauf)
-    assert alt is None and neu is not None and neu.name == "neu.pdf"
+    kennungen, alle, erstes, zweites, juengstes = _lauf(db_url, ablauf)
+    assert ablage_max() == 5
+    assert [z.id for z in alle] == kennungen[1:]
+    assert erstes is None and zweites is not None
+    assert juengstes is not None and juengstes.id == kennungen[-1]
+
+
+def ablage_max() -> int:
+    from boerdi.services.dokumente import ablage
+
+    return ablage.MAX_JE_SITZUNG
+
+
+def test_tg3e_anmeldung_uebernimmt_alle_anonymen_dokumente_der_sitzung(db_url):
+    from boerdi.services.dokumente import ablage
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            await ablage.der_sitzung_loeschen(s, "sitzung-eins-0001")
+            a = await _neu(s, name="a.pdf")
+            b = await _neu(s, name="b.pdf")
+            await s.commit()
+        async with sitzungen() as s:
+            fuer_person = await ablage.alle_fuer_aufrufer(s, "sitzung-eins-0001", "person-c")
+            await s.commit()
+            anonym = await ablage.alle_fuer_aufrufer(s, "sitzung-eins-0001", None)
+            await ablage.der_sitzung_loeschen(s, "sitzung-eins-0001")
+            await s.commit()
+        return a, b, fuer_person, anonym
+
+    a, b, fuer_person, anonym = _lauf(db_url, ablauf)
+    assert [z.id for z in fuer_person] == [a, b]
+    assert all(z.aufrufer == "person-c" for z in fuer_person)
+    assert anonym == []
 
 
 def test_abgelaufen_ist_sofort_unlesbar_und_wird_aufgeraeumt(db_url):
@@ -197,15 +235,18 @@ def test_querschnitt_mit_dem_dokument_geht_sein_teil_im_vorgang(db_url):
 
 def test_ein_ersetztes_dokument_nimmt_seinen_teil_mit(db_url):
     """Review Q3, Befund 7: ein neues Dokument der Sitzung löscht das alte — dessen Name und Befund
-    im Teil ``document`` gehen mit."""
+    im Teil ``document`` gehen mit. TG-3e: das gilt für das älteste über der Grenze."""
+    from boerdi.services.dokumente import ablage
 
     async def ablauf(sitzungen):
         async with sitzungen() as s:
+            await ablage.der_sitzung_loeschen(s, "sitzung-eins-0001")
             alt = await _neu(s)
             v = await _vorgang_mit_dokument(s, alt)
             await s.commit()
-            await _neu(s, name="Neu.pdf")
-            await s.commit()
+            for n in range(ablage.MAX_JE_SITZUNG):
+                await _neu(s, name=f"Neu{n}.pdf")
+                await s.commit()
             return (await _teile(s, v.id)).scalar_one()
 
     teile = _lauf(db_url, ablauf)
@@ -327,3 +368,69 @@ def test_tb_e1_review_3_fuer_aufrufer_gegen_postgres(db_url):
     assert erst is not None and erst.id == kennung and erst.aufrufer == "person-a"
     assert nochmal is not None and nochmal.id == kennung
     assert andere is None and anonym is None
+
+
+def _vorgang_mit_strukturdokumenten(s, refs, sid="sitzung-eins-0001"):
+    from boerdi.services import vorgaenge
+    from boerdi.services.dokumente import strukturdokument_teil as sd
+
+    async def anlegen():
+        v = await vorgaenge.anlegen(s, aufrufer=f"sitzung:{sid}", session_id=sid, titel="T",
+                                    zweck="bereitstellen", tage=3)
+        liste = [sd.chatbot(r, f"{r[:4]}.pdf") for r in refs]
+        wert = sd.wert(liste)
+        return await vorgaenge.teil_setzen(s, v, sd.TEIL, typ=sd.TYP, wert=wert,
+                                           zusammenfassung=sd.zusammenfassung(wert["dokumente"]),
+                                           tage=3)
+    return anlegen()
+
+
+def test_tg3d_mit_dem_dokument_geht_sein_eintrag_im_teil_strukturdokument(db_url):
+    """Plan 2026-11-16, TG-3d (Datenschutz wie beim Teil ``document``): löscht die Person ein
+    Dokument, verschwindet sein Eintrag; die übrigen bleiben. Geht das letzte, geht der Teil."""
+    from boerdi.services.dokumente import ablage
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            await ablage.der_sitzung_loeschen(s, "sitzung-eins-0001")
+            a = await _neu(s, name="a.pdf")
+            b = await _neu(s, name="b.pdf")
+            v = await _vorgang_mit_strukturdokumenten(s, [a, b])
+            await s.commit()
+            await ablage.loeschen(s, "sitzung-eins-0001", a)
+            await s.commit()
+            nach_einem = (await _teile(s, v.id)).scalar_one()
+            await ablage.loeschen(s, "sitzung-eins-0001", b)
+            await s.commit()
+            nach_beiden = (await _teile(s, v.id)).scalar_one()
+        return b, nach_einem, nach_beiden
+
+    b, nach_einem, nach_beiden = _lauf(db_url, ablauf)
+    eintraege = nach_einem["strukturdokument"]["wert"]["dokumente"]
+    assert [e["ref"] for e in eintraege] == [f"dokument:{b}"]
+    assert nach_einem["strukturdokument"]["zusammenfassung"].startswith("1 Strukturdokument")
+    assert "strukturdokument" not in nach_beiden
+
+
+def test_tg3d_der_aufbewahrungslauf_raeumt_verwaiste_eintraege(db_url):
+    from boerdi.services.dokumente import ablage
+
+    weg = "00000000-0000-4000-8000-0000000000aa"
+    knoten = "11111111-2222-3333-4444-555555555555"
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            from boerdi.services import vorgaenge
+            from boerdi.services.dokumente import strukturdokument_teil as sd
+
+            v = await _vorgang_mit_strukturdokumenten(s, [weg])
+            wert = sd.wert([sd.chatbot(weg, "weg.pdf"), sd.wlo(knoten, "lehrplan.pdf")])
+            v = await vorgaenge.teil_setzen(s, v, sd.TEIL, typ=sd.TYP, wert=wert,
+                                            zusammenfassung="", tage=3)
+            await s.commit()
+        await ablage.verfallene_loeschen(sitzungen, datetime.now(UTC))
+        async with sitzungen() as s:
+            return (await _teile(s, v.id)).scalar_one()
+
+    teile = _lauf(db_url, ablauf)
+    assert [e["ref"] for e in teile["strukturdokument"]["wert"]["dokumente"]] == [knoten]

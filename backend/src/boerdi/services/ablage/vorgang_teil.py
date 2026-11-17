@@ -2,7 +2,10 @@
 
 Format ``wlo.ablage@1``: Ordner, Layout, je Eintrag Index, Titel, Art, Größe, Name, Stand
 (``offen`` | ``stored`` | ``dropped`` | ``unverified`` | ``failed``), nodeId und Rolle (``inhalt`` |
-``struktur``, W4; ``rolle_bestaetigt``: stand sie in der Vorschau des Servers); dazu das
+``struktur``, W4; ``rolle_bestaetigt``: stand sie in der Vorschau des Servers) und — Plan
+2026-11-16, TG-3b — ``i``, die feste Nummer der Datei in der Auswahl (Teil ``struktur``). ``index``
+bleibt die Stelle in der Freigabe (so zählt das MCP, ``wlo_store_batch_file``); ``i`` verknüpft
+Ordner und Knoten und fehlt bei einem Widget vor TG-3b. Dazu das
 Prüf-Kürzel des Freigabe-Schlüssels (``token_kuerzel``, nie der Schlüssel selbst — der bleibt im
 Widget), der Block, der ihn vorbereitet hat, wann, und ob der Stapel abgeschlossen ist. Die KI sieht
 nur den Kurztext (:func:`zusammenfassung`): Zahlen, keine Titel, keine nodeIds.
@@ -56,13 +59,23 @@ def _rolle_felder(e: dict[str, Any], erbeten: list[str]) -> dict[str, Any]:
     return {"rolle": rolle, "rolle_bestaetigt": bestaetigt}
 
 
+def _nummer(e: dict[str, Any], nummern: list[int | None]) -> dict[str, Any]:
+    """TG-3b: ``{"i": n}`` für den Eintrag an Stelle ``index`` — leer ohne Nummer."""
+    i = int(e["index"])
+    n = nummern[i] if 0 <= i < len(nummern) else None
+    return {"i": n} if isinstance(n, int) and not isinstance(n, bool) else {}
+
+
 def aus_plan(plan: dict[str, Any], batch_token: str, block_id: str,
              vorher: dict[str, Any] | None = None, *,
-             rollen: list[str] | None = None) -> dict[str, Any]:
+             rollen: list[str] | None = None,
+             nummern: list[int | None] | None = None) -> dict[str, Any]:
     """Der Teil aus der Vorschau des MCP-Servers (normalisierter Plan); ``vorher`` ist der Teil,
     den er ersetzt (dessen abgelegte Einträge bleiben als ``frueher``); ``rollen`` die erbetenen
-    Rollen je Index (W4) — so weiß ein späterer Schritt, welcher Knoten das Strukturdokument ist."""
+    Rollen je Index (W4) — so weiß ein späterer Schritt, welcher Knoten das Strukturdokument ist;
+    ``nummern`` die feste Nummer ``i`` der Auswahl je Index (TG-3b)."""
     erbeten = list(rollen or [])
+    feste = list(nummern or [])
     teil: dict[str, Any] = {
         "format": TYP, "ordner": str(plan.get("folderName") or ""),
         "layout": layout(plan.get("layout")), "token_kuerzel": kuerzel(batch_token),
@@ -70,7 +83,7 @@ def aus_plan(plan: dict[str, Any], batch_token: str, block_id: str,
         "inhalte": [{"index": int(e["index"]), "titel": str(e.get("title") or ""),
                      "art": str(e.get("ext") or ""), "groesse": int(e.get("size") or 0),
                      "name": str(e.get("fileName") or ""), "stand": "offen",
-                     **_rolle_felder(e, erbeten)}
+                     **_rolle_felder(e, erbeten), **_nummer(e, feste)}
                     for e in plan.get("entries") or [] if isinstance(e, dict)],
     }
     if frueher := _frueher(vorher):
@@ -154,16 +167,31 @@ async def lesen(s: Any, session_id: str, entities: dict[str, Any]) -> dict[str, 
     return wert if isinstance(wert, dict) and wert.get("format") == TYP else None
 
 
+async def _mit_strukturdokument(s: Any, session_id: str, entities: dict[str, Any],
+                                w: dict[str, Any]) -> list[arbeitsstand.Teil]:
+    """Plan 2026-11-16, TG-3e („nach der Ablage“): der Teil ``ablage`` und — wenn sich die
+    abgelegten Knoten mit der Rolle ``struktur`` ändern — der Teil ``strukturdokument`` mit ihnen
+    (Quelle ``wlo``, Verweis node_id). So gehen sie mit ``BEREITSTELLUNG`` in einen neuen Vorgang,
+    auch wenn ``ablage`` dort fehlt (N14)."""
+    from boerdi.services.dokumente import strukturdokument_teil as sd
+
+    teile: list[arbeitsstand.Teil] = [(TEIL, TYP, w, zusammenfassung(w))]
+    alt = await arbeitsstand.teil_lader(s, session_id, entities)(sd.TEIL)
+    if (neu_sd := sd.mit_ablage(alt, w)) is not None:
+        teile.append((sd.TEIL, sd.TYP, neu_sd, sd.zusammenfassung(neu_sd[sd.FELD])))
+    return teile
+
+
 async def speichern(s: Any, session_id: str, entities: dict[str, Any], wert: dict[str, Any], *,
                     neu: Callable[[], Awaitable[dict[str, Any] | None]] | None = None,
                     nur_dieser: bool = False) -> bool:
     """``neu``: in jedem Versuch auf frischem Stand neu rechnen; ``nur_dieser``: nicht in einen
-    anderen Vorgang ausweichen (beides siehe ``arbeitsstand.teile_speichern``)."""
+    anderen Vorgang ausweichen (beides siehe ``arbeitsstand.teile_speichern``). TG-3e: der Teil
+    ``strukturdokument`` folgt den abgelegten Strukturdokumenten (:func:`_mit_strukturdokument`)."""
     async def frisch() -> list[arbeitsstand.Teil] | None:
         w = await neu() if neu is not None else None
-        return None if w is None else [(TEIL, TYP, w, zusammenfassung(w))]
+        return None if w is None else await _mit_strukturdokument(s, session_id, entities, w)
 
-    return await arbeitsstand.teile_speichern(s, session_id, entities,
-                                              [(TEIL, TYP, wert, zusammenfassung(wert))],
-                                              neu=frisch if neu is not None else None,
-                                              nur_dieser=nur_dieser)
+    return await arbeitsstand.teile_speichern(
+        s, session_id, entities, await _mit_strukturdokument(s, session_id, entities, wert),
+        neu=frisch if neu is not None else None, nur_dieser=nur_dieser)

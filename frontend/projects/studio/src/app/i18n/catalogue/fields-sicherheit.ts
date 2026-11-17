@@ -22,7 +22,9 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
     'feld.SafetyConfigArea.security_level.hint':
       'Welches Stufen-Preset gilt, etwa off, regex, standard, strict oder paranoid. Leer '
       + 'heißt standard. Passt kein Preset, gelten Moderation und Rechtsprüfung aus '
-      + '„Eskalation“.',
+      + '„Eskalation“. Namen aus einer Auswahl (Ordner, Dateien) prüft die Moderation; '
+      + 'Krisen- und Drohungsmuster darin geben in jeder Stufe, auch regex, nur einen Hinweis '
+      + 'mit Hilfsnummern — sie sperren nicht.',
     'feld.SafetyConfigArea.presets.label': 'Stufen-Presets',
     'feld.SafetyConfigArea.presets.hint':
       'Die wählbaren Sicherheitsstufen, je Name eine Zusammenstellung: wann Moderation und '
@@ -129,7 +131,9 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
     'feld.SafetyConfigArea.security_level.hint':
       'Which level preset applies, such as off, regex, standard, strict or paranoid. Empty '
       + 'means standard. If no preset matches, moderation and legal check from "Escalation" '
-      + 'apply.',
+      + 'apply. Names from a selection (folders, files) are checked by moderation; crisis and '
+      + 'threat patterns in them only add a notice with helpline numbers at every level, '
+      + 'regex included — they never block.',
     'feld.SafetyConfigArea.presets.label': 'Level presets',
     'feld.SafetyConfigArea.presets.hint':
       'The selectable safety levels, each a named bundle: when moderation and the legal check '

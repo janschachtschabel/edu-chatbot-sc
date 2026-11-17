@@ -693,8 +693,63 @@ async def test_am_agent_schritt_steht_weiter_im_ablauf_darunter(monkeypatch):
                         lambda sid, state, lang: "__action__|Weiter im Ablauf|ablauf_weiter|{}")
     _cards, qrs, *_ = await _call()
     assert qrs[0] == "__action__|Weiter im Ablauf|ablauf_weiter|{}"
+    # Plan 2026-11-16, Durchtest TG-7 (M1a): ein Steuerchip des Ablaufs — auch ohne Schnellantworten
+    # (Agent-Muster: ``mode=none``) steht er da, sonst kommt die Person nicht zum Ende
     _cards, qrs, *_ = await _call(_qr_mode="none")
-    assert not any(q.startswith("__action__") for q in qrs)
+    assert qrs == ["__action__|Weiter im Ablauf|ablauf_weiter|{}"]
+    # Review A2b, Befund 1 (wieder geprüft): unter einem vorgegebenen Schutzmuster nicht
+    from types import SimpleNamespace
+
+    for mode in ("none", "auto"):
+        _cards, qrs, *_ = await _call(_qr_mode=mode, safety=SimpleNamespace(
+            enforced_pattern="M01", risk_level="high"))
+        assert not any(q.startswith("__action__") for q in qrs)
+
+
+@pytest.mark.parametrize("muster", ["M01", "M02"])
+async def test_tg7_kein_steuerchip_unter_krise_oder_drohung(monkeypatch, muster):
+    """Review der TG-7-Behebung, Befund 1 (wie Review A2b, Befund 1): im Krisen- bzw.
+    Drohungszug kein Ablauf-Bezug — auch nicht der Steuerchip."""
+    from types import SimpleNamespace
+
+    from boerdi.services.ablauf import ki_schritt
+
+    monkeypatch.setattr(ki_schritt, "aktueller", lambda state, sid: (
+        SimpleNamespace(id="themenbaum"), SimpleNamespace(id="entwurf")))
+    sicherheit = SimpleNamespace(enforced_pattern=muster, risk_level="high")
+    for mode in ("none", "auto"):
+        _cards, qrs, *_ = await _call(_qr_mode=mode, safety=sicherheit,
+                                      winner=type("W", (), {"id": muster})(),
+                                      _effective_pattern_id=muster)
+        assert not any("ablauf_weiter" in q for q in qrs), (mode, qrs)
+    # ohne Sicherheitsbefund steht er da
+    _cards, qrs, *_ = await _call(_qr_mode="none", safety=SimpleNamespace(
+        enforced_pattern=None, risk_level="low"))
+    assert any("ablauf_weiter" in q for q in qrs)
+
+
+async def test_tg7_der_steuerchip_kuerzt_die_chips_des_gastgebers_nicht(monkeypatch):
+    """Review der TG-7-Behebung, Befund 2 (O-B2): die Chips des Gastgebers bleiben vorn und
+    ungekürzt; der Steuerchip kommt dazu (Grenze + 1)."""
+    from boerdi.services.ablauf import ki_schritt
+
+    weiter = "__action__|Weiter im Ablauf|ablauf_weiter|{}"
+    monkeypatch.setattr(ki_schritt, "weiter_knopf", lambda sid, state, lang, safety=None: weiter)
+    _cards, qrs, *_ = await _call(_canvas_forced_quick_replies=["H1", "H2", "H3", "H4"])
+    assert qrs == ["H1", "H2", "H3", "H4", weiter]
+    _cards, qrs, *_ = await _call(_canvas_forced_quick_replies=["H1", "H2"], _host_qr_max=2)
+    assert qrs[:2] == ["H1", "H2"] and qrs[-1] == weiter and len(qrs) == 3
+
+
+async def test_tg7_andere_ablauf_chips_bleiben_ohne_schnellantworten_weg(monkeypatch):
+    """M1a gilt nur für den KI-Schritt: „Stand prüfen“ bzw. die Knöpfe einer Frage bleiben bei
+    ``mode=none`` weg (eine offene Frage der KI veraltete sonst)."""
+    from boerdi.services.ablauf import auftrag_zug
+
+    pruefen = "__action__|Stand prüfen|ablauf_auftrag_pruefen|{}"
+    monkeypatch.setattr(auftrag_zug, "pruefen_knoepfe", lambda sid, state, lang: [pruefen])
+    _cards, qrs, *_ = await _call(_qr_mode="none")
+    assert qrs == []
 
 
 async def test_am_auftragsschritt_steht_nur_stand_pruefen_darunter(monkeypatch):

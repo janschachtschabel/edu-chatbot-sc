@@ -18,7 +18,7 @@ Testen und Ausprobieren.
 | `nachricht` | Ein Text, auf Wunsch mit Schnellantworten (`optionen`) oder Freitext (`freitext`). |
 | `modul` | Ein UI-Modul im Chat, etwa `ui_upload` oder `ui_strukturentwurf`; der Lauf wartet auf die Antwort darin. Auch hier gehen `optionen` und `freitext`. |
 | `werkzeug` | Ein Dienst ohne Sprachmodell oder ein lesendes WLO-Werkzeug; das Ergebnis wird ein Teil (`schreibt`). Ein schreibendes WLO-Werkzeug nur mit `freigabe`: Der Schritt legt die Änderung vor, und die Person gibt sie frei. |
-| `verzweigung` | Regeln unter `weiter`: `wenn_teil` (ein Teil ist da), `wenn_gewaehlt` (eine Wahl), `wenn_wert` (eine Stelle eines Teils vergleichen: gleich, enthält, vorhanden, leer, größer, kleiner) und `wenn_seite` (Führungen). Die erste passende gilt, `sonst` am Ende. |
+| `verzweigung` | Regeln unter `weiter`: `wenn_teil` (ein Teil ist da), `wenn_gewaehlt` (eine Wahl), `wenn_wert` (eine Stelle eines Teils vergleichen: gleich, enthält, vorhanden, leer, größer, kleiner; der Wert darf selbst eine Stelle sein, `"{teil.struktur.block_id}"` — fehlt sie, greift die Regel nicht) und `wenn_seite` (Führungen). Die erste passende gilt, `sonst` am Ende. |
 | `agent` | Ein Abschnitt, in dem die KI mit genau den genannten Werkzeugen arbeitet (`agent.werkzeuge`, höchstens `agent.zuege` Züge). |
 | `auftrag` | Ein Auftrag bei der b-api (Kestra), etwa für lange Umwandlungen. |
 | `seite` | Führt auf eine Seite der Webseite (Kapitel Führungen). |
@@ -38,13 +38,19 @@ Bei `agent` legt `modus` fest, wie der Ablauf startet:
 - `direkt`: Der Ablauf startet nach der Antwort von selbst. Das Widget drückt denselben Knopf, deshalb
   laufen Prüfung, Bremse („läuft schon“) und die Herkunft `ki` der Angaben wie bei einem Klick.
 - `direkt` gilt nur für Abläufe, die nichts schreiben (kein schreibendes Werkzeug, kein Auftrag, kein
-  Upload). Sonst bleibt es ein Vorschlag, und „Ablauf prüfen“ meldet es.
+  Upload). Sonst bleibt es ein Vorschlag, und „Ablauf prüfen“ meldet es. Seit Plan 2026-11-16 (TG-6)
+  zählt ein Auftrag nicht, vor dem auf jedem Weg direkt eine echte Rückfrage steht: eine Wahl mit
+  mindestens einer Option, die nicht zum Auftrag führt, und ohne Freitext dorthin (wie „Ja,
+  Metadaten erzeugen“ / „Nein, so lassen“), oder eine Freigabe. Geschrieben wird erst nach dem Klick
+  der Person.
 - Die KI bietet nur **eingeschaltete** Abläufe an. Einen ausgeschalteten Ablauf mit `direkt` kann man
   in der Studio-Vorschau also nicht über die KI ausprobieren, nur über „Ablauf ausprobieren“.
 
 ## Beispiel: Sammlung aus Ordnern
 
-`06-ablaeufe/sammlungsstruktur` („Themenbaum · aus Ordnern“) ist der kürzeste vollständige Ablauf:
+`06-ablaeufe/sammlungsstruktur` („Themenbaum · aus Ordnern“) ist der kürzeste vollständige Ablauf.
+Davor stehen seit dem zweiten Review TG-2 `bereit`, `vorhanden` und eine von zwei Fassungen des
+Einstiegs (siehe „Bereitgestelltes übernehmen“ unten).
 
 1. `erfassen` (`modul ui_upload`, Zweck `sammlungsstruktur`): Die Person wählt einen Ordner. Die
    Ordnerstruktur wird der Teil `structure`.
@@ -115,18 +121,163 @@ antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
   Hinweis.
 - **Muster-Maschine:** Am KI-Schritt bietet sie die UI-Module des Schritts an, auch wenn das
   Muster sie nicht nennt.
+- **„Weiter im Ablauf“** (Durchtest TG-7, M1a) ist ein Steuerchip des Ablaufs: Er steht unter jeder
+  Antwort eines wartenden KI-Schritts, auch wenn das Muster keine Schnellantworten zeigt (Agent:
+  `mode=none`) und neben Chips des Gastgebers. Die Knöpfe einer Frage und „Stand prüfen“ bleiben an
+  diese Grenzen gebunden.
+- **Übernehmen setzt fort** (M1b): Übernimmt die Person mit einem Modul des Schritts genau dessen
+  `ausgabe` (`uebernommen: true`, etwa „Übernehmen“ im `ui_strukturentwurf` bei `ausgabe: draft`),
+  geht der Lauf ohne weiteren KI-Zug zum nächsten Schritt (`ki_schritt.uebernimmt`,
+  `zug.nach_uebernahme`). Nur mitgeschickt (ohne Übernehmen) bleibt es ein gewöhnlicher Zug.
+- **`dokument_lesen`** (M2): Hat die Person im Chat ein Dokument lesen lassen, liest die KI es selbst
+  — Gliederung, dann Abschnitte, höchstens 6000 Zeichen je Aufruf, nach der Moderation, gerahmt.
+  Im freien Chat und am KI-Schritt (virtuell, wie `wissen_suchen`); nur die Dokumente der Sitzung
+  bzw. Person. Nur in der Agent-Schleife; im Muster-Weg sagt der Rahmen, dass sie es dort nicht kann.
 
-## Beispiele: Themenbaum mit Kernfragen
+## Beispiel: Themenbaum erstellen (Plan 2026-11-16, TG-6)
+
+`06-ablaeufe/themenbaum` („Themenbaum erstellen“) ist **der** Themenbaum-Ablauf ab Werk. Er löst
+die vier Abläufe „Themenbaum · aus …“ ab; sie liegen weiter als Werksfassung vor, ab Werk aus
+(Beschreibung unten). Er hat keine Voraussetzung: Thema, Dokument, Ordner und der schnelle Weg
+gehen anonym, der WLO-Weg nur angemeldet.
+
+Seit dem Review TG-4–6 gilt: erst die Grundlage und ihre Daten, dann die Fragen, die dort wirken,
+dann der Entwurf.
+
+1. **Bereitgestelltes zuerst:** `bereit` (Dienst `bereitgestellt`) meldet auch `art` (`dokument`,
+   `ordner` oder `dateien` — was ein Ablauf übernehmen kann, in dieser Reihenfolge), `name` (für den
+   Text, etwa „die Ordner „Physik““), `wlo_ablage` (das Upload-Feld kann ablegen: Studio-Schalter,
+   MCP, Anmeldung) und `wlo_erschliessen` (dazu lässt sich der Metadaten-Auftrag starten, sein Flow
+   ist freigegeben). Liegt etwas bereit, fragt `einstieg_mit` („Ja, verwenden“ / „Anderes wählen“ /
+   „Ohne Führung“), sonst `einstieg`.
+2. **Grundlage:** Getippt ist es das Thema. Sonst „Ein Dokument mit Gliederung, etwa ein
+   Lehrplan“, „Meine Ordner“ oder „Meine Dateien“. An Fragen mit Freitext trifft getippter Text ein
+   Synonym nur, wenn er ihm **ganz** gleicht (Wörter ohne Satzzeichen: „nein, danke“ = „Nein
+   danke“, aber nicht „Keine Atomphysik“); ohne Freitext, wie bei der Führung, weiter Teilwörter.
+   Ausnahme `synonyme_im_satz: true` (nur die Grundlage): ganze Wörter im Satz („meine Lehrpläne“),
+   nicht verneint im selben Satzteil — davor („keinen Lehrplan“) oder direkt dahinter („Lehrplan
+   nicht, Ordner“ → Ordner); „nicht nur“ bejaht. Treffen mehrere Optionen („Dateien aus meinem
+   Ordner“), ist der Text weder Wahl noch Thema: Der Hinweis `kein_treffer` fragt nach (jedes Mal),
+   der Schritt wartet weiter. `kein_treffer` neben Freitext ist nur mit `synonyme_im_satz` erlaubt.
+3. **Daten:**
+   - Dokument → Upload-Feld mit `einzeldatei_als_struktur` → gelesen?
+   - Ordner → Upload-Feld → `strukturentwurf_aus_ordnern` → Prüfpunkt `ui_strukturentwurf` („Ordner
+     sind dein Ausgangspunkt …“) → „So lassen“ (fertig, die Dateien sind je Punkt gemerkt) oder „Mit
+     deinen Angaben verfeinern“. Ohne Unterordner der Weg Dateien. Überträgt die Person die Dateien
+     im Feld nach WLO, folgen erst Rückfrage, Kestra-Metadaten und `metadaten_lesen`, dann der
+     Entwurf mit den node_ids.
+   - Dateien → „Gründlich über WLO“ / „Nur die Dateinamen“ nur bei `wlo_erschliessen`; sonst ein Satz
+     („Ich nehme nur die Dateinamen …“) und `inhalte_aus_dateien`.
+4. **Fragen**: wofür, für wen bzw. welche Stufe (eine Frage), Umfang, Hinweise, dann Soll oder Ist
+   (nur bei Dateien — die Metadaten liegen dann vor; gefragt in `zum_entwurf`). Unter 5 Inhalten
+   (kein fünfter Eintrag in `metadaten.inhalte`) statt dessen „Mit so wenigen Dateien wird der Baum
+   sehr klein. Lieber nach Stoff (Soll) aufbauen?“ (`soll_wenig`: „Nach Stoff (Soll)“ / „Trotzdem
+   nur meine Dateien“, Durchtest TG-7, m4). Auf dem Ordner-Weg nur nach „verfeinern“.
+   Freitext nur, wo die Antwort frei ist (Grundlage, wofür, Stufe, Umfang, Hinweise).
+   **Knopf-Fragen** (Ja/Nein, Entweder-oder: Einstieg, „So lassen“/„verfeinern“, „Gründlich“/„Nur
+   die Dateinamen“, Soll oder Ist, die Rückfrage vor Kestra, die Auswege) nehmen keinen Freitext und
+   tragen keine Synonyme — „Passt so“ oder „Ja, gründlich“ träfen sonst den falschen Knopf. Ohne
+   Treffer erscheint einmal „Bitte wähle einen der Knöpfe.“ mit denselben Chips (`kein_treffer`).
+5. **Entwurf** im KI-Schritt der Grundlage; auf dem Ordner-Weg mit `vorlage: true` (der geprüfte
+   Entwurf wird verfeinert).
+6. **Ende:** Der Entwurf ist gespeichert, nächste Schritte als Text. Jeder Fehlerweg bietet
+   „Nochmal“ (zurück zu `daten`, Auswahl verworfen), „Andere Grundlage“ bzw. „Frei weiter“.
+
+Die KI-Schritte tragen `agent.vorbelegen: true` (TG-5): Die Antworten belegen die Argumente von
+`ui_strukturentwurf` vor — `umfang` wird `tiefe`/`anzahl_oben` (1/6, 2/10, 3/12; ein verneintes
+Wort zählt nicht), `stufe` die `bildungsstufe` (nur bekannte Labels, sonst eine Zeile), eine
+getippte Grundlage das Thema — ohne sie (Durchtest TG-7, m1) auf dem Ordner-Weg der Name des
+Wurzelordners, auf dem Dokument-Weg der Name des ersten Strukturdokuments ohne Endung, auf dem
+Datei-Weg keins (die KI leitet es aus den Inhalten ab, nie den Zweck); Zweck, für wen, Soll/Ist und
+Hinweise gehen als Zeilen in `hinweise` (Vorsatz in der Sprache des Zugs, die Hinweise der Person
+bekommen den übrigen Platz). Ein Argument, das die KI selbst setzt, geht vor; `tiefe` und
+`anzahl_oben` nur zusammen, `""` löscht `bildungsstufe` bzw. `hinweise`. Die KI sieht in
+`[VORBELEGT — …]`, was der Ablauf setzt.
+
+**Freie Arbeit bleibt (Review TG-4–6, MAJOR 2):** Ein Ablauf mit Auftrag beginnt nur dann in einem
+frischen Vorgang, wenn im aktuellen eine Ablage, ein Metadaten-Lauf oder ein offener Lauf liegt
+(N14). Sonst übernimmt er die freie Arbeit samt Entwurf. Darum prüft keine Regel des Ablaufs
+`draft`, sondern Teile, die nur er schreibt (`ordnerweg`, `metadaten`).
+
+**Leiste (Review TG-4–6, Befund 10):** Ein Lauf zählt seine Halte selbst (`lauf.halte`): jede Stelle,
+an der er auf die Person wartet. Werkzeuge, Dienste, Verzweigungen und Nachrichten ohne Wahl zählen
+nicht; eine Frage, die nur eine andere wiederholt, auch nicht. „Schritt n von m“: `n` = die Halte,
+`m` = `n` − 1 + die meisten Halte, die ab hier noch kommen können. Ein „Nochmal“ ist ein weiterer
+Halt. Läufe aus der Zeit davor rechnen weiter über den längsten Weg. Für `m` zählen Kanten **zurück**
+(von einer anderen Frage oder einem Fehlerschritt zu einem früheren Schritt) nicht — nur die des
+Schritts, an dem der Lauf steht: An „Damit komme ich nicht weiter“ zählt der Weg nach „Nochmal“, auf
+dem Hauptweg steigt `m` nie (zweites Review, B).
+
+**Synonyme vor einem schreibenden Auftrag:** Eine Antwort, die direkt zu einem Flow führt, der ins
+Repositorium schreibt, trägt keine `synonyme` — ohne Freitext träfe „Nein, nicht erzeugen“ über
+„erzeugen“ die Zustimmung. Die Prüfung meldet das (`auftrag_synonym`), und für den Direktstart zählt
+eine solche Frage nicht als Rückfrage.
+
+**Simulation und Hinweis:** Bekommt getippter Text den Hinweis `kein_treffer`, wartet der Lauf auch
+im Selbsttest weiter; die nächste Eingabe gilt demselben Schritt. Ohne Freitext einmal je Besuch
+(ein zweiter Fehlversuch ginge im Betrieb an die KI und bleibt hier eine Abweichung), ein
+mehrdeutiger Satz jedes Mal.
+
+**Simulation und Upload:** Ein simuliertes Upload-Feld hat eine feste `block_id`
+(`simulation` + Modulname ohne Unterstriche, etwa `simulationuiupload`); Testfälle, die eine Ablage
+desselben Felds vorgeben, tragen sie in `teile.ablage.block_id`. So prüft die Simulation die Regel
+„Ablage gehört zur jetzigen Auswahl“ (`teil.ablage.block_id` gleich `{teil.struktur.block_id}`).
+
+**Kein stummes Ende:** Die Prüfung meldet als Hinweis ein `ende` ohne `ausstieg`, das ein Lauf
+ohne Ergebnis und ohne Wahl der Person erreichen kann — etwa direkt nach `bei_fehler` oder nach
+einem Upload, der nichts Brauchbares brachte (`services/ablauf/stumme_enden`). Ergebnis heißt: ein
+KI-Schritt, ein Auftrag, eine Freigabe, eine Ankunft auf einer Seite oder ein Modul, dessen Antwort
+mehr als Bereitstellung schreibt (etwa `draft`). Alle Seeds sind frei davon.
+
+## Beispiele: Themenbaum mit Kernfragen (abgelöst)
 
 Die vier Themenbaum-Abläufe heißen im Studio einheitlich „Themenbaum · aus …“: aus Ordnern, aus
-einem Thema, aus eigenen Inhalten und aus einem Dokument. Im Werkszustand an sind „aus Ordnern“,
-„aus einem Thema“ und „aus einem Dokument“ (sie schreiben nichts); „aus eigenen Inhalten“ ist aus,
-bis der Flow freigeschaltet ist. Ohne Anmeldung startet „aus eigenen Inhalten“ nicht: passt die
+einem Thema, aus eigenen Inhalten und aus einem Dokument. Seit Plan 2026-11-16 (TG-6) sind sie ab
+Werk aus und durch „Themenbaum erstellen“ abgelöst; die Beschreibung bleibt für eigene Fassungen.
+Vorher waren „aus Ordnern“, „aus einem Thema“ und „aus einem Dokument“ an (sie schreiben nichts),
+„aus eigenen Inhalten“ war aus, bis der Flow freigeschaltet war. Ohne Anmeldung startet „aus eigenen Inhalten“ nicht: passt die
 Wendung, sagt die KI das in einem Satz und hilft ohne ihn weiter.
 „Aus einem Thema“ und „aus einem Dokument“ beginnen mit der Wahl „mit Fragen / gleich entwerfen /
 ohne Ablauf“, „aus eigenen Inhalten“ mit „Ja, los geht's / ohne Ablauf“.
-„Themenbaum · aus einem Dokument“ startet auch aus dem Auswahlfeld, mit „Themenbaum aus dem
-Strukturdokument erstellen“ (Modul-Auslöser).
+Seit Plan 2026-11-16 (TG-2, G-E6) ist das Auswahlfeld zielneutral: Ein gelesenes Dokument
+startet nichts von selbst (der Modul-Auslöser von „aus einem Dokument“ ist entfallen); die KI
+fragt und schlägt den Ablauf vor.
+
+**Bereitgestelltes übernehmen** (zweites Review TG-2). „Aus einem Dokument“ und „aus Ordnern“
+beginnen mit dem Werkzeug-Schritt `bereit` (Dienst `bereitgestellt`, ohne Sprachmodell). Er
+schreibt den Teil `bereit` in der Form `{"dokument": {"name", "lesbar"} | null, "ordner": {"name",
+"unterordner"} | null, "dateien": n, "inhaltsdateien": n}`:
+
+- ein Dokument nur, wenn es das lesbare Dokument dieser Sitzung ist (aus einer anderen Sitzung oder
+  nach Ablauf der Frist ist es das nicht);
+- Ordner mit der Zahl der Unterordner (ohne sie gibt es keinen Entwurf);
+- seit Plan 2026-11-16, TG-3a die Zahl der Dateien, deren Namen im Teil `struktur` bereitliegen
+  (`dateien`: nicht ignoriert; `inhaltsdateien`: Rolle `inhalt`) — 0 ohne `struktur`;
+- seit TG-3e die Strukturdokumente des Vorgangs (`strukturdokumente: [{name, lesbar}]` aus dem Teil
+  `strukturdokument` und den Knoten mit Rolle `struktur` in `ablage`) und ihre lesbare Zahl
+  (`lesbare_strukturdokumente`, für `wenn_wert`). `dokument.lesbar` gilt für jedes der bis zu fünf
+  lesbaren Dokumente der Sitzung, nicht nur das jüngste.
+
+Die Verzweigung `vorhanden` prüft mit `wenn_wert` (`teil.bereit.dokument.lesbar` gleich `ja` bzw.
+`teil.bereit.ordner.unterordner` größer `0`) und wählt eine von zwei Fassungen des Einstiegs:
+`einstieg` wie bisher oder `einstieg_mit` („Ja, … verwenden“ / „Andere wählen“ / „Ohne Führung“),
+deren Text den Namen über `{teil.bereit.dokument.name}` bzw. `{teil.bereit.ordner.name}` nennt.
+So steht der Einstieg in der Leiste immer an derselben Stelle. Die Form von `bereit` ist
+erweiterbar (TG-3d: Strukturdokumente).
+
+**Teile verwerfen.** Eine Schnellantwort kann mit `verwirft: [teilname, …]` Teile aus dem Vorgang
+entfernen, bevor es weitergeht — auch für die Schritte desselben Zugs. „Andere wählen“ verwirft so
+das bereitgestellte `document` bzw. `structure` und `struktur`: Schickt die Person danach nur „Senden“, kommt die
+Rückfrage statt still des Entwurfs aus dem abgelehnten Dokument. Die Prüfung meldet Namen, die der
+Ablauf nicht kennt, und `start`. Die Simulation verwirft genauso.
+
+**Bereitgestelltes geht beim Start mit.** Freie Arbeit landet im aktuellen Vorgang. Schließt ein
+Start ihn (sein Lauf ist beendet oder gehört einem anderen Ablauf), übernimmt der neue Vorgang die
+Bereitstellungs-Teile (`arbeitsstand_teile.BEREITSTELLUNG`: `structure`, `struktur`, `document`) mit Inhalt
+bzw. Verweis — kein Entwurf, kein Lauf, keine Antworten. Das gilt für jeden Start.
+
+**Nicht verwerfbar** sind Teile mit Verweisen ins Repositorium (`typen.NICHT_VERWERFBAR`, heute
+`ablage`). `verwirft: [document]` nimmt nur den Teil; das Sitzungsdokument selbst bleibt lesbar.
 
 **Kernfragen als Teile.** Die Fragen kommen aus dem Gestaltungsleitfaden. „Aus einem Thema“ fragt
 seit 13.11. zuerst das Thema, dann wofür, für wen und wie tief: Das Thema trägt den Baum.

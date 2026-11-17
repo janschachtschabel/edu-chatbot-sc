@@ -282,6 +282,32 @@ async def teil_setzen(s: AsyncSession, v: Vorgang, name: str, *, typ: str, wert:
     return ergebnis.scalar_one()
 
 
+async def teil_entfernen(s: AsyncSession, v: Vorgang, name: str, *, tage: float) -> Vorgang:
+    """Plan 2026-11-16, zweites Review TG-2 (MAJOR 1): Teil ``name`` ganz entfernen — samt großer
+    Fassung in der Ablage und Historie; die Frist beginnt neu. Ohne den Teil bleibt ``v``, wie es
+    ist. Wirft :class:`VorgangKonflikt` wie :func:`teil_setzen`, wenn ``v`` veraltet ist."""
+    alt = ((v.akte or {}).get("teile") or {}).get(name)
+    if alt is None:
+        return v
+    beansprucht = await s.execute(
+        update(Vorgang).where(Vorgang.id == v.id, Vorgang.akte_version == v.akte_version)
+        .values(akte_version=v.akte_version + 1)
+        .execution_options(synchronize_session=False))
+    if not beansprucht.rowcount:
+        raise VorgangKonflikt(v.id)
+    akte = copy.deepcopy(v.akte)
+    akte["teile"].pop(name, None)
+    for weg in [*([alt["ref"]] if alt.get("ref") else []),
+                *(akte.get("historie") or {}).pop(name, [])]:
+        await _weg(s, v.id, weg)
+    ergebnis = await s.execute(
+        update(Vorgang).where(Vorgang.id == v.id)
+        .values(akte=akte, geaendert=_jetzt(), verfaellt_am=_frist(tage))
+        .returning(Vorgang)
+        .execution_options(synchronize_session=False, populate_existing=True))
+    return ergebnis.scalar_one()
+
+
 async def _weg(s: AsyncSession, vorgang_id: str, schluessel: str) -> None:
     await s.execute(delete(VorgangAblage).where(VorgangAblage.vorgang_id == vorgang_id,
                                                 VorgangAblage.schluessel == schluessel))
@@ -322,26 +348,82 @@ async def dokument_teile_entfernen(s: AsyncSession, upload_ids: list[str]) -> in
     abgelegt = select(VorgangAblage.vorgang_id).where(
         VorgangAblage.schluessel.like("document@%"), VorgangAblage.inhalt["ref"].astext.in_(refs))
     ids = set((await s.execute(inline)).scalars()) | set((await s.execute(abgelegt)).scalars())
+    # Plan 2026-11-16, TG-3d: auch der Eintrag im Teil ``strukturdokument`` geht mit — sein Name
+    # überdauerte sonst das Dokument wie früher der Teil ``document``.
+    ids |= await _mit_strukturdokument(s, refs)
     return sum([await _entfernen_unter_sperre(s, vid, set(refs)) for vid in sorted(ids)])
+
+
+#: So viele Verweise prüft eine Abfrage auf ``strukturdokument`` höchstens (der Aufbewahrungslauf
+#: kann viele Dokumente auf einmal löschen).
+_REFS_JE_ABFRAGE: Final = 100
+
+
+async def _mit_strukturdokument(s: AsyncSession, refs: list[str]) -> set[str]:
+    """TG-3d: Vorgänge, deren Teil ``strukturdokument`` auf eines dieser Dokumente verweist."""
+    from sqlalchemy import or_
+
+    from boerdi.services.dokumente.strukturdokument_teil import FELD, TEIL
+
+    ids: set[str] = set()
+    for i in range(0, len(refs), _REFS_JE_ABFRAGE):
+        bedingungen = [Vorgang.akte.contains({"teile": {TEIL: {"wert": {FELD: [{"ref": r}]}}}})
+                       for r in refs[i:i + _REFS_JE_ABFRAGE]]
+        ids |= set((await s.execute(select(Vorgang.id).where(or_(*bedingungen)))).scalars())
+    return ids
+
+
+async def _strukturdokument_bereinigen(s: AsyncSession, v: Vorgang, refs: set[str]
+                                       ) -> dict[str, Any] | None:
+    """TG-3d: die Akte ohne die Einträge dieser Dokumente im Teil ``strukturdokument`` — ``None``,
+    wenn keiner darauf zeigt. Bleibt keiner, geht der ganze Teil."""
+    from boerdi.services.dokumente import strukturdokument_teil as sd
+
+    alt = ((v.akte or {}).get("teile") or {}).get(sd.TEIL)
+    if not isinstance(alt, dict):
+        return None
+    wert = await _aus_ablage(s, v.id, alt["ref"]) if alt.get("ref") else alt.get("wert")
+    vorher = sd.eintraege(wert)
+    if not any(e["ref"] in refs for e in vorher):
+        return None
+    akte = copy.deepcopy(v.akte)
+    for weg in [*([alt["ref"]] if alt.get("ref") else []),
+                *(akte.get("historie") or {}).pop(sd.TEIL, [])]:
+        await _weg(s, v.id, weg)
+    neu = sd.ohne(wert, refs)
+    if not neu[sd.FELD]:
+        akte["teile"].pop(sd.TEIL, None)
+        return akte
+    # Klein (höchstens zehn Verweise) — der Teil steht danach in der Akte selbst.
+    akte["teile"][sd.TEIL] = {
+        **{k: w for k, w in alt.items() if k != "ref"}, "wert": neu,
+        "version": int(alt.get("version") or 0) + 1,
+        "zusammenfassung": sd.zusammenfassung(neu[sd.FELD]), "geaendert": _jetzt().isoformat()}
+    return akte
 
 
 async def _entfernen_unter_sperre(s: AsyncSession, vid: str, refs: set[str]) -> bool:
     """Review Q3, Befund 6: gesperrt gelesen — sonst überschriebe das Zurückschreiben ein
     gleichzeitiges ``teil_setzen`` zwischen Lesen und Schreiben (aufsteigend: keine Verklemmung).
     Unter der Sperre noch einmal geprüft (Nachprüfung, Befund 5): ``document`` geht nur, wenn es
-    noch auf eines der Dokumente zeigt — ein inzwischen neues bleibt."""
+    noch auf eines der Dokumente zeigt — ein inzwischen neues bleibt. TG-3d: ebenso die Einträge
+    im Teil ``strukturdokument``."""
     v = await s.get(Vorgang, vid, populate_existing=True, with_for_update=True)
-    alt = ((v.akte or {}).get("teile") or {}).get("document") if v is not None else None
-    if not isinstance(alt, dict):
+    if v is None:
         return False
-    wert = await _aus_ablage(s, vid, alt["ref"]) if alt.get("ref") else alt.get("wert")
-    if not isinstance(wert, dict) or wert.get("ref") not in refs:
+    geaendert = await _strukturdokument_bereinigen(s, v, refs)
+    akte = geaendert if geaendert is not None else copy.deepcopy(v.akte)
+    alt = ((v.akte or {}).get("teile") or {}).get("document")
+    wert = None
+    if isinstance(alt, dict):
+        wert = await _aus_ablage(s, vid, alt["ref"]) if alt.get("ref") else alt.get("wert")
+    if isinstance(wert, dict) and wert.get("ref") in refs:
+        akte["teile"].pop("document", None)
+        for weg in [*([alt["ref"]] if alt.get("ref") else []),
+                    *(akte.get("historie") or {}).pop("document", [])]:
+            await _weg(s, vid, weg)
+    elif geaendert is None:
         return False
-    akte = copy.deepcopy(v.akte)
-    akte["teile"].pop("document", None)
-    for weg in [*([alt["ref"]] if alt.get("ref") else []),
-                *(akte.get("historie") or {}).pop("document", [])]:
-        await _weg(s, vid, weg)
     await s.execute(update(Vorgang).where(Vorgang.id == vid)
                     .values(akte=akte, akte_version=Vorgang.akte_version + 1)
                     .execution_options(synchronize_session=False))
@@ -357,12 +439,23 @@ async def verwaiste_dokument_teile_entfernen(s: AsyncSession) -> int:
     abgelegt = select(VorgangAblage.inhalt["ref"].astext).where(
         VorgangAblage.schluessel.like("document@%"))
     refs = set((await s.execute(inline)).scalars()) | set((await s.execute(abgelegt)).scalars())
+    refs |= await _strukturdokument_refs(s)
     ids = {r.removeprefix("dokument:") for r in refs if isinstance(r, str)}
     if not ids:
         return 0
     da = set((await s.execute(select(DokumentUpload.id).where(DokumentUpload.id.in_(ids))))
              .scalars())
     return await dokument_teile_entfernen(s, sorted(ids - da))
+
+
+async def _strukturdokument_refs(s: AsyncSession) -> set[str]:
+    """TG-3d: die Verweise auf Sitzungsdokumente in allen Teilen ``strukturdokument`` (in der Akte
+    — der Teil ist klein und liegt nie in der Ablage, ``_strukturdokument_bereinigen``)."""
+    from boerdi.services.dokumente import strukturdokument_teil as sd
+
+    werte = (await s.execute(select(Vorgang.akte[("teile", sd.TEIL, "wert")]).where(
+        Vorgang.akte["teile"].has_key(sd.TEIL)))).scalars()
+    return {e["ref"] for w in werte for e in sd.eintraege(w) if sd.upload_id(e)}
 
 
 async def loeschen(s: AsyncSession, vorgang_id: str, aufrufer: str) -> None:

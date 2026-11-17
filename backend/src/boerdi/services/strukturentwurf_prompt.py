@@ -87,11 +87,41 @@ def oben(*, thema: str, fach: str | None, bildungsstufe: str | None, anzahl_oben
                                   "anzahl_oben": anzahl_oben, "hinweise": hinweise}, vorgaben)
 
 
+#: TG-3e: die Aufgabe aus mehreren Dokumenten — wie aus einem, dazu: gleiche Ordnungselemente
+#: verschiedener Dokumente werden EIN Punkt (mit den Kennungen aus allen), die Kennungen tragen den
+#: Präfix des Dokuments.
+_MEHRERE: Final = (
+    "Aufgabe: die obere Ebene einer Gliederung NACH MEHREREN DOKUMENTEN der Person — "
+    "\"dokument\" enthält ihre gemeinsame Gliederung: je Dokument ein Abschnitt oberster Ebene "
+    "[dN] mit seinen Abschnitten [dN-aM], und den Anfang jedes Dokuments. Die obere Ebene tragen "
+    "die inhaltlichen Ordnungselemente der Dokumente: Lernfelder, Themenfelder, "
+    "Inhaltsbereiche, Module oder fachliche Kapitel — folge ihrer Ordnung und benenne sie kurz "
+    "nach dem Thema (ohne Nummern wie „LF 3“ oder „TF 2“). Die Dokumente selbst werden keine "
+    "Punkte. Dasselbe Ordnungselement aus mehreren Dokumenten wird EIN Punkt mit den Kennungen "
+    "aus allen; sonst je Ordnungselement ein Punkt, nichts weglassen. Keine Punkte werden: "
+    "Vorwort, Einleitung, Leitgedanken, Kompetenzmodell und Kompetenzbereiche, Basiskonzepte, "
+    "Leistungsbewertung, Hinweise zur Umsetzung, Stundentafel, rechtliche Hinweise, "
+    "Inhaltsverzeichnis, Impressum, Literatur, Anhang. Fachbegriffe eines Abschnitts sind "
+    "Kandidaten für Unterpunkte; Kompetenzen und Kontexte nicht. Fasse sehr kleine Abschnitte "
+    "zusammen. \"anzahl_oben\" gilt nur, wenn die Dokumente keine solche Ordnung haben. "
+    "Antwort: {\"titel\": Titel der Gliederung, \"fach\": Fach oder null, \"bildungsstufe\": "
+    "Stufe oder null, \"knoten\": [Punkte]}. Je Punkt zusätzlich \"abschnitte\": die Kennungen "
+    "(\"d1-a3\" …) der Abschnitte aus der Gliederung, aus denen er stammt, genau wie dort "
+    f"geschrieben, 1 bis 12. \"unterthemen\" je Punkt 0 bis {UNTERTHEMEN_OBEN}.")
+
+
 def oben_aus_dokument(*, thema: str, fach: str | None, bildungsstufe: str | None,
                       anzahl_oben: int, hinweise: str, gliederung: str, anfang: str,
-                      vorgaben: str = "") -> list[dict[str, Any]]:
+                      vorgaben: str = "", mehrere: bool = False) -> list[dict[str, Any]]:
     """Die obere Ebene nach dem Dokument der Person (Paket U3-2b): wie :func:`oben`, dazu je
-    Punkt ``abschnitte`` — die Kennungen ``aN`` der Abschnitte, aus denen er stammt."""
+    Punkt ``abschnitte`` — die Kennungen ``aN`` der Abschnitte, aus denen er stammt. Plan
+    2026-11-16, TG-3e: ``mehrere`` — die Gliederung trägt mehrere Dokumente (``[dN]``, Abschnitte
+    ``[dN-aM]``); ein Satz sagt, wie sie zusammengehen. Ohne bleibt der Text, wie er war."""
+    if mehrere:
+        return _nachrichten(_MEHRERE, {
+            "thema": thema, "fach": fach, "bildungsstufe": bildungsstufe,
+            "anzahl_oben": anzahl_oben, "hinweise": hinweise,
+            "dokument": {"gliederung": gliederung, "anfang": anfang}}, vorgaben)
     aufgabe = (
         "Aufgabe: die obere Ebene einer Gliederung NACH DEM DOKUMENT der Person — \"dokument\" "
         "enthält seine Gliederung (Titel mit Kennungen [aN]) und seinen Anfang. Die obere Ebene "

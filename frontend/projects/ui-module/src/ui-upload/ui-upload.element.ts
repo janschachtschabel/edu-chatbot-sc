@@ -5,11 +5,14 @@
  * Die Person wählt einen Ordner (oder Dateien) per Knopf oder legt ihn ab; daraus entsteht im Browser
  * der Ordnerbaum mit Dateizahlen (`upload-erfassen.ts`). Rollen setzt sie je Datei oder je Ordner
  * (`upload-rollen.ts`). Der Befund geht als Vormerkung mit der nächsten getippten Nachricht oder per
- * Knopf als Antwort (`upload-antwort.ts`) — nur Ordnernamen und Zahlen, keine Dateinamen.
+ * Knopf als Antwort (`upload-antwort.ts`) — Ordnerbaum mit Zahlen und, seit Plan 2026-11-16 TG-3a, den
+ * Dateien je Ordner (Name, Endung, Größe, Rolle, feste Nummer `i`); nie Inhalte.
  *
  * Seit U3-2c lässt sich ein markiertes Strukturdokument lesen: nur dieses wird hochgeladen
- * (`host.hochladen`), das Backend gibt den Befund zurück, und das Modul antwortet mit dem Ziel der
- * Person (`upload-dokument.ts`) — etwa „Themenbaum aus dem Strukturdokument erstellen“.
+ * (`host.hochladen`), das Backend gibt den Befund zurück, und das Modul antwortet
+ * (`upload-dokument.ts`). Plan 2026-11-16, TG-1 (G-E4): zielneutral — der Knopf heißt „Lesen lassen“,
+ * und es gibt keinen Zielknopf mehr (früher „Themenbaum aus dem Strukturdokument erstellen“ und
+ * „Als Themenbaum-Entwurf übernehmen“); was mit den Daten geschieht, entscheiden Ablauf oder KI.
  *
  * Seit U3-3b lassen sich die erfassten Dateien per Klick in den persönlichen Bereich in WLO übertragen
  * (`upload-uebertragen*.ts`, `host.ablegen`) — nur, wenn das System es im Block erlaubt (Studio und
@@ -22,7 +25,6 @@ import type { ElementHost, NachladeElement } from '../_nachladen/element-vertrag
 import type { ModulKontext } from '../_vertrag/ui-block';
 import { ansichtTeile, grenzenAus, nurLesenOhneStapel, type UploadSicht, type Zustand, zusammenfassung } from './upload-ansicht';
 import { antwortDaten, type AntwortAktion } from './upload-antwort';
-import type { DokumentZiel } from './upload-dokument';
 import { DokumentAblauf } from './upload-dokument-ablauf';
 import { ausDateiliste, ausEintraegen, erfasse, type Erfassung, type Quelle } from './upload-erfassen';
 import { alleIgnorieren, setzeRolle, vorschlagen } from './upload-rollen';
@@ -116,7 +118,9 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     else if (d['ignorieren'] !== undefined && this.erfassung && !this.auswahlFest()) this.neu(alleIgnorieren(this.erfassung, d['ignorieren'], d['an'] === 'true'));
     else if (d['antwort']) this.antworten(d['antwort'] as AntwortAktion);
     else if (d['uebertragen']) this.beiUebertragen(d['uebertragen']);
-    else if (d['dokument'] && !this.uebertragen.laeuft()) void this.dokument.lesen(d['dokument'] as DokumentZiel);
+    // Plan 2026-11-16, TG-3e: „Ohne dieses weiter“ lässt ein gescheitertes Dokument aus
+    else if (d['dokument'] === 'ohne' && !this.uebertragen.laeuft()) void this.dokument.ueberspringen();
+    else if (d['dokument'] && !this.uebertragen.laeuft()) void this.dokument.lesen();
     else if (d['weiter']) this.dokument.senden();
     else if (d['zurueck']) this.zuruecksetzen();
   }
@@ -200,7 +204,7 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     // Eine andere Rolle macht einen Fehler oder einen wartenden Befund gegenstandslos.
     this.dokument.auswahlGeaendert();
     if (this.zustand === 'erfasst') {
-      const a = antwortDaten(e, 'erfasst');
+      const a = antwortDaten(e, 'erfasst', this.t.dateiOhneName);
       this.host?.vormerken(a as unknown as Record<string, unknown>);
       this.ansagen(zusammenfassung(this.t, a));
     } else {
@@ -217,11 +221,10 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
 
   private antworten(aktion: AntwortAktion): void {
     if (!this.erfassung || this._beschaeftigt || this.uebertragen.laeuft()) return;
-    const a = antwortDaten(this.erfassung, aktion);
+    const a = antwortDaten(this.erfassung, aktion, this.t.dateiOhneName);
     const name = a.struktur.name || this.t.auswahl;
-    const text = aktion === 'ordner_als_entwurf'
-      ? this.t.blaseEntwurf(name)
-      : this.t.blaseErfasst(name, this.t.ordner(a.zahlen.ordner), this.t.dateien(a.zahlen.inhalte + a.zahlen.strukturdokumente));
+    const text = this.t.blaseErfasst(name, this.t.ordner(a.zahlen.ordner),
+      this.t.dateien(a.zahlen.inhalte + a.zahlen.strukturdokumente));
     this.host?.antworten(a as unknown as Record<string, unknown>, text);
   }
 

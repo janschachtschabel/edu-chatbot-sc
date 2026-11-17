@@ -28,6 +28,11 @@ die Spec der Komponente gilt am Element weiter (`ui-strukturentwurf.element.spec
   `id`, `titel` (≤ 120), `beschreibung?` (≤ 300), `keywords[]?` (≤ 8 × ≤ 40), `fach?`,
   `bildungsstufe?`, `wlo_id?`, `ausstehend?`, `kinder[]`. Deckel: oben ≤ 30, Kinder ≤ 15, Tiefe ≤ 4
   (im Schema als `ebene1` … `ebene4`), gesamt ≤ 250 (Backend und `entwurf-regeln.ts`).
+  Plan 2026-11-16, TG-3f: je Punkt optional `inhalte[]` (`i`, `name` ≤ 120, `node_id?`) — die
+  Dateien des Ordners (`quelle: ordner`), höchstens 500 im Entwurf. Der Baum zeigt nur ihre Zahl
+  („3 Dateien“, als Beschreibung des Eintrags); bearbeitet werden sie nicht, sie bleiben beim
+  Umbenennen und Verschieben am Punkt und gehen beim Löschen mit. TG-3e: `abschnitte` aus mehreren
+  Dokumenten tragen den Präfix des Dokuments (`d1-a3`).
 - **Bearbeiten:** Baum nach APG „Tree View“ wie der Bestand; Leiste für den aktiven Punkt
   (Unterpunkt, Punkt danach, Hoch, Runter, Einrücken, Ausrücken, Löschen, Rückgängig mit 20
   Schritten) und Detailfeld (Titel, Beschreibung, Schlagworte durch Komma). Keine Eingabefelder im

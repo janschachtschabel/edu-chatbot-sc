@@ -3,9 +3,11 @@
  *
  * Erlaubt nur, wenn das System es im Block sagt (`schalter.ablage_in_wlo`: Studio UND bestätigte
  * Anmeldung). Übertragen werden die nicht ignorierten Dateien einer Art, die das MCP kennt, bis zur
- * Größe der Ablage (`grenzen.max_mb_ablage`). Die Freigabe trägt je Datei nur Titel, sha256, Größe, Art
- * und Rolle (Inhalt oder Strukturdokument, W4) — keinen Pfad, keinen Inhalt. Die Antwort an den Chat zählt nur (`aktion: "uebertragen"`):
- * keine Kennungen, keine Dateinamen. Die Links je Datei bleiben im Modul.
+ * Größe der Ablage (`grenzen.max_mb_ablage`). Die Freigabe trägt je Datei nur Titel, sha256, Größe, Art,
+ * Rolle (Inhalt oder Strukturdokument, W4) und die feste Nummer `i` der Auswahl (Plan 2026-11-16,
+ * TG-3b) — keinen Pfad, keinen Inhalt. Die Ablage in der Antwort an den Chat zählt nur
+ * (`aktion: "uebertragen"`): keine Kennungen, keine Links (die bleiben im Modul); die Dateinamen stehen
+ * wie bei jeder Antwort nur in der Auswahl (`struktur`, TG-3a).
  */
 import { antwortDaten, einZeiler, type UploadAntwort } from './upload-antwort';
 import { codeVon } from './upload-dokument';
@@ -30,7 +32,7 @@ const DATEI_CODES = new Set(['passt_nicht', 'groesse', 'zu_gross', 'art', 'abgew
 const WIEDERHOLBAR = new Set(['erneut', 'zu_langsam', 'fehler', 'netz', 'gedrosselt', 'anmeldungen', 'voll', 'nicht_erreichbar']);
 
 export interface Kandidat<T> {
-  /** Index in `Erfassung.dateien`. */
+  /** Index in `Erfassung.dateien` — die feste Nummer `i` der Datei (TG-3b). */
   readonly datei: number;
   readonly titel: string;
   readonly art: string;
@@ -235,10 +237,10 @@ export function wiederholbarAblage(code: string): boolean {
 
 export function uebertragenAntwort<T>(
   e: Erfassung<T>, plan: Plan, ergebnisse: readonly Ergebnis[],
-  o: { readonly ordnerVerweigert: boolean; readonly vorgangAbgelegt: boolean },
+  o: { readonly ordnerVerweigert: boolean; readonly vorgangAbgelegt: boolean; readonly dateiOhneName?: string },
 ): UploadAntwort {
   return {
-    ...antwortDaten(e, 'uebertragen'),
+    ...antwortDaten(e, 'uebertragen', o.dateiOhneName),
     ablage: {
       layout: o.ordnerVerweigert ? 'flach' : plan.layout, gesamt: ergebnisse.length, ...zaehlung(ergebnisse),
       ordner_verweigert: o.ordnerVerweigert, vorgang_abgelegt: o.vorgangAbgelegt,

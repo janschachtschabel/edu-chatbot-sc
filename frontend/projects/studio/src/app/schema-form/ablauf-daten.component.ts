@@ -26,13 +26,19 @@ export const TYP_NAMEN: Readonly<Record<string, string>> = {
   'text': 'text',
   'wlo.start@1': 'start',
   'wlo.ordnerbaum@1': 'ordnerbaum',
+  // Plan 2026-11-16, TG-3a: die Auswahl mit den Dateien je Ordner (Teil `struktur`)
+  'wlo.auswahl@1': 'auswahl',
   'wlo.dokument-verweis@1': 'dokument',
+  // Plan 2026-11-16, TG-3d: die Verweise auf alle Strukturdokumente (Teil `strukturdokument`)
+  'wlo.strukturdokumente@1': 'strukturdokumente',
   'wlo.sammlungsstruktur@1': 'struktur',
   'wlo.ablage@1': 'ablage',
   'wlo.auftrag@1': 'auftrag',
   'wlo.strukturabgleich@1': 'abgleich',
   'wlo.abdeckung@1': 'abdeckung',
   'wlo.metadaten@1': 'metadaten',
+  // Plan 2026-11-16, TG-2: was im Vorgang nutzbar bereitliegt (Dienst `bereitgestellt`)
+  'wlo.bereit@1': 'bereit',
   'wlo_create_collection_tree@1': 'angelegt',
   'baum_aus_entwurf@1': 'baum',
 };
