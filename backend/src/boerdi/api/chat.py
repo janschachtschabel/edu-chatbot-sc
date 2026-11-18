@@ -19,6 +19,7 @@ limiter key function.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from typing import Annotated, Any
@@ -49,6 +50,7 @@ from boerdi.services.ablauf import auftrag_zug, fortschritt
 from boerdi.services.db_sessions import save_message, sitzung_entities
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
 from boerdi.services.fehlertext import antwort_fehlertext
+from boerdi.services.llm_auth import KeinDelegationsToken
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.anmeldung import abgelehnt_in_diesem_zug
 from boerdi.services.mcp.auth import zug_ablauf
@@ -339,6 +341,11 @@ async def _stream_turn(
                 # nicht einen ``error``-Rahmen mit Fehlernummer (den die Blase nicht trägt).
                 logger.info("chat_stream: kein LLM-Platz frei — Zug ausgelastet")
                 return await _fehlerblase(session, req, LlmAusgelastet())
+            except KeinDelegationsToken as ohne:
+                # Paket D (E4): nach dem Auflegen endete das Delegations-Token — kein weiterer
+                # b-api-Aufruf. Ein erwarteter Ausgang: der Vermerk in den Verlauf, kein Traceback.
+                logger.info("chat_stream: Zug ohne Delegations-Token beendet (%s)", ohne.grund)
+                return await _fehlerblase(session, req, ohne)
             except Exception as impl_err:
                 logger.exception("chat_stream impl failed: %s", impl_err)
                 # In den Verlauf wie beim POST-Weg — legte der Client auf, holt das
@@ -363,12 +370,15 @@ async def _stream_turn(
     # wenn der Verlauf gespeichert wird; gelesen VOR dem Start des Zuges
     # (Review A-7/C-4, ``chat_handschlag``).
     verbunden = await handschlag(req.session_id, sitzungen)
-    async for frame in sse_turn(
+    # Paket D: der innere Strom wird mit diesem geschlossen (``aclosing``), nicht erst irgendwann
+    # vom Aufräumen — sonst bemerkte er das Auflegen spät und in fremdem Kontext (E4).
+    async with contextlib.aclosing(sse_turn(
         request, _run_impl, _to_payload, label=f"chat_stream session={kennung(req.session_id)}",
         nach_abbruch="zu_ende" if verbunden["history"] else "abbrechen",
         verbunden=verbunden,
-    ):
-        yield frame
+    )) as rahmen:
+        async for frame in rahmen:
+            yield frame
 
 
 @public_router.post("/api/chat/stream")

@@ -95,7 +95,7 @@ def lage(monkeypatch) -> _Lage:
     monkeypatch.setattr(vorgaenge, "sperren", sperren)
     monkeypatch.setattr(vorgaenge, "offene", eigene)
     # der Schlüssel der Person ist durchgereicht (sonst liefe der Auftrag weiter, Q-6)
-    monkeypatch.setattr(api, "hat_zug_schluessel", lambda: True)
+    monkeypatch.setattr(api, "darf_jobs", lambda: True)
     monkeypatch.setattr(api.auftraege_ablage, "offen", offen)
     monkeypatch.setattr(api, "bei_der_b_api_abbrechen",
                         lambda *ids: lg.ereignisse.append(("b-api", ids)))
@@ -239,18 +239,18 @@ def test_q6_ohne_schluessel_der_person_sagt_die_antwort_dass_der_auftrag_weiterl
                                                                                      monkeypatch):
     """Querschnitts-Review AS-U/BU, Q-6: ohne durchgereichten Schlüssel beendet die b-api den Job
     nicht (``bei_der_b_api_abbrechen`` tut dann nichts) — das Widget sagt es statt „endet“."""
-    monkeypatch.setattr(api, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(api, "darf_jobs", lambda: False)
     assert _loeschen(web).json() == {"geloescht": True, "auftrag_laeuft_weiter": True}
 
 
 def test_q6_ohne_auftrag_laeuft_nichts_weiter(web, lage, monkeypatch):
-    monkeypatch.setattr(api, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(api, "darf_jobs", lambda: False)
     lage.auftrag = None
     assert _loeschen(web).json()["auftrag_laeuft_weiter"] is False
 
 
 def test_q6_mit_schluessel_endet_der_auftrag(web, lage, monkeypatch):
-    monkeypatch.setattr(api, "hat_zug_schluessel", lambda: True)
+    monkeypatch.setattr(api, "darf_jobs", lambda: True)
     assert _loeschen(web).json()["auftrag_laeuft_weiter"] is False
 
 

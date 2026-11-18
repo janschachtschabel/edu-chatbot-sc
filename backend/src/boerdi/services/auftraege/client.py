@@ -18,10 +18,11 @@ Regeln dieses Clients:
 - **Schlüssel des Zuges** (``llm_auth.b_api_schluessel``) — nie gespeichert, nie geloggt. Deshalb
   fragt nur ein Zug der Person ab, kein Hintergrund-Wächter. Dass es der **durchgereichte**
   Schlüssel der Person ist (nicht ``B_API_KEY`` aller), prüft ``auftrag_zug`` (Review K1a, 1).
-- **``X-Edu-User-Id``** (Plan 2026-11-10, TB-F1, Nutzer-Entscheid N13): der Benutzername der
-  bestätigten Person (``auth.benutzername``) — der Job arbeitet im Repositorium mit ihren Rechten
-  (B-API-Leitfaden §9.1, Weg A). Seit Paket R1 (R-E12) auch bei Abfrage, Abbruch und Datei:
-  derselbe Job, dieselbe Identität. Ohne bestätigte Anmeldung fehlt der Kopf.
+- **Kein Personen-Kopf** (Paket D, Plan 2026-11-17): ``X-Edu-User-Id`` hat die b-api abgeschafft
+  (mit Schlüssel 403 ``LEGACY_HEADERS``). Eine Person gilt nur, wenn das Repository für sie bürgt
+  (``/rest/bapi/**`` — Paket K über den MCP). Nie ``X-API-KEY``: er hätte Vorrang.
+- **Delegation** (``llm_auth.zug_art() == "delegation"``): das Token deckt keine Jobs und endet mit
+  der Anfrage — kein Abbruch im Hintergrund (:func:`abbrechen_im_hintergrund`).
 - **Schreibende Flows** sind erlaubt (N15); der Schritt trägt dann den Vermerk ``repo_schreibt``.
 - **Dateien** nur als Name und Größe: die Adresse kann ein Token tragen. Paket K2d-2: dazu die
   Kennung (``outputId``); geholt wird über eine Adresse, die der Client aus Job-ID und Kennung
@@ -47,7 +48,7 @@ import httpx
 from boerdi.domain.config_models.kestra_flows import ist_flow
 from boerdi.obs.trace_id import ausgehende_koepfe
 from boerdi.services.config_loader.kestra_flows import load_kestra_flows
-from boerdi.services.llm_auth import b_api_schluessel
+from boerdi.services.llm_auth import KeinDelegationsToken, b_api_schluessel, zug_art
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,9 @@ def kuerzel(job_id: str) -> str:
 #: Plan 2026-11-16, Durchtest TG-7 (m5): die Fehlercodes der b-api, die ins Log dürfen — eine
 #: feste Liste, nie freier Servertext (``test_log_ohne_inhalt``). Gemessen 16.11.: ein Start mit
 #: einem Konto, das die b-api nicht kennt bzw. freigibt, antwortet 403 ``EDU_USER_NOT_VERIFIED``.
-BEKANNTE_CODES: Final = frozenset({"EDU_USER_NOT_VERIFIED"})
+#: Paket D (b-api seit 10.11.): 400 ``EDU_USER_REQUIRED`` — die Ursprungsanfrage hatte keine
+#: verifizierte Person; 403 ``LEGACY_HEADERS`` — ein abgeschaffter Kopf (``X-Edu-User-Id``).
+BEKANNTE_CODES: Final = frozenset({"EDU_USER_NOT_VERIFIED", "EDU_USER_REQUIRED", "LEGACY_HEADERS"})
 
 
 class AuftragFehler(Exception):
@@ -221,26 +224,23 @@ def _wurzel() -> str:
     return basis
 
 
-def _person() -> dict[str, str]:
-    """``X-Edu-User-Id`` der bestätigten Person — nie geloggt; ohne Anmeldung leer."""
-    from boerdi.services.mcp import auth
-
-    return {"X-Edu-User-Id": name} if (name := auth.benutzername()) else {}
-
-
 def _koepfe() -> dict[str, str]:
     koepfe = dict(ausgehende_koepfe())
-    if schluessel := b_api_schluessel():
+    try:
+        schluessel = b_api_schluessel()
+    except KeinDelegationsToken as fehler:
+        # Paket D (E4): kein Token mehr (aufgelegt) bzw. unbrauchbar — kein Aufruf, kein Rückfall
+        raise AuftragFehler("fehler") from fehler
+    if schluessel:
         koepfe["Authorization"] = f"Bearer {schluessel}"
     return koepfe
 
 
-async def _anfrage(methode: str, pfad: str, *, extra_koepfe: dict[str, str] | None = None,
-                   **mehr: Any) -> httpx.Response:
+async def _anfrage(methode: str, pfad: str, **mehr: Any) -> httpx.Response:
     try:
         async with httpx.AsyncClient(timeout=_FRIST, transport=_transport) as http:
             return await http.request(methode, _wurzel() + pfad,
-                                      headers={**_koepfe(), **(extra_koepfe or {})}, **mehr)
+                                      headers=_koepfe(), **mehr)
     except (httpx.HTTPError, httpx.InvalidURL) as fehler:
         logger.warning("Auftrag: b-api nicht erreichbar (%s)", type(fehler).__name__)
         raise AuftragFehler("fehler") from fehler
@@ -255,8 +255,11 @@ def _pruefe_antwort(antwort: httpx.Response) -> dict[str, Any]:
     if antwort.status_code == 429:
         raise AuftragFehler("voll", warte_s=_wartezeit(antwort))
     if antwort.status_code == 400:
-        # Eingaben passen nicht zum Schema des Flows — oder ein Repository-Scope ohne
-        # ``X-Edu-User-Id`` (ohne bestätigte Anmeldung, TB-F1).
+        # Paket D: ein Repository-Scope ohne verifizierte Person — eine Abweisung mit eigenem
+        # Satz, keine falsche Eingabe. Sonst passen die Eingaben nicht zum Schema des Flows.
+        if _abweisungs_code(antwort) == "EDU_USER_REQUIRED":
+            logger.warning("Auftrag: b-api weist ab (400, Code EDU_USER_REQUIRED)")
+            raise AuftragFehler("abgewiesen", code="EDU_USER_REQUIRED")
         raise AuftragFehler("eingaben")
     if antwort.status_code in (401, 403):
         # Durchtest TG-7, m5: mit dem Code der b-api (aus der festen Liste) — sonst blieb im Log
@@ -286,8 +289,7 @@ async def starten(flow: str, eingaben: dict[str, Any]) -> str:
     if not erlaubt(flow):
         raise AuftragFehler("nicht_erlaubt")
     pfad = (_start_pfad() or "").replace("{flow}", flow)
-    # TB-F1: im Namen der angemeldeten Person (Weg A), nie geloggt
-    daten = _pruefe_antwort(await _anfrage("POST", pfad, json=eingaben, extra_koepfe=_person()))
+    daten = _pruefe_antwort(await _anfrage("POST", pfad, json=eingaben))
     job = next((daten[k] for k in ("jobId", "job_id", "id") if isinstance(daten.get(k), str)), "")
     if not _ID.fullmatch(job):
         logger.warning("Auftrag: Start ohne brauchbare Job-ID")
@@ -330,8 +332,7 @@ async def stand(job_id: str) -> Stand:
         raise AuftragFehler("unbekannt")
     if (vorlage := _vorlage(get_settings().b_api_jobs_status_path)) is None:
         raise AuftragFehler("aus")
-    daten = _pruefe_antwort(await _anfrage("GET", vorlage.replace("{job_id}", job_id),
-                                           extra_koepfe=_person()))
+    daten = _pruefe_antwort(await _anfrage("GET", vorlage.replace("{job_id}", job_id)))
     roh = str(daten.get("status") or "").upper()
     if roh in _LAEUFT:
         return Stand("laeuft")
@@ -361,8 +362,7 @@ async def abbrechen(job_id: str) -> str:
         raise AuftragFehler("unbekannt")
     if (vorlage := _vorlage(get_settings().b_api_jobs_status_path)) is None:
         raise AuftragFehler("aus")
-    antwort = await _anfrage("DELETE", vorlage.replace("{job_id}", job_id),
-                             extra_koepfe=_person())
+    antwort = await _anfrage("DELETE", vorlage.replace("{job_id}", job_id))
     if antwort.status_code in (200, 202, 204):
         logger.info("Auftrag bei der b-api abgebrochen")
         return "abgebrochen"
@@ -387,8 +387,7 @@ async def datei(job_id: str, kennung: str, max_bytes: int) -> bytes:
     try:
         async with httpx.AsyncClient(timeout=_FRIST, transport=_transport) as http:
             async with http.stream("GET", _wurzel() + pfad,
-                                   headers={**_koepfe(), **_person(),
-                                            "Accept-Encoding": "identity"},
+                                   headers={**_koepfe(), "Accept-Encoding": "identity"},
                                    follow_redirects=False) as antwort:
                 if antwort.status_code == 404:
                     raise AuftragFehler("unbekannt")
@@ -428,8 +427,14 @@ _abbrueche: set[asyncio.Task[None]] = set()
 def abbrechen_im_hintergrund(job_id: str) -> None:
     """Einen ersetzten oder abgebrochenen Auftrag auch bei der B-API beenden — ohne dass der Zug
     darauf wartet (keine DB-Verbindung über den Rundlauf) und ohne zu werfen. Der Schlüssel des
-    Zuges reist im kopierten Kontext mit; ohne ihn antwortet die B-API mit 404 (fremder Job)."""
+    Zuges reist im kopierten Kontext mit; ohne ihn antwortet die B-API mit 404 (fremder Job).
+
+    Paket D (E4): mit Delegations-Token nie — es endet mit der Anfrage, ein Aufruf danach wäre
+    eine 401. Der Job läuft dann im Repository zu Ende (Abbruch über den MCP: Paket K)."""
     if not _ID.fullmatch(job_id or "") or ist_trocken(job_id):
+        return
+    if zug_art() == "delegation":
+        logger.info("Auftrag läuft im Repository zu Ende (Delegation: kein Abbruch danach)")
         return
 
     async def lauf() -> None:

@@ -253,6 +253,16 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragAbgelehntKonto": (
             "Der Dienst hat den Auftrag abgelehnt: Dein Konto ist dort noch nicht "
             "freigeschaltet."),
+        # Paket D (b-api seit 10.11.): 400 ``EDU_USER_REQUIRED`` — keine verifizierte Person. Bis
+        # Paket K (Start über den MCP) ehrlich: die Person kann daran nichts ändern.
+        "action.ablauf.auftragAbgelehntPerson": (
+            "Aufträge mit deiner Anmeldung sind gerade nicht möglich – das wird gerade "
+            "umgestellt."),
+        # Paket D: 403 ``LEGACY_HEADERS`` — ein Fehler der Einrichtung, nicht der Person
+        "action.ablauf.auftragAbgelehntTechnik": (
+            "Der Dienst hat den Auftrag abgelehnt: Der Chatbot hat einen veralteten Kopf "
+            "mitgeschickt (LEGACY_HEADERS). Das ist ein Fehler der Einrichtung — gib dem Team "
+            "bitte kurz Bescheid."),
         "action.ablauf.auftragLaeuft": (
             "Der Auftrag läuft noch. Schau gern später wieder nach — tippe dann auf "
             "„Stand prüfen“."),
@@ -645,6 +655,14 @@ BOT_TEXT: Final[Catalogue] = {
             "— meistens klappt es beim zweiten Anlauf. (Fehlernummer: {nummer})"
         ),
         "error.retryChip": "Nochmal versuchen",
+        # Paket D: die b-api weist das Delegations-Token ab (401) — es gilt nur für die Anfrage
+        # der Seite; ein Neuladen holt ein frisches.
+        "error.delegationExpired": (
+            "Deine Anmeldung auf der Seite ist abgelaufen. Bitte lade die Seite neu."),
+        # Paket D (E4): der Client legte auf, das Token endete — der Vermerk im Verlauf
+        "error.connectionLost": (
+            "Die Verbindung zur Seite brach ab, bevor meine Antwort fertig war. Schick deine "
+            "Nachricht bitte noch einmal."),
         # Paket 18F: kein LLM-Platz binnen ``LLM_SLOT_WAIT_S`` — kein Fehler mit Nummer, sondern
         # Last; die Person soll es gleich noch einmal versuchen.
         "error.llmBusy": (
@@ -874,6 +892,11 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragAbgelehnt": "The service declined the job.",
         "action.ablauf.auftragAbgelehntKonto": (
             "The service declined the job: your account is not yet enabled there."),
+        "action.ablauf.auftragAbgelehntPerson": (
+            "Jobs with your sign-in are not possible right now – this is being switched over."),
+        "action.ablauf.auftragAbgelehntTechnik": (
+            "The service declined the job: the chatbot sent an outdated header (LEGACY_HEADERS). "
+            "This is a setup error — please let the team know."),
         "action.ablauf.auftragLaeuft": (
             "The job is still running. Feel free to check back later — then tap “Check status”."),
         "action.ablauf.auftragTeil": (
@@ -1166,6 +1189,11 @@ BOT_TEXT: Final[Catalogue] = {
             "works on the second attempt. (Error number: {nummer})"
         ),
         "error.retryChip": "Try again",
+        "error.delegationExpired": (
+            "Your sign-in on this page has expired. Please reload the page."),
+        "error.connectionLost": (
+            "The connection to the page dropped before my answer was finished. Please send your "
+            "message again."),
         "error.llmBusy": (
             "There are a lot of requests at once right now, and I can't get through. "
             "Please try again in a minute."

@@ -441,7 +441,7 @@ def test_abbrechen_ohne_schluessel_sagt_dass_der_auftrag_weiterlaeuft(im_zug, mo
 
     state: dict = {"entities": {}}
     _starte(state)
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: False)
     monkeypatch.setattr(llm_auth, "hat_zug_schluessel", lambda: False)
     antwort = _abbrechen(state, bestaetigt=True, kuerzel=_K1)
     assert antwort.content == bot_text("de", "action.ablauf.auftragNurHierAbgebrochen")

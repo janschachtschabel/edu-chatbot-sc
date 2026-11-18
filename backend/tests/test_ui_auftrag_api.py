@@ -93,7 +93,7 @@ def lage(monkeypatch) -> _Lage:
     monkeypatch.setattr(api, "adopt_turn_auth_block", lambda request: None)
     monkeypatch.setattr(api, "uebernimm_llm_schluessel", lambda request, pflicht=True: None)
     monkeypatch.setattr(api, "has_personal_auth", lambda: lg.person)
-    monkeypatch.setattr(api, "hat_zug_schluessel", lambda: lg.schluessel)
+    monkeypatch.setattr(api, "darf_jobs", lambda: lg.schluessel)
     monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: lg.person)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
     monkeypatch.setattr(vorgaenge, "lesen", lesen)

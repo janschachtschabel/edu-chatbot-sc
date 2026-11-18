@@ -166,7 +166,7 @@ def _keine_b_api(monkeypatch):
 def test_der_starter_der_probe_braucht_keine_b_api(monkeypatch):
     _keine_b_api(monkeypatch)
     monkeypatch.setattr(auftrag_zug, "has_personal_auth", lambda: True)
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: False)
     probe.binde(True)
     starte = auftrag_zug.starter()
     assert starte is not None

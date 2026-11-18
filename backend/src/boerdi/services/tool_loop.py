@@ -96,6 +96,7 @@ from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.fehlertext import antwort_fehlertext
+from boerdi.services.llm_auth import KeinDelegationsToken
 from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
@@ -360,6 +361,9 @@ async def _run_tool_loop(
             elif ist_voruebergehend(e):
                 # Paket 19 (N-16): Frist, 429, Verbindung — ohne Traceback, gedrosselt.
                 melde_voruebergehend(_logger, "LLM API", e)
+            elif isinstance(e, KeinDelegationsToken):
+                # Paket D (E4): aufgelegt bzw. unbrauchbares Token — erwartet, kein b-api-Aufruf
+                _logger.info("LLM API: ohne Delegations-Token (%s)", e.grund)
             else:
                 _logger.exception("LLM API error (%s)", type(e).__name__)
             # Der Grund steht im Log, die Person sieht die Fehlerblase des Chats

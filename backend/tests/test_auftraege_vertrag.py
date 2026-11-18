@@ -5,7 +5,7 @@
   ``CANCELLED``. Der Client kannte bis hier nur die Kestra-Namen ``SUCCESS``/``WARNING`` — ein
   fertiger Job blieb „unbekannt“. Dazu ``warnings``, ``error.code`` (dokumentiert nur ``TIMEOUT``),
   ``files`` mit ``available``/``reason``.
-- 400 beim Start: Eingaben passen nicht (auch: Repository-Scope ohne ``X-Edu-User-Id``); 429 mit
+- 400 beim Start: Eingaben passen nicht (``EDU_USER_REQUIRED``: abgewiesen, Paket D); 429 mit
   ``Retry-After`` (mehr als 20 offene Jobs je Schlüssel).
 - Abbrechen ``DELETE /api/v1/jobs/{jobId}``: 200/202 = abgebrochen, 409 = schon beendet.
 """

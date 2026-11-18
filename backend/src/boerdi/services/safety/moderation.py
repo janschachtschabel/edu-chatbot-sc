@@ -22,7 +22,7 @@ from boerdi.obs import metrics
 from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.trace_id import ausgehende_koepfe
 from boerdi.services import llm_parallel
-from boerdi.services.llm_auth import b_api_schluessel
+from boerdi.services.llm_auth import KeinDelegationsToken, b_api_schluessel
 from boerdi.services.llm_models import get_provider
 from boerdi.settings import get_settings
 
@@ -212,7 +212,14 @@ async def moderate(message: str, *, stufe: str = "openai_moderation") -> dict[st
     structure-draft excerpts, Review Q4) counts under its own, outside the per-turn alarm.
     """
     global _ohne_zugang_gemeldet
-    target = _moderation_target()
+    try:
+        target = _moderation_target()
+    except KeinDelegationsToken as ohne:
+        # Review Paket D, Befund 3: kein gültiges Delegations-Token — kein Aufruf, kein Rückfall.
+        # Ungeprüft wie bei jedem Ausfall; ``service`` wendet MODERATION_FAILURE_MODE an.
+        logger.info("moderation skipped: kein Delegations-Token (%s)", ohne.grund)
+        metrics.sicherheitsstufe(stufe, "fehler")
+        return {}
     if target is None:
         metrics.sicherheitsstufe(stufe, "keine_zugangsdaten")
         if not _ohne_zugang_gemeldet:

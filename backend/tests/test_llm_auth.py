@@ -55,7 +55,7 @@ def test_ein_gueltiger_kopf_gilt(b_api) -> None:
     f"bearer {SCHLUESSEL}",           # kleingeschrieben → b-api 401
     f"Basic {SCHLUESSEL}",
     f"Bearer {SCHLUESSEL}\r\nX: y",   # Kopfzeilen-Einschleusung
-    "Bearer " + "k" * 600,            # zu lang
+    "Bearer " + "k" * 8193,           # zu lang (Paket D: Obergrenze 8192)
     "Bearer kurz",                    # zu kurz
     f"Bearer  {SCHLUESSEL}",          # doppeltes Leerzeichen: nicht unverändert weiterzugeben
 ])

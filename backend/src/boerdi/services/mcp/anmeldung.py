@@ -38,10 +38,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
-import re
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -79,9 +78,6 @@ class Befund:
     #: alle Blöcke, wenn das Budget des Chatbots erschöpft ist (``rate_limited``).
     pause_s: float = 0.0
     pause_alle: bool = False
-    #: Plan 2026-11-10, TB-F1: der Benutzername (``authority``) der bestätigten Person — nur für
-    #: ``X-Edu-User-Id`` beim Start eines Auftrags. Nie im ``repr`` (Logs), nie gespeichert.
-    benutzer: str = field(default="", repr=False)
 
 
 #: Fingerabdruck → (gültig bis, Befund), in LRU-Reihenfolge (zuletzt benutzt am Ende).
@@ -152,8 +148,7 @@ async def bestaetige_anmeldung() -> Befund:
     if befund.abgelehnt:
         _verwerfen()
     else:
-        auth.setze_bestaetigung(person=befund.person, kennung=befund.kennung,
-                                benutzer=befund.benutzer)
+        auth.setze_bestaetigung(person=befund.person, kennung=befund.kennung)
         auth.merke_ablauf(befund.ablauf if befund.person else None)
         if befund.unklar:
             auth.merke_anmeldung_unklar()
@@ -227,17 +222,6 @@ def _auswerten(antwort: dict[str, Any]) -> Befund:
     return _aus_stand((antwort.get("result") or {}).get("structuredContent") or {})
 
 
-#: Review TB-F1, Befund 1: nur druckbares ASCII taugt als Kopfwert (``X-Edu-User-Id``) — ein Umlaut
-#: bräche httpx mit ``UnicodeEncodeError`` ab, ein Zeilenumbruch wäre eine Kopf-Einschleusung. Nie
-#: kürzen (das ergäbe eine andere Kennung): ohne passenden Namen fehlt der Kopf, der Start scheitert
-#: sauber (400 → ``bei_fehler``).
-_KOPFWERT = re.compile(r"[\x21-\x7e]{1,200}")
-
-
-def _kopfwert(authority: Any) -> str:
-    return authority if isinstance(authority, str) and _KOPFWERT.fullmatch(authority) else ""
-
-
 def _aus_stand(stand: dict[str, Any]) -> Befund:
     """Die gemeinsame Nutzlast von ``/auth/status`` und ``wlo_auth_status``.
 
@@ -255,8 +239,7 @@ def _aus_stand(stand: dict[str, Any]) -> Befund:
         streuwert = hashlib.sha256(str(authority).encode("utf-8")).hexdigest()[:16]
         ablauf = stand.get("expiresAt")
         return Befund(person=True, kennung=f"p:{streuwert}",
-                      ablauf=ablauf if isinstance(ablauf, str) else None,
-                      benutzer=_kopfwert(authority))
+                      ablauf=ablauf if isinstance(ablauf, str) else None)
     if upstream == "unreachable":
         return _unklar("Repository ohne Antwort")
     if stand.get("mode") in ("user", "service") and stand.get("authenticated") is False:

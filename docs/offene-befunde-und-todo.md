@@ -362,6 +362,13 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **b-api-Delegation (2026-11-18, Paket D):** keine Migration, kein Widget-Build; Image neu bauen
+  (Backend, Studio-Text). Hinter dem b-api-Proxy mit `forwardDelegation`:
+  `B_API_KEY_MODE=forward`, Admin-Liste in `b-api-betrieb.md` (`allowedRequestHeaders` mit
+  `WLO-Access-Block`, `text/event-stream`, Token-Lebensdauer ≥ 300 s). Kestra-Aufträge starten mit
+  Delegation erst wieder mit Paket K (MCP-Werkzeuge, Plan `plans/2026-11-17-mcp-wuensche-b-api-flows.md`).
+  Notiz `aenderungen/2026-11-18-paket-d-b-api-delegation.md`. Offen: Fragen an die b-api (Plan §7),
+  `POST /api/chat` ohne Strom merkt das Auflegen nicht.
 - **Strukturdokumente und Ordner mit Inhalten (2026-11-16, TG-3d–f):** **Migration 0023**
   (`dokument_uploads.session_id` nicht mehr eindeutig, bis zu fünf Dokumente je Sitzung) einspielen,
   Image neu bauen (Widget, Module `ui-upload`/`ui-strukturentwurf`, Studio). Notiz

@@ -62,6 +62,7 @@ from boerdi.services.engine_choice import (
 )
 from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.generate import generate_response
+from boerdi.services.llm_auth import KeinDelegationsToken
 from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.parsers import parse_wlo_cards
@@ -545,6 +546,9 @@ async def respond(
             elif ist_voruebergehend(_gen_err):
                 # Paket 19 (N-16): Frist, 429, Verbindung — ohne Traceback, gedrosselt.
                 melde_voruebergehend(logger, "generate_response", _gen_err)
+            elif isinstance(_gen_err, KeinDelegationsToken):
+                # Paket D (E4): aufgelegt bzw. unbrauchbares Token — erwartet, kein b-api-Aufruf
+                logger.info("generate_response: ohne Delegations-Token (%s)", _gen_err.grund)
             else:
                 logger.exception("generate_response failed (%s)", type(_gen_err).__name__)
             # Kam der Fehler aus der Datenbank (etwa der RAG-Abfrage), steht die

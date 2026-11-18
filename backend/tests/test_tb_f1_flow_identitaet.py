@@ -1,12 +1,10 @@
 """Plan 2026-11-10, TB-F1 (Nutzer-Entscheide N13, N15): ein Kestra-Flow startet im Namen der
-angemeldeten Person — Weg A mit ``X-Edu-User-Id`` (B-API-Leitfaden §9.1); schreibende Flows sind
-erlaubt und tragen den Vermerk ``repo_schreibt`` (die Redaktion legt ihn fest, der Chatbot sieht
-nicht in den Flow).
+angemeldeten Person; schreibende Flows sind erlaubt und tragen den Vermerk ``repo_schreibt`` (die
+Redaktion legt ihn fest, der Chatbot sieht nicht in den Flow).
 
-- Den Benutzernamen (``authority`` aus ``/auth/status``) hält der Chatbot nur im Zug: nie
-  gespeichert, nie geloggt, nie im ``repr``.
-- ``X-Edu-User-Id`` geht nur mit bestätigter Anmeldung mit (seit R1 auch bei Abfrage, Abbruch
-  und Datei).
+- Seit Paket D (Plan 2026-11-17) ohne ``X-Edu-User-Id``: die b-api hat den Kopf abgeschafft (mit
+  Schlüssel 403 ``LEGACY_HEADERS``). Die Person kommt nur noch über das Repository (``/rest/bapi``,
+  Paket K) — der Client schickt in keiner Anfrage einen Personen-Kopf.
 - Ein Flow, den der Betrieb nicht freischaltet, sperrt nur einen **eingeschalteten** Ablauf; bei
   einem ausgeschalteten (etwa einem Seed) ist es ein Hinweis — sonst bräche der Werksabgleich.
 """
@@ -46,45 +44,23 @@ def betrieb(monkeypatch):
     get_settings.cache_clear()
 
 
-def test_die_bestaetigung_traegt_den_benutzernamen_nicht_im_repr():
+def test_die_bestaetigung_haelt_keinen_benutzernamen_mehr():
+    """Paket D: der Name diente nur ``X-Edu-User-Id`` — ohne den Kopf hält der Befund ihn nicht."""
     befund = anmeldung._aus_stand({"mode": "user", "authenticated": True, "authority": "jan.test"})
-    assert befund.person and befund.benutzer == "jan.test"
+    assert befund.person
+    assert not hasattr(befund, "benutzer")
     assert "jan.test" not in repr(befund)
+    assert not hasattr(auth, "benutzername")
 
 
-@pytest.fixture
-def frische_bestaetigung():
-    marke = auth._bestaetigung.set(None)
-    yield
-    auth._bestaetigung.reset(marke)
-
-
-def test_der_benutzername_gilt_nur_fuer_eine_bestaetigte_person(monkeypatch, frische_bestaetigung):
-    monkeypatch.setattr(auth, "caller_fingerprint", lambda: "fp-1")
-    monkeypatch.setattr(auth, "zug_block_wirkt_persoenlich", lambda: True)
-    auth.setze_bestaetigung(person=True, kennung="p:abc", benutzer="jan.test")
-    assert auth.benutzername() == "jan.test"
-    auth.setze_bestaetigung(person=False)
-    assert auth.benutzername() == ""
-    monkeypatch.setattr(auth, "caller_fingerprint", lambda: "fp-anderer-block")
-    auth._bestaetigung.set(("fp-1", True, "p:abc", "jan.test"))
-    assert auth.benutzername() == ""          # ein anderer Block gilt erst nach eigener Bestätigung
-
-
-def test_der_start_schickt_x_edu_user_id_der_person(betrieb, monkeypatch):
-    monkeypatch.setattr(auth, "benutzername", lambda: "jan.test")
+def test_der_start_schickt_keinen_personen_kopf(betrieb):
     job = asyncio.run(client.starten("edusharing.chatbot/node-metadata-write",
                                      {"node_ids": ["a"], "language": "de"}))
     assert job == "job-123"
     [anfrage] = betrieb
-    assert anfrage.headers["X-Edu-User-Id"] == "jan.test"
+    assert "X-Edu-User-Id" not in anfrage.headers
+    assert "X-API-KEY" not in anfrage.headers
     assert json.loads(anfrage.content) == {"node_ids": ["a"], "language": "de"}
-
-
-def test_ohne_anmeldung_kein_x_edu_user_id(betrieb, monkeypatch):
-    monkeypatch.setattr(auth, "benutzername", lambda: "")
-    asyncio.run(client.starten("edusharing.chatbot/node-metadata-write", {"node_ids": ["a"]}))
-    assert "X-Edu-User-Id" not in betrieb[0].headers
 
 
 def _ablauf(aktiv: bool, **auftrag) -> AblaufArea:
@@ -119,21 +95,6 @@ def test_der_vermerk_repo_schreibt_gilt_am_auftrag(betrieb):
 
 
 # ── Review TB-F1 ──────────────────────────────────────────────────────────────────────────────
-
-@pytest.mark.parametrize("authority", ["jürgen", "jan\r\nX-Evil: 1", "a" * 201, {"name": "x"}, 42])
-def test_review_1_ein_unbrauchbarer_name_wird_kein_kopf(authority):
-    """Befund 1: Nicht-ASCII, Steuerzeichen, zu lang oder kein Text — kein Kopfwert (der Start
-    scheitert dann sauber mit 400), nie ein abgebrochener Zug."""
-    befund = anmeldung._aus_stand({"mode": "user", "authenticated": True, "authority": authority})
-    assert befund.person and befund.benutzer == ""
-
-
-def test_review_4_kein_name_ohne_persoenlichen_block(monkeypatch, frische_bestaetigung):
-    monkeypatch.setattr(auth, "caller_fingerprint", lambda: "fp-1")
-    auth.setze_bestaetigung(person=True, kennung="p:abc", benutzer="jan.test")
-    monkeypatch.setattr(auth, "zug_block_wirkt_persoenlich", lambda: False)
-    assert auth.benutzername() == ""
-
 
 def test_review_2_ein_schreibender_flow_braucht_eine_rueckfrage_davor(betrieb):
     ohne = AblaufArea.model_validate({
@@ -207,9 +168,9 @@ def test_ft1_eine_leere_auswahl_startet_keinen_auftrag():
 
 
 
-def test_r1_abfrage_abbruch_und_datei_tragen_dieselbe_person(betrieb, monkeypatch):
-    """Paket R1 (R-E12): derselbe Job, dieselbe Identität — fehlte der Kopf bei der Abfrage und
-    verlangte die B-API ihn, käme „Stand prüfen“ nie zu einem Ende."""
+def test_d2_keine_anfrage_traegt_x_edu_user_id_oder_x_api_key(betrieb, monkeypatch):
+    """Paket D (D2): Start, Abfrage, Abbruch und Datei — in keiner Anfrage ein Personen-Kopf
+    (``X-Edu-User-Id``, abgeschafft) oder ``X-API-KEY`` (hätte Vorrang vor ``Authorization``)."""
     monkeypatch.setenv("B_API_JOBS_STATUS_PATH", "/api/v1/jobs/{job_id}")
     get_settings.cache_clear()
 
@@ -219,15 +180,17 @@ def test_r1_abfrage_abbruch_und_datei_tragen_dieselbe_person(betrieb, monkeypatc
             return httpx.Response(200, content=b"ok")
         if request.method == "DELETE":
             return httpx.Response(204)
+        if request.method == "POST":
+            return httpx.Response(202, json={"jobId": "job-123"})
         return httpx.Response(200, json={"status": "RUNNING"})
 
     monkeypatch.setattr(client, "_transport", httpx.MockTransport(behandle))
-    monkeypatch.setattr(auth, "benutzername", lambda: "jan.test")
+    asyncio.run(client.starten("edusharing.chatbot/node-metadata-write", {"node_ids": ["a"]}))
     asyncio.run(client.stand("job-123"))
     asyncio.run(client.abbrechen("job-123"))
     asyncio.run(client.datei("job-123", "bericht", 100))
-    assert [r.headers.get("X-Edu-User-Id") for r in betrieb] == ["jan.test"] * 3
-    betrieb.clear()
-    monkeypatch.setattr(auth, "benutzername", lambda: "")
-    asyncio.run(client.stand("job-123"))
-    assert "X-Edu-User-Id" not in betrieb[0].headers
+    assert [r.method for r in betrieb] == ["POST", "GET", "DELETE", "GET"]
+    for anfrage in betrieb:
+        assert "x-edu-user-id" not in anfrage.headers
+        assert "x-api-key" not in anfrage.headers
+        assert anfrage.headers["authorization"] == "Bearer schluessel-der-anlage"
