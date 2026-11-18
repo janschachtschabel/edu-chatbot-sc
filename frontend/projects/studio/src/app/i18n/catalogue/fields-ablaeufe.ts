@@ -162,7 +162,8 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.repo_schreibt.hint':
       'Ankreuzen, wenn der Flow in WLO schreibt (Metadaten, Sammlungen …). Der Chatbot sieht nicht in '
       + 'den Flow — hier steht es für alle sichtbar. Der Flow arbeitet mit den Rechten der angemeldeten '
-      + 'Person (X-Edu-User-Id); ein Auftrag braucht immer die WLO-Anmeldung.',
+      + 'Person: Das Repository weist sie nach (Start über seinen Proxy). Ein Auftrag braucht immer '
+      + 'die WLO-Anmeldung.',
     'feld.Schritt.dateien_holen.label': 'Dateien holen',
     'feld.Schritt.dateien_holen.hint':
       'Bis zu drei Dateien des Ergebnisses (ihre outputId), die beim Abholen geholt und wie ein Upload '
@@ -424,8 +425,8 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.repo_schreibt.label': 'Flow writes to the repository',
     'feld.Schritt.repo_schreibt.hint':
       'Tick if the flow writes to WLO (metadata, collections …). The chatbot cannot see into the flow — '
-      + 'this makes it visible. The flow acts with the rights of the signed-in person (X-Edu-User-Id); '
-      + 'a job always needs the WLO sign-in.',
+      + 'this makes it visible. The flow acts with the rights of the signed-in person: the repository '
+      + 'vouches for them (start via its proxy). A job always needs the WLO sign-in.',
     'feld.Schritt.dateien_holen.label': 'Fetch files',
     'feld.Schritt.dateien_holen.hint':
       'Up to three files of the result (their outputId), fetched on pick-up and checked like an upload. '

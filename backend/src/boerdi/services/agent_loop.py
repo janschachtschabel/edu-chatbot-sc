@@ -86,6 +86,7 @@ from boerdi.services.agent_tools import SUBMIT_RESULT
 from boerdi.services.agent_trace import Rundenbuch
 from boerdi.services.agent_write import WriteGate
 from boerdi.services.dokument_lesen import WERKZEUG as DOKUMENT_LESEN
+from boerdi.services.llm_auth import KeinDelegationsToken
 from boerdi.services.llm_ereignisse import ist_voruebergehend, melde_voruebergehend
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
@@ -152,6 +153,10 @@ class AgentRun:
     #: Der Lauf endete, weil das Modell keinen Platz bekam (Paket 18F) — die Antwort ist
     #: dann „ausgelastet“, nicht der Fehler mit Nummer (Review 2026-10-30).
     ausgelastet: bool = False
+    #: Paket D: die Ausnahme des LLM-Aufrufs, an dem der Lauf endete (``stop_reason="error"``).
+    #: Der Abschluss wählt damit den Satz (``fehlertext``, etwa 401 mit Delegation). Nie im
+    #: ``repr``.
+    fehler: BaseException | None = field(default=None, repr=False)
     outcomes: list[Any] = field(default_factory=list)
     #: Die vom Modell GELIEFERTEN Ergebnis-Boxen (D2), in Aufrufreihenfolge.
     #: Leer heisst: dieser Zug hat keine geliefert — dann greift weiter die
@@ -407,8 +412,12 @@ async def run_agent_loop(
             elif ist_voruebergehend(e):
                 # Paket 19 (N-16): Frist, 429, Verbindung — ohne Traceback, gedrosselt.
                 melde_voruebergehend(logger, "Agent-Schleife", e)
+            elif isinstance(e, KeinDelegationsToken):
+                # Paket D (E4): aufgelegt bzw. unbrauchbares Token — erwartet, kein Traceback
+                logger.info("Agent-Schleife: ohne Delegations-Token (%s)", e.grund)
             else:
                 logger.exception("Agent-Schleife: LLM-Fehler (%s)", type(e).__name__)
+            run.fehler = e
             return schluss("error")
 
         choice = resp.choices[0]

@@ -388,7 +388,7 @@ def test_ohne_schluessel_endet_der_auftrag_nur_hier(umgebung, monkeypatch):  # n
         return None
 
     monkeypatch.setattr(ablage, "offen", kein_auftrag)
-    monkeypatch.setattr(modul, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(modul, "darf_jobs", lambda: False)
     zustand = _gestartet(umgebung, _ablauf(_WARTET).model_dump(exclude_none=True))
     [v] = umgebung.speicher.v.values()
     v.akte["lauf"]["status"] = "wartet_auftrag"

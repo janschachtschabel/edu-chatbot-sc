@@ -52,7 +52,7 @@ def welt(monkeypatch, db_url):
     get_settings.cache_clear()
     for modul in (arbeitsstand, ausloeser, auftrag_zug):
         monkeypatch.setattr(modul, "has_personal_auth", lambda: True)
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: True)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: True)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: _WER)
 
     async def nichts(*_a, **_k):

@@ -39,7 +39,7 @@ from boerdi.services.ablauf import treiber
 from boerdi.services.ablauf.ausloeser import laden
 from boerdi.services.auftraege import ablage, client
 from boerdi.services.db_sessions import sitzung_entities
-from boerdi.services.llm_auth import hat_zug_schluessel
+from boerdi.services.llm_auth import darf_jobs
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import has_personal_auth
 
@@ -124,7 +124,7 @@ async def stand(anfrage: StandAnfrage, request: Request, response: Response,
         raise HTTPException(status_code=403, detail="nur_angemeldet")
     auftrag = await _wartender_auftrag(session, anfrage, entities)
     if not client.ist_trocken(auftrag.job_id) and not (has_personal_auth()
-                                                        and hat_zug_schluessel()):
+                                                        and darf_jobs()):
         if not has_personal_auth():
             raise HTTPException(status_code=403, detail="nur_angemeldet")
         raise HTTPException(status_code=503, detail="nicht_abrufbar")

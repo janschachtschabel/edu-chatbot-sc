@@ -186,7 +186,7 @@ def im_zug(monkeypatch, freigeschaltet):
         monkeypatch.setattr(ablage, name, getattr(ab, name))
     for modul in (arbeitsstand, ausloeser, auftrag_zug):
         monkeypatch.setattr(modul, "has_personal_auth", lambda: True)
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: True)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: True)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
 
     async def nichts(*_a, **_k):
@@ -295,7 +295,7 @@ def test_stand_pruefen_ohne_wartenden_auftrag(im_zug):
 
 def test_ohne_durchgereichten_schluessel_startet_kein_auftrag(im_zug, monkeypatch):
     """Befund 1: nicht auf dem Schlüssel aller (``B_API_KEY``)."""
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: False)
     antwort = _starte({"entities": {}})
     assert im_zug.gestartet == [] and antwort.content == "Das Lesen hat nicht geklappt."
 
@@ -303,7 +303,7 @@ def test_ohne_durchgereichten_schluessel_startet_kein_auftrag(im_zug, monkeypatc
 def test_ohne_durchgereichten_schluessel_wird_nicht_abgefragt(im_zug, monkeypatch):
     state: dict = {"entities": {}}
     _starte(state)
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: False)
     antwort = _pruefe(state)
     assert antwort.content == bot_text("de", "action.ablauf.auftragNichtAbrufbar")
     assert im_zug.staende == [] and im_zug.ablage.auftraege[0].status == "laeuft"
@@ -647,7 +647,7 @@ def probe_an():
 
 def test_review_as8a_2_ein_trockener_auftrag_ist_ohne_schluessel_fertig(im_zug, monkeypatch,
                                                                         probe_an):
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: False)
     monkeypatch.setattr(client, "stand", _ECHTER_STAND)
     state: dict = {"entities": {}}
     _starte(state)
@@ -668,7 +668,7 @@ def test_review_as8a_5_ein_nicht_freigeschalteter_flow_scheitert_auch_trocken(im
 
 def test_review_as8a_6_ein_trockener_auftrag_endet_ohne_hinweis_auf_die_b_api(im_zug, monkeypatch,
                                                                             probe_an):
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: False)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: False)
     state: dict = {"entities": {}}
     _starte(state)
     kuerzel = client.kuerzel(im_zug.ablage.auftraege[0].job_id)

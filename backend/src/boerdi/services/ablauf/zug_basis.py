@@ -354,11 +354,17 @@ def bei_der_b_api_abbrechen(*job_ids: str | None) -> None:
     fremd (404). Im Hintergrund, ohne zu warten oder zu werfen.
 
     Erst NACH dem Festschreiben aufrufen (Review Job-Vertrag, Befund 1): ein Abbruch vor einem
-    Konflikt-Rollback beendete einen Auftrag, auf den der Lauf eines anderen Zuges noch wartet."""
+    Konflikt-Rollback beendete einen Auftrag, auf den der Lauf eines anderen Zuges noch wartet.
+
+    Paket D (E4): mit Delegations-Token keine Task nach der Anfrage — das Token endet mit ihr. Der
+    Auftrag läuft im Repository zu Ende; den Abbruch im Zug über den MCP bringt Paket K."""
     from boerdi.services.auftraege import client
-    from boerdi.services.llm_auth import hat_zug_schluessel
+    from boerdi.services.llm_auth import hat_zug_schluessel, zug_art
 
     if not hat_zug_schluessel():
+        return
+    if zug_art() == "delegation":
+        logger.info("Auftrag läuft im Repository zu Ende (Delegation: kein Abbruch im Hintergrund)")
         return
     for job_id in job_ids:
         if job_id:

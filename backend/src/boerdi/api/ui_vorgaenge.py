@@ -56,7 +56,7 @@ from boerdi.services.ablauf import ausloeser
 from boerdi.services.ablauf.zug_basis import bei_der_b_api_abbrechen
 from boerdi.services.auftraege import ablage as auftraege_ablage
 from boerdi.services.db_sessions import sitzung_entities
-from boerdi.services.llm_auth import hat_zug_schluessel
+from boerdi.services.llm_auth import darf_jobs
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import aufrufer_kennung, has_personal_auth
 
@@ -271,4 +271,5 @@ async def loeschen(anfrage: LoeschAnfrage, request: Request, response: Response,
     response.headers["Cache-Control"] = "private, no-store"
     # Q-6: ohne den Schlüssel der Person beendet die b-api den Job nicht (`bei_der_b_api_abbrechen`
     # tut dann nichts) — das Widget sagt es, statt „endet“ zu versprechen.
-    return {"geloescht": True, "auftrag_laeuft_weiter": bool(job_id) and not hat_zug_schluessel()}
+    # Paket D: auch mit Delegations-Token nicht (``darf_jobs``).
+    return {"geloescht": True, "auftrag_laeuft_weiter": bool(job_id) and not darf_jobs()}

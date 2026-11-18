@@ -26,7 +26,7 @@ import os
 import httpx
 
 from boerdi.services.llm import route
-from boerdi.services.llm_auth import b_api_schluessel
+from boerdi.services.llm_auth import KeinDelegationsToken, b_api_schluessel
 from boerdi.services.llm_models import get_provider
 from boerdi.settings import get_settings
 
@@ -131,7 +131,10 @@ def speech_enabled() -> bool:
         return bool(s.openai_api_key.get_secret_value().strip())
     if provider == "b-api-openai":
         # Paket 17: auch mit dem Schlüssel, den der b-api-Proxy für diesen Aufruf reicht.
-        return s.b_api_audio and bool(b_api_schluessel())
+        try:
+            return s.b_api_audio and bool(b_api_schluessel())
+        except KeinDelegationsToken:
+            return False  # Paket D: eine Auskunft, kein Zug — unbrauchbares Token = keine Sprache
     # b-api-academiccloud + any other: no OpenAI audio endpoint → excluded.
     return False
 

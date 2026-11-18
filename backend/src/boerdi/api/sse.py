@@ -9,7 +9,9 @@ führen hieße, sie zweimal zu pflegen und einmal zu vergessen.
 Seit Paket 7 (P2) bricht eine aufgelegte Verbindung nur noch den Agent-Endpunkt
 ab; der Chat rechnet zu Ende und speichert die Antwort im Verlauf
 (:data:`NachAbbruch`), beim Herunterfahren abgewartet von
-:func:`nachlaeufer_abwarten` (Paket 9). ``connected`` trägt ``history`` und
+:func:`nachlaeufer_abwarten` (Paket 9). Im Delegationsbetrieb der b-api (Paket D, E4)
+endet mit dem Auflegen das Token: der Nachlauf macht keinen b-api-Aufruf mehr
+(``llm_auth.delegation_beender``). ``connected`` trägt ``history`` und
 ``after_id``, ein ``error`` kann ``code: "session_busy"`` tragen.
 
 **Was hier NICHT wohnt:** was ein Zug *ist*. Sitzungssperre, Graph,
@@ -38,6 +40,7 @@ from boerdi.obs.log_format import ausnahme_text
 from boerdi.obs.progress import TurnProgress
 from boerdi.obs.tasks import ABBRUCH_FRIST_S, cancel_and_drain
 from boerdi.obs.trace_id import fehlernummer
+from boerdi.services.llm_auth import delegation_beender
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +73,21 @@ NachAbbruch = Literal["abbrechen", "zu_ende"]
 _NACHLAEUFER: set[asyncio.Task[Any]] = set()
 
 
-def _nachlaufen_lassen(task: asyncio.Task[Any], label: str) -> None:
+def _kein_beender() -> bool:
+    return False
+
+
+def _nachlaufen_lassen(task: asyncio.Task[Any], label: str,
+                       beende: Callable[[], bool] = _kein_beender) -> None:
     _NACHLAEUFER.add(task)
     task.add_done_callback(_NACHLAEUFER.discard)
+    if beende():
+        # Paket D (E4): das Delegations-Token der b-api endete mit der Anfrage. Der Zug läuft
+        # weiter, bis er die b-api bräuchte — dort endet er (``KeinDelegationsToken``) und
+        # speichert, was da ist: die fertige Antwort oder einen Vermerk.
+        logger.info("%s: Verbindung aufgelegt — Delegation beendet, Zug endet vor dem nächsten "
+                    "b-api-Aufruf", label or "sse_turn")
+        return
     logger.info("%s: Verbindung aufgelegt — Zug rechnet zu Ende (Antwort im Verlauf)",
                 label or "sse_turn")
 
@@ -111,12 +126,14 @@ def _frame(name: str, data: dict[str, Any]) -> str:
     return f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
 
-async def _aufgelegt(task: asyncio.Task[Any], nach_abbruch: NachAbbruch, label: str) -> None:
+async def _aufgelegt(task: asyncio.Task[Any], nach_abbruch: NachAbbruch, label: str,
+                     beende: Callable[[], bool]) -> None:
     """Die Verbindung ist weg (beim Keepalive bemerkt)."""
     if nach_abbruch == "zu_ende":
-        _nachlaufen_lassen(task, label)
+        _nachlaufen_lassen(task, label, beende)
         return
     logger.info("%s: Verbindung aufgelegt — Zug abgebrochen", label)
+    beende()  # Paket D: auch bis der Abbruch greift, kein b-api-Aufruf mehr
     # Auf den Abbruch warten, damit das ``finally`` der Arbeit (etwa eine
     # Sperre) gelaufen ist, bevor wir den Strom aufgeben — mit Frist, und ohne den
     # eigenen Abbruch zu verschlucken (Paket 18E).
@@ -151,6 +168,9 @@ async def sse_turn(
     """
     queue: asyncio.Queue = asyncio.Queue(maxsize=PROGRESS_QUEUE_MAX)
     _DONE = object()
+    # Paket D (E4): gebunden im Kontext der Anfrage — ein Abschluss des Generators kann später
+    # in einem fremden Kontext laufen.
+    beende = delegation_beender()
 
     def _sink(event: dict) -> None:
         # Synchron und nicht blockierend: läuft in der Zug-Aufgabe, wartet nie.
@@ -182,7 +202,7 @@ async def sse_turn(
                 evt = await asyncio.wait_for(queue.get(), timeout=KEEPALIVE_SECONDS)
             except TimeoutError:
                 if await request.is_disconnected():
-                    await _aufgelegt(impl_task, nach_abbruch, label)
+                    await _aufgelegt(impl_task, nach_abbruch, label, beende)
                     return
                 yield ": keepalive\n\n"
                 if impl_task.done():
@@ -197,8 +217,9 @@ async def sse_turn(
         # weiter, ohne Referenz und ohne Absicht.
         if not impl_task.done():
             if nach_abbruch == "zu_ende":
-                _nachlaufen_lassen(impl_task, label)
+                _nachlaufen_lassen(impl_task, label, beende)
             else:
+                beende()
                 impl_task.cancel()
         raise
     # Was zwischen dem letzten ``get()`` und ``_DONE`` einging (der Zug meldet

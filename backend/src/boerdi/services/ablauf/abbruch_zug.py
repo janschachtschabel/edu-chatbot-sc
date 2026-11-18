@@ -23,7 +23,7 @@ from boerdi.i18n import resolve_locale
 from boerdi.services import arbeitsstand, plan_fortsetzen
 from boerdi.services.ablauf import ausloeser, freigabe_zug, treiber, zug
 from boerdi.services.ablauf import zug_basis as basis
-from boerdi.services.llm_auth import hat_zug_schluessel
+from boerdi.services.llm_auth import darf_jobs
 
 AKTION: Final = "ablauf_abbrechen"
 #: Hier fragt „Abbrechen“ erst nach: ein Auftrag endet mit, ein Plan kann schon schreiben.
@@ -83,8 +83,9 @@ def _satz(lauf: dict[str, Any], plan_angelaufen: bool) -> str:
     Befunde 1 und 6)."""
     if plan_angelaufen:
         return "action.ablauf.freigabeAbgebrochenPlan"
-    if lauf.get("status") == treiber.WARTET_AUFTRAG and not hat_zug_schluessel():
-        # ohne den Schlüssel der Person endet der Auftrag nur hier — bei der b-api läuft er weiter
+    if lauf.get("status") == treiber.WARTET_AUFTRAG and not darf_jobs():
+        # ohne den Schlüssel der Person (oder mit Delegations-Token, Paket D) endet der Auftrag nur
+        # hier — bei der b-api läuft er weiter
         return "action.ablauf.auftragNurHierAbgebrochen"
     return "action.ablauf.abgebrochenPerson"
 

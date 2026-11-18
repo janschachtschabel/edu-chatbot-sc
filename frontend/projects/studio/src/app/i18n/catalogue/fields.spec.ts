@@ -133,3 +133,17 @@ describe('Feldtexte der kuratierten Seiten (ST-1)', () => {
     }
   });
 });
+
+describe('Paket D (b-api seit 10.11.): kein abgeschaffter Kopf im Studio-Text', () => {
+  it('nennt X-Edu-User-Id in keiner Sprache', () => {
+    for (const katalog of [STUDIO_DE, STUDIO_EN]) {
+      const treffer = Object.entries(katalog).filter(([, text]) => String(text).includes('X-Edu-User-Id'));
+      expect(treffer.map(([schluessel]) => schluessel)).toEqual([]);
+    }
+  });
+
+  it('sagt, dass das Repository die Person nachweist', () => {
+    expect(STUDIO_DE['feld.Schritt.repo_schreibt.hint']).toContain('Das Repository weist sie nach');
+    expect(STUDIO_EN['feld.Schritt.repo_schreibt.hint']).toContain('the repository vouches for them');
+  });
+});

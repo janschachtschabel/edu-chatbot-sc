@@ -30,7 +30,7 @@ from boerdi.services.ablauf import treiber
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden
 from boerdi.services.auftraege import ablage, client, dateien
-from boerdi.services.llm_auth import hat_zug_schluessel
+from boerdi.services.llm_auth import darf_jobs, zug_art
 from boerdi.services.mcp.auth import has_personal_auth
 
 logger = logging.getLogger(__name__)
@@ -58,13 +58,19 @@ def starter() -> Callable[[str, dict[str, Any]], Awaitable[str | None]] | None:
     Betrieb (P-8, Querschnitts-Review AS-8, Befund 3: die Probe zeigt, was die Person sieht)."""
     if probe.aktiv():
         return _trocken_starten if has_personal_auth() else None
-    if not client.freigeschaltet() or not has_personal_auth() or not hat_zug_schluessel():
+    if not client.freigeschaltet() or not has_personal_auth() or not darf_jobs():
+        if zug_art() == "delegation":
+            # Paket D (E1/E2): das Delegations-Token deckt keine Jobs — ein Start wäre eine
+            # sichere 401. Bis Paket K (Start über den MCP) nimmt der Schritt seinen Ersatzweg.
+            logger.debug("Auftrag nicht gestartet: Delegation deckt keine Jobs")
         return None
     return _Starter()
 
 
 #: Plan 2026-11-16, Durchtest TG-7 (m5): der Satz an die Person je Code der b-api.
-_ABGELEHNT: Final = {"EDU_USER_NOT_VERIFIED": "action.ablauf.auftragAbgelehntKonto"}
+_ABGELEHNT: Final = {"EDU_USER_NOT_VERIFIED": "action.ablauf.auftragAbgelehntKonto",
+                     "EDU_USER_REQUIRED": "action.ablauf.auftragAbgelehntPerson",   # Paket D
+                     "LEGACY_HEADERS": "action.ablauf.auftragAbgelehntTechnik"}
 
 
 class _Starter:
@@ -239,7 +245,7 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
     # Auftrag nur hier — bei der b-api läuft er weiter. Das sagt die Antwort.
     # Review AS-8a, Befund 6: einen Trocken-Auftrag gibt es bei der b-api gar nicht.
     trocken = offen is not None and client.ist_trocken(offen.job_id)
-    schluessel = ("action.ablauf.auftragAbgebrochen" if hat_zug_schluessel() or trocken
+    schluessel = ("action.ablauf.auftragAbgebrochen" if darf_jobs() or trocken
                   else "action.ablauf.auftragNurHierAbgebrochen")
     antwort = await basis.nur_text(session, req, schluessel, entities)
     antwort.quick_replies = vorgang_aktion.knoepfe(lang)
@@ -266,7 +272,7 @@ async def pruefen(session: Any, req: ChatRequest, session_state: dict, *,
         await basis.abbrechen(session, v, lauf, entities, aufrufer)
         return await basis.nur_text(session, req, "action.ablauf.unbekannt", entities)
     # Review AS-8a, Befund 2: einen Trocken-Auftrag beantwortet der Client selbst, ohne Schlüssel.
-    if not hat_zug_schluessel() and not client.ist_trocken(auftrag.job_id):
+    if not darf_jobs() and not client.ist_trocken(auftrag.job_id):
         # Mit ``B_API_KEY`` sähe der Chatbot den Auftrag der Person nicht (K22) — und fragte nicht.
         return await _mit_knopf(session, req, "action.ablauf.auftragNichtAbrufbar", ablauf.id)
     await basis.frei(session)             # M7: die b-api-Abfrage hält keine DB-Verbindung

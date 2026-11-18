@@ -322,7 +322,7 @@ def _starter(monkeypatch, code):
     monkeypatch.setattr(client, "freigeschaltet", lambda: True)
     monkeypatch.setattr(client, "starten", starten)
     monkeypatch.setattr(auftrag_zug, "has_personal_auth", lambda: True)
-    monkeypatch.setattr(auftrag_zug, "hat_zug_schluessel", lambda: True)
+    monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: True)
     return auftrag_zug.starter()
 
 
