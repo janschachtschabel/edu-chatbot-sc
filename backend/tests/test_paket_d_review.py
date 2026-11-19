@@ -125,11 +125,13 @@ def test_eine_401_nach_dem_auflegen_ist_der_vermerk(sprache):
 
 # ── Befund 5: ehrlicher Satz bis Paket K ──────────────────────────────────────
 
-def test_edu_user_required_sagt_ehrlich_dass_umgestellt_wird():
+def test_edu_user_required_sagt_ehrlich_warum():
+    """Paket K, Review A3: der MCP startet mit der Anmeldung der Person — der Satz nennt den Grund
+    (keine angemeldete Person erkannt) statt „wird gerade umgestellt“."""
     de = bot_text("de", "action.ablauf.auftragAbgelehntPerson")
     en = bot_text("en", "action.ablauf.auftragAbgelehntPerson")
-    assert "gerade nicht möglich" in de and "umgestellt" in de
-    assert "not possible right now" in en and "being switched over" in en
+    assert "keine angemeldete Person" in de and "umgestellt" not in de
+    assert "signed-in person" in en and "switched over" not in en
 
 
 # ── Befund 7 und 8 ────────────────────────────────────────────────────────────
@@ -142,8 +144,8 @@ def test_der_ausgelassene_start_steht_auf_debug(monkeypatch, caplog):
     monkeypatch.setattr(auftrag_zug, "has_personal_auth", lambda: True)
     llm_auth.setze_llm_schluessel(f"Bearer {TOKEN}")
     with caplog.at_level(logging.DEBUG, logger=auftrag_zug.logger.name):
-        assert auftrag_zug.starter() is None
-    zeilen = [r for r in caplog.records if "Delegation" in r.getMessage()]
+        assert auftrag_zug.starter().fuer(False).traeger is None     # Review A4: je Schritt
+    zeilen = [r for r in caplog.records if "delegation" in r.getMessage().lower()]
     assert zeilen and all(r.levelno == logging.DEBUG for r in zeilen)
 
 

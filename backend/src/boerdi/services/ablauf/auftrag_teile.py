@@ -7,6 +7,7 @@
   wie bei einem einzelnen Auftrag; Listen gleicher Schlüssel hängen aneinander.
 - **Sprache** (R-E14): ``{"$sprache": true}`` als Wert eines Arguments wird die Sprache der Person
   (``de``/``en``) — ein Flow schreibt Metadaten sonst immer deutsch.
+- **Formate des Metadaten-Flows** (Durchtest Paket K, 19.11.): :func:`ohne_textdateien`.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ from __future__ import annotations
 import json
 import math
 from typing import Any, Final
+
+from boerdi.domain.config_models.kestra_flows import METADATEN_FLOW
 
 #: Höchstens so viele Teilaufträge je Schritt — die B-API erlaubt 20 laufende Jobs je Schlüssel,
 #: und je Teil braucht es ein „Stand prüfen“. Bei mehr werden die Teile größer.
@@ -37,6 +40,39 @@ def ist_sprache(wert: Any) -> bool:
 def sprache_einsetzen(args: dict[str, Any], sprache: str) -> dict[str, Any]:
     """``args`` mit der Sprache der Person statt ``{"$sprache": true}`` (oberste Ebene)."""
     return {k: (sprache if ist_sprache(v) else v) for k, v in args.items()}
+
+
+#: Durchtest gegen Staging (19.11., Paket K): ``node-metadata-write`` scheitert als GANZES
+#: (``FAILED``/``FLOW_FAILED``), sobald ein Markdown-Knoten im Job ist — vermutlich, weil das
+#: Repository für md keinen ``textContent`` erzeugt. Dann verlieren alle Dateien des Jobs ihre
+#: Metadaten. Bis Flow bzw. MCP das beheben (``docs/offene-befunde-und-todo.md``), gehen Knoten mit
+#: diesen Endungen nicht an den Flow; ``txt`` sicherheitshalber (ebenfalls oft ohne
+#: ``textContent``). Ein Strukturdokument in md bleibt nutzbar: seinen Volltext liest der MCP selbst
+#: (``get_wlo_content_text``).
+METADATEN_FLOW_OHNE: Final = frozenset({"md", "markdown", "txt"})
+#: Der Teil, aus dem der Seed die ``node_ids`` des Metadaten-Flows wählt (``ablage/vorgang_teil``).
+ABLAGE_TEIL: Final = "ablage"
+
+
+def _endungen(eintrag: dict[str, Any]) -> set[str]:
+    """Art (``ext`` des Widgets) und Endung des Dateinamens, klein und ohne Punkt."""
+    name = str(eintrag.get("name") or "")
+    return {str(eintrag.get("art") or "").lower().lstrip("."),
+            name.rsplit(".", 1)[-1].lower() if "." in name else ""} - {""}
+
+
+def ohne_textdateien(flow: str, args: dict[str, Any], ablage: Any) -> tuple[dict[str, Any], int]:
+    """Für :data:`METADATEN_FLOW`: ``node_ids`` ohne die Knoten, die ``ablage`` mit einer Endung
+    aus :data:`METADATEN_FLOW_OHNE` führt — und wie viele wegfielen. Andere Flows und Knoten, die
+    die Ablage nicht kennt, bleiben unverändert."""
+    ids = args.get("node_ids")
+    if flow != METADATEN_FLOW or not isinstance(ids, list) or not isinstance(ablage, dict):
+        return args, 0
+    weg = {e["node_id"] for e in ablage.get("inhalte") or []
+           if isinstance(e, dict) and isinstance(e.get("node_id"), str)
+           and _endungen(e) & METADATEN_FLOW_OHNE}
+    bleibt = [n for n in ids if n not in weg]
+    return ({**args, "node_ids": bleibt}, len(ids) - len(bleibt)) if weg else (args, 0)
 
 
 def teilen(args: dict[str, Any], argument: str, hoechstens: int) -> list[dict[str, Any]]:

@@ -16,6 +16,8 @@ der Weg „zurück zum Ablauf“.
 - :func:`aufraeumen`: ein wartender Lauf, dessen Ablauf aus ist oder dessen Schritte sich änderten,
   wird abgebrochen (wie ``zug.wartet_auf``) — sonst sperrte er Wendungen und Modul-Auslöser, ohne
   dass ein Chip zurückführt (Review AS-3a, Befund 3).
+- Eine Wendung an der wartenden Frage beantwortet ``wendung_zug`` (Durchtest Paket K, 19.11.);
+  dessen Knopf „Hier weitermachen“ kommt als Wahl ``wendung_zug.HIER`` hierher (:func:`waehlen`).
 """
 
 from __future__ import annotations
@@ -71,6 +73,10 @@ def _wartend(session_id: str, session_state: dict[str, Any]
     if schritt is None or not mit_wahl(schritt):
         return None
     return lauf, ablauf, schritt
+
+
+#: Für ``wendung_zug``: Lauf, Ablauf und Schritt einer wartenden Frage (nur aus dem Verweis).
+wartende_frage = _wartend
 
 
 def platz_fuer_vorschlag(session_id: str, session_state: dict[str, Any], lang: str,
@@ -193,9 +199,16 @@ async def waehlen(session: Any, req: ChatRequest, session_state: dict, *,
     bekommt „gilt nicht mehr“ und die Chips, die jetzt gelten (Review AS-3a, Befund 4)."""
     params = req.action_params or {}
     wahl = params.get("wahl")
-    antwort = await _fortsetzen(session, req, session_state, blocked_tools,
-                                ablauf_id=params.get("ablauf"), schritt_id=params.get("schritt"),
-                                wahl=wahl if isinstance(wahl, str) else None, text=None)
+    from boerdi.services.ablauf import wendung_zug  # zyklenfrei erst zur Laufzeit
+
+    if wahl == wendung_zug.HIER:
+        # Drittes Review Paket K: „Hier weitermachen“ zeigt die offene Frage wieder
+        antwort = await wendung_zug.hier_weiter(session, req, session_state)
+    else:
+        antwort = await _fortsetzen(
+            session, req, session_state, blocked_tools, ablauf_id=params.get("ablauf"),
+            schritt_id=params.get("schritt"), wahl=wahl if isinstance(wahl, str) else None,
+            text=None)
     if antwort is not None:
         return antwort
     entities = session_state.setdefault("entities", {})
@@ -268,8 +281,7 @@ async def _fortsetzen(session: Any, req: ChatRequest, session_state: dict,
         await session.commit()
     except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
-        basis.nicht_festgehalten(aus)
+        await basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
     return await basis.antwort(session, req, session_state, aus, ablauf)
-

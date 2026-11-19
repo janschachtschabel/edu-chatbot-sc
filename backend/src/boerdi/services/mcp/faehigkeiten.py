@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Iterable, Mapping
 from typing import Any, Final
 
@@ -39,6 +40,10 @@ _WARN_ABSTAND_S: Final = 900.0
 #: nicht geantwortet hat.
 _parameter: dict[str, dict[str, frozenset[str]]] = {}
 _fehlversuche = 0
+#: Paket K, Review A2: wann der Server ein Werkzeug zuletzt nannte (Uhr :data:`_jetzt`) — bleibt,
+#: wenn eine spätere Liste es nicht mehr nennt (Neustart des MCP: „vor Kurzem noch da“).
+_gesehen: dict[str, float] = {}
+_jetzt = time.monotonic
 
 
 def kennt(werkzeug: str, parameter: str) -> bool:
@@ -51,6 +56,12 @@ def kennt_werkzeug(werkzeug: str) -> bool:
     16.11., Review m6: die Ablage nach WLO ist ab Werk an — angeboten nur, wenn der Server die
     Stapel-Ablage kennt; sonst scheiterte sie erst nach der Vorschau)."""
     return werkzeug in _parameter
+
+
+def alter(werkzeug: str) -> float | None:
+    """Sekunden, seit der Server ``werkzeug`` zuletzt nannte — ``None``, wenn noch nie."""
+    zuletzt = _gesehen.get(werkzeug)
+    return None if zuletzt is None else _jetzt() - zuletzt
 
 
 def kennt_wert(werkzeug: str, parameter: str, wert: str) -> bool:
@@ -80,6 +91,8 @@ def uebernehmen(werkzeuge: Iterable[Mapping[str, Any]]) -> bool:
         return False
     _parameter = neu
     _fehlversuche = 0
+    jetzt = _jetzt()
+    _gesehen.update(dict.fromkeys(neu, jetzt))
     return True
 
 
@@ -95,6 +108,7 @@ def vergessen() -> None:
     global _parameter, _fehlversuche
     _parameter = {}
     _fehlversuche = 0
+    _gesehen.clear()
 
 
 def _gescheitert(grund: str) -> None:
@@ -124,6 +138,19 @@ async def erkunden() -> bool:
         return False
     logger.debug("MCP-Fähigkeiten: %d Werkzeuge", len(_parameter))
     return True
+
+
+async def nachfragen() -> bool:
+    """Paket K, zweites Review (Z7): außer der Reihe fragen (etwa nach „unbekanntes Werkzeug“).
+    Ein Fehlschlag zählt hier **nicht** zu :data:`FEHLVERSUCHE_BIS_UNBEKANNT` — sonst verwürfen
+    ein paar Nachfragen während eines Neustarts des MCP alle Fähigkeiten; das bleibt dem Takt."""
+    from boerdi.services.mcp.transport import discover_server_tools
+
+    try:
+        return uebernehmen(await discover_server_tools(""))
+    except Exception as err:  # noqa: BLE001 — der Takt fragt ohnehin wieder
+        logger.info("MCP-Fähigkeiten: Nachfrage gescheitert (%s)", type(err).__name__)
+        return False
 
 
 async def _schleife() -> None:

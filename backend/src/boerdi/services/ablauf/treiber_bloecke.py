@@ -65,11 +65,15 @@ async def modul_block(modul: str, daten: dict[str, Any], *,
 
 def fortschritt(ablauf_id: str, job_id: str, text: str, sprache: str) -> UiBlock | None:
     """Paket K1b: der Block ``ui_fortschritt`` zu einem gestarteten Auftrag — mit dem Kürzel, nie
-    der Job-ID; ``None``, wenn das Modul im Studio aus ist (dann bleibt nur „Stand prüfen“)."""
+    der Job-ID; ``None``, wenn das Modul im Studio aus ist (dann bleibt nur „Stand prüfen“).
+    Paket K, Review A1: ``None`` auch für einen Start mit offenem Ausgang (keine jobId) — das
+    Modul hielte „nicht abfragbar“ für „fertig“ und holte selbst ab; weiter geht es dort nur über
+    „Stand prüfen“."""
     from boerdi.i18n import bot_text
     from boerdi.services.auftraege.client import kuerzel
+    from boerdi.services.auftraege.mcp_starter import ist_offen
 
-    if not schalter.aktiv(FORTSCHRITT):
+    if not schalter.aktiv(FORTSCHRITT) or ist_offen(job_id):
         return None
     # Review K1b, Befund 5: das Manifest erlaubt 300 Zeichen — länger fiele der Block still weg.
     satz = (text or bot_text(sprache, "action.ablauf.auftragGestartet"))[:300].rstrip()

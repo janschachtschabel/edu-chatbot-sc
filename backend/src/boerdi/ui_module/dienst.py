@@ -57,13 +57,18 @@ _FEHLER: Final = {
     # m3: ``not_extracted`` heißt „aus der Datei kam (noch) kein Text“ — für eine Datei, deren Text
     # gerade entsteht, ebenso wie für einen Scan oder ein Bild, das nie Text hat. Das MCP
     # unterscheidet beides nicht; der Satz nennt beides ehrlich.
+    # Paket K5 (E14): meist entsteht der Text nach dem Übertragen gerade — der Ablauf scheitert
+    # nicht, er wartet an seinem KI-Schritt; erneut anstoßen ist eine neue Nachricht dort (Review
+    # B5: konkret „nochmal“ schreiben).
     "volltext_fehlt_datei": ("Fehler: Aus den Strukturdokumenten der Person ({namen}) hat WLO "
-                             "(noch) keinen Text gewonnen — entweder entsteht er gerade, oder die "
-                             "Datei enthält keinen lesbaren Text (etwa ein Scan oder ein Bild). "
-                             "Rufe {name} jetzt nicht noch einmal auf; sag der Person beides: in "
-                             "ein paar Minuten noch einmal versuchen, und geht es dann nicht, eine "
-                             "Fassung mit Text hochladen (etwa ein PDF mit Textschicht oder "
-                             "Word)."),
+                             "(noch) keinen Text gewonnen — meist wird er nach dem Übertragen "
+                             "gerade erzeugt (das dauert einige Minuten); selten enthält die "
+                             "Datei keinen lesbaren Text (etwa ein Scan oder ein Bild). Der Ablauf "
+                             "wartet an diesem Schritt, nichts ist verloren. Rufe {name} jetzt "
+                             "nicht noch einmal auf; sag der Person: Der Text wird gerade erzeugt "
+                             "— in ein paar Minuten einfach „nochmal“ schreiben; geht es dann "
+                             "nicht, eine Fassung mit Text hochladen (etwa ein PDF mit Textschicht "
+                             "oder Word)."),
     # Nachprüfung TG-3d–f, MINOR 4: derselbe Code, der Satz nach dem Grund
     "volltext_fehlt_anmeldung": ("Fehler: Die Strukturdokumente der Person liegen in ihrem "
                                  "persönlichen Bereich in WLO ({namen}); ohne Anmeldung lassen "
@@ -229,6 +234,10 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
         # Plan 2026-11-16, Durchtest TG-7 (NIT): die Materialien der Person sind kein Dokument mit
         # Gliederung — die Struktur ordnet die KI (das Format kennt ki, wlo, ordner, dokument)
         daten = {**daten, "quelle": "ki"}
+        if dienst.platzhalter_thema(daten.get("thema")) and str(daten.get("titel") or "").strip():
+            # Durchtest r2-1 (live wieder am 19.11.): die KI nennt als Thema „Themen aus den
+            # bereitgestellten Dateien“ — der Titel des Entwurfs trägt das Sachgebiet
+            daten["thema"] = str(daten["titel"])[:200]
     if daten is None:
         grund = erzeugt.grund or "fehler"
         return _fehlschlag(modul, _FEHLER.get(grund, _FEHLER_SONST).format(name=modul), grund,

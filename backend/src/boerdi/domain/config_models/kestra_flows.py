@@ -34,6 +34,14 @@ def _flow(text: str) -> str:
     return text
 
 
+#: Der Kestra-Flow, der die Metadaten abgelegter Materialien erzeugt (Seed „Themenbaum erstellen“).
+METADATEN_FLOW: Final = "edusharing.chatbot/node-metadata-write"
+#: Paket K, Review A4/A7: Flows, von denen bekannt ist, dass sie ins Repository schreiben — ein
+#: Auftragsschritt mit einem davon braucht ``repo_schreibt`` (sonst ginge er den Direktweg ohne
+#: Rückfrage als Zustimmung; ``pruefung``). Jeder schreibende Flow muss zudem beim MCP in
+#: ``WLO_BAPI_FLOWS`` stehen (ab Werk nur dieser).
+SCHREIBENDE_FLOWS: Final = frozenset({METADATEN_FLOW})
+
 MAX_FLOWS: Final = 50
 
 

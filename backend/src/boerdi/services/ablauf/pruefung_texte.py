@@ -105,6 +105,14 @@ _T: Final[dict[str, dict[str, str]]] = {
                            "en": "Step {s}: the flow writes to the repository — on every path a "
                                  "question to the person must come directly before it (a choice "
                                  "leading to it, or an approval)"},
+    # Paket K, Review A4/A7: ein bekannt schreibender Flow ohne Vermerk ginge den Direktweg
+    "auftrag_repo_schreibt": {
+        "de": "Schritt {s}: der Flow {f} schreibt ins Repositorium — der Schritt braucht "
+              "„schreibt ins Repositorium“ (repo_schreibt); nur dann startet ihn der WLO-MCP mit "
+              "der Anmeldung der Person",
+        "en": "Step {s}: the flow {f} writes to the repository — the step needs “writes to the "
+              "repository” (repo_schreibt); only then does the WLO MCP start it with the person's "
+              "sign-in"},
     "direkt_nur_agent": {"de": "Auslöser {a}: modus direkt gibt es nur am Auslöser agent",
                          "en": "Trigger {a}: mode direkt exists only for the trigger agent"},
     "direkt_schreibt": {"de": "Auslöser agent mit modus direkt: der Ablauf schreibt (Werkzeug "

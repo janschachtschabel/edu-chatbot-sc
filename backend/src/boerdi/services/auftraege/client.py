@@ -63,6 +63,8 @@ _ID: Final = re.compile(r"^(?!\.+$)[A-Za-z0-9_.\-]{1,200}$")
 _LAEUFT: Final = frozenset({"QUEUED", "RUNNING", "CREATED", "PAUSED", "RESTARTED", "RETRYING"})
 _FERTIG: Final = frozenset({"SUCCEEDED", "SUCCESS", "WARNING"})
 _FEHLER: Final = frozenset({"FAILED", "CANCELLED", "KILLED"})
+#: So lange hält die b-api einen Job (Kopf: „Jobs 30 Tage“) — Paket K7: Frist der Rückkehr.
+JOB_TAGE: Final = 30
 #: Längste übernommene Wartezeit aus ``Retry-After`` (Sekunden).
 _WARTE_DECKEL_S: Final = 600
 _MAX_DATEIEN: Final = 50
@@ -137,6 +139,29 @@ class Stand:
     warnungen: bool = False
     #: ``error.code`` eines gescheiterten Jobs (dokumentiert nur ``TIMEOUT``), sonst ``None``.
     fehlercode: str | None = None
+    #: Paket K1 (``progress`` über den MCP): ``{"fertig": k, "gesamt": n}`` — nur Zahlen.
+    fortschritt: dict[str, int] | None = None
+
+
+def _ganz(z: Any) -> bool:
+    return isinstance(z, int) and not isinstance(z, bool)
+
+
+def fortschritt_zahlen(fortschritt: Any) -> dict[str, int]:
+    """Paket K6 (E16): ``fertig``/``gesamt`` aus :attr:`Stand.fortschritt` — nur ganze Zahlen mit
+    ``0 <= fertig <= gesamt`` und ``gesamt > 0``; sonst nichts. Durchtest Paket K (19.11.): dazu
+    ``fehlgeschlagen``, wenn es eine ganze Zahl ``>= 1`` ist und mit ``fertig`` nicht über
+    ``gesamt`` geht (sonst fällt nur sie weg). Eine Prüfung für ``/api/ui/auftrag/stand`` und den
+    Satz im Chat (drittes Review)."""
+    if not isinstance(fortschritt, dict):
+        return {}
+    fertig, gesamt = fortschritt.get("fertig"), fortschritt.get("gesamt")
+    if not (_ganz(fertig) and _ganz(gesamt) and 0 <= fertig <= gesamt and gesamt > 0):
+        return {}
+    aus = {"fertig": fertig, "gesamt": gesamt}
+    if _ganz(fehl := fortschritt.get("fehlgeschlagen")) and 1 <= fehl <= gesamt - fertig:
+        aus["fehlgeschlagen"] = fehl
+    return aus
 
 
 #: Paket KF (K-E3): der Start-Pfad der b-api (Handbuch 2026-11-07, am Staging gemessen) — gilt,

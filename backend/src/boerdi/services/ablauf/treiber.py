@@ -34,6 +34,7 @@ from typing import Any, Final, TypeGuard
 from boerdi.api.schemas_ui import UiBlock
 from boerdi.domain import seiten_muster
 from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
+from boerdi.domain.config_models.kestra_flows import METADATEN_FLOW
 from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 from boerdi.services import teil_verweise
 from boerdi.services.ablauf import (
@@ -133,6 +134,9 @@ class Umgebung:
     wlo_ablage: Callable[[], bool] | None = None
     #: Review TG-4–6, MINOR 8: geht der gründliche Weg ganz (Ablage, Auftrag, Flow freigegeben)?
     wlo_erschliessen: Callable[[], bool] | None = None
+    #: Durchtest Paket K (19.11.): öffnete eine Anmeldung den gründlichen Weg
+    #: (``werkzeuge.DienstKontext.nach_anmeldung``)?
+    nach_anmeldung: Callable[[], bool] | None = None
 
 
 @dataclass
@@ -233,7 +237,8 @@ def dienst_kontext(umgebung: Umgebung) -> werkzeuge.DienstKontext:
                                    dokument_id=umgebung.dokument_id,
                                    dokument_ids=umgebung.dokument_ids,
                                    wlo_ablage=umgebung.wlo_ablage,
-                                   wlo_erschliessen=umgebung.wlo_erschliessen)
+                                   wlo_erschliessen=umgebung.wlo_erschliessen,
+                                   nach_anmeldung=umgebung.nach_anmeldung)
 
 
 async def _start_kennungen(ablauf: AblaufArea, s: Schritt, teile: Callable[[str], Awaitable[Any]],
@@ -446,21 +451,40 @@ async def _rechne_schritte(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                 kurz = werkzeuge.ZUSAMMENFASSUNG.get(s.werkzeug or "", _zusammenfassung)
                 aus.neue_teile.append((s.schreibt, typ, wert, kurz(wert)[:80]))
         elif s.typ == "auftrag":
-            args, stuecke, fehlt = await _auftrag_stuecke(s, teile, umgebung.sprache)
+            args, stuecke, fehlt, ohne = await _auftrag_stuecke(s, teile, umgebung.sprache)
+            if ohne:
+                # Durchtest Paket K (19.11.): md/txt gingen nicht an den Metadaten-Flow — vor dem
+                # Start bzw. vor dem Ersatzweg, wenn keiner übrig blieb
+                aus.texte.append(_teil_text(umgebung.sprache, "action.ablauf.metadatenOhneText"))
             stapel = None
             if len(stuecke) > 1 and (
                     stapel := auftrag_teile.neuer_stapel(args, len(stuecke))) is None:
                 logger.warning("Auftrag: Argumente zu groß zum Aufteilen — Schritt scheitert")
                 fehlt = True
-            job = (None if fehlt or umgebung.auftrag_starten is None
-                   else await umgebung.auftrag_starten(s.flow or "", stuecke[0]))
+            starte = _starter_fuer(umgebung.auftrag_starten, s)
+            if getattr(starte, "nur_ueber_wlo", False):
+                # Paket K2, Review A4: ein Flow, der ins Repository schreibt, geht nur über den
+                # MCP (mit der Anmeldung der Person) — der ist hier nicht da
+                aus.texte.append(_teil_text(umgebung.sprache, "action.ablauf.auftragNurUeberWlo"))
+                starte = None
+            job = (None if fehlt or starte is None
+                   else await starte(s.flow or "", stuecke[0]))
+            # Plan 2026-11-16, Durchtest TG-7 (m5): hat die b-api abgewiesen, sagt die Naht
+            # warum (``auftrag_zug._Starter.hinweis``) — vor dem Text des Ersatzwegs. Paket K1:
+            # auch nach einem Start mit offenem Ausgang (dann gibt es eine Kennung)
+            hinweis = getattr(starte, "hinweis", None)
+            satz = hinweis(umgebung.sprache) if callable(hinweis) else None
             if job is None:
                 fehler = True
-                # Plan 2026-11-16, Durchtest TG-7 (m5): hat die b-api abgewiesen, sagt die Naht
-                # warum (``auftrag_zug._Starter.hinweis``) — vor dem Text des Ersatzwegs
-                hinweis = getattr(umgebung.auftrag_starten, "hinweis", None)
-                if callable(hinweis) and (satz := hinweis(umgebung.sprache)):
+                if satz:
                     aus.texte.append(satz)
+                vorlaeufig = getattr(starte, "voruebergehend", None)
+                if callable(vorlaeufig) and vorlaeufig() and (
+                        frage := _rueckfrage(ablauf, s.id)) is not None:
+                    # Paket K (Nachtrag MCP 18.11.): der Träger ist gerade nicht verfügbar — kein
+                    # endgültiger Fehlschlag; zurück an die Frage davor, die Person versucht es
+                    # gleich noch einmal
+                    fehler, naechster = False, frage
             else:
                 # Der Text erst nach dem Start — ein abgewiesener Auftrag kündigt nichts an.
                 if text := _text(s, umgebung.sprache):
@@ -470,6 +494,8 @@ async def _rechne_schritte(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                     # Review R1, NIT 8: dass es mehrere Teile werden, steht gleich am Anfang
                     aus.texte.append(_teil_text(umgebung.sprache, "action.ablauf.auftragTeile",
                                                 n=stapel["n"]))
+                if satz:
+                    aus.texte.append(satz)
                 aus.auftrag = {"flow": s.flow or "", "job_id": job, "schritt": s.id}
                 if (block := _fortschritt(ablauf.id, job, text, umgebung.sprache)) is not None:
                     aus.bloecke.append(block)
@@ -880,16 +906,35 @@ async def weiter_ki(ablauf: AblaufArea, lauf: dict[str, Any], umgebung: Umgebung
 
 
 async def _auftrag_stuecke(s: Schritt, teile: Any, sprache: str
-                           ) -> tuple[dict[str, Any], list[dict[str, Any]], bool]:
-    """Die eingesetzten Argumente, die Argumente je (Teil-)Auftrag und ob etwas fehlt (Paket R1:
-    Sprache der Person, ``aufteilen``)."""
+                           ) -> tuple[dict[str, Any], list[dict[str, Any]], bool, int]:
+    """Die eingesetzten Argumente, die Argumente je (Teil-)Auftrag, ob etwas fehlt (Paket R1:
+    Sprache der Person, ``aufteilen``) und wie viele Knoten der Metadaten-Flow nicht bekommt
+    (Durchtest Paket K, ``auftrag_teile.ohne_textdateien``) — bleibt keiner, fehlt etwas."""
     args, fehlt = await teil_verweise.einsetzen(dict(s.argumente or {}), teile)
     args = auftrag_teile.sprache_einsetzen(args, sprache)
+    ohne = 0
+    if s.flow == METADATEN_FLOW:
+        args, ohne = auftrag_teile.ohne_textdateien(s.flow, args,
+                                                    await teile(auftrag_teile.ABLAGE_TEIL))
     fehlt_etwas = bool(fehlt) or _leere_auswahl(s.argumente, args)
     if s.aufteilen is None:
-        return args, [args], fehlt_etwas
+        return args, [args], fehlt_etwas, ohne
     return (args, auftrag_teile.teilen(args, s.aufteilen.argument, s.aufteilen.hoechstens),
-            fehlt_etwas)
+            fehlt_etwas, ohne)
+
+
+def _rueckfrage(ablauf: AblaufArea, schritt_id: str) -> str | None:
+    """Die Frage, deren Wahl direkt zu ``schritt_id`` führt (die Rückfrage vor einem schreibenden
+    Flow, Prüfung ``auftrag_rueckfrage``) — ``None`` ohne."""
+    return next((v.id for v in ablauf.schritte if mit_wahl(v)
+                 and any(o.ziel == schritt_id for o in v.optionen or [])), None)
+
+
+def _starter_fuer(starte: Any, s: Schritt) -> Any:
+    """Review A4/A7: der Starter für diesen Schritt — der Träger hängt an ``repo_schreibt``
+    (``auftrag_zug._Wahl.fuer``). Eine Naht ohne Wahl (Trockenlauf, Simulation) gilt so."""
+    waehle = getattr(starte, "fuer", None)
+    return waehle(s.repo_schreibt) if callable(waehle) else starte
 
 
 def _teil_text(sprache: str, schluessel: str, **werte: Any) -> str:
@@ -908,8 +953,10 @@ async def _naechster_teil(ablauf: AblaufArea, s: Schritt, lauf: dict[str, Any],
     if naechster >= stapel["n"] or s.aufteilen is None:
         return None
     args = auftrag_teile.stueck(stapel, s.aufteilen.argument, s.aufteilen.hoechstens, naechster)
-    job = (None if args is None or umgebung.auftrag_starten is None
-           else await umgebung.auftrag_starten(s.flow or "", args))
+    starte = _starter_fuer(umgebung.auftrag_starten, s)
+    if getattr(starte, "nur_ueber_wlo", False):
+        starte = None                       # Paket K2: wie beim ersten Teil
+    job = (None if args is None or starte is None else await starte(s.flow or "", args))
     if job is None:
         stapel["offen"] = stapel["n"] - naechster
         return None
@@ -919,16 +966,22 @@ async def _naechster_teil(ablauf: AblaufArea, s: Schritt, lauf: dict[str, Any],
     neu = {**lauf, "status": WARTET_AUFTRAG, auftrag_teile.STAPEL: {**stapel, "i": naechster}}
     aus = Ausgabe(lauf=neu, texte=[text],
                   auftrag={"flow": s.flow or "", "job_id": job, "schritt": s.id})
+    # Zweites Review K (Z2): wie beim ersten Teil — ein Start mit offenem Ausgang sagt es
+    hinweis = getattr(starte, "hinweis", None)
+    if callable(hinweis) and (satz := hinweis(umgebung.sprache)):
+        aus.texte.append(satz)
     if (block := _fortschritt(ablauf.id, job, text, umgebung.sprache)) is not None:
         aus.bloecke.append(block)
     return aus
 
 
 async def weiter_auftrag(ablauf: AblaufArea, lauf: dict[str, Any], ergebnis: dict[str, Any] | None,
-                         umgebung: Umgebung) -> Ausgabe | None:
+                         umgebung: Umgebung, *, fehlschlag: str | None = None) -> Ausgabe | None:
     """Paket K1a: der Auftrag des wartenden ``auftrag``-Schritts ist fertig (``ergebnis``) oder
     gescheitert (``None``) — ``None``, wenn der Lauf dort nicht wartet oder sich die Schritte
-    geändert haben. Das Ergebnis wird Teil ``schreibt`` (auch für die folgenden Schritte)."""
+    geändert haben. Das Ergebnis wird Teil ``schreibt`` (auch für die folgenden Schritte).
+    ``fehlschlag`` (Durchtest Paket K, 19.11.): der Satz zu einem gescheiterten Flow — er steht vor
+    dem Ersatzweg ``bei_fehler``, nur wenn der Lauf ihn wirklich nimmt."""
     if lauf.get("status") != WARTET_AUFTRAG or lauf.get("fassung") != fassung(ablauf):
         return None
     index = {s.id: i for i, s in enumerate(ablauf.schritte)}
@@ -967,6 +1020,8 @@ async def weiter_auftrag(ablauf: AblaufArea, lauf: dict[str, Any], ergebnis: dic
         aus = await _rechne(ablauf, neu, index[ziel], umgebung)
     if teil is not None:
         aus.neue_teile.insert(0, teil)
+    elif fehlschlag:
+        aus.texte.insert(0, fehlschlag)
     return aus
 
 

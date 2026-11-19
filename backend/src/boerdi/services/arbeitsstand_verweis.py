@@ -55,6 +55,12 @@ def verweis_fuer(v: Vorgang, aufrufer: str) -> dict[str, Any]:
         # zählt „Schritt n“ daraus statt aus dem längsten Weg (``fortschritt.position``)
         if isinstance(halte := lauf.get("halte"), int) and not isinstance(halte, bool):
             vw["lauf"]["halte"] = max(0, min(halte, 10_000))
+        # Paket K, Review B3: der laufende Teil eines Auftrags in Teilen (``auftrag_teile.STAPEL``,
+        # Schlüssel ``i``) — die ruhende Sperre gilt nur ihrem Teil (``auftrag_zug._sperr_marke``)
+        stapel = lauf.get("auftrag_teile")
+        teil = stapel.get("i") if isinstance(stapel, dict) else None
+        if isinstance(teil, int) and not isinstance(teil, bool) and teil > 0:
+            vw["lauf"]["teil"] = min(teil, 10_000)
     return vw
 
 

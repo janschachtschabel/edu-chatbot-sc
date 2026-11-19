@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from typing import Any, Final
 
 from boerdi.domain.config_models.ablauf import AblaufArea
@@ -162,6 +163,47 @@ def per_text(nachricht: str | None) -> AblaufArea | None:
     for ablauf, aus in _aktive("text"):
         laenge = max((len(w) for roh in aus.wendungen if (w := wendung(roh)) and w in text),
                      default=0)
+        if laenge and (bester is None or laenge > bester[0]):
+            bester = (laenge, ablauf)
+    return bester[1] if bester else None
+
+
+#: Drittes Review Paket K (19.11.): an einer offenen Frage ist eine Nachricht nur dann eine Wendung,
+#: wenn sie im Wesentlichen die Wendung ist (:func:`per_text_genau`). Höchstens 2 Wörter danach
+#: (Entscheid 19.11.): „Themenbaum zu einem Thema für Klasse 7“ ist schon beim ersten Mal eine Antwort.
+NACH_WENDUNG_WOERTER: Final = 2
+MEHR_ZEICHEN: Final = 15
+_WORT: Final = re.compile(r"\w+")
+
+
+def woerter(text: str | None) -> list[str]:
+    """Die Wörter einer Nachricht bzw. Wendung, klein — ohne Satzzeichen."""
+    return _WORT.findall((text or "")[:_TEXT_ZEICHEN].casefold())
+
+
+def _im_wesentlichen(text: list[str], w: list[str]) -> bool:
+    """Gleich; oder vorn die Wendung und danach höchstens :data:`NACH_WENDUNG_WOERTER` Wörter; oder
+    die Wendung als ganze Wörter darin und höchstens :data:`MEHR_ZEICHEN` Zeichen länger. Ein
+    Teilwort trifft nie („Stadtrundgang“ ist nicht „rundgang“)."""
+    n = len(w)
+    if text[:n] == w and len(text) - n <= NACH_WENDUNG_WOERTER:
+        return True
+    darin = any(text[i:i + n] == w for i in range(len(text) - n + 1))
+    return darin and len(" ".join(text)) - len(" ".join(w)) <= MEHR_ZEICHEN
+
+
+def per_text_genau(nachricht: str | None) -> AblaufArea | None:
+    """Drittes Review Paket K: wie :func:`per_text` (die längste Wendung gewinnt), aber nur, wenn
+    die Nachricht im Wesentlichen die Wendung ist (:func:`_im_wesentlichen`) — für eine Nachricht an
+    einer wartenden Frage. Dort ist „Virtueller Stadtrundgang durch Rom“ eine Antwort, kein Start
+    einer Führung."""
+    text = woerter(nachricht)
+    if not text:
+        return None
+    bester: tuple[int, AblaufArea] | None = None
+    for ablauf, aus in _aktive("text"):
+        laenge = max((len(" ".join(w)) for roh in aus.wendungen
+                      if (w := woerter(roh)) and _im_wesentlichen(text, w)), default=0)
         if laenge and (bester is None or laenge > bester[0]):
             bester = (laenge, ablauf)
     return bester[1] if bester else None

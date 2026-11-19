@@ -19,6 +19,7 @@ import pytest
 import yaml
 
 from boerdi.domain.config_models.ablauf import AblaufArea, AblaufTest
+from boerdi.i18n import bot_text
 from boerdi.services.ablauf import simulation, treiber, typen, werkzeuge
 from boerdi.services.ablauf.pruefung import pruefe
 from tests.leiste_halte import leiste, ohne_sprung
@@ -51,13 +52,18 @@ def _bereit(teile: dict, dokument_id=None, sprache="de"):
 
 # ── Dienst ``bereitgestellt`` (MINOR 4/5) ────────────────────────────────────────────────────────
 
+#: Durchtest Paket K (19.11.): ``bereit`` sagt, warum es „gründlich“ nicht gibt — ohne Angabe, ob
+#: eine Anmeldung hülfe (drittes Review), „gerade nicht verfügbar“.
+_OHNE_GRUENDLICH = bot_text("de", "action.ablauf.gruendlichNichtDa")
+
+
 def test_ohne_teile_liegt_nichts_bereit():
     # TG-3a: dazu die Zahl der Dateien mit Namen (Teil ``struktur``); TG-3e: Strukturdokumente;
     # TG-6: was ein Ablauf übernehmen kann (``art``, ``name``) und ob die Ablage angeboten ist
     assert _bereit({}) == {"dokument": None, "ordner": None, "dateien": 0, "inhaltsdateien": 0,
                            "strukturdokumente": [], "lesbare_strukturdokumente": 0,
                            "art": None, "name": None, "wlo_ablage": False,
-                           "wlo_erschliessen": False}
+                           "wlo_erschliessen": False, "ohne_gruendlich": _OHNE_GRUENDLICH}
 
 
 def test_ein_dokument_ist_nur_lesbar_wenn_es_das_der_sitzung_ist():
@@ -82,7 +88,7 @@ def test_ein_kaputter_teil_liegt_nicht_bereit():
                     "struktur": {"struktur": "x"}, "strukturdokument": "x"}) == {
         "dokument": None, "ordner": None, "dateien": 0, "inhaltsdateien": 0,
         "strukturdokumente": [], "lesbare_strukturdokumente": 0, "art": None, "name": None,
-        "wlo_ablage": False, "wlo_erschliessen": False}
+        "wlo_ablage": False, "wlo_erschliessen": False, "ohne_gruendlich": _OHNE_GRUENDLICH}
 
 
 def test_bereitgestellt_ist_ein_bekannter_reiner_dienst_mit_eigenem_typ():

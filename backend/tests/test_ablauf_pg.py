@@ -207,13 +207,25 @@ def test_ein_zug_mitten_im_ablage_stapel_laesst_ihn_stehen(welt):
     assert akte["teile"]["ablage"]["wert"] == {"dateien": 1, "token": "k1"}
 
 
+async def _starten_bestaetigt(s, state: dict, ablauf_id: str) -> None:
+    """Paket K, Review B1: wartet der Lauf auf einen Auftrag (``lesen``), fragt ein Start erst
+    nach — „Neu starten“ (gebunden an diesen Lauf) bestätigt den Ersatz, wie ``_neu_starten`` in
+    ``test_ablauf_auftrag``. Ohne Rückfrage bleibt es der eine Start."""
+    antwort = await zug.starten(s, _req(action=zug.AKTION, action_params={"ablauf": ablauf_id}),
+                                state)
+    if antwort.content != bot_text("de", "action.ablauf.ersetzen"):
+        return
+    [neu] = [json.loads(t[3]) for t in (c.split("|", 3) for c in antwort.quick_replies)
+             if t[2] == zug.AKTION]
+    await zug.starten(s, _req(action=zug.AKTION, action_params=neu), state)
+
+
 def test_vorgaenge_der_person_bleiben_unter_der_grenze(welt):
     async def ablauf(s, _sitzungen):
         state: dict = {"entities": {}}
         for _ in range(vorgaenge.MAX_JE_PERSON + 2):
-            await zug.starten(s, _req(action=zug.AKTION, action_params={"ablauf": "lesen"}), state)
-            await zug.starten(s, _req(action=zug.AKTION,
-                                      action_params={"ablauf": "sammlungsstruktur"}), state)
+            await _starten_bestaetigt(s, state, "lesen")
+            await _starten_bestaetigt(s, state, "sammlungsstruktur")
         return await _vorgaenge(s)
 
     alle = _lauf(welt, ablauf)
@@ -226,17 +238,23 @@ def test_verdraengte_vorgaenge_nehmen_ihre_auftraege_mit(welt):
 
     async def ablauf(s, _sitzungen):
         state: dict = {"entities": {}}
+        mit_auftrag: set[str] = set()
         for _ in range(vorgaenge.MAX_JE_PERSON + 2):
-            await zug.starten(s, _req(action=zug.AKTION, action_params={"ablauf": "lesen"}), state)
-            await zug.starten(s, _req(action=zug.AKTION,
-                                      action_params={"ablauf": "sammlungsstruktur"}), state)
+            await _starten_bestaetigt(s, state, "lesen")
+            # Drittes Review, Punkt 6: welche Vorgänge einen Auftrag trugen — an der Quelle
+            zeilen = await s.execute(text("SELECT DISTINCT vorgang_id FROM vorgang_auftraege"))
+            mit_auftrag |= {str(z[0]) for z in zeilen}
+            await _starten_bestaetigt(s, state, "sammlungsstruktur")
         waisen = await s.execute(text(
             "SELECT count(*) FROM vorgang_auftraege a "
             "WHERE NOT EXISTS (SELECT 1 FROM vorgaenge v WHERE v.id = a.vorgang_id)"))
         alle = await s.execute(text("SELECT count(*) FROM vorgang_auftraege"))
-        return waisen.scalar_one(), alle.scalar_one()
+        noch_da = {str(z[0]) for z in await s.execute(text("SELECT id FROM vorgaenge"))}
+        return waisen.scalar_one(), alle.scalar_one(), mit_auftrag - noch_da
 
-    waisen, alle = _lauf(welt, ablauf)
+    waisen, alle, verdraengt = _lauf(welt, ablauf)
+    # ein Vorgang mit Auftrag wurde wirklich verdrängt — sonst prüfte die Kaskade nichts
+    assert verdraengt, "kein Vorgang mit Auftrag verdrängt"
     assert waisen == 0 and alle <= vorgaenge.MAX_JE_PERSON
 
 

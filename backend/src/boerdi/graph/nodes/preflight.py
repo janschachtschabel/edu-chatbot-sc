@@ -104,6 +104,8 @@ _DIRECT_ACTIONS = {
     wahl_zug.AKTION,
     # Paket K2b: „Auftrag abbrechen“ (mit Rückfrage).
     auftrag_zug.AKTION_ABBRECHEN,
+    # Paket K7: „Später weitermachen“ am gesperrten Auftragsschritt.
+    auftrag_zug.AKTION_SPAETER,
     # Querschnitts-Review 2026-11-06 (M6, Datenschutz): neues Vorhaben, Arbeitsstand löschen.
     vorgang_aktion.AKTION_NEU,
     vorgang_aktion.AKTION_LOESCHEN,
@@ -122,8 +124,8 @@ _DIRECT_ACTIONS = {
 #: trotzdem; sonst säße die Person fest. „Weiter“, eine Wahl oder ein Start führen zur KI bzw.
 #: tragen Freitext und bleiben gesperrt.
 _STEUER_OHNE_TEXT = frozenset({
-    auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN, abbruch_zug.AKTION,
-    freigabe_zug.AKTION_ABBRECHEN, freigabe_zug.AKTION_ERNEUT,
+    auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN, auftrag_zug.AKTION_SPAETER,
+    abbruch_zug.AKTION, freigabe_zug.AKTION_ABBRECHEN, freigabe_zug.AKTION_ERNEUT,
     vorgang_aktion.AKTION_NEU, vorgang_aktion.AKTION_LOESCHEN,
 })
 
@@ -250,9 +252,11 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     # die Abweisung einer Direktaktion zu bekommen.
     # Ebenso eine getippte Nachricht im gesperrten Lauf (K2b) und ein Freitext an einem wartenden
     # Schritt (Review AS-3a, Befund 1): eine Krise bekommt ihre Antwort.
-    if ((a.per_text is not None or a.gesperrt or a.freitext or a.wiederholen) and not req.action
+    if ((a.per_text is not None or a.gesperrt or a.freitext or a.wiederholen
+         or a.wendung is not None) and not req.action
             and (decision.risk_level == "high" or ohne_pruefung)):
-        if (a.freitext or a.wiederholen) and decision.risk_level == "high":
+        wartet = a.freitext or a.wiederholen or a.wendung is not None
+        if wartet and decision.risk_level == "high":
             # Review 16.11. (Führung wie Tour, m4): wie die Tour (SF-1c) endet eine Führung bei
             # einer Krise — sonst bekäme die nächste Nachricht den festen Hilfetext der Wahl.
             await wahl_zug.still_beenden(session, req.session_id, ctx.session_state)

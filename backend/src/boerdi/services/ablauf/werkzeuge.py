@@ -43,6 +43,10 @@ class DienstKontext:
     #: Review TG-4–6, MINOR 8: dazu lässt sich der Metadaten-Auftrag starten (Einrichtung,
     #: Anmeldung, Schlüssel, Flow freigegeben) — erst dann ist „gründlich über WLO“ ein Weg.
     wlo_erschliessen: Callable[[], bool] | None = None
+    #: Durchtest Paket K (19.11.), drittes Review: öffnete eine Anmeldung den gründlichen Weg
+    #: (Ablage nach Anmeldung, MCP-Träger, Flow freigegeben)? Für den Satz, warum es „gründlich“
+    #: nicht gibt (``bereit.ohne_gruendlich``). ``None``: nein.
+    nach_anmeldung: Callable[[], bool] | None = None
 
 
 class Dienst(Protocol):
@@ -164,11 +168,14 @@ async def _bereitgestellt(_args: dict[str, Any], k: DienstKontext | None = None)
     für den Text („das Dokument „…““, je Sprache); ``wlo_ablage`` — bietet das Upload-Feld hier die
     Ablage in WLO an (Systemfelder des Upload-Dienstes, :attr:`DienstKontext.wlo_ablage`).
     Review TG-4–6, MINOR 8: ``wlo_erschliessen`` — dazu lässt sich der Metadaten-Auftrag starten
-    (:attr:`DienstKontext.wlo_erschliessen`); nur dann bietet der Ablauf „gründlich“ an."""
+    (:attr:`DienstKontext.wlo_erschliessen`); nur dann bietet der Ablauf „gründlich“ an.
+    Durchtest Paket K (19.11.): ``ohne_gruendlich`` — sonst ein Satz, warum nicht (hilft eine
+    Anmeldung: sie fehlt; sonst: der Dienst ist nicht da), für den Text des Schritts ``schnell``."""
     if k is None:
         return {"dokument": None, "ordner": None, "dateien": 0, "inhaltsdateien": 0,
                 "strukturdokumente": [], "lesbare_strukturdokumente": 0, "art": None,
-                "name": None, "wlo_ablage": False, "wlo_erschliessen": False}
+                "name": None, "wlo_ablage": False, "wlo_erschliessen": False,
+                "ohne_gruendlich": None}
     from boerdi.services.dokumente import strukturdokument_teil as sd
     from boerdi.services.dokumente.strukturdokument import im_vorgang
 
@@ -183,9 +190,18 @@ async def _bereitgestellt(_args: dict[str, Any], k: DienstKontext | None = None)
               "strukturdokumente": dokumente,
               "lesbare_strukturdokumente": sum(1 for d in dokumente if d["lesbar"])}
     ablage = bool(k.wlo_ablage is not None and k.wlo_ablage())
+    erschliessen = ablage and bool(k.wlo_erschliessen is not None and k.wlo_erschliessen())
     return {**bereit, **_art_und_name(bereit, k.sprache), "wlo_ablage": ablage,
-            "wlo_erschliessen": ablage and bool(k.wlo_erschliessen is not None
-                                                and k.wlo_erschliessen())}
+            "wlo_erschliessen": erschliessen,
+            "ohne_gruendlich": None if erschliessen else _ohne_gruendlich(k)}
+
+
+def _ohne_gruendlich(k: DienstKontext) -> str:
+    from boerdi.i18n import bot_text  # nur für diesen Satz
+
+    hilft = k.nach_anmeldung is not None and k.nach_anmeldung()
+    return bot_text(k.sprache, "action.ablauf.gruendlichNurAngemeldet" if hilft
+                    else "action.ablauf.gruendlichNichtDa")
 
 
 #: TG-6: wie ``name`` das Bereitgestellte nennt (je Sprache) — der Name selbst steht in „…“.

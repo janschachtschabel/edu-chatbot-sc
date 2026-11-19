@@ -204,7 +204,9 @@ def test_review_2_ohne_schluessel_der_anlage_kein_abruf(umgebung, monkeypatch):
     get_settings.cache_clear()
     umgebung.append("wlo/volltext")
     gesehen = _bapi(monkeypatch)
-    assert asyncio.run(flow_katalog.vorschlaege()) == [("wlo/volltext", "wlo/volltext")]
+    # Paket K9: ohne Schlüssel dazu die Werksvorgabe (``test_paket_k9_katalog``)
+    assert asyncio.run(flow_katalog.vorschlaege()) == [
+        *((f, f) for f in sorted(client.WERKSVORGABE)), ("wlo/volltext", "wlo/volltext")]
     assert gesehen == []
 
 

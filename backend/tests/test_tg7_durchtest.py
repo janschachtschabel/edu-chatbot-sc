@@ -323,7 +323,7 @@ def _starter(monkeypatch, code):
     monkeypatch.setattr(client, "starten", starten)
     monkeypatch.setattr(auftrag_zug, "has_personal_auth", lambda: True)
     monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: True)
-    return auftrag_zug.starter()
+    return auftrag_zug.starter().fuer(False)       # Paket K, Review A4: Direktweg je Schritt
 
 
 @pytest.mark.parametrize(("code", "satz"), [
@@ -343,8 +343,10 @@ def test_m5_die_person_erfaehrt_den_grund(monkeypatch, code, satz):
             {"id": "frage", "typ": "nachricht", "text": {"de": "Los?"},
              "optionen": [{"id": "ja", "label": {"de": "Ja"}, "ziel": "a"},
                           {"id": "nein", "label": {"de": "Nein"}, "ziel": "e"}]},
-            {"id": "a", "typ": "auftrag", "flow": "f/x", "repo_schreibt": True,
-             "bei_fehler": "e"},
+            # Paket K2: ohne ``repo_schreibt`` — der Direktweg dieses Starters startet einen
+            # schreibenden Flow gar nicht mehr (test_paket_k_traeger); hier geht es um den Satz
+            # nach einer Abweisung der b-api
+            {"id": "a", "typ": "auftrag", "flow": "f/x", "bei_fehler": "e"},
             {"id": "e", "typ": "ende", "text": {"de": "Ohne Auftrag weiter."}}]})
 
     async def teile(_name):
