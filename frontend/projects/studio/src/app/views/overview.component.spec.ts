@@ -165,6 +165,18 @@ describe("OverviewComponent", () => {
     });
     expect(text(h)).toContain("gpt-5-mini");
     expect(text(h)).toContain("b-api-openai");
+    // Plan 2026-11-19 (N1): ohne `b_api` (älteres Backend) keine leere Karte
+    expect(h.el.querySelector("studio-b-api-betrieb")).toBeNull();
+  });
+
+  it("zeigt die b-api-Betriebsart in der Statusleiste (N1)", async () => {
+    const h = await mount({
+      health: {
+        status: "ok",
+        b_api: { modus: "auto", zuletzt: "direkt", zuletzt_am: null, abgewiesen: 0, warnungen: [] },
+      },
+    });
+    expect(text(h)).toContain("Betriebsart erkannt: direkt (B_API_KEY)");
   });
 
   it("dates the factory snapshot and counts the others", async () => {

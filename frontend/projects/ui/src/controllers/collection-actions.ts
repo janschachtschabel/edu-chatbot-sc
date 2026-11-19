@@ -270,6 +270,21 @@ export async function auftragAbbrechen(
   return { gesendet };
 }
 
+/** Paket N4: „Freigeben“ bzw. „Abbrechen“ der Freigabe-Box eines schreibenden Auftrags — eine
+ *  Direktaktion wie „Auftrag abbrechen“, gebunden an Ablauf und Kennung der Vorlage. */
+export async function auftragFreigabe(
+  entscheidung: 'freigeben' | 'verwerfen', ablauf: string, freigabe: string, ctx: CollectionActionsContext,
+): Promise<{ gesendet: boolean }> {
+  const freigeben = entscheidung === 'freigeben';
+  const gesendet = await runCardAction({
+    nachricht: freigeben ? 'Freigeben' : 'Abbrechen',
+    aktion: freigeben ? 'ablauf_auftrag_freigeben' : 'ablauf_auftrag_verwerfen',
+    parameter: { ablauf, id: freigabe },
+    fehlerSchluessel: 'error.auftragFreigabe', protokoll: 'Freigabe nicht gesendet',
+  }, '', ctx);
+  return { gesendet };
+}
+
 /** Ein Abruf eines Moduls ohne Zug: Fehler mit Art, Status und Code geloggt — nie der Dateiname
  *  (Datenschutz) und nie ein Text des Servers; eine inzwischen gewechselte Sitzung verwirft. */
 async function ohneZug(

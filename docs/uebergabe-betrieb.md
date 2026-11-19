@@ -145,6 +145,12 @@ Einzelheiten zu Betriebsarten, Rückfall-Regeln, Admin-Liste und Fehlerzuordnung
   Vorabfrage des Browsers (`OPTIONS`) und dass der Strom (`text/event-stream`) ungepuffert
   durchgeht.
 - **Studio-Proxy:** Er reicht ihn nie durch.
+- **Betriebsanzeige (Paket N1):** Welche Art zuletzt bei einem Nutzerzug galt (Delegation,
+  durchgereichter Schlüssel, direkt), zeigt das Studio in der Statusleiste der Übersicht und
+  `/api/health` (Studio-Schlüssel) im Feld `b_api` — Art, Zeit (`zuletzt_am`), `B_API_KEY_MODE`,
+  Zahl der 401 unter `forward` (`abgewiesen`) und Warnungen
+  (`forward_ohne_token`, `zugangsblock_fehlt`), nie Werte. Je Prozess, nicht über alle Kopien;
+  das offene `/health` bleibt ohne diese Angabe. Einzelheiten: `b-api-betrieb.md` §1.
 - **Rechte des virtuellen Schlüssels:**
   - Chat und Responses mit `gpt-6-luna` bzw. der Route
   - Moderation (`omni-moderation-latest`)

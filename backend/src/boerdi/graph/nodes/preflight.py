@@ -59,7 +59,13 @@ from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.quality_events import log_safety_event
 from boerdi.services import abnahme_hinweis, arbeitsstand, plan_fortsetzen, vorgang_aktion
-from boerdi.services.ablauf import abbruch_zug, auftrag_zug, freigabe_zug, wahl_zug
+from boerdi.services.ablauf import (
+    abbruch_zug,
+    auftrag_freigabe_zug,
+    auftrag_zug,
+    freigabe_zug,
+    wahl_zug,
+)
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.content_text_action import _handle_show_content_text
 from boerdi.services.db_sessions import save_message
@@ -114,6 +120,8 @@ _DIRECT_ACTIONS = {
     # Paket S: am Freigabe-Schritt „Vorschau erneut zeigen“ und „Ablauf abbrechen“.
     freigabe_zug.AKTION_ERNEUT,
     freigabe_zug.AKTION_ABBRECHEN,
+    # Paket N4: „Freigeben“ und „Abbrechen“ in der Freigabe-Box eines schreibenden Auftrags.
+    *auftrag_freigabe_zug.AKTIONEN,
     # Paket AS-Ua: „Abbrechen“ in der Ablauf-Leiste (mit Rückfrage).
     abbruch_zug.AKTION,
 }
@@ -126,7 +134,7 @@ _DIRECT_ACTIONS = {
 _STEUER_OHNE_TEXT = frozenset({
     auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN, auftrag_zug.AKTION_SPAETER,
     abbruch_zug.AKTION, freigabe_zug.AKTION_ABBRECHEN, freigabe_zug.AKTION_ERNEUT,
-    vorgang_aktion.AKTION_NEU, vorgang_aktion.AKTION_LOESCHEN,
+    vorgang_aktion.AKTION_NEU, vorgang_aktion.AKTION_LOESCHEN, *auftrag_freigabe_zug.AKTIONEN,
 })
 
 

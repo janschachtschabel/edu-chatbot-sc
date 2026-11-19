@@ -862,3 +862,17 @@ def test_anzeige_ersetzt_nur_den_schluessel_und_laesst_die_sitzung_stehen():
     assert anzeige["_pending_write"]["tool"] == "wlo_create_collection"
     assert merkposten["token"] == "Ax9-_QmZ2kLpWvRt7NbYcE4s", "die Sitzung selbst bleibt unberührt"
     assert entities_for_display({"thema": "x"}) == {"thema": "x"}
+
+
+def test_n4_die_auftrags_freigabe_zeigt_ihren_schluessel_nicht():
+    """Review N4, MAJOR: ``GET /api/sessions/{id}`` (Studio) zeigt ``entities`` — auch der
+    Schlüssel einer offenen Freigabe-Box (``_auftrag_freigabe``) weicht dem Platzhalter."""
+    from boerdi.services.ablauf import auftrag_freigabe
+
+    offen = {"marke": {"ablauf": "a", "schritt": "s", "id": "x"}, "token": "ct_geheim_123",
+             "flow": "f/meta", "args": {"node_ids": ["n-1"]}, "laeuft_ab": 1.0, "caller": "p"}
+    anzeige = entities_for_display({auftrag_freigabe.KEY: offen})
+    assert anzeige[auftrag_freigabe.KEY]["token"] == TOKEN_PLACEHOLDER
+    assert anzeige[auftrag_freigabe.KEY]["flow"] == "f/meta"
+    assert offen["token"] == "ct_geheim_123"
+    assert auftrag_freigabe.KEY == "_auftrag_freigabe"      # die Liste in ``write_anzeige``

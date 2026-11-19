@@ -11,6 +11,10 @@ Verweise (``i``, Name, ``node_id`` nach der Ablage; ``strukturentwurf_ordner``).
 ohne gelten weiter. Höchstens :data:`HOECHSTENS_INHALTE` im ganzen Entwurf (so viele Dateien hat
 eine Auswahl höchstens). An die KI geht nur ihre Zahl (``strukturentwurf_text``), nie ein Name.
 
+Paket N3 (Plan 2026-11-19): der Entwurf ``aus_inhalten`` trägt dieselben Verweise
+(``strukturentwurf_zuordnung``) — und in der Wurzel ``nicht_zugeordnet``, die Materialien ohne
+Punkt. Für sie gilt alles wie für ``inhalte`` (node_ids nur vom Server, Grenze, eine Zeile).
+
 Fach und Bildungsstufe sind Klartext-Labels (T-8): im Backend gibt es keine Abbildung auf die
 URIs des WLO-Vokabulars (der MCP-Server löst Labels auf). Die Bildungsstufe nur aus der festen
 Liste der WLO-Labels, sonst gar nicht — ein geratener Wert sähe aus wie ein erkannter.
@@ -35,11 +39,16 @@ FACH_ZEICHEN: Final = 60
 KENNUNG: Final = r"^[A-Za-z0-9_-]{1,40}$"
 #: TG-3f: Inhalte (Dateiverweise) im ganzen Entwurf — wie ``upload_antwort.MAX_DATEIEN``.
 HOECHSTENS_INHALTE: Final = 500
+#: Paket N3: Feld der Wurzel mit den Inhalten, die keinem Punkt zugeordnet sind.
+RESTE: Final = "nicht_zugeordnet"
 
 #: Die Bildungsstufen-Labels des WLO-Vokabulars (wie in den Werkzeugbeschreibungen,
 #: ``services/mcp/tool_defs``) — und die Schreibweisen, die Modell und Person dafür nehmen.
+#: Review N3 (MINOR 7): dazu die übrigen Labels des Vokabulars ``educationalContext`` (Schnappschuss
+#: ``tests/schnappschuss_bildungsstufen.json``) — sonst verwürfe der Abgleich echte Treffer.
 BILDUNGSSTUFEN: Final = ("Elementarbereich", "Primarstufe", "Sekundarstufe I", "Sekundarstufe II",
-                         "Berufliche Bildung", "Hochschule", "Erwachsenenbildung", "Fortbildung")
+                         "Berufliche Bildung", "Hochschule", "Erwachsenenbildung", "Fortbildung",
+                         "Schule", "Förderschule", "Fernunterricht", "Informelles Lernen")
 _SYNONYME: Final = {
     "grundschule": "Primarstufe", "kita": "Elementarbereich", "kindergarten": "Elementarbereich",
     "sekundarstufe 1": "Sekundarstufe I", "sek i": "Sekundarstufe I", "sek 1": "Sekundarstufe I",
@@ -115,7 +124,10 @@ def normalisiert(daten: dict[str, Any]) -> dict[str, Any]:
             neu["kinder"] = [knoten(c) if isinstance(c, dict) else c for c in k["kinder"]]
         return neu
 
-    aus = {f: _eine_zeile(w) for f, w in daten.items() if f != "knoten"}
+    aus = {f: _eine_zeile(w) for f, w in daten.items() if f not in ("knoten", RESTE)}
+    if isinstance(daten.get(RESTE), list):
+        aus[RESTE] = [{**i, "name": _eine_zeile(i.get("name"))} if isinstance(i, dict) else i
+                      for i in daten[RESTE]]
     if isinstance(daten.get("knoten"), list):
         aus["knoten"] = [knoten(k) if isinstance(k, dict) else k for k in daten["knoten"]]
     return aus
@@ -132,6 +144,14 @@ def anzahl(knoten: list[dict[str, Any]]) -> int:
     return sum(1 for _ in alle(knoten))
 
 
+def hat_inhalte(daten: Any) -> bool:
+    """Trägt der Entwurf Verweise auf Inhalte — an einem Punkt oder (N3) nicht zugeordnet?"""
+    if not isinstance(daten, dict):
+        return False
+    return bool(daten.get(RESTE)) or any(k.get("inhalte") for k, _ in alle(daten.get("knoten")
+                                                                           or []))
+
+
 def inhalte_zahl(knoten: dict[str, Any]) -> int:
     """TG-3f: wie viele Inhalte (Dateiverweise) direkt an diesem Punkt hängen."""
     inhalte = knoten.get("inhalte")
@@ -141,19 +161,24 @@ def inhalte_zahl(knoten: dict[str, Any]) -> int:
 def mit_knoten_ids(daten: dict[str, Any], ids: dict[int, str]) -> dict[str, Any]:
     """Review TG-3d–f, MINOR 8: eine Kopie, in der jeder Inhalt seine ``node_id`` nur aus ``ids``
     (``i`` → node_id der gebundenen Ablage) trägt — eine vom Client geschickte fällt weg."""
+    def verweise(liste: list[Any]) -> list[Any]:
+        return [{**{f: w for f, w in i.items() if f != "node_id"},
+                 **({"node_id": ids[i["i"]]} if i.get("i") in ids else {})}
+                if isinstance(i, dict) else i for i in liste]
+
     def knoten(k: dict[str, Any]) -> dict[str, Any]:
         neu = dict(k)
         if isinstance(k.get("inhalte"), list):
-            neu["inhalte"] = [
-                {**{f: w for f, w in i.items() if f != "node_id"},
-                 **({"node_id": ids[i["i"]]} if i.get("i") in ids else {})}
-                if isinstance(i, dict) else i for i in k["inhalte"]]
+            neu["inhalte"] = verweise(k["inhalte"])
         if isinstance(k.get("kinder"), list):
             neu["kinder"] = [knoten(c) if isinstance(c, dict) else c for c in k["kinder"]]
         return neu
 
-    return {**daten, "knoten": [knoten(k) if isinstance(k, dict) else k
-                                for k in daten.get("knoten") or []]}
+    aus = {**daten, "knoten": [knoten(k) if isinstance(k, dict) else k
+                               for k in daten.get("knoten") or []]}
+    if isinstance(daten.get(RESTE), list):
+        aus[RESTE] = verweise(daten[RESTE])
+    return aus
 
 
 def knoten_ids_im_entwurf(daten: Any) -> dict[int, str]:
@@ -161,8 +186,9 @@ def knoten_ids_im_entwurf(daten: Any) -> dict[int, str]:
     gesetzt, :func:`mit_knoten_ids`) — leer ohne Entwurf."""
     if not isinstance(daten, dict):
         return {}
-    return {i["i"]: i["node_id"] for k, _ in alle(daten.get("knoten") or [])
-            for i in k.get("inhalte") or []
+    verweise = [i for k, _ in alle(daten.get("knoten") or []) for i in k.get("inhalte") or []]
+    verweise += daten.get(RESTE) if isinstance(daten.get(RESTE), list) else []
+    return {i["i"]: i["node_id"] for i in verweise
             if isinstance(i, dict) and isinstance(i.get("i"), int)
             and isinstance(i.get("node_id"), str)}
 
@@ -181,7 +207,8 @@ def ohne_inhalte(daten: Any) -> Any:
             neu["kinder"] = [knoten(c) for c in k["kinder"]]
         return neu
 
-    return {**daten, "knoten": [knoten(k) for k in daten["knoten"]]}
+    return {**{f: w for f, w in daten.items() if f != RESTE},
+            "knoten": [knoten(k) for k in daten["knoten"]]}
 
 
 def fehler(daten: dict[str, Any]) -> list[str]:
@@ -197,6 +224,7 @@ def fehler(daten: dict[str, Any]) -> list[str]:
     if (zahl := anzahl(daten.get("knoten") or [])) > HOECHSTENS_KNOTEN:
         aus.append(f"{zahl} Knoten, höchstens {HOECHSTENS_KNOTEN}")
     inhalte = sum(inhalte_zahl(k) for k, _ in alle(daten.get("knoten") or []))
+    inhalte += len(daten[RESTE]) if isinstance(daten.get(RESTE), list) else 0
     if inhalte > HOECHSTENS_INHALTE:
         aus.append(f"{inhalte} Inhalte, höchstens {HOECHSTENS_INHALTE}")
     return aus

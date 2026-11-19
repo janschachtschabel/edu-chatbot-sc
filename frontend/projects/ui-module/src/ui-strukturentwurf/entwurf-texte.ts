@@ -28,6 +28,15 @@ export const TEXTE = {
     ausstehend: 'Unterthemen fehlen noch',
     // Plan 2026-11-16, TG-3f: die Dateien des Ordners am Punkt — nur ihre Zahl
     dateien: (n: number) => zahl(n, 'Datei', 'Dateien', 'de-DE'),
+    // Paket N3: aus Materialien (nicht aus Ordnern) zählt der Baum Materialien; aufklappbar die
+    // Titel — beim gewählten Punkt und die ohne Punkt (Review, NIT 12: „Materialien“)
+    materialien: (n: number) => zahl(n, 'Material', 'Materialien', 'de-DE'),
+    // zweites Review, NIT 6: aus Ordnern heißen sie „Dateien“ (wie im Baum)
+    inhalteTitel: (n: number, dateien = false) =>
+      `Inhalte dieses Punkts: ${dateien ? zahl(n, 'Datei', 'Dateien', 'de-DE') : zahl(n, 'Material', 'Materialien', 'de-DE')}`,
+    nichtZugeordnet: (n: number, dateien = false) =>
+      `Nicht zugeordnet: ${dateien ? zahl(n, 'Datei', 'Dateien', 'de-DE') : zahl(n, 'Material', 'Materialien', 'de-DE')}`,
+    gekuerztInhalte: 'Es gibt mehr Materialien, als der Entwurf aufnehmen kann (höchstens 500); die übrigen fehlen hier.',
     allesAuf: 'Alles aufklappen',
     allesZu: 'Alles zuklappen',
     bearbeiten: (t: string) => `Bearbeiten: ${t}`,
@@ -103,6 +112,12 @@ export const TEXTE = {
     leer: 'The draft is empty.',
     ausstehend: 'subtopics still missing',
     dateien: (n: number) => zahl(n, 'file', 'files', 'en'),
+    materialien: (n: number) => zahl(n, 'material', 'materials', 'en'),
+    inhalteTitel: (n: number, dateien = false) =>
+      `Content of this item: ${dateien ? zahl(n, 'file', 'files', 'en') : zahl(n, 'material', 'materials', 'en')}`,
+    nichtZugeordnet: (n: number, dateien = false) =>
+      `Not assigned: ${dateien ? zahl(n, 'file', 'files', 'en') : zahl(n, 'material', 'materials', 'en')}`,
+    gekuerztInhalte: 'There are more materials than the draft can hold (at most 500); the rest is missing here.',
     allesAuf: 'Expand all',
     allesZu: 'Collapse all',
     bearbeiten: (t: string) => `Edit: ${t}`,

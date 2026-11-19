@@ -1,0 +1,111 @@
+// Paket N4: Rumpf der Freigabe-Box — kompakt, nur Theme-Token (M3), Schrift wie der Markdown-Body.
+
+:host {
+  display: block;
+  font-size: calc(.82rem * var(--inline-doc-scale, 0.85) / 0.85);
+  color: var(--mat-sys-on-surface);
+  line-height: 1.4;
+}
+
+p { margin: .25em 0; }
+
+ul {
+  margin: .2em 0;
+  padding-inline-start: 1.3em;
+}
+
+.freigabe__kopf { font-weight: 600; }
+
+.freigabe__satz,
+.freigabe__treffer,
+.freigabe__ordner { color: var(--mat-sys-on-surface-variant); }
+
+.freigabe__ordner {
+  font-weight: 600;
+  margin-block-start: .5em;
+}
+
+// Probleme getrennt und sichtbar: Rand UND Text (nie nur Farbe, WCAG 1.4.1).
+.freigabe__probleme {
+  border-inline-start: 3px solid var(--mat-sys-error);
+  padding-inline-start: .6em;
+  margin-block: .4em;
+}
+
+.freigabe__liste {
+  max-block-size: 18rem;
+  overflow-y: auto;
+  margin-block: .3em;
+}
+
+.freigabe__filter-label {
+  display: block;
+  font-weight: 600;
+}
+
+.freigabe__filter {
+  inline-size: 100%;
+  box-sizing: border-box;
+  min-block-size: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--mat-sys-outline);
+  border-radius: var(--mat-sys-corner-extra-small);
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: inherit;
+}
+
+.freigabe__knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: .5em;
+}
+
+button {
+  font: inherit;
+  min-block-size: 32px;
+  min-inline-size: 24px;
+  cursor: pointer;
+  border-radius: var(--mat-sys-corner-full);
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  &:disabled { cursor: default; opacity: .6; }
+}
+
+.freigabe__auf,
+.freigabe__mehr {
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  color: var(--mat-sys-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: var(--mat-sys-corner-extra-small);
+}
+
+.freigabe__knopf {
+  padding: 4px 14px;
+  border: 1px solid var(--mat-sys-outline);
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-primary);
+
+  &--haupt {
+    background: var(--mat-sys-primary);
+    border-color: var(--mat-sys-primary);
+    color: var(--mat-sys-on-primary);
+  }
+}
+
+.freigabe__quittung {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .freigabe__knopf { transition: background-color 150ms ease; }
+}

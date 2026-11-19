@@ -4,8 +4,10 @@
 (``metadaten_lokal``) braucht jede Datei Titel, Beschreibung und Schlagworte wie aus WLO. Ein
 LLM-Aufruf über den **Anfang** des umgewandelten Textes (≤ :data:`ANFANG` Zeichen) liefert sie:
 ``{titel, beschreibung ≤ 400, schlagworte ≤ 8}``, dazu ``fach``/``stufe`` nur, wenn das Modell sie
-für eindeutig hält und sie die Prüfer des Entwurfs bestehen (``strukturentwurf.fach`` bzw.
-``bildungsstufe``).
+für eindeutig hält. Seit N2 (Plan 2026-11-19) stehen die Labels der WLO-Vokabulare für Fach und
+Bildungsstufe als geschlossene Liste in der Anweisung, und jedes Ergebnis wird auf das Vokabular
+abgebildet (``services/mcp/vokabular_labels``) — kein Treffer → leer. Ohne Vokabular wie vorher
+(die Prüfer des Entwurfs, ``strukturentwurf.fach`` bzw. ``bildungsstufe``), mit Hinweis im Log.
 
 - **Moderiert ist die Eingabe schon:** ``aufnahme.aufbereiten`` prüft Übersicht und Anfang
   (``MODERATION_ANFANG`` = 4000 Zeichen) vor dem Speichern — dieser Anfang ist höchstens so lang.
@@ -55,6 +57,9 @@ _SYSTEM: Final = (
     "\"schlagworte\": bis zu 8 Fachbegriffe, \"fach\": Schulfach oder leer, \"stufe\": "
     "Bildungsstufe oder leer}. Fach und Stufe nur, wenn sie eindeutig aus dem Text hervorgehen; "
     "sonst leer lassen. Schreib in der Sprache des Materials.")
+#: N2: die geschlossenen Listen — nur einer dieser Werte oder leer.
+_LISTE_FACH: Final = "\nFür \"fach\" nur genau einer dieser Werte oder leer: {werte}."
+_LISTE_STUFE: Final = "\nFür \"stufe\" nur genau einer dieser Werte oder leer: {werte}."
 
 LlmJson = Callable[[list[dict[str, Any]]], Awaitable[Any]]
 _plaetze: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
@@ -96,25 +101,33 @@ def _schlagworte(wert: Any) -> list[str]:
     return aus[:MAX_SCHLAGWORTE]
 
 
-def _gepruefte(roh: dict[str, Any], name: str) -> dict[str, Any]:
+async def _gepruefte(roh: dict[str, Any], name: str) -> dict[str, Any]:
     from boerdi.services.ablauf.inhalte_aus_dateien import titel as titel_aus_name
-    from boerdi.ui_module import strukturentwurf
+    from boerdi.services.mcp import vokabular_labels
 
     aus: dict[str, Any] = {
         "titel": _zeile(roh.get("titel"), MAX_TITEL) or titel_aus_name(name) or "Datei",
         "beschreibung": _zeile(roh.get("beschreibung"), MAX_BESCHREIBUNG),
         "schlagworte": _schlagworte(roh.get("schlagworte")),
     }
-    if fach := strukturentwurf.fach(roh.get("fach")):
+    if fach := await vokabular_labels.fach(roh.get("fach")):
         aus["fach"] = fach
-    if stufe := strukturentwurf.bildungsstufe(roh.get("stufe")):
+    if stufe := await vokabular_labels.stufe(roh.get("stufe")):
         aus["stufe"] = stufe
     return aus
 
 
-def nachrichten(markdown: str) -> list[dict[str, Any]]:
+def nachrichten(markdown: str, *, faecher: list[str] | None = None,
+                stufen: list[str] | None = None) -> list[dict[str, Any]]:
+    """Anweisung und gerahmter Anfang; ``faecher``/``stufen`` (N2) als geschlossene Listen in der
+    Anweisung — die Labels kommen vom MCP-Server, nie aus der Datei."""
     anfang = entschaerfe_endmarken(markdown[:ANFANG])
-    return [{"role": "system", "content": _SYSTEM},
+    system = _SYSTEM
+    if faecher:
+        system += _LISTE_FACH.format(werte="; ".join(faecher))
+    if stufen:
+        system += _LISTE_STUFE.format(werte="; ".join(stufen))
+    return [{"role": "system", "content": system},
             # Review U, NIT 9: die Anweisung steht hinter dem Rahmen — darin stehen nur Daten
             {"role": "user", "content": (f"{FRAME_START}\n{anfang}\n{FRAME_END}\n"
                                          "Antwort als json, Felder wie oben.")}]
@@ -124,14 +137,23 @@ async def ermitteln(markdown: str, name: str, *, llm: LlmJson | None = None,
                     usage_acc: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Die geprüften Kurzangaben — ``None``, wenn der Aufruf scheitert, die Frist (auch beim Warten
     auf einen Platz) abläuft oder nichts taugt. ``usage_acc`` nimmt den Verbrauch auf."""
+    from boerdi.services.mcp import vokabular_labels
+
     rufe = llm or _llm(usage_acc)
+    faecher, stufen = await asyncio.gather(  # zugleich: nur einmal bis zu FRIST_S warten
+        vokabular_labels.labels(vokabular_labels.FACH),
+        vokabular_labels.labels(vokabular_labels.STUFE))
+    if faecher is None or stufen is None:
+        logger.info("Kurzangaben: WLO-Vokabular für %s nicht verfügbar — Fach/Stufe ohne "
+                    "geschlossene Liste",
+                    "/".join(n for n, w in (("Fach", faecher), ("Stufe", stufen)) if w is None))
     try:
         async with asyncio.timeout(FRIST_S), _platz():
-            roh = await rufe(nachrichten(markdown))
+            roh = await rufe(nachrichten(markdown, faecher=faecher, stufen=stufen))
     except Exception as fehler:  # noqa: BLE001 — ohne Angaben geht das Hochladen weiter
         logger.info("Kurzangaben nicht erzeugt (%s)", type(fehler).__name__)
         return None
     if not isinstance(roh, dict):
         logger.info("Kurzangaben: Antwort ist kein Objekt")
         return None
-    return _gepruefte(roh, name)
+    return await _gepruefte(roh, name)

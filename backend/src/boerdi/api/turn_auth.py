@@ -20,7 +20,8 @@ from boerdi.api.deps import (
     schluessel_passt,
     studio_key_header,
 )
-from boerdi.services.llm_auth import setze_llm_schluessel
+from boerdi.services import b_api_betrieb
+from boerdi.services.llm_auth import setze_llm_schluessel, zug_art
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import is_personal_block, set_turn_auth_block
 from boerdi.services.session_origin import MIN_OEFFENTLICHE_KENNUNG, RESERVIERTE_PRAEFIXE
@@ -167,6 +168,7 @@ def uebernimm_llm_schluessel(request: Request, *, pflicht: bool = True) -> None:
         )
     if (not gilt and pflicht and einst.b_api_key_mode == "forward"
             and einst.llm_provider.startswith("b-api") and not ist_interner_zug(request)):
+        b_api_betrieb.merke_abgewiesen()  # N1: Betriebsanzeige, „forward ohne Token“
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="b-api key required: Authorization: Bearer <key> (B_API_KEY_MODE=forward)",
@@ -182,10 +184,16 @@ async def uebernimm_zugang(request: Request) -> None:
     Rundlauf je Fingerabdruck und einige Minuten (``services/mcp/anmeldung``).
 
     Seit Paket 17 auch den b-api-Schlüssel des Zuges — beide Werte gehören zur Anfrage,
-    und jeder Endpunkt, der einen Zug fährt, ruft genau diese Funktion.
+    und jeder Endpunkt, der einen Zug fährt, ruft genau diese Funktion. Seit N1 (Plan
+    2026-11-19) merkt sie sich für die Betriebsanzeige die Art eines Nutzerzuges
+    (``services/b_api_betrieb``) — ``ist_interner_zug`` zählt einen Fehlversuch höchstens
+    einmal je Anfrage, ein zweiter Aufruf bucht nichts doppelt.
     """
     uebernimm_llm_schluessel(request)
     adopt_turn_auth_block(request)
+    if not ist_interner_zug(request):  # Plan 2026-11-19, N1: nur Nutzerzüge, nur die Art
+        b_api_betrieb.merke_zug(zug_art(),
+                                zugangsblock=bool(request.headers.get(ACCESS_BLOCK_HEADER)))
     await bestaetige_anmeldung()
 
 

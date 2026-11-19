@@ -45,7 +45,12 @@ export function wiederOffen(msgs: ChatMessage[], nachrichtId: string, blockId: s
       ? { ...b, status: 'offen', antwort: null } : b);
 }
 
+/** Paket N4: die Freigabe-Box eines Auftrags (Inhaltsrahmen mit `freigabe`) — ab dem nächsten Zug
+ *  nur noch Quittung, wie der Verlauf sie ableitet (`ui_module/antwort.status_ableiten`). */
+const freigabeBox = (b: UiBlock) =>
+  b.modul === 'ui_inhaltsrahmen' && b.status === 'nur_anzeige' && !!b.daten?.['freigabe'];
+
 /** Jede noch offene Frage ist ab dem nächsten Zug der Person veraltet. */
 export function offeneFragenSchliessen(msgs: ChatMessage[]): ChatMessage[] {
-  return mitBloecken(msgs, (_msg, b) => (offen(b) ? { ...b, status: 'veraltet' } : b));
+  return mitBloecken(msgs, (_msg, b) => (offen(b) || freigabeBox(b) ? { ...b, status: 'veraltet' } : b));
 }

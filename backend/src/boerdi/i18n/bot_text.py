@@ -212,6 +212,30 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.freigabeNichtMehrOffen": (
             "Diese Vorschau gehört zu einem Ablauf, der nicht mehr darauf wartet (abgebrochen oder "
             "neu vorgelegt) — geändert wurde nichts."),
+        # Paket N4 (Plan 2026-11-19): die Freigabe-Box vor dem Start eines schreibenden Auftrags
+        "action.ablauf.auftragFreigabeTitel": "Erschließung in WLO freigeben",
+        "action.ablauf.auftragFreigabeKopf": "{n} Materialien werden in WLO erschlossen",
+        "action.ablauf.auftragFreigabeKopf1": "1 Material wird in WLO erschlossen",
+        "action.ablauf.auftragFreigabeKopfFlow": "Dieser Auftrag schreibt in WLO: {flow}",
+        "action.ablauf.auftragFreigabeBitte": " – bitte prüfen und freigeben",
+        "action.ablauf.auftragFreigabeAnzahl": "({n} Materialien)",
+        "action.ablauf.auftragFreigabeAnzahl1": "(1 Material)",
+        "action.ablauf.auftragFreigabeSatz": (
+            "Überschrieben werden Titel, Beschreibung, Schlagworte, Fach, Stufe, Zielgruppe, Typ "
+            "und Sprache – je Material als neue Version."),
+        "action.ablauf.auftragFreigabeProbleme": (
+            "{n} Materialien gehen nicht mit:"),
+        "action.ablauf.auftragFreigabeProbleme1": "1 Material geht nicht mit:",
+        "action.ablauf.auftragFreigabeWeitere": "… und {n} weitere",
+        "action.ablauf.auftragFreigabeKnoepfe": (
+            "Mit „Freigeben“ startet die Erschließung, mit „Abbrechen“ bleibt alles, wie es ist."),
+        "action.ablauf.auftragVerworfen": (
+            "Abgebrochen – in WLO wird nichts überschrieben."),
+        "action.ablauf.auftragFreigabeNeu": (
+            "Die Vorschau war abgelaufen. Hier ist sie neu – bitte noch einmal freigeben."),
+        "action.ablauf.auftragFreigabeKeins": (
+            "Keins der Materialien kann an die Erschließung gehen ({n} mit Problem) – es wird "
+            "nichts überschrieben."),
         "action.ablauf.freigabeVorbereitet": (
             "Die Änderung ist vorbereitet, die Seite führt sie aus. Der Ablauf endet hier — starte "
             "ihn danach neu, falls noch Schritte fehlen."),
@@ -942,6 +966,28 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.freigabeNichtMehrOffen": (
             "This preview belongs to a workflow that no longer waits for it (cancelled or shown "
             "again) — nothing was changed."),
+        # Paket N4 (Plan 2026-11-19): the approval box before a job that writes
+        "action.ablauf.auftragFreigabeTitel": "Approve indexing in WLO",
+        "action.ablauf.auftragFreigabeKopf": "{n} materials will be indexed in WLO",
+        "action.ablauf.auftragFreigabeKopf1": "1 material will be indexed in WLO",
+        "action.ablauf.auftragFreigabeKopfFlow": "This job writes to WLO: {flow}",
+        "action.ablauf.auftragFreigabeBitte": " – please review and approve",
+        "action.ablauf.auftragFreigabeAnzahl": "({n} materials)",
+        "action.ablauf.auftragFreigabeAnzahl1": "(1 material)",
+        "action.ablauf.auftragFreigabeSatz": (
+            "This overwrites title, description, keywords, subject, level, audience, type and "
+            "language – each material as a new version."),
+        "action.ablauf.auftragFreigabeProbleme": "{n} materials cannot be included:",
+        "action.ablauf.auftragFreigabeProbleme1": "1 material cannot be included:",
+        "action.ablauf.auftragFreigabeWeitere": "… and {n} more",
+        "action.ablauf.auftragFreigabeKnoepfe": (
+            "“Approve” starts the indexing, “Cancel” leaves everything as it is."),
+        "action.ablauf.auftragVerworfen": "Cancelled – nothing will be overwritten in WLO.",
+        "action.ablauf.auftragFreigabeNeu": (
+            "The preview had expired. Here it is again – please approve once more."),
+        "action.ablauf.auftragFreigabeKeins": (
+            "None of the materials can be indexed ({n} with a problem) – nothing will be "
+            "overwritten."),
         "action.ablauf.freigabeVorbereitet": (
             "The change is prepared and the page carries it out. The workflow ends here — start "
             "it again afterwards if steps are still missing."),

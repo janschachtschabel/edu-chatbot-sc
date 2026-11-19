@@ -30,7 +30,7 @@ from tests.test_ablauf_auftrag_abbruch import _SID, _aktionen, _gesperrt_katalog
 from tests.test_ablauf_zug import _S, _req
 from tests.test_paket_k_mcp_starter import FLOW, JOB, VORSCHAU, _abgelehnt, _ok
 from tests.test_paket_k_mcp_starter import mcp as mcp_fixture  # noqa: F401
-from tests.test_paket_k_traeger import _ablauf, _am_auftrag
+from tests.test_paket_k_traeger import _ablauf, _am_auftrag, _mcp_startet
 from tests.test_paket_k_traeger import lage as traeger_lage  # noqa: F401
 from tests.test_paket_k_zug import KENNUNG, _gestartet, ueber_mcp  # noqa: F401
 
@@ -53,7 +53,7 @@ def test_a1_der_treiber_haengt_beim_offenen_start_keinen_block_an(traeger_lage, 
     async def offen(flow, eingaben):
         raise client.AuftragFehler("offen")
 
-    monkeypatch.setattr(mcp_starter, "starten", offen)
+    _mcp_startet(monkeypatch, offen)
     aus = _am_auftrag(_ablauf(True), auftrag_zug.starter())
     assert aus.lauf["status"] == treiber.WARTET_AUFTRAG
     assert aus.bloecke == []
@@ -217,7 +217,7 @@ def test_a4_ein_lesender_flow_startet_nie_ueber_den_mcp(traeger_lage, monkeypatc
         gerufen.append(flow)
         return mcp_starter.PRAEFIX + "job-1"
 
-    monkeypatch.setattr(mcp_starter, "starten", ueber_mcp_starten)
+    _mcp_startet(monkeypatch, ueber_mcp_starten)
     aus = _am_auftrag(_ablauf(False), auftrag_zug.starter())
     assert gerufen == [] and aus.texte[-1] == "Ohne Metadaten."
 

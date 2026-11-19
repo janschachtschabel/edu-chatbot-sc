@@ -1,6 +1,6 @@
 # Betrieb mit der b-api
 
-Stand: 19.11.2026 (Pakete D und K, Plan `docs/plans/2026-11-17-b-api-delegation-und-upload.md`).
+Stand: 19.11.2026 (Pakete D, K und N1, Plan `docs/plans/2026-11-17-b-api-delegation-und-upload.md`).
 
 Der Chatbot spricht die b-api (Bildungs-API) für LLM, Einbettungen, Moderation, Sprache und
 Aufträge (Kestra-Flows) an. Er läuft in zwei Betriebsarten. Beide gehen mit demselben Image.
@@ -46,6 +46,33 @@ Woran der Chatbot die Art erkennt (`services/llm_auth.zug_art()`):
 | `Bearer bdt_…` (gültige Form) | `delegation` | das Token |
 | `Bearer bdt_…` in falscher Form (zu lang, Steuerzeichen, `bearer` klein) | `delegation` | keiner (kein Aufruf) |
 | `Bearer <anderer Wert>` | `schluessel` | der Wert |
+
+### Betriebsanzeige (Paket N1)
+
+Welche Art zuletzt galt, zeigt der Chatbot selbst — ohne Werte:
+
+- **Studio**, Übersicht, Statusleiste, Karte „b-api-Betrieb (diese Backend-Kopie)“: „Betriebsart
+  erkannt: hinter dem b-api-Proxy (Delegation)“ bzw. „… (durchgereichter Schlüssel)“ oder „direkt
+  (B_API_KEY)“, mit Zeit („zuletzt vor 3 Minuten“), `B_API_KEY_MODE` und unter `forward`
+  „abgewiesen: N“.
+- **`/api/health`** (nur mit Studio-Schlüssel), Feld `b_api`:
+  `{"modus": "auto|static|forward", "zuletzt": "delegation|schluessel|direkt"|null, "zuletzt_am": "<ISO, UTC>"|null, "abgewiesen": 0, "warnungen": [...]}`.
+  `abgewiesen` zählt Nutzerzüge, die `forward` mangels Kopf mit 401 abwies.
+  Das offene `/health` bleibt `{"status":"ok"}` — Zeitpunkte verrieten dort die Nutzung.
+- Gezählt werden nur **Nutzerzüge** über Chat und Agent (`api/turn_auth.uebernimm_zugang`), nicht
+  Studio-Proben, Eval oder Lasttest (`ist_interner_zug`). `zuletzt_am` ist der Zeitpunkt des letzten
+  solchen Zuges. Im Modus `static` ist jeder Zug `direkt`.
+- **Je Prozess**: Mit mehreren Kopien zeigt jede Antwort die Sicht der Kopie, die antwortet; nach
+  einem Neustart ist `zuletzt` leer, bis der erste Nutzerzug kommt.
+- Warnungen:
+  - `forward_ohne_token` — „B_API_KEY_MODE=forward gesetzt, aber kein Token gesehen“: mit
+    b-api-Anbieter, seit dem Start kein durchgereichter Wert, und mindestens ein Nutzerzug bekam
+    deshalb 401. Proxy-Eintrag und Adresse prüfen. Direkt nach dem Start ohne Abweisung keine
+    Warnung.
+  - `zugangsblock_fehlt` — „Zugangsblock fehlt hinter dem Proxy – allowedRequestHeaders prüfen“:
+    mindestens 20 Delegationszüge, und bei keinem kam die Kopfzeile `WLO-Access-Block` (§3). Nur
+    ein Hinweis: Solange sich niemand anmeldet, schickt das Widget den Block nicht — bei rein
+    anonymer Nutzung ist das normal.
 
 ## 2 Rückfall-Regeln (Entscheid E5)
 

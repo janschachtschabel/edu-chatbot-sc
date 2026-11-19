@@ -216,6 +216,18 @@ _ZEILEN: Final = (("schlagworte", "Schlagworte"), ("faecher", "Fächer"), ("stuf
                   ("arten", "Art"))
 
 
+def materialien(teil: Any) -> list[dict[str, Any]] | None:
+    """Die Materialien des Teils ``wlo.metadaten@1`` in der Reihenfolge, in der
+    :func:`als_dokument` sie nummeriert (das n-te trägt die Kennung ``an``) — ``None`` bei einem
+    Teil anderer Form. Paket N3 ordnet über diese Kennungen Dateien den Punkten zu."""
+    if not isinstance(teil, dict) or teil.get("format") != FORMAT:
+        return None
+    inhalte = teil.get("inhalte")
+    if not isinstance(inhalte, list):
+        return None
+    return [i for i in inhalte if isinstance(i, dict)]
+
+
 def als_dokument(teil: Any) -> DokumentStand | None:
     """TB-T1: der Teil ``wlo.metadaten@1`` als Dokument für ``ui_strukturentwurf``
     (``aus_inhalten``) — je Material ein Abschnitt (Titel, Beschreibung, Schlagworte …).
@@ -227,15 +239,13 @@ def als_dokument(teil: Any) -> DokumentStand | None:
     from boerdi.domain.dokument_gliederung import TITEL_ZEICHEN, Abschnitt
     from boerdi.services.dokumente.stand import DokumentStand
 
-    if not isinstance(teil, dict) or teil.get("format") != FORMAT:
-        return None
-    inhalte = teil.get("inhalte")
-    if not isinstance(inhalte, list):
+    inhalte = materialien(teil)
+    if inhalte is None:
         return None
     teile: list[str] = []
     abschnitte: list[Abschnitt] = []
     laenge = 0
-    for n, i in enumerate((i for i in inhalte if isinstance(i, dict)), 1):
+    for n, i in enumerate(inhalte, 1):
         titel = " ".join(str(i.get("titel") or "").split())[:TITEL_ZEICHEN] or f"Material {n}"
         zeilen = [f"## {titel}"]
         if beschreibung := " ".join(str(i.get("beschreibung") or "").split()):

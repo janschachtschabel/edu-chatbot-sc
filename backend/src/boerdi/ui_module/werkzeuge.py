@@ -45,7 +45,10 @@ def _fuer_die_ki(schema: Any, feldliste: bool = False, *, pruefen: bool = False)
     if not isinstance(schema, dict):
         return schema
     if feldliste:
-        return {feld: _fuer_die_ki(wert, pruefen=pruefen) for feld, wert in schema.items()}
+        # Paket N4: ein ganzes Feld, das nur das System setzt (``"x-nur-system": true``, etwa
+        # ``freigabe`` des Inhaltsrahmens), sieht die KI nicht — und darf es nicht senden
+        return {feld: _fuer_die_ki(wert, pruefen=pruefen) for feld, wert in schema.items()
+                if not (isinstance(wert, dict) and wert.get(_NUR_SYSTEM) is True)}
     nur_system = set(schema.get(_NUR_SYSTEM) or ())
     aus: dict[str, Any] = {}
     for schluessel, wert in schema.items():

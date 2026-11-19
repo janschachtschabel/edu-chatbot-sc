@@ -1,0 +1,29 @@
+// Plan 2026-11-19 (N1): der Inhalt der b-api-Karte; Rahmen und Abstand setzt die Statusleiste
+// (`.ov-status-card` am Element). Die Zeilen wie die übrigen Karten der Leiste.
+
+.ba-kind {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--st-text-muted);
+}
+
+.ba-main {
+  margin: var(--st-2) 0 0;
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+
+.ba-meta {
+  margin: var(--st-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+// Die Warnung trägt ihr Wort („Warnung:“/„Hinweis:“) im Text — die Farbe ist nur Zugabe.
+.ba-warn {
+  margin: var(--st-2) 0 0;
+  font-size: 0.875rem;
+  color: var(--st-warn-text);
+  overflow-wrap: anywhere;
+}

@@ -505,7 +505,8 @@ Werksabgleich ab. Das Modul-Bündel `ui-fortschritt` und das Widget müssen neu 
 
 ## Offen
 
-- Freigabe-Box mit der Vorschau des MCP (Entscheid 1).
+- ~~Freigabe-Box mit der Vorschau des MCP (Entscheid 1).~~ Erledigt in Paket N4
+  (`2026-11-19-paket-n4-freigabe-box.md`).
 - Weg „Dokument“ mit Übertragung nach WLO ohne Metadaten-Flow (Abweichung 2).
 - Ein Teil eines Stapels, dessen Start „nicht verfügbar“ meldet, zählt wie bisher als nicht
   gestartet. Nur der erste Teil führt zurück an die Rückfrage.

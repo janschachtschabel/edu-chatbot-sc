@@ -115,3 +115,27 @@
     background: color-mix(in srgb, var(--mat-sys-on-primary) 12%, var(--mat-sys-primary));
   }
 }
+
+// Paket N3: Inhalte am Punkt und die nicht zugeordneten — aufklappbar, zurückhaltend wie die Hinweise
+.ui-strukturentwurf__inhalte {
+  font-size: .8rem;
+
+  summary {
+    cursor: pointer;
+  }
+
+  // Review N3, NIT 12: bis 500 Titel — die Liste rollt statt das Modul zu strecken
+  ul {
+    margin: 4px 0 0;
+    padding-inline-start: 18px;
+    overflow-wrap: anywhere;
+    max-block-size: calc(var(--mat-sys-body-small-line-height, 1.25rem) * 10);
+    overflow-y: auto;
+
+    // zweites Review, NIT 7: per Tastatur erreichbar (tabindex) — der Fokus ist sichtbar
+    &:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: 2px;
+    }
+  }
+}

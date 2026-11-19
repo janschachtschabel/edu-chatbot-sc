@@ -74,7 +74,7 @@ def test_der_starter_traegt_seinen_weg(lage, monkeypatch):
         gerufen.append(("direkt", flow))
         return "job-2"
 
-    monkeypatch.setattr(mcp_starter, "starten", ueber_mcp)
+    _mcp_startet(monkeypatch, ueber_mcp)
     monkeypatch.setattr(client, "starten", direkt)
     starte = auftrag_zug.starter().fuer(True)
     assert starte.traeger == "mcp"
@@ -109,11 +109,40 @@ async def _nichts(_name):
     return None
 
 
-def _am_auftrag(ablauf: AblaufArea, starter) -> treiber.Ausgabe:
+def _am_auftrag(ablauf: AblaufArea, starter, *, freigeben: bool = True) -> treiber.Ausgabe:
+    """„Ja“ an der Rückfrage. Paket N4: legt der Schritt eine Freigabe vor, gibt ``freigeben`` sie
+    gleich frei wie ``auftrag_freigabe_zug.freigeben`` (ohne Sitzung) — die Tests vor N4 starteten
+    im selben Zug."""
     lauf = {"ablauf": ablauf.id, "fassung": treiber.fassung(ablauf), "status": treiber.WARTET_WAHL,
             "schritt": "frage"}
     umgebung = treiber.Umgebung(teile=_nichts, auftrag_starten=starter)
-    return asyncio.run(treiber.weiter_wahl(ablauf, lauf, "ja", None, umgebung))
+    aus = asyncio.run(treiber.weiter_wahl(ablauf, lauf, "ja", None, umgebung))
+    if not freigeben or aus.auftrag_freigabe is None:
+        return aus
+    # Review N4 (6): die echte Freigabe (``auftrag_freigabe_zug.starten``), ohne Sitzung
+    from boerdi.services.ablauf import auftrag_freigabe, auftrag_freigabe_zug
+
+    entities: dict = {}
+    auftrag_freigabe.merken(entities, aus.auftrag_freigabe, ablauf.id, "de")
+    return asyncio.run(auftrag_freigabe_zug.starten(ablauf, aus.lauf, umgebung,
+                                                    entities[auftrag_freigabe.KEY]))
+
+
+def _mcp_startet(monkeypatch, starten) -> None:
+    """Paket N4: über den MCP geht ein Start über Vorschau (Box) und Bestätigung — ``starten``
+    steht hier für beides zusammen (wie vorher ``mcp_starter.starten``): die Vorschau gelingt, die
+    Bestätigung ruft ``starten``."""
+    from boerdi.services.auftraege import mcp_vorschau
+
+    async def vorschau(_flow, _eingaben):
+        return mcp_vorschau.Vorschau(token="ct", laeuft_ab=9e9)
+
+    async def bestaetigen(flow, eingaben, _token):
+        return await starten(flow, eingaben)
+
+    monkeypatch.setattr(mcp_vorschau, "vorschau", vorschau)
+    monkeypatch.setattr(mcp_vorschau, "bestaetigen", bestaetigen)
+    monkeypatch.setattr(mcp_starter, "starten", starten)
 
 
 @pytest.mark.parametrize(("mcp", "repo_schreibt", "weg"), [
@@ -130,7 +159,7 @@ def test_repo_schreibt_nur_ueber_den_mcp(lage, monkeypatch, mcp, repo_schreibt, 
         gerufen.append("direkt")
         return "job-2"
 
-    monkeypatch.setattr(mcp_starter, "starten", ueber_mcp)
+    _mcp_startet(monkeypatch, ueber_mcp)
     monkeypatch.setattr(client, "starten", direkt)
     aus = _am_auftrag(_ablauf(repo_schreibt), auftrag_zug.starter())
     assert gerufen == ([weg] if weg else [])
@@ -146,7 +175,7 @@ def test_ein_offener_start_haelt_mit_hinweis(lage, monkeypatch):
     async def offen(flow, eingaben):
         raise client.AuftragFehler("offen")
 
-    monkeypatch.setattr(mcp_starter, "starten", offen)
+    _mcp_startet(monkeypatch, offen)
     aus = _am_auftrag(_ablauf(True), auftrag_zug.starter())
     assert aus.lauf["status"] == treiber.WARTET_AUFTRAG
     assert mcp_starter.ist_offen(aus.auftrag["job_id"])
@@ -157,7 +186,7 @@ def test_ein_abgelehnter_start_ueber_den_mcp_nimmt_den_ersatzweg(lage, monkeypat
     async def nein(flow, eingaben):
         raise client.AuftragFehler("abgewiesen", code="EDU_USER_REQUIRED")
 
-    monkeypatch.setattr(mcp_starter, "starten", nein)
+    _mcp_startet(monkeypatch, nein)
     aus = _am_auftrag(_ablauf(True), auftrag_zug.starter())
     assert aus.texte == [bot_text("de", "action.ablauf.auftragAbgelehntPerson"),
                          "Ohne Metadaten."]

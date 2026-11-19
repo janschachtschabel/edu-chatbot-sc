@@ -266,6 +266,13 @@ def frage_quittung(block: UiBlock) -> str:
             "hier; ihre Antwort kommt im nächsten Zug vor ihrer Nachricht.")
 
 
+def _freigabe_box(block: dict[str, Any]) -> bool:
+    """Paket N4: die Freigabe-Box eines Auftrags (Inhaltsrahmen mit ``freigabe``)."""
+    daten = block.get("daten") if isinstance(block.get("daten"), dict) else {}
+    return (block.get("modul") == "ui_inhaltsrahmen" and block.get("status") == "nur_anzeige"
+            and isinstance(daten.get("freigabe"), dict))
+
+
 def status_ableiten(nachrichten: list[dict[str, Any]], uis: list[dict[str, Any]]) -> None:
     """Status der abfragenden Blöcke im Verlauf, an Ort und Stelle in ``uis`` (je Nachricht das
     ``ui``-Dict, gleiche Reihenfolge wie ``nachrichten``).
@@ -287,6 +294,10 @@ def status_ableiten(nachrichten: list[dict[str, Any]], uis: list[dict[str, Any]]
             antworten.append((i, None, None))
     for i, ui in enumerate(uis):
         for block in ui.get("ui_bloecke") or []:
+            if _freigabe_box(block) and any(j > i for j, _k, _d in antworten):
+                # Paket N4: nach dem nächsten Zug ist die Freigabe-Box nur noch eine Quittung
+                block["status"] = "veraltet"
+                continue
             if block.get("art") != "abfragen" or block.get("status") != "offen":
                 continue
             spaeter = [(kennung, daten) for j, kennung, daten in antworten if j > i]

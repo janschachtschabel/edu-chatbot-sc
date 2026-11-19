@@ -262,3 +262,16 @@ def _kein_netz_fuer_auftraege(monkeypatch):
     flow_katalog.leeren()
     yield
     flow_katalog.leeren()
+
+
+@pytest.fixture(autouse=True)
+def _kein_netz_fuer_vokabular(monkeypatch):
+    """Plan 2026-11-19 (N2): Fach und Stufe aus dem WLO-Vokabular fragen sonst den echten
+    MCP-Server (Vorgabe von ``MCP_SERVER_URL``). In Tests gilt „kein Vokabular“ — die Prüfer des
+    Entwurfs wie bisher; ``test_n2_fach_stufe_vokabular`` setzt die echte Naht mit Attrappe."""
+    from boerdi.services.mcp import vokabular_labels
+
+    async def _keines(_vocab: str) -> None:
+        return None
+
+    monkeypatch.setattr(vokabular_labels, "_vokabular", _keines)

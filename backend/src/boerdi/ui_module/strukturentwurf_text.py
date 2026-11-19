@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from boerdi.ui_module.strukturentwurf import alle, anzahl, inhalte_zahl
+from boerdi.ui_module.strukturentwurf import RESTE, alle, anzahl, inhalte_zahl
 
 #: Zeichen der Kompaktfassung (≈ 1500 Token): reicht für ~250 kurze Titel.
 KOMPAKT_ZEICHEN: Final = 6000
@@ -87,8 +87,12 @@ def quittung(daten: dict[str, Any]) -> str:
     offen = sum(1 for k, _ in alle(oben) if k.get("ausstehend"))
     noch = f", {offen} noch ohne Unterthemen" if offen else ""
     titel = "; ".join(k["titel"] for k in oben)
+    # Paket N3: nur die Zahl, nie Namen (wie ``_dateien``)
+    rest = len(daten.get(RESTE) or [])
+    rest_satz = (f" {rest} {'Material' if rest == 1 else 'Materialien'} keinem Punkt "
+                 "zugeordnet (die Person sieht sie im Entwurf)." if rest else "")
     return (f"OK: Der Entwurf „{daten.get('titel') or ''}“ steht unter deiner Antwort als "
             f"bearbeitbare Gliederung ({len(oben)} Themen oben, {anzahl(oben)} Punkte{noch}). "
-            f"Erste Ebene: {titel}. Die Person bearbeitet ihn dort und übernimmt ihn oder "
-            "schreibt dir; dann bekommst du ihren Stand. Dein Zug endet hier — rufe kein "
+            f"Erste Ebene: {titel}.{rest_satz} Die Person bearbeitet ihn dort und übernimmt ihn "
+            "oder schreibt dir; dann bekommst du ihren Stand. Dein Zug endet hier — rufe kein "
             "weiteres Werkzeug.")

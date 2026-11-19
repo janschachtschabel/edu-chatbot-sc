@@ -69,5 +69,14 @@
         </p>
       }
     </div>
+
+    <!-- Plan 2026-11-19 (N1): b-api-Betriebsart; ohne Angabe (älteres Backend) keine Karte. -->
+    @if (health.value()?.b_api; as bApi) {
+      <studio-b-api-betrieb
+        class="ov-status-card"
+        [info]="bApi"
+        [bezugMs]="loadedAt()"
+      />
+    }
   </div>
 </section>

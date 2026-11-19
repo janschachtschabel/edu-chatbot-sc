@@ -33,6 +33,13 @@ die Spec der Komponente gilt am Element weiter (`ui-strukturentwurf.element.spec
   („3 Dateien“, als Beschreibung des Eintrags); bearbeitet werden sie nicht, sie bleiben beim
   Umbenennen und Verschieben am Punkt und gehen beim Löschen mit. TG-3e: `abschnitte` aus mehreren
   Dokumenten tragen den Präfix des Dokuments (`d1-a3`).
+  Paket N3 (2026-11-19): auch der Entwurf aus Materialien (`aus_inhalten`) trägt `inhalte` (die
+  zugeordneten, `name` = Titel, `node_id` wenn in WLO), dazu in der Wurzel `nicht_zugeordnet[]`
+  (dasselbe Format, geht unverändert mit der Antwort und im JSON-Export zurück). Die Titel stehen
+  aufklappbar (`<details>`, Höhe begrenzt): beim gewählten Punkt („Inhalte dieses Punkts:
+  n Materialien“) und unter dem Baum („Nicht zugeordnet: n Materialien“) — nie im Baumeintrag selbst.
+  Review N3: Löschen eines Punkts schiebt seine Inhalte (samt Unterpunkten) nach `nicht_zugeordnet`
+  (`verwaisteInhalte`, abgeleitet — „Rückgängig“ holt sie zurück); vorher gingen sie mit.
 - **Bearbeiten:** Baum nach APG „Tree View“ wie der Bestand; Leiste für den aktiven Punkt
   (Unterpunkt, Punkt danach, Hoch, Runter, Einrücken, Ausrücken, Löschen, Rückgängig mit 20
   Schritten) und Detailfeld (Titel, Beschreibung, Schlagworte durch Komma). Keine Eingabefelder im

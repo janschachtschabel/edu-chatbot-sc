@@ -258,6 +258,7 @@ export const DE: Catalogue = {
   'error.draftFromCollection': 'Die Gliederung von "{title}" konnte ich leider nicht als Entwurf öffnen. Versuch es nochmal!',
   'error.auftragAbholen': 'Das Ergebnis des Auftrags konnte ich gerade nicht abholen. Tippe gleich noch einmal auf „Stand prüfen“.',
   'error.auftragAbbrechen': 'Den Auftrag konnte ich gerade nicht abbrechen. Versuch es gleich noch einmal.',
+  'error.auftragFreigabe': 'Deine Entscheidung kam gerade nicht an. Versuch es gleich noch einmal.',
   'error.tourStart': 'Entschuldigung, die Tour konnte gerade nicht gestartet werden. Bitte versuch es nochmal.',
   'error.transcription': 'Spracheingabe konnte nicht verarbeitet werden. Bitte tippe deine Nachricht.',
   /** Paket 19 (N-38): Mikrofon verweigert oder nicht vorhanden — vorher endete

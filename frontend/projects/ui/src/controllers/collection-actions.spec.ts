@@ -8,6 +8,7 @@ import {
   ablageSchritt,
   auftragAbbrechen,
   auftragAbholen,
+  auftragFreigabe,
   auftragStand,
   CollectionActionsContext,
   browseCollection,
@@ -702,5 +703,25 @@ describe('auftragAbbrechen (K2b) und die Eingabesperre', () => {
     freiCtx.setEingabeGesperrt = (g) => gesperrt.push(g);
     await auftragAbholen('lesen', freiCtx);
     expect(gesperrt).toEqual([true, false]);
+  });
+});
+
+describe('auftragFreigabe (Paket N4)', () => {
+  it('Freigeben und Abbrechen der Box sind Direktaktionen mit Ablauf und Kennung', async () => {
+    const { ctx, calls } = makeCtx({ respond: () => makeResp({ content: 'Läuft.' }) });
+    await expect(auftragFreigabe('freigeben', 'themenbaum', 'f1', ctx)).resolves.toEqual({ gesendet: true });
+    await auftragFreigabe('verwerfen', 'themenbaum', 'f1', ctx);
+    expect(calls.sent).toEqual([
+      { message: 'Freigeben', env: undefined, action: 'ablauf_auftrag_freigeben',
+        actionParams: { ablauf: 'themenbaum', id: 'f1' } },
+      { message: 'Abbrechen', env: undefined, action: 'ablauf_auftrag_verwerfen',
+        actionParams: { ablauf: 'themenbaum', id: 'f1' } },
+    ]);
+  });
+
+  it('während eines Zugs geht nichts', async () => {
+    const { ctx, calls } = makeCtx({ isLoading: () => true });
+    await expect(auftragFreigabe('freigeben', 'a', 'f1', ctx)).resolves.toEqual({ gesendet: false });
+    expect(calls.sent).toEqual([]);
   });
 });

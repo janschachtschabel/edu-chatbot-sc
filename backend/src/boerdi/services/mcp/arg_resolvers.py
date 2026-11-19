@@ -357,6 +357,9 @@ _label_to_uri_cache: dict[str, dict[str, str]] = {
     # Paket 11 L: Lizenz-Schlüssel (CC_BY …) statt URIs, eigener strenger Abgleich.
     "license": {},
 }
+#: Plan 2026-11-19 (N2): je Vokabular URI → Label in der Schreibweise des Servers, für die
+#: geschlossenen Listen von Fach und Stufe (``vokabular_labels``). Mit dem Cache oben befüllt.
+_uri_to_label: dict[str, dict[str, str]] = {vocab: {} for vocab in _label_to_uri_cache}
 _label_cache_loaded: dict[str, bool] = {
     "lrt": False,
     "discipline": False,
@@ -423,6 +426,7 @@ async def _ensure_label_cache(vocab: str) -> None:
         if m_uri and current_label:
             uri = m_uri.group(1).strip()
             cache.setdefault(_norm_label(current_label), uri)
+            _uri_to_label[vocab].setdefault(uri, current_label)
             for alias in current_aliases:
                 cache.setdefault(_norm_label(alias), uri)
             current_label = None

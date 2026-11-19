@@ -5,6 +5,8 @@ import { SafeSvgPipe } from '@boerdi/ui/icons/safe-svg.pipe';
 
 import { MODUL_HOST } from '../_vertrag/modul-host';
 import type { ModulKontext } from '../_vertrag/ui-block';
+import { type FreigabeDaten, freigabeAus } from './freigabe';
+import { FreigabeListe } from './freigabe-liste.component';
 import { artBezeichnung, artSymbol, dateiname, markdownDatei } from './inhaltsrahmen';
 
 /** Eingabe laut manifest.json (`eingabe`). */
@@ -12,6 +14,8 @@ export interface UiInhaltsrahmenDaten {
   readonly titel: string;
   readonly art: string;
   readonly markdown: string;
+  /** Paket N4, nur das System: die Liste einer Freigabe-Box vor einem schreibenden Auftrag. */
+  readonly freigabe?: FreigabeDaten;
 }
 
 const TEXTE = {
@@ -28,7 +32,7 @@ const TEXTE = {
 @Component({
   selector: 'ui-inhaltsrahmen',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SafeSvgPipe],
+  imports: [SafeSvgPipe, FreigabeListe],
   styleUrl: './ui-inhaltsrahmen.component.scss',
   template: `
     <div class="inline-document" [style.--inline-doc-scale]="kontext().schriftSkala">
@@ -44,7 +48,11 @@ const TEXTE = {
           <span class="bb-icon" aria-hidden="true" [innerHTML]="ladeSymbol | safeSvg"></span>
         </button>
       </div>
-      <div class="inline-document__body" [innerHTML]="inhalt()"></div>
+      @if (freigabe(); as liste) {
+        <ui-freigabe-liste class="inline-document__body" [freigabe]="liste" [kontext]="kontext()" />
+      } @else {
+        <div class="inline-document__body" [innerHTML]="inhalt()"></div>
+      }
     </div>
   `,
 })
@@ -59,7 +67,9 @@ export class UiInhaltsrahmen {
   protected readonly texte = computed(() => TEXTE[this.kontext().sprache]);
   protected readonly symbol = computed(() => artSymbol(this.daten().art));
   protected readonly bezeichnung = computed(() => artBezeichnung(this.daten().art, this.kontext().sprache));
-  protected readonly inhalt = computed(() => this.host.markdown(this.daten().markdown));
+  protected readonly freigabe = computed(() => freigabeAus(this.daten() as unknown as Record<string, unknown>));
+  // Paket N4: die Freigabe-Box zeigt ihre Liste statt des Markdowns (der bleibt Textfassung und Druck)
+  protected readonly inhalt = computed(() => (this.freigabe() ? '' : this.host.markdown(this.daten().markdown)));
 
   protected drucken(): void {
     this.host.drucken(this.daten().titel || this.bezeichnung(), this.daten().markdown);

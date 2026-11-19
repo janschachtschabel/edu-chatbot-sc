@@ -66,3 +66,20 @@ describe('offeneFragenSchliessen', () => {
     expect(offeneFragenSchliessen(msgs)).toBe(msgs);
   });
 });
+
+describe('offeneFragenSchliessen — Freigabe-Box (Paket N4)', () => {
+  const box = (daten: Record<string, unknown>): UiBlock => ({
+    block_id: 'b0000010', modul: 'ui_inhaltsrahmen', version: 1, art: 'anzeigen', daten, text: '',
+    status: 'nur_anzeige',
+  });
+
+  it('macht die Freigabe-Box mit dem nächsten Zug zur Quittung (wie der Verlauf)', () => {
+    const msgs = [bot('m1', [box({ art: 'schreib_vorschau', freigabe: { id: 'x' } })])];
+    expect(offeneFragenSchliessen(msgs)[0].ui!.ui_bloecke![0].status).toBe('veraltet');
+  });
+
+  it('lässt einen gewöhnlichen Inhaltsrahmen stehen', () => {
+    const msgs = [bot('m1', [box({ art: 'dokument' })])];
+    expect(offeneFragenSchliessen(msgs)).toBe(msgs);
+  });
+});

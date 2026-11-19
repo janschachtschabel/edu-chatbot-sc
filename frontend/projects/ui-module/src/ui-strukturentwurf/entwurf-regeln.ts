@@ -28,9 +28,10 @@ export interface EntwurfKnoten {
   /** U3-2b, `quelle: dokument`: Titel und Kennungen der Abschnitte, aus denen der Punkt stammt. */
   readonly fundstelle?: string;
   readonly abschnitte?: readonly string[];
-  /** TG-3f, `quelle: ordner`: die Dateien des Ordners. Alle Regeln hier übernehmen sie mit dem
-   *  Punkt (`...rest`): umbenennen, verschieben, ein- und ausrücken lassen sie am Punkt, löschen
-   *  nimmt sie mit dem Punkt weg. */
+  /** TG-3f, `quelle: ordner`: die Dateien des Ordners (N3: auch die zugeordneten Materialien).
+   *  Alle Regeln hier übernehmen sie mit dem Punkt (`...rest`): umbenennen, verschieben, ein- und
+   *  ausrücken lassen sie am Punkt; beim Löschen gehen sie nach `nicht_zugeordnet`
+   *  ({@link verwaisteInhalte}, Review N3). */
   readonly inhalte?: readonly EntwurfInhalt[];
   readonly kinder?: readonly EntwurfKnoten[];
 }
@@ -137,6 +138,26 @@ export function loeschen(baum: Baum, id: string): { readonly baum: Baum; readonl
   const g = fund.geschwister;
   const fokus = g[fund.index + 1]?.id ?? g[fund.index - 1]?.id ?? fund.eltern;
   return { baum: inListe(baum, id, (liste, i) => ersetzt(liste, i)) ?? baum, fokus };
+}
+
+/** Review N3, MINOR 9: die Inhalte, die nach dem Löschen eines Punkts (samt Unterpunkten) an
+ *  keinem Punkt mehr hängen — angehängt an `rest` (die schon nicht zugeordneten), ohne Doppel nach
+ *  `i`. Abgeleitet aus Ausgangs- und jetzigem Stand: so holt „Rückgängig“ sie von selbst zurück. */
+export function verwaisteInhalte(ausgang: Baum, rest: readonly EntwurfInhalt[], jetzt: Baum): readonly EntwurfInhalt[] {
+  const nummern = (baum: Baum): number[] => baum.flatMap((k) => [...(k.inhalte ?? []).map((e) => e.i), ...nummern(k.kinder ?? [])]);
+  const alle = (baum: Baum): EntwurfInhalt[] => baum.flatMap((k) => [...(k.inhalte ?? []), ...alle(k.kinder ?? [])]);
+  const imBaum = new Set(nummern(jetzt));
+  // zweites Review, MINOR 3: was wieder im Baum hängt (etwa nach „Rückgängig“), nicht doppelt
+  const bleibt = rest.filter((e) => !imBaum.has(e.i));
+  const vergeben = new Set([...imBaum, ...bleibt.map((e) => e.i)]);
+  const neu: EntwurfInhalt[] = [];
+  for (const e of alle(ausgang)) {
+    if (!vergeben.has(e.i)) {
+      vergeben.add(e.i);
+      neu.push(e);
+    }
+  }
+  return neu.length || bleibt.length !== rest.length ? [...bleibt, ...neu] : rest;
 }
 
 export function verschieben(baum: Baum, id: string, richtung: -1 | 1): Baum | Ablehnung {

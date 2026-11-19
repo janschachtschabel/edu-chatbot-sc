@@ -66,6 +66,7 @@ import {
   ablageSchritt,
   auftragAbbrechen,
   auftragAbholen,
+  auftragFreigabe,
   auftragStand,
   dokumentLesen,
   themenbaumZweig,
@@ -449,7 +450,9 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       (signal) => dokumentLesen(blockId, datei, onFortschritt, this._contexts.collectionActions, signal, rolle)),
     ablegen: (blockId, schritt) => this._mitAbbruch(
       (signal) => ablageSchritt(blockId, schritt, this._contexts.collectionActions, signal)),
-    auftrag: (schritt) => schritt.schritt === 'abholen'
+    auftrag: (schritt) => 'freigabe' in schritt
+      ? auftragFreigabe(schritt.schritt, schritt.ablauf, schritt.freigabe, this._contexts.collectionActions)
+      : schritt.schritt === 'abholen'
       ? auftragAbholen(schritt.ablauf, this._contexts.collectionActions)
       : schritt.schritt === 'abbrechen'
         ? auftragAbbrechen(schritt.ablauf, this._contexts.collectionActions)

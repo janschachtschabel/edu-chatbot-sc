@@ -146,7 +146,8 @@ def entities_for_display(entities: dict[str, Any]) -> dict[str, Any]:
     """
     gezeigt = dict(entities)
     # Paket M5 (Review, Befund 6): der Fortsetzungs-Schlüssel eines Plans schreibt ebenso.
-    for schluessel in ("_pending_write", OFFENER_PLAN_KEY):
+    # Review N4 (MAJOR): ebenso die Freigabe-Box eines Auftrags (``auftrag_freigabe.KEY``).
+    for schluessel in ("_pending_write", OFFENER_PLAN_KEY, "_auftrag_freigabe"):
         merkposten = gezeigt.get(schluessel)
         if isinstance(merkposten, dict) and "token" in merkposten:
             gezeigt[schluessel] = {**merkposten, "token": TOKEN_PLACEHOLDER}

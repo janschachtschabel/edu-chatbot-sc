@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type Ablehnung, anzahl, ausruecken, einruecken, finde, hinzufuegen, type EntwurfKnoten, HOECHSTE_TIEFE, loeschen,
-  neueKennung, setzeFelder, verschieben,
+  neueKennung, setzeFelder, verschieben, verwaisteInhalte,
 } from './entwurf-regeln';
 
 /**
@@ -102,5 +102,13 @@ describe('entwurf-regeln', () => {
     expect(eins).toMatch(/^[A-Za-z0-9_-]{1,40}$/);
     const mit = ok(hinzufuegen(BAUM, 'b', 'kind', { id: eins, titel: 'N' })).baum;
     expect(neueKennung(mit)).not.toBe(eins);
+  });
+
+  it('zweites Review N3, MINOR 3: was wieder im Baum hängt, steht nicht zugleich unter „nicht zugeordnet“', () => {
+    const ausgang: readonly EntwurfKnoten[] = [{ id: 'a', titel: 'A', inhalte: [{ i: 1, name: 'eins' }] }];
+    // nach dem Senden (Rest trägt 1) und „Rückgängig“ (der Punkt mit 1 ist zurück)
+    expect(verwaisteInhalte(ausgang, [{ i: 1, name: 'eins' }, { i: 2, name: 'zwei' }], ausgang))
+      .toEqual([{ i: 2, name: 'zwei' }]);
+    expect(verwaisteInhalte(ausgang, [], [])).toEqual([{ i: 1, name: 'eins' }]);
   });
 });

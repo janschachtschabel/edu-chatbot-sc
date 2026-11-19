@@ -55,7 +55,7 @@ WERKZEUGE: Final = (START, STAND, ABBRUCH)
 PRAEFIX: Final = "mcp:"
 #: Ausgang des Starts offen: kein jobId — „Stand nachsehen“ liest die Datensätze (K1/K8).
 _OFFEN: Final = PRAEFIX + "offen:"
-_JOB_ID: Final = re.compile(r"^(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}$")
+JOB_ID: Final = re.compile(r"^(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}$")
 #: Arten von ``transport.call_tool`` ohne strukturierten Teil.
 _ARTEN: Final = {"auth": "abgewiesen", "busy": "voll"}
 #: Nachtrag MCP 18.11.: ein Aufruf eines Werkzeugs, das der Server (gerade) nicht führt. Das SDK
@@ -130,12 +130,12 @@ def flow_erlaubt(flow: str) -> bool:
 
 def _job(job_id: str) -> str:
     roh = job_id[len(PRAEFIX):] if ist_mcp(job_id) and not ist_offen(job_id) else ""
-    if not _JOB_ID.fullmatch(roh):
+    if not JOB_ID.fullmatch(roh):
         raise AuftragFehler("unbekannt")
     return roh
 
 
-async def _rufen(name: str, args: dict[str, Any]) -> tuple[dict[str, Any] | None, str, bool]:
+async def rufen(name: str, args: dict[str, Any]) -> tuple[dict[str, Any] | None, str, bool]:
     """Ein Werkzeug als die Person → (``structuredContent``, Fehlercode, Ausgang offen). Der Code
     ist ``""`` bei Erfolg; ohne strukturierten Teil die Art des Transports (``transport``,
     ``timeout``, ``auth``, ``busy``) bzw. :data:`UNBEKANNTES_WERKZEUG`."""
@@ -174,53 +174,34 @@ async def _faehigkeiten_neu() -> None:
         logger.info("Auftrag: Fähigkeiten nicht neu geholt (%s)", type(fehler).__name__)
 
 
-def _grund(code: str, daten: dict[str, Any] | None = None) -> AuftragFehler:
+def grund(code: str, daten: dict[str, Any] | None = None) -> AuftragFehler:
+    """Der Fehler zu einem Code des MCP (öffentlich für ``mcp_vorschau``, Review N4)."""
     if code == "edu_user_required":
         return AuftragFehler("abgewiesen", code="EDU_USER_REQUIRED")
-    grund = _GRUENDE.get(code) or _ARTEN.get(code) or "fehler"
+    art = _GRUENDE.get(code) or _ARTEN.get(code) or "fehler"
     warte = (daten or {}).get("retryAfter")
     # Review A3: bei ``rejected`` reicht der MCP den Code der b-api oben in ``daten`` durch
     # (``EDU_USER_NOT_VERIFIED``, ``LEGACY_HEADERS``) — nur aus der festen Liste des Clients
     roh = (daten or {}).get("code")
-    b_api_code = roh if grund == "abgewiesen" and roh in client.BEKANNTE_CODES else None
-    return AuftragFehler(grund, warte_s=min(warte, 600) if grund == "voll" and isinstance(
+    b_api_code = roh if art == "abgewiesen" and roh in client.BEKANNTE_CODES else None
+    return AuftragFehler(art, warte_s=min(warte, 600) if art == "voll" and isinstance(
         warte, int) and warte > 0 else None, code=b_api_code)
 
 
 async def starten(flow: str, eingaben: dict[str, Any]) -> str:
-    """Vorschau, dann Bestätigung — die Kennung des Auftrags (:data:`PRAEFIX` + jobId)."""
-    if not flow_erlaubt(flow):
-        raise AuftragFehler("nicht_erlaubt")
-    args = {"flow": flow, "inputs": eingaben}
-    vorschau, code, _offen = await _rufen(START, args)
-    if code:
-        # Ohne Schlüssel startet nichts — auch eine ausgebliebene Antwort ist kein offener Ausgang.
-        logger.info("Auftrag: Vorschau des MCP abgelehnt (%s)", code)
-        raise _grund(code, vorschau)
-    bestaetigung = (vorschau or {}).get("confirm")
-    schluessel = bestaetigung.get("token") if isinstance(bestaetigung, dict) else None
-    if (vorschau or {}).get("status") != "preview" or not isinstance(schluessel, str) \
-            or not schluessel:
-        logger.warning("Auftrag: Vorschau des MCP ohne Schlüssel")
-        raise AuftragFehler("fehler")
-    daten, code, offen = await _rufen(START, {**args, "confirmToken": schluessel})
-    if code:
-        # Review A6: ein ``isError`` ohne ``error.code`` nach dem Bestätigen (etwa eine Ausnahme
-        # im Werkzeug) kann nach dem Senden an die b-api kommen — offen wie keine Antwort. Das
-        # „unbekannte Werkzeug“ ist eigens erkannt (``_rufen``) und bleibt vorübergehend.
-        if offen or code == "tool":
-            logger.warning("Auftrag: Ausgang des Starts offen (%s) — kein neuer Start", code)
-            raise AuftragFehler("offen")
-        logger.info("Auftrag nicht gestartet (%s)", code)
-        raise _grund(code, daten)
-    job = (daten or {}).get("jobId")
-    if (daten or {}).get("status") != "started" or not isinstance(job, str) \
-            or not _JOB_ID.fullmatch(job):
-        # ``inProgress`` oder 202 ohne brauchbare jobId: ein Job KANN laufen
-        logger.warning("Auftrag: Start über den MCP ohne brauchbare Kennung — Ausgang offen")
-        raise AuftragFehler("offen")
-    logger.info("Auftrag über den MCP gestartet (Flow %s)", flow)
-    return PRAEFIX + job
+    """Vorschau, dann Bestätigung im selben Zug — die Kennung des Auftrags (:data:`PRAEFIX` +
+    jobId). Paket N4: beides steht in ``mcp_vorschau``; hier gehen spätere Teile eines Stapels,
+    deren Liste die Person schon freigegeben hat (``ablauf/auftrag_freigabe``)."""
+    from boerdi.services.auftraege import mcp_vorschau  # zyklenfrei: es importiert dieses Modul
+
+    vorlage = await mcp_vorschau.vorschau(flow, eingaben)
+    try:
+        return await mcp_vorschau.bestaetigen(flow, eingaben, vorlage.token)
+    except AuftragFehler as fehler:
+        if fehler.grund == "abgelaufen":
+            # ein eben geholter Schlüssel, der nicht gilt: im selben Zug keine Schleife
+            raise AuftragFehler("fehler") from None
+        raise
 
 
 def _ohne_kennungen(wert: Any) -> Any:
@@ -269,10 +250,10 @@ async def stand(job_id: str) -> Stand:
     """Der Stand eines Auftrags (``laeuft``/``fertig``/``fehler``) über ``wlo_flow_status``."""
     if ist_offen(job_id):
         raise AuftragFehler("job_unbekannt")
-    daten, code, _offen = await _rufen(STAND, {"jobId": _job(job_id)})
+    daten, code, _offen = await rufen(STAND, {"jobId": _job(job_id)})
     if code:
         logger.info("Auftrag: Stand über den MCP nicht abrufbar (%s)", code)
-        raise _grund(code, daten)
+        raise grund(code, daten)
     daten = daten or {}
     status = daten.get("status")
     fortschritt = _fortschritt(daten.get("progress"))
@@ -298,10 +279,10 @@ async def abbrechen(job_id: str) -> str:
     MCP) → ``job_unbekannt``; keine Antwort bzw. ``outcomeOpen`` → ``offen``."""
     if ist_offen(job_id):
         raise AuftragFehler("job_unbekannt")
-    daten, code, offen = await _rufen(ABBRUCH, {"jobId": _job(job_id)})
+    daten, code, offen = await rufen(ABBRUCH, {"jobId": _job(job_id)})
     if code:
         logger.info("Auftrag: Abbruch über den MCP nicht bestätigt (%s)", code)
-        raise AuftragFehler("offen") if offen else _grund(code)
+        raise AuftragFehler("offen") if offen else grund(code)
     ausgang = (daten or {}).get("status")
     if ausgang == "cancelled":
         logger.info("Auftrag über den MCP abgebrochen")

@@ -214,9 +214,26 @@ def im_zug(monkeypatch, freigeschaltet):
     return SimpleNamespace(speicher=sp, ablage=ab, gestartet=gestartet, staende=staende)
 
 
-def _starte(state):
+def _starte(state, *, freigeben: bool = True):
+    """Den Ablauf starten. Paket N4: zeigt der Start die Freigabe-Box (ein Schritt mit
+    ``repo_schreibt`` über den MCP), gibt ``freigeben`` sie gleich frei — die Tests vor N4 starteten
+    im selben Zug; die Reihenfolge der MCP-Aufrufe (Vorschau, dann Bestätigung) bleibt gleich."""
     anfrage = _req(action=zug.AKTION, action_params={"ablauf": "lesen"})
-    return asyncio.run(zug.starten(_S(), anfrage, state))
+    antwort = asyncio.run(zug.starten(_S(), anfrage, state))
+    return _freigeben(state, antwort) if freigeben else antwort
+
+
+def _freigeben(state, antwort):
+    """Paket N4: „Freigeben“ der Box in ``antwort`` — ohne Box die Antwort selbst."""
+    from boerdi.services.ablauf import auftrag_freigabe_zug
+
+    boxen = [b.daten["freigabe"] for b in (antwort.ui.ui_bloecke if antwort.ui else [])
+             if b.modul == "ui_inhaltsrahmen" and "freigabe" in b.daten]
+    if not boxen:
+        return antwort
+    anfrage = _req(action=auftrag_freigabe_zug.AKTION_FREIGEBEN,
+                   action_params={"ablauf": boxen[0]["ablauf"], "id": boxen[0]["id"]})
+    return asyncio.run(auftrag_freigabe_zug.freigeben(_S(), anfrage, state))
 
 
 def _neu_starten(state, ablauf="lesen"):

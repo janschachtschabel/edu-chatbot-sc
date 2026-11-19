@@ -227,6 +227,8 @@ def test_nit_quelle_aus_inhalten_ist_ki(monkeypatch):
 
     monkeypatch.setattr(dienst, "erzeugen", erzeugen)
     monkeypatch.setattr(modul_dienst, "_ebene_eins_pruefen", nicht_beanstandet)
+    # Paket N3: die Zuordnung bettet sonst echt ein — im Test ohne Netz (keine Einbettung)
+    monkeypatch.setattr(modul_dienst, "_einbetten", lambda *_a: None)
     ergebnis = asyncio.run(modul_dienst.aufruf(
         katalog()["ui_strukturentwurf"], {"thema": "Zahlen", "aus_inhalten": True},
         Umgebung(teile=teile)))

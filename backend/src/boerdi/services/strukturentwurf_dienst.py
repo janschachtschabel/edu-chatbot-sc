@@ -70,7 +70,7 @@ DOKUMENT_AUSZUG: Final = 6000
 _TOKENS_KINDER: Final = 1600
 #: Felder der Block-Daten, die aus einer Vorlage übernommen werden (ohne die Antwort-Merker).
 _WURZEL_FELDER: Final = ("titel", "quelle", "thema", "fach", "bildungsstufe", "wurzel_wlo_id",
-                         "gekuerzt", "quelle_block", "knoten")
+                         "gekuerzt", "quelle_block", "knoten", se.RESTE)
 
 #: (Nachrichten, max_tokens, frist_s, platz_frist_s) → geparstes JSON; wirft bei jedem Fehler.
 LlmJson = Callable[[list[dict[str, Any]], int, float, float], Awaitable[Any]]

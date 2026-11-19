@@ -170,6 +170,10 @@ class Ausgabe:
     #: Zweites Review TG-2 (MAJOR 1): Teile, die eine gewählte Schnellantwort verwirft
     #: (``verwirft``) — der Aufrufer entfernt sie aus dem Vorgang, VOR den ``neue_teile``.
     verworfen: list[str] = field(default_factory=list)
+    #: Paket N4: die vorgelegte Freigabe eines schreibenden Auftrags ``{flow, erst, token,
+    #: laeuft_ab, eintraege, probleme, schritt, id}`` — der Aufrufer merkt den Schlüssel in der
+    #: Sitzung und zeigt die Box (``auftrag_freigabe.merken``), nie dem Modell.
+    auftrag_freigabe: dict[str, Any] | None = None
 
 
 #: Ein beendeter Lauf (für Leiste, Zug und Prüfungen — eine Stelle, Kleinigkeit 9 des zweiten
@@ -471,7 +475,23 @@ async def _rechne_schritte(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                 # MCP (mit der Anmeldung der Person) — der ist hier nicht da
                 aus.texte.append(_teil_text(umgebung.sprache, "action.ablauf.auftragNurUeberWlo"))
                 starte = None
-            job = (None if fehlt or starte is None
+            # Paket N4: ein Schritt mit ``repo_schreibt`` über den MCP legt erst vor (Freigabe-Box)
+            vorlegen = getattr(starte, "vorlegen", None) if s.repo_schreibt else None
+            vorlage = (await vorlegen(s.flow or "", args, s.aufteilen)
+                       if not fehlt and callable(vorlegen) else None)
+            if vorlage is not None and vorlage.ausfall is None:
+                kennung = secrets.token_hex(6)
+                aus.auftrag_freigabe = {
+                    "flow": s.flow or "", "erst": vorlage.erst, "token": vorlage.token,
+                    "laeuft_ab": vorlage.laeuft_ab, "eintraege": vorlage.eintraege,
+                    "probleme": vorlage.probleme, "schritt": s.id, "id": kennung}
+                lauf.update(status=WARTET_FREIGABE, freigabe_id=kennung,
+                            freigabe_args=vorlage.args)
+                return aus
+            if vorlage is not None and not vorlage.fehler and vorlage.probleme:
+                aus.texte.append(_teil_text(umgebung.sprache, "action.ablauf.auftragFreigabeKeins",
+                                            n=len(vorlage.probleme)))
+            job = (None if fehlt or starte is None or vorlage is not None
                    else await starte(s.flow or "", stuecke[0]))
             # Plan 2026-11-16, Durchtest TG-7 (m5): hat die b-api abgewiesen, sagt die Naht
             # warum (``auftrag_zug._Starter.hinweis``) — vor dem Text des Ersatzwegs. Paket K1:
@@ -490,24 +510,7 @@ async def _rechne_schritte(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
                     # gleich noch einmal
                     fehler, naechster = False, frage
             else:
-                # Der Text erst nach dem Start — ein abgewiesener Auftrag kündigt nichts an.
-                if text := _text(s, umgebung.sprache):
-                    text = await _einsetzen(aus, text, teile, lauf, ablauf, umgebung.sprache)
-                    aus.texte.append(text)
-                if stapel is not None:
-                    # Review R1, NIT 8: dass es mehrere Teile werden, steht gleich am Anfang
-                    aus.texte.append(_teil_text(umgebung.sprache, "action.ablauf.auftragTeile",
-                                                n=stapel["n"]))
-                if satz:
-                    aus.texte.append(satz)
-                aus.auftrag = {"flow": s.flow or "", "job_id": job, "schritt": s.id}
-                if (block := _fortschritt(ablauf.id, job, text, umgebung.sprache)) is not None:
-                    aus.bloecke.append(block)
-                lauf["status"] = WARTET_AUFTRAG
-                # Paket R1: mehrere Teile — der Stapel zählt, „Stand prüfen“ startet den nächsten
-                lauf.pop(auftrag_teile.STAPEL, None)
-                if stapel is not None:
-                    lauf[auftrag_teile.STAPEL] = stapel
+                await _gestartet(aus, ablauf, s, job, stapel, satz, teile, umgebung.sprache)
                 return aus
         elif s.typ == "verzweigung":
             naechster = await _waehle(s, teile, list(lauf.get("gewaehlt") or []),
@@ -934,6 +937,64 @@ def _rueckfrage(ablauf: AblaufArea, schritt_id: str) -> str | None:
                  and any(o.ziel == schritt_id for o in v.optionen or [])), None)
 
 
+async def _gestartet(aus: Ausgabe, ablauf: AblaufArea, s: Schritt, job: str,
+                     stapel: dict[str, Any] | None, satz: str | None, teile: Any,
+                     sprache: str) -> None:
+    """Der Auftrag läuft: Text, Fortschritt, ``wartet_auftrag`` und der Stapel — beim Start und
+    nach der Freigabe (Paket N4) gleich."""
+    lauf = aus.lauf
+    # Der Text erst nach dem Start — ein abgewiesener Auftrag kündigt nichts an.
+    if text := _text(s, sprache):
+        text = await _einsetzen(aus, text, teile, lauf, ablauf, sprache)
+        aus.texte.append(text)
+    if stapel is not None:
+        # Review R1, NIT 8: dass es mehrere Teile werden, steht gleich am Anfang
+        aus.texte.append(_teil_text(sprache, "action.ablauf.auftragTeile", n=stapel["n"]))
+    if satz:
+        aus.texte.append(satz)
+    aus.auftrag = {"flow": s.flow or "", "job_id": job, "schritt": s.id}
+    if (block := _fortschritt(ablauf.id, job, text, sprache)) is not None:
+        aus.bloecke.append(block)
+    lauf["status"] = WARTET_AUFTRAG
+    # Paket R1: mehrere Teile — der Stapel zählt, „Stand prüfen“ startet den nächsten
+    lauf.pop(auftrag_teile.STAPEL, None)
+    if stapel is not None:
+        lauf[auftrag_teile.STAPEL] = stapel
+
+
+async def weiter_nach_freigabe(ablauf: AblaufArea, lauf: dict[str, Any], umgebung: Umgebung,
+                               job: str | None, satz: str | None = None, *,
+                               zurueck: bool = False) -> Ausgabe | None:
+    """Paket N4: die Freigabe des wartenden Auftragsschritts ist entschieden — ``job`` gestartet
+    (wie ein Start, mit den freigegebenen Argumenten als Stapel) oder ``None`` (abgebrochen bzw.
+    nicht gestartet: ``satz``, dann ``bei_fehler``). ``zurueck`` (vorübergehend, etwa 429 ohne
+    offenen Ausgang): wie beim Start zurück an die Rückfrage davor, wenn es eine gibt. ``None``,
+    wenn der Lauf dort nicht wartet."""
+    i = _am_freigabe_schritt(ablauf, lauf)
+    if i is None or ablauf.schritte[i].typ != "auftrag":
+        return None
+    s = ablauf.schritte[i]
+    args = lauf.get("freigabe_args") if isinstance(lauf.get("freigabe_args"), dict) else {}
+    neu = {**lauf, "status": "laeuft", "freigabe_id": None}
+    neu.pop("freigabe_args", None)
+    if job is None:
+        frage = _rueckfrage(ablauf, s.id) if zurueck else None
+        if not s.bei_fehler and frage is None:
+            neu["status"] = "fehler"
+            return Ausgabe(lauf=neu, texte=[satz] if satz else [], fehler=s.id)
+        index = {x.id: n for n, x in enumerate(ablauf.schritte)}
+        aus = await _rechne(ablauf, neu, index[frage or s.bei_fehler or ""], umgebung)
+        if satz:
+            aus.texte.insert(0, satz)
+        return aus
+    stuecke = (auftrag_teile.teilen(args, s.aufteilen.argument, s.aufteilen.hoechstens)
+               if s.aufteilen is not None else [args])
+    stapel = auftrag_teile.neuer_stapel(args, len(stuecke)) if len(stuecke) > 1 else None
+    aus = Ausgabe(lauf=neu)
+    await _gestartet(aus, ablauf, s, job, stapel, satz, _Teile(umgebung.teile), umgebung.sprache)
+    return aus
+
+
 def _starter_fuer(starte: Any, s: Schritt) -> Any:
     """Review A4/A7: der Starter für diesen Schritt — der Träger hängt an ``repo_schreibt``
     (``auftrag_zug._Wahl.fuer``). Eine Naht ohne Wahl (Trockenlauf, Simulation) gilt so."""
@@ -1036,7 +1097,11 @@ def _am_freigabe_schritt(ablauf: AblaufArea, lauf: dict[str, Any]) -> int | None
         return None
     index = {s.id: i for i, s in enumerate(ablauf.schritte)}
     i = index.get(str(lauf.get("schritt")))
-    if i is None or not schreibt_mit_freigabe(ablauf.schritte[i]):
+    if i is None:
+        return None
+    s = ablauf.schritte[i]
+    # Paket N4: auch ein Auftrag mit ``repo_schreibt`` wartet an seiner Freigabe-Box
+    if not schreibt_mit_freigabe(s) and not (s.typ == "auftrag" and s.repo_schreibt):
         return None
     return i
 
@@ -1057,7 +1122,7 @@ async def weiter_freigabe(ablauf: AblaufArea, lauf: dict[str, Any], ergebnis: di
     vom Server abgelehnt (``None``: ``bei_fehler``, sonst Ende mit Fehler, FS-8). ``None``, wenn der
     Lauf dort nicht wartet. Das Ergebnis wird Teil ``schreibt``."""
     i = _am_freigabe_schritt(ablauf, lauf)
-    if i is None:
+    if i is None or ablauf.schritte[i].typ == "auftrag":     # N4: :func:`weiter_nach_freigabe`
         return None
     s = ablauf.schritte[i]
     index = {x.id: n for n, x in enumerate(ablauf.schritte)}
