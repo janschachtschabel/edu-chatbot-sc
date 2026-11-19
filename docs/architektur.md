@@ -15,8 +15,10 @@ Quelltext erhoben; Fundstellen stehen in Klammern.
 | Bauplan/Spezifikation (Quelle der Wahrheit) | [`plans/2026-07-10-boerdi-chat-neubau.md`](plans/2026-07-10-boerdi-chat-neubau.md) |
 | Widget in fremde Seiten einbetten | [`browser-plugin-einbindung.md`](browser-plugin-einbindung.md) · [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) |
 | Agent-Schleife | [`agent-modus.md`](agent-modus.md) |
+| b-api-Betrieb: Delegation, Admin-Liste, Kestra über den MCP | [`b-api-betrieb.md`](b-api-betrieb.md) |
+| Abläufe (Auftragsschritte, Warten auf Kestra) | [`ablaeufe.md`](ablaeufe.md) |
 | UI-Module: Prinzip, Aufbau, neues Modul ergänzen | [`ui-module.md`](ui-module.md) |
-| Interaktive Grafiken: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [Bilder (PNG)](architektur-grafiken/png/) · [Übersicht und Quellen](architektur-grafiken/README.md) |
+| Interaktive Grafiken: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus, UI-Module, Datenstrom vom Upload bis Kestra | [Bilder (PNG)](architektur-grafiken/png/) · [Übersicht und Quellen](architektur-grafiken/README.md) |
 | Master-Skill (Vorgehen, Zielgruppen, Suchdisziplin, 30 Anwendungsfälle) | [`skills/vorgehen.md`](skills/vorgehen.md) |
 | Eingefrorener HTTP-Vertrag | [`api/openapi-v1.json`](api/openapi-v1.json) |
 
@@ -286,6 +288,14 @@ Der Zugang zum WLO-Bestand. Kein eigener Index, keine Kopie des Repositoriums.
 | `tool_cache.py` | Ergebnis-Zwischenspeicher mit Frist je Werkzeug (Aufrufer im Schlüssel); schreibende Werkzeuge, die Dublettenprüfung per Adresse und Teilantworten (`missing`) nie |
 | `parsers/` | Antworten lesen: Karten, Themenseiten, Skill-Registry, JSON-Scan |
 | `auth.py` | Zugangsblock je Zug (persönliche Anmeldung) |
+| `faehigkeiten.py` | Was der Server führt (aus `tools/list`, alle 5 Minuten, nach „unbekanntes Werkzeug“ sofort): `kennt_werkzeug` entscheidet etwa, ob Stapel-Ablage und Flow-Werkzeuge da sind |
+
+Zwei Aufrufwege laufen **ohne Modell**, direkt über den Transport mit dem Zugangsblock des Zuges
+und nur mit bestätigter Anmeldung: die Stapel-Ablage des Upload-Felds
+(`services/ablage/mcp_ablage.py`: `wlo_prepare_file_batch` … `wlo_store_batch_manifest`) und die
+Kestra-Flows der Abläufe (`services/auftraege/mcp_starter.py`: `wlo_start_flow`,
+`wlo_flow_status`, `wlo_cancel_flow`, §5.8). Sie stehen in der Werkzeugliste des Servers
+(`seeds/05-knowledge/mcp-servers.yaml`), aber nie im Modellkatalog.
 
 Zwei Muster prägen das Verhalten: **spekulativer Vorabruf** (`prefetch.py`
 startet eine Suche parallel zur Klassifikation, damit die Antwort nicht wartet)
@@ -388,10 +398,14 @@ einem Bild:
             ▲                                   ▲
             └────────────┬──────────────────────┘
                     MCP-Server  (Streamable HTTP, ein Aufrufweg: call_mcp_tool)
-                         ▲                     ▲
-   BACKEND ──────────────┘   Zugangsblock je Zug: anonym ODER Ticket → EDU-TICKET
-      │
-      └── LLM-Aufrufe ─▶  B-API  (Chat · Embeddings · je nach Modus Speech/Moderation)
+                         ▲                     ▲      │ Flow-Werkzeuge (Paket K)
+   BACKEND ──────────────┘   Zugangsblock je Zug     ▼
+      │                      (anonym ODER Person)   Repository-Proxy /rest/bapi/**
+      │                                             (Assertion für die Person)
+      │                                                   │
+      └── LLM-Aufrufe ─▶  B-API  ◀────────────────────────┘ Jobs → Kestra
+          (Chat · Embeddings · je nach Modus Speech/Moderation;
+           hinter dem b-api-Proxy mit dem Delegations-Token bdt_ des Zuges)
 ```
 
 ### 5.1 Inhalte lesen
@@ -479,14 +493,19 @@ Stapel-Werkzeuge, nie über das Modell. Was eine Einbettung davon darf, begrenzt
 (`read-only` · `curate` · `full`) — die Grenze steht zusätzlich im Systemprompt,
 damit das Modell nichts verspricht, was es nicht ausführen kann.
 
-**Der Weg der Bytes** (Pakete U3-1 … U3-3, Abschluss U3-5):
+**Der Weg der Bytes** (Pakete U3-1 … U3-3, Abschluss U3-5; seit Paket U ein Upload-Weg, §5.9):
 
-- Einen Ordner erfasst `ui_upload` **im Browser**. Es geht nichts hinaus außer den Ordnernamen und Zahlen der
+- Einen Ordner erfasst `ui_upload` **im Browser**. Danach fragt das Feld „Wo sollen sie verarbeitet
+  werden?“. „Nur Namen senden“ schickt nichts hinaus außer den Ordner- und Dateinamen und Zahlen der
   Antwort.
-- Ein markiertes Strukturdokument geht einzeln an `POST /api/ui/dokumente`. Die Umwandlung läuft im
-  Kindprozess mit Moderation; im Chat bleibt nur der Text, bis 24 Stunden nach der letzten Nutzung (`dokument_uploads`).
-- Übertragen nach WLO nur per Klick im Modul, nach einer Vorschau und mit bestätigter Anmeldung:
-  `POST /api/ui/ablage/*`, dann der MCP mit Stapel-Freigabe, dann der persönliche Bereich (Vorgangs-Ordner).
+- **Hier im Chat:** jede lesbare Datei (pdf, docx, txt, md) einzeln an `POST /api/ui/dokumente` mit
+  `rolle` (`inhalt` | `struktur`). Die Umwandlung läuft im Kindprozess mit Moderation; im Chat bleibt
+  nur der Text, bis zu `aufbewahrung_h` nach der letzten Nutzung (`dokument_uploads`). Inhalte bekommen
+  dazu Kurzangaben per LLM (§5.9). Die Grenzen je Sitzung setzt das Studio
+  (`lokal_max_dateien`, `lokal_max_mb_gesamt`).
+- **In WLO ablegen und erschließen:** nur per Klick im Modul, nach einer Vorschau und mit bestätigter
+  Anmeldung: `POST /api/ui/ablage/*`, dann der MCP mit Stapel-Freigabe, dann der persönliche Bereich
+  (Vorgangs-Ordner). Die Metadaten erzeugt danach ein Kestra-Flow über den MCP (§5.8).
   Das Modell sieht dabei weder Dateien noch Schlüssel.
 - Den Abgleich eines Entwurfs mit einer WLO-Sammlung (`ui_strukturabgleich`, U4/U5) rechnet der Dienst ohne
   LLM aus `browse_collection_tree` (zwei Ebenen) oder, wenn der Server es führt, aus
@@ -501,6 +520,10 @@ edu-sharing-Seite ihr **Ticket** durch (Widget-Attribut `ticket` →
 die angemeldete Person — Rechte, Vorschläge und Schreibzugriffe laufen unter
 ihrem Konto. Das Backend braucht dafür keine Sonderwege; der Zugangsblock reist
 je Zug mit (`services/mcp/auth.py`). Details: `edu-sharing-einbindung.md` §3.
+
+Die b-api kennt die Person nicht über den Chatbot: `X-Edu-User-Id` ist abgeschafft (Paket D). Für
+die b-api bürgt nur das Repository, über seinen Proxy `/rest/bapi/**`, und dorthin kommt nur der
+MCP mit der Anmeldung der Person (§5.8). Die ganze Kette: [`mcp-und-anmeldung.md`](mcp-und-anmeldung.md) §1a.
 
 ### 5.6 B-API — die LLM-Versorgung
 
@@ -535,6 +558,17 @@ Modell nennen — ohne eigenes Modell SIND sie das Chat-Modell und folgen der Ro
 `LLM_CHAT_MODEL` (`llm_router.antwort_modell`), auch wenn die Route auf ihre Reserve
 auswich (deren Preis ist von außen nicht erkennbar). Vorgabe ist `B_API_ROUTE` leer.
 
+**Delegations-Token (Paket D, 2026-11-18).** Mit dem Proxy-Eintrag `forwardDelegation`
+trägt jede Anfrage statt eines Schlüssels `Authorization: Bearer bdt_…`: ein verschlüsseltes
+Token der b-api, gültig nur, solange die eingehende Anfrage läuft, für LLM und lesende
+Repository-Pfade, nicht für Jobs. `services/llm_auth.zug_art()` erkennt es (`delegation`); der
+Chatbot reicht es bei jedem b-api-Aufruf des Zuges unverändert durch und fällt **nie** auf
+`B_API_KEY` zurück — ein unbrauchbares oder beendetes Token ergibt `KeinDelegationsToken`, keinen
+Aufruf. Legt der Client im Strom auf, endet der Zug vor dem nächsten b-api-Aufruf und speichert,
+was da ist. Betriebsarten, Admin-Liste und Fehlerzuordnung: [`b-api-betrieb.md`](b-api-betrieb.md).
+Der Absatz unten beschreibt die ältere Form mit `forwardApiKey` (Art `schluessel`), die der
+Chatbot weiter annimmt.
+
 **Schlüssel des Aufrufers (Paket 17).** Läuft der Chatbot hinter dem b-api-Proxy
 (`/api/v1/proxy/badboerdichat/…`, `forwardApiKey`), trägt jede Anfrage
 `Authorization: Bearer <key>` — den Schlüssel, den edu-sharing für Person oder Gast
@@ -543,7 +577,7 @@ wählt. Chat, Chat-Stream, Agent und Sprache übernehmen ihn (`api/turn_auth`,
 Nebenaufgaben, die den Kontext erben) gehen mit genau diesem einen Kopf hinaus, die
 b-api bucht auf ihn. Ohne Kopf gilt `B_API_KEY` — so laufen Direktaufrufe und alle
 Hintergrundläufe (Eval, Lasttest, RAG-Import, Vorwärmung). Nur `Bearer <sichtbare
-ASCII-Zeichen>` gilt; ein anderer Wert wird gemeldet (ohne Wert) und verworfen. Der
+ASCII-Zeichen>` gilt (8 bis 8192 Zeichen seit Paket D); ein anderer Wert wird gemeldet (ohne Wert) und verworfen. Der
 Studio-Proxy reicht `Authorization` nie durch. `X-API-KEY` geht seit Paket 17 nicht
 mehr hinaus (b-api: ein zusätzlicher ungültiger Kopf → 401). **Die Schlüssel gehören
 zu einem Deployment:** `B_API_BASE_URL` muss das Deployment nennen, dessen Proxy sie
@@ -573,6 +607,57 @@ Umgebung (`B_API_KEY_*`), nie im Code oder in Logs.
 | Browser-Erweiterung | dasselbe Element, CORS-Regel für Extension-Origins | `browser-plugin-einbindung.md` |
 | Maschinelle Aufträge | `POST /api/agent` — Anweisung rein, Text + JSON nach eigenem Schema raus | `agent-modus.md` |
 | Seitenkontext | Widget erkennt Sammlung/Inhalt/Themenseite, Backend begrüßt kontextbezogen (`page_context`, Kontext-Aktionen) | `edu-sharing-einbindung.md` §6 |
+
+### 5.8 Kestra-Flows über den MCP (Paket K)
+
+Lange, asynchrone Arbeit — heute die Erschließung abgelegter Dateien mit
+`edusharing.chatbot/node-metadata-write` — läuft als Kestra-Flow hinter der b-api. Der Chatbot
+**steuert** (wann, welcher Flow, Zustimmung), der **MCP startet**:
+
+```
+Ablauf-Schritt auftrag (repo_schreibt)
+  └─ services/auftraege/mcp_starter.starten
+       └─ MCP wlo_start_flow  (Vorschau, dann Bestätigung; Zugangsblock der Person)
+            └─ Repository-Proxy {WLO_REPOSITORY_URL}/rest/bapi/api/v1/jobs/…
+                 (eigener Schlüssel des Repositorys + signierte Assertion für die Person)
+                 └─ b-api /api/v1/jobs → Kestra-Job mit eigenem bapi_token
+                      └─ schreibt Titel, Beschreibung, Schlagworte, Fach, Stufe … an die Knoten
+```
+
+- **Träger je Schritt** (`services/ablauf/auftrag_zug.traeger`): ein Schritt mit `repo_schreibt`
+  nur über den MCP, auch bei Delegation; ohne `repo_schreibt` der Direktweg der b-api, aber nur mit
+  dem Schlüssel der Person und ohne Delegation (`llm_auth.darf_jobs`). Ohne Anmeldung kein Auftrag.
+- **Ob der MCP es kann**, sagt `faehigkeiten.kennt_werkzeug`. Nach einem Neustart des MCP fehlen
+  die Werkzeuge kurz; waren sie vor höchstens 10 Minuten da, heißt es „gleich noch einmal“ statt
+  Ersatzweg.
+- **Warten:** Der Lauf hält am Auftragsschritt (`wartet_auftrag`), `ui_fortschritt` fragt
+  `POST /api/ui/auftrag/stand` (über `wlo_flow_status`) und zeigt „k von n fertig“. Bei
+  `warten: gesperrt` ist die Eingabe gesperrt, mit „Stand prüfen“, „Später weitermachen“ und
+  „Auftrag abbrechen“ (`wlo_cancel_flow`). Einzelheiten: [`ablaeufe.md`](ablaeufe.md).
+- **Ergebnis:** Die Metadaten stehen an den Datensätzen; der nächste Schritt liest sie
+  (`metadaten_lesen` → Teil `metadaten`, aus WLO gelesen). `outcomeOpen` und `unknown_job` sind kein
+  Grund für einen zweiten Start. Die jobId steht nur in `vorgang_auftraege.job_id`.
+- Betrieb, Einstellungen am MCP und Fehlerzuordnung: [`b-api-betrieb.md`](b-api-betrieb.md) §5.
+
+### 5.9 Ein Upload-Weg, ein Datenstrom aus Teilen (Paket U)
+
+Ergebnis jedes Uploads sind **Teile im Vorgang**, die ihre Herkunft tragen (`quelle`: `chatbot`, `wlo`, `dateinamen`; aus WLO gelesene Metadaten erkennt man am fehlenden `quelle: chatbot`). Abläufe, freier Chat
+(`dokument_lesen`, `[ARBEITSSTAND]`) und Werkzeuge greifen nur darauf zu; das Upload-Feld kennt kein
+Ziel.
+
+| Ort im Feld | Was geschieht | Teile |
+|---|---|---|
+| Hier im Chat | `POST /api/ui/dokumente` je Datei: Umwandlung, Moderation; bei Inhalten Kurzangaben per LLM über den moderierten Anfang (≤ 4000 Zeichen: Titel, Beschreibung, Schlagworte, ggf. Fach/Stufe; `services/dokumente/inhalt_angaben.py`) | `struktur`/`structure`, `strukturdokument` (`quelle: chatbot`), `metadaten` (`quelle: chatbot`, `services/dokumente/metadaten_lokal.py`) |
+| In WLO ablegen und erschließen | Stapel-Ablage über den MCP, danach der Metadaten-Flow (§5.8), dann `metadaten_lesen` | `struktur`/`structure`, `ablage`, `strukturdokument` (`quelle: wlo`, Verweis auf den Knoten), `metadaten` (aus WLO gelesen, `metadaten_lesen`) |
+| Nur Namen senden | nichts hochgeladen | `struktur`/`structure`; ein Ablauf kann daraus `metadaten` aus den Dateinamen machen (`inhalte_aus_dateien`, `quelle: dateinamen`) |
+
+Die Orte rechnet das Backend im Zug (`ui_module/upload_orte.orte`): angemeldet mit Ablage und
+Flow-Träger ist „In WLO“ vorgewählt, ohne Anmeldung „Hier im Chat“ bis zur Grenze. Die Teile prüft
+bzw. rechnet der Server beim Speichern selbst (`arbeitsstand_teile`, `arbeitsstand._speichern`);
+Angaben des Browsers gelten nie. Geht ein hier gelesener Inhalt (Löschen, Frist, „Arbeitsstand
+löschen“), fallen seine Einträge in `metadaten` auf „nur Name“ zurück. Vertrag und Bedienung:
+[`ui-module.md`](ui-module.md) §6 „Ein Upload-Weg“; Grafik:
+[Datenstrom (PNG)](architektur-grafiken/png/datenstrom-upload-kestra.png).
 
 ---
 

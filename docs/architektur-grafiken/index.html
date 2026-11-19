@@ -70,9 +70,9 @@
 <main>
   <h1>boerdi-chat — Technik im Überblick</h1>
   <p class="einleitung">
-    Der Chatbot von WirLernenOnline (WLO) in sieben interaktiven Grafiken: woraus er besteht,
+    Der Chatbot von WirLernenOnline (WLO) in acht interaktiven Grafiken: woraus er besteht,
     welche Bibliotheken darin stecken, wie UI-Module eingebunden werden, wie ein Zug in den beiden
-    Betriebsarten abläuft und welche Einstellungen ihn dabei lenken. Jede Grafik lässt sich zoomen, auf einzelne Bausteine
+    Betriebsarten abläuft, wie hochgeladene Dateien zu Daten werden und welche Einstellungen ihn dabei lenken. Jede Grafik lässt sich zoomen, auf einzelne Bausteine
     fokussieren und exportieren.
   </p>
   <section aria-labelledby="aufbau">
@@ -82,8 +82,9 @@
         <a href="architektur.html">
           <h3>Architektur</h3>
           <p>Widget, Studio, Backend mit LangGraph-Zuggraph, PostgreSQL mit pgvector,
-            LLM über die b-api (Proxy, Router-Route), interner Port für Proben und Metriken,
-            WLO-MCP-Server und edu-sharing.</p>
+            LLM über die b-api (Proxy mit Delegations-Token, Router-Route), interner Port für
+            Proben und Metriken, WLO-MCP-Server mit Flow-Werkzeugen, Repository-Proxy
+            <code>/rest/bapi</code>, Kestra-Jobs und edu-sharing.</p>
         </a>
       </li>
       <li>
@@ -97,8 +98,8 @@
         <a href="ui-module-einbindung.html">
           <h3>UI-Module: Einbindung und Nutzung</h3>
           <p>Vom Modul-Ordner über das Register zum Werkzeug der KI, zur Ableitung an der
-            API-Grenze und zum Block im Widget; Host je Block, Antwortweg, Datenquelle, Studio
-            und Evaluation.</p>
+            API-Grenze und zum Block im Widget; Host je Block, Antwortweg, Datenquelle, Hochladen
+            im Upload-Feld, Studio und Evaluation.</p>
         </a>
       </li>
     </ul>
@@ -118,6 +119,14 @@
           <h3>Ablauf in der Agent-Schleife</h3>
           <p>Sicherheitsprüfung, Schutz-Umleitung, Master-Skill, LLM-Runden mit dem vollen
             Werkzeug-Katalog (auch weiterer MCP-Server), Token-Streaming und Abschluss.</p>
+        </a>
+      </li>
+      <li>
+        <a href="datenstrom-upload-kestra.html">
+          <h3>Datenstrom: vom Upload bis Kestra</h3>
+          <p>„Wo verarbeiten?“: hier im Chat (Umwandlung, Moderation, Kurzangaben) oder in WLO
+            (Stapel-Ablage, Kestra-Flow über den Repository-Proxy, <code>metadaten_lesen</code>);
+            am Ende Teile im Vorgang für Abläufe, freien Chat und Werkzeuge.</p>
         </a>
       </li>
     </ul>
@@ -143,7 +152,7 @@
   </section>
   <footer>
     <p>Stand 20. Oktober 2026, erzeugt mit archify aus dem Quellstand <code>2a589a6</code>;
-      die Grafik zu den UI-Modulen vom 3. November 2026 aus <code>e7f10c0</code>.
+      Architektur, UI-Module und Datenstrom vom 19. November 2026 aus <code>81d66f6</code>.
       Die Quell-Links in den Grafiken führen ins Repository <code>edu-chatbot-sc</code>.</p>
   </footer>
 </main>

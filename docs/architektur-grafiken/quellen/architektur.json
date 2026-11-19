@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "boerdi-chat — Architektur: Widget, Studio, Backend, MCP, b-api",
+    "title": "boerdi-chat — Architektur: Widget, Studio, Backend, MCP, b-api, Kestra",
     "locale": "de",
     "translations": {
       "page.title": "{title} Diagramm",
@@ -435,7 +435,7 @@
       "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
       "provider": "github",
       "link_mode": "web",
-      "revision": "2a589a6e5014ede17e947407a01e82f7cef0e500"
+      "revision": "81d66f6d0251f95256a57fd9b1be667bfaad18ae"
     }
   },
   "components": [
@@ -446,7 +446,7 @@
       "sublabel": "Browser auf einer WLO-Seite",
       "pos": [
         40,
-        230
+        420
       ],
       "size": [
         160,
@@ -460,7 +460,7 @@
       "sublabel": "Browser",
       "pos": [
         40,
-        450
+        640
       ],
       "size": [
         160,
@@ -474,7 +474,7 @@
       "sublabel": "Angular-Element <boerdi-chat>",
       "pos": [
         254,
-        230
+        420
       ],
       "size": [
         200,
@@ -489,13 +489,13 @@
         },
         {
           "path": "frontend/projects/ui/src/stream/chat-api.ts",
-          "line": 378,
-          "end_line": 389,
+          "line": 475,
+          "end_line": 489,
           "label": "SSE-Zug"
         },
         {
           "path": "backend/src/boerdi/api/widget.py",
-          "line": 118,
+          "line": 131,
           "label": "Bundle /widget"
         }
       ]
@@ -507,7 +507,7 @@
       "sublabel": "Angular-SPA unter /studio",
       "pos": [
         254,
-        450
+        640
       ],
       "size": [
         200,
@@ -534,7 +534,7 @@
       "sublabel": "TLS · Lastverteilung",
       "pos": [
         540,
-        230
+        420
       ],
       "size": [
         150,
@@ -544,19 +544,19 @@
         {
           "path": "deploy/compose.prod.yml",
           "line": 27,
-          "end_line": 52,
+          "end_line": 61,
           "label": "Dienst (Compose)"
         },
         {
           "path": "deploy/compose.prod.yml",
-          "line": 283,
-          "end_line": 287,
+          "line": 324,
+          "end_line": 328,
           "label": "Router + TLS"
         },
         {
           "path": "deploy/helm/values.example.yaml",
-          "line": 19,
-          "end_line": 31,
+          "line": 21,
+          "end_line": 37,
           "label": "Ingress (Kubernetes)"
         }
       ]
@@ -568,7 +568,7 @@
       "sublabel": "FastAPI: /api/chat · /api/agent",
       "pos": [
         802,
-        230
+        420
       ],
       "size": [
         210,
@@ -577,7 +577,7 @@
       "sources": [
         {
           "path": "backend/src/boerdi/api/chat.py",
-          "line": 275,
+          "line": 384,
           "label": "SSE-Stream"
         },
         {
@@ -602,7 +602,7 @@
       "tag": "Cookie → X-Studio-Key",
       "pos": [
         802,
-        450
+        640
       ],
       "size": [
         210,
@@ -631,7 +631,7 @@
       "tag": "Reranker optional, Vorgabe aus",
       "pos": [
         1118,
-        230
+        420
       ],
       "size": [
         230,
@@ -640,20 +640,20 @@
       "sources": [
         {
           "path": "backend/src/boerdi/graph/build.py",
-          "line": 135,
-          "end_line": 209,
+          "line": 207,
+          "end_line": 290,
           "label": "Graph-Aufbau"
         },
         {
           "path": "backend/src/boerdi/graph/nodes/respond.py",
-          "line": 97,
-          "end_line": 102,
+          "line": 119,
+          "end_line": 124,
           "label": "Maschinen-Weiche"
         },
         {
           "path": "backend/src/boerdi/settings.py",
-          "line": 247,
-          "end_line": 250,
+          "line": 344,
+          "end_line": 347,
           "label": "Reranker: Vorgabe aus, Selbstbezug"
         }
       ]
@@ -680,8 +680,8 @@
         },
         {
           "path": "backend/src/boerdi/services/llm.py",
-          "line": 144,
-          "end_line": 176,
+          "line": 151,
+          "end_line": 183,
           "label": "Anbieter-Routing"
         },
         {
@@ -700,7 +700,7 @@
       "sublabel": "Verlauf · Konfiguration · RAG · Läufe",
       "pos": [
         1118,
-        640
+        830
       ],
       "size": [
         230,
@@ -709,7 +709,7 @@
       "sources": [
         {
           "path": "backend/src/boerdi/db/models.py",
-          "line": 274,
+          "line": 288,
           "label": "Vektor-Spalte"
         },
         {
@@ -730,10 +730,10 @@
       "id": "mcp",
       "type": "external",
       "label": "WLO-MCP-Server",
-      "sublabel": "WLO-Werkzeuge · Streamable HTTP",
+      "sublabel": "Werkzeuge · Stapel-Ablage · Flows",
       "pos": [
         1454,
-        230
+        420
       ],
       "size": [
         220,
@@ -742,20 +742,20 @@
       "sources": [
         {
           "path": "backend/src/boerdi/settings.py",
-          "line": 203,
-          "end_line": 210,
+          "line": 259,
+          "end_line": 266,
           "label": "MCP_SERVER_URL"
         },
         {
-          "path": "backend/src/boerdi/services/mcp/transport.py",
-          "line": 117,
-          "end_line": 127,
-          "label": "Transport"
+          "path": "backend/src/boerdi/services/mcp/client.py",
+          "line": 353,
+          "label": "call_mcp_tool"
         },
         {
-          "path": "backend/src/boerdi/services/mcp/client.py",
-          "line": 238,
-          "label": "call_mcp_tool"
+          "path": "backend/seeds/05-knowledge/mcp-servers.yaml",
+          "line": 113,
+          "end_line": 126,
+          "label": "Stapel- und Flow-Werkzeuge"
         }
       ]
     },
@@ -766,7 +766,7 @@
       "sublabel": "nur lesend · server__werkzeug",
       "pos": [
         1454,
-        40
+        830
       ],
       "size": [
         220,
@@ -787,8 +787,8 @@
         },
         {
           "path": "backend/src/boerdi/services/mcp/client.py",
-          "line": 284,
-          "end_line": 287,
+          "line": 419,
+          "end_line": 424,
           "label": "Weiche"
         }
       ]
@@ -797,10 +797,10 @@
       "id": "edusharing",
       "type": "external",
       "label": "edu-sharing (WLO)",
-      "sublabel": "Inhalte · Sammlungen · Skills",
+      "sublabel": "Inhalte · Sammlungen · Ablage",
       "pos": [
         1454,
-        450
+        640
       ],
       "size": [
         220,
@@ -809,19 +809,19 @@
       "sources": [
         {
           "path": "backend/src/boerdi/services/config_loader/repo_and_cards.py",
-          "line": 60,
-          "end_line": 72,
+          "line": 61,
+          "end_line": 73,
           "label": "Repositorium"
         },
         {
           "path": "backend/src/boerdi/services/turn_assembly.py",
-          "line": 117,
+          "line": 123,
           "label": "Vorschaubilder"
         },
         {
           "path": "backend/src/boerdi/services/master_skill.py",
-          "line": 236,
-          "end_line": 248,
+          "line": 245,
+          "end_line": 257,
           "label": "Master-Skill per MCP"
         }
       ]
@@ -830,34 +830,34 @@
       "id": "bapiproxy",
       "type": "security",
       "label": "b-api-Proxy",
-      "sublabel": "badboerdichat · Bearer je Zug",
+      "sublabel": "badboerdichat · Delegation bdt_",
       "pos": [
         520,
-        40
+        230
       ],
       "size": [
         190,
         64
       ],
-      "tag": "B_API_KEY_MODE: auto · static · forward",
+      "tag": "nie Rückfall auf B_API_KEY",
       "sources": [
         {
           "path": "backend/src/boerdi/services/llm_auth.py",
           "line": 1,
-          "end_line": 16,
-          "label": "Schlüssel des Zuges"
+          "end_line": 23,
+          "label": "Delegations-Token des Zuges"
+        },
+        {
+          "path": "backend/src/boerdi/services/llm_auth.py",
+          "line": 129,
+          "end_line": 141,
+          "label": "kein Rückfall bei Delegation"
         },
         {
           "path": "backend/src/boerdi/api/turn_auth.py",
-          "line": 65,
-          "end_line": 93,
+          "line": 146,
+          "end_line": 174,
           "label": "Übernahme, forward → 401"
-        },
-        {
-          "path": "backend/src/boerdi/settings.py",
-          "line": 175,
-          "end_line": 178,
-          "label": "B_API_KEY_MODE"
         }
       ]
     },
@@ -868,7 +868,7 @@
       "sublabel": "Proben und Metriken",
       "pos": [
         802,
-        40
+        230
       ],
       "size": [
         210,
@@ -877,21 +877,90 @@
       "sources": [
         {
           "path": "backend/src/boerdi/api/intern.py",
-          "line": 78,
-          "end_line": 101,
+          "line": 86,
+          "end_line": 111,
           "label": "/health /ready /metrics"
         },
         {
           "path": "backend/src/boerdi/serve.py",
           "line": 74,
-          "end_line": 105,
+          "end_line": 96,
           "label": "Port 8100 + 8101"
         },
         {
           "path": "backend/src/boerdi/obs/metrics.py",
-          "line": 37,
-          "end_line": 56,
+          "line": 38,
+          "end_line": 64,
           "label": "Metriken"
+        }
+      ]
+    },
+    {
+      "id": "kestra",
+      "type": "cloud",
+      "label": "Kestra-Jobs der b-api",
+      "sublabel": "node-metadata-write",
+      "pos": [
+        1454,
+        40
+      ],
+      "size": [
+        220,
+        64
+      ],
+      "sources": [
+        {
+          "path": "docs/b-api-betrieb.md",
+          "line": 85,
+          "end_line": 91,
+          "label": "Rechte und Labels des Flows"
+        },
+        {
+          "path": "backend/seeds/06-ablaeufe/themenbaum.yaml",
+          "line": 250,
+          "end_line": 270,
+          "label": "Auftragsschritt metadaten"
+        },
+        {
+          "path": "backend/src/boerdi/services/auftraege/mcp_starter.py",
+          "line": 268,
+          "end_line": 295,
+          "label": "Stand über den MCP"
+        }
+      ]
+    },
+    {
+      "id": "repoproxy",
+      "type": "security",
+      "label": "Repository-Proxy",
+      "sublabel": "edu-sharing /rest/bapi/**",
+      "tag": "Assertion für die Person",
+      "pos": [
+        1454,
+        230
+      ],
+      "size": [
+        220,
+        64
+      ],
+      "sources": [
+        {
+          "path": "docs/plans/2026-11-17-mcp-wuensche-b-api-flows.md",
+          "line": 10,
+          "end_line": 20,
+          "label": "Repository bürgt für die Person"
+        },
+        {
+          "path": "backend/src/boerdi/services/auftraege/mcp_starter.py",
+          "line": 1,
+          "end_line": 29,
+          "label": "Start über den MCP"
+        },
+        {
+          "path": "backend/src/boerdi/services/ablauf/auftrag_zug.py",
+          "line": 77,
+          "end_line": 102,
+          "label": "Träger je Schritt"
         }
       ]
     }
@@ -923,6 +992,14 @@
         "chatapi",
         "studioapi",
         "graph"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "b-api (Bildungs-API)",
+      "wraps": [
+        "llm",
+        "kestra"
       ]
     }
   ],
@@ -966,7 +1043,7 @@
       "id": "mcp-repo",
       "from": "mcp",
       "to": "edusharing",
-      "label": "fragt ab"
+      "label": "lesen · Stapel-Ablage"
     },
     {
       "id": "graph-fremd",
@@ -978,7 +1055,7 @@
       "id": "graph-llm",
       "from": "graph",
       "to": "llm",
-      "label": "LiteLLM: Chat · Embeddings · Moderation"
+      "label": "LLM mit bdt_ des Zuges"
     },
     {
       "id": "graph-db",
@@ -1016,7 +1093,7 @@
       "id": "proxy-traefik",
       "from": "bapiproxy",
       "to": "traefik",
-      "label": "Authorization: Bearer",
+      "label": "Bearer bdt_ (Delegation)",
       "variant": "security"
     },
     {
@@ -1024,6 +1101,29 @@
       "from": "betrieb",
       "to": "chatapi",
       "label": "8101: /ready · /metrics"
+    },
+    {
+      "id": "mcp-proxy",
+      "from": "mcp",
+      "to": "repoproxy",
+      "label": "wlo_start_flow · Stand",
+      "variant": "security"
+    },
+    {
+      "id": "proxy-kestra",
+      "from": "repoproxy",
+      "to": "kestra",
+      "label": "Jobs + Assertion",
+      "variant": "security"
+    },
+    {
+      "id": "kestra-repo",
+      "from": "kestra",
+      "to": "edusharing",
+      "label": "Metadaten",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "right"
     }
   ],
   "cards": [
@@ -1032,7 +1132,7 @@
       "title": "Wege durch das System",
       "items": [
         "Lernende: Widget → Traefik → Chat-API → Zuggraph; Antwort als SSE-Strom bis zum result-Frame",
-        "Gastanwendungen hinter dem b-api-Proxy: Der Schlüssel des Aufrufers (Authorization: Bearer) gilt für alle LLM-Aufrufe des Zuges",
+        "Gastanwendungen hinter dem b-api-Proxy (forwardDelegation): Das Delegations-Token bdt_ der Anfrage gilt für alle LLM-Aufrufe des Zuges, endet mit der Anfrage, nie Rückfall auf B_API_KEY",
         "Redaktion: Studio → Traefik → Studio-BFF (Cookie) → Admin-Routen unter /api mit X-Studio-Key",
         "Vorschaubilder der Karten lädt der Browser direkt aus edu-sharing (preview_url)"
       ]
@@ -1048,6 +1148,16 @@
       ]
     },
     {
+      "dot": "rose",
+      "title": "Kestra über den MCP",
+      "items": [
+        "Schreibende Flows (repo_schreibt) startet der WLO-MCP mit der Anmeldung der Person, nicht der Chatbot",
+        "Das Repository bürgt über /rest/bapi/** mit einer signierten Assertion; X-Edu-User-Id ist abgeschafft",
+        "Start in zwei Schritten (Vorschau, Bestätigung); bei outcomeOpen nie ein zweiter Start",
+        "Stand über wlo_flow_status (k von n), Abbruch über wlo_cancel_flow; die jobId erreicht weder Person noch Modell noch Log"
+      ]
+    },
+    {
       "dot": "violet",
       "title": "Daten und Konfiguration",
       "items": [
@@ -1056,7 +1166,8 @@
         "Je Bereich Werks- und eigene Fassung, dazu Schnappschüsse",
         "Master-Skill (Steuertext des Agenten) per MCP aus edu-sharing: ein Pod holt ihn unter Sperre, alle übernehmen den Stand per NOTIFY",
         "Lasttest- und Eval-Läufe schreiben einen Herzschlag; verwaist ist nur, wessen Herzschlag ausbleibt",
-        "Aufbewahrungslauf alle 6 h löscht nach den eingestellten Fristen"
+        "Aufbewahrungslauf alle 6 h löscht nach den eingestellten Fristen",
+        "Uploads werden Teile im Vorgang (struktur, strukturdokument, metadaten, ablage) mit ihrer Herkunft; siehe die Grafik zum Datenstrom"
       ]
     },
     {
