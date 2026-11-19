@@ -228,4 +228,50 @@ describe('<boerdi-ui-fortschritt> (K1b)', () => {
     await vi.advanceTimersByTimeAsync(5_000);
     expect(knopf(ende.wurzel, 'Auftrag abbrechen')).toBeUndefined();
   });
+
+  // Paket K6 (E16): „12 von 40 fertig“ — Text, Balken mit Wert und Ansage; ohne Zahlen wie bisher.
+  it('K6: zeigt „k von n fertig“ im Text, im Balken und in der Ansage', async () => {
+    const { wurzel } = erzeuge(host([{ stand: 'laeuft', fertig: 12, gesamt: 40 }]));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(stand(wurzel)).toBe('12 von 40 fertig');
+    const balken = wurzel.querySelector('progress') as HTMLProgressElement;
+    expect(balken.hidden).toBe(false);
+    expect(balken.getAttribute('value')).toBe('12');
+    expect(balken.getAttribute('max')).toBe('40');
+    expect(ansage(wurzel)).toBe('12 von 40 fertig');
+  });
+
+  // Durchtest Paket K (19.11.): gescheiterte zählen nicht als fertig, sie stehen daneben.
+  it('nennt Fehlschläge getrennt: „2 von 5 fertig, 1 fehlgeschlagen“', async () => {
+    const { wurzel } = erzeuge(host([{ stand: 'laeuft', fertig: 2, gesamt: 5, fehlgeschlagen: 1 }]));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(stand(wurzel)).toBe('2 von 5 fertig, 1 fehlgeschlagen');
+    // der Balken zeigt, was abgearbeitet ist (fertig und fehlgeschlagen)
+    expect((wurzel.querySelector('progress') as HTMLProgressElement).getAttribute('value')).toBe('3');
+    const en = erzeuge(host([{ stand: 'laeuft', fertig: 2, gesamt: 5, fehlgeschlagen: 1 }]), { sprache: 'en' });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(stand(en.wurzel)).toBe('2 of 5 done, 1 failed');
+  });
+
+  // Drittes Review (19.11.), NIT 8: der Balken nennt den Stand als Text (`aria-valuetext`).
+  it('der Balken trägt den Stand als aria-valuetext', async () => {
+    const { wurzel } = erzeuge(host([{ stand: 'laeuft', fertig: 2, gesamt: 5, fehlgeschlagen: 1 }]));
+    await vi.advanceTimersByTimeAsync(5_000);
+    const balken = wurzel.querySelector('progress') as HTMLProgressElement;
+    expect(balken.getAttribute('aria-valuetext')).toBe('2 von 5 fertig, 1 fehlgeschlagen');
+  });
+
+  it('K6: englisch „12 of 40 done“', async () => {
+    const { wurzel } = erzeuge(host([{ stand: 'laeuft', fertig: 12, gesamt: 40 }]), { sprache: 'en' });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(stand(wurzel)).toBe('12 of 40 done');
+  });
+
+  it('K6: ohne Fortschritt bleibt die Anzeige wie bisher (Balken ohne Wert)', async () => {
+    const { wurzel } = erzeuge(host([{ stand: 'laeuft', fertig: 12, gesamt: 40 }, { stand: 'laeuft' }]));
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(stand(wurzel)).toBe('Läuft noch …');
+    expect((wurzel.querySelector('progress') as HTMLProgressElement).hasAttribute('value')).toBe(false);
+  });
 });

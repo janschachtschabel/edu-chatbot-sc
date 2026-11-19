@@ -164,7 +164,7 @@ async def angekommen(session: Any, req: ChatRequest, session_state: dict) -> Cha
     except vorgaenge.FESTHALTEN_KONFLIKTE:
         # ein paralleler Zug hat den Lauf bewegt — der Ping bleibt still
         await session.rollback()
-        basis.nicht_festgehalten(aus)
+        await basis.nicht_festgehalten(aus)
         return _leer(req)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
     return await basis.antwort(session, req, session_state, aus, ablauf)

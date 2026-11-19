@@ -16,6 +16,8 @@
  * - `trennen()` (Element entfernt) beendet alles; eine späte Antwort ändert nichts (Lauf-Nummer).
  * - `abbrechen()` (K2b) schickt „Auftrag abbrechen“ als Zug; das Backend fragt erst nach. Das Nachfragen
  *   läuft weiter: nach dem bestätigten Abbruch antwortet `stand` mit 409 → abgeschlossen.
+ * - Paket K6 (E16): meldet der Träger „k von n fertig“ (`fertig`/`gesamt` der Antwort), steht er in
+ *   `fortschritt` — immer der der letzten Antwort; ohne Zahlen `null` (die Anzeige wie bisher).
  */
 import type { ElementHost } from '../_nachladen/element-vertrag';
 
@@ -28,6 +30,13 @@ export interface FortschrittDaten {
   readonly ablauf: string;
   readonly kuerzel: string;
   readonly text: string;
+}
+
+/** K6: „k von n fertig“ — nur Zahlen; gescheiterte getrennt (Durchtest Paket K, 19.11.). */
+export interface FortschrittZahlen {
+  readonly fertig: number;
+  readonly gesamt: number;
+  readonly fehlgeschlagen?: number;
 }
 
 export interface FortschrittUmgebung {
@@ -49,6 +58,19 @@ export function fortschrittDaten(roh: Record<string, unknown>): FortschrittDaten
   return { ablauf, kuerzel, text: typeof text === 'string' ? text : '' };
 }
 
+/** K6: die Zahlen einer Antwort — ganze Zahlen mit 0 ≤ fertig ≤ gesamt und gesamt > 0, sonst `null`.
+ *  `fehlgeschlagen` (Durchtest Paket K) nur als ganze Zahl ≥ 1 mit fertig + fehlgeschlagen ≤ gesamt —
+ *  sonst fällt nur sie weg. */
+export function fortschrittZahlen(antwort: Record<string, unknown>): FortschrittZahlen | null {
+  const { fertig, gesamt, fehlgeschlagen } = antwort;
+  if (!Number.isInteger(fertig) || !Number.isInteger(gesamt)) return null;
+  const k = fertig as number;
+  const n = gesamt as number;
+  if (!(n > 0 && k >= 0 && k <= n)) return null;
+  const m = fehlgeschlagen as number;
+  return Number.isInteger(m) && m >= 1 && k + m <= n ? { fertig: k, gesamt: n, fehlgeschlagen: m } : { fertig: k, gesamt: n };
+}
+
 export class FortschrittAblauf {
   phase: Phase = 'wartet';
   ergebnis: 'fertig' | 'fehler' | null = null;
@@ -56,6 +78,8 @@ export class FortschrittAblauf {
   zuletzt: number | null = null;
   /** Die letzte Frage kam nicht an (b-api, Netz) — es wird weiter versucht. */
   stoerung = false;
+  /** K6: „k von n fertig“ der letzten Antwort, `null` ohne Zahlen. */
+  fortschritt: FortschrittZahlen | null = null;
 
   private versuch = 0;
   private start = 0;
@@ -118,6 +142,7 @@ export class FortschrittAblauf {
     this.zuletzt = Date.now();
     this.stoerung = false;
     this.versuch++;
+    this.fortschritt = fortschrittZahlen(antwort);
     const stand = antwort['stand'];
     if (stand === 'fertig' || stand === 'fehler') {
       this.ergebnis = stand;

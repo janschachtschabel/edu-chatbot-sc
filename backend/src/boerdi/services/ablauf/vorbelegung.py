@@ -13,7 +13,9 @@ Argumente von ``ui_strukturentwurf`` selbst vor:
   „allgemein“ bzw. „für alle“ setzt nichts);
 - ``thema`` → ``thema``;
 - ``zweck``, ``publikum``, ``soll_ist`` und ``hinweise`` → je eine Zeile in ``hinweise`` (Vorsatz
-  in der Sprache des Zugs; die Hinweise der Person bekommen den übrigen Platz).
+  in der Sprache des Zugs; die Hinweise der Person bekommen den übrigen Platz);
+- Plan 2026-11-17, Paket K5 (E14): ``fach``, ``bildungsstufe`` und ``thema`` auch aus den Metadaten
+  der Strukturdokumente (:func:`_aus_strukturdokumenten`) — nach den Antworten der Person.
 
 Nur Teile, die in DIESEM Lauf beantwortet wurden (``lauf.antworten``, wie
 ``ki_schritt.daten_zeile``) — ein Neustart im selben Vorgang trüge sonst alte Antworten weiter.
@@ -39,6 +41,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Final
 
 from boerdi.domain.config_models.ablauf import Schritt
+from boerdi.ui_module import strukturentwurf
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +90,7 @@ _THEMA_ZEICHEN: Final = 200
 #: Hinweise der Person bekommen den Rest bis :data:`HINWEISE_ZEICHEN` (MINOR 6).
 _ZEILE_ZEICHEN: Final = 100
 #: Was die Vorbelegung setzen kann (auch für :func:`zeile`).
-ARGUMENTE: Final = ("thema", "bildungsstufe", "tiefe", "anzahl_oben", "hinweise")
+ARGUMENTE: Final = ("thema", "fach", "bildungsstufe", "tiefe", "anzahl_oben", "hinweise")
 #: MINOR 5: diese beiden gehören zusammen — setzt die KI eines, setzt der Ablauf keines.
 _PAAR: Final = ("tiefe", "anzahl_oben")
 #: MINOR 5: ``""`` von der KI löscht einen vorbelegten Text (``thema`` ist Pflicht, bleibt).
@@ -159,6 +162,43 @@ async def _thema_aus_daten(teile: Callable[[str], Awaitable[Any]]) -> str | None
     return thema if len(thema) >= 2 else None
 
 
+async def _aus_strukturdokumenten(teile: Callable[[str], Awaitable[Any]]) -> dict[str, str]:
+    """Paket K5 (E14): ``fach``, ``bildungsstufe`` und ``thema`` aus den Metadaten der
+    Strukturdokumente (Teil ``metadaten``, von ``metadaten_lesen``) — je der erste brauchbare
+    Wert in der Reihenfolge der Dokumente. Ein Strukturdokument ist, was der Teil ``ablage`` mit
+    Rolle ``struktur`` abgelegt führt — nie die Rolle, die ``metadaten`` selbst nennt (die Ablage
+    schreibt der Endpunkt, nicht das Modell). Materialien belegen nichts vor. Ein Lesefehler heißt
+    „nichts“."""
+    from boerdi.services.ablauf import metadaten
+
+    try:
+        ablage = await teile("ablage")
+        teil = await teile(metadaten.TEIL)
+    except Exception as fehler:  # noqa: BLE001 — ohne Vorbelegung entscheidet die KI wie bisher
+        logger.warning("Ablauf: Strukturdokumente nicht lesbar (%s)", type(fehler).__name__)
+        return {}
+    if not isinstance(ablage, dict) or not isinstance(teil, dict):
+        return {}
+    strukturen = {e.get("node_id") for e in ablage.get("inhalte") or [] if isinstance(e, dict)
+                  and e.get("rolle") == "struktur" and e.get("stand") == "stored"}
+    aus: dict[str, str] = {}
+    for e in teil.get("inhalte") or []:
+        if not isinstance(e, dict) or e.get("node_id") not in strukturen:
+            continue
+        for wert in e.get("faecher") or []:
+            if "fach" not in aus and isinstance(wert, str) and (
+                    fach := strukturentwurf.fach(_sauber(wert, strukturentwurf.FACH_ZEICHEN + 1))):
+                aus["fach"] = fach
+        for wert in e.get("stufen") or []:
+            if "bildungsstufe" not in aus and (stufe := strukturentwurf.bildungsstufe(wert)):
+                aus["bildungsstufe"] = stufe
+        titel = e.get("titel")
+        if ("thema" not in aus and isinstance(titel, str)
+                and len(thema := _sauber(titel, _THEMA_ZEICHEN)) >= 2):
+            aus["thema"] = thema
+    return aus
+
+
 def _ohne_endung(name: Any) -> str | None:
     if not isinstance(name, str):
         return None
@@ -205,6 +245,9 @@ async def vorbelegung(schritt: Schritt, teile: Callable[[str], Awaitable[Any]] |
         return {}
     aus: dict[str, Any] = {}
     zeilen: list[str] = []
+    dokumente = await _aus_strukturdokumenten(teile)
+    if fach := dokumente.get("fach"):
+        aus["fach"] = fach
     if "umfang" in werte:
         if (paar := umfang(werte["umfang"])) is not None:
             aus["tiefe"], aus["anzahl_oben"] = paar
@@ -218,8 +261,13 @@ async def vorbelegung(schritt: Schritt, teile: Callable[[str], Awaitable[Any]] |
         elif not bekannt:
             zeilen.append(f"{_vorsatz(_STUFE_VORSATZ, sprache)}: "
                           f"{_sauber(werte['stufe'], _ZEILE_ZEICHEN)}")
+    elif stufe := dokumente.get("bildungsstufe"):
+        # K5: nur ohne Antwort der Person — auch „Für alle“ (bewusst keine Stufe) geht vor
+        aus["bildungsstufe"] = stufe
     if (GRUNDLAGE in werte and _getippte_grundlage(ablauf, werte[GRUNDLAGE])
             and len(thema := _sauber(werte[GRUNDLAGE], _THEMA_ZEICHEN)) >= 2):
+        aus["thema"] = thema
+    elif thema := dokumente.get("thema"):
         aus["thema"] = thema
     elif thema := await _thema_aus_daten(teile):
         aus["thema"] = thema

@@ -119,8 +119,14 @@ def _ablage_satz(schalter: dict[str, bool]) -> str:
     """Rückmeldung 16.11. (Review m5): die Ablage ist ab Werk an — die KI soll sie nicht verneinen
     und die Voraussetzung kennen."""
     if schalter.get("ablage_in_wlo"):
-        return (" Die Person kann die erfassten Dateien im Feld in ihren persönlichen Bereich in "
-                "WLO übertragen; dort entstehen Volltexte und auf Wunsch Metadaten.")
+        # Paket K3: Metadaten erzeugt ein Flow — nur, wenn ein Träger ihn starten kann (der MCP).
+        # Die Ablage selbst hängt nicht daran.
+        from boerdi.services.ablauf import zug_basis
+
+        satz = (" Die Person kann die erfassten Dateien im Feld in ihren persönlichen Bereich in "
+                "WLO übertragen; dort entstehen Volltexte")
+        return satz + (" und auf Wunsch Metadaten." if zug_basis.wlo_erschliessen() else
+                       ". Metadaten erzeugen geht hier gerade nicht — versprich keine.")
     if schalter.get("ablage_nach_anmeldung"):
         return " Nach WLO übertragen kann sie die Dateien, wenn sie bei WLO angemeldet ist."
     return ""

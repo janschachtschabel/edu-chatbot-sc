@@ -69,7 +69,8 @@ def ist_wahl_knopf(qr: Any) -> bool:
 #: einem Plan. Kein Deckel streicht sie (``widget_postprocess``). Vorschläge wie „Ablauf starten“
 #: der KI oder „Arbeitsstand löschen“ gehören nicht dazu.
 _STEUER_AKTIONEN: Final = frozenset({
-    "ablauf_auftrag_pruefen", "ablauf_auftrag_abbrechen", "ablauf_freigabe_erneut",
+    "ablauf_auftrag_pruefen", "ablauf_auftrag_abbrechen", "ablauf_auftrag_spaeter",
+    "ablauf_freigabe_erneut",
     "ablauf_freigabe_abbrechen", "vorgang_neu", "plan_weiter", _WEITER_AKTION})
 
 

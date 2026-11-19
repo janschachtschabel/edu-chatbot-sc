@@ -76,13 +76,17 @@ def _starter(monkeypatch, code):
     monkeypatch.setattr(client, "starten", starten)
     monkeypatch.setattr(auftrag_zug, "has_personal_auth", lambda: True)
     monkeypatch.setattr(auftrag_zug, "darf_jobs", lambda: True)
-    starte = auftrag_zug.starter()
+    # Review A4: ein lesender Flow geht den Direktweg (der Starter je Schritt)
+    starte = auftrag_zug.starter().fuer(False)
     assert asyncio.run(starte("f/x", {})) is None
     return starte
 
 
 @pytest.mark.parametrize(("code", "de", "en"), [
-    ("EDU_USER_REQUIRED", "gerade nicht möglich", "not possible right now"),
+    # Zweites Review K (Z1): auf dem Direktweg erkennt die b-api nie eine Person — neu anmelden
+    # hilft dort nicht; der Satz verweist auf den WLO-Dienst (über den MCP gilt
+    # ``auftragAbgelehntPerson``, ``test_paket_k_traeger``)
+    ("EDU_USER_REQUIRED", "nur über den WLO-Dienst", "only works through the WLO service"),
     ("LEGACY_HEADERS", "veralteten Kopf", "outdated header"),
 ])
 def test_der_satz_je_code(monkeypatch, code, de, en):
@@ -98,10 +102,11 @@ def test_mit_delegation_startet_der_direktweg_keinen_auftrag(monkeypatch, caplog
     monkeypatch.setattr(auftrag_zug, "has_personal_auth", lambda: True)
     llm_auth.setze_llm_schluessel(f"Bearer {TOKEN}")
     with caplog.at_level(logging.INFO, logger=auftrag_zug.logger.name):
-        assert auftrag_zug.starter() is None
+        # Review A4: ein lesender Flow (Direktweg) — bei Delegation ohne Träger
+        assert auftrag_zug.starter().fuer(False).traeger is None
     assert TOKEN not in caplog.text
     llm_auth.setze_llm_schluessel("Bearer " + "k" * 36)        # Schlüssel (forwardApiKey)
-    assert auftrag_zug.starter() is not None
+    assert auftrag_zug.starter().fuer(False).traeger == "direkt"
 
 
 # ── D4: kein Abbruch im Hintergrund bei Delegation ────────────────────────────

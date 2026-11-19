@@ -8,6 +8,11 @@ Liste bleibt, auch wenn die b-api ihn gerade nicht nennt).
 Zwischenspeicher :data:`_FRIST_S` — das Studio lädt alle Kataloge eines Formulars auf einmal; ein
 Fehlschlag wird kürzer gemerkt (:data:`_FRIST_FEHLER_S`), dann gilt nur die Freigabe. Die
 Beschreibung der b-api ist Text Dritter: nur die erste Zeile, gekürzt, als Beschriftung.
+
+Paket K9 (Plan 2026-11-17): Das Studio hat keine Person — ``wlo_list_flows`` des MCP bräuchte ihre
+Anmeldung; die Liste kommt weiter über ``B_API_KEY``. Ohne Schlüssel schlägt der Katalog die
+Werksvorgabe vor (``client.WERKSVORGABE``, in der Obergrenze), daneben bleibt die freie Eingabe.
+Welche Flows der MCP wirklich startet, legt dort ``WLO_BAPI_FLOWS`` fest.
 """
 
 from __future__ import annotations
@@ -69,9 +74,10 @@ def _beschreibung(eintrag: dict[str, Any]) -> str:
 async def _von_der_bapi() -> dict[str, str]:
     global _gemerkt
     # Review KF, Befund 2: ohne Schlüssel der Anlage kein Abruf (K-E4 „für ``B_API_KEY``“) — eine
-    # Anlage ohne b-api fragte sonst aus dem Studio regelmäßig einen Fremdhost
+    # Anlage ohne b-api fragte sonst aus dem Studio regelmäßig einen Fremdhost. Paket K9: dann die
+    # Werksvorgabe.
     if not get_settings().b_api_key.get_secret_value().strip():
-        return {}
+        return dict.fromkeys(client.WERKSVORGABE, "")
     jetzt = time.monotonic()
     if _gemerkt is not None and jetzt - _gemerkt[0] < _gemerkt[1]:
         return _gemerkt[2]

@@ -329,6 +329,32 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     expect(c.eingabeGesperrt()).toBe(false);
   });
 
+  // Paket K7 (E16/E17): „Später weitermachen“ — die Antwort kommt ohne Marke, das Feld ist wieder frei;
+  // „Stand prüfen“ (auch nach „Fortsetzen“) bringt die Marke zurück, solange der Auftrag läuft.
+  it('K7: „Später weitermachen“ gibt das Feld frei, „Stand prüfen“ sperrt es wieder, solange der Auftrag läuft', async () => {
+    const f = TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).createComponent(ChatShellComponent);
+    f.componentRef.setInput('translate', createTranslator(DE, DE));
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi({ resp: { ...RESP, eingabe_gesperrt: true } as unknown as ChatResponse });
+    await c.sendMessage('starte');
+    expect(c.eingabeGesperrt()).toBe(true);
+    const spaeter = fakeApi({ resp: RESP });
+    (c as any)._api = spaeter;
+    await c.sendMessage('Später weitermachen', 'ablauf_auftrag_spaeter', { ablauf: 'lesen' });
+    f.detectChanges();
+    const feld = f.nativeElement.querySelector('.chat-input') as HTMLInputElement;
+    expect(c.eingabeGesperrt()).toBe(false);
+    expect(feld.placeholder).toBe(DE['chat.input.placeholder']);
+    (c as any)._api = fakeApi({ resp: { ...RESP, eingabe_gesperrt: true } as unknown as ChatResponse });
+    await c.sendMessage('Stand prüfen', 'ablauf_auftrag_pruefen', { ablauf: 'lesen' });
+    f.detectChanges();
+    expect(c.eingabeGesperrt()).toBe(true);
+    expect(feld.placeholder).toBe(DE['chat.input.gesperrt']);
+  });
+
   // ── Das maschinenlesbare Ergebnis (Nutzer-Entscheid 2026-08-14) ──────
   // Der Gastgeber erklärt ein Schema; kommt ein Ergebnis, muss es ihn
   // erreichen. Ohne diesen Weg produzierte das Backend ein `result`, das

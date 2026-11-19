@@ -207,11 +207,13 @@ schritte:
     # Nachprüfung TG-4–6, MAJOR 1: wie ``ordner_weiter`` — „Ja, gründlich“ ist keine Antwort, die ein
     # Synonym sicher zuordnet
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  # Durchtest Paket K (19.11.): hierher kommt nur, wer „gründlich“ nicht hat — ``bereit`` sagt
+  # warum (ohne Anmeldung: sie fehlt; sonst ist der WLO-Dienst nicht da)
   - id: schnell
     typ: nachricht
     weiter: schnell_da
-    text: {de: "Ich nehme nur die Dateinamen als Grundlage – die Inhalte der Dateien lese ich dabei nicht.",
-           en: "I'll use only the file names as the basis – I won't read the content of the files."}
+    text: {de: "Ich nehme nur die Dateinamen als Grundlage – die Inhalte der Dateien lese ich dabei nicht. {teil.bereit.ohne_gruendlich}",
+           en: "I'll use only the file names as the basis – I won't read the content of the files. {teil.bereit.ohne_gruendlich}"}
   - id: schnell_da
     typ: verzweigung
     weiter:
@@ -245,13 +247,13 @@ schritte:
     typ: nachricht
     text:
       de: >-
-        Soll WLO Metadaten für die eben übertragenen Dateien erzeugen? Das ersetzt je Datei Titel,
-        Beschreibung, Schlagworte, Sprache, Fach, Bildungsstufe, Zielgruppe und Ressourcentyp –
-        jede Änderung als neue Version.
+        Soll WLO Metadaten für die eben übertragenen Dateien erzeugen – auch für Strukturdokumente
+        (falls dabei)? Das ersetzt je Datei Titel, Beschreibung, Schlagworte, Sprache, Fach,
+        Bildungsstufe, Zielgruppe und Ressourcentyp – jede Änderung als neue Version.
       en: >-
-        Should WLO create metadata for the files you just transferred? For each file this replaces
-        title, description, keywords, language, subject, educational level, audience and resource
-        type – each change as a new version.
+        Should WLO create metadata for the files you just transferred – structure documents
+        included (if any)? For each file this replaces title, description, keywords, language,
+        subject, educational level, audience and resource type – each change as a new version.
     optionen:
       - {id: ja, label: {de: "Ja, Metadaten erzeugen", en: "Yes, create metadata"}, ziel: metadaten}
       - {id: nein, label: {de: "Nein, so lassen", en: "No, leave as is"}, ziel: lesen}
@@ -260,12 +262,18 @@ schritte:
     typ: auftrag
     flow: edusharing.chatbot/node-metadata-write
     repo_schreibt: true
+    # Plan 2026-11-17, E16 (Review B4): während der Flow läuft, ist die Eingabe gesperrt — „Stand
+    # prüfen“, „Später weitermachen“ und „Auftrag abbrechen“ bleiben
+    warten: gesperrt
     weiter: lesen
     text: {de: "Ich lasse die Metadaten erzeugen. Das kann ein paar Minuten dauern.",
            en: "I'm having the metadata created. This can take a few minutes."}
     argumente:
-      # MINOR 7: nur Inhalte — ein Strukturdokument bekommt keine Metadaten des Materials
-      node_ids: {$teil: ablage, liste: inhalte, wo: {stand: stored, rolle: inhalt}, feld: node_id}
+      # Plan 2026-11-17, E14 (hebt MINOR 7 auf): Inhalte UND Strukturdokumente — so liefern auch
+      # Strukturdokumente Fach, Stufe und Schlagworte für die Vorbelegung. Die Ablage kennt nur die
+      # Rollen ``inhalt`` und ``struktur`` (``ablage/vorgang_teil``): ohne Filter auf die Rolle
+      # sind es beide.
+      node_ids: {$teil: ablage, liste: inhalte, wo: {stand: stored}, feld: node_id}
       language: {$sprache: true}
     # Paket R1 (N14): höchstens 50 Dateien je Job, die Teile laufen nacheinander
     aufteilen: {argument: node_ids, hoechstens: 50}
@@ -522,10 +530,12 @@ schritte:
       - {id: andere, label: {de: Andere Grundlage, en: Different basis}, ziel: grundlage, verwirft: [grundlage, structure, document, weg, metadaten, ordnerweg, soll_ist]}
       - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  # Drittes Review Paket K (19.11.): ohne vermutete Gründe — den Grund nennt der Satz davor
+  # (gescheiterter Auftrag, md/txt, nicht verfügbar, abgewiesen)
   - id: ohne_metadaten
     typ: nachricht
-    text: {de: "Die Metadaten ließen sich gerade nicht erzeugen oder lesen – der Dienst ist hier nicht eingerichtet oder freigegeben, er ist nicht erreichbar, oder deine Anmeldung ist abgelaufen. Wie soll es weitergehen?",
-           en: "The metadata could not be created or read right now – the service is not set up or enabled here, not reachable, or your sign-in has expired. How shall we continue?"}
+    text: {de: "Die Angaben aus WLO ließen sich gerade nicht erzeugen oder lesen. Wie soll es weitergehen?",
+           en: "The details from WLO could not be created or read right now. How shall we continue?"}
     optionen:
       - {id: lesen, label: {de: Angaben aus WLO lesen, en: Read details from WLO}, ziel: lesen}
       - {id: ohne, label: {de: Ohne Angaben aus WLO weiter, en: Continue without WLO details}, ziel: nach_lesen}

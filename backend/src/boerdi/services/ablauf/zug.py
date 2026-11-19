@@ -113,6 +113,12 @@ async def starten(session: Any, req: ChatRequest, session_state: dict, *,
                 # Die Gastseite (und der Vorschlag der KI) ersetzt nie still einen Lauf, der noch
                 # nicht beendet ist (Querschnitts-Review AS-4, Befund 1; AS-5, Befund 1).
                 return await _ersetzen_fragen(session, req, ablauf, start, v, lauf, herkunft)
+    elif (aktiv := await _aktiver_lauf(session, req, session_state)) is not None \
+            and aktiv[1].get("status") == treiber.WARTET_AUFTRAG:
+        # Paket K, Review B1: auch ein gewöhnlicher Start-Knopf beendet einen Lauf, der auf einen
+        # Auftrag wartet (nach „Später weitermachen“ oder bei ``warten: frei``), nie still samt
+        # Auftrag und Vorgang — erst die Rückfrage wie bei der Gastseite, mit „Stand prüfen“
+        return await _ersetzen_fragen(session, req, ablauf, start, *aktiv, herkunft)
     # Nur Daten, die ausdrücklich von der Gastseite kommen (oder von ihrem Knopf „Neu starten“),
     # tragen ihre Rechte; Daten eines KI-Vorschlags heißen ``ki`` (ohne Rechte), alles andere hat
     # keine Herkunft.
@@ -189,6 +195,18 @@ async def _ersetzen_fragen(session: Any, req: ChatRequest, ablauf: AblaufArea,
     return antwort.model_copy(update={"quick_replies": knoepfe})
 
 
+#: Durchtest Paket K (19.11.): auch eine Wendung an einer wartenden Frage fragt so
+#: (``wendung_zug.wendung_beantworten``).
+ersetzen_fragen = _ersetzen_fragen
+
+
+def neu_starten_knopf(lang: str, ablauf_id: str, v: Any, lauf: dict[str, Any]) -> str:
+    """Drittes Review Paket K: „Neu starten“ für ``ablauf_id``, gebunden an diesen Lauf (wie in
+    :func:`_ersetzen_fragen`) — hat er sich bewegt, fragt :func:`starten` neu."""
+    return _knopf(lang, "action.ablauf.neuStarten", AKTION,
+                  {"ablauf": ablauf_id, "ersetzt": _marke(v, lauf)})
+
+
 def lauf_wartet(session_id: str, session_state: dict) -> bool:
     """Wartet ein Lauf dieser Person? (nur der Verweis, ohne Datenbank — für den Preflight)"""
     vw = arbeitsstand.verweis(session_state.get("entities") or {},
@@ -262,22 +280,28 @@ async def per_modul_starten(session: Any, req: ChatRequest, session_state: dict,
     Treiber ab dem Schritt nach dem Modul."""
     entities = session_state.setdefault("entities", {})
     ablauf, ab = treffer
+    ausgaenge: list[str] = []
     # Review Q3, Befund 2: das Ziel steht fest, bevor die Antwort gespeichert wird — sonst landete
     # sie im beendeten Vorgang und der Lauf in einem neuen.
-    if not await _ziel_vorbereiten(session, req, entities, ablauf, anlegen=True) \
+    if not await _ziel_vorbereiten(session, req, entities, ablauf, anlegen=True,
+                                   ausgaenge=ausgaenge) \
             or not await arbeitsstand.uebernehmen(session, req.session_id, entities, geprueft,
                                                   nur_dieser=True):
         # Review Q3, Befund 9: ohne gespeicherte Antwort rechnete der Treiber ohne sie.
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     return await starten_mit(session, req, session_state, ablauf, ab=ab,
                              gewaehlt=treiber.gewaehlt_aus(geprueft.get("daten")),
-                             blocked_tools=blocked_tools, frisch=False)
+                             blocked_tools=blocked_tools, frisch=False, ausgaenge=ausgaenge)
 
 
 async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablauf: AblaufArea,
                       *, ab: int = 0, gewaehlt: list[str] | None = None,
                       start: dict[str, Any] | None = None, start_quelle: str | None = None,
-                      blocked_tools: Iterable[str] = (), frisch: bool = True) -> ChatResponse:
+                      blocked_tools: Iterable[str] = (), frisch: bool = True,
+                      ausgaenge: list[str] | None = None) -> ChatResponse:
+    """Einen Lauf beginnen. ``ausgaenge`` (Review A5): wie ein dabei beendeter Auftrag ausging
+    (``zug_basis.auftraege_beenden``) — der Satz dazu steht vor der Antwort."""
+    ausgaenge = ausgaenge if ausgaenge is not None else []
     if (fehlt := ausloeser.fehlt(ablauf)) is not None:
         # R2-b: ist Lesen im Studio aus, hilft keine Anmeldung — dann ein eigener Satz
         return await basis.nur_text(session, req, "action.ablauf.dokumentLesenAus"
@@ -304,7 +328,8 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
                                    # Review TW-6, Befund 4: nur, wer selbst schreibt (N14) —
                                    # ein Upload-Feld schloss sonst beim Direktstart ohne Klick
                                    # die freie Arbeit samt Entwurf
-                                   frisch=frisch and werkzeuge.ablauf_schreibt_selbst(ablauf)):
+                                   frisch=frisch and werkzeuge.ablauf_schreibt_selbst(ablauf),
+                                   ausgaenge=ausgaenge):
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     aus = await basis.rechne(session, ablauf, treiber.starten(
         ablauf, basis.umgebung(session, req, entities, blocked_tools), ab, gewaehlt, start,
@@ -316,7 +341,7 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
     if vw is not None and (v is None or v.status in vorgaenge.ABGESCHLOSSEN):
         # Nachprüfung, Befund 3: inzwischen abgeschlossen oder weg (eine zweite Sitzung) — der Lauf
         # hinge sonst an einem frischen Vorgang ohne die Teile, die er davor bekam.
-        basis.nicht_festgehalten(aus)
+        await basis.nicht_festgehalten(aus)
         basis.verweis_auffrischen(entities, None, aufrufer)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     try:
@@ -327,14 +352,17 @@ async def starten_mit(session: Any, req: ChatRequest, session_state: dict, ablau
         await session.commit()
     except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
-        basis.nicht_festgehalten(aus)
+        await basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
-    basis.bei_der_b_api_abbrechen(alter_job)
+    ausgaenge.append(await basis.auftraege_beenden(alter_job))
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
     # Ein neuer Lauf zählt seine KI-Züge neu (Review A2b, Befund 4) — erst nach dem Festhalten:
     # ein gescheiterter Neustart ließe sonst den alten Lauf mit leerem Budget weiterlaufen (Review
     # Q2, Befund 4).
     entities.pop(ki_schritt.ZUEGE_KEY, None)
+    # Review A5: ersetzte der Start einen Lauf samt Auftrag, sagt ein Satz vorweg, wie es ausging
+    lang = resolve_locale(req.environment.locale)
+    aus.texte[:0] = [s for a in dict.fromkeys(ausgaenge) if (s := basis.auftrag_satz(a, lang))]
     return await basis.antwort(session, req, session_state, aus, ablauf)
 
 
@@ -346,7 +374,7 @@ async def _anlegen(session: Any, req: ChatRequest, aufrufer: str, ablauf: Ablauf
 
 async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, Any],
                             ablauf: AblaufArea, *, anlegen: bool = False,
-                            frisch: bool = False) -> bool:
+                            frisch: bool = False, ausgaenge: list[str] | None = None) -> bool:
     """Querschnitts-Review 2026-11-06, M6 (nach Review Q3): ein beendeter Lauf lässt seinen Vorgang
     offen — der Entwurf darin bleibt erreichbar. Erst ein neuer Start schließt einen Vorgang, dessen
     Lauf beendet ist (fertig, Fehler, abgebrochen) oder einem anderen Ablauf gehört, und beginnt
@@ -361,7 +389,10 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
     Bereitstellungs-Teile (``arbeitsstand_teile.BEREITSTELLUNG``) — Ordner und Dokument, die die
     Person im freien Chat bereitgestellt hat, gingen sonst mit dem alten verloren. Nur Teile, die es
     dort gibt, mit ihrem Inhalt bzw. Verweis (``document`` zeigt auf das Sitzungsdokument); kein
-    Entwurf, kein Lauf, keine Antworten, keine Historie. Das gilt für jeden Start."""
+    Entwurf, kein Lauf, keine Antworten, keine Historie. Das gilt für jeden Start.
+
+    Review A5: endet dabei ein Auftrag, kommt sein Ausgang in ``ausgaenge`` (der Satz dazu steht
+    vor der Antwort des Starts)."""
     aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
     vw = arbeitsstand.verweis(entities, aufrufer)
     v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
@@ -396,7 +427,9 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
         return False
-    basis.bei_der_b_api_abbrechen(alter_job)
+    ausgang = await basis.auftraege_beenden(alter_job)
+    if ausgaenge is not None:
+        ausgaenge.append(ausgang)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(neu, aufrufer)
     return True
 
@@ -511,7 +544,7 @@ async def fortsetzen(session: Any, req: ChatRequest, session_state: dict,
         await session.commit()
     except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
-        basis.nicht_festgehalten(aus)
+        await basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
     return await basis.antwort(session, req, session_state, aus, ablauf)
@@ -592,7 +625,7 @@ async def _weiter_ki(session: Any, req: ChatRequest, session_state: dict, v: Any
         await session.commit()
     except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
-        basis.nicht_festgehalten(aus)
+        await basis.nicht_festgehalten(aus)
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
     entities.pop(ki_schritt.ZUEGE_KEY, None)

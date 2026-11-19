@@ -69,10 +69,20 @@ async def neu(session: Any, req: ChatRequest, session_state: dict) -> ChatRespon
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
-    basis.bei_der_b_api_abbrechen(alter_job)
+    ausgang = await basis.auftraege_beenden(alter_job)
     arbeitsstand.verweis_weg(entities, aufrufer)
     entities.pop(strukturentwurf_merken.KEY, None)
-    return await basis.nur_text(session, req, "action.vorgang.neu", entities)
+    return await _mit_auftrag_satz(session, req, "action.vorgang.neu", ausgang, entities)
+
+
+async def _mit_auftrag_satz(session: Any, req: ChatRequest, schluessel: str, ausgang: str,
+                            entities: dict[str, Any]) -> ChatResponse:
+    """Paket K4: blieb beim Abbruch über den MCP offen, ob der Auftrag endete — oder (Review A5)
+    läuft er sicher weiter —, sagt es der Satz dahinter (:func:`zug_basis.auftrag_satz`)."""
+    lang = resolve_locale(req.environment.locale)
+    if (satz := basis.auftrag_satz(ausgang, lang)) is None:
+        return await basis.nur_text(session, req, schluessel, entities)
+    return await basis.fester_text(session, req, bot_text(lang, schluessel) + " " + satz, entities)
 
 
 async def _neu_rueckfrage(session: Any, req: ChatRequest, v: Any,
@@ -125,9 +135,9 @@ async def loeschen(session: Any, req: ChatRequest, session_state: dict) -> ChatR
             raise
         await session.rollback()
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
-    basis.bei_der_b_api_abbrechen(*offene)
+    ausgang = await basis.auftraege_beenden(*offene)
     arbeitsstand.verweis_weg(entities, aufrufer)
     entities.pop(strukturentwurf_merken.KEY, None)
     entities.pop(OFFENER_PLAN_KEY, None)  # Paket M5 (Review, Befund 7)
     schluessel = "action.vorgang.geloescht" if zahl or hatte else "action.vorgang.keiner"
-    return await basis.nur_text(session, req, schluessel, entities)
+    return await _mit_auftrag_satz(session, req, schluessel, ausgang, entities)

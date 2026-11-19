@@ -41,6 +41,16 @@ Die zugehörigen Pläne:
 
 ## 1 Befunde mit Wirkung im Betrieb
 
+- **Flow `node-metadata-write` scheitert für md (FLOW_FAILED), an Flow-Autor/MCP gemeldet; Chatbot
+  schließt md/txt bis dahin aus** (Durchtest Paket K, 19.11., Notiz
+  `aenderungen/2026-11-18-paket-k-kestra-ueber-mcp.md`). Ein Job mit einem Markdown-Knoten endet als
+  Ganzes `FAILED`/`FLOW_FAILED`, ohne Metadaten an irgendeinem Knoten — vermutlich ohne `textContent`
+  im Repository. Bis Flow bzw. MCP das beheben (Text über `/content` wie `get_wlo_content_text`, oder
+  Status je Knoten `NO_TEXT` statt FLOW_FAILED), gibt der Chatbot dem Flow keine Knoten mit
+  `md`/`markdown`/`txt` (`auftrag_teile.METADATEN_FLOW_OHNE`); bleibt keiner, startet nichts und der
+  Ablauf nimmt `ohne_metadaten` mit dem Satz `metadatenOhneText`. Wieder aufheben (Liste leeren und
+  den Test `test_paket_k_durchtest` anpassen), sobald der Flow md verarbeitet.
+
 - ~~**Formeln im Widget falsch dargestellt (Nutzer 2026-11-10) — für den nächsten Plan.**~~ **Erledigt
   10.11. mit TB-E4** (`ui/src/markdown/formel.ts`, MathML; Notiz
   `aenderungen/2026-11-10-paket-tb-e4-formeln.md`; Druckfenster und Vorlesen seit dem

@@ -3712,6 +3712,61 @@
         "title": "StandAnfrage",
         "type": "object"
       },
+      "StandAntwort": {
+        "description": "Der Stand eines Auftrags, nie Ausgaben oder die Job-ID. ``fertig``/``gesamt`` nur, wenn der\nTräger „k von n fertig“ meldet; sonst fehlen beide Felder.",
+        "properties": {
+          "fehlgeschlagen": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fehlgeschlagen"
+          },
+          "fertig": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fertig"
+          },
+          "gesamt": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gesamt"
+          },
+          "stand": {
+            "enum": [
+              "laeuft",
+              "fertig",
+              "fehler"
+            ],
+            "title": "Stand",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stand"
+        ],
+        "title": "StandAntwort",
+        "type": "object"
+      },
       "StartFeld": {
         "additionalProperties": true,
         "description": "AS-4a (Plan 2026-11-09 §5f, E2 A): ein Feld der Startdaten. Die Daten prüft\n``services/ablauf/startdaten`` — sie sind Eingaben, nie Rechte.",
@@ -11484,11 +11539,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Stand Api Ui Auftrag Stand Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StandAntwort"
                 }
               }
             },

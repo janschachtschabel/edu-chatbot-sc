@@ -19,6 +19,10 @@ const DE = {
   manuell: 'Ich frage nicht mehr von selbst nach. Mit „Jetzt prüfen“ siehst du den Stand.',
   nurLesen: 'Dieser Auftrag wird hier nicht mehr verfolgt.',
   zuletzt: (zeit: string) => `Zuletzt geprüft um ${zeit} Uhr.`,
+  /** K6: „k von n fertig“ — die Zahlen schon nach der Sprache formatiert. */
+  fortschritt: (fertig: string, gesamt: string) => `${fertig} von ${gesamt} fertig`,
+  /** Durchtest Paket K: gescheiterte getrennt — „, m fehlgeschlagen“ hinter „k von n fertig“. */
+  fehlgeschlagen: (anzahl: string) => `, ${anzahl} fehlgeschlagen`,
   jetzt: 'Jetzt prüfen',
   abholen: 'Ergebnis abholen',
   abbrechen: 'Auftrag abbrechen',
@@ -42,6 +46,8 @@ const EN: FortschrittTexte = {
   manuell: 'I no longer check on my own. Use “Check now” to see the status.',
   nurLesen: 'This job is no longer tracked here.',
   zuletzt: (zeit: string) => `Last checked at ${zeit}.`,
+  fortschritt: (fertig: string, gesamt: string) => `${fertig} of ${gesamt} done`,
+  fehlgeschlagen: (anzahl: string) => `, ${anzahl} failed`,
   jetzt: 'Check now',
   abholen: 'Fetch result',
   abbrechen: 'Cancel job',
@@ -50,6 +56,11 @@ const EN: FortschrittTexte = {
 
 export function texte(sprache: Sprache): FortschrittTexte {
   return sprache === 'en' ? EN : DE;
+}
+
+/** K6: eine Zahl in der Sprache (Tausender: „1.200“ bzw. „1,200“). */
+export function zahl(sprache: Sprache, n: number): string {
+  return new Intl.NumberFormat(sprache === 'en' ? 'en-GB' : 'de-DE').format(n);
 }
 
 export function uhrzeit(sprache: Sprache, ms: number): string {

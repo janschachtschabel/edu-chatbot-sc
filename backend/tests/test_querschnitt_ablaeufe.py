@@ -23,6 +23,7 @@ from boerdi.services.ablauf import ausloeser, treiber, zug, zug_basis
 from boerdi.services.auftraege import client
 from tests.test_ablauf_auftrag import (  # noqa: F401 — Fixtures
     _SCHRITTE,
+    _neu_starten,
     _pruefe,
     _roh,
     _starte,
@@ -181,8 +182,8 @@ def test_ein_neuer_lauf_schliesst_den_auftrag_des_alten(im_zug, monkeypatch):  #
                                            *_SCHRITTE[1:]]), zweiter]}
     monkeypatch.setattr(ausloeser, "_roh_liste",
                         lambda: (katalog).get("ablaeufe") or [])
-    anfrage = _req(action=zug.AKTION, action_params={"ablauf": "gruss"})
-    assert asyncio.run(zug.starten(_S(), anfrage, state)).content == "Hallo."
+    # Paket K, Review B1: bei einem wartenden Auftrag erst die Rückfrage, dann „Neu starten“
+    assert _neu_starten(state, "gruss").content == "Hallo."
     assert im_zug.ablage.auftraege[0].status == "abgebrochen"
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -218,6 +219,17 @@ def _starte(state):
     return asyncio.run(zug.starten(_S(), anfrage, state))
 
 
+def _neu_starten(state, ablauf="lesen"):
+    """Paket K, Review B1: ein zweiter Start fragt bei einem wartenden Auftrag erst nach — dann
+    „Neu starten“ (gebunden an diesen Lauf) ersetzt ihn."""
+    frage = asyncio.run(zug.starten(_S(), _req(action=zug.AKTION,
+                                               action_params={"ablauf": ablauf}), state))
+    assert frage.content == bot_text("de", "action.ablauf.ersetzen"), frage.content
+    [neu] = [json.loads(teile[3]) for teile in (c.split("|", 3) for c in frage.quick_replies)
+             if teile[2] == zug.AKTION]
+    return asyncio.run(zug.starten(_S(), _req(action=zug.AKTION, action_params=neu), state))
+
+
 def _pruefe(state):
     anfrage = _req(action=auftrag_zug.AKTION, action_params={"ablauf": "lesen"})
     return asyncio.run(auftrag_zug.pruefen(_S(), anfrage, state))
@@ -261,7 +273,9 @@ def test_stand_pruefen_fehler_geht_zu_bei_fehler(im_zug):
     _starte(state)
     im_zug.staende.append(client.Stand("fehler"))
     antwort = _pruefe(state)
-    assert antwort.content == "Das Lesen hat nicht geklappt."
+    # Durchtest Paket K (19.11.): ein gescheiterter Auftrag sagt es vor dem Ersatzweg
+    assert antwort.content == (bot_text("de", "action.ablauf.auftragFehlgeschlagen", code="")
+                               + "\n\nDas Lesen hat nicht geklappt.")
     assert im_zug.ablage.auftraege[0].status == "fehler"
 
 
@@ -396,7 +410,7 @@ def test_ohne_schluessel_der_person_kein_abbruch_bei_der_b_api(im_zug, monkeypat
 def test_ein_ersetzter_lauf_beendet_seinen_auftrag_bei_der_b_api(im_zug, abbrueche):
     state: dict = {"entities": {}}
     _starte(state)
-    _starte(state)                  # derselbe Ablauf neu: der wartende Lauf wird ersetzt
+    _neu_starten(state)             # derselbe Ablauf neu (B1: nach der Rückfrage) ersetzt ihn
     assert abbrueche == ["job-1"]
     assert [a.status for a in im_zug.ablage.auftraege] == ["abgebrochen", "laeuft"]
 
@@ -424,7 +438,7 @@ def test_ein_konflikt_beim_ersetzen_bricht_den_alten_auftrag_nicht_ab(im_zug, mo
         raise vorgaenge.VorgangKonflikt("v-1")
 
     monkeypatch.setattr(vorgaenge, "lauf_setzen", konflikt)
-    antwort = _starte(state)
+    antwort = _neu_starten(state)
     assert antwort.content == bot_text("de", "action.ablauf.konflikt")
     assert abbrueche == [] and len(im_zug.gestartet) == 1
 
@@ -442,7 +456,7 @@ def test_ein_konflikt_beim_festhalten_beendet_den_eben_gestarteten(im_zug, monke
         raise vorgaenge.VorgangKonflikt("v-2")
 
     monkeypatch.setattr(zug_basis, "festhalten", konflikt)
-    antwort = _starte(state)
+    antwort = _neu_starten(state)
     assert antwort.content == bot_text("de", "action.ablauf.konflikt")
     assert "job-2" in abbrueche
 
@@ -505,8 +519,7 @@ def test_der_start_eines_anderen_ablaufs_beendet_den_wartenden_auftrag(im_zug, m
     katalog = {"ablaeufe": [_roh(), gruss]}
     monkeypatch.setattr(ausloeser, "_roh_liste",
                         lambda: (katalog).get("ablaeufe") or [])
-    asyncio.run(zug.starten(_S(), _req(action=zug.AKTION, action_params={"ablauf": "gruss"}),
-                            state))
+    _neu_starten(state, "gruss")         # Review B1: erst die Rückfrage
     assert abbrueche == ["job-1"]
     assert im_zug.ablage.auftraege[0].status == "abgebrochen"
 

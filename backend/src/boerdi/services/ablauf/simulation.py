@@ -212,7 +212,8 @@ class _Stand:
             return await werkzeuge.DIENSTE[name](args, werkzeuge.DienstKontext(
                 teile=self.teil, sprache=self.sprache,
                 wlo_ablage=lambda: self.angemeldet,
-                wlo_erschliessen=lambda: self.angemeldet))
+                wlo_erschliessen=lambda: self.angemeldet,
+                nach_anmeldung=lambda: not self.angemeldet))
         wert = self.werkzeuge.get(schritt)
         # Review AS-1, Befund 2: im Betrieb liefert ein lesendes MCP-Werkzeug Text (``zug_basis``)
         if name in werkzeuge.LESENDE_MCP and wert is not None and not isinstance(wert, str):

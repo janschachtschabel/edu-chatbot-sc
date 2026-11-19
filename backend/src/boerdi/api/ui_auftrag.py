@@ -2,23 +2,26 @@
 
 Das Modul fragt hier in wachsenden Abständen nach, ob der b-api-Auftrag des wartenden
 ``auftrag``-Schritts fertig ist. Kein Zug, keine KI, **nichts wird geschrieben**: die Antwort ist
-nur ``laeuft``, ``fertig`` oder ``fehler`` (nie Ausgaben, nie die Job-ID). Abgeholt wird danach im
-Zug der Person über die Direktaktion ``ablauf_auftrag_pruefen`` (``services/ablauf/auftrag_zug``) —
-erst dort werden die Ausgaben Teil des Vorgangs und der Treiber setzt fort.
+nur ``laeuft``, ``fertig`` oder ``fehler`` (nie Ausgaben, nie die Job-ID) — Paket K6 (E16) dazu
+„k von n fertig“ als zwei Zahlen ``fertig``/``gesamt``, wenn der Träger sie meldet
+(:func:`_zahlen`). Abgeholt wird danach im Zug der Person über die Direktaktion
+``ablauf_auftrag_pruefen`` (``services/ablauf/auftrag_zug``) — erst dort werden die Ausgaben Teil
+des Vorgangs und der Treiber setzt fort.
 
 Bremsen, vor jeder b-api-Abfrage: Sitzung (404), **bestätigte Anmeldung** (403 ``nur_angemeldet``),
 der Lauf dieser Person wartet auf genau diesen Auftrag — Ablauf, Fassung, Schritt und Kürzel der
 Job-ID passen (409 ``kein_auftrag``; ein alter Block im Verlauf hört damit auf), der
 **durchgereichte** Schlüssel der Person (503 ``nicht_abrufbar`` — mit ``B_API_KEY`` sähe der Chatbot
 den Auftrag nicht, K22). Antwortet die b-api endgültig (Auftrag unbekannt, Aufträge aus, Schlüssel
-abgewiesen), wird daraus 409 bzw. 403 — das Modul hört dann auf zu fragen. IP-Drossel wie die
-übrigen Modul-Abrufe.
+abgewiesen), wird daraus 409 bzw. 403 — das Modul hört dann auf zu fragen. Ein Start des MCP mit
+offenem Ausgang (keine jobId) antwortet ebenso 409 (Review A1): weiter nur über „Stand prüfen“.
+IP-Drossel wie die übrigen Modul-Abrufe.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
@@ -35,9 +38,9 @@ from boerdi.api.turn_auth import (
 from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.config_models.ablauf import ID_FORM
 from boerdi.services import arbeitsstand, probe, vorgaenge
-from boerdi.services.ablauf import treiber
+from boerdi.services.ablauf import auftrag_zug, treiber
 from boerdi.services.ablauf.ausloeser import laden
-from boerdi.services.auftraege import ablage, client
+from boerdi.services.auftraege import ablage, client, mcp_starter
 from boerdi.services.db_sessions import sitzung_entities
 from boerdi.services.llm_auth import darf_jobs
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
@@ -53,12 +56,28 @@ class StandAnfrage(BaseModel):
     kuerzel: str = Field(pattern=r"^[0-9a-f]{12}$")
 
 
+class StandAntwort(BaseModel):
+    """Der Stand eines Auftrags, nie Ausgaben oder die Job-ID. ``fertig``/``gesamt`` nur, wenn der
+    Träger „k von n fertig“ meldet; sonst fehlen beide Felder."""
+
+    stand: Literal["laeuft", "fertig", "fehler"]
+    fertig: int | None = Field(default=None, ge=0)
+    gesamt: int | None = Field(default=None, ge=0)
+    #: Durchtest Paket K (19.11.): gescheiterte Iterationen, getrennt von ``fertig`` — nur mit
+    #: ``fertig``/``gesamt`` und nur, wenn es welche gibt.
+    fehlgeschlagen: int | None = Field(default=None, ge=1)
+
+
 #: Review K1b, Befund 4: endgültige Gründe des Clients beenden das Nachfragen des Moduls (409 →
 #: „abgeschlossen“, 403 → Halt); ``fehler``/``voll`` bleiben 503 (neuer Versuch hilft).
 _GRUENDE: dict[str, tuple[int, str]] = {
     "unbekannt": (409, "kein_auftrag"), "aus": (409, "kein_auftrag"),
     "abgewiesen": (403, "abgewiesen"),
 }
+
+
+#: Paket K6 (E16), Durchtest Paket K: die Zahlen geprüft wie im Chat (``client``).
+_zahlen = client.fortschritt_zahlen
 
 
 def _kein_auftrag() -> HTTPException:
@@ -103,10 +122,10 @@ async def _wartender_auftrag(session: AsyncSession, anfrage: StandAnfrage,
     raise _kein_auftrag()
 
 
-@public_router.post("/stand")
+@public_router.post("/stand", response_model=StandAntwort, response_model_exclude_none=True)
 @public_rate_limit
 async def stand(anfrage: StandAnfrage, request: Request, response: Response,
-                session: Annotated[AsyncSession, Depends(get_session)]) -> dict[str, str]:
+                session: Annotated[AsyncSession, Depends(get_session)]) -> StandAntwort:
     pruefe_oeffentliche_kennung(request, anfrage.session_id)
     entities = await sitzung_entities(session, anfrage.session_id)
     if entities is None:
@@ -123,17 +142,31 @@ async def stand(anfrage: StandAnfrage, request: Request, response: Response,
     if not has_personal_auth() and not in_probe:
         raise HTTPException(status_code=403, detail="nur_angemeldet")
     auftrag = await _wartender_auftrag(session, anfrage, entities)
-    if not client.ist_trocken(auftrag.job_id) and not (has_personal_auth()
-                                                        and darf_jobs()):
+    if mcp_starter.ist_offen(auftrag.job_id):
+        # Review A1: ein Start mit offenem Ausgang hat keine jobId — nichts abzufragen. 409 lässt
+        # das Modul aufhören (sonst hielte es „fertig“ und holte selbst ab); weiter geht es nur
+        # über „Stand prüfen“ im Zug.
+        raise _kein_auftrag()
+    job_id = auftrag.job_id
+    await verbindung_freigeben(session)      # die Abfrage beim Träger hält keine DB-Verbindung
+    # Paket K1: ein Auftrag des MCP wird über ``wlo_flow_status`` abgefragt (Zugangsblock der
+    # Person), nicht mit dem b-api-Schlüssel
+    ueber_mcp = mcp_starter.ist_mcp(job_id)
+    if ueber_mcp and has_personal_auth():
+        await mcp_starter.nachholen()     # Review A2: fehlen die Werkzeuge kurz, neu fragen
+    if not client.ist_trocken(job_id) and not (has_personal_auth() and (
+            auftrag_zug.abrufbar(job_id) if ueber_mcp else darf_jobs())):
         if not has_personal_auth():
             raise HTTPException(status_code=403, detail="nur_angemeldet")
         raise HTTPException(status_code=503, detail="nicht_abrufbar")
-    job_id = auftrag.job_id
-    await verbindung_freigeben(session)      # die b-api-Abfrage hält keine DB-Verbindung
     try:
-        ergebnis = await client.stand(job_id)
+        ergebnis = await auftrag_zug.stand_von(job_id)
     except client.AuftragFehler as fehler:
         logger.info("Auftrag: Stand für das Modul nicht abrufbar (%s)", fehler.grund)
+        if fehler.grund == "job_unbekannt":
+            # Paket K8: der Stand ist nicht mehr abrufbar, die Ergebnisse stehen an den
+            # Datensätzen — das Abholen im Zug geht weiter zu ``lesen``
+            return StandAntwort(stand="fertig")
         status, code = _GRUENDE.get(fehler.grund, (503, "nicht_abrufbar"))
         raise HTTPException(status_code=status, detail=code) from None
-    return {"stand": ergebnis.status}
+    return StandAntwort(stand=ergebnis.status, **_zahlen(ergebnis.fortschritt))

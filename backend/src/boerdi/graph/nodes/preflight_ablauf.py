@@ -19,18 +19,20 @@ from boerdi.i18n import resolve_locale
 from boerdi.services import plan_fortsetzen, vorgang_aktion
 from boerdi.services.ablauf import (
     abbruch_zug,
+    auftrag_spaeter,
     auftrag_zug,
     freigabe_zug,
     ki_schritt,
     seite_zug,
     wahl_zug,
+    wendung_zug,
 )
 from boerdi.services.ablauf import zug as ablauf_zug
 
 #: Was ein gesperrter Lauf (K2b, ``warten: gesperrt``) durchlässt — alles andere bekommt den
 #: Hinweis.
 _IM_GESPERRTEN_LAUF: frozenset[str] = frozenset({
-    auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN,
+    auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN, auftrag_zug.AKTION_SPAETER,
     vorgang_aktion.AKTION_NEU, vorgang_aktion.AKTION_LOESCHEN,
     abbruch_zug.AKTION,
 })
@@ -52,11 +54,15 @@ class Ausloeser:
     #: Plan 2026-11-16, Durchtest TG-7 (M1b): die Person übernimmt den Entwurf eines wartenden
     #: KI-Schritts (seine ``ausgabe``) — der Lauf geht ohne weiteren KI-Zug weiter.
     uebernahme: bool = False
+    #: Durchtest Paket K (19.11.): eine Wendung (dieser Ablauf) an einer wartenden Frage — nie
+    #: still die Antwort (``wendung_zug.wendung_trifft``).
+    wendung: Any = None
 
     @property
     def irgendeiner(self) -> bool:
         return bool(self.im_lauf or self.per_modul or self.per_text
-                    or self.gesperrt or self.freitext or self.wiederholen or self.uebernahme)
+                    or self.gesperrt or self.freitext or self.wiederholen or self.uebernahme
+                    or self.wendung is not None)
 
 
 def abgewiesen(aktion: str | None, gesperrt: str | None) -> bool:
@@ -111,16 +117,22 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
                and not ist_hintergrund_anfrage(req.environment))
     if getippt:
         await wahl_zug.aufraeumen(session, req.session_id, ctx.session_state)
-    freitext = getippt and wahl_zug.nimmt_getippt(req.session_id, ctx.session_state, req.message,
-                                                  resolve_locale(req.environment.locale))
-    wiederholen = (getippt and not freitext
+    lang = resolve_locale(req.environment.locale)
+    # Durchtest Paket K (19.11.): eine Wendung an einer wartenden Frage ist nicht deren Antwort —
+    # auch nicht als Freitext (eine neue Sitzung übernahm den offenen Lauf, die Wendung wurde
+    # still ``zweck``)
+    wendung = (wendung_zug.wendung_trifft(req.session_id, ctx.session_state, req.message, lang,
+                                       ohne=abgelehnt) if getippt else None)
+    freitext = (getippt and wendung is None
+                and wahl_zug.nimmt_getippt(req.session_id, ctx.session_state, req.message, lang))
+    wiederholen = (getippt and not freitext and wendung is None
                    and seite_zug.wiederholt(req.session_id, ctx.session_state, req.message))
     # Zweites Review WF, Befund M1: nimmt der wartende Schritt den Text nicht, endet ein Ablauf mit
     # ``endet_bei_text`` still — der Zug geht den gewöhnlichen Weg (wie die eingebaute Tour)
-    if getippt and not freitext and not wiederholen:
+    if getippt and not freitext and not wiederholen and wendung is None:
         await wahl_zug.still_beenden(session, req.session_id, ctx.session_state)
     return Ausloeser(bool(im_lauf), per_modul, per_text, gesperrt, freitext,
-                     bool(wiederholen), uebernahme)
+                     bool(wiederholen), uebernahme, wendung)
 
 
 async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
@@ -133,6 +145,8 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
         return Antwort(await auftrag_zug.gesperrt_antwort(session, req, a.gesperrt or ""))
     if req.action == auftrag_zug.AKTION_ABBRECHEN:
         return Antwort(await auftrag_zug.abbrechen(session, req, state))
+    if req.action == auftrag_zug.AKTION_SPAETER:
+        return Antwort(await auftrag_spaeter.spaeter(session, req, state))
     if req.action == abbruch_zug.AKTION:
         return Antwort(await abbruch_zug.abbrechen(session, req, state))
     if req.action == ablauf_zug.AKTION:
@@ -155,6 +169,10 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
                                                     blocked_tools=gesperrt))
     if req.action == wahl_zug.AKTION:
         return Antwort(await wahl_zug.waehlen(session, req, state, blocked_tools=gesperrt))
+    if a.wendung is not None:
+        # Durchtest Paket K: ``None`` — der Lauf wartet nicht mehr an der Frage
+        return Antwort(await wendung_zug.wendung_beantworten(session, req, state,
+                                                             a.wendung))
     if a.freitext:
         # ``None``: der Lauf wartet nicht mehr auf Text — der Zug geht den gewöhnlichen Weg
         return Antwort(await wahl_zug.getippt(session, req, state, blocked_tools=gesperrt))

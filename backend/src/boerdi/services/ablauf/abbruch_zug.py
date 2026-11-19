@@ -60,8 +60,9 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
         offen = freigabe_zug.plan_offen(
             entities, marke={"ablauf": lauf.get("ablauf"), "id": lauf.get("freigabe_id")})
         angelaufen = offen or bool(lauf.get("plan_angelaufen"))
-    if not await basis.abbrechen(session, v, lauf, entities,
-                                 arbeitsstand.aufrufer_fuer(req.session_id)):
+    ausgang = await basis.abbrechen(session, v, lauf, entities,
+                                    arbeitsstand.aufrufer_fuer(req.session_id))
+    if not ausgang:
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     if offen:
         entities.pop(plan_fortsetzen.KEY, None)
@@ -70,7 +71,7 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
     basis.ausstieg_merken(session_state, lauf.get("ablauf"))
     from boerdi.services import vorgang_aktion
 
-    antwort = await basis.nur_text(session, req, _satz(lauf, angelaufen), entities)
+    antwort = await basis.nur_text(session, req, _satz(lauf, angelaufen, ausgang), entities)
     # Review WF-1, Befund 4: wie am Ende eines Laufs nur mit Arbeitsstand (L8)
     ablauf = ausloeser.laden(lauf.get("ablauf"))
     antwort.quick_replies = (vorgang_aktion.knoepfe(lang)
@@ -78,11 +79,18 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
     return antwort
 
 
-def _satz(lauf: dict[str, Any], plan_angelaufen: bool) -> str:
+def _satz(lauf: dict[str, Any], plan_angelaufen: bool, ausgang: str = "ok") -> str:
     """Was die Antwort nach dem Abbruch sagt — ehrlich über das, was weiterläuft (Review AS-Ua,
-    Befunde 1 und 6)."""
+    Befunde 1 und 6). Paket K4: ein Auftrag des MCP wurde im Zug abgebrochen — ``ausgang`` sagt,
+    wie es ausging (``zug_basis.auftraege_beenden``)."""
     if plan_angelaufen:
         return "action.ablauf.freigabeAbgebrochenPlan"
+    if ausgang in ("offen", "weiter"):
+        from boerdi.services.ablauf.auftrag_zug import abbruch_satz
+
+        return abbruch_satz(ausgang)
+    if ausgang == "beendet":
+        return "action.ablauf.abgebrochenPerson"
     if lauf.get("status") == treiber.WARTET_AUFTRAG and not darf_jobs():
         # ohne den Schlüssel der Person (oder mit Delegations-Token, Paket D) endet der Auftrag nur
         # hier — bei der b-api läuft er weiter

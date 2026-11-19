@@ -56,6 +56,7 @@ def test_review_r2_11_die_namen_folgen_den_konstanten():
     from boerdi.services.ablauf import auftrag_zug, freigabe_zug, ki_schritt
 
     assert wahl_knopf._STEUER_AKTIONEN == {
-        auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN, freigabe_zug.AKTION_ERNEUT,
+        auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN, auftrag_zug.AKTION_SPAETER,
+        freigabe_zug.AKTION_ERNEUT,
         freigabe_zug.AKTION_ABBRECHEN, vorgang_aktion.AKTION_NEU, plan_fortsetzen.AKTION,
         ki_schritt.AKTION}

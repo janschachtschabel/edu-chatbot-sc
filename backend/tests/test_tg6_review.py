@@ -111,17 +111,25 @@ def test_major3_andere_grundlage_im_fehlerweg():
 # ── MINOR 8: „gründlich“ nur mit Auftrag und freigegebenem Flow ──────────────────────────────────
 
 def test_minor8_ohne_freigegebenen_flow_kein_gruendlicher_weg(monkeypatch):
+    """Zweites Review K (Z6): über die echte Naht (``_Wahl``) mit gestubbtem Träger — der
+    Metadaten-Flow schreibt, er geht nur über den MCP und nur, wenn er freigegeben ist."""
     from boerdi.services.ablauf import auftrag_zug
     from boerdi.services.auftraege import client
 
+    weg = {"schreibend": ("mcp", "")}
     monkeypatch.setattr(zug_basis, "_wlo_ablage", lambda: True)
-    monkeypatch.setattr(auftrag_zug, "starter", lambda: object())
-    monkeypatch.setattr(client, "erlaubt", lambda flow: False)
-    assert zug_basis._wlo_erschliessen() is False
-    monkeypatch.setattr(client, "erlaubt", lambda flow: flow == zug_basis.METADATEN_FLOW)
-    assert zug_basis._wlo_erschliessen() is True
-    monkeypatch.setattr(auftrag_zug, "starter", lambda: None)        # ohne Anmeldung/Schlüssel
-    assert zug_basis._wlo_erschliessen() is False
+    monkeypatch.setattr(auftrag_zug, "starter", lambda: auftrag_zug._Wahl())
+    monkeypatch.setattr(auftrag_zug, "traeger", lambda *, repo_schreibt=False:
+                        weg["schreibend"] if repo_schreibt else ("direkt", ""))
+    monkeypatch.setattr(client, "freigegebene_flows", lambda: frozenset())
+    assert zug_basis.wlo_erschliessen() is False
+    monkeypatch.setattr(client, "freigegebene_flows",
+                        lambda: frozenset({zug_basis.METADATEN_FLOW}))
+    assert zug_basis.wlo_erschliessen() is True
+    weg["schreibend"] = (None, "ohne_mcp")                           # nur der Direktweg da
+    assert zug_basis.wlo_erschliessen() is False
+    monkeypatch.setattr(auftrag_zug, "starter", lambda: None)        # ohne Anmeldung
+    assert zug_basis.wlo_erschliessen() is False
 
 
 def test_minor8_bereit_meldet_erschliessen_nur_mit_ablage():
@@ -145,9 +153,11 @@ def test_minor8_ohne_erschliessen_fragt_der_ablauf_nicht():
     assert regel.wenn_wert.quelle == "teil.bereit.wlo_erschliessen"
 
 
-def test_minor7_kestra_nur_fuer_inhalte():
+def test_minor7_aufgehoben_kestra_fuer_inhalte_und_strukturdokumente():
+    """Plan 2026-11-17, E14 hebt MINOR 7 auf: der Flow läuft über Inhalte UND Strukturdokumente
+    (Verhalten: ``test_paket_k5_strukturdokumente``) — gefiltert wird nur noch auf „abgelegt“."""
     auftrag = next(s for s in _seed().schritte if s.id == "metadaten")
-    assert auftrag.argumente["node_ids"]["wo"] == {"stand": "stored", "rolle": "inhalt"}
+    assert auftrag.argumente["node_ids"]["wo"] == {"stand": "stored"}
 
 
 # ── MAJOR 2 und MINOR 12 im Zug (Harness aus ``test_ablauf_zug``) ────────────────────────────────
@@ -157,7 +167,7 @@ def themenbaum(umgebung, monkeypatch):  # noqa: F811 — Fixture
     roh = yaml.safe_load((_SEEDS / "themenbaum.yaml").read_text(encoding="utf-8"))
     umgebung.katalog["wert"] = {"ablaeufe": [roh]}
     monkeypatch.setattr(zug_basis, "_wlo_ablage", lambda: False)
-    monkeypatch.setattr(zug_basis, "_wlo_erschliessen", lambda: False)
+    monkeypatch.setattr(zug_basis, "wlo_erschliessen", lambda: False)
     return umgebung
 
 

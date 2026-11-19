@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ABSTAENDE_MS, AUTOMATISCH_MS, FortschrittAblauf } from './fortschritt-ablauf';
+import { ABSTAENDE_MS, AUTOMATISCH_MS, FortschrittAblauf, fortschrittZahlen } from './fortschritt-ablauf';
 
 /**
  * Paket K1b: das Nachfragen von `ui_fortschritt`. Erst nach 5 s, dann in wachsenden Abständen bis
@@ -265,5 +265,32 @@ describe('FortschrittAblauf', () => {
     await vi.advanceTimersByTimeAsync(10 * 60_000);
     expect(auftrag).not.toHaveBeenCalled();
     expect(ablauf.phase).toBe('abgeschlossen');
+  });
+
+  // Paket K6 (E16): „k von n fertig“ aus der Antwort — nur zwei passende ganze Zahlen; ohne sie wie bisher.
+  it('K6: merkt sich den Fortschritt der letzten Antwort, ohne Zahlen keinen', async () => {
+    const { ablauf } = lage([{ stand: 'laeuft', fertig: 12, gesamt: 40 }, { stand: 'laeuft' }]);
+    ablauf.verbinden();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(ablauf.fortschritt).toEqual({ fertig: 12, gesamt: 40 });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(ablauf.fortschritt).toBeNull();
+  });
+
+  it('K6: unbrauchbare Zahlen gelten nicht', () => {
+    expect(fortschrittZahlen({ fertig: 3, gesamt: 4 })).toEqual({ fertig: 3, gesamt: 4 });
+    for (const roh of [{ fertig: 5, gesamt: 4 }, { fertig: -1, gesamt: 4 }, { fertig: 1, gesamt: 0 },
+      { fertig: '1', gesamt: 4 }, { fertig: 1.5, gesamt: 4 }, { gesamt: 4 }, {}]) {
+      expect(fortschrittZahlen(roh)).toBeNull();
+    }
+  });
+
+  // Durchtest Paket K (19.11.): gescheiterte Iterationen getrennt — nur passend, sonst fällt nur sie weg.
+  it('nimmt `fehlgeschlagen` nur, wenn es mit `fertig` in `gesamt` passt', () => {
+    expect(fortschrittZahlen({ fertig: 2, gesamt: 5, fehlgeschlagen: 1 }))
+      .toEqual({ fertig: 2, gesamt: 5, fehlgeschlagen: 1 });
+    for (const fehl of [0, 4, -1, '1', 1.5]) {
+      expect(fortschrittZahlen({ fertig: 2, gesamt: 5, fehlgeschlagen: fehl })).toEqual({ fertig: 2, gesamt: 5 });
+    }
   });
 });

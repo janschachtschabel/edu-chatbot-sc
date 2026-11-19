@@ -1069,3 +1069,43 @@ def test_ohne_freitext_schritt_bleibt_getippter_text_ein_gewoehnlicher_zug(monke
     gerufen = _wahl_spione(monkeypatch, wartet=False)
     out = asyncio.run(preflight(_ctx(None, message="Hallo"), _SESSION))
     assert out.early_response is None and gerufen["freitext"] == [] and safety.calls == []
+
+
+def test_durchtest_k_eine_wendung_an_der_frage_ist_nicht_ihr_freitext(monkeypatch):
+    """Durchtest Paket K (19.11.): angemeldet übernahm eine neue Sitzung den offenen Lauf — die
+    Wendung wurde still die Freitext-Antwort. Jetzt antwortet ``wendung_beantworten``."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    gerufen = _wahl_spione(monkeypatch, wartet=True)
+    beendet = _beenden_spion(monkeypatch)
+    monkeypatch.setattr(pf_mod.preflight_ablauf.wendung_zug, "wendung_trifft",
+                        lambda sid, state, text, sprache=None, ohne=None: "THEMENBAUM")
+    gesehen: list = []
+
+    async def wendung_beantworten(session, req, state, ziel):
+        gesehen.append(ziel)
+        return ChatResponse(session_id="bb-1", content="SCHON MITTEN")
+
+    monkeypatch.setattr(pf_mod.preflight_ablauf.wendung_zug, "wendung_beantworten",
+                        wendung_beantworten)
+    out = asyncio.run(preflight(_ctx(None, message="Themenbaum aus meinen Dateien"), _SESSION))
+    assert out.early_response.content == "SCHON MITTEN" and gesehen == ["THEMENBAUM"]
+    assert gerufen["freitext"] == [] and beendet == []
+
+
+def test_durchtest_k_eine_wendung_bei_einer_krise_geht_den_gewoehnlichen_weg(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="high"))
+    _wahl_spione(monkeypatch, wartet=True)
+    _beenden_spion(monkeypatch)
+    monkeypatch.setattr(pf_mod.preflight_ablauf.wendung_zug, "wendung_trifft",
+                        lambda sid, state, text, sprache=None, ohne=None: "THEMENBAUM")
+
+    async def nie(*_a, **_k):
+        raise AssertionError("bei einer Krise keine Ablauf-Antwort")
+
+    monkeypatch.setattr(pf_mod.preflight_ablauf.wendung_zug, "wendung_beantworten", nie)
+    out = asyncio.run(preflight(_ctx(None, message="Themenbaum aus meinen Dateien"), _SESSION))
+    assert out.early_response is None

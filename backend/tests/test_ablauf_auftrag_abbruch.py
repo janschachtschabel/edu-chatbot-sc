@@ -164,7 +164,9 @@ def test_getippter_text_bekommt_im_gesperrten_lauf_den_hinweis(im_zug, monkeypat
     a, antwort = _preflight(state, message="Was gibt es zu Optik?")
     assert a.gesperrt == "lesen" and a.irgendeiner
     assert antwort.antwort.content == bot_text("de", "action.ablauf.auftragGesperrt")
+    # Paket K7: im gesperrten Lauf dazu „Später weitermachen“
     assert [x for x, _p in _aktionen(antwort.antwort)] == [auftrag_zug.AKTION,
+                                                           auftrag_zug.AKTION_SPAETER,
                                                            auftrag_zug.AKTION_ABBRECHEN]
     assert im_zug.staende == []           # der Hinweis fragt die b-api nicht
 
@@ -271,7 +273,8 @@ def test_eine_gesperrte_antwort_ohne_knoepfe_bekommt_sie(im_zug, monkeypatch):
     leer = ChatResponse(session_id=_SID, content="Konflikt")
     chat._anmeldestand(leer, _req(), {"session_state": state})
     assert leer.eingabe_gesperrt is True
-    assert [a for a, _p in _aktionen(leer)] == [auftrag_zug.AKTION, auftrag_zug.AKTION_ABBRECHEN]
+    assert [a for a, _p in _aktionen(leer)] == [auftrag_zug.AKTION, auftrag_zug.AKTION_SPAETER,
+                                                auftrag_zug.AKTION_ABBRECHEN]   # K7
 
 
 def test_die_sperre_bricht_nie_einen_zug(im_zug, monkeypatch):
@@ -335,7 +338,7 @@ def test_die_ruhende_sperre_gilt_nur_fuer_ihr_warten(im_zug, monkeypatch):
     _pruefe(state)
     ctx = TurnContext(req=_req().model_copy(update={"message": "danke"}), session_state=state)
     asyncio.run(preflight_ablauf.bestimmen(ctx, _S()))
-    assert auftrag_zug.SPERRE_RUHT not in ctx.session_state
+    assert auftrag_zug.SPERRE_RUHT not in ctx.session_state["entities"]
     state = ctx.session_state
     _starte(state)                                          # ein neues Warten sperrt wieder
     assert auftrag_zug.gesperrt(_SID, state) == "lesen"
@@ -376,9 +379,19 @@ def test_der_preflight_setzt_die_sperre_nach_einer_krise_aus(im_zug, monkeypatch
     risiko["stufe"] = "high"
     krise = zug("ich will nicht mehr", state)
     assert krise.early_response is None
-    assert krise.session_state[auftrag_zug.SPERRE_RUHT]
+    # Paket K7-Nachtrag: die Marke liegt in ``entities`` — nur die lädt die Sitzung je Zug neu
+    assert krise.session_state["entities"][auftrag_zug.SPERRE_RUHT]
     risiko["stufe"] = "low"
     assert zug("mir geht es schlecht", krise.session_state).early_response is None
+    # Der nächste gewöhnliche Zug kommt frisch aus der Sitzung (nur ``entities``): weiter frei
+    naechster = {"entities": json.loads(json.dumps(krise.session_state["entities"]))}
+    assert zug("danke", naechster).early_response is None
+    assert auftrag_zug.gesperrt(_SID, naechster) is None
+    # „Stand prüfen“ (auch das Abholen des Moduls) führt zurück: läuft der Job, sperrt es wieder
+    im_zug.staende.append(client.Stand("laeuft"))
+    _pruefe(naechster)
+    assert auftrag_zug.gesperrt(_SID, naechster) == "lesen"
+    assert auftrag_zug.SPERRE_RUHT not in naechster["entities"]
 
 
 def test_der_deckel_laesst_im_gesperrten_lauf_die_auftrags_knoepfe_stehen(im_zug, monkeypatch):

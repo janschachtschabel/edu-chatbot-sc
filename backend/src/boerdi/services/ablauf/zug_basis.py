@@ -15,6 +15,7 @@ from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.schemas_ui import UiInfo
 from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.domain.config_models.ablauf import AblaufArea
+from boerdi.domain.config_models.kestra_flows import METADATEN_FLOW
 from boerdi.domain.ui_bloecke import DEBUG_KEY, fuer_den_debug_block
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.services import arbeitsstand, probe, vorgaenge
@@ -66,11 +67,9 @@ def umgebung(session: Any, req: ChatRequest, entities: dict[str, Any],
                             # „gründlich über WLO“ fragt der Ablauf nur, wenn das Feld ablegen kann
                             wlo_ablage=_wlo_ablage,
                             # Review TG-4–6, MINOR 8: „gründlich“ braucht auch den Metadaten-Flow
-                            wlo_erschliessen=_wlo_erschliessen)
-
-
-#: Der Kestra-Flow, der die Metadaten der abgelegten Inhalte erzeugt (Seed „Themenbaum erstellen“).
-METADATEN_FLOW: Final = "edusharing.chatbot/node-metadata-write"
+                            wlo_erschliessen=wlo_erschliessen,
+                            # Durchtest Paket K (19.11.): warum es „gründlich“ nicht gibt
+                            nach_anmeldung=gruendlich_nach_anmeldung)
 
 
 def _wlo_ablage() -> bool:
@@ -80,16 +79,26 @@ def _wlo_ablage() -> bool:
     return bool(schalter().get("ablage_in_wlo"))
 
 
-def _wlo_erschliessen() -> bool:
+def wlo_erschliessen() -> bool:
     """Review TG-4–6, MINOR 8: geht der ganze gründliche Weg — Ablage im Feld, ein Auftrag lässt
-    sich starten (Einrichtung, Anmeldung, Schlüssel der Person, ``auftrag_zug.starter``) und der
-    Metadaten-Flow ist freigegeben (``client.erlaubt``)? Sonst nähme der Ablauf Dateien gründlich an
-    und könnte keine Metadaten erzeugen."""
+    sich starten und der Metadaten-Flow ist freigegeben? Sonst nähme der Ablauf Dateien gründlich an
+    und könnte keine Metadaten erzeugen. Paket K3: der Flow schreibt ins Repository — er geht nur
+    über einen Träger, der das darf (MCP; der Direktweg nicht, ``auftrag_zug.kann_starten``)."""
     from boerdi.services.ablauf import auftrag_zug
-    from boerdi.services.auftraege import client
 
-    return (_wlo_ablage() and auftrag_zug.starter() is not None
-            and client.erlaubt(METADATEN_FLOW))
+    return _wlo_ablage() and auftrag_zug.kann_starten(METADATEN_FLOW, repo_schreibt=True)
+
+
+def gruendlich_nach_anmeldung() -> bool:
+    """Drittes Review Paket K (19.11.): öffnete eine Anmeldung den gründlichen Weg? Das Upload-Feld
+    böte die Ablage nach der Anmeldung an (``ablage_nach_anmeldung``, nur ohne Anmeldung gesetzt),
+    der MCP führt die Flow-Werkzeuge, und der Metadaten-Flow ist freigegeben — so gälte
+    :func:`wlo_erschliessen` nach der Anmeldung. Sonst hilft sie nicht (``gruendlichNichtDa``)."""
+    from boerdi.services.auftraege import mcp_starter
+    from boerdi.ui_module.dienst_upload import schalter
+
+    return (bool(schalter().get("ablage_nach_anmeldung")) and mcp_starter.verfuegbar()
+            and mcp_starter.flow_erlaubt(METADATEN_FLOW))
 
 
 async def festhalten(session: Any, v: Any, aus: treiber.Ausgabe, *,
@@ -137,14 +146,14 @@ async def schliessen(session: Any, v: Any) -> str | None:
     return job_id
 
 
-def nicht_festgehalten(aus: treiber.Ausgabe) -> None:
+async def nicht_festgehalten(aus: treiber.Ausgabe) -> None:
     """Review K1a, Befund 3: ein Konflikt nach dem Start eines Auftrags — der Auftrag läuft bei der
     b-api, ist aber nirgends festgehalten. Seit dem Job-Vertrag (K21 geklärt) endet er dort auch;
-    der Aufrufer hat schon zurückgerollt."""
+    der Aufrufer hat schon zurückgerollt. Paket K4: über den MCP im Zug."""
     if aus.auftrag:
         logger.warning("Auftrag gestartet, aber nicht festgehalten (Konflikt) — Flow %s",
                        aus.auftrag.get("flow"))  # log-ok: Flow-Name aus der Konfiguration
-        bei_der_b_api_abbrechen(aus.auftrag.get("job_id"))
+        await auftraege_beenden(aus.auftrag.get("job_id"))
 
 
 def antwort_text(lang: str, aus: treiber.Ausgabe) -> str:
@@ -266,7 +275,9 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
     if aus.lauf.get("status") == treiber.WARTET_AUFTRAG:
         from boerdi.services.ablauf import auftrag_zug
 
-        knoepfe = auftrag_zug.knoepfe(ablauf.id, resolve_locale(req.environment.locale))
+        # Paket K7: an einem gesperrten Schritt dazu „Später weitermachen“
+        knoepfe = auftrag_zug.knoepfe(ablauf.id, resolve_locale(req.environment.locale),
+                                      spaeter=auftrag_zug.sperrt(ablauf, aus.lauf))
     if aus.lauf.get("status") == treiber.WARTET_FREIGABE:
         from boerdi.services.ablauf import freigabe_zug
 
@@ -357,10 +368,13 @@ def bei_der_b_api_abbrechen(*job_ids: str | None) -> None:
     Konflikt-Rollback beendete einen Auftrag, auf den der Lauf eines anderen Zuges noch wartet.
 
     Paket D (E4): mit Delegations-Token keine Task nach der Anfrage — das Token endet mit ihr. Der
-    Auftrag läuft im Repository zu Ende; den Abbruch im Zug über den MCP bringt Paket K."""
-    from boerdi.services.auftraege import client
+    Auftrag läuft im Repository zu Ende. Einen Auftrag des MCP beendet :func:`auftraege_beenden`
+    im Zug (Paket K4) — hier wird er übergangen."""
+    from boerdi.services.auftraege import client, mcp_starter
     from boerdi.services.llm_auth import hat_zug_schluessel, zug_art
 
+    # Paket K4: einen Auftrag des MCP beendet :func:`auftraege_beenden` im Zug
+    job_ids = tuple(j for j in job_ids if not mcp_starter.ist_mcp(j))
     if not hat_zug_schluessel():
         return
     if zug_art() == "delegation":
@@ -371,11 +385,60 @@ def bei_der_b_api_abbrechen(*job_ids: str | None) -> None:
             client.abbrechen_im_hintergrund(job_id)
 
 
+#: Paket K4: Ausgang eines Abbruchs über den MCP, schlimmster zuerst.
+_AUSGAENGE: Final = ("weiter", "offen", "beendet")
+#: Paket K4, Review A5: der Satz hinter einer Antwort, die nebenbei einen Auftrag beendete.
+_AUSGANG_SATZ: Final = {"offen": "action.vorgang.auftragUnklar",
+                        "weiter": "action.vorgang.auftragLaeuftWeiter"}
+
+
+def auftrag_satz(ausgang: str, lang: str) -> str | None:
+    """Review A5: blieb offen, ob der Auftrag endete (``offen``), oder läuft er weiter
+    (``weiter``), der Satz dazu — sonst ``None``."""
+    schluessel = _AUSGANG_SATZ.get(ausgang)
+    return bot_text(lang, schluessel) if schluessel else None
+
+
+async def auftraege_beenden(*job_ids: str | None) -> str:
+    """Paket K4 (Plan 2026-11-17, E2/E4): Aufträge, die hier nicht mehr gelten, auch beim Träger
+    beenden — nach dem Festschreiben aufrufen (wie :func:`bei_der_b_api_abbrechen`).
+
+    Einen Auftrag des MCP bricht ``wlo_cancel_flow`` **im Zug** ab (kein Hintergrund: Anmeldung und
+    Token gelten nur während der Anfrage); die übrigen gehen den alten Weg der b-api. Zurück kommt
+    der Ausgang der MCP-Aufträge: ``""`` (keiner), ``beendet`` (abgebrochen oder schon fertig),
+    ``offen`` (keine Antwort, ``outcomeOpen``, unbekannt — „Stand unklar“) oder ``weiter`` (konnte
+    nicht abbrechen: ohne Anmeldung, Werkzeug gerade nicht da, abgewiesen)."""
+    from boerdi.services.auftraege import mcp_starter
+    from boerdi.services.auftraege.client import AuftragFehler
+    from boerdi.services.mcp.auth import has_personal_auth
+
+    ueber_mcp = [j for j in job_ids if j and mcp_starter.ist_mcp(j)]
+    if andere := [j for j in job_ids if j and not mcp_starter.ist_mcp(j)]:
+        bei_der_b_api_abbrechen(*andere)
+    ausgaenge: set[str] = set()
+    for job_id in ueber_mcp:
+        if mcp_starter.ist_offen(job_id):
+            ausgaenge.add("offen")              # Start ohne Antwort: es gibt keine jobId
+            continue
+        if not has_personal_auth():
+            ausgaenge.add("weiter")
+            continue
+        try:
+            await mcp_starter.abbrechen(job_id)
+            ausgaenge.add("beendet")
+        except AuftragFehler as fehler:
+            logger.info("Auftrag beim MCP nicht abgebrochen (%s)", fehler.grund)
+            ausgaenge.add("offen" if fehler.grund in ("offen", "job_unbekannt") else "weiter")
+    return next((a for a in _AUSGAENGE if a in ausgaenge), "")
+
+
 async def abbrechen(session: Any, v: Any, lauf: dict[str, Any], entities: dict[str, Any],
-                    aufrufer: str, *, bei_der_b_api: bool = True) -> bool:
+                    aufrufer: str, *, bei_der_b_api: bool = True) -> str | None:
     """Ein wartender Lauf, dessen Ablauf aus ist oder dessen Schritte sich änderten (Befund 5) —
     oder den die Person abbricht (K2b). Ohne ``bei_der_b_api`` (der Schlüssel wurde gerade
-    abgewiesen) kein DELETE hinterher. ``False`` bei einem Konflikt (nichts geändert)."""
+    abgewiesen) kein DELETE hinterher. ``None`` bei einem Konflikt (nichts geändert), sonst der
+    Ausgang beim Träger (Paket K4, :func:`auftraege_beenden`; ``"ok"`` ohne Auftrag über den MCP)
+    — nie leer, ``if not await abbrechen(…)`` prüft auf den Konflikt."""
     job_id = None
     try:
         if lauf.get("status") == treiber.WARTET_AUFTRAG:
@@ -391,9 +454,8 @@ async def abbrechen(session: Any, v: Any, lauf: dict[str, Any], entities: dict[s
         await session.commit()
     except vorgaenge.VorgangKonflikt:
         await session.rollback()
-        return False
-    if bei_der_b_api:
-        bei_der_b_api_abbrechen(job_id)
+        return None
+    ausgang = await auftraege_beenden(job_id) if bei_der_b_api else ""
     logger.info("Ablauf %s: wartender Lauf abgebrochen", lauf.get("ablauf"))
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
-    return True
+    return ausgang or "ok"

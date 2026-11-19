@@ -26,6 +26,7 @@ from urllib.parse import urlsplit
 
 from boerdi.domain import seiten_muster
 from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
+from boerdi.domain.config_models.kestra_flows import SCHREIBENDE_FLOWS
 from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 from boerdi.services.ablauf import (
     auftrag_teile,
@@ -886,6 +887,10 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
         # auf jedem Weg: eine Wahl, deren Antwort zu ihm führt, oder eine Freigabe
         if s.typ == "auftrag" and s.repo_schreibt and not _direkt_gefragt(ablauf, i):
             befunde.append((i, _t(lang, "auftrag_rueckfrage", s=s.id)))
+        # Paket K, Review A4/A7: der MCP-Weg gilt nur für Schritte mit ``repo_schreibt`` — ein
+        # bekannt schreibender Flow ohne den Vermerk ginge den Direktweg, ohne Rückfrage
+        if s.typ == "auftrag" and s.flow in SCHREIBENDE_FLOWS and not s.repo_schreibt:
+            befunde.append((i, _t(lang, "auftrag_repo_schreibt", s=s.id, f=s.flow)))
         # Plan 2026-11-16, Nachprüfung TG-4–6 (MINOR 4): die Zustimmung zu einem schreibenden Flow
         # trägt kein Synonym — ohne Freitext träfe „Nein, nicht erzeugen“ über „erzeugen“
         if s.typ == "auftrag" and s.repo_schreibt:

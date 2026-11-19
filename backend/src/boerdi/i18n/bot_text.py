@@ -253,11 +253,18 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragAbgelehntKonto": (
             "Der Dienst hat den Auftrag abgelehnt: Dein Konto ist dort noch nicht "
             "freigeschaltet."),
-        # Paket D (b-api seit 10.11.): 400 ``EDU_USER_REQUIRED`` — keine verifizierte Person. Bis
-        # Paket K (Start über den MCP) ehrlich: die Person kann daran nichts ändern.
+        # Paket D (b-api seit 10.11.): 400 ``EDU_USER_REQUIRED`` — die b-api erkannte keine
+        # angemeldete Person. Seit Paket K (Review A3) startet der MCP mit der Anmeldung der Person:
+        # meist ist sie abgelaufen, neu anmelden hilft.
         "action.ablauf.auftragAbgelehntPerson": (
-            "Aufträge mit deiner Anmeldung sind gerade nicht möglich – das wird gerade "
-            "umgestellt."),
+            "Der Dienst hat den Auftrag abgelehnt: Er hat keine angemeldete Person erkannt – "
+            "vermutlich ist deine Anmeldung abgelaufen. Melde dich in WLO bitte neu an und "
+            "versuch es noch einmal."),
+        # Zweites Review K (Z1): ``EDU_USER_REQUIRED`` auf dem Direktweg — die b-api erkennt dort
+        # nie eine Person, neu anmelden hilft nicht
+        "action.ablauf.auftragAbgelehntDirekt": (
+            "Der Dienst hat den Auftrag abgelehnt: Das geht nur über den WLO-Dienst mit deiner "
+            "Anmeldung – hier ist er gerade nicht verfügbar."),
         # Paket D: 403 ``LEGACY_HEADERS`` — ein Fehler der Einrichtung, nicht der Person
         "action.ablauf.auftragAbgelehntTechnik": (
             "Der Dienst hat den Auftrag abgelehnt: Der Chatbot hat einen veralteten Kopf "
@@ -277,6 +284,86 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragNichtAbrufbar": (
             "Den Stand des Auftrags kann ich gerade nicht abrufen. Versuch es bitte gleich noch "
             "einmal."),
+        # Paket K (Plan 2026-11-17): Aufträge über den MCP
+        "action.ablauf.auftragLaeuftFortschritt": (
+            "Der Auftrag läuft noch – {fertig} von {gesamt} sind fertig. Schau gern später wieder "
+            "nach – tippe dann auf „Stand prüfen“."),
+        # Paket K7 (E16/E17): „Später weitermachen“ am gesperrten Auftragsschritt
+        "action.ablauf.auftragSpaeterKnopf": "Später weitermachen",
+        # Review B2: nicht „Meine Vorgänge“ — dort stehen nur andere Gespräche
+        "action.ablauf.auftragSpaeter": (
+            "Die Erschließung läuft in WLO weiter. Du kannst hier jederzeit „Stand prüfen“ wählen "
+            "oder später wiederkommen – ich führe dich dann zurück. Das geht bis {datum}."),
+        "action.ablauf.auftragOffen": (
+            "Vom Start kam keine klare Antwort – der Auftrag kann trotzdem laufen. Ich starte ihn "
+            "deshalb nicht noch einmal. Tippe später auf „Stand prüfen“, dann lese ich, was an "
+            "den Materialien steht."),
+        # Review A1: „Stand prüfen“ nach einem offenen Start (etwa 429) — er lief vielleicht nie
+        "action.ablauf.auftragOffenGelesen": (
+            "Ob der Auftrag gelaufen ist, kann ich nicht nachsehen – vielleicht war der Dienst "
+            "ausgelastet. Ich lese, was jetzt an den Materialien steht; fehlt dort etwas, starte "
+            "den Ablauf später noch einmal."),
+        # Zweites Review K (Z2): ein Teil eines Stapels mit offenem Ausgang, weitere folgen
+        "action.ablauf.auftragTeilUnklar": (
+            "Ob Teil {teil} gelaufen ist, ist unklar – ich mache mit Teil {naechster} weiter."),
+        # Zweites Review K (Z4): 429 beim Start ohne offenen Ausgang — nichts gestartet
+        "action.ablauf.auftragVoll": (
+            "Gerade laufen zu viele Aufträge gleichzeitig, gestartet wurde nichts. Versuch es "
+            "bitte in etwa {minuten} Minuten noch einmal."),
+        "action.ablauf.auftragVollOhneZeit": (
+            "Gerade laufen zu viele Aufträge gleichzeitig, gestartet wurde nichts. Versuch es "
+            "bitte in ein paar Minuten noch einmal."),
+        # Review A4 (neutral seit dem zweiten Review, Z5): der Flow ist nicht freigegeben
+        "action.ablauf.auftragNichtErlaubt": (
+            "Dieser Auftrag ist hier nicht freigegeben – das ist eine Frage der Einrichtung."),
+        "action.ablauf.auftragNichtVerfuegbar": (
+            "Das ist gerade nicht verfügbar (der WLO-Dienst startet vielleicht neu). Versuch es "
+            "bitte gleich noch einmal."),
+        "action.ablauf.auftragNurUeberWlo": (
+            "Dieser Auftrag schreibt in WLO und geht nur über den WLO-Dienst mit deiner "
+            "Anmeldung – der ist hier gerade nicht verfügbar."),
+        # Zweites Review K (Z3): nach einem Neustart des MCP kann der Auftrag noch laufen
+        "action.ablauf.auftragStandWeg": (
+            "Der Stand ist nicht mehr abrufbar. Ich lese, was schon an den Materialien steht – "
+            "läuft der Auftrag noch, fehlen vielleicht Teile; dann später noch einmal lesen."),
+        "action.ablauf.auftragBericht": "{n} Materialien erschlossen, {m} nicht.",
+        # Durchtest Paket K (19.11.): ein gescheiterter Flow sagt es selbst, vor dem Ersatzweg —
+        # ``code`` ist leer oder „ (FLOW_FAILED)“ (nur Codes aus ``auftrag_zug.FEHLERCODES``).
+        # Drittes Review: neutral, er gilt für jeden Auftrag
+        "action.ablauf.auftragFehlgeschlagen": "Der Auftrag in WLO ist fehlgeschlagen{code}.",
+        # Durchtest Paket K (19.11.): „k von n fertig“ zählt gescheiterte getrennt
+        "action.ablauf.auftragLaeuftFortschrittFehler": (
+            "Der Auftrag läuft noch – {fertig} von {gesamt} sind fertig, {fehlgeschlagen} "
+            "fehlgeschlagen. Schau gern später wieder nach – tippe dann auf „Stand prüfen“."),
+        # Durchtest Paket K (19.11.): md/txt gehen nicht an den Metadaten-Flow
+        "action.ablauf.metadatenOhneText": (
+            "Für Markdown- und Textdateien kann WLO gerade keine Angaben erzeugen."),
+        # Durchtest Paket K (19.11.): eine Wendung des laufenden Ablaufs an einer offenen Frage
+        "action.ablauf.schonMitten": (
+            "Du bist schon mitten in „{titel}“ – hier geht es weiter – oder „Neu starten“."),
+        # Drittes Review: zurück an die offene Frage statt eines anderen Ablaufs
+        "action.ablauf.hierWeiter": "Hier weitermachen",
+        # Durchtest Paket K (19.11.): warum es „gründlich über WLO“ nicht gibt (Seed, ``schnell``)
+        "action.ablauf.gruendlichNurAngemeldet": (
+            "„Gründlich über WLO“ geht nur mit einer WLO-Anmeldung – dann erschließt WLO die "
+            "Inhalte deiner Dateien."),
+        "action.ablauf.gruendlichNichtDa": (
+            "„Gründlich über WLO“ geht hier gerade nicht – der WLO-Dienst ist dafür nicht "
+            "eingerichtet oder nicht erreichbar."),
+        "action.ablauf.auftragStandUnklar": (
+            "Der Ablauf endet hier. Ob der Auftrag selbst abgebrochen ist, ist unklar – es kam "
+            "keine Antwort. Sieh bitte im Vorgang bzw. an den Materialien in WLO nach, bevor du "
+            "ihn neu startest."),
+        "action.ablauf.auftragLaeuftWeiter": (
+            "Der Ablauf endet hier. Den Auftrag selbst konnte ich gerade nicht beenden – er läuft "
+            "bis zu seinem Ende weiter, sein Ergebnis holt hier aber niemand mehr ab."),
+        "action.vorgang.auftragUnklar": (
+            "Ob der laufende Auftrag abgebrochen ist, ist unklar – sieh bitte an den Materialien "
+            "in WLO nach."),
+        # Review A5: wie ``auftragLaeuftWeiter`` — hinter dem Satz zu Vorgang bzw. Neustart
+        "action.vorgang.auftragLaeuftWeiter": (
+            "Den laufenden Auftrag konnte ich gerade nicht beenden – er läuft bis zu seinem Ende "
+            "weiter, sein Ergebnis holt hier aber niemand mehr ab."),
         "action.ablauf.dateienSpaeter": (
             "Der Auftrag ist fertig, aber seine Dateien konnte ich gerade nicht holen. Tippe bitte "
             "gleich noch einmal auf „Stand prüfen“."),
@@ -893,7 +980,11 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.auftragAbgelehntKonto": (
             "The service declined the job: your account is not yet enabled there."),
         "action.ablauf.auftragAbgelehntPerson": (
-            "Jobs with your sign-in are not possible right now – this is being switched over."),
+            "The service declined the job: it did not recognise a signed-in person – your sign-in "
+            "has probably expired. Please sign in to WLO again and try once more."),
+        "action.ablauf.auftragAbgelehntDirekt": (
+            "The service declined the job: this only works through the WLO service with your "
+            "sign-in – which isn't available here right now."),
         "action.ablauf.auftragAbgelehntTechnik": (
             "The service declined the job: the chatbot sent an outdated header (LEGACY_HEADERS). "
             "This is a setup error — please let the team know."),
@@ -908,6 +999,68 @@ BOT_TEXT: Final[Catalogue] = {
             "status” later."),
         "action.ablauf.auftragNichtAbrufbar": (
             "I can't fetch the status of the job right now. Please try again in a moment."),
+        "action.ablauf.auftragLaeuftFortschritt": (
+            "The job is still running – {fertig} of {gesamt} are done. Feel free to check back "
+            "later – then tap “Check status”."),
+        "action.ablauf.auftragSpaeterKnopf": "Continue later",
+        "action.ablauf.auftragSpaeter": (
+            "The indexing continues in WLO. You can choose “Check status” here at any time or "
+            "come back later – I'll take you back then. This works until {datum}."),
+        "action.ablauf.auftragOffen": (
+            "The start gave no clear answer – the job may be running anyway, so I won't start it "
+            "again. Tap “Check status” later, then I'll read what the materials show."),
+        "action.ablauf.auftragOffenGelesen": (
+            "I can't check whether the job ran – the service may have been busy. I'll read what "
+            "the materials show now; if something is missing there, start the workflow again "
+            "later."),
+        "action.ablauf.auftragTeilUnklar": (
+            "Whether part {teil} ran is unclear – I'll carry on with part {naechster}."),
+        "action.ablauf.auftragVoll": (
+            "Too many jobs are running at once right now, nothing was started. Please try again "
+            "in about {minuten} minutes."),
+        "action.ablauf.auftragVollOhneZeit": (
+            "Too many jobs are running at once right now, nothing was started. Please try again "
+            "in a few minutes."),
+        "action.ablauf.auftragNichtErlaubt": (
+            "This job is not enabled here – this is a setup matter."),
+        "action.ablauf.auftragNichtVerfuegbar": (
+            "This isn't available right now (the WLO service may be restarting). Please try "
+            "again in a moment."),
+        "action.ablauf.auftragNurUeberWlo": (
+            "This job writes to WLO and only runs through the WLO service with your sign-in – "
+            "which isn't available here right now."),
+        "action.ablauf.auftragStandWeg": (
+            "The status can no longer be fetched. I'll read what is already on the materials – if "
+            "the job is still running, parts may be missing; then read again later."),
+        "action.ablauf.auftragBericht": "{n} materials described, {m} not.",
+        "action.ablauf.auftragFehlgeschlagen": "The job in WLO failed{code}.",
+        "action.ablauf.auftragLaeuftFortschrittFehler": (
+            "The job is still running – {fertig} of {gesamt} are done, {fehlgeschlagen} failed. "
+            "Feel free to check back later – then tap “Check status”."),
+        "action.ablauf.metadatenOhneText": (
+            "WLO can't create details for Markdown and text files right now."),
+        "action.ablauf.schonMitten": (
+            "You're already in the middle of “{titel}” – let's continue here, or “Restart”."),
+        "action.ablauf.hierWeiter": "Continue here",
+        "action.ablauf.gruendlichNurAngemeldet": (
+            "“Thoroughly via WLO” needs a WLO sign-in – then WLO indexes the content of your "
+            "files."),
+        "action.ablauf.gruendlichNichtDa": (
+            "“Thoroughly via WLO” isn't available here right now – the WLO service is not set up "
+            "for it or not reachable."),
+        "action.ablauf.auftragStandUnklar": (
+            "The workflow ends here. Whether the job itself was cancelled is unclear – there was "
+            "no answer. Please check the project or the materials in WLO before you start it "
+            "again."),
+        "action.ablauf.auftragLaeuftWeiter": (
+            "The workflow ends here. I couldn't stop the job itself just now – it keeps running "
+            "until it finishes, but nobody collects its result here."),
+        "action.vorgang.auftragUnklar": (
+            "Whether the running job was cancelled is unclear – please check the materials in "
+            "WLO."),
+        "action.vorgang.auftragLaeuftWeiter": (
+            "I couldn't stop the running job just now – it keeps running until it finishes, but "
+            "nobody collects its result here."),
         "action.ablauf.dateienSpaeter": (
             "The job is done, but I couldn't fetch its files just now. Please tap “Check status” "
             "again in a moment."),

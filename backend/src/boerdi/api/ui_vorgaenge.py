@@ -53,8 +53,9 @@ from boerdi.api.turn_auth import (
 from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.services import arbeitsstand, probe, vorgaenge
 from boerdi.services.ablauf import ausloeser
-from boerdi.services.ablauf.zug_basis import bei_der_b_api_abbrechen
+from boerdi.services.ablauf.zug_basis import auftraege_beenden, bei_der_b_api_abbrechen
 from boerdi.services.auftraege import ablage as auftraege_ablage
+from boerdi.services.auftraege import mcp_starter
 from boerdi.services.db_sessions import sitzung_entities
 from boerdi.services.llm_auth import darf_jobs
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
@@ -266,9 +267,15 @@ async def loeschen(anfrage: LoeschAnfrage, request: Request, response: Response,
     job_id = offen.job_id if offen is not None else None
     await vorgaenge.loeschen(session, v.id, kennung)
     await session.commit()
+    response.headers["Cache-Control"] = "private, no-store"
+    if job_id and mcp_starter.ist_mcp(job_id):
+        # Paket K4: ein Auftrag des MCP endet im Zug (``wlo_cancel_flow``); ohne klare Antwort
+        # gilt er als weiterlaufend — das Widget verspricht dann kein „endet“.
+        await verbindung_freigeben(session)
+        ausgang = await auftraege_beenden(job_id)
+        return {"geloescht": True, "auftrag_laeuft_weiter": ausgang != "beendet"}
     if job_id:
         bei_der_b_api_abbrechen(job_id)
-    response.headers["Cache-Control"] = "private, no-store"
     # Q-6: ohne den Schlüssel der Person beendet die b-api den Job nicht (`bei_der_b_api_abbrechen`
     # tut dann nichts) — das Widget sagt es, statt „endet“ zu versprechen.
     # Paket D: auch mit Delegations-Token nicht (``darf_jobs``).
