@@ -168,8 +168,9 @@ async def _aus_strukturdokumenten(teile: Callable[[str], Awaitable[Any]]) -> dic
     Wert in der Reihenfolge der Dokumente. Ein Strukturdokument ist, was der Teil ``ablage`` mit
     Rolle ``struktur`` abgelegt führt — nie die Rolle, die ``metadaten`` selbst nennt (die Ablage
     schreibt der Endpunkt, nicht das Modell). Materialien belegen nichts vor. Ein Lesefehler heißt
-    „nichts“."""
+    „nichts“. Fach und Stufe gehen durch das WLO-Vokabular (N2, ``mcp/vokabular_labels``)."""
     from boerdi.services.ablauf import metadaten
+    from boerdi.services.mcp import vokabular_labels
 
     try:
         ablage = await teile("ablage")
@@ -185,12 +186,13 @@ async def _aus_strukturdokumenten(teile: Callable[[str], Awaitable[Any]]) -> dic
     for e in teil.get("inhalte") or []:
         if not isinstance(e, dict) or e.get("node_id") not in strukturen:
             continue
+        # N2 (Plan 2026-11-19): auf das WLO-Vokabular abgebildet; ohne Vokabular wie bisher
         for wert in e.get("faecher") or []:
-            if "fach" not in aus and isinstance(wert, str) and (
-                    fach := strukturentwurf.fach(_sauber(wert, strukturentwurf.FACH_ZEICHEN + 1))):
+            if "fach" not in aus and isinstance(wert, str) and (fach := await vokabular_labels.fach(
+                    _sauber(wert, strukturentwurf.FACH_ZEICHEN + 1))):
                 aus["fach"] = fach
         for wert in e.get("stufen") or []:
-            if "bildungsstufe" not in aus and (stufe := strukturentwurf.bildungsstufe(wert)):
+            if "bildungsstufe" not in aus and (stufe := await vokabular_labels.stufe(wert)):
                 aus["bildungsstufe"] = stufe
         titel = e.get("titel")
         if ("thema" not in aus and isinstance(titel, str)
