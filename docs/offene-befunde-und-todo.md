@@ -376,6 +376,11 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Paket N (2026-11-19, PR #89):** keine Migration, keine neue Variable; Image neu bauen (Widget,
+  Module `ui-inhaltsrahmen`/`ui-strukturentwurf`, Studio-Karte b-api-Betrieb). Werksfassung
+  „Themenbaum erstellen“ ändert sich (`metadaten_frage`, `ohne_metadaten`) → Werksabgleich in
+  ruhiger Zeit. Offen: Betriebsanzeige nur je Prozess (nicht über alle Kopien), Browser-Abnahme der
+  Studio-Karte. Notizen `aenderungen/2026-11-19-paket-n*.md`, Doku `2026-11-19-doku-paket-n.md`.
 - **b-api-Delegation (2026-11-18, Paket D):** keine Migration, kein Widget-Build; Image neu bauen
   (Backend, Studio-Text). Hinter dem b-api-Proxy mit `forwardDelegation`:
   `B_API_KEY_MODE=forward`, Admin-Liste in `b-api-betrieb.md` (`allowedRequestHeaders` mit

@@ -432,7 +432,7 @@
       "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
       "provider": "github",
       "link_mode": "web",
-      "revision": "81d66f6d0251f95256a57fd9b1be667bfaad18ae"
+      "revision": "b7aad91b78f5acf40443ea89bb6935e2a7de87b0"
     },
     "legend": {
       "entries": {
@@ -629,8 +629,8 @@
       "sources": [
         {
           "path": "backend/src/boerdi/ui_module/werkzeuge.py",
-          "line": 149,
-          "end_line": 160,
+          "line": 152,
+          "end_line": 163,
           "label": "Angebot je Maschine"
         },
         {
@@ -796,6 +796,12 @@
           "line": 759,
           "end_line": 760,
           "label": "Trichter: Dokumente zuerst"
+        },
+        {
+          "path": "backend/src/boerdi/services/ablauf/auftrag_freigabe.py",
+          "line": 199,
+          "end_line": 218,
+          "label": "Freigabe-Box (Paket N4)"
         }
       ]
     },
@@ -923,8 +929,8 @@
         },
         {
           "path": "frontend/projects/ui/src/shell/chat-shell.component.ts",
-          "line": 1822,
-          "end_line": 1825,
+          "line": 1825,
+          "end_line": 1828,
           "label": "meldet environment.ui_module"
         }
       ]
@@ -1195,7 +1201,7 @@
       "items": [
         "KI ruft ein Modul-Werkzeug (agent: true): im Agent-Modus, wenn das Widget es meldet und das Studio es lässt; im Muster-Modus nur, wenn das Muster es unter tools: nennt",
         "Abgeleitet an der API-Grenze: Trefferliste und Linkbox aus cards und web_links; das Muster wählt mit ui_module:",
-        "Vom System gesetzt: Inhaltsrahmen aus Dokument-Werkzeug, Volltext, Lernpfad und Schreib-Vorschau"
+        "Vom System gesetzt: Inhaltsrahmen aus Dokument-Werkzeug, Volltext, Lernpfad und Schreib-Vorschau; vor einem Kestra-Start als Freigabe-Box (Feld freigabe mit x-nur-system: die KI sieht es nie)"
       ]
     },
     {

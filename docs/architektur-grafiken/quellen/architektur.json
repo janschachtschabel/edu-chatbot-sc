@@ -435,7 +435,7 @@
       "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
       "provider": "github",
       "link_mode": "web",
-      "revision": "81d66f6d0251f95256a57fd9b1be667bfaad18ae"
+      "revision": "b7aad91b78f5acf40443ea89bb6935e2a7de87b0"
     }
   },
   "components": [
@@ -620,6 +620,12 @@
           "line": 30,
           "end_line": 51,
           "label": "Anmeldung"
+        },
+        {
+          "path": "backend/src/boerdi/api/health.py",
+          "line": 64,
+          "end_line": 68,
+          "label": "/api/health: Feld b_api"
         }
       ]
     },
@@ -855,8 +861,8 @@
         },
         {
           "path": "backend/src/boerdi/api/turn_auth.py",
-          "line": 146,
-          "end_line": 174,
+          "line": 147,
+          "end_line": 176,
           "label": "Übernahme, forward → 401"
         }
       ]
@@ -911,8 +917,8 @@
       "sources": [
         {
           "path": "docs/b-api-betrieb.md",
-          "line": 85,
-          "end_line": 91,
+          "line": 116,
+          "end_line": 121,
           "label": "Rechte und Labels des Flows"
         },
         {
@@ -923,8 +929,8 @@
         },
         {
           "path": "backend/src/boerdi/services/auftraege/mcp_starter.py",
-          "line": 268,
-          "end_line": 295,
+          "line": 249,
+          "end_line": 276,
           "label": "Stand über den MCP"
         }
       ]
@@ -951,10 +957,10 @@
           "label": "Repository bürgt für die Person"
         },
         {
-          "path": "backend/src/boerdi/services/auftraege/mcp_starter.py",
-          "line": 1,
-          "end_line": 29,
-          "label": "Start über den MCP"
+          "path": "backend/src/boerdi/services/auftraege/mcp_vorschau.py",
+          "line": 100,
+          "end_line": 121,
+          "label": "Vorschau vor der Freigabe"
         },
         {
           "path": "backend/src/boerdi/services/ablauf/auftrag_zug.py",
@@ -1153,7 +1159,7 @@
       "items": [
         "Schreibende Flows (repo_schreibt) startet der WLO-MCP mit der Anmeldung der Person, nicht der Chatbot",
         "Das Repository bürgt über /rest/bapi/** mit einer signierten Assertion; X-Edu-User-Id ist abgeschafft",
-        "Start in zwei Schritten (Vorschau, Bestätigung); bei outcomeOpen nie ein zweiter Start",
+        "Erst Vorschau des MCP, dann die Freigabe-Box: nur „Freigeben“ derselben angemeldeten Person startet (der Schlüssel bleibt im Server); bei outcomeOpen nie ein zweiter Start",
         "Stand über wlo_flow_status (k von n), Abbruch über wlo_cancel_flow; die jobId erreicht weder Person noch Modell noch Log"
       ]
     },
@@ -1175,6 +1181,7 @@
       "title": "Betrieb (Compose oder Kubernetes)",
       "items": [
         "Ein Prozess, zwei Ports (python -m boerdi.serve): 8100 öffentlich, 8101 intern mit /health, /ready, /metrics",
+        "Betriebsanzeige: welche b-api-Art zuletzt galt (Delegation, Schlüssel, direkt) zeigen /api/health hinter dem Studio-Schlüssel und die Studio-Statusleiste; das offene /health bleibt {status: ok}",
         "Compose: Traefik mit TLS, Vorgabe 1 Replik; Kubernetes: Helm-Werte für Ingress, Proben und feste Replikenzahl",
         "Valkey zählt Rate-Limits über alle Instanzen; JSON-Logs mit Trace-ID auf stdout, Jaeger optional",
         "Migration (alembic + import-config --werksabgleich) als eigener Schritt vor den Backends",

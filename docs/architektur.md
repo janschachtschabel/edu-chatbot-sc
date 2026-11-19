@@ -594,6 +594,13 @@ begrenzt die Clients deshalb nicht; Züge der Anlage selbst (Studio-Proxy, gült
 Studio-Schlüssel — Evaluation, Lasttest) sind davon frei. Der Schalter steht in
 `api/turn_auth`, die Tabelle in `deploy/README.md`.
 
+**Betriebsanzeige (Paket N1).** Welche Art zuletzt bei einem Nutzerzug galt (`delegation`,
+`schluessel`, direkt), merkt sich jeder Prozess mit Zeit, nie Werte (`services/b_api_betrieb.py`).
+Das Studio zeigt sie in der Statusleiste der Übersicht, `/api/health` (hinter dem
+Studio-Schlüssel) im Feld `b_api`, mit den Warnungen `forward_ohne_token` und
+`zugangsblock_fehlt`. Das offene `/health` bleibt `{"status":"ok"}`. `B_API_KEY_MODE` gilt ohne
+Variable als `auto`.
+
 Die Embedding-Dimension bestimmt das pgvector-Schema (`EMBED_DIM`); alternativ
 laufen Embeddings und Reranking **lokal** auf onnxruntime (§4.5) — dann braucht
 der RAG-Weg gar keinen externen Anbieter. Schlüssel liegen ausschließlich in der
@@ -616,8 +623,11 @@ Lange, asynchrone Arbeit — heute die Erschließung abgelegter Dateien mit
 
 ```
 Ablauf-Schritt auftrag (repo_schreibt)
-  └─ services/auftraege/mcp_starter.starten
-       └─ MCP wlo_start_flow  (Vorschau, dann Bestätigung; Zugangsblock der Person)
+  ├─ services/ablauf/auftrag_freigabe.vorlegen → auftraege/mcp_vorschau.vorschau
+  │    (MCP wlo_start_flow ohne confirmToken) → Freigabe-Box, Lauf wartet
+  └─ „Freigeben“: ablauf/auftrag_freigabe_zug.starten → auftraege/mcp_vorschau.bestaetigen
+       (spätere Teile eines Stapels: auftraege/mcp_starter.starten, Vorschau und Bestätigung)
+       └─ MCP wlo_start_flow mit confirmToken  (Zugangsblock der Person)
             └─ Repository-Proxy {WLO_REPOSITORY_URL}/rest/bapi/api/v1/jobs/…
                  (eigener Schlüssel des Repositorys + signierte Assertion für die Person)
                  └─ b-api /api/v1/jobs → Kestra-Job mit eigenem bapi_token
@@ -627,6 +637,14 @@ Ablauf-Schritt auftrag (repo_schreibt)
 - **Träger je Schritt** (`services/ablauf/auftrag_zug.traeger`): ein Schritt mit `repo_schreibt`
   nur über den MCP, auch bei Delegation; ohne `repo_schreibt` der Direktweg der b-api, aber nur mit
   dem Schlüssel der Person und ohne Delegation (`llm_auth.darf_jobs`). Ohne Anmeldung kein Auftrag.
+- **Freigabe-Box (Paket N4):** Nach der Rückfrage holt `services/auftraege/mcp_vorschau.vorschau`
+  die Vorschau, `services/ablauf/auftrag_freigabe` legt sie als Box vor (Inhaltsrahmen mit Feld
+  `freigabe`), und der Treiber (`services/ablauf/treiber.py`) hält den Lauf an `wartet_freigabe`. Den Schlüssel (`confirmToken`) hält nur die
+  Sitzung (`entities["_auftrag_freigabe"]`), gebunden an Ablauf, Schritt, Vorlage und Aufrufer; er
+  geht nie in Vorgang, Modell, Log oder Studio-Ansicht. Erst der Knopf „Freigeben“
+  (`ablauf_auftrag_freigeben`, `services/ablauf/auftrag_freigabe_zug.py`) derselben angemeldeten
+  Person löst ihn ein; die Freigabe wird vor dem Aufruf des MCP aus der Sitzung genommen, ein
+  Doppelklick startet nichts doppelt.
 - **Ob der MCP es kann**, sagt `faehigkeiten.kennt_werkzeug`. Nach einem Neustart des MCP fehlen
   die Werkzeuge kurz; waren sie vor höchstens 10 Minuten da, heißt es „gleich noch einmal“ statt
   Ersatzweg.
@@ -655,7 +673,19 @@ Die Orte rechnet das Backend im Zug (`ui_module/upload_orte.orte`): angemeldet m
 Flow-Träger ist „In WLO“ vorgewählt, ohne Anmeldung „Hier im Chat“ bis zur Grenze. Die Teile prüft
 bzw. rechnet der Server beim Speichern selbst (`arbeitsstand_teile`, `arbeitsstand._speichern`);
 Angaben des Browsers gelten nie. Geht ein hier gelesener Inhalt (Löschen, Frist, „Arbeitsstand
-löschen“), fallen seine Einträge in `metadaten` auf „nur Name“ zurück. Vertrag und Bedienung:
+löschen“), fallen seine Einträge in `metadaten` auf „nur Name“ zurück.
+
+**Was ein Entwurf aus den Teilen macht (Paket N2/N3).** Kurzangaben und Entwürfe nennen Fach und
+Bildungsstufe nur mit Labels aus dem WLO-Vokabular (`services/mcp/vokabular_labels.py`: genau oder
+über Aliase, keine unscharfen Treffer; ein Fehlschlag des Vokabulars wird 60 s gemerkt; ist es
+nicht erreichbar, gilt die bisherige Prüfung, Abgleich am Entwurf in
+`services/strukturentwurf_vokabular.py`). Ein
+Themenbaum-Entwurf aus Materialien (`aus_inhalten`) hängt sie als `inhalte` an die Punkte, mit
+`node_id` (aus `metadaten`, sonst aus der Ablage über die Nummer `i`; ohne Kennung nur `i`), und
+ordnet nicht Zugeordnetes per
+Einbettung nach (`services/strukturentwurf_zuordnung.py`, `strukturentwurf_naehe.py`, numpy,
+Schwelle je Modell, gemessen an 69 echten WLO-Materialien); der Rest steht unter
+`nicht_zugeordnet`. Vertrag und Bedienung:
 [`ui-module.md`](ui-module.md) §6 „Ein Upload-Weg“; Grafik:
 [Datenstrom (PNG)](architektur-grafiken/png/datenstrom-upload-kestra.png).
 

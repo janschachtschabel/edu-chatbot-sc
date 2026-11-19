@@ -7,10 +7,10 @@ Herunterladen oder Klonen über `index.html` (siehe „Lokal nutzen“). Auf Git
 
 | Grafik | Bild (hell) | Interaktiv (lokal) | Quelle | Quellstand |
 |---|---|---|---|---|
-| Architektur: Widget, Studio, Backend, MCP, b-api (Delegation), Repository-Proxy, Kestra | [PNG](png/architektur.png) | [architektur.html](architektur.html) | [`architektur.json`](quellen/architektur.json) | `81d66f6` (Branch `ein-upload-weg`) |
+| Architektur: Widget, Studio, Backend, MCP, b-api (Delegation, Betriebsanzeige), Repository-Proxy, Kestra mit Freigabe-Box | [PNG](png/architektur.png) | [architektur.html](architektur.html) | [`architektur.json`](quellen/architektur.json) | `b7aad91` |
 | Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [PNG](png/software-stack.png) | [software-stack.html](software-stack.html) | [`software-stack.json`](quellen/software-stack.json) | `2a589a6` |
-| UI-Module: Einbindung und Nutzung (Register, Werkzeug, Ableitung, Host, Antwortweg, Datenquelle) — Erklärung in [`../ui-module.md`](../ui-module.md) | [PNG](png/ui-module-einbindung.png) | [ui-module-einbindung.html](ui-module-einbindung.html) | [`ui-module-einbindung.json`](quellen/ui-module-einbindung.json) | `81d66f6` (Branch `ein-upload-weg`) |
-| Datenstrom: vom Upload bis Kestra (hier im Chat oder in WLO, Teile im Vorgang) — Erklärung in [`../architektur.md`](../architektur.md) §5.8 und §5.9 | [PNG](png/datenstrom-upload-kestra.png) | [datenstrom-upload-kestra.html](datenstrom-upload-kestra.html) | [`datenstrom-upload-kestra.json`](quellen/datenstrom-upload-kestra.json) | `81d66f6` (Branch `ein-upload-weg`) |
+| UI-Module: Einbindung und Nutzung (Register, Werkzeug, Ableitung, Host, Antwortweg, Datenquelle) — Erklärung in [`../ui-module.md`](../ui-module.md) | [PNG](png/ui-module-einbindung.png) | [ui-module-einbindung.html](ui-module-einbindung.html) | [`ui-module-einbindung.json`](quellen/ui-module-einbindung.json) | `b7aad91` |
+| Datenstrom: vom Upload bis Kestra (hier im Chat oder in WLO, Freigabe-Box, Teile im Vorgang) — Erklärung in [`../architektur.md`](../architektur.md) §5.8 und §5.9 | [PNG](png/datenstrom-upload-kestra.png) | [datenstrom-upload-kestra.html](datenstrom-upload-kestra.html) | [`datenstrom-upload-kestra.json`](quellen/datenstrom-upload-kestra.json) | `b7aad91` |
 | Ablauf eines Zuges im Muster-Modus | [PNG](png/ablauf-muster-modus.png) | [ablauf-muster-modus.html](ablauf-muster-modus.html) | [`ablauf-muster-modus.json`](quellen/ablauf-muster-modus.json) | `2a589a6` |
 | Ablauf eines Zuges in der Agent-Schleife | [PNG](png/ablauf-agent-schleife.png) | [ablauf-agent-schleife.html](ablauf-agent-schleife.html) | [`ablauf-agent-schleife.json`](quellen/ablauf-agent-schleife.json) | `2a589a6` |
 | Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [PNG](png/konfiguration-muster-modus.png) | [konfiguration-muster-modus.html](konfiguration-muster-modus.html) | [`konfiguration-muster-modus.json`](quellen/konfiguration-muster-modus.json) | `2a589a6` |
@@ -32,6 +32,15 @@ nie Rückfall auf `B_API_KEY`), WLO-MCP mit Flow-Werkzeugen, Repository-Proxy `/
 Assertion für die Person, Kestra-Jobs (`node-metadata-write`); ein Upload-Weg mit „Hier im Chat“,
 „In WLO ablegen und erschließen“ und „Nur Namen senden“, ein Datenstrom aus Teilen. Neu ist die
 Grafik zum Datenstrom; Architektur und UI-Module sind nachgezogen.
+
+**Stand Paket N (2026-11-19):** Vor dem Start eines schreibenden Kestra-Flows holt der Chatbot die
+Vorschau des MCP (`wlo_start_flow` ohne `confirmToken`) und zeigt sie als Freigabe-Box; erst
+„Freigeben“ derselben angemeldeten Person startet, der Schlüssel bleibt in der Sitzung. Im
+Datenstrom liegen dafür die Teile im Vorgang nun direkt unter dem Upload-Feld, damit Vorschau,
+Box und Start ohne Kreuzung nebeneinanderstehen. Architektur: Betriebsanzeige der b-api
+(`/api/health` hinter dem Studio-Schlüssel, Statusleiste im Studio). UI-Module: die Freigabe-Box
+als vom System gesetzter Inhaltsrahmen (Feld `freigabe`, `x-nur-system`). Zuordnung Datei → Punkt
+und Fach/Stufe aus dem Vokabular stehen als Karte im Datenstrom (nur in der interaktiven Fassung).
 
 Die Seiten sind in sich geschlossen: Sie laden keine externen Skripte und keine Web-Fonts.
 Jede Komponente verlinkt auf ihre Quellstelle im Repository.

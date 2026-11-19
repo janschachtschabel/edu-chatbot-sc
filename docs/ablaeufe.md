@@ -174,8 +174,8 @@ dann der Entwurf.
    - Dateien → Upload-Feld (`dateien_laden`), dann `dateien_weg` nur nach den Teilen **dieser**
      Auswahl (`block_id` gleich `{teil.struktur.block_id}`):
      - `metadaten` dazu (hier im Chat gelesen, `quelle: chatbot`) → gleich die Fragen;
-     - `ablage` dazu (in WLO abgelegt) → Rückfrage `metadaten_frage`, Kestra-Flow `metadaten`,
-       `metadaten_lesen`, dann `angaben_da`;
+     - `ablage` dazu (in WLO abgelegt) → Rückfrage `metadaten_frage`, Freigabe-Box (siehe
+       „Aufträge, die schreiben“), Kestra-Flow `metadaten`, `metadaten_lesen`, dann `angaben_da`;
      - nur Namen → `aus_dateien` (`inhalte_aus_dateien`, Teil `metadaten` aus den Dateinamen);
      - sonst `ohne_daten`.
      Angaben einer früheren Auswahl zählen so nicht mit.
@@ -190,7 +190,11 @@ dann der Entwurf.
    oder „Ja, erzeugen“ träfen sonst den falschen Knopf. Ohne
    Treffer erscheint einmal „Bitte wähle einen der Knöpfe.“ mit denselben Chips (`kein_treffer`).
 5. **Entwurf** im KI-Schritt der Grundlage; auf dem Ordner-Weg mit `vorlage: true` (der geprüfte
-   Entwurf wird verfeinert).
+   Entwurf wird verfeinert). Aus Dateien (`aus_inhalten`) trägt jeder obere Punkt seine Materialien
+   als `inhalte` (mit `node_id`, wenn sie in WLO liegen); was das Modell keinem Punkt gab, ordnet
+   der Dienst über Einbettungen nach, der Rest steht unter `nicht_zugeordnet` (Paket N3). Fach und
+   Stufe des Entwurfs gelten nur mit einem Label aus dem WLO-Vokabular (Paket N2); ist das
+   Vokabular nicht erreichbar, gilt die bisherige Prüfung.
 6. **Ende:** Der Entwurf ist gespeichert, nächste Schritte als Text. Jeder Fehlerweg bietet
    „Nochmal“ (zurück zu `daten`, Auswahl verworfen), „Andere Grundlage“ bzw. „Frei weiter“.
 
@@ -349,7 +353,7 @@ Anmeldung):
    immer wählbar. Dafür muss im Studio unter „UI-Module → Hochladen“ die Ablage in WLO an sein.
 3. `uebertragen` (`verzweigung` mit `wenn_teil: ablage`): Ohne Übertragung geht es zu
    `ohne_ablage`.
-4. `metadaten_frage`: die Rückfrage vor dem schreibenden Flow.
+4. `metadaten_frage`: die Rückfrage vor dem schreibenden Flow; danach die Freigabe-Box.
 5. `metadaten` (`auftrag` `edusharing.chatbot/node-metadata-write`, `repo_schreibt: true`). Die
    nodeIds nimmt der Schritt nur aus der Ablage desselben Vorgangs, als Auswahl
    `{$teil: ablage, liste: inhalte, wo: {stand: stored}, feld: node_id}`. Scheitert der Flow, sagt
@@ -357,7 +361,8 @@ Anmeldung):
 6. `lesen` (`werkzeug metadaten_lesen`, `schreibt: metadaten`): Titel, Beschreibung, Schlagworte …
    der Dateien, unter der Anmeldung der Person.
 7. `entwurf` (`agent`): Die KI ruft `ui_strukturentwurf` mit `aus_inhalten: true`. Der Dienst
-   liest den Teil `metadaten` selbst und gruppiert die Materialien zu Themen.
+   liest den Teil `metadaten` selbst, gruppiert die Materialien zu Themen und hängt sie als
+   `inhalte` an die Punkte (Rest `nicht_zugeordnet`, Paket N3).
 8. `ende`. Sammlungen daraus anzulegen, kommt später.
 
 Damit der Auftrag im Betrieb läuft, muss der Flow im Studio freigegeben sein (Abläufe →
@@ -495,7 +500,9 @@ lassen sich Startdaten (JSON) mitgeben, und **„Ablauf starten“** startet ihn
     will, nimmt einen Testfall. Wie im Betrieb braucht ein Auftrag die WLO-Anmeldung.
   - Dateien werden nicht in WLO abgelegt.
   - „Meine Vorgänge“ gibt es in der Probe nicht; sie berührt keine echten Vorgänge.
-- Anmeldung und Freigaben bleiben wie im Betrieb: Die Probe zeigt, was die Person sieht.
+- Anmeldung und Freigaben schreibender Werkzeuge (Paket S) bleiben wie im Betrieb: Die Probe zeigt,
+  was die Person sieht. Die Freigabe-Box vor einem Kestra-Flow entfällt, weil Aufträge nicht
+  starten.
 - Das Widget trägt dabei das Etikett „Probe · Trockenlauf“. Ohne gültige Studio-Anmeldung läuft
   keine Probe, das Widget meldet dann einen Fehler.
 
@@ -514,9 +521,23 @@ Ein `auftrag` startet einen Kestra-Flow **im Namen der angemeldeten Person**. Se
   b-api, und der geht nur mit dem Schlüssel der Person, nie bei Delegation. Die Prüfung meldet einen
   bekannt schreibenden Flow (ab Werk `node-metadata-write`) ohne Vermerk (`auftrag_repo_schreibt`).
   Ein Ablauf mit Auftrag startet nie direkt.
-- **Start in zwei Schritten:** Der MCP legt erst eine Vorschau vor (er prüft jeden Datensatz als die
-  Person), der Chatbot bestätigt sie im selben Zug. Die Zustimmung der Person ist die Rückfrage
-  direkt vor dem Schritt; eine eigene Freigabe-Box gibt es dort nicht.
+- **Start in zwei Schritten mit Freigabe-Box (Paket N4):** Nach der Rückfrage holt der Chatbot die
+  Vorschau des MCP (er prüft jeden Datensatz als die Person) und zeigt sie als Box: Zahl der
+  Materialien, welche Felder überschrieben werden, Probleme getrennt („gehen nicht mit“), die Liste
+  eingeklappt (nach Ordner gruppiert, bei mehr als 20 Einträgen mit Filter und „Weitere zeigen“, je
+  20). Der Lauf
+  hält am Auftragsschritt (`wartet_freigabe`); „Schritt n von m“ bleibt gleich.
+  - Erst der Knopf **„Freigeben“** derselben angemeldeten Person startet den Job. Ein getipptes „ja“
+    löst nichts ein. **„Abbrechen“** nimmt den Ersatzweg (`bei_fehler`, ab Werk `ohne_metadaten`):
+    „Abgebrochen – in WLO wird nichts überschrieben.“
+  - Den Schlüssel der Vorschau (`confirmToken`) hält nur der Server in der Sitzung; er geht nie in
+    den Vorgang, an das Modell oder ins Log. Doppelklick startet nichts doppelt.
+  - Ist die Vorschau abgelaufen (höchstens zehn Minuten; die Frist des MCP kann kürzer sein), kommt
+    eine neue Box. Ein Stapel, den der Schritt aufteilt (`aufteilen.hoechstens`, ab Werk 50), bekommt
+    eine Box für alle Teile.
+  - Ein Feld `freigabe` am Schritt gibt es nicht: Jeder Auftragsschritt mit `repo_schreibt` über den
+    MCP zeigt die Box. In der Simulation und in der Probe zeigt der Schritt keine Box (der Auftrag
+    läuft dort nicht, siehe „Probe“).
 - **`outcomeOpen`:** Kam vom Start keine klare Antwort, kann der Job trotzdem laufen. Der Chatbot
   startet dann nie neu; der Schritt wartet mit „Stand prüfen“, das die Datensätze liest
   (`auftragOffen`).

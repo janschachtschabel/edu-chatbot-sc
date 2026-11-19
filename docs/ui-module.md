@@ -91,7 +91,7 @@ Daneben der gemeinsame Vertrag `src/_vertrag/` (nur mit Plan ändern):
 | `darstellung` | `platz`: `oben` (Vorgabe, vor den Trefferboxen) oder `unten` (danach); `breit` siehe §7 |
 | `laden` (U3-0) | `sofort` (Vorgabe: Angular-Komponente im Haupt-Bündel) oder `bei_bedarf`: rahmenloses Custom Element in einem eigenen Bündel, das das Widget erst beim ersten Block lädt (§2.5) |
 | `beispiele` | 1–10 `{titel, daten, antwort?}` für Spec, Studio-Vorschau und Backend-Prüfung |
-| `x-nur-system` (an einem Feld) | Werte, die nur das System setzt; gehen nicht an die KI (z. B. `ui_inhaltsrahmen.art`: `volltext`, `schreib_vorschau`) |
+| `x-nur-system` (an einem Feld) | Was nur das System setzt; geht nicht an die KI. Eine Liste nennt einzelne Werte (z. B. `ui_inhaltsrahmen.art`: `volltext`, `schreib_vorschau`), `true` sperrt das ganze Feld (z. B. `ui_inhaltsrahmen.freigabe`, Paket N4) |
 
 Das Backend prüft beim Laden jedes Manifest gegen das Schema, `eingabe`/`antwort` als gültiges
 JSON Schema, `textfassung.feld` als Feld der Eingabe und jedes Beispiel gegen `eingabe` und
@@ -236,6 +236,12 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 - `ui_inhaltsrahmen` entsteht im Trichter `services/turn_persist.py` aus jedem Dokument: dem
   Dokument-Werkzeug `ui_inhaltsrahmen` (Alias `zeige_dokument`), Volltext (M17),
   Lernpfad-Direktaktion und Schreib-Vorschau. Dokumente stehen vor allen anderen Blöcken.
+- Die **Freigabe-Box** vor einem Kestra-Flow über den MCP (Paket N4) ist derselbe Block mit dem Feld
+  `freigabe` (nur System). Sie entsteht nicht im Trichter, sondern im Ablauf
+  (`services/ablauf/auftrag_freigabe.merken`, angehängt in `zug_basis.antwort`): Zahl, überschriebene Felder, Probleme, Liste eingeklappt, Knöpfe
+  „Freigeben“/„Abbrechen“ (Direktaktionen `ablauf_auftrag_freigeben`/`ablauf_auftrag_verwerfen`).
+  Die Box-Daten tragen weder nodeIds noch den Schlüssel der Vorschau; nach dem nächsten Zug ist die
+  Box `veraltet`. Ablauf und Regeln: [`ablaeufe.md`](ablaeufe.md), „Aufträge, die schreiben“.
 - Die Direktaktion `show_collection_tree` baut einen Themenbaum ohne KI (für ältere Widgets).
 
 **Antwortweg abfragender Module**
@@ -279,6 +285,14 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
   Anbieter-Deckels `LLM_MAX_CONCURRENCY`, eigene Platz-Frist bis zum Fristende), Ebene 3 nur bei
   `tiefe: 3`; was die Frist nicht schafft, wird `ausstehend`. Eine reine Funktion Auftrag → Struktur mit ersetzbarer LLM-Naht — später als Job
   hinter der B-API denkbar.
+- Aus Materialien (`aus_inhalten`, Paket N3) hängt der Dienst die Materialien als `inhalte`
+  (`i`, `name`, `node_id?`) an die oberen Punkte: erst die Kennungen des Modells, dann per
+  Einbettung (`services/strukturentwurf_zuordnung.py`, `strukturentwurf_naehe.py`, Schwelle je
+  Modell, `text-embedding-3-small` 0,36); der Rest steht in der Wurzel unter `nicht_zugeordnet`.
+  Fällt die Einbettung aus, bleibt es ohne Nachziehen. Fach und Stufe jedes Entwurfs gleicht der
+  Dienst mit dem WLO-Vokabular ab (`services/strukturentwurf_vokabular.py` über
+  `services/mcp/vokabular_labels.py`, Paket N2); Unbekanntes verwirft er mit Hinweis. Ohne
+  erreichbares Vokabular gilt die bisherige Prüfung.
 - Den letzten Entwurf merkt sich die Sitzung (`ui_module/strukturentwurf_merken.py`, nach der
   Sicherheitsprüfung, die 5 Züge nach dem Antwort-Zug): als `vorlage` späterer Züge und als Rahmen
   `[DEIN LETZTER ENTWURF]`. Die Brücke „Als Entwurf bearbeiten“ vergisst ihn; über 60 000 Zeichen
@@ -373,7 +387,7 @@ Drei Wege führen zu einem Block. Alle enden in `ui.ui_bloecke` der Antwort und 
 
 | Modul | Art | Entsteht durch | Datenquelle | Fähigkeiten | Platz | seit |
 |---|---|---|---|---|---|---|
-| [`ui_inhaltsrahmen`](../frontend/projects/ui-module/src/ui-inhaltsrahmen/README.md) | anzeigen | System (Trichter): Dokument-Werkzeug, Volltext, Lernpfad, Schreib-Vorschau | — | drucken, herunterladen | oben | U1-b |
+| [`ui_inhaltsrahmen`](../frontend/projects/ui-module/src/ui-inhaltsrahmen/README.md) | anzeigen | System (Trichter): Dokument-Werkzeug, Volltext, Lernpfad, Schreib-Vorschau; Freigabe-Box vor Kestra aus dem Ablauf (N4) | — | drucken, herunterladen, auftrag | oben | U1-b |
 | [`ui_linkbox`](../frontend/projects/ui-module/src/ui-linkbox/README.md) | anzeigen | abgeleitet aus `web_links` | — | oeffnen | unten | U1-c1 |
 | [`ui_trefferliste`](../frontend/projects/ui-module/src/ui-trefferliste/README.md) | anzeigen | abgeleitet aus `cards`, `query_metas`, `pagination` | — | oeffnen | unten | U1-c2 |
 | [`ui_entscheidung`](../frontend/projects/ui-module/src/ui-entscheidung/README.md) | abfragen | Modul-Werkzeug (`agent: true`) | — | antworten | oben | U1-d |

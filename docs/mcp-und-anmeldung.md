@@ -39,8 +39,9 @@ nirgends mehr (Paket D). Zwei Wege führen deshalb zur b-api:
 - Der Proxy des Repositorys entfernt `x-edu-*` und `x-api-key` des Aufrufers und setzt seine eigenen.
   Der MCP muss also nichts mitschicken außer der Anmeldung der Person, die er ohnehin hält.
 - Der Chatbot startet über den MCP nur Schritte mit `repo_schreibt`, nur mit bestätigter Anmeldung
-  und erst nach der Rückfrage an die Person; den Bestätigungsschlüssel der Vorschau sieht weder die
-  Person noch das Modell (`services/auftraege/mcp_starter.py`).
+  und erst, nachdem die Person die Vorschau des MCP in der Freigabe-Box freigegeben hat (Paket N4);
+  den Bestätigungsschlüssel der Vorschau sieht weder die Person noch das Modell
+  (`services/auftraege/mcp_vorschau.py`, `services/ablauf/auftrag_freigabe.py`).
 - **Risiko (Bericht des MCP §4, an das b-api-Team):** Über `/rest/bapi/**` hängen Jobs am Schlüssel des
   Repositorys, nicht an der Person. Jede bestätigte Person liest jeden Job, dessen jobId sie kennt. Der
   Chatbot gibt die jobId darum nie an die Person, das Modell oder das Log; sie steht nur in
