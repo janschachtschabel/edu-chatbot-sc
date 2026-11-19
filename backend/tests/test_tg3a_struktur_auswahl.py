@@ -90,7 +90,8 @@ def test_die_antwort_mit_dateien_ist_gueltig_und_die_alte_ohne_auch():
 def test_das_manifest_erlaubt_den_teil_struktur():
     schreibt = katalog.katalog()[UPLOAD]["vorgang"]["schreibt"]
     # TG-3d: dazu ``strukturdokument`` (die Verweise auf alle gelesenen Strukturdokumente)
-    assert schreibt == ["structure", "struktur", "document", "strukturdokument"]
+    # Paket U5 (Plan 2026-11-17): dazu ``metadaten`` (quelle chatbot, „Hier im Chat“)
+    assert schreibt == ["structure", "struktur", "document", "strukturdokument", "metadaten"]
 
 
 def test_namen_gekuerzt_ist_eine_bekannte_warnung():

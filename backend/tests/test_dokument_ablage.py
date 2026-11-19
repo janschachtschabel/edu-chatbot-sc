@@ -35,6 +35,10 @@ def _lauf(db_url, ablauf):
                 for sid in ("sitzung-eins-0001", "sitzung-zwei-0002"):
                     await s.execute(text("INSERT INTO sessions (session_id) VALUES (:s) "
                                          "ON CONFLICT DO NOTHING"), {"s": sid})
+                    # Paket U1: über der Grenze wird abgewiesen statt verdrängt — jeder Test
+                    # beginnt ohne die Dokumente der vorigen (die Datenbank gilt je Modul)
+                    await s.execute(text("DELETE FROM dokument_uploads WHERE session_id = :s"),
+                                    {"s": sid})
                 await s.commit()
             return await ablauf(sitzungen)
         finally:
@@ -70,35 +74,38 @@ def test_speichern_lesen_nur_in_derselben_sitzung_und_fuer_denselben_aufrufer(db
     assert aktuell is not None and aktuell.id == gleich.id
 
 
-def test_tg3e_bis_fuenf_dokumente_je_sitzung_das_sechste_ersetzt_nur_das_aelteste(db_url):
-    """Plan 2026-11-16, TG-3e: mehrere Strukturdokumente je Sitzung — ein sechstes ersetzt nur das
-    älteste; gelesen wird weiter je Kennung oder alle in Lesereihenfolge."""
+def test_tg3e_mehrere_dokumente_je_sitzung_ueber_der_grenze_abgewiesen(db_url):
+    """Plan 2026-11-16, TG-3e: mehrere Strukturdokumente je Sitzung, gelesen je Kennung oder alle
+    in Lesereihenfolge. Altes Soll „ein sechstes ersetzt das älteste“ — seit Paket U1 (Plan
+    2026-11-17) wird über der Grenze (``lokal_max_dateien``, Vorgabe 10) abgewiesen."""
     from boerdi.services.dokumente import ablage
 
     async def ablauf(sitzungen):
         async with sitzungen() as s:
             await ablage.der_sitzung_loeschen(s, "sitzung-zwei-0002")
             kennungen = []
-            for n in range(ablage.MAX_JE_SITZUNG + 1):
+            for n in range(ablage.max_je_sitzung()):
                 kennungen.append(await _neu(s, sid="sitzung-zwei-0002", name=f"d{n}.pdf"))
                 await s.commit()
+            with pytest.raises(ablage.GrenzeErreicht):
+                await _neu(s, sid="sitzung-zwei-0002", name="zuviel.pdf")
+            await s.rollback()
             alle = await ablage.alle_lesbaren(s, "sitzung-zwei-0002", None)
             erstes = await ablage.lesen(s, "sitzung-zwei-0002", kennungen[0], None)
-            zweites = await ablage.lesen(s, "sitzung-zwei-0002", kennungen[1], None)
             juengstes = await ablage.aktuelles(s, "sitzung-zwei-0002", None)
-            return kennungen, alle, erstes, zweites, juengstes
+            return kennungen, alle, erstes, juengstes
 
-    kennungen, alle, erstes, zweites, juengstes = _lauf(db_url, ablauf)
-    assert ablage_max() == 5
-    assert [z.id for z in alle] == kennungen[1:]
-    assert erstes is None and zweites is not None
+    kennungen, alle, erstes, juengstes = _lauf(db_url, ablauf)
+    assert ablage_max() == 10
+    assert [z.id for z in alle] == kennungen
+    assert erstes is not None
     assert juengstes is not None and juengstes.id == kennungen[-1]
 
 
 def ablage_max() -> int:
     from boerdi.services.dokumente import ablage
 
-    return ablage.MAX_JE_SITZUNG
+    return ablage.max_je_sitzung()
 
 
 def test_tg3e_anmeldung_uebernimmt_alle_anonymen_dokumente_der_sitzung(db_url):
@@ -234,8 +241,9 @@ def test_querschnitt_mit_dem_dokument_geht_sein_teil_im_vorgang(db_url):
 
 
 def test_ein_ersetztes_dokument_nimmt_seinen_teil_mit(db_url):
-    """Review Q3, Befund 7: ein neues Dokument der Sitzung löscht das alte — dessen Name und Befund
-    im Teil ``document`` gehen mit. TG-3e: das gilt für das älteste über der Grenze."""
+    """Review Q3, Befund 7: ein ersetztes Dokument der Sitzung nimmt Name und Befund im Teil
+    ``document`` mit. Seit Paket U1 verdrängt nichts mehr über der Grenze — ersetzt wird nur beim
+    erneuten Hochladen desselben Dokuments (altes Soll: das älteste über der Grenze)."""
     from boerdi.services.dokumente import ablage
 
     async def ablauf(sitzungen):
@@ -244,9 +252,8 @@ def test_ein_ersetztes_dokument_nimmt_seinen_teil_mit(db_url):
             alt = await _neu(s)
             v = await _vorgang_mit_dokument(s, alt)
             await s.commit()
-            for n in range(ablage.MAX_JE_SITZUNG):
-                await _neu(s, name=f"Neu{n}.pdf")
-                await s.commit()
+            await _neu(s)                                   # dasselbe Dokument noch einmal
+            await s.commit()
             return (await _teile(s, v.id)).scalar_one()
 
     teile = _lauf(db_url, ablauf)
@@ -256,7 +263,7 @@ def test_ein_ersetztes_dokument_nimmt_seinen_teil_mit(db_url):
 def test_ein_inzwischen_neues_dokument_bleibt_beim_entfernen(db_url):
     """Nachprüfung, Befund 5: unter der Sperre geht ``document`` nur, wenn es noch auf eines der
     entfernten Dokumente zeigt."""
-    from boerdi.services import vorgaenge
+    from boerdi.services import vorgaenge_dokumente
 
     async def ablauf(sitzungen):
         async with sitzungen() as s:
@@ -264,7 +271,7 @@ def test_ein_inzwischen_neues_dokument_bleibt_beim_entfernen(db_url):
             v = await _vorgang_mit_dokument(s, neu)
             await s.commit()
             # gewählt für ein altes Dokument, unter der Sperre trägt der Vorgang schon das neue
-            zahl = await vorgaenge._entfernen_unter_sperre(s, v.id, {"dokument:alt-weg"})
+            zahl = await vorgaenge_dokumente._entfernen_unter_sperre(s, v.id, {"dokument:alt-weg"})
             await s.commit()
             return zahl, (await _teile(s, v.id)).scalar_one()
 

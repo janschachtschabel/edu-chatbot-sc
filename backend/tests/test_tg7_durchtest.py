@@ -269,12 +269,16 @@ def test_m4_unter_fuenf_inhalten_die_eigene_frage(anzahl, frage):
     from boerdi.services.ablauf import simulation
 
     inhalte = [{"i": n, "titel": f"T{n}", "rolle": "inhalt"} for n in range(anzahl)]
+    # Review Paket U (19.11.), MAJOR 1: gezählt werden nur Angaben zu dieser Auswahl (``block_id``
+    # wie der Teil ``struktur``) — über den neuen Schritt ``inhalte_menge``
     fall = AblaufTest.model_validate({
         "name": "Probe", "ab": "hinweise", "angemeldet": False,
         "teile": {"metadaten": {"format": "wlo.metadaten@1", "titel": "M", "fehlend": [],
-                                "inhalte": inhalte}},
+                                "block_id": "b0000001", "inhalte": inhalte},
+                  "struktur": {"block_id": "b0000001", "struktur": {"name": "U", "kinder": []}}},
         "eingaben": [{"bei": "hinweise", "option": "keine"}, {"bei": frage, "option": "ist"}],
-        "erwartet": {"weg": ["hinweise", "zum_entwurf", frage, "entwurf_inhalte"],
+        "erwartet": {"weg": ["hinweise", "zum_entwurf", "inhalte_menge", frage,
+                             "entwurf_inhalte"],
                      "status": "wartet_ki"}})
     ergebnis = asyncio.run(simulation.testen(_seed(), fall))
     assert ergebnis.ok, ergebnis.abweichungen

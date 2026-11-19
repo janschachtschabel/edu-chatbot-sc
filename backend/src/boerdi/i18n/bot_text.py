@@ -345,11 +345,11 @@ BOT_TEXT: Final[Catalogue] = {
         "action.ablauf.hierWeiter": "Hier weitermachen",
         # Durchtest Paket K (19.11.): warum es „gründlich über WLO“ nicht gibt (Seed, ``schnell``)
         "action.ablauf.gruendlichNurAngemeldet": (
-            "„Gründlich über WLO“ geht nur mit einer WLO-Anmeldung – dann erschließt WLO die "
-            "Inhalte deiner Dateien."),
+            "„In WLO ablegen und erschließen“ geht nur mit einer WLO-Anmeldung – dann erschließt "
+            "WLO die Inhalte deiner Dateien."),
         "action.ablauf.gruendlichNichtDa": (
-            "„Gründlich über WLO“ geht hier gerade nicht – der WLO-Dienst ist dafür nicht "
-            "eingerichtet oder nicht erreichbar."),
+            "„In WLO ablegen und erschließen“ geht hier gerade nicht – der WLO-Dienst ist dafür "
+            "nicht eingerichtet oder nicht erreichbar."),
         "action.ablauf.auftragStandUnklar": (
             "Der Ablauf endet hier. Ob der Auftrag selbst abgebrochen ist, ist unklar – es kam "
             "keine Antwort. Sieh bitte im Vorgang bzw. an den Materialien in WLO nach, bevor du "
@@ -1043,11 +1043,11 @@ BOT_TEXT: Final[Catalogue] = {
             "You're already in the middle of “{titel}” – let's continue here, or “Restart”."),
         "action.ablauf.hierWeiter": "Continue here",
         "action.ablauf.gruendlichNurAngemeldet": (
-            "“Thoroughly via WLO” needs a WLO sign-in – then WLO indexes the content of your "
+            "“Store and index in WLO” needs a WLO sign-in – then WLO indexes the content of your "
             "files."),
         "action.ablauf.gruendlichNichtDa": (
-            "“Thoroughly via WLO” isn't available here right now – the WLO service is not set up "
-            "for it or not reachable."),
+            "“Store and index in WLO” isn't available here right now – the WLO service is not set "
+            "up for it or not reachable."),
         "action.ablauf.auftragStandUnklar": (
             "The workflow ends here. Whether the job itself was cancelled is unclear – there was "
             "no answer. Please check the project or the materials in WLO before you start it "

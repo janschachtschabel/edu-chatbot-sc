@@ -281,7 +281,7 @@ def test_das_dokument_gilt_nur_wenn_es_zur_sitzung_passt(ablage, monkeypatch):
 
     zeile = SimpleNamespace(id="u-1", name="Lehrplan.pdf", format="pdf", befund={"abschnitte": 4})
 
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, rolle="struktur"):  # Paket U: Rolle
         return [zeile]
 
     async def zuschreiben(s, session_id, aufrufer):
@@ -315,7 +315,7 @@ def test_tb_e1_review_1_anonym_hochgeladen_gilt_nach_der_anmeldung(ablage, monke
     gefragt: list = []
     uebernommen: list = []
 
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, rolle="struktur"):  # Paket U: Rolle
         gefragt.append(("alle_lesbaren", aufrufer))
         return list(uebernommen)                     # erst nach der Übernahme gehört es ihr
 

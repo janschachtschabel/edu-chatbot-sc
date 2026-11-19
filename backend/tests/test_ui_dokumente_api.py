@@ -101,6 +101,8 @@ def lage(monkeypatch) -> _Lage:
     monkeypatch.setattr(api, "aufrufer_kennung", lambda: "person-a")
     monkeypatch.setattr(ablage, "speichern", speichern)
     monkeypatch.setattr(ablage, "loeschen", loeschen)
+    # Paket U1: die Vorab-Prüfung der Grenzen fragt sonst die Datenbank
+    monkeypatch.setattr(ablage, "grenze_vorab", nichts)
     return lg
 
 
@@ -129,9 +131,11 @@ def _post(client, *, rumpf: bytes = _MD, name: str = "Lehrplan.md", **felder):
 def test_ein_dokument_wird_aufbereitet_abgelegt_und_befundet(client, lage):
     r = _post(client)
     assert r.status_code == 200, r.text
+    # Paket U2: ``rolle`` kommt dazu (additiv), ``angaben`` nur bei Inhalten
     assert r.json() == {"upload_id": _KENNUNG, "name": "Lehrplan.md", "format": "md",
                         "befund": {"abschnitte": 3, "warnungen": []},
-                        "ueberschriften_vorschau": ["Lehrplan", "Mechanik"]}
+                        "ueberschriften_vorschau": ["Lehrplan", "Mechanik"],
+                        "rolle": "struktur"}
     [g] = lage.gespeichert
     assert g["session_id"] == _SITZUNG and g["block_id"] == _BLOCK and g["aufrufer"] == "person-a"
     assert g["groesse"] == len(_MD) and g["ttl_h"] == 24 and g["markdown"] == "# Lehrplan"
@@ -252,3 +256,13 @@ def test_loeschen_ist_immer_204(client, lage):
 def test_loeschen_nimmt_nur_uuid(client, lage):
     r = client.post(_PFAD + "/loeschen", json={"session_id": _SITZUNG, "upload_id": "x"})
     assert r.status_code == 422 and lage.geloescht == []
+
+
+def test_review_u4_hier_im_chat_nur_wenn_der_ablauf_es_erlaubt(client, lage):
+    """Review Paket U, MINOR 4: die erlaubten Orte der offenen Frage gelten auch hier."""
+    lage.entities = {OFFENE_FRAGE: {"block_id": _BLOCK, "modul": UPLOAD, "orte": ["wlo", "namen"]}}
+    r = _post(client)
+    assert (r.status_code, r.json()["detail"]) == (403, "ort_nicht_erlaubt")
+    assert lage.aufbereitet == []
+    lage.entities = {OFFENE_FRAGE: {"block_id": _BLOCK, "modul": UPLOAD, "orte": ["chat", "namen"]}}
+    assert _post(client).status_code == 200

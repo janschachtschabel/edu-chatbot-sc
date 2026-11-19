@@ -13,6 +13,7 @@ den Lader für das Dokument der Sitzung (``dokument``, ``services/dokumente/stan
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final
 
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
     from boerdi.services.dokumente.stand import DokumentLader
 
 RESERVE_S: Final = dienst.RESERVE_S
+#: Review Paket U, MAJOR 3: Anzahl und Bytes der nicht abgelaufenen Uploads der Sitzung.
+BelegungLader = Callable[[], Awaitable[tuple[int, int]]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +51,9 @@ class Umgebung:
     #: Review TW-6, Befund 7: der Aufruf kommt aus einem Ablauf-Schritt (``treiber_bloecke``) — nur
     #: dort gelten Schalter, die die KI nicht setzen soll (``einzeldatei_als_struktur``).
     aus_ablauf: bool = False
+    #: Review Paket U (19.11.), MAJOR 3: die Belegung der Sitzung (``dokumente/ablage.belegung``)
+    #: — der Upload-Dienst sperrt „Hier im Chat“ bei voller Sitzung. ``None``: nicht gezählt.
+    belegung: BelegungLader | None = None
 
 
 async def asynchron(name: str, args: Any, umgebung: Umgebung | None = None) -> Ergebnis:

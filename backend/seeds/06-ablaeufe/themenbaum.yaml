@@ -4,16 +4,23 @@
 #
 # Erst die Grundlage und ihre Daten, dann die Fragen, die dort wirken, dann der Entwurf (Review
 # TG-4–6, MAJOR 4 — „erst bereitstellen, dann entscheiden“):
-# 1. ``bereit`` (Dienst ``bereitgestellt``) sagt, was im Vorgang nutzbar liegt (``art``,
-#    ``wlo_erschliessen``). Liegt etwas bereit, bietet ``einstieg_mit`` es an — sonst ``einstieg``.
+# 1. ``bereit`` (Dienst ``bereitgestellt``) sagt, was im Vorgang nutzbar liegt (``art``, ``name``).
+#    Liegt etwas bereit, bietet ``einstieg_mit`` es an — sonst ``einstieg``.
 # 2. ``grundlage``: getippt ist es das Thema; sonst ein Dokument mit Gliederung, Ordner oder Dateien
 #    (Synonyme nur als ganze Wörter, MAJOR 3).
 # 3. Daten: Dokument → Upload mit „Einzeldatei als Struktur“; Ordner → Upload → Entwurf aus den
 #    Ordnern → Prüfpunkt → „So lassen“ (fertig, Inhalte gemerkt) oder „Mit deinen Angaben
-#    verfeinern“; ohne Unterordner der Weg Dateien. Dateien → „gründlich über WLO“ nur, wenn Ablage
-#    UND Metadaten-Auftrag gehen (``bereit.wlo_erschliessen``), sonst nur die Dateinamen
-#    (``inhalte_aus_dateien``). Überträgt die Person im Upload-Feld nach WLO (Ordner oder Dateien),
-#    folgen Rückfrage, Kestra-Metadaten und ``metadaten_lesen``.
+#    verfeinern“; ohne Unterordner der Weg Dateien. Dateien → Upload, dann ``dateien_weg``.
+#    Plan 2026-11-17, E12 (Paket U6): WO verarbeitet wird, wählt die Person im Upload-Feld („Hier
+#    im Chat“, „In WLO ablegen und erschließen“, „Nur Namen senden“) — die Fragen ``wlo_frage``,
+#    ``schnell`` und ``schnell_da`` sind entfallen. ``dateien_weg`` verzweigt nur nach den Teilen
+#    der Auswahl (``block_id``): ``metadaten`` dazu (hier im Chat gelesen, ``quelle: chatbot``) →
+#    die Fragen; ``ablage`` dazu (in WLO abgelegt) → Rückfrage, Kestra-Metadaten und
+#    ``metadaten_lesen``; nur ``struktur`` (Namen) → ``inhalte_aus_dateien``. Ordner mit
+#    Unterordnern bleiben auch hier im Chat der Ordner-Weg (die Angaben liegen im Vorgang bei);
+#    in WLO abgelegt folgen erst die Metadaten. Das Dokument gilt gelesen, wenn ein Teil
+#    ``strukturdokument`` da ist (hier im Chat oder in WLO abgelegt). Kein Schritt schränkt die
+#    Orte ein (``orte``): jeder Weg trägt jeden Ort.
 # 4. Fragen (wofür, für wen/Stufe, Umfang, Hinweise; Soll oder Ist nur bei Dateien), dann der
 #    KI-Schritt der Grundlage mit ``vorbelegen`` (TG-5). Auf dem Ordner-Weg nur nach „verfeinern“,
 #    dann mit ``vorlage``.
@@ -23,9 +30,11 @@
 # Verzweigt wird auf das deutsche Label der Grundlage (``gleich``) bzw. nach „Ja, verwenden“ auf
 # ``bereit.art``; nach einem Upload auf die Teile selbst. Ein Entwurf aus freier Arbeit kann im
 # Vorgang liegen (MAJOR 2) — darum prüft keine Regel ``draft``, sondern Teile dieses Laufs
-# (``ordnerweg``, ``metadaten``). Die Leiste zählt die Halte des Laufs (Befund 10). 40 Schritte.
+# (``ordnerweg``, ``metadaten``). Die Leiste zählt die Halte des Laufs (Befund 10). 38 Schritte
+# (höchstens 40).
 #
-# Ohne Voraussetzung: anonym gehen Thema, Dokument, Ordner und der schnelle Weg; Auftrag und
+# Ohne Voraussetzung: anonym gehen Thema, Dokument, Ordner und Dateien (hier im Chat oder nur die
+# Namen); Auftrag und
 # ``metadaten_lesen`` haben einen Ersatzweg (``bei_fehler``) und starten ohne Anmeldung nicht.
 # Ab Werk an. Direktstart der KI: Der Auftrag startet nur nach „Ja, Metadaten erzeugen“, daneben
 # steht „Nein, so lassen“ (``werkzeuge.ablauf_schreibt_ungefragt``, MAJOR 1).
@@ -73,18 +82,19 @@ schritte:
       - {wenn_wert: {quelle: teil.bereit.art, vergleich: vorhanden}, dann: einstieg_mit}
       - {sonst: einstieg}
   # Ohne Nutzbares wird verworfen, was im Vorgang liegt — ein Teil ``structure`` heißt danach
-  # „in diesem Lauf hochgeladen“
+  # „in diesem Lauf hochgeladen“. Review U (19.11.), MAJOR 1: auch ``metadaten`` — hier im Chat
+  # gelesene Angaben gehen mit in einen neuen Vorgang (``zug._bereitstellung``)
   - id: einstieg
     typ: nachricht
     schreibt: vorhaben
     text: {de: "Gern baue ich mit dir einen Themenbaum. Ich frage nach der Grundlage und kurz nach Zweck und Umfang, dann entsteht ein Entwurf, den du bearbeiten kannst. Einverstanden?",
            en: "I'll gladly build a topic tree with you. I'll ask about the basis and briefly about purpose and scope, then you get a draft you can edit. All right?"}
     optionen:
-      - {id: neu, label: {de: "Ja, neue Struktur mit Unterstützung", en: "Yes, new structure with guidance"}, ziel: grundlage, verwirft: [structure, document]}
+      - {id: neu, label: {de: "Ja, neue Struktur mit Unterstützung", en: "Yes, new structure with guidance"}, ziel: grundlage, verwirft: [structure, document, metadaten]}
       - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
-  # MINOR 9: „Anderes wählen“ verwirft die Daten, nicht ``bereit`` — ``wlo_erschliessen`` gilt
-  # weiter; ``art`` liest danach keine Regel mehr (die Grundlage steht dann fest)
+  # MINOR 9: „Anderes wählen“ verwirft die Daten, nicht ``bereit``; ``art`` liest danach keine
+  # Regel mehr (die Grundlage steht dann fest). Review U, MAJOR 1: die Daten samt ``metadaten``
   - id: einstieg_mit
     typ: nachricht
     schreibt: vorhaben
@@ -92,7 +102,7 @@ schritte:
            en: "I'll gladly build a topic tree with you. You have already provided {teil.bereit.name}. Shall I use it?"}
     optionen:
       - {id: verwenden, label: {de: "Ja, verwenden", en: "Yes, use it"}, ziel: daten}
-      - {id: andere, label: {de: Anderes wählen, en: Choose something else}, ziel: grundlage, verwirft: [structure, document]}
+      - {id: andere, label: {de: Anderes wählen, en: Choose something else}, ziel: grundlage, verwirft: [structure, document, metadaten]}
       - {id: ohne, label: {de: "Ohne Führung, frei im Chat", en: "Without guidance, free chat"}, ziel: frei}
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
   # NIT 15: ein getippter Text ist das Thema (keine zweite Frage danach). Die Synonyme ordnen einen
@@ -113,7 +123,7 @@ schritte:
                     Curricula, PDF, PDFs, document, syllabus]}
       - {id: ordner, label: {de: Meine Ordner, en: My folders}, ziel: ordner_laden,
          synonyme: [Ordner, Ordnern, Ordners, folder, folders, my folders]}
-      - {id: dateien, label: {de: Meine Dateien, en: My files}, ziel: dateien_weg,
+      - {id: dateien, label: {de: Meine Dateien, en: My files}, ziel: dateien_laden,
          synonyme: [Datei, Dateien, Materialien, Unterlagen, files, my files, my documents]}
     freitext: {ziel: wofuer, schreibt: grundlage}
     kein_treffer: {de: "Meinst du deine Ordner, deine Dateien oder ein Dokument? Wähle bitte einen Knopf – oder schreib nur dein Thema.",
@@ -124,7 +134,7 @@ schritte:
     weiter:
       - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: "Ein Dokument mit Gliederung, etwa ein Lehrplan"}, dann: dokument_laden}
       - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Ordner}, dann: ordner_laden}
-      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Dateien}, dann: dateien_weg}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Dateien}, dann: dateien_laden}
       - {wenn_wert: {quelle: teil.grundlage, vergleich: vorhanden}, dann: wofuer}
       - {wenn_wert: {quelle: teil.bereit.art, vergleich: gleich, wert: dokument}, dann: wofuer}
       # zweites Review G: bereitgestellte Ordner nur, solange sie noch da sind — nach „Nochmal
@@ -137,9 +147,11 @@ schritte:
   - id: dokument_laden
     typ: modul
     modul: ui_upload
-    text: {de: "Wähle das Dokument (etwa einen Lehrplan, auch mehrere) und klick auf „Lesen lassen“.",
-           en: "Choose the document (such as a curriculum, several are fine) and click “Read document”."}
+    text: {de: "Wähle das Dokument (etwa einen Lehrplan, auch mehrere), dann, wo es verarbeitet wird, und klick auf „Hochladen“.",
+           en: "Choose the document (such as a curriculum, several are fine), then where it should be processed, and click “Upload”."}
     daten: {zweck: bereitstellen, einzeldatei_als_struktur: true}
+  # U6: ``strukturdokument`` schreibt „Hier im Chat“ (gelesen) wie „In WLO ablegen“ (abgelegt, über
+  # den Ablage-Endpunkt); ``document`` nur die alte Antwort ``aktion: dokument``. Nur Namen → keins
   - id: dokument_gelesen
     typ: verzweigung
     weiter:
@@ -150,11 +162,14 @@ schritte:
   - id: ordner_laden
     typ: modul
     modul: ui_upload
-    text: {de: "Wähle den Ordner mit deinen Unterlagen und klick auf „Senden“. Bist du angemeldet, kannst du die Dateien dabei auch in deinen Bereich in WLO übertragen – dann beschreibt WLO sie mit Metadaten.",
-           en: "Choose the folder with your materials and click “Send”. If you are signed in, you can also transfer the files to your area in WLO – then WLO describes them with metadata."}
+    text: {de: "Wähle den Ordner mit deinen Unterlagen, dann, wo er verarbeitet wird, und klick auf „Hochladen“. Legst du ihn in WLO ab (nur angemeldet), beschreibt WLO deine Dateien mit Metadaten.",
+           en: "Choose the folder with your materials, then where it should be processed, and click “Upload”. If you store it in WLO (signed in only), WLO describes your files with metadata."}
     daten: {zweck: bereitstellen}
   # Zweites Review H: die Ablage zählt nur, wenn sie zu dieser Auswahl gehört (dasselbe Feld,
-  # ``block_id``) — nach „Andere Grundlage“ läge sonst die Ablage der früheren Auswahl da
+  # ``block_id``) — nach „Andere Grundlage“ läge sonst die Ablage der früheren Auswahl da.
+  # U6 (Entscheid): hier im Chat gelesen (``metadaten``) bleibt ein Ordner mit Unterordnern der
+  # Ordner-Weg — Ordner sind der Ausgangspunkt; ohne Unterordner gilt ``dateien_weg`` (dort führen
+  # die gelesenen Angaben zu den Fragen)
   - id: ordner_geladen
     typ: verzweigung
     weiter:
@@ -188,49 +203,23 @@ schritte:
       - {id: verfeinern, label: {de: Mit deinen Angaben verfeinern, en: Refine with your details}, ziel: wofuer}
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
   # ── Dateien ───────────────────────────────────────────────────────────────────────────────────
-  # Schon in WLO (im Upload-Feld übertragen, zur Auswahl gehörig) → Metadaten; der ganze WLO-Weg geht → fragen; sonst
-  # nur die Dateinamen, in einem Satz gesagt (G-E9)
-  - id: dateien_weg
-    typ: verzweigung
-    weiter:
-      - {wenn_wert: {quelle: teil.ablage.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: metadaten_frage}
-      - {wenn_wert: {quelle: teil.bereit.wlo_erschliessen, vergleich: gleich, wert: ja}, dann: wlo_frage}
-      - {sonst: schnell}
-  - id: wlo_frage
-    typ: nachricht
-    schreibt: weg
-    text: {de: "Soll WLO deine Dateien gründlich beschreiben? Dann überträgst du sie im nächsten Feld in deinen Bereich in WLO; dort entstehen Volltexte und Metadaten – das dauert einige Minuten. Sonst nehme ich nur die Dateinamen.",
-           en: "Shall WLO describe your files thoroughly? You then transfer them to your area in WLO in the next field, where full texts and metadata are created – this takes a few minutes. Otherwise I'll use just the file names."}
-    optionen:
-      - {id: gruendlich, label: {de: "Gründlich über WLO (einige Minuten)", en: "Thoroughly via WLO (a few minutes)"}, ziel: dateien_laden}
-      - {id: schnell, label: {de: Nur die Dateinamen, en: Just the file names}, ziel: schnell_da}
-    # Nachprüfung TG-4–6, MAJOR 1: wie ``ordner_weiter`` — „Ja, gründlich“ ist keine Antwort, die ein
-    # Synonym sicher zuordnet
-    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
-  # Durchtest Paket K (19.11.): hierher kommt nur, wer „gründlich“ nicht hat — ``bereit`` sagt
-  # warum (ohne Anmeldung: sie fehlt; sonst ist der WLO-Dienst nicht da)
-  - id: schnell
-    typ: nachricht
-    weiter: schnell_da
-    text: {de: "Ich nehme nur die Dateinamen als Grundlage – die Inhalte der Dateien lese ich dabei nicht. {teil.bereit.ohne_gruendlich}",
-           en: "I'll use only the file names as the basis – I won't read the content of the files. {teil.bereit.ohne_gruendlich}"}
-  - id: schnell_da
-    typ: verzweigung
-    weiter:
-      - {wenn_teil: metadaten, dann: wofuer}
-      - {wenn_wert: {quelle: teil.struktur.zahlen.inhalte, vergleich: groesser, wert: "0"}, dann: aus_dateien}
-      - {sonst: dateien_laden}
+  # E12 (U6): der Ort ist im Feld gewählt — keine Frage nach dem Weg mehr
   - id: dateien_laden
     typ: modul
     modul: ui_upload
-    text: {de: "Wähle deine Dateien oder einen Ordner und klick auf „Senden“.",
-           en: "Choose your files or a folder and click “Send”."}
+    text: {de: "Wähle deine Dateien oder einen Ordner, dann, wo sie verarbeitet werden, und klick auf „Hochladen“: „Hier im Chat“ liest sie nur für diese Sitzung, „In WLO ablegen und erschließen“ lässt WLO sie gründlich beschreiben (einige Minuten), „Nur Namen senden“ nimmt nur die Dateinamen.",
+           en: "Choose your files or a folder, then where they should be processed, and click “Upload”: “Here in the chat” reads them for this session only, “Store and index in WLO” has WLO describe them thoroughly (a few minutes), “Send names only” takes just the file names."}
     daten: {zweck: bereitstellen}
-  - id: dateien_geladen
+  # Nach dem Upload, nach „Ja, verwenden“ und vom Ordner ohne Unterordner: nach den Teilen der
+  # Auswahl (``block_id``, zweites Review H) — Angaben da (hier im Chat gelesen, ``quelle:
+  # chatbot``; auch Metadaten aus WLO zu derselben Auswahl) → fragen; in WLO abgelegt → Metadaten;
+  # sonst nur die Dateinamen (G-E9). Die Bindung an die Auswahl hält Angaben einer früheren
+  # Auswahl draußen (etwa nach „Nochmal auswählen“ mit „Nur Namen senden“).
+  - id: dateien_weg
     typ: verzweigung
     weiter:
+      - {wenn_wert: {quelle: teil.metadaten.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: wofuer}
       - {wenn_wert: {quelle: teil.ablage.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: metadaten_frage}
-      - {wenn_wert: {quelle: teil.weg, vergleich: enthaelt, wert: gründlich}, dann: ohne_daten}
       - {wenn_wert: {quelle: teil.struktur.zahlen.inhalte, vergleich: groesser, wert: "0"}, dann: aus_dateien}
       - {sonst: ohne_daten}
   - id: aus_dateien
@@ -247,11 +236,11 @@ schritte:
     typ: nachricht
     text:
       de: >-
-        Soll WLO Metadaten für die eben übertragenen Dateien erzeugen – auch für Strukturdokumente
-        (falls dabei)? Das ersetzt je Datei Titel, Beschreibung, Schlagworte, Sprache, Fach,
-        Bildungsstufe, Zielgruppe und Ressourcentyp – jede Änderung als neue Version.
+        Soll WLO Metadaten für die eben in WLO abgelegten Dateien erzeugen – auch für
+        Strukturdokumente (falls dabei)? Das ersetzt je Datei Titel, Beschreibung, Schlagworte,
+        Sprache, Fach, Bildungsstufe, Zielgruppe und Ressourcentyp – jede Änderung als neue Version.
       en: >-
-        Should WLO create metadata for the files you just transferred – structure documents
+        Should WLO create metadata for the files you just stored in WLO – structure documents
         included (if any)? For each file this replaces title, description, keywords, language,
         subject, educational level, audience and resource type – each change as a new version.
     optionen:
@@ -285,14 +274,22 @@ schritte:
     argumente: {ablage: {$teil: ablage}}
     schreibt: metadaten
     bei_fehler: ohne_metadaten
-  # Ordner mit Unterordnern → Entwurf aus den Ordnern (mit node_ids); Dateien → Fragen bzw. ohne
-  # Angaben aus WLO aus den Dateinamen (``schnell_da``)
+  # Ordner mit Unterordnern → Entwurf aus den Ordnern (mit node_ids); Dateien → ``angaben_da``
   - id: nach_lesen
     typ: verzweigung
     weiter:
-      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Dateien}, dann: schnell_da}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Dateien}, dann: angaben_da}
       - {wenn_wert: {quelle: teil.structure.struktur.kinder, vergleich: vorhanden}, dann: aus_ordnern}
-      - {sonst: schnell_da}
+      - {sonst: angaben_da}
+  # U6: Angaben aus WLO gelesen → fragen; sonst („Ohne Angaben aus WLO weiter“) die Dateinamen.
+  # Nicht über ``dateien_weg``: dort führte die Ablage ohne Angaben zurück zur Rückfrage. Review U
+  # (19.11.), MAJOR 1: nur Angaben zu dieser Auswahl (``block_id`` wie ``dateien_weg``) — hier im
+  # Chat gelesene einer früheren Auswahl gehen sonst mit in einen neuen Vorgang
+  - id: angaben_da
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.metadaten.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: wofuer}
+      - {sonst: aus_dateien}
   # ── Fragen, die wirken (G-E7) ─────────────────────────────────────────────────────────────────
   - id: wofuer
     typ: nachricht
@@ -346,16 +343,29 @@ schritte:
   # direkt zum Entwurf (kein Kreis über ``zum_entwurf`` — die Leiste zählte ihn sonst als Rückweg);
   # „Nochmal versuchen“ kommt über die Regel ``soll_ist`` dorthin. Gezählt werden nur die Einträge
   # in ``metadaten.inhalte`` — Dateien unter ``fehlend`` (ohne Angaben aus WLO) zählen nicht mit.
+  # U6 und Review U (19.11.), MAJOR 1: erst die Grundlage, dann die Angaben — das gewählte Dokument
+  # und ein getipptes Thema gehen vor ``metadaten`` (hier im Chat liest das Feld mit dem Lehrplan
+  # auch Inhalte; Angaben aus dem freien Chat gehen mit in einen neuen Vorgang). „Meine Dateien“ und
+  # „Meine Ordner“ zählen die Angaben (``inhalte_menge``) — sie stammen dann aus ``dateien_weg``,
+  # ``angaben_da`` oder ``aus_dateien``, die an die Auswahl binden; ohne gewählte Grundlage („Ja,
+  # verwenden“) erst ``bereit.art`` (Dokument), dann nur Angaben zu dieser Auswahl (``block_id``).
   - id: zum_entwurf
     typ: verzweigung
     weiter:
       - {wenn_teil: ordnerweg, dann: entwurf_ordner}
-      - {wenn_teil: soll_ist, dann: entwurf_inhalte}
-      - {wenn_wert: {quelle: teil.metadaten.inhalte.4, vergleich: vorhanden}, dann: soll_ist}
-      - {wenn_teil: metadaten, dann: soll_wenig}
       - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: "Ein Dokument mit Gliederung, etwa ein Lehrplan"}, dann: entwurf_dokument}
+      - {wenn_teil: soll_ist, dann: entwurf_inhalte}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Dateien}, dann: inhalte_menge}
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Ordner}, dann: inhalte_menge}
       - {wenn_wert: {quelle: teil.grundlage, vergleich: vorhanden}, dann: entwurf_thema}
       - {wenn_wert: {quelle: teil.bereit.art, vergleich: gleich, wert: dokument}, dann: entwurf_dokument}
+      - {wenn_wert: {quelle: teil.metadaten.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: inhalte_menge}
+      - {sonst: entwurf_thema}
+  - id: inhalte_menge
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.metadaten.inhalte.4, vergleich: vorhanden}, dann: soll_ist}
+      - {wenn_teil: metadaten, dann: soll_wenig}
       - {sonst: entwurf_thema}
   - id: soll_ist
     typ: nachricht
@@ -440,8 +450,8 @@ schritte:
   - id: entwurf_inhalte
     typ: agent
     weiter: ende
-    text: {de: "Die Angaben zu deinen Dateien liegen bereit. Ich ordne sie zu Themen – klick auf „Entwurf erstellen“ oder schreib mir noch etwas dazu.",
-           en: "The details of your files are ready. I'll group them into topics – click “Create draft” or tell me anything else."}
+    text: {de: "Ich habe, was zu deinen Dateien vorliegt – ihre Angaben oder ihre Namen. Ich ordne sie zu Themen – klick auf „Entwurf erstellen“ oder schreib mir noch etwas dazu.",
+           en: "I have what there is about your files – their details or their names. I'll group them into topics – click “Create draft” or tell me anything else."}
     agent:
       werkzeuge: [ui_strukturentwurf]
       hinweis:
@@ -514,20 +524,21 @@ schritte:
     optionen:
       - {id: nochmal, label: {de: Nochmal versuchen, en: Try again}, ziel: zum_entwurf}
       # zweites Review D: wie in ``ohne_daten``
-      - {id: andere, label: {de: Andere Grundlage, en: Different basis}, ziel: grundlage, verwirft: [grundlage, structure, document, weg, metadaten, ordnerweg, soll_ist]}
+      - {id: andere, label: {de: Andere Grundlage, en: Different basis}, ziel: grundlage, verwirft: [grundlage, structure, document, metadaten, ordnerweg, soll_ist]}
       - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
   - id: ohne_daten
     typ: nachricht
-    text: {de: "Damit komme ich noch nicht weiter: Es fehlt ein gelesenes Dokument, ein Ordner mit Unterordnern oder Dateien mit Namen – oder, beim gründlichen Weg, die Übertragung nach WLO. Wähle noch einmal aus, nimm eine andere Grundlage oder mach frei im Chat weiter.",
-           en: "I can't continue with this yet: a read document, a folder with subfolders or files with names are missing – or, on the thorough way, the transfer to WLO. Choose again, take a different basis or carry on freely in the chat."}
+    text: {de: "Damit komme ich noch nicht weiter: Es fehlt ein gelesenes Dokument, ein Ordner mit Unterordnern oder Dateien mit Namen. Wähle noch einmal aus, nimm eine andere Grundlage oder mach frei im Chat weiter.",
+           en: "I can't continue with this yet: a read document, a folder with subfolders or files with names are missing. Choose again, take a different basis or carry on freely in the chat."}
     optionen:
-      # zurück zu ``daten``: Auswahl und Wahl des Wegs sind verworfen — Dokument, Ordner und Dateien
-      # führen wieder zu ihrem Upload-Feld (bereitgestellte Ordner nur, solange ``structure`` da
-      # ist); ein Thema geht zu den Fragen
-      - {id: nochmal, label: {de: Nochmal auswählen, en: Choose again}, ziel: daten, verwirft: [structure, weg]}
+      # zurück zu ``daten``: die Auswahl ist verworfen — Dokument, Ordner und Dateien führen wieder
+      # zu ihrem Upload-Feld (bereitgestellte Ordner nur, solange ``structure`` da ist); ein Thema
+      # geht zu den Fragen. U6: auch ``metadaten`` (etwa hier im Chat gelesene Inhalte ohne
+      # Lehrplan auf dem Dokument-Weg) — sie gehören zur verworfenen Auswahl
+      - {id: nochmal, label: {de: Nochmal auswählen, en: Choose again}, ziel: daten, verwirft: [structure, metadaten]}
       # MAJOR 3: ein Ausweg, wenn die Grundlage falsch getroffen war
-      - {id: andere, label: {de: Andere Grundlage, en: Different basis}, ziel: grundlage, verwirft: [grundlage, structure, document, weg, metadaten, ordnerweg, soll_ist]}
+      - {id: andere, label: {de: Andere Grundlage, en: Different basis}, ziel: grundlage, verwirft: [grundlage, structure, document, metadaten, ordnerweg, soll_ist]}
       - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
   # Drittes Review Paket K (19.11.): ohne vermutete Gründe — den Grund nennt der Satz davor
@@ -542,7 +553,15 @@ schritte:
       - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
 tests:
+  # Review U (19.11.), MAJOR 1b: Angaben einer anderen Auswahl (etwa aus dem freien Chat
+  # mitgenommen) verwirft „Ja, neue Struktur“; das getippte Thema bleibt das Thema
   - name: Thema getippt bis zum Entwurf
+    teile:
+      metadaten: &fremde_angaben
+        {format: wlo.metadaten@1, quelle: chatbot, block_id: einfrueheresfeld01, titel: "Inhalte aus 5 Dateien (5 gelesen)",
+         fehlend: [], inhalte: [{i: 0, rolle: inhalt, titel: A, lesbar: true}, {i: 1, rolle: inhalt, titel: B, lesbar: true},
+                                {i: 2, rolle: inhalt, titel: C, lesbar: true}, {i: 3, rolle: inhalt, titel: D, lesbar: true},
+                                {i: 4, rolle: inhalt, titel: E, lesbar: true}]}
     eingaben:
       - {bei: einstieg, option: neu}
       - {bei: grundlage, text: "Optik (Physik)"}
@@ -558,38 +577,65 @@ tests:
       status: fertig
       teile: [bereit, vorhaben, grundlage, zweck, stufe, umfang, draft]
   # MAJOR 3: Teilwörter treffen nicht — der Text ist ein Thema (weitere Fehltreffer prüft
-  # tests/test_tg6_themenbaum.py)
+  # tests/test_tg6_themenbaum.py). Review U, MAJOR 1c: „Anderes wählen“ verwirft auch die hier im
+  # Chat gelesenen Angaben der angebotenen Dateien (gebunden an ihre Auswahl) — das Thema bleibt
   - name: Lerninhalte sind ein Thema
+    angemeldet: false
+    teile:
+      structure: {struktur: {name: Unterlagen, dateien: 5, alle_dateien: 5, kinder: []},
+                  zahlen: {ordner: 1, dateien: 5, inhalte: 5}}
+      struktur:
+        block_id: einfrueheresfeld01
+        zahlen: {ordner: 1, dateien: 5, inhalte: 5}
+        warnungen: []
+        struktur:
+          name: Unterlagen
+          dateien: 5
+          kinder: []
+          dateiliste:
+            - {i: 0, name: A.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+            - {i: 1, name: B.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+            - {i: 2, name: C.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+            - {i: 3, name: D.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+            - {i: 4, name: E.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+      metadaten: *fremde_angaben
     eingaben:
-      - {bei: einstieg, option: neu}
+      - {bei: einstieg_mit, option: andere}
       - {bei: grundlage, text: "Lerninhalte der Zellbiologie"}
       - {bei: wofuer, text: "für eine Webseite"}
       - {bei: stufe, option: alle}
       - {bei: umfang, text: "nicht zu fein, eher grob"}
       - {bei: hinweise, text: "nein"}
     erwartet:
-      weg: [bereit, vorhanden, einstieg, grundlage, wofuer, stufe, umfang, hinweise,
+      weg: [bereit, vorhanden, einstieg_mit, grundlage, wofuer, stufe, umfang, hinweise,
             zum_entwurf, entwurf_thema]
       status: wartet_ki
       teile: [grundlage, zweck, umfang]
-  - name: Dokument neu lesen lassen
+  # U6: „Hier im Chat“ liest den Lehrplan (``strukturdokument``) und den Inhalt daneben
+  # (``metadaten``) — der Entwurf bleibt der aus dem Dokument
+  - name: Dokument hier im Chat lesen, mit Inhalt
     angemeldet: false
     eingaben:
       - {bei: einstieg, option: neu}
       - {bei: grundlage, text: "aus meinem Lehrplan"}
       - bei: dokument_laden
-        antwort: &dokument
-          aktion: dokument
-          struktur: {name: Auswahl, dateien: 1, alle_dateien: 1, kinder: []}
-          zahlen: {ordner: 0, dateien: 1, inhalte: 0, ignoriert: 0, strukturdokumente: 1, bytes: 1000}
+        antwort:
+          aktion: bereitgestellt
+          ort: chat
+          struktur:
+            name: Auswahl
+            dateien: 2
+            alle_dateien: 2
+            kinder: []
+            dateiliste:
+              - {i: 0, name: Rahmenlehrplan.pdf, endung: pdf, groesse: 1000, rolle: struktur}
+              - {i: 1, name: Linsen.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+          zahlen: {ordner: 1, dateien: 2, inhalte: 1, ignoriert: 0, strukturdokumente: 1, bytes: 1010}
           strukturdokument: {name: Rahmenlehrplan.pdf, groesse: 1000, endung: pdf}
           warnungen: []
-          dokument:
-            upload_id: 11111111-1111-4111-8111-111111111111
-            name: Rahmenlehrplan.pdf
-            format: pdf
-            befund: {seiten: 40, woerter: 9000, abschnitte: 12, gliederung_art: ueberschriften, warnungen: []}
-            vorschau: []
+          dateien:
+            - {i: 0, rolle: struktur, upload_id: 11111111-1111-4111-8111-111111111111}
+            - {i: 1, rolle: inhalt, upload_id: 22222222-2222-4222-8222-222222222222}
       - {bei: wofuer, option: material}
       - {bei: stufe, option: beruf}
       - {bei: umfang, option: mittel}
@@ -600,7 +646,8 @@ tests:
       weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, wofuer, stufe,
             umfang, hinweise, zum_entwurf, entwurf_dokument, ende]
       status: fertig
-      teile: [document, strukturdokument, draft]
+      teile: [struktur, strukturdokument, metadaten, draft]
+  # Die alte Antwort ``aktion: dokument`` nimmt das Backend weiter an (Teil ``document`` daneben)
   - name: Mehrere Dokumente
     eingaben:
       - {bei: einstieg, option: neu}
@@ -643,8 +690,27 @@ tests:
             umfang, hinweise, zum_entwurf, entwurf_dokument, ende]
       status: fertig
       teile: [strukturdokument, draft]
+  # Review U (19.11.), MAJOR 1a: Lehrplan und Inhalt aus einem Feld bereit (hier im Chat gelesen),
+  # „Ja, verwenden“ — der Entwurf kommt aus dem Dokument (``bereit.art`` vor den Angaben)
   - name: Dokument schon gelesen, verwenden
-    teile: {document: {ref: "dokument:11111111-1111-4111-8111-111111111111", name: Rahmenlehrplan.pdf}}
+    teile:
+      document: {ref: "dokument:11111111-1111-4111-8111-111111111111", name: Rahmenlehrplan.pdf}
+      struktur:
+        block_id: b0000002
+        zahlen: {ordner: 1, dateien: 2, inhalte: 1, ignoriert: 0, strukturdokumente: 1}
+        warnungen: []
+        struktur:
+          name: Auswahl
+          dateien: 2
+          kinder: []
+          dateiliste:
+            - {i: 0, name: Rahmenlehrplan.pdf, endung: pdf, groesse: 1000, rolle: struktur}
+            - {i: 1, name: Linsen.pdf, endung: pdf, groesse: 10, rolle: inhalt}
+      strukturdokument:
+        dokumente: [{name: Rahmenlehrplan.pdf, quelle: chatbot, ref: "dokument:11111111-1111-4111-8111-111111111111"}]
+      metadaten: {format: wlo.metadaten@1, quelle: chatbot, block_id: b0000002, titel: "Inhalte aus 1 Dateien (1 gelesen)",
+                  fehlend: [], inhalte: [{i: 1, rolle: inhalt, titel: Linsen, lesbar: true,
+                                          upload_id: 22222222-2222-4222-8222-222222222222}]}
     eingaben:
       - {bei: einstieg_mit, option: verwenden}
       - {bei: wofuer, option: teilen}
@@ -657,31 +723,38 @@ tests:
       weg: [bereit, vorhanden, einstieg_mit, daten, wofuer, stufe, umfang, hinweise,
             zum_entwurf, entwurf_dokument, ende]
       status: fertig
-  # MINOR 9/12: nach „Anderes wählen“ bleibt ``bereit`` — angemeldet geht der gründliche Weg
-  - name: Dokument da, anderes wählen, Dateien angemeldet
+  # MINOR 9/12: nach „Anderes wählen“ bleibt ``bereit``. U6: „Hier im Chat“ gelesen → die
+  # Angaben (``metadaten``, ``quelle: chatbot``) führen direkt zu den Fragen
+  - name: Dokument da, anderes wählen, Dateien hier im Chat
     teile: {document: {ref: "dokument:11111111-1111-4111-8111-111111111111", name: Alt.pdf}}
     eingaben:
       - {bei: einstieg_mit, option: andere}
       - {bei: grundlage, option: dateien}
-      - {bei: wlo_frage, option: schnell}
-      - {bei: dateien_laden, antwort: &flach
-          {aktion: erfasst,
-           struktur: {name: Unterlagen, dateien: 3, alle_dateien: 3, kinder: [],
-                      dateiliste: [{i: 0, name: 01_Linsen-Gesetz.pdf, endung: pdf, groesse: 10, rolle: inhalt},
-                                   {i: 1, name: Spiegel_Bilder.docx, endung: docx, groesse: 10, rolle: inhalt},
-                                   {i: 2, name: Brechung.pptx, endung: pptx, groesse: 10, rolle: inhalt}]},
-           zahlen: {ordner: 1, dateien: 3, inhalte: 3, ignoriert: 0, strukturdokumente: 0, bytes: 30},
-           strukturdokument: null, warnungen: []}}
+      - bei: dateien_laden
+        antwort:
+          aktion: bereitgestellt
+          ort: chat
+          struktur: &flach_struktur
+            {name: Unterlagen, dateien: 3, alle_dateien: 3, kinder: [],
+             dateiliste: [{i: 0, name: 01_Linsen-Gesetz.pdf, endung: pdf, groesse: 10, rolle: inhalt},
+                          {i: 1, name: Spiegel_Bilder.docx, endung: docx, groesse: 10, rolle: inhalt},
+                          {i: 2, name: Brechung.pptx, endung: pptx, groesse: 10, rolle: inhalt}]}
+          zahlen: &flach_zahlen {ordner: 1, dateien: 3, inhalte: 3, ignoriert: 0, strukturdokumente: 0, bytes: 30}
+          strukturdokument: null
+          warnungen: []
+          dateien:
+            - {i: 0, rolle: inhalt, upload_id: 33333333-3333-4333-8333-333333333333}
+            - {i: 1, rolle: inhalt, upload_id: 44444444-4444-4444-8444-444444444444}
       - {bei: wofuer, option: material}
       - {bei: stufe, option: sek1}
       - {bei: umfang, option: mittel}
       - {bei: hinweise, option: keine}
       - {bei: soll_wenig, option: ist}
     erwartet:
-      weg: [bereit, vorhanden, einstieg_mit, grundlage, dateien_weg, wlo_frage, schnell_da,
-            dateien_laden, dateien_geladen, aus_dateien, wofuer, stufe, umfang,
-            hinweise, zum_entwurf, soll_wenig, entwurf_inhalte]
+      weg: [bereit, vorhanden, einstieg_mit, grundlage, dateien_laden, dateien_weg, wofuer, stufe,
+            umfang, hinweise, zum_entwurf, inhalte_menge, soll_wenig, entwurf_inhalte]
       status: wartet_ki
+      teile: [struktur, metadaten, soll_ist]
   # Nachprüfung TG-4–6: ein mehrdeutiger Satz und „Passt so“ bekommen den Hinweis, der Lauf wartet
   - name: Ordner, anonym, so lassen
     angemeldet: false
@@ -692,7 +765,7 @@ tests:
       - bei: ordner_laden
         antwort: &ordner
           aktion: erfasst
-          struktur:
+          struktur: &ordner_struktur
             name: Physik
             dateien: 0
             alle_dateien: 4
@@ -712,7 +785,7 @@ tests:
                 dateiliste:
                   - {i: 2, name: Hebel.pdf, endung: pdf, groesse: 10, rolle: inhalt}
                   - {i: 3, name: Kraft.pdf, endung: pdf, groesse: 10, rolle: inhalt}
-          zahlen: {ordner: 3, dateien: 4, inhalte: 4, ignoriert: 0, strukturdokumente: 0, bytes: 40}
+          zahlen: &ordner_zahlen {ordner: 3, dateien: 4, inhalte: 4, ignoriert: 0, strukturdokumente: 0, bytes: 40}
           strukturdokument: null
           warnungen: []
       - bei: ordner_pruefen
@@ -725,12 +798,24 @@ tests:
             ordner_pruefen, ordner_weiter, ende]
       status: fertig
       teile: [structure, struktur, draft, ordnerweg]
-  - name: Ordner mit Angaben verfeinern
+  # U6 (Entscheid): hier im Chat gelesen bleibt ein Ordner mit Unterordnern der Ordner-Weg — die
+  # Angaben (``metadaten``) liegen im Vorgang bei
+  - name: Ordner hier im Chat, verfeinern
     angemeldet: false
     eingaben:
       - {bei: einstieg, option: neu}
       - {bei: grundlage, option: ordner}
-      - {bei: ordner_laden, antwort: *ordner}
+      - bei: ordner_laden
+        antwort:
+          aktion: bereitgestellt
+          ort: chat
+          struktur: *ordner_struktur
+          zahlen: *ordner_zahlen
+          strukturdokument: null
+          warnungen: []
+          dateien:
+            - {i: 0, rolle: inhalt, upload_id: 11111111-1111-4111-8111-111111111111}
+            - {i: 2, rolle: inhalt, upload_id: 22222222-2222-4222-8222-222222222222}
       - {bei: ordner_pruefen, antwort: *geprueft}
       - {bei: ordner_weiter, text: "Ja"}
       - {bei: ordner_weiter, option: verfeinern}
@@ -745,19 +830,32 @@ tests:
             ordner_pruefen, ordner_weiter, wofuer, stufe, umfang, hinweise, zum_entwurf,
             entwurf_ordner, ende]
       status: fertig
-  # Ordner im Feld nach WLO übertragen (die Ablage schreibt der Endpunkt, hier liegt sie schon da):
+      teile: [structure, metadaten, ordnerweg, draft]
+  # Ordner im Feld in WLO abgelegt (die Ablage schreibt der Endpunkt, hier liegt sie schon da):
   # erst die Metadaten, dann der Entwurf aus den Ordnern mit den node_ids
-  - name: Ordner nach WLO übertragen und erschließen
+  - name: Ordner in WLO abgelegt und erschlossen
     teile:
       ablage: {format: wlo.ablage@1, block_id: simulationuiupload, inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
                node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
     werkzeuge:
-      lesen: {format: wlo.metadaten@1, titel: Metadaten zu 1 Inhalten, fehlend: [],
+      # wie ``metadaten_lesen``: die ``block_id`` der Ablage reist mit (Review U, MAJOR 1)
+      lesen: {format: wlo.metadaten@1, block_id: simulationuiupload, titel: Metadaten zu 1 Inhalten,
+              fehlend: [],
               inhalte: [{node_id: 11111111-1111-4111-8111-111111111111, i: 0, rolle: inhalt, titel: Linsen}]}
     eingaben:
       - {bei: einstieg, option: neu}
       - {bei: grundlage, option: ordner}
-      - {bei: ordner_laden, antwort: *ordner}
+      - bei: ordner_laden
+        antwort:
+          aktion: bereitgestellt
+          ort: wlo
+          struktur: *ordner_struktur
+          zahlen: *ordner_zahlen
+          strukturdokument: null
+          warnungen: []
+          dateien: [{i: 0, rolle: inhalt}, {i: 1, rolle: inhalt}, {i: 2, rolle: inhalt}, {i: 3, rolle: inhalt}]
+          ablage: {layout: ordner, gesamt: 4, abgelegt: 4, unklar: 0, fehler: 0, abgebrochen: 0,
+                             ordner_verweigert: false, vorgang_abgelegt: false}
       - {bei: metadaten_frage, option: ja}
       - {bei: metadaten, ergebnis: {status: SUCCEEDED, outputs: {report: []}}}
       - {bei: ordner_pruefen, antwort: *geprueft}
@@ -767,12 +865,15 @@ tests:
             metadaten, lesen, nach_lesen, aus_ordnern, ordner_pruefen, ordner_weiter, ende]
       status: fertig
       teile: [metadatenlauf, metadaten, draft]
+  # Alte Antwort ``aktion: erfasst`` (wie „Nur Namen senden“): nur die Auswahl
   - name: Ordner ohne Unterordner wird der Weg Dateien
     angemeldet: false
     eingaben:
       - {bei: einstieg, option: neu}
       - {bei: grundlage, option: ordner}
-      - {bei: ordner_laden, antwort: *flach}
+      - bei: ordner_laden
+        antwort: &flach {aktion: erfasst, struktur: *flach_struktur, zahlen: *flach_zahlen,
+                         strukturdokument: null, warnungen: []}
       - {bei: wofuer, option: material}
       - {bei: stufe, option: sek1}
       - {bei: umfang, option: kompakt}
@@ -782,17 +883,18 @@ tests:
         teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
     erwartet:
       weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, dateien_weg,
-            schnell, schnell_da, aus_dateien, wofuer, stufe, umfang, hinweise,
-            zum_entwurf, soll_wenig, entwurf_inhalte, ende]
+            aus_dateien, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, inhalte_menge, soll_wenig, entwurf_inhalte, ende]
       status: fertig
       teile: [struktur, metadaten, draft]
-  - name: Dateien anonym aus den Namen
+  # U6: „Nur Namen senden“ → nur die Auswahl → die Dateinamen (``inhalte_aus_dateien``)
+  - name: Dateien nur mit Namen, anonym
     angemeldet: false
     eingaben:
       - {bei: einstieg, option: neu}
       - {bei: grundlage, text: "aus meinen Dateien"}
       - {bei: dateien_laden, antwort:
-          {aktion: erfasst,
+          {aktion: bereitgestellt, ort: namen,
            struktur: {name: Unterlagen, dateien: 5, alle_dateien: 5, kinder: [],
                       dateiliste: [{i: 0, name: Linsen.pdf, endung: pdf, groesse: 10, rolle: inhalt},
                                    {i: 1, name: Spiegel.pdf, endung: pdf, groesse: 10, rolle: inhalt},
@@ -809,9 +911,8 @@ tests:
       - bei: entwurf_inhalte
         teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
     erwartet:
-      weg: [bereit, vorhanden, einstieg, grundlage, dateien_weg, schnell, schnell_da, dateien_laden,
-            dateien_geladen, aus_dateien, wofuer, stufe, umfang, hinweise,
-            zum_entwurf, soll_ist, entwurf_inhalte, ende]
+      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, aus_dateien, wofuer,
+            stufe, umfang, hinweise, zum_entwurf, inhalte_menge, soll_ist, entwurf_inhalte, ende]
       status: fertig
       teile: [metadaten, draft]
   - name: Dateien schon erfasst, verwenden, anonym
@@ -841,33 +942,36 @@ tests:
       - bei: entwurf_inhalte
         teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
     erwartet:
-      weg: [bereit, vorhanden, einstieg_mit, daten, dateien_weg, schnell, schnell_da, aus_dateien,
-            wofuer, stufe, umfang, hinweise, zum_entwurf, soll_wenig, entwurf_inhalte, ende]
+      weg: [bereit, vorhanden, einstieg_mit, daten, dateien_weg, aus_dateien,
+            wofuer, stufe, umfang, hinweise, zum_entwurf, inhalte_menge, soll_wenig, entwurf_inhalte, ende]
       status: fertig
-  # Gründlich: die Ablage schreibt der Ablage-Endpunkt beim Übertragen (nicht die Antwort) — hier
-  # liegt sie wie danach im Vorgang; der Test beginnt an der Frage nach dem Weg
-  - name: Dateien gründlich über WLO mit Kestra
-    ab: wlo_frage
+  # In WLO ablegen und erschließen: die Ablage schreibt der Ablage-Endpunkt beim Hochladen (nicht
+  # die Antwort) — hier liegt sie wie danach im Vorgang (``block_id`` des Felds der Simulation)
+  - name: Dateien in WLO ablegen und erschließen
     teile:
-      grundlage: Meine Dateien
-      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
-               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+      ablage: &ablage_linsen {format: wlo.ablage@1, block_id: simulationuiupload,
+                              inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
+                                         node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
     werkzeuge:
-      lesen: {format: wlo.metadaten@1, titel: Metadaten zu 1 Inhalten, fehlend: [],
+      # wie ``metadaten_lesen``: die ``block_id`` der Ablage reist mit (Review U, MAJOR 1)
+      lesen: {format: wlo.metadaten@1, block_id: simulationuiupload, titel: Metadaten zu 1 Inhalten,
+              fehlend: [],
               inhalte: [{node_id: 11111111-1111-4111-8111-111111111111, i: 0, rolle: inhalt,
                          titel: Linsen, beschreibung: Sammellinsen im Alltag, schlagworte: [Linse],
                          faecher: [Physik], stufen: [], arten: [], lizenz: CC BY-SA}]}
     eingaben:
-      - {bei: wlo_frage, text: "Ja, gründlich"}
-      - {bei: wlo_frage, option: gruendlich}
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: dateien}
       - bei: dateien_laden
-        antwort: &uebertragen
-          aktion: uebertragen
+        antwort: &in_wlo
+          aktion: bereitgestellt
+          ort: wlo
           struktur: {name: Optik, dateien: 1, alle_dateien: 1, kinder: [],
                      dateiliste: [{i: 0, name: Linsen.pdf, endung: pdf, groesse: 1000, rolle: inhalt}]}
           zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
           strukturdokument: null
           warnungen: []
+          dateien: [{i: 0, rolle: inhalt}]
           ablage: {layout: flach, gesamt: 1, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 0,
                    ordner_verweigert: false, vorgang_abgelegt: false}
       - {bei: metadaten_frage, option: ja}
@@ -880,37 +984,45 @@ tests:
       - bei: entwurf_inhalte
         teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
     erwartet:
-      weg: [wlo_frage, dateien_laden, dateien_geladen, metadaten_frage, metadaten, lesen,
-            nach_lesen, schnell_da, wofuer, stufe, umfang, hinweise,
-            zum_entwurf, soll_wenig, entwurf_inhalte, ende]
+      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, metadaten_frage,
+            metadaten, lesen, nach_lesen, angaben_da, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, inhalte_menge, soll_wenig, entwurf_inhalte, ende]
       status: fertig
-      teile: [weg, ablage, metadatenlauf, metadaten, draft]
-  - name: Dateien gründlich, aber nichts übertragen
-    ab: wlo_frage
-    teile: {grundlage: Meine Dateien}
+      teile: [ablage, metadatenlauf, metadaten, draft]
+  # U6: „In WLO“ gewählt, aber nichts zur Auswahl abgelegt (keine ``ablage``) → die Dateinamen
+  - name: In WLO gewählt, nichts abgelegt
     eingaben:
-      - {bei: wlo_frage, text: "gründlich bitte"}
-      - {bei: wlo_frage, option: gruendlich}
-      - {bei: dateien_laden, antwort: *flach}
-      - {bei: ohne_daten, option: frei}
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: dateien}
+      - bei: dateien_laden
+        antwort:
+          aktion: bereitgestellt
+          ort: wlo
+          struktur: *flach_struktur
+          zahlen: *flach_zahlen
+          strukturdokument: null
+          warnungen: []
+          dateien: [{i: 0, rolle: inhalt}, {i: 1, rolle: inhalt}, {i: 2, rolle: inhalt}]
+          ablage: {layout: flach, gesamt: 3, abgelegt: 0, unklar: 0, fehler: 3, abgebrochen: 0,
+                   ordner_verweigert: false, vorgang_abgelegt: false}
+      - {bei: wofuer, option: material}
     erwartet:
-      weg: [wlo_frage, dateien_laden, dateien_geladen, ohne_daten, frei]
-      status: fertig
+      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, aus_dateien, wofuer,
+            stufe]
+      status: wartet_wahl
   - name: Kestra scheitert, weiter mit den Dateinamen
-    ab: wlo_frage
     teile:
-      grundlage: Meine Dateien
-      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
-               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+      ablage: *ablage_linsen
     eingaben:
-      - {bei: wlo_frage, option: gruendlich}
-      - {bei: dateien_laden, antwort: *uebertragen}
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: dateien}
+      - {bei: dateien_laden, antwort: *in_wlo}
       - {bei: metadaten_frage, option: ja}
       - {bei: metadaten, fehler: true}
       - {bei: ohne_metadaten, option: ohne}
     erwartet:
-      weg: [wlo_frage, dateien_laden, dateien_geladen, metadaten_frage, metadaten, ohne_metadaten,
-            nach_lesen, schnell_da, aus_dateien, wofuer]
+      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, metadaten_frage,
+            metadaten, ohne_metadaten, nach_lesen, angaben_da, aus_dateien, wofuer]
       status: wartet_wahl
   - name: Ohne Führung
     eingaben:
@@ -959,6 +1071,7 @@ tests:
       weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, ohne_daten,
             grundlage, wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_thema]
       status: wartet_ki
+  # U6: „Nur Namen senden“ liest kein Dokument → nochmal, dann hier im Chat gelesen
   - name: Dokument nicht gelesen, nochmal
     angemeldet: false
     eingaben:
@@ -966,13 +1079,27 @@ tests:
       - {bei: grundlage, option: dokument}
       - bei: dokument_laden
         antwort:
-          aktion: erfasst
-          struktur: {name: Unterlagen, dateien: 1, alle_dateien: 1, kinder: []}
-          zahlen: {ordner: 1, dateien: 1, inhalte: 1, ignoriert: 0, strukturdokumente: 0, bytes: 1000}
-          strukturdokument: null
+          aktion: bereitgestellt
+          ort: namen
+          struktur: &lehrplan_allein
+            name: Auswahl
+            dateien: 1
+            alle_dateien: 1
+            kinder: []
+            dateiliste: [{i: 0, name: Rahmenlehrplan.pdf, endung: pdf, groesse: 1000, rolle: struktur}]
+          zahlen: &lehrplan_zahlen {ordner: 1, dateien: 1, inhalte: 0, ignoriert: 0, strukturdokumente: 1, bytes: 1000}
+          strukturdokument: {name: Rahmenlehrplan.pdf, groesse: 1000, endung: pdf}
           warnungen: []
       - {bei: ohne_daten, option: nochmal}
-      - {bei: dokument_laden, antwort: *dokument}
+      - bei: dokument_laden
+        antwort:
+          aktion: bereitgestellt
+          ort: chat
+          struktur: *lehrplan_allein
+          zahlen: *lehrplan_zahlen
+          strukturdokument: {name: Rahmenlehrplan.pdf, groesse: 1000, endung: pdf}
+          warnungen: []
+          dateien: [{i: 0, rolle: struktur, upload_id: 11111111-1111-4111-8111-111111111111}]
       - {bei: wofuer, option: unterricht}
       - {bei: stufe, option: sek1}
       - {bei: umfang, option: mittel}

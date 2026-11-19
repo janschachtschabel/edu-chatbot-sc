@@ -141,23 +141,30 @@ def test_zwei_gleichzeitige_speichern_halten_die_grenze(db_url):
 
     async def ablauf(sitzungen):
         async with sitzungen() as s:
-            for n in range(4):
+            for n in range(ablage.max_je_sitzung() - 1):
                 await _speichern(s, sid, name=f"d{n}.md")
             await s.commit()
 
         async def einer(name):
             async with sitzungen() as s:
-                await _speichern(s, sid, name=name)
+                try:
+                    await _speichern(s, sid, name=name)
+                except ablage.GrenzeErreicht:
+                    await s.rollback()
+                    return "abgewiesen"
                 await asyncio.sleep(0.05)                   # die Sperre hält bis zum Festschreiben
                 await s.commit()
+                return "gespeichert"
 
-        await asyncio.gather(einer("x.md"), einer("y.md"))
+        ausgang = await asyncio.gather(einer("x.md"), einer("y.md"))
         async with sitzungen() as s:
-            return [z.name for z in await ablage.alle_lesbaren(s, sid, None)]
+            return ausgang, [z.name for z in await ablage.alle_lesbaren(s, sid, None)]
 
-    namen = _lauf(db_url, ablauf, sid)
-    assert len(namen) == ablage.MAX_JE_SITZUNG
-    assert {"x.md", "y.md"} <= set(namen) and "d0.md" not in namen
+    # Paket U1 (altes Soll: beide gespeichert, das älteste verdrängt): unter der Sperre gewinnt
+    # einer, der andere wird abgewiesen — nichts wird verdrängt
+    ausgang, namen = _lauf(db_url, ablauf, sid)
+    assert sorted(ausgang) == ["abgewiesen", "gespeichert"]
+    assert len(namen) == ablage.max_je_sitzung() and "d0.md" in namen
 
 
 def test_nachpruefung_minor3_verschiedene_dokumente_gleichen_namens_bleiben_beide(db_url):

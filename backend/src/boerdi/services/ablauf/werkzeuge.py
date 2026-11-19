@@ -170,7 +170,10 @@ async def _bereitgestellt(_args: dict[str, Any], k: DienstKontext | None = None)
     Review TG-4–6, MINOR 8: ``wlo_erschliessen`` — dazu lässt sich der Metadaten-Auftrag starten
     (:attr:`DienstKontext.wlo_erschliessen`); nur dann bietet der Ablauf „gründlich“ an.
     Durchtest Paket K (19.11.): ``ohne_gruendlich`` — sonst ein Satz, warum nicht (hilft eine
-    Anmeldung: sie fehlt; sonst: der Dienst ist nicht da), für den Text des Schritts ``schnell``."""
+    Anmeldung: sie fehlt; sonst: der Dienst ist nicht da), für den Text des Schritts ``schnell``.
+    Plan 2026-11-17, U6: ``schnell`` und ``wlo_frage`` sind entfallen (den Ort wählt das
+    Upload-Feld) — kein Werks-Seed liest ``wlo_erschliessen`` oder ``ohne_gruendlich`` mehr; beide
+    bleiben für eigene Abläufe."""
     if k is None:
         return {"dokument": None, "ordner": None, "dateien": 0, "inhaltsdateien": 0,
                 "strukturdokumente": [], "lesbare_strukturdokumente": 0, "art": None,

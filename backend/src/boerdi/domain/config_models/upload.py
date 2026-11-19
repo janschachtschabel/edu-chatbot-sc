@@ -34,6 +34,11 @@ class UploadSettings(AreaModel):
     max_seiten: int = Field(default=300, ge=1, le=1000)
     #: Frist nach der letzten Nutzung; danach löscht der Aufbewahrungslauf das Dokument.
     aufbewahrung_h: int = Field(default=24, ge=1, le=72)
+    #: Plan 2026-11-17, Paket U1 (E8/E13): „Hier im Chat“ liest höchstens so viele Dateien je
+    #: Sitzung (Inhalte und Strukturdokumente zusammen); darüber nur Namen bzw. der Weg über WLO.
+    lokal_max_dateien: int = Field(default=10, ge=1, le=30)
+    #: … und höchstens so viele MB zusammen (Rohgröße der Dateien; je Datei gilt ``max_mb``).
+    lokal_max_mb_gesamt: int = Field(default=50, ge=1, le=200)
 
 
 class UploadConfigArea(AreaModel):

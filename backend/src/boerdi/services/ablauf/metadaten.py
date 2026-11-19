@@ -220,8 +220,10 @@ def als_dokument(teil: Any) -> DokumentStand | None:
     """TB-T1: der Teil ``wlo.metadaten@1`` als Dokument für ``ui_strukturentwurf``
     (``aus_inhalten``) — je Material ein Abschnitt (Titel, Beschreibung, Schlagworte …).
     ``None`` ohne Materialien oder bei einem Teil anderer Form (Review TB-T1, Befund 4). Die
-    Werte stammen von WLO (vom Metadaten-Agenten oder der Person), nie vom Modell; der Dienst
-    moderiert Übersicht und Anfang (:func:`moderationstext`), der Entwurf die Auszüge."""
+    Werte stammen von WLO (vom Metadaten-Agenten oder der Person) oder — lokal, ``quelle:
+    chatbot`` (Paket U) — aus den Kurzangaben des Chat-Modells über den moderierten Anfang des
+    Inhalts; der Dienst moderiert Übersicht und Anfang (:func:`moderationstext`), der Entwurf die
+    Auszüge."""
     from boerdi.domain.dokument_gliederung import TITEL_ZEICHEN, Abschnitt
     from boerdi.services.dokumente.stand import DokumentStand
 

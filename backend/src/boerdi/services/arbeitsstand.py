@@ -44,6 +44,7 @@ from boerdi.services.arbeitsstand_verweis import (  # noqa: F401
     verweis_weg,
 )
 from boerdi.services.config_loader._store import area
+from boerdi.services.dokumente import metadaten_lokal
 from boerdi.services.dokumente import strukturdokument_teil as sd
 from boerdi.services.mcp.auth import aufrufer_kennung, has_personal_auth
 from boerdi.services.vorgaenge import VorgangKonflikt
@@ -161,17 +162,19 @@ async def lesbares_dokument(s: Any, session_id: str) -> str | None:
     return None if zeile_db is None else str(zeile_db.id)
 
 
-async def _lesbare_zeilen(s: Any, session_id: str, merk: dict[str, Any] | None) -> list[Any]:
+async def _lesbare_zeilen(s: Any, session_id: str, merk: dict[str, Any] | None,
+                         rolle: str | None = "struktur") -> list[Any]:
     """Review TG-3d–f, NIT: die lesbaren Dokumente der Sitzung — mit ``merk`` einmal je Speichern
-    gelesen, nicht je Teil bzw. Eintrag."""
+    gelesen, nicht je Teil bzw. Eintrag. Paket U: nur diese ``rolle`` (``None`` = beide)."""
     from boerdi.services.dokumente import ablage as dokumente
 
-    if merk is not None and "zeilen" in merk:
-        return merk["zeilen"]
+    schluessel = f"zeilen:{rolle}"
+    if merk is not None and schluessel in merk:
+        return merk[schluessel]
     zeilen = list(await dokumente.alle_fuer_aufrufer(
-        s, session_id, aufrufer_kennung() if has_personal_auth() else None))
+        s, session_id, aufrufer_kennung() if has_personal_auth() else None, rolle))
     if merk is not None:
-        merk["zeilen"] = zeilen
+        merk[schluessel] = zeilen
     return zeilen
 
 
@@ -192,15 +195,16 @@ async def _dokument_bestaetigt(s: Any, session_id: str, wert: dict[str, Any],
             f"{zeile(zeile_db.name, 80)}, {int(befund.get('abschnitte') or 0)} Abschnitte")
 
 
-async def lesbare_dokumente(s: Any, session_id: str) -> list[tuple[str, str]]:
+async def lesbare_dokumente(s: Any, session_id: str, rolle: str | None = "struktur"
+                            ) -> list[tuple[str, str]]:
     """Plan 2026-11-16, TG-3e: ``(Kennung, Name)`` aller Dokumente, die diese Sitzung gerade lesen
     kann (derselbe Leseweg wie der Lader), in Lesereihenfolge; leer ohne. Ein Lesefehler gilt als
-    keins."""
+    keins. Paket U7: ``rolle=None`` auch die hier gelesenen Inhalte."""
     from boerdi.services.dokumente import ablage as dokumente
 
     try:
         zeilen = await dokumente.alle_fuer_aufrufer(
-            s, session_id, aufrufer_kennung() if has_personal_auth() else None)
+            s, session_id, aufrufer_kennung() if has_personal_auth() else None, rolle)
     except Exception as fehler:  # noqa: BLE001 — ein Lesefehler heißt „keins“, nie Abbruch
         logger.warning("Lesbare Dokumente nicht feststellbar (%s)", type(fehler).__name__)
         return []
@@ -297,6 +301,11 @@ async def _speichern(s: Any, session_id: str, entities: dict[str, Any], teile: l
                 logger.info("Arbeitsstand: kein Strukturdokument der Antwort passt zur Sitzung")
                 continue
             wert, zusammenfassung = bestaetigt
+        elif name == "metadaten" and metadaten_lokal.ist_lokal(wert):
+            # Plan 2026-11-17, Paket U3: „Hier im Chat“ — Titel, Beschreibung und Schlagworte aus
+            # den Kurzangaben der Datenbank, nie aus der Antwort des Browsers
+            wert, zusammenfassung = metadaten_lokal.neu_berechnet(
+                wert, await _lesbare_zeilen(s, session_id, merk, rolle=None))
         elif name == "draft" and isinstance(wert, dict):
             # Review TG-3d–f, MINOR 8: node_ids eines Entwurfs nie vom Client — neu aus der Ablage
             # über ``i``, nur wenn Auswahl und Ablage zum selben Upload-Feld gehören

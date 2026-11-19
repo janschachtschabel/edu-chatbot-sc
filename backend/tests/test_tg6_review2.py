@@ -40,8 +40,9 @@ def _schritt(sid: str):
     # Nachprüfung TG-4–6, MAJOR 1: Knopf-Fragen ohne Synonyme — nur das Label trifft
     ("ordner_weiter", "passt", None),
     ("ordner_weiter", "So lassen", "lassen"),
-    ("wlo_frage", "nicht gründlich, schnell", None),
-    ("wlo_frage", "schnell", None),
+    # U6: ``wlo_frage`` entfiel — dieselbe Regel an der Rückfrage vor Kestra
+    ("metadaten_frage", "nein danke", None),
+    ("metadaten_frage", "Ja", None),
 ])
 def test_a_nur_der_ganze_text_trifft_ein_synonym(sid, text, erwartet):
     assert treiber.wahl_aus_text(_schritt(sid), text, "de") == erwartet
@@ -113,7 +114,8 @@ def test_b_m_steigt_nie_und_n_bleibt_unter_m(monkeypatch, name):
     assert len(geprueft) >= 2
     if name == "themenbaum":
         # MINOR 6: der Hauptweg ab ``einstieg`` ist dabei
-        assert {"Thema getippt bis zum Entwurf", "Dokument neu lesen lassen"} <= set(geprueft)
+        assert {"Thema getippt bis zum Entwurf",
+                "Dokument hier im Chat lesen, mit Inhalt"} <= set(geprueft)
 
 
 def test_b_an_einem_fehlerschritt_zaehlt_der_weg_nach_nochmal_mit(monkeypatch):

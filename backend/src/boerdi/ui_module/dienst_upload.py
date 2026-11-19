@@ -13,6 +13,8 @@ Modul über den Modul-Schalter des Studios. Die Endpunkte ``/api/ui/dokumente`` 
 
 from __future__ import annotations
 
+import logging
+import math
 from typing import TYPE_CHECKING, Any, Final
 
 from boerdi.api.schemas_debug import ToolOutcome
@@ -20,14 +22,17 @@ from boerdi.domain.ui_bloecke import neuer_block
 from boerdi.services.config_loader.upload import load_upload_config
 from boerdi.services.mcp import faehigkeiten
 from boerdi.services.mcp.auth import has_personal_auth
-from boerdi.ui_module import katalog
+from boerdi.ui_module import katalog, upload_orte
 from boerdi.ui_module.datenquelle import Ergebnis
 from boerdi.ui_module.katalog import Manifest
 
 if TYPE_CHECKING:
     from boerdi.ui_module.aufruf import Umgebung
 
+logger = logging.getLogger(__name__)
+
 GRENZEN: Final = {"max_dateien": 500, "max_tiefe": 8, "max_mb_datei": 50}
+_MIB: Final = 1024 * 1024
 #: Das erste Werkzeug der Stapel-Ablage (``services/ablage/mcp_ablage``).
 ABLAGE_WERKZEUG: Final = "wlo_prepare_file_batch"
 
@@ -35,9 +40,10 @@ ABLAGE_WERKZEUG: Final = "wlo_prepare_file_batch"
 TEXTFASSUNG: Final = ("Hier würde ein Auswahlfeld für einen Ordner erscheinen. Lädt es nicht, "
                       "bitte das Chat-Fenster neu laden.")
 QUITTUNG: Final = ("OK: Unter deiner Antwort steht ein Auswahlfeld, in dem die Person einen "
-                   "Ordner wählen oder ablegen kann; hochgeladen wird nur, was sie ausdrücklich "
-                   "lesen lässt oder nach WLO überträgt. Sag in einem "
-                   "Satz, was sie tun soll. Ihr Befund (Ordner und Zahlen) kommt im nächsten Zug. "
+                   "Ordner wählen oder ablegen kann; danach wählt sie, wo verarbeitet wird "
+                   "(hier im Chat, in WLO oder nur die Namen) — hochgeladen wird nur nach ihrer "
+                   "Wahl. Sag in einem Satz, was sie tun soll. Ihr Befund (Ordner und Zahlen) "
+                   "kommt im nächsten Zug. "
                    "Dein Zug endet hier — rufe kein weiteres Werkzeug.")
 FEHLER: Final = "Fehler: Das Auswahlfeld ließ sich nicht erzeugen. Antworte ohne es."
 
@@ -66,9 +72,10 @@ def nicht_gelesen_satz() -> str:
     # Moduls kann der Knopf gefehlt haben (alte Vorgabe, Anmeldung dazwischen); darum nicht
     # behaupten, sie habe ihn übergangen. Plan 2026-11-16, TG-2: neutral, der Knopf hat kein Ziel;
     # Review M3 (d): das Feld erst auf Wunsch zeigen (wie „Entwirf nichts ungefragt“).
+    # Paket U4, Teil b: „Lesen lassen“ gibt es nicht mehr — die Knöpfe heißen wie im Feld.
     return ("Das Strukturdokument wurde NICHT gelesen. Braucht die Person seinen Inhalt, sag ihr, "
-            "dass sie es im Auswahlfeld mit „Lesen lassen“ lesen lassen kann; zeige ui_upload "
-            "dafür erst, wenn sie das will.")
+            "dass sie es im Auswahlfeld mit „Hier im Chat“ und „Hochladen“ lesen lassen kann; "
+            "zeige ui_upload dafür erst, wenn sie das will.")
 
 
 def _ohne_grund(cfg_an: bool, anmeldung_hilft: bool) -> str:
@@ -84,7 +91,10 @@ def schalter() -> dict[str, bool]:
     # Rückmeldung 16.11. (Review m6): die Ablage nur, wenn der MCP-Server die Stapel-Ablage führt
     ablage = cfg.ablage_in_wlo and faehigkeiten.kennt_werkzeug(ABLAGE_WERKZEUG)
     werte = {"dokument_im_chat": dokument_erlaubt(),
-             "ablage_in_wlo": ablage and has_personal_auth()}
+             "ablage_in_wlo": ablage and has_personal_auth(),
+             # Abstimmung Oberfläche (19.11.): die Erklärzeile nennt „ohne Anmeldung“ nur, wenn
+             # das Studio es erlaubt
+             "dokument_ohne_anmeldung": cfg.dokument_ohne_anmeldung}
     if cfg.dokument_im_chat and not cfg.dokument_ohne_anmeldung and not has_personal_auth():
         # Paket R3-b: den Hinweis schreibt die KI, bevor sie die Schalter kennt — das Modul nennt
         # gleich darunter, dass Lesen erst nach der Anmeldung geht
@@ -99,8 +109,25 @@ def schalter() -> dict[str, bool]:
 async def upload_angebot(manifest: Manifest, args: dict[str, Any], umgebung: Umgebung
                          ) -> Ergebnis:
     modul = manifest["name"]
-    grenzen = {**GRENZEN, "max_mb_ablage": load_upload_config().max_mb}
-    daten: dict[str, Any] = {"zweck": args["zweck"], "grenzen": grenzen, "schalter": schalter()}
+    cfg = load_upload_config()
+    # Plan 2026-11-17, Paket U4: die Grenzen „Hier im Chat“ (je Sitzung, je Datei ``max_mb``)
+    grenzen = {**GRENZEN, "max_mb_ablage": cfg.max_mb,
+               "lokal_max_dateien": cfg.lokal_max_dateien,
+               "lokal_max_mb_gesamt": cfg.lokal_max_mb_gesamt, "lokal_max_mb_datei": cfg.max_mb,
+               # Paket U4, Teil b: die Oberfläche nennt die Frist („Text bleibt {h} Stunden hier“)
+               "lokal_aufbewahrung_h": cfg.aufbewahrung_h}
+    # Review Paket U (19.11.), MAJOR 3: der Rest der Sitzung — voll heißt „Hier im Chat“ gesperrt
+    # (``grenze_sitzung``); gelöscht wird dafür nichts
+    voll = False
+    if (rest := await _rest_der_sitzung(umgebung, cfg)) is not None:
+        grenzen["lokal_frei_dateien"], grenzen["lokal_frei_mb"] = rest
+        voll = rest[0] == 0 or rest[1] == 0
+    # E13: die Orte stehen neben ``schalter`` (der bleibt ein Satz von Wahrheitswerten);
+    # einschränken darf sie nur ein Ablauf (wie ``einzeldatei_als_struktur``)
+    orte_arg = args.get("orte")
+    erlaubt = orte_arg if umgebung.aus_ablauf and isinstance(orte_arg, list) else None
+    daten: dict[str, Any] = {"zweck": args["zweck"], "grenzen": grenzen, "schalter": schalter(),
+                             "orte": upload_orte.orte(erlaubt, voll=voll)}
     if hinweis := " ".join(str(args.get("hinweis") or "").split()):
         daten["hinweis"] = hinweis[:300]
     # Review 12.11., Befund 1: nur der Dokument-Ablauf will eine Einzeldatei als Strukturdokument —
@@ -113,6 +140,20 @@ async def upload_angebot(manifest: Manifest, args: dict[str, Any], umgebung: Umg
     schalter_ = daten["schalter"]
     return Ergebnis(block, QUITTUNG + _was_geht(schalter_) + _ablage_satz(schalter_),
                     ToolOutcome(tool=modul, status="success", item_count=1))
+
+
+async def _rest_der_sitzung(umgebung: Umgebung, cfg: Any) -> tuple[int, float] | None:
+    """Freie Dateien und MB (abgerundet auf 0,1) der Sitzung — ``None`` ohne Zählung oder wenn
+    sie scheitert (dann gilt die ganze Grenze; verbindlich weist ``ablage.speichern`` ab)."""
+    if umgebung.belegung is None:
+        return None
+    try:
+        anzahl, belegt = await umgebung.belegung()
+    except Exception as fehler:  # noqa: BLE001 — das Feld erscheint auch ohne die Zählung
+        logger.info("Belegung der Sitzung nicht gezählt (%s)", type(fehler).__name__)
+        return None
+    frei_mb = max(0.0, math.floor((cfg.lokal_max_mb_gesamt * _MIB - belegt) * 10 / _MIB) / 10)
+    return max(0, cfg.lokal_max_dateien - anzahl), frei_mb
 
 
 def _ablage_satz(schalter: dict[str, bool]) -> str:

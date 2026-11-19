@@ -78,7 +78,8 @@ def _grund(offen: Any, antwort: UiAntwort) -> str | None:
     if fehler := katalog.antwort_fehler(manifest, antwort.daten):
         return "; ".join(fehler)
     if f := form(offen.get("modul")):
-        return f.grund(antwort.daten)
+        return f.grund(antwort.daten) or (f.grund_mit_frage(antwort.daten, offen)
+                                          if f.grund_mit_frage else None)
     gewaehlt = antwort.daten.get("gewaehlt") or []
     if not set(gewaehlt) <= {o.get("id") for o in offen.get("optionen") or []}:
         return "Kennung, die die Frage nicht anbot"

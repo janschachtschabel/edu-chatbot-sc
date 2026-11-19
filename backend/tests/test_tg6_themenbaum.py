@@ -3,8 +3,8 @@
 - **Ein Ablauf** für alle Grundlagen (Thema, Dokument, Ordner, Dateien) löst die vier alten ab; sie
   bleiben als Werksfassung, ab Werk aus. Ab Werk an, ohne Voraussetzung (anonym startbar).
 - **Bereitgestelltes zuerst:** ``bereitgestellt`` meldet ``art``/``name``/``wlo_ablage``.
-- **„Gründlich über WLO“** fragt der Ablauf nur, wenn das Upload-Feld die Ablage anbietet
-  (Systemfelder des Upload-Dienstes); sonst schnell aus den Dateinamen (``inhalte_aus_dateien``).
+- **Wo verarbeitet wird**, wählt seit Plan 2026-11-17 (U6, E12) das Upload-Feld; der Ablauf fragt
+  nicht mehr danach („gründlich über WLO“ entfiel) — nur Namen gehen zu ``inhalte_aus_dateien``.
 - **Kein stummes Ende** (``stumme_enden``): eine Prüfung über alle Seeds.
 - **Direktstart** trotz Auftrag, weil vor ihm direkt die Rückfrage steht; der frische Vorgang
   (N14) bleibt.
@@ -66,11 +66,13 @@ def test_jeder_zweig_hat_einen_selbsttest():
     for schritt in ("entwurf_thema", "entwurf_dokument", "aus_ordnern", "ordner_pruefen",
                     "aus_dateien", "entwurf_inhalte", "metadaten", "lesen", "einstieg_mit",
                     "frei", "ohne_daten", "ohne_entwurf", "ohne_metadaten", "dokument_gelesen",
-                    "ordner_geladen", "dateien_geladen", "wlo_frage", "nach_lesen",
-                    "ordner_weiter", "entwurf_ordner", "schnell"):
+                    "ordner_geladen", "dateien_laden", "dateien_weg", "nach_lesen",
+                    "angaben_da", "ordner_weiter", "entwurf_ordner"):
         assert schritt in besucht, schritt
     namen = {t.name for t in ablauf.tests}
-    assert {"Mehrere Dokumente", "Dateien gründlich über WLO mit Kestra",
+    # Plan 2026-11-17, U6: je Ort des Upload-Felds ein Fall (hier im Chat, in WLO, nur Namen)
+    assert {"Mehrere Dokumente", "Dateien in WLO ablegen und erschließen",
+            "Dokument da, anderes wählen, Dateien hier im Chat", "Dateien nur mit Namen, anonym",
             "Ordner ohne Unterordner wird der Weg Dateien", "Ohne Führung"} <= namen
 
 
@@ -99,12 +101,13 @@ def test_die_ki_schritte_belegen_den_auftrag_vor_und_tragen_die_regeln():
 
 def test_die_leitfragen_nehmen_getippten_text():
     """Nachprüfung TG-4–6, MAJOR 1: nur Fragen mit freier Antwort; Entweder-oder-Fragen
-    (``soll_ist``, ``ordner_weiter``, ``wlo_frage``) zeigen ohne Treffer ``kein_treffer``."""
+    (``soll_ist``, ``ordner_weiter``; ``wlo_frage`` entfiel mit U6) zeigen ohne Treffer
+    ``kein_treffer``."""
     ablauf = _seed("themenbaum")
     for sid in ("grundlage", "wofuer", "stufe", "umfang", "hinweise"):
         s = next(x for x in ablauf.schritte if x.id == sid)
         assert s.freitext is not None, sid
-    for sid in ("soll_ist", "ordner_weiter", "wlo_frage"):
+    for sid in ("soll_ist", "ordner_weiter", "metadaten_frage"):
         s = next(x for x in ablauf.schritte if x.id == sid)
         assert s.freitext is None and s.kein_treffer, sid
 
@@ -216,13 +219,16 @@ def test_wlo_ablage_folgt_den_systemfeldern_des_upload_dienstes(monkeypatch):
     assert zug_basis._wlo_ablage() is False
 
 
-def test_ohne_anmeldung_fragt_der_ablauf_nicht_nach_dem_gruendlichen_weg():
-    """Simulation: die Ablage gilt wie Aufträge nur angemeldet (``angemeldet`` des Testfalls)."""
+def test_nur_namen_geht_ohne_frage_nach_dem_weg_zu_den_dateinamen():
+    """Plan 2026-11-17, U6 (altes Soll: anonym ``schnell`` statt ``wlo_frage``): der Ort ist im
+    Upload-Feld gewählt — „Nur Namen senden“ führt ohne Frage zu ``inhalte_aus_dateien``."""
     ablauf = _seed("themenbaum")
-    [fall] = [t for t in ablauf.tests if t.name == "Dateien anonym aus den Namen"]
+    [fall] = [t for t in ablauf.tests if t.name == "Dateien nur mit Namen, anonym"]
     assert fall.angemeldet is False
     ergebnis = asyncio.run(simulation.testen(ablauf, fall))
-    assert ergebnis.ok and "wlo_frage" not in ergebnis.weg and "schnell" in ergebnis.weg
+    assert ergebnis.ok
+    i = ergebnis.weg.index("dateien_laden")
+    assert ergebnis.weg[i:i + 3] == ["dateien_laden", "dateien_weg", "aus_dateien"]
 
 
 # ── Direktstart, frischer Vorgang, Anmeldung ─────────────────────────────────────────────────────
@@ -261,13 +267,14 @@ def test_ohne_anmeldung_genuegt_ein_ersatzweg_am_auftrag():
 
 #: Die Hauptwege — ohne Rückweg („Nochmal“) und ohne Start mitten im Ablauf (``ab``).
 _HAUPTWEGE = ["Thema getippt bis zum Entwurf", "Lerninhalte sind ein Thema",
-              "Dokument neu lesen lassen", "Mehrere Dokumente",
+              "Dokument hier im Chat lesen, mit Inhalt", "Mehrere Dokumente",
               "Dokument schon gelesen, verwenden",
-              "Dokument da, anderes wählen, Dateien angemeldet",
-              "Ordner, anonym, so lassen", "Ordner mit Angaben verfeinern",
-              "Ordner nach WLO übertragen und erschließen",
-              "Ordner ohne Unterordner wird der Weg Dateien", "Dateien anonym aus den Namen",
-              "Dateien schon erfasst, verwenden, anonym", "Ohne Führung"]
+              "Dokument da, anderes wählen, Dateien hier im Chat",
+              "Ordner, anonym, so lassen", "Ordner hier im Chat, verfeinern",
+              "Ordner in WLO abgelegt und erschlossen",
+              "Ordner ohne Unterordner wird der Weg Dateien", "Dateien nur mit Namen, anonym",
+              "Dateien schon erfasst, verwenden, anonym",
+              "Dateien in WLO ablegen und erschließen", "Ohne Führung"]
 
 
 @pytest.mark.parametrize("fall", _HAUPTWEGE)
@@ -324,9 +331,9 @@ def test_ein_ablauf_ohne_upload_geht_beim_entwurf_vor(monkeypatch):
 
 def test_nach_dem_lesen_nennt_der_rahmen_den_themenbaum(monkeypatch):
     from boerdi.ui_module import schalter as modul_schalter
-    from boerdi.ui_module import upload_antwort
+    from boerdi.ui_module import upload_rahmen
 
     monkeypatch.setattr(modul_schalter, "aktiv", lambda modul: False)
     monkeypatch.setattr(ausloeser, "vorschlaege", lambda: [_seed("themenbaum")])
-    assert upload_antwort._themenbaum_angeboten(dokument=True)
-    assert upload_antwort._themenbaum_angeboten(dokument=False)
+    assert upload_rahmen._themenbaum_angeboten(dokument=True)
+    assert upload_rahmen._themenbaum_angeboten(dokument=False)

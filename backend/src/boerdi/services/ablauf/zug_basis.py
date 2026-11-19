@@ -69,7 +69,15 @@ def umgebung(session: Any, req: ChatRequest, entities: dict[str, Any],
                             # Review TG-4–6, MINOR 8: „gründlich“ braucht auch den Metadaten-Flow
                             wlo_erschliessen=wlo_erschliessen,
                             # Durchtest Paket K (19.11.): warum es „gründlich“ nicht gibt
-                            nach_anmeldung=gruendlich_nach_anmeldung)
+                            nach_anmeldung=gruendlich_nach_anmeldung,
+                            # Review Paket U, MAJOR 3: „Hier im Chat“ kennt die volle Sitzung
+                            belegung=_belegung(session, req.session_id))
+
+
+def _belegung(session: Any, session_id: str) -> Any:
+    from boerdi.services.dokumente import ablage
+
+    return ablage.belegung_lader(session, session_id)
 
 
 def _wlo_ablage() -> bool:

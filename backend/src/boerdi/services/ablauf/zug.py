@@ -450,6 +450,15 @@ async def _bereitstellung(session: Any, v: Any) -> list[tuple[str, str, Any, str
         if (wert := await vorgaenge.teil_wert(session, v, name)) is not None:
             mit.append((name, str(eintrag.get("typ") or ""), wert,
                         str(eintrag.get("zusammenfassung") or "")))
+    # Plan 2026-11-17, Paket U5: hier im Chat gelesene Angaben (``metadaten``, ``quelle: chatbot``)
+    # sind Daten der Person wie die Auswahl — sie gehen mit; Metadaten aus WLO nicht (sie hängen an
+    # ``ablage``, das ein schreibender Ablauf frisch beginnt, N14)
+    if isinstance(eintrag := teile.get("metadaten"), dict):
+        from boerdi.services.dokumente import metadaten_lokal
+
+        if metadaten_lokal.ist_lokal(wert := await vorgaenge.teil_wert(session, v, "metadaten")):
+            mit.append(("metadaten", str(eintrag.get("typ") or ""), wert,
+                        str(eintrag.get("zusammenfassung") or "")))
     return mit
 
 

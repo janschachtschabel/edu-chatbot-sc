@@ -228,7 +228,7 @@ def test_nit6_ein_abgelaufenes_sitzungsdokument_erscheint_in_fehlend(monkeypatch
     zeile = SimpleNamespace(id="u-1", name="a.pdf", format="pdf", befund={}, markdown=md,
                             gliederung=[a.__dict__ for a in abschnitte])
 
-    async def alle_fuer_aufrufer(s, sid, aufrufer):
+    async def alle_fuer_aufrufer(s, sid, aufrufer, *_rolle):  # Paket U: Rolle
         return [zeile]
 
     async def beruehren(*_a, **_k):

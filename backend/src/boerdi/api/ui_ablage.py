@@ -64,6 +64,7 @@ from boerdi.services.db_sessions import (
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import has_personal_auth
 from boerdi.services.rate_limits import check_rate_limit
+from boerdi.ui_module import upload_bereitgestellt as bereit
 from boerdi.ui_module.antwort import OFFENE_FRAGE
 from boerdi.ui_module.namen import UPLOAD
 
@@ -99,7 +100,7 @@ class Eintrag(BaseModel):
 
 #: Review W4, Befund 4: die Regel des Moduls (``upload-rollen.ts``), am öffentlichen Endpunkt.
 _STRUKTUR_ARTEN = frozenset({"pdf", "docx", "txt", "md"})
-#: TG-3e: wie ``dokumente/ablage.MAX_JE_SITZUNG`` und ``MAX_STRUKTUR`` im Modul.
+#: TG-3e: wie ``MAX_STRUKTUR`` im Modul (der Weg über WLO; im Chat gilt ``lokal_max_dateien``).
 _STRUKTUR_HOECHSTENS = 5
 
 
@@ -145,6 +146,9 @@ async def _sitzung(request: Request, session: AsyncSession, session_id: str, blo
     if frage and not (isinstance(offen, dict) and offen.get("modul") == UPLOAD
                       and offen.get("block_id") == block_id):
         raise HTTPException(status_code=409, detail="keine_anfrage")
+    if frage and not bereit.ort_erlaubt(offen, "wlo"):
+        # Review Paket U, MINOR 4: der Ablauf lässt „In WLO“ nicht zu
+        raise HTTPException(status_code=403, detail="ort_nicht_erlaubt")
     await verbindung_freigeben(session)
     return entities
 

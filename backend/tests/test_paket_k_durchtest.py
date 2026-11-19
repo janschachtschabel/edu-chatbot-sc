@@ -285,10 +285,11 @@ def test_bereit_nennt_warum_es_gruendlich_nicht_gibt():
     assert geht["ohne_gruendlich"] is None
 
 
-def test_der_satz_schnell_setzt_den_grund_ein():
-    s = next(x for x in _SEED.schritte if x.id == "schnell")
-    assert "{teil.bereit.ohne_gruendlich}" in s.text["de"]
-    assert "{teil.bereit.ohne_gruendlich}" in s.text["en"]
+def test_der_satz_zum_grund_bleibt_im_dienst():
+    """Plan 2026-11-17, U6 (altes Soll: der Schritt ``schnell`` setzte den Grund ein): der Ort
+    ist im Upload-Feld gewählt, ``schnell`` entfiel — der Seed liest ``bereit.ohne_gruendlich``
+    nicht mehr; der Dienst liefert den Satz weiter (andere Seeds dürfen ihn nutzen)."""
+    assert "schnell" not in {x.id for x in _SEED.schritte}
     assert "Anmeldung" in bot_text("de", "action.ablauf.gruendlichNurAngemeldet")
     assert "sign-in" in bot_text("en", "action.ablauf.gruendlichNurAngemeldet")
 

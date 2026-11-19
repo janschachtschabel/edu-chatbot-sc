@@ -18,7 +18,7 @@ from boerdi.services import strukturentwurf_dienst as dienst
 from boerdi.services.ablauf import typen, werkzeuge
 from boerdi.services.dokumente import stand
 from boerdi.services.dokumente import strukturdokument_teil as sd
-from boerdi.ui_module import antwort
+from boerdi.ui_module import antwort, upload_rahmen
 from boerdi.ui_module import upload_antwort as upload
 from boerdi.ui_module.namen import UPLOAD
 from tests.test_strukturentwurf_dienst import Attrappe, _k
@@ -142,9 +142,9 @@ def test_unstimmige_dokumente_werden_abgewiesen():
 def test_die_ki_sieht_beide_befunde_aber_keinen_text():
     geprueft = _pruefe(_daten(_dok(_A, "Lehrplan A.pdf", 4, ["Mechanik"]),
                               _dok(_B, "Lehrplan B.pdf", 7, ["Optik"])))
-    start, zeilen = upload.zeilen(geprueft)
+    start, zeilen = upload_rahmen.zeilen(geprueft)
     text = "\n".join(zeilen)
-    assert start == upload.DOKUMENT_FRAME_START
+    assert start == upload_rahmen.DOKUMENT_FRAME_START
     assert "2 gelesene Strukturdokumente" in text
     assert "Dokument 1: Lehrplan A.pdf (pdf), 4 Abschnitte" in text
     assert "Dokument 2: Lehrplan B.pdf (pdf), 7 Abschnitte" in text
@@ -313,7 +313,7 @@ def test_das_dokument_der_antwort_gilt_auch_wenn_es_nicht_das_juengste_ist(monke
     zeilen = [SimpleNamespace(id=_A, name="A.pdf", format="pdf", befund={"abschnitte": 3}),
               SimpleNamespace(id=_B, name="B.pdf", format="pdf", befund={"abschnitte": 5})]
 
-    async def alle_fuer_aufrufer(s, session_id, aufrufer):
+    async def alle_fuer_aufrufer(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         return zeilen
 
     monkeypatch.setattr(ablage, "alle_fuer_aufrufer", alle_fuer_aufrufer)
@@ -362,5 +362,5 @@ def test_beim_erfassen_nennt_der_rahmen_alle_markierten():
     del daten["dokument"]
     geprueft = _pruefe(daten)
     assert geprueft is not None
-    _start, zeilen = upload.zeilen(geprueft)
+    _start, zeilen = upload_rahmen.zeilen(geprueft)
     assert "Strukturdokumente: Lehrplan A.pdf, Lehrplan B.pdf" in zeilen

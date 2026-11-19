@@ -179,3 +179,84 @@ def test_die_warnung_wird_nicht_gespeichert():
     from boerdi.services.config_loader.mcp import _UI_META_KEYS
 
     assert "werkzeuge_fehlen_am_server" in _UI_META_KEYS
+
+
+# ── Stapel-Ablage und Flows: am Server registriert, dem Modell nie angeboten (2026-11-19) ────
+
+#: Ruft nur das Backend selbst — das Upload-Feld (``services/ablage/mcp_ablage``) und die Abläufe
+#: (``services/auftraege/mcp_starter``) —, nie das Modell.
+_NUR_BACKEND = ("wlo_prepare_file_batch", "wlo_store_batch_file", "wlo_store_batch_manifest",
+                "wlo_list_my_batches", "wlo_start_flow", "wlo_flow_status", "wlo_cancel_flow",
+                "wlo_list_flows")
+
+
+def _seed_registry() -> list[dict]:
+    import pathlib
+
+    import yaml
+
+    seeds = pathlib.Path(__file__).resolve().parents[1] / "seeds"
+    pfad = seeds / "05-knowledge" / "mcp-servers.yaml"
+    return yaml.safe_load(pfad.read_text(encoding="utf-8"))["servers"]
+
+
+def test_die_backend_werkzeuge_stehen_in_der_liste_des_wlo_servers():
+    from boerdi.services.ablage import mcp_ablage
+    from boerdi.services.auftraege import mcp_starter
+
+    # Die Liste deckt ab, was beide Dienste tatsächlich rufen.
+    assert set(mcp_ablage.WERKZEUGE) | set(mcp_starter.WERKZEUGE) <= set(_NUR_BACKEND)
+    [wlo] = [s for s in _seed_registry() if s["id"] == "wlo-mcp"]
+    assert [n for n in _NUR_BACKEND if n not in wlo["tools"]] == []
+
+
+@pytest.fixture
+def _alles_registriert_und_gefuehrt(monkeypatch):
+    """Die Seed-Registry, ein Server, der jedes Werkzeug führt, und eine Anmeldung mit
+    Schreibrecht — der günstigste Fall fürs Anbieten."""
+    from boerdi.services.mcp import faehigkeiten
+    from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
+    from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
+
+    servers = _seed_registry()
+    monkeypatch.setattr(agent_tools, "load_mcp_servers", lambda: servers)
+    monkeypatch.setattr(agent_tools, "has_auth_token", lambda: True)
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
+    namen = {*_NUR_BACKEND, *(t["function"]["name"]
+                              for t in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS))}
+    faehigkeiten.vergessen()
+    faehigkeiten.uebernehmen([{"name": n} for n in namen])
+    yield
+    faehigkeiten.vergessen()
+
+
+@pytest.mark.usefixtures("_alles_registriert_und_gefuehrt")
+def test_der_agent_bekommt_die_backend_werkzeuge_nie():
+    namen = _namen(agent_tools.build_agent_tools(allow_curation=True))
+    assert "wlo_create_content" in namen          # die Probe ist scharf: Kuratieren ist an
+    assert namen.isdisjoint(_NUR_BACKEND)
+
+
+@pytest.mark.usefixtures("_alles_registriert_und_gefuehrt")
+def test_auch_ein_muster_das_sie_nennt_bekommt_sie_nicht():
+    aktiv, *_ = rts._select_active_tools(
+        classification={}, pattern_output={"tools": [*_NUR_BACKEND, "wlo_create_content"]},
+        available_rag_areas=None, rag_config=None,
+        _cards_inline_mode=False, _degradation_no_tools=False,
+    )
+    namen = _namen(aktiv)
+    assert "wlo_create_content" in namen
+    assert namen.isdisjoint(_NUR_BACKEND)
+
+
+def test_das_studio_zeigt_fuer_die_backend_werkzeuge_keinen_schalter(monkeypatch):
+    """Ohne Schalter lassen sie sich im Studio auch nicht für das Modell einschalten."""
+    [wlo] = [dict(s, url="https://mcp.example") for s in _seed_registry() if s["id"] == "wlo-mcp"]
+
+    async def _weg(_url):
+        return {}
+
+    monkeypatch.setattr(tool_descriptions.config_loader, "load_mcp_servers", lambda: [wlo])
+    monkeypatch.setattr(tool_descriptions, "_fetch_tool_descriptions", _weg)
+    (server,) = asyncio.run(tool_descriptions.load_mcp_servers_with_descriptions())
+    assert set(server["werkzeuge_im_katalog"]).isdisjoint(_NUR_BACKEND)

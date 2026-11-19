@@ -2166,7 +2166,7 @@
       "de": "Ordner und Dateien",
       "en": "Folders and files"
     },
-    "beschreibung": "Laesst die Person einen Ordner (oder einzelne Dateien) auswaehlen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Erfasst wird im Browser; hochgeladen wird nur, was die Person lesen laesst oder (angemeldet) nach WLO uebertraegt. Das Feld stellt nur bereit und kennt kein Ziel: was damit geschieht, klaerst du danach oder ein Ablauf. Zurueck kommen Ordner- und Dateinamen mit Zahlen (du siehst nur eine Zusammenfassung), nie Inhalte.",
+    "beschreibung": "Laesst die Person einen Ordner (oder einzelne Dateien) auswaehlen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Danach waehlt sie, wo verarbeitet wird: hier im Chat (begrenzt, liest Inhalte und Strukturdokumente), in WLO (angemeldet, mit Erschliessung) oder nur die Namen. Das Feld stellt nur bereit und kennt kein Ziel: was damit geschieht, klaerst du danach oder ein Ablauf. Zurueck kommen Ordner- und Dateinamen mit Zahlen (du siehst nur eine Zusammenfassung), nie Inhalte; Gelesenes liegt im Vorgang.",
     "wann": [
       "die Person will eigene Ordner, Dateien oder ein Dokument (etwa einen Lehrplan) einbringen",
       "die Person will einen Ordner mit Dateien einbringen, sichten oder ordnen",
@@ -2203,6 +2203,20 @@
           "einzeldatei_als_struktur": {
             "type": "boolean",
             "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer Ablaeufe, die ein einzelnes Dokument erwarten. Sonst bleibt sie Inhalt."
+          },
+          "orte": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "chat",
+                "wlo",
+                "namen"
+              ]
+            },
+            "description": "Nur aus einem Ablauf: welche Orte das Feld anbieten darf (chat, wlo, namen). Ohne Angabe alle; namen bleibt immer."
           }
         }
       }
@@ -2255,6 +2269,42 @@
               "minimum": 1,
               "maximum": 500,
               "description": "Groesste Datei in MB fuer die Ablage in WLO."
+            },
+            "lokal_max_dateien": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "description": "Hier im Chat: hoechstens so viele Dateien je Sitzung."
+            },
+            "lokal_max_mb_gesamt": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "description": "Hier im Chat: hoechstens so viele MB je Sitzung."
+            },
+            "lokal_max_mb_datei": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "description": "Hier im Chat: groesste Datei in MB."
+            },
+            "lokal_aufbewahrung_h": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 72,
+              "description": "Hier im Chat: so viele Stunden bleibt der Text nach letzter Nutzung (Studio aufbewahrung_h); die Oberflaeche nennt es."
+            },
+            "lokal_frei_dateien": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 30,
+              "description": "Hier im Chat: so viele Dateien darf die Sitzung noch (lokal_max_dateien minus nicht abgelaufene Uploads; Review U, MAJOR 3). Fehlt: nicht gezaehlt."
+            },
+            "lokal_frei_mb": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 200,
+              "description": "Hier im Chat: so viele MB darf die Sitzung noch (abgerundet auf 0,1). Fehlt: nicht gezaehlt."
             }
           }
         },
@@ -2279,12 +2329,144 @@
             "ablage_nach_anmeldung": {
               "type": "boolean",
               "description": "Inhalte liessen sich nach der WLO-Anmeldung in WLO ablegen (Rueckmeldung 16.11.)."
+            },
+            "dokument_ohne_anmeldung": {
+              "type": "boolean",
+              "description": "Studio: Hier im Chat geht auch ohne WLO-Anmeldung (die Erklaerzeile nennt es nur dann)."
             }
           }
         },
         "einzeldatei_als_struktur": {
           "type": "boolean",
           "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer Ablaeufe, die ein einzelnes Dokument erwarten. Sonst bleibt sie Inhalt."
+        },
+        "orte": {
+          "type": "object",
+          "x-nur-system": true,
+          "additionalProperties": false,
+          "required": [
+            "vorauswahl",
+            "chat",
+            "wlo",
+            "namen"
+          ],
+          "description": "Wo verarbeiten? (setzt das System, Plan 2026-11-17, E13).",
+          "properties": {
+            "vorauswahl": {
+              "enum": [
+                "chat",
+                "wlo",
+                "namen"
+              ],
+              "description": "Der vorgewaehlte Ort."
+            },
+            "chat": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "geht"
+              ],
+              "description": "Hier im Chat: lesen und kurz beschreiben, begrenzt.",
+              "properties": {
+                "geht": {
+                  "type": "boolean",
+                  "description": "Ist der Ort waehlbar."
+                },
+                "grund": {
+                  "enum": [
+                    "aus",
+                    "nur_angemeldet",
+                    "ablauf",
+                    "grenze_sitzung"
+                  ],
+                  "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf laesst ihn nicht zu), grenze_sitzung (nur chat: die Sitzung haelt schon so viele Uploads, wie sie darf)."
+                },
+                "hinweis": {
+                  "enum": [
+                    "ohne_erschliessung"
+                  ],
+                  "description": "Geht, aber eingeschraenkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
+                },
+                "ueber_grenze": {
+                  "enum": [
+                    "ueber_grenze",
+                    "ueber_grenze_anmelden"
+                  ],
+                  "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* ueberschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles ueber WLO."
+                }
+              }
+            },
+            "wlo": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "geht"
+              ],
+              "description": "In WLO ablegen und erschliessen (Anmeldung, Kestra).",
+              "properties": {
+                "geht": {
+                  "type": "boolean",
+                  "description": "Ist der Ort waehlbar."
+                },
+                "grund": {
+                  "enum": [
+                    "aus",
+                    "nur_angemeldet",
+                    "ablauf"
+                  ],
+                  "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf laesst ihn nicht zu)."
+                },
+                "hinweis": {
+                  "enum": [
+                    "ohne_erschliessung"
+                  ],
+                  "description": "Geht, aber eingeschraenkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
+                },
+                "ueber_grenze": {
+                  "enum": [
+                    "ueber_grenze",
+                    "ueber_grenze_anmelden"
+                  ],
+                  "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* ueberschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles ueber WLO."
+                }
+              }
+            },
+            "namen": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "geht"
+              ],
+              "description": "Nur Namen senden, nichts hochladen.",
+              "properties": {
+                "geht": {
+                  "type": "boolean",
+                  "description": "Ist der Ort waehlbar."
+                },
+                "grund": {
+                  "enum": [
+                    "aus",
+                    "nur_angemeldet",
+                    "ablauf"
+                  ],
+                  "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf laesst ihn nicht zu)."
+                },
+                "hinweis": {
+                  "enum": [
+                    "ohne_erschliessung"
+                  ],
+                  "description": "Geht, aber eingeschraenkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
+                },
+                "ueber_grenze": {
+                  "enum": [
+                    "ueber_grenze",
+                    "ueber_grenze_anmelden"
+                  ],
+                  "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* ueberschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles ueber WLO."
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -2779,9 +2961,10 @@
           "enum": [
             "erfasst",
             "dokument",
-            "uebertragen"
+            "uebertragen",
+            "bereitgestellt"
           ],
-          "description": "erfasst: der Befund (Ordner und Zahlen); dokument: die markierten Dokumente wurden gelesen (Feld dokument, bei mehreren dazu dokumente); uebertragen: die Dateien wurden in den persoenlichen Bereich in WLO uebertragen (Feld ablage). Kein Ziel: was damit geschieht, entscheiden die naechsten Schritte."
+          "description": "bereitgestellt (neu, Plan 2026-11-17): die Person hat einen Ort gewaehlt und die Dateien bereitgestellt (Feld ort, je Datei dateien). Aeltere Werte bleiben gueltig: erfasst (nur Befund), dokument (Strukturdokumente gelesen, Feld dokument/dokumente), uebertragen (in WLO abgelegt, Feld ablage). Kein Ziel: was damit geschieht, entscheiden die naechsten Schritte."
         },
         "struktur": {
           "$ref": "#/$defs/ordner1",
@@ -3169,6 +3352,47 @@
             }
           },
           "description": "Nur mit aktion dokument und mehr als einem gelesenen Dokument: je Dokument der Befund wie in dokument, in Lesereihenfolge (kein Text)."
+        },
+        "ort": {
+          "enum": [
+            "chat",
+            "wlo",
+            "namen"
+          ],
+          "description": "Nur mit aktion bereitgestellt: chat (hier gelesen), wlo (in WLO abgelegt), namen (nichts hochgeladen)."
+        },
+        "dateien": {
+          "type": "array",
+          "maxItems": 500,
+          "description": "Nur mit ort chat oder wlo: je bereitgestellte Datei die Nummer i der Auswahl, die Rolle und beim Ort chat die upload_id aus POST /api/ui/dokumente (beim Ort wlo verknuepft i mit dem Teil ablage). Nicht lesbare Dateien fehlen hier.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "i",
+              "rolle"
+            ],
+            "properties": {
+              "i": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4999,
+                "description": "Nummer der Datei in der Auswahl (dateiliste)."
+              },
+              "rolle": {
+                "enum": [
+                  "inhalt",
+                  "struktur"
+                ],
+                "description": "Rolle der Datei."
+              },
+              "upload_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "description": "Nur ort chat: Kennung des gelesenen Dokuments."
+              }
+            }
+          }
         }
       }
     },
@@ -3178,7 +3402,8 @@
         "structure",
         "struktur",
         "document",
-        "strukturdokument"
+        "strukturdokument",
+        "metadaten"
       ]
     },
     "faehigkeiten": [
@@ -3203,6 +3428,41 @@
             "max_dateien": 500,
             "max_tiefe": 8,
             "max_mb_datei": 50
+          }
+        }
+      },
+      {
+        "titel": "Wo verarbeiten (ohne Anmeldung)",
+        "daten": {
+          "zweck": "bereitstellen",
+          "grenzen": {
+            "max_dateien": 500,
+            "max_tiefe": 8,
+            "max_mb_datei": 50,
+            "max_mb_ablage": 50,
+            "lokal_max_dateien": 10,
+            "lokal_max_mb_gesamt": 50,
+            "lokal_max_mb_datei": 50,
+            "lokal_aufbewahrung_h": 24
+          },
+          "schalter": {
+            "dokument_im_chat": true,
+            "ablage_in_wlo": false,
+            "ablage_nach_anmeldung": true
+          },
+          "orte": {
+            "vorauswahl": "chat",
+            "chat": {
+              "geht": true,
+              "ueber_grenze": "ueber_grenze_anmelden"
+            },
+            "wlo": {
+              "geht": false,
+              "grund": "nur_angemeldet"
+            },
+            "namen": {
+              "geht": true
+            }
           }
         }
       },

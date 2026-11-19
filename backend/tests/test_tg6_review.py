@@ -146,11 +146,15 @@ def test_minor8_bereit_meldet_erschliessen_nur_mit_ablage():
     assert bereit(False, True)["wlo_erschliessen"] is False
 
 
-def test_minor8_ohne_erschliessen_fragt_der_ablauf_nicht():
-    ablauf = _seed()
-    weg = next(s for s in ablauf.schritte if s.id == "dateien_weg")
-    regel = next(r for r in weg.weiter if r.dann == "wlo_frage")
-    assert regel.wenn_wert.quelle == "teil.bereit.wlo_erschliessen"
+def test_minor8_der_ort_kommt_aus_dem_feld_nicht_aus_bereit():
+    """Plan 2026-11-17, U6 (altes Soll: ``dateien_weg`` las ``bereit.wlo_erschliessen`` für
+    ``wlo_frage``): der Ort ist im Upload-Feld gewählt, ``dateien_weg`` verzweigt nur nach den
+    Teilen der Auswahl."""
+    weg = next(s for s in _seed().schritte if s.id == "dateien_weg")
+    quellen = [r.wenn_wert.quelle for r in weg.weiter if r.wenn_wert is not None]
+    assert quellen == ["teil.metadaten.block_id", "teil.ablage.block_id",
+                       "teil.struktur.zahlen.inhalte"]
+    assert [r.dann for r in weg.weiter][:3] == ["wofuer", "metadaten_frage", "aus_dateien"]
 
 
 def test_minor7_aufgehoben_kestra_fuer_inhalte_und_strukturdokumente():

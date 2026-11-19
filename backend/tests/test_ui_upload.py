@@ -56,13 +56,17 @@ def test_der_dienst_zeigt_das_auswahlfeld_mit_grenzen_und_schaltern(stapel_ablag
     assert erg.block.modul == UPLOAD and erg.block.art == "abfragen"
     d = erg.block.daten
     assert d["zweck"] == "bereitstellen" and d["hinweis"] == "Wähle"
+    # Paket U4: dazu die Grenzen „Hier im Chat“ (additiv)
     assert d["grenzen"] == {"max_dateien": 500, "max_tiefe": 8, "max_mb_datei": 50,
-                            "max_mb_ablage": 10}
+                            "max_mb_ablage": 10, "lokal_max_dateien": 10,
+                            "lokal_max_mb_gesamt": 50, "lokal_max_mb_datei": 10,
+                            "lokal_aufbewahrung_h": 24}
     # Nutzer-Entscheid 2026-11-10: Lesen und Entwurf auch anonym (das Repositorium ist nicht
     # beteiligt); die Ablage in WLO bleibt an die Anmeldung gebunden. Rückmeldung 16.11.: ab Werk an
     # — ohne Anmeldung sagt das Feld, dass sie danach geht, statt sie zu verstecken
+    # Abstimmung Oberfläche (19.11.): ``dokument_ohne_anmeldung`` aus dem Studio dazu
     assert d["schalter"] == {"dokument_im_chat": True, "ablage_in_wlo": False,
-                             "ablage_nach_anmeldung": True}
+                             "ablage_nach_anmeldung": True, "dokument_ohne_anmeldung": True}
     assert not katalog.daten_fehler(_manifest(), d)
     assert "Zug endet hier" in erg.text
     assert erg.block.text                 # Textfassung für Widgets ohne das Modul
@@ -95,6 +99,7 @@ def test_die_schalter_folgen_studio_und_anmeldung(monkeypatch, stapel_ablage, im
     # R3-b: hilft die Anmeldung beim Lesen, sagt der Schalter es dem Modul
     hilft = im_chat and not ohne and not person
     assert erg.block.daten["schalter"] == {"dokument_im_chat": erwartet, "ablage_in_wlo": person,
+                                           "dokument_ohne_anmeldung": ohne,
                                            **({"lesen_nach_anmeldung": True} if hilft else {}),
                                            **({} if person else {"ablage_nach_anmeldung": True})}
 
@@ -429,9 +434,10 @@ def test_bei_abgeschaltetem_lesen_nennt_der_rahmen_das_studio(monkeypatch):
 def test_mit_erlaubtem_lesen_verweist_der_rahmen_auf_den_knopf(monkeypatch):
     text = _nicht_gelesen_rahmen(monkeypatch, im_chat=True, ohne=False, person=True)
     assert "NICHT gelesen" in text
-    # TG-2: neutral — der Knopf heißt „Lesen lassen“, kein Ziel; Review M3 (d): das Feld erst
-    # zeigen, wenn die Person es will
-    assert "„Lesen lassen“" in text and "Strukturdokument erstellen" not in text
+    # TG-2: neutral, kein Ziel; Paket U4 (Teil b): die Knöpfe heißen wie im Feld („Lesen lassen“
+    # gibt es nicht mehr); Review M3 (d): das Feld erst zeigen, wenn die Person es will
+    assert "„Hier im Chat“ und „Hochladen“" in text and "Lesen lassen“" not in text
+    assert "Strukturdokument erstellen" not in text
     assert "erst, wenn sie das will" in text
 
 

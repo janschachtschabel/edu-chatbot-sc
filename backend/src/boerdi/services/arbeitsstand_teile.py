@@ -7,9 +7,12 @@ from __future__ import annotations
 
 from typing import Any, Final
 
+from boerdi.services.ablauf import metadaten
+from boerdi.services.dokumente import metadaten_lokal
 from boerdi.services.dokumente import strukturdokument_teil as sd
 from boerdi.ui_module import katalog
 from boerdi.ui_module import upload_antwort as upload
+from boerdi.ui_module import upload_bereitgestellt as bereit
 from boerdi.ui_module.namen import STRUKTURENTWURF, UPLOAD
 from boerdi.ui_module.rahmen import zeile
 
@@ -85,12 +88,31 @@ def _teile(geprueft: dict[str, Any]) -> list[Teil]:
                      if isinstance(d.get("upload_id"), str)]
             if liste := sd.eintraege(sd.wert(liste)):
                 teile.append((sd.TEIL, sd.TYP, sd.wert(liste), sd.zusammenfassung(liste)))
+        if bereit.gelesene(daten):
+            teile += _hier_gelesen(daten, geprueft.get("block_id"))
         return teile
     if geprueft.get("modul") == STRUKTURENTWURF and isinstance(daten.get("knoten"), list):
         wert = {k: v for k, v in daten.items() if k not in _ANTWORT_MERKER}
         return [("draft", "wlo.sammlungsstruktur@1", wert,
                  f"„{zeile(daten.get('titel'), 60)}“, {_punkte(daten['knoten'])} Punkte")]
     return []
+
+
+def _hier_gelesen(daten: dict[str, Any], block_id: Any) -> list[Teil]:
+    """Plan 2026-11-17, Paket U5: ``bereitgestellt`` mit ``ort: chat`` — die gelesenen
+    Strukturdokumente (``strukturdokument``, ``quelle: chatbot``) und der Teil ``metadaten``
+    (``quelle: chatbot``, U3). Beide nur als Verweise: ``arbeitsstand._speichern`` prüft die
+    Strukturdokumente und rechnet ``metadaten`` aus der Datenbank neu."""
+    namen = {d.get("i"): d.get("name") for d in upload.dateien(daten.get("struktur"))}
+    gelesen = bereit.gelesene(daten)
+    teile: list[Teil] = []
+    liste = [sd.chatbot(d["upload_id"], namen.get(d.get("i"))) for d in gelesen
+             if d.get("rolle") == "struktur"]
+    if liste := sd.eintraege(sd.wert(liste)):
+        teile.append((sd.TEIL, sd.TYP, sd.wert(liste), sd.zusammenfassung(liste)))
+    if (wert := metadaten_lokal.aus_antwort(daten, block_id)) is not None:
+        teile.append((metadaten.TEIL, metadaten.FORMAT, wert, wert["titel"]))
+    return teile
 
 
 def gebunden(struktur: Any, ablage: Any) -> bool:

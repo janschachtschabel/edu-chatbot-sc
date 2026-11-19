@@ -55,6 +55,7 @@ from boerdi.services.ablauf import ki_schritt, vorbelegung, wahl_zug
 from boerdi.services.ablauf import vorschlag as ablauf_vorschlag
 from boerdi.services.ablauf import zug as ablauf_zug
 from boerdi.services.agent_tools import verborgene_werkzeuge
+from boerdi.services.dokumente.ablage import belegung_lader as ablage_belegung
 from boerdi.services.dokumente.stand import lader as dokument_lader
 from boerdi.services.engine_choice import (
     laeuft_ueber_die_schleife,
@@ -68,6 +69,7 @@ from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
 from boerdi.services.tool_loop_module import (
+    BELEGUNG_KEY,
     DOKUMENT_LADER_KEY,
     MODUL_BLOECKE_KEY,
     TEIL_LADER_KEY,
@@ -454,6 +456,8 @@ async def respond(
         # ``strukturdokument``), sonst alle lesbaren der Sitzung
         session_state[DOKUMENT_LADER_KEY] = dokument_lader(session, req.session_id,
                                                            session_state[TEIL_LADER_KEY])
+        # Review Paket U, MAJOR 3: das Upload-Feld zählt, was die Sitzung schon hält
+        session_state[BELEGUNG_KEY] = ablage_belegung(session, req.session_id)
         # Den Verweis hat der Preflight aufgefrischt (``arbeitsstand.auffrischen``).
         _kennzeile = arbeitsstand.kennzeile(_entities, arbeitsstand.aufrufer_fuer(req.session_id))
         # TW-6: ohne Arbeitsgrundlage lenkt ein Modul-Aufruf auf einen passenden Ablauf um; ein
@@ -591,6 +595,7 @@ async def respond(
         # Gemerkt wird nur eine Frage, die die Regeln je Antwort übersteht (Review U1 gesamt).
         session_state.pop(DOKUMENT_LADER_KEY, None)
         session_state.pop(TEIL_LADER_KEY, None)
+        session_state.pop(BELEGUNG_KEY, None)
         session_state.pop(VORGABEN_KEY, None)
         session_state.pop(VORBELEGUNG_KEY, None)
         ctx.ui_bloecke = regeln_anwenden(list(session_state.pop(MODUL_BLOECKE_KEY, None) or []))
