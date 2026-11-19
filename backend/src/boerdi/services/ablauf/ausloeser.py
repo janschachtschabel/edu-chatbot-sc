@@ -170,7 +170,8 @@ def per_text(nachricht: str | None) -> AblaufArea | None:
 
 #: Drittes Review Paket K (19.11.): an einer offenen Frage ist eine Nachricht nur dann eine Wendung,
 #: wenn sie im Wesentlichen die Wendung ist (:func:`per_text_genau`). Höchstens 2 Wörter danach
-#: (Entscheid 19.11.): „Themenbaum zu einem Thema für Klasse 7“ ist schon beim ersten Mal eine Antwort.
+#: (Entscheid 19.11.): „Themenbaum zu einem Thema für Klasse 7“ ist schon beim ersten Mal eine
+#: Antwort.
 NACH_WENDUNG_WOERTER: Final = 2
 MEHR_ZEICHEN: Final = 15
 _WORT: Final = re.compile(r"\w+")
