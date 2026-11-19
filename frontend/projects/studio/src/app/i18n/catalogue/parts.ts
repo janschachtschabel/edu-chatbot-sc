@@ -14,6 +14,7 @@ import { AGENT_PROMPT } from './agent-prompt';
 import { AGENT_PROBE } from './agent-probe';
 import { AGENT_TRACE } from './agent-trace';
 import { AREA_EDITOR } from './area-editor';
+import { B_API_BETRIEB } from './b-api-betrieb';
 import { BACKUP } from './backup';
 import type { CataloguePart } from './catalogue-part';
 import { COSTS } from './costs';
@@ -126,4 +127,6 @@ export const STUDIO_PARTS: readonly CataloguePart[] = [
   UI_MODULE, FIELDS_UPLOAD, FIELDS_ABLAEUFE,
   // AS-0: Seite „Abläufe“
   ABLAEUFE_SEITE,
+  // Plan 2026-11-19 (N1): b-api-Betriebsart in der Statusleiste
+  B_API_BETRIEB,
 ];

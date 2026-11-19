@@ -13,7 +13,7 @@ from fastapi import APIRouter, Security
 from fastapi.responses import RedirectResponse
 
 from boerdi.api.deps import require_studio_key
-from boerdi.services import llm_models
+from boerdi.services import b_api_betrieb, llm_models
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.auth import auth_mode
 from boerdi.services.rag.rerank import reranker_status
@@ -61,6 +61,10 @@ def _health_detail() -> dict:
         # MCP-Server als ``TICKET_ALLOWED_ORIGINS`` stehen — das Studio zeigt sie zum Abgleich.
         # Öffentliche Adressen, kein Geheimnis; hinter dem Studio-Schlüssel wie alles hier.
         "einbettung": _einbettung(),
+        # Plan 2026-11-19 (N1): welche b-api-Betriebsart zuletzt bei einem Nutzerzug galt
+        # (Delegation, Schlüssel, direkt) samt Zeit und Warnungen — nur Wörter, nie ein Wert.
+        # Bewusst nicht im offenen ``/health``: Zeitpunkte verrieten dort die Nutzung.
+        "b_api": b_api_betrieb.stand(),
     }
     if info["gpt5_params_active"]:
         info["verbosity"] = llm_models.get_verbosity()

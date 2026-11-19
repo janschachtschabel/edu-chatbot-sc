@@ -28,6 +28,20 @@ export interface HealthInfo {
   readonly embed_model?: string;
   /** Plan 2026-11-07 (R4): welche Seiten das Widget einbetten dürfen (`CORS_*`). */
   readonly einbettung?: EinbettungInfo;
+  /** Plan 2026-11-19 (N1): die b-api-Betriebsart, die das Backend zuletzt bei einem Nutzerzug sah. */
+  readonly b_api?: BApiBetrieb;
+}
+
+/** Nur Wörter, eine Zeit und eine Zahl, nie ein Wert. Je Prozess des Backends (nicht über alle
+ *  Kopien). `modus` = `B_API_KEY_MODE`; `zuletzt`/`zuletzt_am` = `null`, solange seit dem Start
+ *  kein Nutzerzug kam; `abgewiesen` = Nutzerzüge, die `forward` mangels Kopf mit 401 abwies;
+ *  `warnungen` sind Codes (`forward_ohne_token`, `zugangsblock_fehlt`). */
+export interface BApiBetrieb {
+  readonly modus: string;
+  readonly zuletzt: 'delegation' | 'schluessel' | 'direkt' | null;
+  readonly zuletzt_am: string | null;
+  readonly abgewiesen: number;
+  readonly warnungen: readonly string[];
 }
 
 /** `offen` = `CORS_ALLOW_ALL`; `herkuenfte` = die gepflegte `CORS_ORIGINS` (auch übersteuert);

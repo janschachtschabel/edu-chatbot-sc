@@ -1,0 +1,17 @@
+<!-- Plan 2026-11-19 (N1): die b-api-Betriebsart — ohne Angabe (älteres Backend) leer. -->
+@if (info(); as b) {
+  <p class="ba-kind">{{ t("overview.bapi.title") }}</p>
+  <p class="ba-main">{{ art() }}</p>
+  <p class="ba-meta">
+    @if (wann()) {
+      {{ wann() }} ·
+    }
+    {{ t("overview.bapi.modus", { modus: b.modus }) }}
+    @if (abgewiesen()) {
+      · {{ abgewiesen() }}
+    }
+  </p>
+  @for (warnung of warnungen(); track warnung) {
+    <p class="ba-warn" role="status">{{ warnung }}</p>
+  }
+}

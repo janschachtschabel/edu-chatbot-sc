@@ -15,10 +15,11 @@ import { OverviewApi, type HealthInfo } from '../core/overview-api.service';
 import type { FactoryInfo, SnapshotRow } from '../core/snapshots-api.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
+import { BApiBetriebComponent } from './b-api-betrieb.component';
 
 @Component({
   selector: 'studio-status-strip',
-  imports: [RouterLink],
+  imports: [RouterLink, BApiBetriebComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './status-strip.component.html',
   styleUrl: './status-strip.component.scss',
@@ -46,7 +47,7 @@ export class StatusStripComponent implements OnInit {
   private readonly reads = [this.health, this.factory, this.snapshots, this.runs];
 
   /** Bezugszeitpunkt aller relativen Angaben, mit den Daten erneuert. */
-  private readonly loadedAt = signal(0);
+  protected readonly loadedAt = signal(0);
 
   readonly loading = computed(() => this.reads.some((read) => read.loading()));
 
