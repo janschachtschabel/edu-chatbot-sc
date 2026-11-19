@@ -26,9 +26,9 @@ TYP: Final = "wlo.strukturdokumente@1"
 FELD: Final = "dokumente"
 CHATBOT: Final = "chatbot"
 WLO: Final = "wlo"
-#: Fünf anonym (``dokumente/ablage.MAX_JE_SITZUNG``) und fünf über WLO — der Teil bleibt so weit
-#: unter der Grenze der Akte (``vorgaenge.INLINE_BYTES``).
-HOECHSTENS: Final = 10
+#: Paket U1: bis 30 im Chat (``lokal_max_dateien``, Obergrenze 30) und fünf über WLO; größere Teile
+#: legt die Akte selbst getrennt ab (``vorgaenge.INLINE_BYTES``).
+HOECHSTENS: Final = 35
 NAME_ZEICHEN: Final = 200
 DOKUMENT_PRAEFIX: Final = "dokument:"
 _NODE: Final = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"

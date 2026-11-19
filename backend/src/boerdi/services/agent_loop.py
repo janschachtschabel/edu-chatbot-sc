@@ -280,6 +280,7 @@ async def run_agent_loop(
     modul_vorlage: dict[str, Any] | None = None,
     modul_dokument: DokumentLader | None = None,
     modul_teile: TeilLader | None = None,
+    modul_belegung: Callable[[], Awaitable[tuple[int, int]]] | None = None,
     modul_vorgaben: str = "",
     modul_vorbelegung: dict[str, Any] | None = None,
     modul_umlenkung: Callable[..., str | None] | None = None,
@@ -321,6 +322,8 @@ async def run_agent_loop(
     (``ui_module/aufruf.Umgebung``). ``modul_dokument`` (U3-2b): der Lader für das Dokument der
     Sitzung (``services/dokumente/stand``) — gelesen erst, wenn ein Dienst es braucht.
     ``modul_teile`` (V1): liest Teile des aktiven Vorgangs (``services/arbeitsstand``).
+    ``modul_belegung`` (Review Paket U, MAJOR 3): Anzahl und Bytes der Uploads der Sitzung für
+    ``ui_upload`` (``dokumente/ablage.belegung``).
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
     strom_verbraucht = False
@@ -723,6 +726,7 @@ async def run_agent_loop(
                 run.tools_called.append(name)
                 umgebung = ModulUmgebung(usage_acc=acc, frist_ende=ende, vorlage=modul_vorlage,
                                          dokument=modul_dokument, teile=modul_teile,
+                                         belegung=modul_belegung,
                                          verfuegbar=frozenset(angeboten),
                                          vorgaben=modul_vorgaben,
                                          # Plan 2026-11-16, TG-5: Antworten des Laufs

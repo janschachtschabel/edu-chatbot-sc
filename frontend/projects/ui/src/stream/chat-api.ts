@@ -13,7 +13,7 @@
  * sind verbatim aus ALT. Kein Modul-Global-State — `baseUrl`/`guideMode`/
  * `guideHost`/`startTime` sind Instanzfelder; `fetchImpl` ist injizierbar.
  */
-import type { AblageSchritt } from '@boerdi/ui-module';
+import type { AblageRolle, AblageSchritt } from '@boerdi/ui-module';
 
 import { ChatResponse, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { fehlerKurz } from '../obs/fehler-kurz';
@@ -549,7 +549,7 @@ export class ChatApiClient {
    *  Transport (`dokument-transport.ts`) meldet den Fortschritt und wirft mit `status` und `code`. */
   async dokumentHochladen(
     sessionId: string, blockId: string, datei: File,
-    opts: { onFortschritt?: (anteil: number) => void; signal?: AbortSignal } = {},
+    opts: { onFortschritt?: (anteil: number) => void; signal?: AbortSignal; rolle?: AblageRolle } = {},
   ): Promise<DokumentBefund> {
     await this.bereit();
     return dokumentHochladen({ url: `${this.baseUrl}/ui/dokumente`, sessionId, blockId, datei, ...opts });

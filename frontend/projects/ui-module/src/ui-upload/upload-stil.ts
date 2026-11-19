@@ -90,6 +90,26 @@ select {
 .u__link:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
 .u__symbol { font-weight: 700; text-align: center; }
 .u__eintrag--failed .u__symbol, .u__eintrag--failed > .u__zahl { color: var(--mat-sys-error); }
+/* Paket U4: „Wo sollen sie verarbeitet werden?“ — Chips wie die Chip-Fragen des Chats (rund,
+ * nebeneinander, umbrechend), je Chip die Erklärzeile darunter. Gewählt: Radiokreis, kräftige
+ * Umrandung und Fläche — nie nur die Farbe; gesperrt: gestrichelt, der Grund steht als Text darunter. */
+.u__orte { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.u__frage { padding: 0; font-weight: 600; }
+.u__chips { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.u__ort { flex: 1 1 13em; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.u__chip {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 32px;
+  border: 1px solid var(--mat-sys-outline); border-radius: var(--mat-sys-corner-full);
+  padding: 4px 14px 4px 8px; background: var(--mat-sys-surface); color: var(--mat-sys-on-surface); cursor: pointer;
+}
+.u__chip > input { margin: 0; width: 18px; height: 18px; accent-color: var(--mat-sys-primary); cursor: inherit; }
+.u__chip--an {
+  border: 2px solid var(--mat-sys-primary); padding: 3px 13px 3px 7px;
+  background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); font-weight: 600;
+}
+.u__chip--aus { border-style: dashed; color: var(--mat-sys-on-surface-variant); cursor: not-allowed; }
+.u__chip:has(> input:focus-visible) { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
+.u__erklaer { color: var(--mat-sys-on-surface-variant); font-size: .78rem; padding-inline-start: 4px; }
 .u__unsichtbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @container (max-width: 340px) {
   .u__eintrag { grid-template-columns: 1.4em minmax(0, 1fr); }

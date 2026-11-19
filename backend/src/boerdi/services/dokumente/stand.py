@@ -112,10 +112,13 @@ def vereint(staende: list[DokumentStand],
         ungeprueft=any(d.ungeprueft for d in staende), fehlend=tuple(fehlend or ()))
 
 
-async def _sitzungsdokumente(session: Any, session_id: str) -> list[DokumentStand]:
+async def _sitzungsdokumente(session: Any, session_id: str, rolle: str | None = "struktur"
+                             ) -> list[DokumentStand]:
+    """Paket U: ``rolle`` wie ``ablage.alle_lesbaren`` (Vorgabe Strukturdokumente; ``None`` = auch
+    die hier gelesenen Inhalte, für ``dokument_lesen``)."""
     aufrufer = aufrufer_kennung() if has_personal_auth() else None
     # TB-E1 (N2): anonym gelesen, dann angemeldet — die Dokumente gehen an diese Person
-    zeilen = await ablage.alle_fuer_aufrufer(session, session_id, aufrufer)
+    zeilen = await ablage.alle_fuer_aufrufer(session, session_id, aufrufer, rolle)
     ttl_h = load_upload_config().aufbewahrung_h
     staende = []
     for zeile in zeilen:

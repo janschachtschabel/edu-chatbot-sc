@@ -97,6 +97,7 @@ from boerdi.services.agent_write import enforce_write_mode
 from boerdi.services.agent_zugblock import zuletzt_gezeigt
 from boerdi.services.card_collect import collect_cards, juengste_zuerst
 from boerdi.services.config_loader import load_engine
+from boerdi.services.dokumente.ablage import belegung_lader as ablage_belegung
 from boerdi.services.dokumente.stand import lader as dokument_lader
 from boerdi.services.quick_replies_llm import _max_chars
 from boerdi.services.schreibrecht import schreiben_erlaubt
@@ -427,6 +428,8 @@ async def respond_agent(
         modul_dokument=dokument_lader(session, ctx.req.session_id, arbeitsstand.teil_lader(
             session, ctx.req.session_id, _entities)),
         modul_teile=arbeitsstand.teil_lader(session, ctx.req.session_id, _entities),
+        # Review Paket U, MAJOR 3: das Upload-Feld zählt, was die Sitzung schon hält
+        modul_belegung=ablage_belegung(session, ctx.req.session_id),
         # Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt des Laufs
         modul_vorgaben=ki_schritt.vorgaben(_ki[1], sprache) if _ki else "",
         modul_vorbelegung=_vorbelegt or None,

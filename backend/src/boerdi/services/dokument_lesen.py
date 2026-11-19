@@ -12,6 +12,9 @@ mir … daraus“ an und riet danach, das Dokument noch einmal hochzuladen. Dies
   Auszüge des Generators (``strukturentwurf_auszug``): beanstandet → nichts; kein Urteil →
   ``MODERATION_FAILURE_MODE``. Er geht gerahmt an die KI (Daten, keine Anweisung).
 
+Plan 2026-11-17, Paket U7: auch die „hier im Chat“ gelesenen **Inhalte** (Rolle ``inhalt``), nicht
+nur Strukturdokumente — der Strukturentwurf liest weiter nur Strukturdokumente.
+
 Nur lesend und nur die Dokumente dieser Sitzung bzw. Person (``ablage.alle_fuer_aufrufer``, der
 eine Leseweg des Zugs) — nicht die Volltexte aus WLO. Mehrere Dokumente wählt ``dokument`` (Name
 oder Kennung). Angeboten wird es nur, wenn ein lesbares Dokument da ist (der Zug fragt
@@ -205,7 +208,9 @@ async def dokumente(session: Any, session_id: str) -> list[tuple[str, str]]:
 
     if not dokument_erlaubt():
         return []
-    return await arbeitsstand.lesbare_dokumente(session, session_id)
+    # Plan 2026-11-17, Paket U7: auch die hier gelesenen Inhalte (Rolle ``inhalt``), nicht nur
+    # Strukturdokumente
+    return await arbeitsstand.lesbare_dokumente(session, session_id, rolle=None)
 
 
 def leser(session: Any, session_id: str, moderieren: Moderieren | None = None) -> Leser:
@@ -245,7 +250,7 @@ async def _laden(session: Any, session_id: str) -> list[DokumentStand]:
     if not dokument_erlaubt():
         return []
     try:
-        return await stand.sitzungsdokumente(session, session_id)
+        return await stand.sitzungsdokumente(session, session_id, rolle=None)   # Paket U7
     except SQLAlchemyError as fehler:
         logger.warning("dokument_lesen: Dokumente nicht lesbar (%s)", type(fehler).__name__)
         try:

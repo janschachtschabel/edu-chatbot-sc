@@ -10,7 +10,8 @@
 # Voraussetzungen im Betrieb (ab Werk erfüllt bis auf Anmeldung und Schlüssel, Rückmeldung 16.11.):
 # - Studio „Datei-Upload“: Ablage in WLO an (ablage_in_wlo, ab Werk an), die Person ist bei WLO
 #   angemeldet — sonst nennt der Ablauf die Anmeldung (voraussetzungen) und das Upload-Feld sagt,
-#   dass Übertragen danach geht;
+#   dass die Ablage in WLO danach geht. Plan 2026-11-17, U6: das Upload-Feld bietet hier nur „In
+#   WLO ablegen und erschließen“ an (``orte: [wlo]``; „Nur Namen senden“ bleibt immer);
 # - der Flow ist freigegeben (01-base/kestra-flows, ab Werk; mit B_API_JOBS_FLOWS auch dort), und
 #   der B-API-Schlüssel der Person darf ihn starten (Plan F9). Ohne geht es mit den Angaben weiter,
 #   die das Repositorium schon hat (metadaten_fehlt).
@@ -76,9 +77,9 @@ schritte:
   - id: hochladen
     typ: modul
     modul: ui_upload
-    text: {de: "Wähle deine Dateien oder einen Ordner und übertrage sie in deinen Bereich in WLO.",
-           en: "Choose your files or a folder and transfer them to your area in WLO."}
-    daten: {zweck: sammlungsstruktur}
+    text: {de: "Wähle deine Dateien oder einen Ordner, dann „In WLO ablegen und erschließen“, und klick auf „Hochladen“.",
+           en: "Choose your files or a folder, then “Store and index in WLO”, and click “Upload”."}
+    daten: {zweck: sammlungsstruktur, orte: [wlo]}
   # Ohne Übertragung nach WLO (nur erfasst) gibt es keine Nodes für den Flow.
   - id: uebertragen
     typ: verzweigung
@@ -167,8 +168,8 @@ schritte:
   # Plan 2026-11-16, TG-6 (kein stummes Ende): ein neuer Versuch oder frei weiter
   - id: nach_dokument
     typ: nachricht
-    text: {de: "Du hast ein Dokument lesen lassen. Dieser Ablauf braucht Dateien in WLO – übertrage sie im Auswahlfeld, oder mach frei im Chat mit dem Dokument weiter.",
-           en: "You had a document read. This workflow needs files in WLO – transfer them in the selection field, or carry on freely in the chat with the document."}
+    text: {de: "Du hast ein Dokument lesen lassen. Dieser Ablauf braucht Dateien in WLO – lege sie im Auswahlfeld in WLO ab, oder mach frei im Chat mit dem Dokument weiter.",
+           en: "You had a document read. This workflow needs files in WLO – store them in WLO in the selection field, or carry on freely in the chat with the document."}
     optionen:
       - {id: nochmal, label: {de: Nochmal auswählen, en: Choose again}, ziel: hochladen}
       - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
@@ -176,8 +177,8 @@ schritte:
   # Grund ist, dass nur die Übersicht kam; ein neuer Versuch statt eines Endes (sonst drei Fragen neu)
   - id: ohne_ablage
     typ: nachricht
-    text: {de: "Es liegen noch keine Dateien in WLO – „Senden“ schickt nur die Übersicht. Wähle im Auswahlfeld deine Dateien und übertrage sie in deinen persönlichen Bereich in WLO.",
-           en: "There are no files in WLO yet – “Send” only sends the overview. Choose your files in the selection field and transfer them to your personal area in WLO."}
+    text: {de: "Es liegen noch keine Dateien in WLO – „Nur Namen senden“ schickt nur die Übersicht. Wähle im Auswahlfeld deine Dateien, dann „In WLO ablegen und erschließen“, und klick auf „Hochladen“.",
+           en: "There are no files in WLO yet – “Send names only” sends just the overview. Choose your files in the selection field, then “Store and index in WLO”, and click “Upload”."}
     optionen:
       - {id: nochmal, label: {de: Nochmal auswählen, en: Choose again}, ziel: hochladen}
       - {id: beenden, label: {de: Beenden, en: Stop}, ziel: ohne_ablage_ende}

@@ -13,11 +13,17 @@ nur Umwandlung, Gliederung und Moderation; das Ergebnis bleibt an der Sitzung li
   Rumpf-Grenze des Pfads deckelt vorher hart, ``api/body_limit``),
 - Fehlercodes des Dienstes ``services/dokumente/aufnahme`` — ``detail`` nie mit Servertext.
 
-Plan 2026-11-16, TG-3e: Das Modul lässt bis zu fünf markierte Strukturdokumente nacheinander lesen,
-jedes mit einem eigenen Aufruf hier. Die Bremsen gelten je Aufruf: fünf Dokumente zählen fünfmal
-im Fenster der Sitzung (Vorgabe 30 je Minute) — weit unter der Grenze, auch mit dem Zug danach. Die
-offene Frage bleibt bis zur Antwort offen, darum gelingen alle fünf mit derselben ``block_id``. Ein
-sechstes Dokument der Sitzung ersetzt das älteste (``ablage.MAX_JE_SITZUNG``).
+Plan 2026-11-16, TG-3e: Das Modul lässt mehrere Dokumente nacheinander lesen, jedes mit einem
+eigenen Aufruf hier. Die Bremsen gelten je Aufruf (Vorgabe 30 je Minute und Sitzung). Die offene
+Frage bleibt bis zur Antwort offen, darum gelingen alle mit derselben ``block_id``.
+
+Plan 2026-11-17, Paket U („Hier im Chat“): Feld ``rolle`` — ``struktur`` (Vorgabe, wie vorher) oder
+``inhalt``. Ein Inhalt bekommt nach Umwandlung und Moderation Kurzangaben aus einem LLM-Aufruf
+(``dokumente/inhalt_angaben``), gespeichert am Upload; die Antwort trägt Befund, ``rolle`` und
+``angaben`` — nie den Text. Grenzen je Sitzung (Studio ``lokal_max_dateien``,
+``lokal_max_mb_gesamt``): 409 ``grenze_anzahl`` bzw. 413 ``grenze_gesamt`` — vorab ohne Sperre
+(spart Umwandlung und LLM), verbindlich unter der Sperre in ``ablage.speichern``; es wird nichts
+mehr verdrängt.
 
 Datenschutz: die Rohdatei wird nicht gespeichert (``umwandlung``: Temp-Verzeichnis, gelöscht),
 der Dateiname nie geloggt. Wie beim Zweig geht die Verbindung vor Anmeldung und Umwandlung in den
@@ -27,7 +33,7 @@ Pool zurück (``verbindung_freigeben``) — beides dauert, und „idle in transa
 from __future__ import annotations
 
 import functools
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
@@ -45,14 +51,18 @@ from boerdi.api.turn_auth import (
 from boerdi.db.verbindung import verbindung_freigeben
 from boerdi.i18n import resolve_locale
 from boerdi.obs.quality_events import log_safety_event
+from boerdi.obs.usage import new_accumulator
 from boerdi.services.config_loader.upload import load_upload_config
 from boerdi.services.db_sessions import sitzung_entities, sitzung_vorhanden
 from boerdi.services.dokumente import ablage
 from boerdi.services.dokumente.aufnahme import Abweisung, aufbereiten, sauberer_name
+from boerdi.services.dokumente.inhalt_angaben import ermitteln as inhalt_angaben_ermitteln
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import aufrufer_kennung, has_personal_auth
 from boerdi.services.rate_limits import check_rate_limit
 from boerdi.services.safety.moderation import moderate
+from boerdi.services.usage_store import record_turn_usage
+from boerdi.ui_module import upload_bereitgestellt as bereit
 from boerdi.ui_module.antwort import OFFENE_FRAGE
 from boerdi.ui_module.namen import UPLOAD
 
@@ -63,6 +73,8 @@ _MIB = 1024 * 1024
 FRIST_S = 60.0
 _BLOCK = r"^[a-z0-9]{8,32}$"
 _UPLOAD_ID = r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+#: Paket U1: Grenzen der Sitzung (``ablage.GrenzeErreicht``) → Status.
+_GRENZE_STATUS = {"grenze_anzahl": 409, "grenze_gesamt": 413}
 
 
 class DokumentAntwort(BaseModel):
@@ -73,6 +85,11 @@ class DokumentAntwort(BaseModel):
     format: str
     befund: dict[str, Any]
     ueberschriften_vorschau: list[str]
+    #: Paket U2: ``inhalt`` (Material) oder ``struktur`` (Strukturdokument, Vorgabe wie vor U).
+    rolle: Literal["inhalt", "struktur"] = "struktur"
+    #: Paket U2: nur bei ``inhalt`` — ``{titel, beschreibung, schlagworte[, fach, stufe]}``; fehlt,
+    #: wenn das LLM keine lieferte (der Titel entsteht dann aus dem Dateinamen).
+    angaben: dict[str, Any] | None = None
 
 
 class DokumentLoeschen(BaseModel):
@@ -98,7 +115,8 @@ def _offene_upload_frage(entities: dict[str, Any], block_id: str) -> bool:
             and frage.get("block_id") == block_id)
 
 
-@public_router.post("/dokumente", response_model=DokumentAntwort)
+@public_router.post("/dokumente", response_model=DokumentAntwort,
+                    response_model_exclude_none=True)
 @public_rate_limit
 async def dokument_hochladen(
     request: Request,
@@ -107,6 +125,7 @@ async def dokument_hochladen(
     session_id: Annotated[str, Form(pattern=f"^{SITZUNGSKENNUNG}$")],
     block_id: Annotated[str, Form(pattern=_BLOCK)],
     datei: Annotated[UploadFile, File()],
+    rolle: Annotated[Literal["inhalt", "struktur"], Form()] = "struktur",
 ) -> DokumentAntwort:
     """Liest das Dokument, legt Markdown und Gliederung an der Sitzung ab, gibt den Befund.
 
@@ -118,6 +137,10 @@ async def dokument_hochladen(
         raise HTTPException(status_code=404, detail="sitzung_unbekannt")
     if not _offene_upload_frage(entities, block_id):
         raise HTTPException(status_code=409, detail="keine_anfrage")
+    if not bereit.ort_erlaubt(entities.get(OFFENE_FRAGE), "chat"):
+        # Review Paket U, MINOR 4: der Ablauf lässt „Hier im Chat“ nicht zu (nicht nur die
+        # Oberfläche sperrt den Ort)
+        raise HTTPException(status_code=403, detail="ort_nicht_erlaubt")
     await verbindung_freigeben(session)
     # Die Moderation rechnet über den Schlüssel des Zuges ab (Paket 17), keine Pflicht.
     uebernimm_llm_schluessel(request, pflicht=False)
@@ -132,6 +155,12 @@ async def dokument_hochladen(
     rumpf = await datei.read(cfg.max_mb * _MIB + 1)
     if len(rumpf) > cfg.max_mb * _MIB:
         raise HTTPException(status_code=413, detail="zu_gross")
+    name = sauberer_name(datei.filename or "")
+    # Paket U1: über den Grenzen der Sitzung erst gar nicht umwandeln (verbindlich in ``speichern``)
+    if code := await ablage.grenze_vorab(session, session_id, block_id=block_id, name=name,
+                                         groesse=len(rumpf)):
+        raise HTTPException(status_code=_GRENZE_STATUS[code], detail=code)
+    await verbindung_freigeben(session)
     erg = await aufbereiten(rumpf, datei.filename or "", max_seiten=cfg.max_seiten,
                             frist_s=FRIST_S,
                             # Eigene Stufe (Nachprüfung Q4): nicht im Alarm der Chat-Züge.
@@ -141,14 +170,26 @@ async def dokument_hochladen(
             await log_safety_event(session, session_id, "",
                                    decision={"reasons": ["upload:moderation"]}, ip=ip)
         raise HTTPException(status_code=erg.status, detail=erg.code)
-    name = sauberer_name(datei.filename or "")
+    # Paket U2: Kurzangaben nur für Inhalte, nach Umwandlung und Moderation (der Anfang, den das
+    # LLM sieht, ist der moderierte, ``inhalt_angaben``)
+    angaben = None
+    if rolle == "inhalt":
+        verbrauch = new_accumulator()
+        angaben = await inhalt_angaben_ermitteln(erg.markdown, name, usage_acc=verbrauch)
+        # Kosten sichtbar (Wächter ``test_usage_coverage``): für die Sitzung gebucht, gleich hier —
+        # auch wenn das Speichern danach an der Grenze scheitert, war der Aufruf bezahlt
+        if await record_turn_usage(session, session_id, verbrauch):
+            await session.commit()
     try:
         kennung = await ablage.speichern(
             session, session_id=session_id, block_id=block_id,
             aufrufer=aufrufer_kennung() if person else None, name=name, format=erg.format,
             groesse=len(rumpf), befund=erg.befund, gliederung=erg.gliederung,
-            markdown=erg.markdown, ttl_h=cfg.aufbewahrung_h)
+            markdown=erg.markdown, ttl_h=cfg.aufbewahrung_h, rolle=rolle, angaben=angaben)
         await session.commit()
+    except ablage.GrenzeErreicht as grenze:
+        await session.rollback()
+        raise HTTPException(status_code=_GRENZE_STATUS[grenze.code], detail=grenze.code) from None
     except IntegrityError:
         # Wurde die Sitzung inzwischen gelöscht (Fremdschlüssel), ist das 404 (Review U3-2,
         # Befund 17). Plan 2026-11-16, TG-3e: zwei Uploads derselben Sitzung zugleich sind kein
@@ -159,7 +200,7 @@ async def dokument_hochladen(
             raise HTTPException(status_code=404, detail="sitzung_unbekannt") from None
         raise HTTPException(status_code=409, detail="laeuft_schon") from None
     return DokumentAntwort(upload_id=kennung, name=name, format=erg.format, befund=erg.befund,
-                           ueberschriften_vorschau=erg.vorschau)
+                           ueberschriften_vorschau=erg.vorschau, rolle=rolle, angaben=angaben)
 
 
 @public_router.post("/dokumente/loeschen", status_code=204)

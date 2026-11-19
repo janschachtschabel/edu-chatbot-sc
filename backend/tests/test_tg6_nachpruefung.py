@@ -36,7 +36,7 @@ def test_m1_freitext_nur_wo_die_antwort_frei_ist():
     ablauf = _seed()
     assert {s.id for s in ablauf.schritte if s.freitext is not None} == _FREI
     knoepfe = [s for s in ablauf.schritte if pruefung.mit_wahl(s) and s.freitext is None]
-    assert {s.id for s in knoepfe} >= {"einstieg", "einstieg_mit", "ordner_weiter", "wlo_frage",
+    assert {s.id for s in knoepfe} >= {"einstieg", "einstieg_mit", "ordner_weiter",
                                        "soll_ist", "metadaten_frage", "ohne_daten",
                                        "ohne_entwurf", "ohne_metadaten"}
     for s in knoepfe:
@@ -46,8 +46,8 @@ def test_m1_freitext_nur_wo_die_antwort_frei_ist():
 
 
 @pytest.mark.parametrize(("sid", "text"), [
-    ("wlo_frage", "Ja, gründlich"), ("wlo_frage", "gründlich bitte"),
-    ("wlo_frage", "nicht gründlich, schnell"),
+    # U6: ``wlo_frage`` entfiel — dieselbe Regel an der Rückfrage vor Kestra
+    ("metadaten_frage", "Ja, gern"), ("metadaten_frage", "lieber nicht"),
     ("ordner_weiter", "Passt so"), ("ordner_weiter", "ja, passt"), ("ordner_weiter", "Ja"),
     ("ordner_weiter", "Passt nicht, bitte verfeinern"),
 ])
@@ -56,7 +56,7 @@ def test_m1_natuerliche_saetze_treffen_keinen_knopf(sid, text):
 
 
 def test_m1_das_label_trifft_weiter():
-    assert treiber.wahl_aus_text(_schritt("wlo_frage"), "Nur die Dateinamen", "de") == "schnell"
+    assert treiber.wahl_aus_text(_schritt("metadaten_frage"), "Nein, so lassen", "de") == "nein"
     assert treiber.wahl_aus_text(_schritt("ordner_weiter"), "so lassen", "de") == "lassen"
 
 

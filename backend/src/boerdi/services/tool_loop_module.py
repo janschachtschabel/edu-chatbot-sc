@@ -55,6 +55,8 @@ MODUL_BLOECKE_KEY: Final = "_modul_bloecke_zug"
 DOKUMENT_LADER_KEY: Final = "_dokument_lader_zug"
 #: Paket V1: der Teil-Lader des aktiven Vorgangs — wie der Dokument-Lader nur für diesen Zug.
 TEIL_LADER_KEY: Final = "_teil_lader_zug"
+#: Review Paket U, MAJOR 3: die Belegung der Sitzung für das Upload-Feld — nur für diesen Zug.
+BELEGUNG_KEY: Final = "_belegung_zug"
 #: Plan 2026-11-11, TW-2: die Vorgaben des KI-Schritts eines Laufs (``ki_schritt.vorgaben``) und
 #: die Werkzeuge des Schritts, für die sie gelten — nur für diesen Zug.
 VORGABEN_KEY: Final = "_modul_vorgaben_zug"
@@ -135,6 +137,7 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
                 usage_acc=usage_acc, vorlage=entwurf_vorlage(session_state.get("entities") or {}),
                 dokument=session_state.get(DOKUMENT_LADER_KEY),
                 teile=session_state.get(TEIL_LADER_KEY), verfuegbar=frozenset(angeboten),
+                belegung=session_state.get(BELEGUNG_KEY),
                 vorgaben=_vorgaben_fuer(name, session_state.get(VORGABEN_KEY)),
                 vorbelegung=_vorbelegung_fuer(name, session_state.get(VORBELEGUNG_KEY))))
         outcomes.append(ergebnis.outcome)

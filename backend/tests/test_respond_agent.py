@@ -91,7 +91,8 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
                     on_token=None, start=None, modul_vorlage=None, modul_dokument=None,
-                    modul_teile=None, modul_vorgaben="", modul_vorbelegung=None,
+                    modul_teile=None, modul_belegung=None, modul_vorgaben="",
+                    modul_vorbelegung=None,
                     modul_umlenkung=None, dokument_leser=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,

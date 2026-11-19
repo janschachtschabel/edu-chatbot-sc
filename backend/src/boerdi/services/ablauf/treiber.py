@@ -137,6 +137,9 @@ class Umgebung:
     #: Durchtest Paket K (19.11.): öffnete eine Anmeldung den gründlichen Weg
     #: (``werkzeuge.DienstKontext.nach_anmeldung``)?
     nach_anmeldung: Callable[[], bool] | None = None
+    #: Review Paket U (19.11.), MAJOR 3: die Belegung der Sitzung für das Upload-Feld
+    #: (``ui_module/aufruf.Umgebung.belegung``); ``None`` = nicht gezählt (Simulation, Probe).
+    belegung: Callable[[], Awaitable[tuple[int, int]]] | None = None
 
 
 @dataclass
@@ -390,7 +393,8 @@ async def _rechne_schritte(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
         if s.typ == "modul":
             daten, fehlt = await _daten(s.daten, teile)
             block = None if fehlt else await _modul_block(s.modul or "", daten,
-                                                          simulation=umgebung.simulation)
+                                                          simulation=umgebung.simulation,
+                                                          belegung=umgebung.belegung)
             if block is None:
                 fehler = True
             else:

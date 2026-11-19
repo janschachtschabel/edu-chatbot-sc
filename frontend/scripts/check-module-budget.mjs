@@ -3,8 +3,8 @@
  * Budget der nachgeladenen UI-Module (Paket U3-0), Gegenstück zu `check-widget-budget.mjs`.
  *
  * Ein nachgeladenes Modul kostet erst, wenn sein Block erscheint — aber dann auf dem Gerät der Person,
- * oft im Mobilnetz. Deshalb je Bündel höchstens 20 kB gzip und alle zusammen höchstens 60 kB gzip
- * (kB dezimal, wie das Widget-Budget). Im Verzeichnis dürfen nur gehashte Bündel liegen
+ * oft im Mobilnetz. Deshalb je Bündel höchstens 20 kB gzip (benannte Ausnahme: `ui-upload` 23 kB) und
+ * alle zusammen höchstens 60 kB gzip (kB dezimal, wie das Widget-Budget). Im Verzeichnis dürfen nur gehashte Bündel liegen
  * (`<ordner>.<8 hex>.js`) — alles andere würde das Backend nie ausliefern.
  *
  * Aufruf: node scripts/check-module-budget.mjs [verzeichnis]   (Vorgabe: dist/widget-module)
@@ -17,21 +17,29 @@ import { gzipSync } from 'node:zlib';
 // U3-3b (2026-11-06): 15 → 20 kB — `ui_upload` trägt drei Aufgaben (Erfassen, Dokument, Übertragen,
 // je zweisprachig) und lag bei 15,7 kB; ein Bündel lässt sich nicht weiter nachladend teilen (SRI).
 export const JE_MODUL_GZIP = 20_000;
+// Paket U4, Teil b (2026-11-19): nur `ui_upload` darf mehr — dazu „Wo verarbeiten?“ (Orte, Grenzen,
+// Datenschutz je Ort) und „Hier im Chat“ für alle lesbaren Dateien (21,1 kB); nach dem Review der
+// Oberfläche (Ende an der Sitzungsgrenze, Anhalten, Sitzungsrest, Grenze je Datei) 22,5 kB, also
+// 23 kB. Eine benannte Ausnahme statt einer höheren Grenze für alle (Review der Oberfläche, NIT 10).
+// Die Summe bleibt bei 60 kB.
+export const AUSNAHMEN = Object.freeze({ 'ui-upload': 23_000 });
 export const ZUSAMMEN_GZIP = 60_000;
-const DATEI = /^ui-[a-z0-9-]+\.[0-9a-f]{8}\.js$/;
+const DATEI = /^(ui-[a-z0-9-]+)\.[0-9a-f]{8}\.js$/;
 
 export function pruefe(ort) {
   const fehler = [];
   const module = [];
   for (const name of readdirSync(ort).sort()) {
-    if (!DATEI.test(name)) {
+    const treffer = DATEI.exec(name);
+    if (!treffer) {
       fehler.push(`${name}: kein gehashtes Modul-Bündel`);
       continue;
     }
     const roh = readFileSync(join(ort, name));
     const gzip = gzipSync(roh, { level: 9 }).length;
     module.push({ name, roh: roh.length, gzip });
-    if (gzip > JE_MODUL_GZIP) fehler.push(`${name}: ${gzip} B gzip > ${JE_MODUL_GZIP} B`);
+    const grenze = Object.hasOwn(AUSNAHMEN, treffer[1]) ? AUSNAHMEN[treffer[1]] : JE_MODUL_GZIP;
+    if (gzip > grenze) fehler.push(`${name}: ${gzip} B gzip > ${grenze} B`);
   }
   const summe = module.reduce((s, m) => s + m.gzip, 0);
   if (summe > ZUSAMMEN_GZIP) fehler.push(`alle Module zusammen: ${summe} B gzip > ${ZUSAMMEN_GZIP} B`);

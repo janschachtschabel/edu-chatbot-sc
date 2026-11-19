@@ -52,7 +52,7 @@ async def _ohne(*_a, **_k):
 def test_der_lader_liest_einmal_beruehrt_und_gibt_den_stand(monkeypatch):
     gelesen, beruehrt = [], []
 
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         gelesen.append((session_id, aufrufer))
         return [_zeile()]
 
@@ -83,7 +83,7 @@ def test_der_lader_liest_einmal_beruehrt_und_gibt_den_stand(monkeypatch):
 def test_ohne_anmeldung_ohne_aufrufer_und_ohne_dokument_none(monkeypatch):
     gelesen = []
 
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         gelesen.append(aufrufer)
         return []
 
@@ -94,7 +94,7 @@ def test_ohne_anmeldung_ohne_aufrufer_und_ohne_dokument_none(monkeypatch):
 
 
 def test_eine_kaputte_gliederung_zaehlt_als_kein_dokument(monkeypatch):
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         z = _zeile()
         z.gliederung = [{"id": "a1"}]
         return [z]
@@ -130,7 +130,7 @@ def test_tb_e1_angemeldet_uebernimmt_die_anonymen_dokumente(monkeypatch):
     Sitzung (``ablage.zuschreiben``) — vor dem Lesen — und schreibt das fest."""
     gefragt = []
 
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         gefragt.append(("alle_lesbaren", aufrufer))
         return [_zeile()]
 
@@ -151,7 +151,7 @@ def test_tb_e1_angemeldet_uebernimmt_die_anonymen_dokumente(monkeypatch):
 
 
 def test_tb_e1_anonym_wird_nichts_zugeschrieben(monkeypatch):
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         return []
 
     async def zuschreiben(s, session_id, aufrufer):  # pragma: no cover — darf nicht laufen
@@ -168,7 +168,7 @@ def test_tb_e1_review_2_zwei_zuege_derselben_person_finden_beide_das_dokument(mo
     ohne Besitzerin), liest der zweite trotzdem unter ihrer Kennung — statt ``kein_dokument``."""
     from boerdi.services.dokumente import ablage
 
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         return [_zeile()] if aufrufer == "person-a" else []
 
     monkeypatch.setattr(ablage, "alle_lesbaren", alle_lesbaren)
@@ -180,7 +180,7 @@ def test_tb_e1_review_2_zwei_zuege_derselben_person_finden_beide_das_dokument(mo
 def test_tb_e1_review_anonym_liest_fuer_aufrufer_nur_das_anonyme(monkeypatch):
     from boerdi.services.dokumente import ablage
 
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         assert aufrufer is None
         return []
 
@@ -195,7 +195,7 @@ def test_tb_e1_review_anonym_liest_fuer_aufrufer_nur_das_anonyme(monkeypatch):
 # ── TG-3e: mehrere Dokumente ─────────────────────────────────────────────────────────────────────
 
 def test_tg3e_mehrere_dokumente_der_sitzung_werden_ein_stand(monkeypatch):
-    async def alle_lesbaren(s, session_id, aufrufer):
+    async def alle_lesbaren(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         return [_zeile("u-1", "Lehrplan A.pdf"), _zeile("u-2", "Lehrplan B.pdf")]
 
     monkeypatch.setattr(stand.ablage, "alle_lesbaren", alle_lesbaren)
@@ -217,7 +217,7 @@ def test_tg3e_mehrere_dokumente_der_sitzung_werden_ein_stand(monkeypatch):
 
 def _sitzung(monkeypatch, *zeilen):
     """M1: der Leser liest Sitzungsdokumente über ``alle_fuer_aufrufer`` (mit Übernahme)."""
-    async def alle_fuer_aufrufer(s, session_id, aufrufer):
+    async def alle_fuer_aufrufer(s, session_id, aufrufer, *_rolle):  # Paket U: Rolle
         return list(zeilen)
 
     monkeypatch.setattr(leser.ablage, "alle_fuer_aufrufer", alle_fuer_aufrufer)

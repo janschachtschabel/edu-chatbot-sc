@@ -52,10 +52,10 @@ def titel(name: str, endung: str = "") -> str:
     else:
         roh = _ENDUNG.sub("", roh)
     text = " ".join(_UNTERSTRICHE.sub(" ", roh).split())
-    return _gekuerzt(text, TITEL_ZEICHEN)
+    return gekuerzt(text, TITEL_ZEICHEN)
 
 
-def _gekuerzt(text: str, hoechstens: int) -> str:
+def gekuerzt(text: str, hoechstens: int) -> str:
     """An der Wortgrenze kürzen, mit „…“ — ein halbes Wort führte den Generator irre."""
     if len(text) <= hoechstens:
         return text
@@ -65,7 +65,7 @@ def _gekuerzt(text: str, hoechstens: int) -> str:
     return stueck.rstrip(" ,;:.") + "…"
 
 
-def _pfad(teile: list[str], hoechstens: int) -> str:
+def ordnerpfad(teile: list[str], hoechstens: int) -> str:
     """„Ordner: a / b / c“ — vom Ende her gekürzt, damit der nächste Ordner bleibt."""
     if not teile:
         return ""
@@ -75,7 +75,7 @@ def _pfad(teile: list[str], hoechstens: int) -> str:
     return f"Ordner: {pfad}"
 
 
-def _dateien(ordner: Any, pfad: list[str]) -> list[tuple[dict[str, Any], list[str]]]:
+def dateien_mit_pfad(ordner: Any, pfad: list[str]) -> list[tuple[dict[str, Any], list[str]]]:
     """Alle Dateien mit Rolle ``inhalt`` samt Ordnerpfad, von oben nach unten (wie
     ``upload_antwort.dateien``)."""
     if not isinstance(ordner, dict):
@@ -85,10 +85,10 @@ def _dateien(ordner: Any, pfad: list[str]) -> list[tuple[dict[str, Any], list[st
     eigene = [(d, hier) for d in ordner.get("dateiliste") or []
               if isinstance(d, dict) and d.get("rolle") == "inhalt"
               and isinstance(d.get("name"), str)]
-    return eigene + [x for k in ordner.get("kinder") or [] for x in _dateien(k, hier)]
+    return eigene + [x for k in ordner.get("kinder") or [] for x in dateien_mit_pfad(k, hier)]
 
 
-def _nummer(d: dict[str, Any]) -> int | None:
+def nummer(d: dict[str, Any]) -> int | None:
     i = d.get("i")
     return i if isinstance(i, int) and not isinstance(i, bool) and i >= 0 else None
 
@@ -122,11 +122,11 @@ def _einpassen(roh: list[tuple[dict[str, Any], list[str]]], block_id: Any,
     for n, (pfad_max, titel_max) in enumerate(stufen):
         inhalte = []
         for d, pfad in roh:
-            eintrag: dict[str, Any] = {"i": _nummer(d), "rolle": "inhalt",
-                                       "titel": _gekuerzt(titel(d["name"], str(
+            eintrag: dict[str, Any] = {"i": nummer(d), "rolle": "inhalt",
+                                       "titel": gekuerzt(titel(d["name"], str(
                                            d.get("endung") or "")), titel_max)
-                                       or f"Datei {(_nummer(d) or 0) + 1}"}
-            if pfad_max is not None and (beschreibung := _pfad(pfad, pfad_max)):
+                                       or f"Datei {(nummer(d) or 0) + 1}"}
+            if pfad_max is not None and (beschreibung := ordnerpfad(pfad, pfad_max)):
                 eintrag["beschreibung"] = beschreibung
             inhalte.append(eintrag)
         teil = _teil(inhalte, 0, block_id, sprache)
@@ -146,7 +146,7 @@ def aus_struktur(teil: Any, sprache: str = "de") -> dict[str, Any] | None:
     Der Teil ``structure`` (nur Ordner, ohne Dateien) trägt keine Namen — auch dann ``None``."""
     if not isinstance(teil, dict) or not isinstance(teil.get("struktur"), dict):
         return None
-    roh = _dateien(teil["struktur"], [])
+    roh = dateien_mit_pfad(teil["struktur"], [])
     if not roh:
         return None
     return _einpassen(roh, teil.get("block_id"), sprache)

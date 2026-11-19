@@ -225,7 +225,14 @@ def test_jedes_kurationswerkzeug_der_registry_ist_eingeordnet():
     # ``wlo_health_check``/``wlo_auth_status`` sind Betriebs-Sonden, keine
     # Kuration — sie stehen bewusst nicht in CURATION_TOOLS.
     betrieb = {"wlo_health_check", "wlo_auth_status"}
-    kuratierend = {t for t in registry if t.startswith("wlo_")} - betrieb
+    # Paket U (Plan 2026-11-17): Stapel- und Flow-Werkzeuge ruft nur das Backend (Upload-Feld,
+    # Abläufe) — nie das Modell, darum keine Kuration im Wall
+    from boerdi.services.ablage import mcp_ablage
+    from boerdi.services.auftraege import mcp_starter
+
+    nur_backend = set(mcp_ablage.WERKZEUGE) | set(mcp_starter.WERKZEUGE) | {
+        "wlo_list_my_batches", "wlo_list_flows"}
+    kuratierend = {t for t in registry if t.startswith("wlo_")} - betrieb - nur_backend
     assert kuratierend == set(CURATION_TOOLS), (
         "Registry und Wall sind auseinandergelaufen. Fehlend im Wall: "
         f"{sorted(kuratierend - set(CURATION_TOOLS))}; nur im Wall: "

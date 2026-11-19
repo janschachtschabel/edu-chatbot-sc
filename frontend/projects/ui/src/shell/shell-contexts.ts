@@ -144,8 +144,8 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     messagesContainer: () => host.messagesContainer(),
     t: (key, params) => host.t(key, params),
     ladeZweig: (nodeId, signal) => host.api().themenbaumZweig(host.sessionId(), nodeId, signal),
-    ladeDokument: async (blockId, datei, onFortschritt, signal) => ({
-      ...await host.api().dokumentHochladen(host.sessionId(), blockId, datei, { onFortschritt, signal }),
+    ladeDokument: async (blockId, datei, onFortschritt, signal, rolle) => ({
+      ...await host.api().dokumentHochladen(host.sessionId(), blockId, datei, { onFortschritt, signal, rolle }),
     }),
     ladeAblage: (blockId, schritt, signal) => host.api().ablageSchritt(host.sessionId(), blockId, schritt, signal),
     ladeAuftragStand: (ablauf, kuerzel, signal) => host.api().auftragStand(host.sessionId(), ablauf, kuerzel, signal),

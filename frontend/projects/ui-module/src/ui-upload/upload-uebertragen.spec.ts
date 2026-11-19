@@ -128,13 +128,28 @@ describe('Übertragen — Regeln (U3-3b)', () => {
       eintraege: [{ index: 0, titel: 'A', art: 'pdf', groesse: 1, name: 'A.pdf' },
         { index: 1, titel: 'B', art: 'pdf', groesse: 1, name: 'B.pdf' }] }, 2)!;
     const a = uebertragenAntwort(E, plan, [{ stand: 'stored', link: 'https://repo/n-1' }, { stand: 'abgebrochen' }],
-      { ordnerVerweigert: true, vorgangAbgelegt: false });
-    expect(a.aktion).toBe('uebertragen');
+      { ordnerVerweigert: true, vorgangAbgelegt: false, nummern: [1, 3] });
+    // Plan 2026-11-17, Paket U4: `bereitgestellt` mit Ort wlo — je abgelegter Datei die Nummer i der
+    // Auswahl und die Rolle (nicht gesendete fehlen)
+    expect(a).toMatchObject({ aktion: 'bereitgestellt', ort: 'wlo', dateien: [{ i: 1, rolle: 'inhalt' }] });
     expect(a.ablage).toEqual({ layout: 'flach', gesamt: 2, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 1,
       ordner_verweigert: true, vorgang_abgelegt: false });
     expect(JSON.stringify(a)).not.toContain('n-1');
     expect(JSON.stringify(a.ablage)).not.toContain('Mechanik');
     expect(a.struktur.dateiliste.map((d) => d.name)).toContain('01 Mechanik.pdf');
+  });
+});
+
+describe('Antwort mit Ort wlo (Paket U4)', () => {
+  it('`dateien` nennt abgelegte (auch „angelegt, Inhalt verworfen“), nie unklare oder gescheiterte', () => {
+    const eintrag = (index: number, rolle = 'inhalt') => ({ index, titel: `T${index}`, art: 'pdf', groesse: 1, name: `T${index}.pdf`, rolle });
+    const plan = planAus({ batch_token: 'tok-1234567890', layout: 'ordner', ordner: 'P', gesamt: 4,
+      eintraege: [eintrag(0, 'struktur'), eintrag(1), eintrag(2), eintrag(3)] }, 4)!;
+    const a = uebertragenAntwort(E, plan,
+      [{ stand: 'stored' }, { stand: 'dropped' }, { stand: 'unverified' }, { stand: 'failed', code: 'art' }],
+      { ordnerVerweigert: false, vorgangAbgelegt: true, nummern: [4, 0, 2, 5] });
+    expect(a.dateien).toEqual([{ i: 4, rolle: 'struktur' }, { i: 0, rolle: 'inhalt' }]);
+    expect(a.ablage).toMatchObject({ gesamt: 4, abgelegt: 2, unklar: 1, fehler: 1 });
   });
 });
 

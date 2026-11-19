@@ -1,32 +1,25 @@
 /**
- * `<boerdi-ui-upload>` — Ordner und Dateien erfassen (Paket U3-1a), nachgeladen als rahmenloses Custom
- * Element (`laden: "bei_bedarf"`, Vertrag `_nachladen/element-vertrag.ts`).
+ * `<boerdi-ui-upload>` — Ordner und Dateien bereitstellen (Paket U3-1a), nachgeladen als rahmenloses
+ * Custom Element (`laden: "bei_bedarf"`, Vertrag `_nachladen/element-vertrag.ts`).
  *
- * Die Person wählt einen Ordner (oder Dateien) per Knopf oder legt ihn ab; daraus entsteht im Browser
- * der Ordnerbaum mit Dateizahlen (`upload-erfassen.ts`). Rollen setzt sie je Datei oder je Ordner
- * (`upload-rollen.ts`). Der Befund geht als Vormerkung mit der nächsten getippten Nachricht oder per
- * Knopf als Antwort (`upload-antwort.ts`) — Ordnerbaum mit Zahlen und, seit Plan 2026-11-16 TG-3a, den
- * Dateien je Ordner (Name, Endung, Größe, Rolle, feste Nummer `i`); nie Inhalte.
- *
- * Seit U3-2c lässt sich ein markiertes Strukturdokument lesen: nur dieses wird hochgeladen
- * (`host.hochladen`), das Backend gibt den Befund zurück, und das Modul antwortet
- * (`upload-dokument.ts`). Plan 2026-11-16, TG-1 (G-E4): zielneutral — der Knopf heißt „Lesen lassen“,
- * und es gibt keinen Zielknopf mehr (früher „Themenbaum aus dem Strukturdokument erstellen“ und
- * „Als Themenbaum-Entwurf übernehmen“); was mit den Daten geschieht, entscheiden Ablauf oder KI.
- *
- * Seit U3-3b lassen sich die erfassten Dateien per Klick in den persönlichen Bereich in WLO übertragen
- * (`upload-uebertragen*.ts`, `host.ablegen`) — nur, wenn das System es im Block erlaubt (Studio und
- * Anmeldung), und erst nach einer Vorschau mit „Jetzt übertragen“.
- *
- * Die Darstellung liegt in `upload-ansicht.ts` (Querschnitts-Review 2026-11-06, Q4); hier bleiben Zustand,
- * Ereignisse und Fokus.
+ * Auswahl per Knopf oder Ablegen (`upload-eingabe.ts`, `upload-erfassen.ts`), Rollen je Datei oder
+ * Ordner (`upload-rollen.ts`); der Befund geht als Vormerkung mit einer getippten Nachricht mit — nie
+ * Inhalte. Plan 2026-11-17, Paket U4 — ein Weg: die Frage „Wo sollen sie verarbeitet werden?“
+ * (`upload-orte*.ts`), dann **ein** Knopf „Hochladen“: „Hier im Chat“ (`upload-chat*.ts`,
+ * `host.hochladen` mit Rolle) oder „In WLO ablegen und erschließen“ (`upload-uebertragen*.ts`,
+ * `host.ablegen`, Vorschau mit „Jetzt übertragen“); daneben „Nur Namen senden (nichts hochladen)“.
+ * Jede Antwort ist `aktion: "bereitgestellt"` mit `ort`. Darstellung in `upload-ansicht.ts`; hier
+ * bleiben Zustand, Ereignisse und Fokus.
  */
 import type { ElementHost, NachladeElement } from '../_nachladen/element-vertrag';
 import type { ModulKontext } from '../_vertrag/ui-block';
-import { ansichtTeile, grenzenAus, nurLesenOhneStapel, type UploadSicht, type Zustand, zusammenfassung } from './upload-ansicht';
-import { antwortDaten, type AntwortAktion } from './upload-antwort';
-import { DokumentAblauf } from './upload-dokument-ablauf';
-import { ausDateiliste, ausEintraegen, erfasse, type Erfassung, type Quelle } from './upload-erfassen';
+import { antwortDaten } from './upload-antwort';
+import { ansichtTeile, grenzenAus, nurLesenOhneStapel, type UploadSicht, wahlFuer, wegAktiv, type Zustand, zusammenfassung } from './upload-ansicht';
+import { namenAntwort } from './upload-chat';
+import { ChatAblauf } from './upload-chat-ablauf';
+import { dateiEingaben, quellenAusAblage } from './upload-eingabe';
+import { ausDateiliste, erfasse, type Erfassung, type Quelle } from './upload-erfassen';
+import { lokaleAuswahl, lokaleGrenzen, type Ort } from './upload-orte';
 import { alleIgnorieren, setzeRolle, vorschlagen } from './upload-rollen';
 import { UPLOAD_STIL } from './upload-stil';
 import { type Sprache, texte, type UploadTexte } from './upload-texte';
@@ -44,10 +37,13 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
   private zustand: Zustand = 'leer';
   private erfassung: Erfassung<File> | null = null;
   private offen = new Set<string>();
-  private readonly dokument = new DokumentAblauf({
-    host: () => this.host, erfassung: () => this.erfassung, daten: () => this._daten,
-    beschaeftigt: () => this._beschaeftigt, t: () => this.t, wurzel: () => this.wurzel,
-    ansagen: (text) => this.ansagen(text), zeichne: () => this.zeichne(), nurLesen: () => !!this._kontext?.nurLesen,
+  /** Der Ort, den die Person angeklickt hat; `null` = die Vorauswahl des Systems gilt. */
+  private ort: Ort | null = null;
+  private readonly chat = new ChatAblauf({
+    host: () => this.host, erfassung: () => this.erfassung, beschaeftigt: () => this._beschaeftigt,
+    dateien: () => (this.erfassung ? lokaleAuswahl(this.erfassung, lokaleGrenzen(this._daten)).lesbar : []),
+    t: () => this.t, wurzel: () => this.wurzel, ansagen: (text) => this.ansagen(text), zeichne: () => this.zeichne(),
+    nurLesen: () => !!this._kontext?.nurLesen,
   });
   private readonly uebertragen = new UebertragenAblauf({
     host: () => this.host, erfassung: () => this.erfassung, daten: () => this._daten,
@@ -69,19 +65,26 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     this.status = document.createElement('p');
     this.status.className = 'u__unsichtbar';
     this.status.setAttribute('aria-live', 'polite');
-    // Die Datei-Eingaben einmal und außerhalb des neu gezeichneten Inhalts (Querschnitts-Review FE-4):
-    // sonst hinge ein offener Dateidialog an einem entfernten Element, wenn ein Zug kommt oder geht.
-    this.wurzel.append(stil, this.inhalt, this.status, ...this.eingaben());
+    // Die Datei-Eingaben einmal und außerhalb des neu gezeichneten Inhalts (Querschnitts-Review FE-4).
+    this.wurzel.append(stil, this.inhalt, this.status, ...dateiEingaben());
     this.wurzel.addEventListener('click', (e) => this.beiKlick(e));
-    this.wurzel.addEventListener('change', (e) => void this.beiAenderung(e));
+    this.wurzel.addEventListener('change', (e) => this.beiAenderung(e));
     this.wurzel.addEventListener('dragover', (e) => this.beiZiehen(e, true));
     this.wurzel.addEventListener('dragleave', (e) => this.beiZiehen(e, false));
     this.wurzel.addEventListener('drop', (e) => void this.beiAblage(e as DragEvent));
   }
 
-  /** U3-3b: ein entferntes Element (Widget geschlossen) überträgt nicht im Verborgenen weiter. */
-  connectedCallback(): void { this.uebertragen.verbinden(); }
-  disconnectedCallback(): void { this.uebertragen.trennen(); }
+  /** U3-3b: ein entferntes Element (Widget geschlossen) überträgt nicht im Verborgenen weiter — und lädt
+   *  „Hier im Chat“ nach der laufenden Datei nichts mehr hoch (Review der Oberfläche, 2). */
+  connectedCallback(): void {
+    this.uebertragen.verbinden();
+    this.chat.verbinden();
+  }
+
+  disconnectedCallback(): void {
+    this.uebertragen.trennen();
+    this.chat.trennen();
+  }
 
   // Nur bei echter Änderung neu zeichnen: der Platzhalter setzt alle drei bei jedem Zugbeginn und -ende,
   // und `kontext` kommt dabei jedes Mal als neues Objekt (Review 2026-11-07, Befund 2).
@@ -116,21 +119,22 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     if (d['waehle']) (this.wurzel.querySelector(`input[data-quelle="${d['waehle']}"]`) as HTMLInputElement | null)?.click();
     else if (d['ordner'] !== undefined) this.umschalten(d['ordner']);
     else if (d['ignorieren'] !== undefined && this.erfassung && !this.auswahlFest()) this.neu(alleIgnorieren(this.erfassung, d['ignorieren'], d['an'] === 'true'));
-    else if (d['antwort']) this.antworten(d['antwort'] as AntwortAktion);
+    else if (d['hochladen']) this.hochladen(d['hochladen']);
+    else if (d['namen']) this.namenSenden();
+    else if (d['chat']) this.beiChat(d['chat']);
     else if (d['uebertragen']) this.beiUebertragen(d['uebertragen']);
-    // Plan 2026-11-16, TG-3e: „Ohne dieses weiter“ lässt ein gescheitertes Dokument aus
-    else if (d['dokument'] === 'ohne' && !this.uebertragen.laeuft()) void this.dokument.ueberspringen();
-    else if (d['dokument'] && !this.uebertragen.laeuft()) void this.dokument.lesen();
-    else if (d['weiter']) this.dokument.senden();
     else if (d['zurueck']) this.zuruecksetzen();
   }
 
-  private async beiAenderung(e: Event): Promise<void> {
+  private beiAenderung(e: Event): void {
     const ziel = e.target as HTMLElement;
     if (ziel instanceof HTMLInputElement && ziel.type === 'file') {
       const quellen = ausDateiliste(ziel.files ?? []);
       ziel.value = '';
       this.uebernimm(quellen);
+    } else if (ziel instanceof HTMLInputElement && ziel.type === 'radio' && ziel.dataset['ort']) {
+      this.ort = ziel.dataset['ort'] as Ort;
+      this.zeichne();
     } else if (ziel instanceof HTMLSelectElement && ziel.dataset['datei'] && this.erfassung && !this.auswahlFest()) {
       const rolle = ziel.value as 'inhalt' | 'struktur' | 'ignorieren';
       this.neu(setzeRolle(this.erfassung, Number(ziel.dataset['datei']), rolle));
@@ -151,19 +155,13 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     if (!zone || this._kontext?.nurLesen || this.zustand === 'liest') return;
     const transfer = e.dataTransfer;
     if (!transfer) return;
-    const eintraege = [...(transfer.items ?? [])]
-      .filter((i) => i.kind === 'file')
-      .map((i) => (i as DataTransferItem & { webkitGetAsEntry?: () => unknown }).webkitGetAsEntry?.())
-      .filter((x): x is NonNullable<typeof x> => !!x);
+    // Die Einträge liest `quellenAusAblage` noch in diesem Takt — nach dem Ereignis sind sie leer.
+    const quellen = quellenAusAblage(transfer, grenzenAus(this._daten).maxDateien);
     this.zustand = 'liest';
     this.ansagen(this.t.liest);
     this.zeichne();
     try {
-      const g = grenzenAus(this._daten);
-      const quellen = eintraege.length
-        ? await ausEintraegen(eintraege as never, g.maxDateien + 1)
-        : ausDateiliste(transfer.files ?? []);
-      this.uebernimm(quellen);
+      this.uebernimm(await quellen);
     } catch {
       this.erfassung = null;
       this.zustand = 'fehler';
@@ -174,24 +172,44 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
 
   // ── Zustand ──────────────────────────────────────────────────────────────────
 
+  /** „Hochladen“: nur mit dem Ort, der gerade gilt, und wenn nichts anderes läuft. */
+  private hochladen(ort: string): void {
+    if (this._beschaeftigt || wegAktiv(this.sicht()) || ort !== wahlFuer(this.sicht())) return;
+    if (ort === 'chat') {
+      // Ein Fehler der Übertragung stünde sonst neben dem Fortschritt und zöge den Fokus (Review der Oberfläche, 4)
+      if (this.uebertragen.lauf?.phase === 'fehler') this.uebertragen.zuruecksetzen();
+      void this.chat.hochladen();
+    } else {
+      void this.uebertragen.vorbereiten();
+    }
+  }
+
+  private beiChat(was: string): void {
+    if (was === 'nochmal') void this.chat.nochmal();
+    else if (was === 'ohne') void this.chat.ueberspringen();
+    else if (was === 'weiter') this.chat.senden();
+    else if (was === 'anhalten') this.chat.anhaltenNachDieser();
+    else if (was === 'gelesene') this.chat.mitGelesenen();
+  }
+
   /** U3-3b: die Knöpfe des Übertragens (`data-uebertragen`). */
   private beiUebertragen(was: string): void {
-    if (was === 'pruefen' && !this.dokument.laeuft()) void this.uebertragen.vorbereiten();
-    else if (was === 'los' || was === 'nochmal') void this.uebertragen.senden();
+    if (was === 'los' || was === 'nochmal') void this.uebertragen.senden();
     else if (was === 'abbrechen') this.uebertragen.abbrechen();
     else if (was === 'anhalten') this.uebertragen.anhaltenNachDieser();
     else if (was === 'weiter') void this.uebertragen.weiter();
   }
 
-  /** Rollen und „Ignorieren“ ruhen, solange ein Dokument gelesen wird oder eine Freigabe besteht. */
+  /** Rollen und „Ignorieren“ ruhen, solange hochgeladen wird oder eine Freigabe besteht. */
   private auswahlFest(): boolean {
-    return this.dokument.laeuft() || this.uebertragen.haeltAuswahl();
+    return this.chat.laeuft() || this.uebertragen.haeltAuswahl();
   }
 
   private uebernimm(quellen: readonly Quelle<File>[]): void {
-    // Während einer Übertragung bleibt die Auswahl, wie sie ist (Review U3-3b, Befund 3).
-    if (this.uebertragen.laeuft()) return;
+    // Während des Hochladens bleibt die Auswahl, wie sie ist (Review U3-3b, Befund 3).
+    if (this.uebertragen.laeuft() || this.chat.laeuft()) return;
     this.uebertragen.zuruecksetzen();
+    this.chat.zuruecksetzen();
     const e = vorschlagen(erfasse(quellen, grenzenAus(this._daten)),
       this._daten['einzeldatei_als_struktur'] === true);
     this.offen = new Set([e.wurzel.pfad]);
@@ -201,8 +219,8 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
 
   private neu(e: Erfassung<File>): void {
     this.erfassung = e;
-    // Eine andere Rolle macht einen Fehler oder einen wartenden Befund gegenstandslos.
-    this.dokument.auswahlGeaendert();
+    // Eine andere Rolle macht einen Fehler oder eine wartende Antwort gegenstandslos.
+    this.chat.auswahlGeaendert();
     if (this.zustand === 'erfasst') {
       const a = antwortDaten(e, 'erfasst', this.t.dateiOhneName);
       this.host?.vormerken(a as unknown as Record<string, unknown>);
@@ -219,18 +237,18 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     this.zeichne();
   }
 
-  private antworten(aktion: AntwortAktion): void {
-    if (!this.erfassung || this._beschaeftigt || this.uebertragen.laeuft()) return;
-    const a = antwortDaten(this.erfassung, aktion, this.t.dateiOhneName);
-    const name = a.struktur.name || this.t.auswahl;
-    const text = this.t.blaseErfasst(name, this.t.ordner(a.zahlen.ordner),
+  /** „Nur Namen senden (nichts hochladen)“: die Auswahl mit Ort namen — auch nach dem Ende von „Hier im Chat“. */
+  private namenSenden(): void {
+    if (!this.erfassung || this._beschaeftigt || (wegAktiv(this.sicht()) && this.chat.lauf?.phase !== 'halt')) return;
+    const a = namenAntwort(this.erfassung, this.t.dateiOhneName);
+    const text = this.t.blaseNamen(a.struktur.name || this.t.auswahl, this.t.ordner(a.zahlen.ordner),
       this.t.dateien(a.zahlen.inhalte + a.zahlen.strukturdokumente));
     this.host?.antworten(a as unknown as Record<string, unknown>, text);
   }
 
   private zuruecksetzen(): void {
-    if (this.dokument.laeuft() || this.uebertragen.laeuft()) return;
-    this.dokument.zuruecksetzen();
+    if (this.chat.laeuft() || this.uebertragen.laeuft()) return;
+    this.chat.zuruecksetzen();
     this.uebertragen.zuruecksetzen();
     this.erfassung = null;
     this.zustand = 'leer';
@@ -260,12 +278,12 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     if (!fokus) return;
     // Vergleich statt Selektor: der Schlüssel enthält Ordnernamen (beliebige Zeichen).
     const alle = [...this.inhalt.querySelectorAll<HTMLElement>('[data-fokus]')];
-    // Verschwand das fokussierte Element (Auswahl, Zurücksetzen), geht der Fokus auf das neue Ergebnis
-    // bzw. den Anfang — nie auf `body` (Review U3-1, Befund 2). Lag der Fokus nicht im Modul, bleibt er.
-    const ersatz = nurLesenOhneStapel(sicht) ? 's:nurlesen' : this.uebertragen.lauf ? 's:ablage' : this.dokument.lauf ? 's:dokument'
+    // Verschwand das fokussierte Element (Auswahl, Hochladen, Zurücksetzen), geht der Fokus auf den
+    // neuen Stand bzw. den Anfang — nie auf `body` (Review U3-1, Befund 2). Lag er nicht im Modul, bleibt er.
+    const ersatz = nurLesenOhneStapel(sicht) ? 's:nurlesen' : this.uebertragen.lauf ? 's:ablage' : this.chat.lauf ? 's:chat'
       : this.zustand === 'erfasst' ? 's:befund' : this.zustand === 'fehler' ? 's:fehler' : 'k:waehle=ordner';
-    // Ein gesperrter Knopf nimmt keinen Fokus — dann das Ersatzziel (Review U3-3b, Befund 5).
-    const frei = (x: HTMLElement) => !(x instanceof HTMLButtonElement && x.disabled);
+    // Ein gesperrtes Bedienelement nimmt keinen Fokus — dann das Ersatzziel (Review U3-3b, Befund 5).
+    const frei = (x: HTMLElement) => !((x instanceof HTMLButtonElement || x instanceof HTMLInputElement) && x.disabled);
     (alle.find((x) => x.dataset['fokus'] === fokus && frei(x)) ?? alle.find((x) => x.dataset['fokus'] === ersatz))?.focus();
   }
 
@@ -274,21 +292,9 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     return {
       t: this.t, sprache: this.sprache, daten: this._daten, kontext: this._kontext, zustand: this.zustand,
       erfassung: this.erfassung, offen: this.offen, beschaeftigt: this._beschaeftigt, auswahlFest: this.auswahlFest(),
-      dokument: this.dokument, uebertragen: this.uebertragen,
+      ort: this.ort, chat: this.chat, uebertragen: this.uebertragen,
       link: (url) => this.host?.link(url) ?? { href: '', hinweis: '' },
     };
-  }
-
-  private eingaben(): HTMLInputElement[] {
-    return (['ordner', 'dateien'] as const).map((quelle) => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.multiple = true;
-      input.hidden = true;
-      input.dataset['quelle'] = quelle;
-      if (quelle === 'ordner') input.setAttribute('webkitdirectory', '');
-      return input;
-    });
   }
 }
 

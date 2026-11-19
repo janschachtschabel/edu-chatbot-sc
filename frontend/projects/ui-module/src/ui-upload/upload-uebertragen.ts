@@ -6,11 +6,12 @@
  * Größe der Ablage (`grenzen.max_mb_ablage`). Die Freigabe trägt je Datei nur Titel, sha256, Größe, Art,
  * Rolle (Inhalt oder Strukturdokument, W4) und die feste Nummer `i` der Auswahl (Plan 2026-11-16,
  * TG-3b) — keinen Pfad, keinen Inhalt. Die Ablage in der Antwort an den Chat zählt nur
- * (`aktion: "uebertragen"`): keine Kennungen, keine Links (die bleiben im Modul); die Dateinamen stehen
- * wie bei jeder Antwort nur in der Auswahl (`struktur`, TG-3a).
+ * (seit Paket U4 `aktion: "bereitgestellt"`, `ort: "wlo"`, vorher `uebertragen`): keine Kennungen,
+ * keine Links (die bleiben im Modul); die Dateinamen stehen wie bei jeder Antwort nur in der Auswahl
+ * (`struktur`, TG-3a), je abgelegter Datei dazu ihre Nummer `i` und Rolle.
  */
 import { antwortDaten, einZeiler, type UploadAntwort } from './upload-antwort';
-import { codeVon } from './upload-dokument';
+import { codeVon } from './upload-chat';
 import type { AblageRolle } from '../_vertrag/modul-host';
 import type { Erfassung } from './upload-erfassen';
 
@@ -235,12 +236,23 @@ export function wiederholbarAblage(code: string): boolean {
   return WIEDERHOLBAR.has(code);
 }
 
+/** Plan 2026-11-17, Paket U4: die Antwort `bereitgestellt` mit Ort wlo — `ablage` nur Zahlen wie
+ *  zuvor bei `uebertragen`, dazu je abgelegter Datei die Nummer `i` der Auswahl und die Rolle
+ *  (`nummern[index]` = `i` des Eintrags der Freigabe). Kennungen und Links bleiben im Modul. */
 export function uebertragenAntwort<T>(
   e: Erfassung<T>, plan: Plan, ergebnisse: readonly Ergebnis[],
-  o: { readonly ordnerVerweigert: boolean; readonly vorgangAbgelegt: boolean; readonly dateiOhneName?: string },
+  o: {
+    readonly ordnerVerweigert: boolean; readonly vorgangAbgelegt: boolean; readonly nummern: readonly number[];
+    readonly dateiOhneName?: string;
+  },
 ): UploadAntwort {
+  const dateien = plan.eintraege.flatMap((x) => {
+    const stand = ergebnisse[x.index]?.stand;
+    const i = o.nummern[x.index];
+    return (stand === 'stored' || stand === 'dropped') && typeof i === 'number' ? [{ i, rolle: x.rolle }] : [];
+  });
   return {
-    ...antwortDaten(e, 'uebertragen', o.dateiOhneName),
+    ...antwortDaten(e, 'bereitgestellt', o.dateiOhneName), ort: 'wlo', dateien,
     ablage: {
       layout: o.ordnerVerweigert ? 'flach' : plan.layout, gesamt: ergebnisse.length, ...zaehlung(ergebnisse),
       ordner_verweigert: o.ordnerVerweigert, vorgang_abgelegt: o.vorgangAbgelegt,

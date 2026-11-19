@@ -12,7 +12,8 @@ Auf jedem Weg vom ersten Schritt trägt der Lauf einen von drei Ständen:
   ``bei_fehler``) nach einem KI-Schritt, einem Auftrag, einem schreibenden Werkzeug mit Freigabe,
   einem ``seite``-Schritt (die Person ist angekommen) und einem abfragenden Modul, dessen Antwort
   einen Teil außerhalb der Bereitstellung schreibt (``ui_strukturentwurf`` → ``draft``; das
-  Upload-Feld stellt nur bereit, ``arbeitsstand_teile.BEREITSTELLUNG`` und ``ablage``). Ein
+  Upload-Feld stellt nur bereit, ``arbeitsstand_teile.BEREITSTELLUNG``, ``ablage`` und
+  ``metadaten``). Ein
   Ergebnis bleibt — was einmal entstanden ist, geht nicht verloren.
 - **GEWAEHLT** — zuletzt hat die Person eine Schnellantwort oder Freitext gegeben („Beenden“):
   das Ende ist ihre Entscheidung.
@@ -43,7 +44,10 @@ ERGEBNIS: Final = 2
 def _bereitstellung() -> frozenset[str]:
     from boerdi.services.arbeitsstand_teile import BEREITSTELLUNG
 
-    return frozenset(BEREITSTELLUNG) | {"ablage"}
+    # Plan 2026-11-17, U5/U6: „Hier im Chat“ schreibt aus dem Upload-Feld auch ``metadaten``
+    # (``quelle: chatbot``) — Angaben zu den Dateien der Person, kein Ergebnis eines Laufs (wie
+    # ``ablage``). Sonst zählte jedes Upload-Feld als Ergebnis-Modul, kein Ende danach wäre stumm.
+    return frozenset(BEREITSTELLUNG) | {"ablage", "metadaten"}
 
 
 def _ergebnis_modul(s: Schritt, module: dict[str, Any]) -> bool:

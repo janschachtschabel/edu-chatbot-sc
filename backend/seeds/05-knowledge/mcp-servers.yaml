@@ -110,6 +110,20 @@ servers:
   - wlo_order_collection
   - wlo_list_collection_proposals
   - wlo_decide_collection_proposal
+  # Stapel-Ablage und Flows (2026-11-19): ruft nur das Backend selbst — das Upload-Feld
+  # (api/ui_ablage.py → services/ablage/mcp_ablage.py) und die Abläufe
+  # (services/auftraege/mcp_starter.py; wlo_list_flows ruft der Chatbot derzeit nicht, der
+  # Flow-Katalog fragt Kestra direkt). Sie stehen NICHT im Modellkatalog (services/mcp/tool_defs*.py)
+  # und werden dem Modell deshalb nie angeboten; ein Muster, das sie nennt, bekommt sie auch nicht.
+  # Ob der Server sie führt, sagt faehigkeiten.kennt_werkzeug (tools/list), nicht diese Liste.
+  - wlo_prepare_file_batch
+  - wlo_store_batch_file
+  - wlo_store_batch_manifest
+  - wlo_list_my_batches
+  - wlo_start_flow
+  - wlo_flow_status
+  - wlo_cancel_flow
+  - wlo_list_flows
   # Betrieb
   - wlo_health_check
   - wlo_auth_status

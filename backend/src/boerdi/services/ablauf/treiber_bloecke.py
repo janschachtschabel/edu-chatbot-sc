@@ -26,8 +26,8 @@ def block(modul: str, daten: dict[str, Any]) -> UiBlock | None:
     return neuer_block(modul, manifest["version"], manifest["art"], daten, text)
 
 
-async def modul_block(modul: str, daten: dict[str, Any], *,
-                      simulation: bool = False) -> UiBlock | None:
+async def modul_block(modul: str, daten: dict[str, Any], *, simulation: bool = False,
+                      belegung: Any = None) -> UiBlock | None:
     """Ein Modul ohne Sprachmodell mit eigenem Dienst (``ui_upload``: Studio-Schalter, Grenzen)
     immer über den Dienst; jedes andere aus fertigen Daten. Ein ausgeschaltetes Modul baut kein
     Block.
@@ -60,7 +60,8 @@ async def modul_block(modul: str, daten: dict[str, Any], *,
         # ``arbeitsstand_teile.gebunden``); im Betrieb vergibt der Dienst eine frische
         blk = neuer_block(modul, manifest["version"], manifest["art"], args, "")
         return blk.model_copy(update={"block_id": ("simulation" + modul.replace("_", ""))[:32]})
-    return (await asynchron(modul, args, ModulUmgebung(aus_ablauf=True))).block
+    # Review U, MAJOR 3: ``belegung`` — die Sitzung zählt wie im freien Chat
+    return (await asynchron(modul, args, ModulUmgebung(aus_ablauf=True, belegung=belegung))).block
 
 
 def fortschritt(ablauf_id: str, job_id: str, text: str, sprache: str) -> UiBlock | None:

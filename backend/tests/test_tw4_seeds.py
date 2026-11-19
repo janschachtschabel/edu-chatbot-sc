@@ -100,7 +100,8 @@ def test_tg2_ein_gelesenes_dokument_startet_keinen_ablauf(alle_an):
 
 def test_tg2_kein_seed_nennt_die_alten_knoepfe_des_upload_felds():
     """G-E4: die Knöpfe „Themenbaum aus dem Strukturdokument erstellen“ und „Als
-    Themenbaum-Entwurf übernehmen“ gibt es nicht mehr; der Dokument-Ablauf nennt „Lesen lassen“."""
+    Themenbaum-Entwurf übernehmen“ gibt es nicht mehr. Plan 2026-11-17, U6 (altes Soll: „Lesen
+    lassen“): der Dokument-Ablauf nennt den einen Knopf „Hochladen“."""
     alt = ("Strukturdokument erstellen", "Themenbaum-Entwurf übernehmen", "jetzt erstellen",
            "from the structure document", "as topic tree draft")
     for datei in SEEDS.glob("*.yaml"):
@@ -108,9 +109,10 @@ def test_tg2_kein_seed_nennt_die_alten_knoepfe_des_upload_felds():
         assert not [a for a in alt if a in text], datei.name
     dokument = yaml.safe_load((SEEDS / "themenbaum_aus_dokument.yaml").read_text(encoding="utf-8"))
     texte = {s["id"]: s["text"] for s in dokument["schritte"] if "text" in s}
-    assert "„Lesen lassen“" in texte["hochladen"]["de"]
-    assert "“Read document”" in texte["hochladen"]["en"]
-    assert "„Lesen lassen“" in texte["ohne_dokument"]["de"]
+    assert "„Hochladen“" in texte["hochladen"]["de"]
+    assert "“Upload”" in texte["hochladen"]["en"]
+    assert "„Hochladen“" in texte["ohne_dokument"]["de"]
+    assert not [s for s, t in texte.items() if "Lesen lassen" in t["de"]]
 
 
 def test_nur_der_ablauf_ohne_schreiben_startet_direkt(alle_an):

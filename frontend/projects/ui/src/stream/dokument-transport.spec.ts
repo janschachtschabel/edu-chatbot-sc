@@ -70,6 +70,15 @@ describe('dokumentHochladen', () => {
     expect(fortschritt).toEqual([0.5]);
   });
 
+  // Plan 2026-11-17, Paket U4 („Hier im Chat“): die Rolle geht als Feld mit; ohne Angabe bleibt der
+  // Rumpf wie vorher (das Backend nimmt dann `struktur`)
+  it('U4: die Rolle geht als Feld `rolle` mit, nur wenn angegeben', () => {
+    void laden({ rolle: 'inhalt' }).catch(() => undefined);
+    expect(Xhr.letzte.rumpf?.get('rolle')).toBe('inhalt');
+    void laden().catch(() => undefined);
+    expect(Xhr.letzte.rumpf?.has('rolle')).toBe(false);
+  });
+
   it('ohne Anmeldung keine Zugangs-Kopfzeile', () => {
     void laden().catch(() => undefined);
     expect(Xhr.letzte.kopf['WLO-Access-Block']).toBeUndefined();

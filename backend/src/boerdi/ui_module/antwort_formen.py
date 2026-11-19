@@ -15,6 +15,7 @@ from typing import Any, Final
 
 from boerdi.ui_module import strukturentwurf_antwort as entwurf
 from boerdi.ui_module import upload_antwort as upload
+from boerdi.ui_module import upload_rahmen
 from boerdi.ui_module.namen import STRUKTURENTWURF, UPLOAD
 
 _Daten = dict[str, Any]
@@ -48,6 +49,9 @@ class Form:
     #: Plan 2026-11-16, TG-2: eine alte Antwortform vor der Schema-Prüfung auf die neue heben
     #: (``ui_upload``: ``ordner_als_entwurf`` → ``erfasst``, ``dokument.ziel`` entfällt).
     rueckwaerts: Callable[[_Daten], _Daten] | None = None
+    #: Review Paket U (19.11.), MINOR 4: was über das Schema hinaus auch von der offenen Frage
+    #: abhängt (``ui_upload``: der Ort, den der Ablauf zulässt) — Antwort, offene Frage.
+    grund_mit_frage: Callable[[_Daten, _Daten], str | None] | None = None
 
 
 FORMEN: Final[dict[str, Form]] = {
@@ -61,10 +65,10 @@ FORMEN: Final[dict[str, Form]] = {
         sicherheit_nur_namen=lambda d: d.get("bearbeitet") is False),
     UPLOAD: Form(
         merken=upload.merken, grund=upload.grund, normalisiert=upload.normalisiert,
-        zeilen=upload.zeilen, ende=upload.ORDNER_FRAME_END,
-        frage_start=upload.OFFEN_FRAME_START, frage_zeilen=upload.frage_zeilen,
-        sicherheit=upload.sicherheit, ende_fuer=upload.ende, rueckwaerts=upload.rueckwaerts,
-        sicherheit_nur_namen=lambda _d: True),
+        zeilen=upload_rahmen.zeilen, ende=upload_rahmen.ORDNER_FRAME_END,
+        frage_start=upload_rahmen.OFFEN_FRAME_START, frage_zeilen=upload_rahmen.frage_zeilen,
+        sicherheit=upload.sicherheit, ende_fuer=upload_rahmen.ende, rueckwaerts=upload.rueckwaerts,
+        sicherheit_nur_namen=lambda _d: True, grund_mit_frage=upload.bereit.ort_grund),
 }
 
 

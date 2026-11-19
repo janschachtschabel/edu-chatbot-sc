@@ -157,14 +157,14 @@ def test_die_agent_schleife_ruft_den_leser_nie_den_mcp(monkeypatch):
 
 def test_der_rahmen_nennt_das_lesewerkzeug():
     """M2: nicht mehr „den Text hat das System, nicht du“ — die KI liest selbst."""
-    from boerdi.ui_module import upload_antwort
+    from boerdi.ui_module import upload_rahmen
 
     dok = {"upload_id": "u1", "name": "Arbeitsblatt.md", "format": "md",
            "befund": {"abschnitte": 3}, "vorschau": ["Verdunstung"]}
     for daten in ({"aktion": "dokument", "dokument": dok},
                   {"aktion": "dokument", "dokument": dok,
                    "dokumente": [dok, {**dok, "upload_id": "u2", "name": "Chemie.md"}]}):
-        kopf, zeilen = upload_antwort.zeilen({"modul": "ui_upload", "daten": daten})
+        kopf, zeilen = upload_rahmen.zeilen({"modul": "ui_upload", "daten": daten})
         text = "\n".join([kopf, *zeilen])
         assert "dokument_lesen" in text and "nicht du" not in text
 

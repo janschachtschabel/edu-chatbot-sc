@@ -10,6 +10,8 @@
  * ohne Text des Servers; das Modul zeigt je Code einen eigenen Satz. `netz` (keine Verbindung),
  * `zu_langsam` (Frist) und `fehler` (nicht lesbar) setzt der Transport selbst.
  */
+import type { AblageRolle } from '@boerdi/ui-module';
+
 import { type TransportFehler, transportFehler, xhrSenden } from './xhr-senden';
 
 /** Was das Backend über ein gelesenes Dokument zurückgibt. */
@@ -28,6 +30,8 @@ export interface HochladenOptionen {
   readonly sessionId: string;
   readonly blockId: string;
   readonly datei: File;
+  /** Plan 2026-11-17, Paket U4: `inhalt` oder `struktur`; ohne Angabe nimmt das Backend `struktur`. */
+  readonly rolle?: AblageRolle;
   /** Anteil 0…1 des gesendeten Rumpfs; danach liest das Backend (ohne eigene Meldung). */
   readonly onFortschritt?: (anteil: number) => void;
   readonly signal?: AbortSignal;
@@ -50,6 +54,7 @@ export async function dokumentHochladen(o: HochladenOptionen): Promise<DokumentB
   rumpf.append('session_id', o.sessionId);
   rumpf.append('block_id', o.blockId);
   rumpf.append('datei', o.datei, o.datei.name);
+  if (o.rolle) rumpf.append('rolle', o.rolle);
   const antwort = await xhrSenden({
     url: o.url, rumpf, onFortschritt: o.onFortschritt, signal: o.signal,
     fristMs: o.fristMs ?? FRIST_MS, xhrFabrik: o.xhrFabrik,

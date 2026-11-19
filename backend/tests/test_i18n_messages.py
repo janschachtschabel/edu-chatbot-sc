@@ -219,6 +219,9 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'aus'": _CODE_U33,
         "'fremder_stapel'": _CODE_U33,
         "'index'": _CODE_U33,
+        # Review Paket U (19.11.), MINOR 4: ein Ablauf erlaubt diesen Ort nicht — das Modul
+        # nennt den Grund in der Sprache des Widgets (`ort_nicht_erlaubt`)
+        "'ort_nicht_erlaubt'": _CODE_U33,
         "'keine_anfrage'": _CODE_U33,
         "'nur_angemeldet'": _CODE_U33,
         "'sitzung_unbekannt'": _CODE_U33,
@@ -247,6 +250,8 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'keine_anfrage'": _CODE_U32,
         "'laeuft_schon'": _CODE_U32,
         "'nur_angemeldet'": _CODE_U32,
+        # Review Paket U (19.11.), MINOR 4 — wie in ``ui_ablage.py``
+        "'ort_nicht_erlaubt'": _CODE_U32,
         "'sitzung_unbekannt'": _CODE_U32,
         "'zu_gross'": _CODE_U32,
     },

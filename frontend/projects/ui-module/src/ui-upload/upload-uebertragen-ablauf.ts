@@ -1,6 +1,6 @@
 /**
  * Der Ablauf „In den persönlichen Bereich übertragen“ in `<boerdi-ui-upload>` (Paket U3-3b, T7) — wie
- * `upload-dokument-ablauf.ts` ohne Angular und ohne Ansicht: er hält den Zustand (`lauf`, je Datei ein
+ * `upload-chat-ablauf.ts` ohne Angular und ohne Ansicht: er hält den Zustand (`lauf`, je Datei ein
  * `Ergebnis`), ruft den Host (`host.ablegen`) und lässt das Element neu zeichnen und ansagen.
  *
  * Schritte: Dateien prüfen (sha256, k von n) → Freigabe vorbereiten → Vorschau mit „Jetzt übertragen“/
@@ -8,7 +8,8 @@
  * (eine halb gesendete Datei abzubrechen ließe offen, ob sie angekommen ist). Ein Fehler des Stapels
  * (Anmeldung, Schalter, abgelaufene Freigabe, Netz) hält an, der einer Datei nicht. Danach legt der
  * Ablauf `vorgang.json` ab, sobald nichts mehr nachzusenden ist (sonst vor dem Weiter im Chat), und
- * merkt die Antwort `uebertragen` vor — nur Zahlen.
+ * merkt die Antwort vor — seit Paket U4 `bereitgestellt` mit Ort wlo: Zahlen, je abgelegter Datei
+ * ihre Nummer `i` und Rolle. Seit Paket U4 beginnt der Ablauf mit „Hochladen“ bei gewähltem Ort wlo.
  */
 import type { ElementHost } from '../_nachladen/element-vertrag';
 import { einZeiler } from './upload-antwort';
@@ -62,6 +63,8 @@ export class UebertragenAblauf {
   /** „Im Chat weitermachen“ wartet auf den Abschluss (Review U3-3b, Befund 4). */
   weiterLaeuft = false;
   private dateien: File[] = [];
+  /** Je Eintrag der Freigabe die feste Nummer `i` der Datei in der Auswahl (für die Antwort, Paket U4). */
+  private nummern: number[] = [];
   /** Zählt jeden Neubeginn; ein Lauf, der nach einem `await` eine andere Nummer sieht, ist überholt
    *  (neue Auswahl, Zurücksetzen — Review U3-3b, Befund 3). */
   private nummer = 0;
@@ -86,6 +89,7 @@ export class UebertragenAblauf {
     this.letzte = { ablagen: [], gekappt: false };
     this.letzteOffen = false;
     this.dateien = [];
+    this.nummern = [];
     this.ordnerVerweigert = false;
     this.vorgang = 'offen';
     this.anhalten = false;
@@ -138,6 +142,7 @@ export class UebertragenAblauf {
       const plan = planAus(roh, eintraege.length);
       if (!plan) throw Object.assign(new Error('Plan unbrauchbar'), { code: 'fehler' });
       this.dateien = kandidaten.map((k) => k.handle);
+      this.nummern = kandidaten.map((k) => k.datei);
       this.ergebnisse = plan.eintraege.map(() => ({ stand: 'wartet' }));
       this.letzte = letzteAus(roh);
       this.lauf = { phase: 'vorschau', plan };
@@ -254,7 +259,7 @@ export class UebertragenAblauf {
 
   private optionen() {
     return { ordnerVerweigert: this.ordnerVerweigert, vorgangAbgelegt: this.vorgang === 'abgelegt',
-      dateiOhneName: this.u.t().dateiOhneName };
+      nummern: this.nummern, dateiOhneName: this.u.t().dateiOhneName };
   }
 
   /** Die Zahlen gehen auch mit einer GETIPPTEN Nachricht mit (wie der Befund des Erfassens). */

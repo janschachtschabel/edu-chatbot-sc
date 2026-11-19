@@ -508,3 +508,10 @@ def test_tg3b_eine_nummer_doppelt_wird_abgewiesen(client, lage):
     eintraege = [{**_EINTRAEGE[0], "i": 4}, {**_EINTRAEGE[1], "i": 4}]
     assert _vorbereiten(client, eintraege=eintraege).status_code == 422
     assert lage.mcp == []
+
+
+def test_review_u4_in_wlo_nur_wenn_der_ablauf_es_erlaubt(client, lage):
+    """Review Paket U, MINOR 4: die erlaubten Orte der offenen Frage gelten auch hier."""
+    lage.entities = {OFFENE_FRAGE: {"block_id": _BLOCK, "modul": UPLOAD, "orte": ["chat", "namen"]}}
+    r = _vorbereiten(client)
+    assert (r.status_code, r.json()["detail"]) == (403, "ort_nicht_erlaubt")

@@ -212,7 +212,9 @@ Die zugehörigen Pläne:
   - **Zuordnung Datei → Punkt (n3):** Ein Entwurf aus losen Dateien (`aus_inhalten`) trägt keine
     `inhalte` je Punkt; nur der Ordner-Weg hat sie (TG-3f). Fürs spätere Befüllen der Sammlungen: die
     KI ordnet die Titel der Materialien den Punkten zu, der Dienst schreibt daraus `inhalte` (mit `i`
-    bzw. `node_id` über die Ablage). Nicht im Paket TG-7; `quelle` ist dort jetzt `ki`.
+    bzw. `node_id` über die Ablage). Nicht im Paket TG-7; `quelle` ist dort jetzt `ki`. Gilt seit
+    Paket U (19.11.) auch für „Hier im Chat“ (lokale Kurzangaben); dazu schwankt das Fach je Inhalt
+    zwischen Bezeichnungen (Erdkunde/Geografie) — beim Zuordnen auf das Vokabular abbilden.
   - **`dokument_lesen` im Muster-Weg:** Das Lesewerkzeug hat nur die Agent-Schleife (Engine `agent`,
     Vorgabe). Im Muster-Weg sagt der Rahmen, dass die KI den Text dort nicht lesen kann.
   - **B1 (b-api):** Start von `node-metadata-write` → 403 `EDU_USER_NOT_VERIFIED`; klärt das b-api-Team

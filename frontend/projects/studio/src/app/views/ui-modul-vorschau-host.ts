@@ -9,12 +9,15 @@
  */
 import type { SafeHtml } from '@angular/platform-browser';
 
-import type { AblageSchritt, AuftragSchritt, KartenAktion, ModulHost, TrefferUmgebung } from '@boerdi/ui-module';
+import type { AblageRolle, AblageSchritt, AuftragSchritt, KartenAktion, ModulHost, TrefferUmgebung } from '@boerdi/ui-module';
 
 /** Was die Vorschau ansagt: Katalog-Schlüssel und Werte. */
 export type Melden = (key: string, params: Readonly<Record<string, string>>) => void;
 
 export class VorschauModulHost implements ModulHost {
+  /** Zählt die Beispiel-Uploads: je Datei eine eigene `upload_id` (Review der Oberfläche zu Paket U, 12). */
+  private hochgeladen = 0;
+
   constructor(
     private readonly melde: Melden,
     private readonly render: (text: string) => SafeHtml,
@@ -58,14 +61,17 @@ export class VorschauModulHost implements ModulHost {
     });
   }
 
-  /** U3-2c: nichts wird hochgeladen — angesagt, mit einem Beispiel-Befund. */
-  hochladen(datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>> {
+  /** U3-2c: nichts wird hochgeladen — angesagt, mit einem Beispiel-Befund. Paket U4: mit der Rolle
+   *  wie das Backend (bei `inhalt` Beispiel-Angaben) und je Datei einer eigenen `upload_id`. */
+  hochladen(datei: File, onFortschritt?: (anteil: number) => void, rolle: AblageRolle = 'struktur'): Promise<Record<string, unknown>> {
     this.melde('uiModule.vorschau.hochladen', { datei: datei.name });
     onFortschritt?.(1);
+    const nr = (this.hochgeladen++ % 1e12).toString(16).padStart(12, '0');
     return Promise.resolve({
-      upload_id: '00000000-0000-4000-8000-000000000000', name: datei.name, format: 'pdf',
+      upload_id: `00000000-0000-4000-8000-${nr}`, name: datei.name, format: 'pdf', rolle,
       befund: { seiten: 12, woerter: 3400, abschnitte: 9, gliederung_art: 'nummeriert', warnungen: [] },
       ueberschriften_vorschau: ['Beispiel-Abschnitt 1', 'Beispiel-Abschnitt 2'],
+      ...(rolle === 'inhalt' ? { angaben: { titel: datei.name, beschreibung: 'Beispiel-Beschreibung', schlagworte: [] } } : {}),
     });
   }
 

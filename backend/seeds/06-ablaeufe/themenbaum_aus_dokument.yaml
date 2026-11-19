@@ -4,7 +4,9 @@
 # TW-4, Entscheid E6). Die Person lässt ein Dokument lesen (etwa einen Lehrplan) — im Auswahlfeld
 # mit „Lesen lassen“ (aktion dokument → Teil document) — und beantwortet Fragen, bevor die KI den
 # Entwurf mit aus_dokument erzeugt. Danach endet der Ablauf — Sammlungen daraus anzulegen, kommt
-# später.
+# später. Plan 2026-11-17, U6: das Upload-Feld fragt selbst, wo verarbeitet wird, und antwortet mit
+# ``aktion: bereitgestellt`` — gelesen ist das Dokument dann, wenn ein Teil ``strukturdokument``
+# da ist (hier im Chat gelesen oder in WLO abgelegt); ``document`` schreibt nur die alte Antwort.
 #
 # - Zuerst die Wahl, den Ablauf zu nutzen (N16) — vor dem Upload (Rückmeldung 11.11.: die Frage
 #   kam erst nach dem Lesen).
@@ -83,13 +85,14 @@ schritte:
     typ: modul
     modul: ui_upload
     # Eine einzeln gewählte Datei markiert das Auswahlfeld selbst als Strukturdokument (11.11.)
-    text: {de: "Wähle das Dokument (etwa einen Lehrplan) und klick auf „Lesen lassen“.",
-           en: "Choose the document (such as a curriculum) and click “Read document”."}
+    text: {de: "Wähle das Dokument (etwa einen Lehrplan), dann, wo es verarbeitet wird, und klick auf „Hochladen“.",
+           en: "Choose the document (such as a curriculum), then where it should be processed, and click “Upload”."}
     daten: {zweck: sammlungsstruktur, einzeldatei_als_struktur: true}
   # Nach der Antwort des Auswahlfelds.
   - id: gelesen
     typ: verzweigung
     weiter:
+      - {wenn_teil: strukturdokument, dann: nach_lesen}
       - {wenn_teil: document, dann: nach_lesen}
       - {sonst: ohne_dokument}
   # Mit der Wahl vom Anfang weiter (``einstieg`` schreibt ``vorgehen`` immer)
@@ -159,8 +162,8 @@ schritte:
   # Review TW-4, Befund 4: ohne gelesenes Dokument ein neuer Versuch statt eines harten Endes
   - id: ohne_dokument
     typ: nachricht
-    text: {de: "Es ist kein Dokument gelesen worden. Wähle es noch einmal und klick auf „Lesen lassen“ – oder beende den Ablauf.",
-           en: "No document has been read. Choose it again and click “Read document” – or end the workflow."}
+    text: {de: "Es ist kein Dokument gelesen worden. Wähle es noch einmal – „Hier im Chat“ oder „In WLO ablegen und erschließen“, nicht nur die Namen – und klick auf „Hochladen“, oder beende den Ablauf.",
+           en: "No document has been read. Choose it again – “Here in the chat” or “Store and index in WLO”, not just the names – and click “Upload”, or end the workflow."}
     optionen:
       - {id: nochmal, label: {de: Nochmal wählen, en: Choose again}, ziel: hochladen}
       - {id: beenden, label: {de: Beenden, en: End}, ziel: beendet}
@@ -205,6 +208,30 @@ tests:
       - bei: entwurf
         teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
     erwartet: {weg: [bereit, vorhanden, einstieg, hochladen, gelesen, nach_lesen, entwurf, ende], status: fertig}
+  # Plan 2026-11-17, U6: die neue Antwort ``bereitgestellt`` (hier im Chat gelesen) schreibt nur
+  # ``strukturdokument``, kein ``document``
+  - name: Hier im Chat gelesen, gleich entwerfen
+    angemeldet: false
+    eingaben:
+      - {bei: einstieg, option: gleich}
+      - bei: hochladen
+        antwort:
+          aktion: bereitgestellt
+          ort: chat
+          struktur:
+            name: Auswahl
+            dateien: 1
+            alle_dateien: 1
+            kinder: []
+            dateiliste: [{i: 0, name: Rahmenlehrplan.pdf, endung: pdf, groesse: 1000, rolle: struktur}]
+          zahlen: {ordner: 1, dateien: 1, inhalte: 0, ignoriert: 0, strukturdokumente: 1, bytes: 1000}
+          strukturdokument: {name: Rahmenlehrplan.pdf, groesse: 1000, endung: pdf}
+          warnungen: []
+          dateien: [{i: 0, rolle: struktur, upload_id: 11111111-1111-4111-8111-111111111111}]
+      - bei: entwurf
+        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+    erwartet: {weg: [bereit, vorhanden, einstieg, hochladen, gelesen, nach_lesen, entwurf, ende],
+               status: fertig, teile: [strukturdokument, draft]}
   - name: Ohne Führung gleich am Anfang
     eingaben:
       - {bei: einstieg, option: ohne}
@@ -249,9 +276,14 @@ tests:
     erwartet: {weg: [bereit, vorhanden, einstieg_mit, hochladen, gelesen, nach_lesen, ordnung, wofuer,
                      entwurf, ende], status: fertig}
   # Zweites Review TG-2, MAJOR 1: „Anderes wählen“ verwirft das alte Dokument — wer danach nur
-  # „Senden“ schickt, bekommt die Rückfrage statt still den Entwurf aus dem abgelehnten
+  # „Senden“ schickt, bekommt die Rückfrage statt still den Entwurf aus dem abgelehnten. U6: mit
+  # ``document`` geht auch ``strukturdokument`` (Alias, ``typen.mit_aliassen``) — ``gelesen`` prüft
+  # ihn jetzt
   - name: Anderes wählen, dann nur Senden
-    teile: {document: {ref: "dokument:11111111-1111-4111-8111-111111111111", name: Alt.pdf}}
+    teile:
+      document: {ref: "dokument:11111111-1111-4111-8111-111111111111", name: Alt.pdf}
+      strukturdokument: {dokumente: [{quelle: chatbot, ref: "dokument:11111111-1111-4111-8111-111111111111",
+                                      name: Alt.pdf}]}
     eingaben:
       - {bei: einstieg_mit, option: andere}
       - bei: hochladen

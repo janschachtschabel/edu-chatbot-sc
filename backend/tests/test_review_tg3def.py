@@ -190,7 +190,7 @@ def test_m2_festgeschrieben_vor_dem_mcp_parallel_hoechstens_drei(monkeypatch):
     ereignisse: list[str] = []
     gleichzeitig = {"jetzt": 0, "max": 0}
 
-    async def alle_fuer_aufrufer(s, sid, aufrufer):
+    async def alle_fuer_aufrufer(s, sid, aufrufer, *_rolle):  # Paket U: Rolle
         return [_zeile("u-1", "a.pdf")]
 
     async def beruehren(s, kennung, *, ttl_h):
@@ -238,7 +238,7 @@ def _gemischt(monkeypatch, *, mit_chatbot: bool):
     async def teile(name):
         return teil if name == sd.TEIL else None
 
-    async def alle_fuer_aufrufer(s, sid, aufrufer):
+    async def alle_fuer_aufrufer(s, sid, aufrufer, *_rolle):  # Paket U: Rolle
         return [_zeile("u-1", "a.pdf")]
 
     async def beruehren(*_a, **_k):
@@ -293,14 +293,16 @@ def test_m3_der_dienst_sagt_es_der_ki(monkeypatch):
 
 def test_m4_der_aktuelle_stapel_vor_frueher():
     frueher = [{"titel": f"alt{n}.pdf", "rolle": "struktur",
-                "node_id": f"{n:08d}-0000-0000-0000-000000000000"} for n in range(12)]
+                "node_id": f"{n:08d}-0000-0000-0000-000000000000"}
+                for n in range(sd.HOECHSTENS + 2)]
     ablage = {"frueher": frueher, "inhalte": [
         {"index": 0, "name": "neu.pdf", "rolle": "struktur", "stand": "stored",
          "node_id": _KNOTEN}]}
     eintraege = sd.aus_ablage(ablage)
     assert len(eintraege) == sd.HOECHSTENS
     assert eintraege[0] == sd.wlo(_KNOTEN, "neu.pdf")
-    assert eintraege[1]["name"] == "alt11.pdf"             # die jüngsten früheren zuerst
+    # die jüngsten früheren zuerst (Paket U1: Grenze 35)
+    assert eintraege[1]["name"] == f"alt{sd.HOECHSTENS + 1}.pdf"
 
 
 # ── MINOR 7 ──────────────────────────────────────────────────────────────────────────────────────

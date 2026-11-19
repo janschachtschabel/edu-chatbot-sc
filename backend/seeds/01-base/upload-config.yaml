@@ -7,4 +7,6 @@
 #   dokument_ohne_anmeldung: true   dasselbe ohne WLO-Anmeldung (Repositorium nicht beteiligt)
 #   ablage_in_wlo: true             Inhalte im persönlichen Bereich anlegen (nur angemeldet)
 #   max_mb: 10 (1–25) · max_seiten: 300 (1–1000) · aufbewahrung_h: 24 (1–72)
+#   lokal_max_dateien: 10 (1–30) · lokal_max_mb_gesamt: 50 (1–200)   Grenzen „Hier im Chat“ je Sitzung
+#                                   (Plan 2026-11-17, Paket U1; darüber WLO bzw. nur Namen)
 upload: {}
