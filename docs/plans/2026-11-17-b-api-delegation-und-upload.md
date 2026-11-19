@@ -91,7 +91,7 @@ der Fristen; Umwandlung im Chatbot nur für kleine Mengen, ohne WLO-Anmeldung od
 | E13 | **Mit WLO-Anmeldung und Flow-Werkzeugen des MCP ist „In WLO ablegen und erschließen“ die Vorgabe — für jede Menge.** „Hier im Chat“ bleibt Zweitwahl bis `lokal_max_dateien` („nur für diese Sitzung, schnell“). **Ohne Anmeldung:** „Hier im Chat“ bis zur Grenze; darüber nur Namen, mit dem Hinweis, dass mit Anmeldung alles erschlossen wird. Zwingend lokal: die Person wählt es ausdrücklich (soll nicht ins Repository), oder der WLO-Weg ist gerade nicht verfügbar (Grund wird genannt). |
 | E14 | **Strukturdokumente gehen beim WLO-Weg mit ins Repository** (Rolle `structure` in der Stapel-Ablage; `ablage` trägt `rolle: struktur` je Eintrag; Teil `strukturdokument` mit `quelle: wlo`, `ref` = nodeId). **Der Metadaten-Flow läuft über Inhalte UND Strukturdokumente** (hebt den älteren Entscheid „nur Inhalte“ auf): so liefern auch Strukturdokumente Fach, Bildungsstufe und Schlagworte für die Vorbelegung. Den **Volltext** eines Strukturdokuments erzeugt das Repository beim Hochladen; der Chatbot liest ihn per `get_wlo_content_text` (nur GET). Fehlt er noch, wartet der Ablauf am selben Halt wie auf den Flow. |
 | E15 | **Später, nicht jetzt:** ein eigener Umwandlungs-Flow (Markdown mit Gliederung, Ausgabe als Datei) für Strukturdokumente — besser als `textContent`, braucht aber einen neuen Flow und W5 beim MCP. Als Wunsch an die Flow-Autoren in `offene-befunde`. |
-| E16 | **Warten auf den Flow** baut auf K1b/K2b auf: Der Ablauf hält am Auftragsschritt (`wartet_auftrag`); `ui_fortschritt` fragt selbst in wachsenden Abständen nach (`POST /api/ui/auftrag/stand`), jetzt über den MCP (`wlo_flow_status` mit dem Zugangsblock der Person statt b-api-Schlüssel) und mit **„k von n fertig“** aus `progress`. Die Eingabe ist gesperrt (`eingabe_gesperrt`) mit drei Wegen: **„Stand prüfen“**, **„Abbrechen“** (`wlo_cancel_flow`, dann `ohne_metadaten`), **„Später weitermachen“** (der Lauf bleibt im Vorgang wartend, der Chat wird frei; Rückkehr über „Meine Vorgänge“). |
+| E16 | **Warten auf den Flow** baut auf K1b/K2b auf: Der Ablauf hält am Auftragsschritt (`wartet_auftrag`); `ui_fortschritt` fragt selbst in wachsenden Abständen nach (`POST /api/ui/auftrag/stand`), jetzt über den MCP (`wlo_flow_status` mit dem Zugangsblock der Person statt b-api-Schlüssel) und mit **„k von n fertig“** aus `progress`. Die Eingabe ist gesperrt (`eingabe_gesperrt`) mit drei Wegen: **„Stand prüfen“**, **„Abbrechen“** (`wlo_cancel_flow`; der Lauf endet, danach „Neues Vorhaben“ und „Arbeitsstand löschen“ — angeglichen nach dem Durchtest vom 19.11., der Code bleibt so), **„Später weitermachen“** (der Lauf bleibt im Vorgang wartend, der Chat wird frei; Rückkehr über „Meine Vorgänge“). |
 | E17 | **Rückkehr:** „Meine Vorgänge“ zeigt den wartenden Lauf; „Fortsetzen“ prüft sofort den Stand (gibt es schon: `fortsetzen.pruefen`). Fristen: Vorgang nach der Aufbewahrung im Studio, Job 30 Tage bei der b-api; die Ergebnisse liegen dauerhaft an den Datensätzen. Ist der Job unbekannt (MCP-Neustart, Frist) → direkt `metadaten_lesen`. Der Text nennt die Frist („Du kannst bis … weitermachen“). |
 | E18 | **Reihenfolge neu:** nach D zuerst **K** (gegen den lokalen MCP-Stand gebaut, nur lesend aus der Arbeitskopie gestartet; Staging-Durchtest nach dem Rollout), dann **U** (Upload-Feld nach E13, lokaler Zweig). |
 
@@ -171,6 +171,14 @@ Neu nach E18 (18.11.):
 - **Flow-Liste** `wlo_list_flows`: Flows der Anmeldung ∩ `WLO_BAPI_FLOWS`, mit Beschreibung und
   Eingabeschema — Quelle für die Flow-Auswahl im Studio (ersetzt bei Delegation den Katalog über
   `B_API_KEY`).
+- **Bereitstellung (zweite Fassung der Antwort):** Die Werkzeuge erscheinen, sobald der MCP beim
+  Start anonym erkennt, dass das Repository den b-api-Proxy hat (festlegbar mit
+  `WLO_BAPI_VIA_REPOSITORY=1/0`); `node-metadata-write` ist ab Werk startbar (`WLO_BAPI_FLOWS` nur
+  zum Einschränken). Auf Staging ist nichts zu setzen. **Nach einem MCP-Neustart** fehlen die
+  Werkzeuge Sekunden bis Minuten in `tools/list`; ein Aufruf mit alter Liste ergibt den
+  Protokollfehler „unbekanntes Werkzeug“ (kein `error.code`) → Fähigkeiten neu holen, der Person
+  „gerade nicht verfügbar“ sagen, beim Stand wie `upstream_error` (vorübergehend) behandeln.
+  Abweisung vor dem Werkzeug: nur `error.code: login_required`. `reason`-Liste nicht abschließend.
 - **Eigene Jobs** bindet der MCP **im Arbeitsspeicher** an das Konto. Nach einem MCP-Neustart ist
   auch ein eigener laufender Job `unknown_job`. **Folge für K:** `unknown_job` bei einem Job, den
   dieser Vorgang gestartet hat, ist kein Fehlschlag des Flows — der Ablauf geht weiter zu
