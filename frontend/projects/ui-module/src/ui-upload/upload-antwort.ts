@@ -1,8 +1,9 @@
 /**
  * Was `ui_upload` als Antwort schickt (Paket U3-1a, Plan §16.5): der Ordnerbaum mit Zahlen, die Zahlen
  * je Rolle, Warnungen und — falls markiert — das Strukturdokument. Seit U3-2c kann ein markiertes
- * Strukturdokument gelesen werden (`upload-dokument.ts`); dann trägt die Antwort dessen Befund
- * (`dokument`). Ordnernamen sind eine Zeile und höchstens 120 Zeichen; der Baum hat höchstens
+ * Strukturdokument gelesen werden; dann trug die Antwort dessen Befund (`dokument`). Seit Plan
+ * 2026-11-17, Paket U4 antwortet das Modul mit `aktion: "bereitgestellt"` und `ort`
+ * (`upload-chat.ts`, `upload-uebertragen.ts`). Ordnernamen sind eine Zeile und höchstens 120 Zeichen; der Baum hat höchstens
  * `MAX_KNOTEN` Ordner (darüber Warnung `zu_viele_ordner`).
  *
  * Plan 2026-11-16, TG-3a (Datenmodell, G-E1): jeder Ordner trägt seine Dateien (`dateiliste`) — je
@@ -18,7 +19,9 @@ export const MAX_KNOTEN = 500;
 const MAX_NAME = 120;
 
 // Plan 2026-11-16, TG-1 (G-E4): ohne `ordner_als_entwurf` — das Feld kennt kein Ziel mehr.
-export type AntwortAktion = 'erfasst' | 'dokument' | 'uebertragen';
+// Plan 2026-11-17, Paket U4: `bereitgestellt` (Feld `ort`) ist die Antwort des einen Upload-Wegs;
+// `dokument` und `uebertragen` schickt das Modul nicht mehr, alte Antworten zeigt es noch an.
+export type AntwortAktion = 'erfasst' | 'dokument' | 'uebertragen' | 'bereitgestellt';
 export type AntwortWarnung = Warnung | 'zu_viele_ordner' | 'namen_gekuerzt';
 
 /** TG-3a: eine Datei im Ordner — `i` ist ihre feste Nummer in der Auswahl. Review TG-3a–c, R3-4:
@@ -64,7 +67,12 @@ export interface UploadAntwort {
   /** Plan 2026-11-16, TG-3e, nur mit `aktion: "dokument"` und mehr als einem gelesenen Dokument:
    *  alle in Lesereihenfolge (das erste steht zugleich in `dokument`). */
   readonly dokumente?: readonly NonNullable<UploadAntwort['dokument']>[];
-  /** U3-3b, nur mit `aktion: "uebertragen"`: nur Zahlen der Ablage im persönlichen Bereich. */
+  /** Paket U4, nur mit `aktion: "bereitgestellt"`: wo verarbeitet wurde. */
+  readonly ort?: 'chat' | 'wlo' | 'namen';
+  /** Paket U4, nur mit `ort` chat oder wlo: je bereitgestellte Datei die Nummer `i` der Auswahl, die
+   *  Rolle und bei chat die `upload_id` (nicht lesbare bzw. nicht abgelegte Dateien fehlen). */
+  readonly dateien?: readonly { readonly i: number; readonly rolle: 'inhalt' | 'struktur'; readonly upload_id?: string }[];
+  /** U3-3b, mit `aktion: "uebertragen"` bzw. `bereitgestellt` und `ort: "wlo"`: nur Zahlen der Ablage. */
   readonly ablage?: {
     readonly layout: 'ordner' | 'flach'; readonly gesamt: number; readonly abgelegt: number;
     readonly unklar: number; readonly fehler: number; readonly abgebrochen: number;

@@ -1,8 +1,8 @@
 /**
  * Rollen der erfassten Dateien (Paket U3-1a) — reine Regeln, jede Änderung gibt eine neue Erfassung.
  *
- * Strukturdokumente (z. B. ein Lehrplan), nur PDF, DOCX, TXT oder MD — die liest der Chatbot selbst
- * (U3-2). Plan 2026-11-16, TG-3e (Nutzer: „aus einem oder mehreren Strukturdokumenten“): bis zu
+ * Strukturdokumente (z. B. ein Lehrplan), nur PDF, DOCX, TXT oder MD — dieselben Formate, die „Hier im
+ * Chat“ liest (`kannStrukturSein` ist zugleich die Regel „lesbar“, Paket U4). Plan 2026-11-16, TG-3e (Nutzer: „aus einem oder mehreren Strukturdokumenten“): bis zu
  * {@link MAX_STRUKTUR} je Erfassung (vorher genau eins; ein zweites nahm dem ersten die Rolle). Mehr
  * lässt die Rolle nicht zu — das Auswahlfeld sperrt die Wahl dann. Leere und zu große Dateien bleiben
  * ignoriert, auch wenn die Person einen ganzen Ordner wieder einschließt.
@@ -10,8 +10,11 @@
 import type { Erfassung, ErfassteDatei, Rolle } from './upload-erfassen';
 
 const STRUKTUR_ENDUNG = /\.(pdf|docx|txt|md)$/i;
-/** TG-3e: so viele Strukturdokumente je Erfassung — wie `dokumente/ablage.MAX_JE_SITZUNG` im
- *  Backend (dort ersetzte ein sechstes das älteste) und die Antwortform (`zahlen.strukturdokumente`). */
+/** TG-3e: so viele Strukturdokumente je Erfassung. Paket U4 (Teil b) prüfte die Grenze gegen den
+ *  neuen Vertrag: sie bleibt 5 — so viele erlaubt das Antwort-Schema (`zahlen.strukturdokumente`,
+ *  `dokumente`) und die Ablage in WLO (`api/ui_ablage._STRUKTUR_HOECHSTENS`). „Hier im Chat“ zählt
+ *  Strukturdokumente zusammen mit Inhalten gegen `grenzen.lokal_max_dateien` (`upload-orte.ts`);
+ *  die Sitzungsgrenze des Backends (`dokumente/ablage.max_je_sitzung`) weist ab, verdrängt nicht. */
 export const MAX_STRUKTUR = 5;
 const LEHRPLAN = /(lehrplan|curricul|bildungsplan|rahmenplan|fachanforderung|kompetenzraster)/i;
 
@@ -34,7 +37,7 @@ function mitRollen<T>(e: Erfassung<T>, neu: (d: ErfassteDatei<T>, i: number) => 
  * jedem Upload-Feld — beim Übertragen nach WLO wäre die Datei sonst still als Strukturdokument
  * markiert. Sonst bleibt alles, wie es ist.
  *
- * Plan 2026-11-16, TG-1 (G-E4): die Automatik merkt nur vor — gelesen wird erst auf „Lesen lassen“.
+ * Plan 2026-11-16, TG-1 (G-E4): die Automatik merkt nur vor — hochgeladen wird erst auf „Hochladen“.
  */
 export function vorschlagen<T>(e: Erfassung<T>, einzelneAlsStruktur = false): Erfassung<T> {
   const nutzbar = e.dateien.filter((d) => d.rolle === 'inhalt');

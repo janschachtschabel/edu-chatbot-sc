@@ -1,6 +1,6 @@
 import type { SafeHtml } from '@angular/platform-browser';
 
-import type { AblageSchritt, AuftragSchritt, KartenAktion, ModulHost, TrefferUmgebung } from '@boerdi/ui-module';
+import type { AblageRolle, AblageSchritt, AuftragSchritt, KartenAktion, ModulHost, TrefferUmgebung } from '@boerdi/ui-module';
 
 import type { GroupingContext } from '../grouping/result-grouping';
 import type { TranslateFn } from '../i18n/i18n';
@@ -58,8 +58,9 @@ export interface ShellTreffer {
   alsEntwurf(nodeId: string, title: string): void;
   /** U1-h: Unterthemen eines Knotens im Themenbaum laden — ohne Zug, für denselben Baum. */
   zweig(nodeId: string): Promise<Record<string, unknown>>;
-  /** U3-2c: ein Dokument aus `ui_upload` lesen lassen — ohne Zug; löst mit dem Befund auf. */
-  hochladen(blockId: string, datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>>;
+  /** U3-2c: ein Dokument aus `ui_upload` lesen lassen — ohne Zug; löst mit dem Befund auf. Paket U4:
+   *  mit Rolle (`inhalt` | `struktur`). */
+  hochladen(blockId: string, datei: File, onFortschritt?: (anteil: number) => void, rolle?: AblageRolle): Promise<Record<string, unknown>>;
   /** U3-3b: ein Schritt der Ablage im persönlichen Bereich — ohne Zug. */
   ablegen(blockId: string, schritt: AblageSchritt): Promise<Record<string, unknown>>;
   /** K1b: Stand eines Ablauf-Auftrags (ohne Zug) oder ihn im Zug abholen (Direktaktion). */
@@ -114,8 +115,8 @@ export class WidgetModulHost implements Omit<ModulHost, 'antworten' | 'vormerken
     return this.seams.treffer().zweig(nodeId);
   }
 
-  hochladen(blockId: string, datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>> {
-    return this.seams.treffer().hochladen(blockId, datei, onFortschritt);
+  hochladen(blockId: string, datei: File, onFortschritt?: (anteil: number) => void, rolle?: AblageRolle): Promise<Record<string, unknown>> {
+    return this.seams.treffer().hochladen(blockId, datei, onFortschritt, rolle);
   }
 
   ablegen(blockId: string, schritt: AblageSchritt): Promise<Record<string, unknown>> {

@@ -59,8 +59,11 @@ export interface ModulHost {
   /** Ein Dokument lesen lassen (U3-2c, Fähigkeit `hochladen`): ohne Zug und ohne KI liest das Backend
    *  es, legt den Text an der Sitzung ab und löst mit dem Befund auf (`upload_id`, `name`, `format`,
    *  `befund`, `ueberschriften_vorschau` — nie der Text). `onFortschritt` meldet den gesendeten Anteil
-   *  (0…1). Lehnt ab mit `status` und `code` (`bild`, `zu_gross`, `kein_text`, `nur_angemeldet` …). */
-  hochladen(datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>>;
+   *  (0…1). Lehnt ab mit `status` und `code` (`bild`, `zu_gross`, `kein_text`, `nur_angemeldet` …).
+   *  Plan 2026-11-17, Paket U4 („Hier im Chat“): `rolle` geht als Feld mit (`inhalt` | `struktur`;
+   *  ohne Angabe nimmt das Backend `struktur`); bei `inhalt` trägt der Befund zusätzlich `angaben`,
+   *  neue Codes `grenze_anzahl` (409) und `grenze_gesamt` (413) — die Grenzen der Sitzung. */
+  hochladen(datei: File, onFortschritt?: (anteil: number) => void, rolle?: AblageRolle): Promise<Record<string, unknown>>;
   /** Ein Schritt der Ablage im persönlichen Bereich in WLO (U3-3b, Fähigkeit `hochladen`): ohne Zug
    *  und ohne KI, nur mit bestätigter Anmeldung (`/api/ui/ablage/*`). Löst mit der Antwort des Backends
    *  auf (Vorschau, Stand einer Datei, Abschluss); lehnt ab mit `status` und `code` (`nur_angemeldet`,
@@ -94,6 +97,7 @@ export interface AblageEintrag {
   readonly i?: number;
 }
 
+/** Inhalt oder Strukturdokument — für die Ablage in WLO (W4) wie für `hochladen` (Paket U4). */
 export type AblageRolle = 'inhalt' | 'struktur';
 
 /** U3-3b: die drei Schritte der Ablage — Freigabe vorbereiten, eine Datei, Abschluss (`vorgang.json`). */

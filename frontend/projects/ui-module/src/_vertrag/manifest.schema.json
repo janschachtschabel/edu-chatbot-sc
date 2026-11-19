@@ -67,7 +67,7 @@
     "vorgang": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "schreibt": { "type": "array", "uniqueItems": true, "maxItems": 4, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,29}$" }, "description": "Teile, die eine geprüfte Antwort im Vorgang setzt (Paket V2)." },
+        "schreibt": { "type": "array", "uniqueItems": true, "maxItems": 6, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,29}$" }, "description": "Teile, die eine geprüfte Antwort im Vorgang setzt (Paket V2)." },
         "liest": { "type": "array", "uniqueItems": true, "maxItems": 8, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,29}$" }, "description": "Teile des Vorgangs, die der Dienst des Moduls serverseitig liest." }
       },
       "description": "Paket V2: Datenübergabe über den Vorgang — was das Modul hinterlässt und braucht, ohne Umweg über das Modell."

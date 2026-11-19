@@ -19,7 +19,7 @@
  * stehen so auch im gespeicherten Verlauf; eine Übersetzung machte die Historie
  * sprachabhängig.
  */
-import type { AblageSchritt } from '@boerdi/ui-module';
+import type { AblageRolle, AblageSchritt } from '@boerdi/ui-module';
 import { TREFFERLISTE } from '@boerdi/ui-module/_vertrag/modul-namen';
 
 import { WloCard } from '../cards/card-types';
@@ -83,7 +83,7 @@ export interface CollectionActionsContext {
   ladeZweig: (nodeId: string, signal?: AbortSignal) => Promise<Record<string, unknown>>;
   /** U3-2c: ein Dokument aus `ui_upload` (`ChatApiClient.dokumentHochladen` mit LIVE-Sitzung). */
   ladeDokument: (blockId: string, datei: File, onFortschritt: ((anteil: number) => void) | undefined,
-    signal?: AbortSignal) => Promise<Record<string, unknown>>;
+    signal?: AbortSignal, rolle?: AblageRolle) => Promise<Record<string, unknown>>;
   /** U3-3b: ein Schritt der Ablage aus `ui_upload` (`ChatApiClient.ablageSchritt` mit LIVE-Sitzung). */
   ladeAblage: (blockId: string, schritt: AblageSchritt, signal?: AbortSignal) => Promise<Record<string, unknown>>;
   /** K1b: Stand eines Ablauf-Auftrags (`ChatApiClient.auftragStand` mit LIVE-Sitzung). */
@@ -223,9 +223,9 @@ export async function themenbaumZweig(
  *  einer inzwischen gewechselten Sitzung gilt nicht (das Dokument liegt dann an der alten). */
 export async function dokumentLesen(
   blockId: string, datei: File, onFortschritt: ((anteil: number) => void) | undefined,
-  ctx: CollectionActionsContext, signal?: AbortSignal,
+  ctx: CollectionActionsContext, signal?: AbortSignal, rolle?: AblageRolle,
 ): Promise<Record<string, unknown>> {
-  return ohneZug('Dokument', ctx, () => ctx.ladeDokument(blockId, datei, onFortschritt, signal));
+  return ohneZug('Dokument', ctx, () => ctx.ladeDokument(blockId, datei, onFortschritt, signal, rolle));
 }
 
 /** U3-3b: ein Schritt der Ablage im persönlichen Bereich — wie das Dokument ohne Zug. */

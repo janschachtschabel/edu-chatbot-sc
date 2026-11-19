@@ -445,8 +445,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     lernpfad: (nodeId, title) => void this.generateLearningPath(nodeId, title),
     alsEntwurf: (nodeId, title) => void editCollectionAsDraft(nodeId, title, this._contexts.collectionActions),
     zweig: (nodeId) => this._mitAbbruch((signal) => themenbaumZweig(nodeId, this._contexts.collectionActions, signal)),
-    hochladen: (blockId, datei, onFortschritt) => this._mitAbbruch(
-      (signal) => dokumentLesen(blockId, datei, onFortschritt, this._contexts.collectionActions, signal)),
+    hochladen: (blockId, datei, onFortschritt, rolle) => this._mitAbbruch(
+      (signal) => dokumentLesen(blockId, datei, onFortschritt, this._contexts.collectionActions, signal, rolle)),
     ablegen: (blockId, schritt) => this._mitAbbruch(
       (signal) => ablageSchritt(blockId, schritt, this._contexts.collectionActions, signal)),
     auftrag: (schritt) => schritt.schritt === 'abholen'

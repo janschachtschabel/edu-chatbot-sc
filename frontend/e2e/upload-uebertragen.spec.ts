@@ -4,7 +4,8 @@
  *
  * Warum e2e: nur hier rechnet der echte Browser die Prüfsummen (`crypto.subtle`), schickt die echte
  * Ordnerauswahl als multipart und zeigt den Link über den Link-Weg der Shell. Dazu: ein Fehler in der
- * Mitte, Abbrechen, nur Tastatur, 320 px.
+ * Mitte, Abbrechen, nur Tastatur, 320 px. Seit Paket U4 beginnt es mit dem Ort „In WLO ablegen und
+ * erschließen“ und „Hochladen“.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -81,7 +82,8 @@ async function bisVorschau(page: Page, fehler: Record<number, { status: number; 
   await w.waitForTurns(1);
   const modul = page.locator('boerdi-ui-upload');
   await modul.locator('input[webkitdirectory]').setInputFiles(ordner());
-  await expect(modul.getByText('3 Dateien kannst du in deinen persönlichen Bereich in WLO übertragen', { exact: false }).first()).toBeVisible();
+  // Paket U4: angemeldet mit Ablage → „In WLO ablegen und erschließen“ ist vorgewählt
+  await expect(modul.getByRole('radio', { name: 'In WLO ablegen und erschließen' })).toBeChecked();
   return { w, modul, aufrufe };
 }
 
@@ -90,7 +92,7 @@ test.describe('ui_upload Übertragen in WLO (U3-3b)', () => {
 
   test('Ordner → Vorschau → Übertragen → Ergebnis mit Link → im Chat weiter, ohne Kennungen', async ({ page }) => {
     const { w, modul, aufrufe } = await bisVorschau(page);
-    await modul.getByRole('button', { name: 'Übertragen vorbereiten …' }).click();
+    await modul.getByRole('button', { name: 'Hochladen', exact: true }).click();
     await expect(modul.getByText('neuer Ordner „Physik 7“', { exact: false }).first()).toBeVisible();
     const freigabe = aufrufe[0].json!;
     expect(freigabe['ordner']).toBe('Physik 7');
@@ -113,7 +115,9 @@ test.describe('ui_upload Übertragen in WLO (U3-3b)', () => {
     await w.waitForTurns(2);
     const req = w.chatRequests().at(-1)!;
     expect(req.message).toBe('3 von 3 Dateien in meinen persönlichen Bereich in WLO übertragen.');
-    expect(req.ui_antwort?.daten).toMatchObject({ aktion: 'uebertragen',
+    // Paket U4: `bereitgestellt` mit Ort wlo — je abgelegter Datei ihre Nummer i und Rolle
+    expect(req.ui_antwort?.daten).toMatchObject({ aktion: 'bereitgestellt', ort: 'wlo',
+      dateien: [{ i: 0, rolle: 'inhalt' }, { i: 1, rolle: 'inhalt' }, { i: 2, rolle: 'inhalt' }],
       ablage: { gesamt: 3, abgelegt: 3, vorgang_abgelegt: true } });
     expect(JSON.stringify(req.ui_antwort)).not.toContain('n-0');
     // TG-3a: die Auswahl trägt die Dateinamen, die Ablage nur Zahlen
@@ -122,7 +126,7 @@ test.describe('ui_upload Übertragen in WLO (U3-3b)', () => {
 
   test('ein Fehler in der Mitte: die anderen Dateien gehen weiter', async ({ page }) => {
     const { modul, aufrufe } = await bisVorschau(page, { 1: { status: 422, detail: 'passt_nicht' } });
-    await modul.getByRole('button', { name: 'Übertragen vorbereiten …' }).click();
+    await modul.getByRole('button', { name: 'Hochladen', exact: true }).click();
     await modul.getByRole('button', { name: 'Jetzt übertragen' }).click();
     await expect(modul.getByText('2 von 3 Dateien in WLO abgelegt.').first()).toBeVisible();
     await expect(modul.getByText('nicht abgelegt: Die Datei passt nicht zur Freigabe', { exact: false }).first()).toBeVisible();
@@ -131,15 +135,15 @@ test.describe('ui_upload Übertragen in WLO (U3-3b)', () => {
 
   test('Abbrechen in der Vorschau sendet keine Datei', async ({ page }) => {
     const { modul, aufrufe } = await bisVorschau(page);
-    await modul.getByRole('button', { name: 'Übertragen vorbereiten …' }).click();
+    await modul.getByRole('button', { name: 'Hochladen', exact: true }).click();
     await modul.getByRole('button', { name: 'Abbrechen' }).click();
-    await expect(modul.getByRole('button', { name: 'Übertragen vorbereiten …' })).toBeVisible();
+    await expect(modul.getByRole('button', { name: 'Hochladen', exact: true })).toBeVisible();
     expect(aufrufe.map((a) => a.schritt)).toEqual(['vorbereiten']);
   });
 
   test('nur mit der Tastatur', async ({ page }) => {
     const { modul } = await bisVorschau(page);
-    await modul.getByRole('button', { name: 'Übertragen vorbereiten …' }).focus();
+    await modul.getByRole('button', { name: 'Hochladen', exact: true }).focus();
     await page.keyboard.press('Enter');
     // Der Fokus geht auf die Vorschau, nicht verloren (body).
     await expect(modul.locator('[data-fokus="s:ablage"]')).toBeFocused();
@@ -158,7 +162,7 @@ test.describe('ui_upload Übertragen in WLO (U3-3b)', () => {
   test('passt auf 320 px', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
     const { modul } = await bisVorschau(page);
-    await modul.getByRole('button', { name: 'Übertragen vorbereiten …' }).click();
+    await modul.getByRole('button', { name: 'Hochladen', exact: true }).click();
     await modul.getByRole('button', { name: 'Jetzt übertragen' }).click();
     await expect(modul.getByText('3 von 3 Dateien in WLO abgelegt.').first()).toBeVisible();
     const ueber = await modul.evaluate((el) => {

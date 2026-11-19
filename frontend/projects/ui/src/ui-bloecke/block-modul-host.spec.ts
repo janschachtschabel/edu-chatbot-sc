@@ -66,6 +66,15 @@ describe('BlockModulHost', () => {
     expect(b.zweig).toHaveBeenCalledWith('n3');
   });
 
+  it('U4: `hochladen` reicht die Rolle mit der Block-Kennung weiter', async () => {
+    const b = { ...basis(), hochladen: vi.fn(async () => ({ upload_id: 'u' })) };
+    const { h } = host(['hochladen'], b);
+    const datei = new File(['x'], 'a.pdf');
+    const melde = () => undefined;
+    await h.hochladen(datei, melde, 'inhalt');
+    expect(b.hochladen).toHaveBeenCalledWith('b0000007', datei, melde, 'inhalt');
+  });
+
   it('U3-3b: `ablegen` gehört zur Fähigkeit `hochladen` und trägt die Block-Kennung', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const mit = host(['hochladen']);

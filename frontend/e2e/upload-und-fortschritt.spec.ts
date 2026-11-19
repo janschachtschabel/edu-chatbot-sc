@@ -80,7 +80,7 @@ test.describe('ui_upload und ui_fortschritt zugleich (Querschnitts-Review M1)', 
 
     const upload = page.locator('boerdi-ui-upload');
     await upload.locator('input[webkitdirectory]').setInputFiles(ordner());
-    await upload.getByRole('button', { name: 'Übertragen vorbereiten …' }).click();
+    await upload.getByRole('button', { name: 'Hochladen', exact: true }).click();
     await upload.getByRole('button', { name: 'Jetzt übertragen' }).click();
     await expect.poll(() => dateien.length).toBe(1);
 

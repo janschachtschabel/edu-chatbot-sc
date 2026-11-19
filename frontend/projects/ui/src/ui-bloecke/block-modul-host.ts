@@ -1,7 +1,7 @@
 import type { SafeHtml } from '@angular/platform-browser';
 
 import type {
-  AblageSchritt, AuftragSchritt, KartenAktion, ModulFaehigkeit, ModulHost, TrefferUmgebung,
+  AblageRolle, AblageSchritt, AuftragSchritt, KartenAktion, ModulFaehigkeit, ModulHost, TrefferUmgebung,
 } from '@boerdi/ui-module';
 
 import type { WidgetModulHost } from './widget-modul-host';
@@ -80,11 +80,11 @@ export class BlockModulHost implements ModulHost {
   }
 
   /** U3-2c: wie `zweig` an eine Fähigkeit gebunden (`hochladen`); die Block-Kennung kennt nur der Host. */
-  hochladen(datei: File, onFortschritt?: (anteil: number) => void): Promise<Record<string, unknown>> {
+  hochladen(datei: File, onFortschritt?: (anteil: number) => void, rolle?: AblageRolle): Promise<Record<string, unknown>> {
     if (!this.darf('hochladen')) {
       return Promise.reject(Object.assign(new Error('boerdi: Fähigkeit hochladen fehlt'), { status: 403, code: 'aus' }));
     }
-    return this.basis.hochladen(this.blockId, datei, onFortschritt);
+    return this.basis.hochladen(this.blockId, datei, onFortschritt, rolle);
   }
 
   /** U3-3b: die Ablage gehört zur Fähigkeit `hochladen` — wie das Dokument geht sie ohne Zug. */

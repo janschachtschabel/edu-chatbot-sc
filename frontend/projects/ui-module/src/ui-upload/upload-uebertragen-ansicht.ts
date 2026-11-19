@@ -1,20 +1,19 @@
 /**
- * Darstellung des Übertragens in `<boerdi-ui-upload>` (Paket U3-3b): Angebot, Prüfen, Vorschau,
- * Senden, Ergebnisliste, Fehler. Wie `upload-dokument-ansicht.ts` baut das Element die Knoten
+ * Darstellung des Übertragens in `<boerdi-ui-upload>` (Paket U3-3b): Prüfen, Vorschau, Senden,
+ * Ergebnisliste, Fehler — seit Paket U4 erst nach „Hochladen“ mit Ort wlo (das Angebot mit eigenem
+ * Knopf ist in der Frage nach dem Ort aufgegangen). Wie `upload-chat-ansicht.ts` baut das Element die Knoten
  * (`knoten`, `knopf`), damit Fokus-Schlüssel und Gestalt gleich sind. Der Stand je Datei steht als Text
  * UND Symbol (nie nur Farbe); Links kommen vom Backend und gehen durch `host.link` (fremde Seiten mit
  * Hinweis). Fremdtext (Datei-, Ordnernamen) nur als `textContent`.
  */
 import type { ElementHost } from '../_nachladen/element-vertrag';
-import { type Auswahl, type Ergebnis, type LetzteAblagen, MAX_STAPEL, nochmalSenden, type Plan, type Stand, wiederholbarAblage, zaehlung } from './upload-uebertragen';
+import { type Ergebnis, type LetzteAblagen, nochmalSenden, type Plan, type Stand, wiederholbarAblage, zaehlung } from './upload-uebertragen';
 import type { UebertragenLauf } from './upload-uebertragen-ablauf';
 import { fehlerSatz, type UebertragenTexte } from './upload-uebertragen-texte';
 
 export interface UebertragenAnsicht {
   readonly t: UebertragenTexte;
-  readonly auswahl: Auswahl<File>;
-  readonly maxMb: number;
-  readonly lauf: UebertragenLauf | null;
+  readonly lauf: UebertragenLauf;
   readonly ergebnisse: readonly Ergebnis[];
   /** Paket M6: eigene frühere Ablagen, neben der Vorschau — aufgeklappt bleibt sie über das Neuzeichnen. */
   readonly letzte?: LetzteAblagen;
@@ -113,22 +112,6 @@ function letzteAblagen(a: UebertragenAnsicht): Node[] {
   return [kasten];
 }
 
-function angebot(a: UebertragenAnsicht, dateien: (n: number) => string): Node[] {
-  const { t, auswahl: aus } = a;
-  const teile: Node[] = [];
-  const n = aus.kandidaten.length;
-  teile.push(a.knoten('p', 'u__hinweis', n ? t.angebot(dateien(n)) : t.keine));
-  const weg = t.ausgelassen(aus.ohneArt, aus.zuGross, a.maxMb);
-  if (weg) teile.push(a.knoten('p', 'u__hinweis', weg));
-  if (n > MAX_STAPEL) teile.push(a.knoten('p', 'u__fehler', t.zuViele(MAX_STAPEL)));
-  if (n) {
-    const leiste = a.knoten('div', 'u__knoepfe');
-    leiste.append(a.knopf(t.pruefen, { uebertragen: 'pruefen' }, false, a.gesperrt || n > MAX_STAPEL));
-    teile.push(leiste);
-  }
-  return teile;
-}
-
 /** Ohne `role="alert"`: die Zeile entsteht bei jedem Zeichnen neu und würde jedes Mal wieder assertiv
  *  angesagt — angesagt wird sie einmal über die bleibende Status-Zeile (Querschnitts-Review FE-5). */
 function fehlerZeile(a: UebertragenAnsicht, code: string): HTMLElement {
@@ -138,21 +121,14 @@ function fehlerZeile(a: UebertragenAnsicht, code: string): HTMLElement {
 export function uebertragenTeile(a: UebertragenAnsicht, dateien: (n: number) => string): Node[] {
   const { t, lauf } = a;
   const teile: Node[] = [a.knoten('h4', 'u__titel', t.titel)];
-  if (!lauf) return [...teile, ...angebot(a, dateien)];
   if (lauf.phase === 'pruefen' || lauf.phase === 'vorbereiten') {
     const satz = lauf.phase === 'pruefen' ? t.prueft(lauf.fertig, lauf.gesamt) : t.bereitet;
     const anteil = lauf.phase === 'pruefen' ? lauf.fertig / Math.max(1, lauf.gesamt) : null;
     return [...teile, balken(a, anteil, satz), fokussierbar(a.knoten('p', 'u__hinweis', satz))];
   }
-  if (lauf.phase === 'fehler') {
-    teile.push(fehlerZeile(a, lauf.code));
-    if (wiederholbarAblage(lauf.code) || lauf.code === 'nicht_gespeichert') {
-      const leiste = a.knoten('div', 'u__knoepfe');
-      leiste.append(a.knopf(t.pruefen, { uebertragen: 'pruefen' }, false, a.gesperrt));
-      teile.push(leiste);
-    }
-    return teile;
-  }
+  // Paket U4: nach einem Fehler vor dem Senden steht darunter wieder die Frage nach dem Ort — „Hochladen“
+  // versucht es neu (vorher ein eigener Knopf „Übertragen vorbereiten …“).
+  if (lauf.phase === 'fehler') return [...teile, fehlerZeile(a, lauf.code)];
   const plan = lauf.plan;
   const ziel = plan.layout === 'ordner' && !a.ordnerVerweigert ? t.zielOrdner(plan.ordner) : t.zielFlach;
   if (lauf.phase === 'vorschau') {

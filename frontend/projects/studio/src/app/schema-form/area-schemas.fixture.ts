@@ -4925,6 +4925,20 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "minimum": 1,
             "title": "Aufbewahrung H",
             "type": "integer"
+          },
+          "lokal_max_dateien": {
+            "default": 10,
+            "maximum": 30,
+            "minimum": 1,
+            "title": "Lokal Max Dateien",
+            "type": "integer"
+          },
+          "lokal_max_mb_gesamt": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Lokal Max Mb Gesamt",
+            "type": "integer"
           }
         },
         "title": "UploadSettings",
@@ -4941,7 +4955,9 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "ablage_in_wlo": true,
           "max_mb": 10,
           "max_seiten": 300,
-          "aufbewahrung_h": 24
+          "aufbewahrung_h": 24,
+          "lokal_max_dateien": 10,
+          "lokal_max_mb_gesamt": 50
         }
       }
     },

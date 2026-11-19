@@ -1,18 +1,24 @@
 /**
  * Darstellung von `<boerdi-ui-upload>` (aus dem Element gelöst, Querschnitts-Review 2026-11-06, Q4):
- * aus einer Sicht auf den Zustand (`UploadSicht`; Werte, dazu die beiden Abläufe als lebende Objekte) die Knoten des Moduls — Wahl, Befund, Strukturdokument,
- * Übertragen, „nur lesen“. Das Element behält Zustand, Ereignisse und Fokus. Fremdtext (Ordner- und
- * Dateinamen) nur als `textContent`.
+ * aus einer Sicht auf den Zustand (`UploadSicht`; Werte, dazu die beiden Abläufe als lebende Objekte)
+ * die Knoten des Moduls — Wahl, Befund, „Wo sollen sie verarbeitet werden?“, „Hier im Chat“,
+ * Übertragen nach WLO, „nur lesen“. Das Element behält Zustand, Ereignisse und Fokus. Fremdtext
+ * (Ordner- und Dateinamen) nur als `textContent`.
+ *
+ * Plan 2026-11-17, Paket U4: ein Weg — nach der Auswahl die Frage nach dem Ort (Chips), ein
+ * Hauptknopf „Hochladen“, daneben „Nur Namen senden (nichts hochladen)“ und „Andere Auswahl“.
+ * Läuft „Hier im Chat“ oder die Übertragung, steht statt der Frage deren Fortschritt.
  */
 import type { ModulKontext } from '../_vertrag/ui-block';
 import { antwortDaten, type UploadAntwort } from './upload-antwort';
 import { baueBaum } from './upload-baum';
-import { abschnitteZusammen, dokumentErlaubt, strukturDateien, wiederholbar } from './upload-dokument';
-import type { DokumentAblauf } from './upload-dokument-ablauf';
-import { dokumentTeile } from './upload-dokument-ansicht';
+import type { ChatAblauf } from './upload-chat-ablauf';
+import { chatTeile } from './upload-chat-ansicht';
 import { type Erfassung, GRENZEN, type Grenzen } from './upload-erfassen';
+import { chatOhneAnmeldung, gewaehlt, lokaleAuswahl, lokaleGrenzen, type Ort, orteFuer } from './upload-orte';
+import { datenschutzSatz, orteTeile } from './upload-orte-ansicht';
 import type { Sprache, UploadTexte } from './upload-texte';
-import { ablageErlaubt, auswahl, maxBytesAblage } from './upload-uebertragen';
+import { auswahl, maxBytesAblage } from './upload-uebertragen';
 import type { UebertragenAblauf } from './upload-uebertragen-ablauf';
 import { uebertragenTeile } from './upload-uebertragen-ansicht';
 import { uebertragenTexte } from './upload-uebertragen-texte';
@@ -26,9 +32,11 @@ export interface UploadSicht {
   readonly erfassung: Erfassung<File> | null;
   readonly offen: Set<string>;
   readonly beschaeftigt: boolean;
-  /** Rollen und „Ignorieren“ ruhen (Dokument wird gelesen oder eine Freigabe besteht). */
+  /** Rollen und „Ignorieren“ ruhen (es wird hochgeladen, oder eine Freigabe besteht). */
   readonly auswahlFest: boolean;
-  readonly dokument: DokumentAblauf;
+  /** Der Ort, den die Person angeklickt hat (`null`: die Vorauswahl gilt). */
+  readonly ort: Ort | null;
+  readonly chat: ChatAblauf;
   readonly uebertragen: UebertragenAblauf;
   link(url: string): { href: string; hinweis: string };
 }
@@ -50,13 +58,24 @@ export function zusammenfassung(t: UploadTexte, a: UploadAntwort): string {
     + (a.zahlen.ignoriert ? `, ${t.ignoriert(a.zahlen.ignoriert)}` : '');
 }
 
+/** Der Ort, den „Hochladen“ für diese Sicht nimmt — `null`, wenn nur die Namen gehen. */
+export function wahlFuer(s: Pick<UploadSicht, 'daten' | 'erfassung' | 'ort'>): 'chat' | 'wlo' | null {
+  return s.erfassung ? gewaehlt(orteFuer(s.daten, s.erfassung), s.ort) : null;
+}
+
+/** Läuft gerade ein Weg (oder steht sein Ergebnis da)? Dann zeigt das Modul ihn statt der Frage.
+ *  Ein Fehler der Übertragung (vor dem Senden) bringt die Frage zurück — „Hochladen“ versucht neu. */
+export function wegAktiv(s: Pick<UploadSicht, 'chat' | 'uebertragen'>): boolean {
+  return !!s.chat.lauf || (!!s.uebertragen.lauf && s.uebertragen.lauf.phase !== 'fehler');
+}
+
 export function ansichtTeile(s: UploadSicht): Node[] {
   const t = s.t;
   const titel = knoten('h3', 'u__titel', t.titel);
   if (s.kontext?.nurLesen) {
     // Querschnitts-Review M1/M2: ein Zug mitten im Übertragen schließt den Block, der Stapel läuft weiter
     // und bleibt sichtbar (Anhalten, Ergebnis) — nur ohne Antwortknopf.
-    if (!nurLesenOhneStapel(s) && s.erfassung) return [titel, ablageTeil(s, s.erfassung, true)];
+    if (!nurLesenOhneStapel(s) && s.erfassung) return [titel, ablageTeil(s, true)];
     return [titel, nurLesenZeile(s, t)];
   }
   const teile: Node[] = [titel];
@@ -67,9 +86,11 @@ export function ansichtTeile(s: UploadSicht): Node[] {
     const hinweis = typeof s.daten['hinweis'] === 'string' && s.daten['hinweis'].trim()
       ? s.daten['hinweis'] : t.hinweisLeer;
     teile.push(knoten('p', 'u__hinweis', hinweis));
-    // R3-b: der Hinweis der KI kann Lesen versprechen, das erst nach der Anmeldung geht
+    // R3-b und Rückmeldung 16.11.: der Hinweis der KI kann Lesen oder Ablegen versprechen, das erst nach
+    // der Anmeldung geht — vor der Auswahl als Satz, danach sagt es der Chip („braucht eine WLO-Anmeldung“)
     const schalter = s.daten['schalter'] as Record<string, unknown> | undefined;
     if (schalter?.['lesen_nach_anmeldung'] === true) teile.push(knoten('p', 'u__hinweis', t.lesenNachAnmeldung));
+    if (schalter?.['ablage_nach_anmeldung'] === true) teile.push(knoten('p', 'u__hinweis', t.ablageNachAnmeldung));
     teile.push(zone, waehler(s));
     if (s.zustand === 'fehler') {
       const meldung = knoten('p', 'u__hinweis', s.erfassung ? t.nichtsGefunden : t.leseFehler);
@@ -77,26 +98,14 @@ export function ansichtTeile(s: UploadSicht): Node[] {
       meldung.dataset['fokus'] = 's:fehler';
       teile.push(meldung);
     }
-  } else {
-    teile.push(...befund(s, s.erfassung));
+    teile.push(knoten('p', 'u__hinweis', t.datenschutzLeer));
+    return teile;
   }
-  // Rückmeldung 16.11.: die Ablage ist ab Werk an — ohne Anmeldung die Voraussetzung nennen, vor
-  // und nach dem Erfassen (Review n11: danach fehlte der Übertragen-Abschnitt sonst ohne Grund)
-  const ablageSchalter = s.daten['schalter'] as Record<string, unknown> | undefined;
-  if (ablageSchalter?.['ablage_nach_anmeldung'] === true) teile.push(knoten('p', 'u__hinweis', t.ablageNachAnmeldung));
-  teile.push(knoten('p', 'u__hinweis', datenschutz(s, t)));
-  return teile;
-}
-
-/** Der Satz zur Datenweitergabe — er nennt, was das System gerade anbietet (Querschnitts-Review FE-3). */
-function datenschutz(s: UploadSicht, t: UploadTexte): string {
-  const dokument = dokumentErlaubt(s.daten);
-  if (ablageErlaubt(s.daten)) return dokument ? t.datenschutzBeides : t.datenschutzAblage;
-  return dokument ? t.datenschutzDokument : t.datenschutz;
+  return [...teile, ...befund(s, s.erfassung)];
 }
 
 /** Nur lesen ohne Übertragung in diesem Modul (dann gibt es nur die Zusammenfassung). */
-export function nurLesenOhneStapel(s: UploadSicht): boolean {
+export function nurLesenOhneStapel(s: Pick<UploadSicht, 'kontext' | 'uebertragen'>): boolean {
   const phase = s.uebertragen.lauf?.phase;
   return !!s.kontext?.nurLesen && phase !== 'sendet' && phase !== 'fertig';
 }
@@ -104,12 +113,16 @@ export function nurLesenOhneStapel(s: UploadSicht): boolean {
 function nurLesenZeile(s: UploadSicht, t: UploadTexte): HTMLElement {
   const a = s.kontext?.antwort as UploadAntwort | null;
   const z = a?.zahlen;
-  // TG-3e: mehrere gelesene Dokumente mit ihrer Zahl und allen Abschnitten zusammen
-  const mehrere = a?.dokumente?.length ?? 0;
-  const text = a?.dokument && mehrere > 1 ? t.nurLesenDokumente(mehrere, t.abschnitte(abschnitteZusammen(a)))
-    : a?.dokument ? t.nurLesenDokument(a.dokument.name, t.abschnitte(a.dokument.befund.abschnitte))
-    : a?.ablage ? uebertragenTexte(s.sprache).nurLesen(a.ablage.abgelegt, a.ablage.gesamt)
-      : z ? t.nurLesen(t.ordner(z.ordner), t.dateien(z.inhalte + z.strukturdokumente)) : t.nichtVerwendet;
+  const namen = z ? [t.ordner(z.ordner), t.dateien(z.inhalte + z.strukturdokumente)] as const : null;
+  // Ältere Antworten (`dokument`, TG-3e) zeigt das Modul weiter, wie sie damals hießen.
+  const dokumente = a?.dokumente ?? (a?.dokument ? [a.dokument] : []);
+  const abschnitte = t.abschnitte(dokumente.reduce((n, d) => n + d.befund.abschnitte, 0));
+  const text = a?.ablage ? uebertragenTexte(s.sprache).nurLesen(a.ablage.abgelegt, a.ablage.gesamt)
+    : a?.ort === 'chat' ? t.nurLesenChat(t.dateien(a.dateien?.length ?? 0))
+      : a?.ort === 'namen' && namen ? t.nurLesenNamen(...namen)
+        : dokumente.length > 1 ? t.nurLesenDokumente(dokumente.length, abschnitte)
+          : a?.dokument ? t.nurLesenDokument(a.dokument.name, abschnitte)
+            : namen ? t.nurLesen(...namen) : t.nichtVerwendet;
   const zeile = knoten('p', 'u__hinweis', text);
   // Ziel des Fokus, wenn ein fokussierter Knopf mit dem Wechsel auf „nur lesen“ verschwindet.
   zeile.tabIndex = -1;
@@ -142,49 +155,54 @@ function befund(s: UploadSicht, e: Erfassung<File>): Node[] {
     teile.push(liste);
   }
   teile.push(baueBaum(document, { erfassung: e, offen: s.offen, t, sprache: s.sprache, gesperrt: s.auswahlFest }));
-  const gesperrt = s.beschaeftigt || s.dokument.laeuft() || s.uebertragen.laeuft();
-  if (a.strukturdokument) {
-    // TG-3e: alle markierten Strukturdokumente (bis fünf), in der Reihenfolge, in der sie gelesen werden
-    teile.push(...dokumentTeile({
-      t, erlaubt: dokumentErlaubt(s.daten), lauf: s.dokument.lauf, gesperrt, beschaeftigt: s.beschaeftigt,
-      ueberspringbar: s.dokument.ueberspringbar(),
-      knoten: (tag, klasse, text) => knoten(tag, klasse, text),
-      knopf: (text, daten, haupt, aus) => knopf(text, daten, haupt, aus),
-    }, strukturDateien(e).map((d) => d.name)));
+  const laeuft = s.chat.laeuft() || s.uebertragen.laeuft();
+  const aktiv = wegAktiv(s);
+  if (s.uebertragen.lauf) teile.push(ablageTeil(s));
+  if (s.chat.lauf) {
+    const bereich = knoten('div', 'u__wlo');
+    bereich.append(...chatTeile({ t, lauf: s.chat.lauf, anhalten: s.chat.anhalten, aufbewahrungH: lokaleGrenzen(s.daten).aufbewahrungH,
+      beschaeftigt: s.beschaeftigt, knoten, knopf }));
+    teile.push(bereich);
   }
-  if (ablageErlaubt(s.daten)) teile.push(ablageTeil(s, e));
+  const wahl = wahlFuer(s);
+  if (!aktiv) teile.push(...frage(s, e, wahl));
+  else teile.push(knoten('p', 'u__hinweis', datenschutzSatz(t, orteFuer(s.daten, e), wahl, lokaleGrenzen(s.daten))));
   const leiste = knoten('div', 'u__knoepfe');
-  // TW-5 (Review, Befund 12): sichtbar „Senden“; der Name sagt, was gesendet wird — der Chat hat
-  // selbst einen Knopf „Senden“ (Label in Name bleibt erfüllt: der Name enthält „senden“).
-  // Plan 2026-11-16, TG-1 (G-E4): ohne „Als Themenbaum-Entwurf übernehmen“ ist „Senden“ der
-  // Hauptknopf — außer ein Strukturdokument ist markiert und darf gelesen werden: dann „Lesen
-  // lassen“ (Review TG-1, m5; nur ein Hauptknopf je Leiste).
-  // Zweites Review, NIT 10: nach einem endgültigen Lesefehler gibt es keinen Lese-Knopf mehr.
-  const lauf = s.dokument.lauf;
-  // TG-3e: kann es ohne das gescheiterte Dokument weitergehen, ist das der Hauptknopf
-  const endgueltig = lauf?.phase === 'fehler' && !wiederholbar(lauf.code) && !s.dokument.ueberspringbar();
-  const lesenHaupt = !!a.strukturdokument && dokumentErlaubt(s.daten) && !endgueltig;
-  const senden = knopf(t.befundSenden, { antwort: 'erfasst' }, !lesenHaupt, gesperrt);
-  senden.setAttribute('aria-label', t.befundSendenName);
-  leiste.append(
-    senden,
-    knopf(t.andereAuswahl, { zurueck: '1' }, false, s.dokument.laeuft() || s.uebertragen.laeuft()),
-  );
+  if (!aktiv) {
+    // Ein Hauptknopf: „Hochladen“ — gehen nur die Namen, ist „Nur Namen senden“ der Hauptknopf.
+    if (wahl) leiste.append(knopf(t.hochladen, { hochladen: wahl }, true, s.beschaeftigt));
+    leiste.append(knopf(t.nurNamen, { namen: '1' }, !wahl, s.beschaeftigt));
+  }
+  leiste.append(knopf(t.andereAuswahl, { zurueck: '1' }, false, laeuft));
   teile.push(leiste);
-  if (gesperrt) teile.push(knoten('p', 'u__hinweis', t.beschaeftigt));
+  if (s.beschaeftigt && !aktiv) teile.push(knoten('p', 'u__hinweis', t.beschaeftigt));
   return teile;
 }
 
-/** U3-3b: der Abschnitt „In deinen persönlichen Bereich in WLO übertragen“. */
-function ablageTeil(s: UploadSicht, e: Erfassung<File>, nurLesen = false): HTMLElement {
+/** Die Frage „Wo sollen sie verarbeitet werden?“ für diese Auswahl. */
+function frage(s: UploadSicht, e: Erfassung<File>, wahl: 'chat' | 'wlo' | null): Node[] {
   const max = maxBytesAblage(s.daten);
+  const aus = auswahl(e, max);
+  const grenzen = lokaleGrenzen(s.daten);
+  const lokal = lokaleAuswahl(e, grenzen);
+  return orteTeile({
+    t: s.t, orte: orteFuer(s.daten, e), wahl, grenzen, nichtLesbar: lokal.nichtLesbar, zuGross: lokal.zuGross,
+    ohneAnmeldung: chatOhneAnmeldung(s.daten),
+    ausgelassenWlo: uebertragenTexte(s.sprache).ausgelassen(aus.ohneArt, aus.zuGross, Math.round(max / 1024 / 1024)),
+    gesperrt: s.beschaeftigt, knoten,
+  });
+}
+
+/** U3-3b: der Abschnitt „In deinen persönlichen Bereich in WLO übertragen“ (seit Paket U4 erst, wenn
+ *  „Hochladen“ mit Ort wlo begonnen hat). */
+function ablageTeil(s: UploadSicht, nurLesen = false): HTMLElement {
   const u = s.uebertragen;
   const teil = knoten('div', 'u__wlo');
+  if (!u.lauf) return teil;
   teil.append(...uebertragenTeile({
-    t: uebertragenTexte(s.sprache), auswahl: auswahl(e, max), maxMb: Math.round(max / 1024 / 1024),
-    lauf: u.lauf, ergebnisse: u.ergebnisse, letzte: u.letzte, letzteOffen: u.letzteOffen,
+    t: uebertragenTexte(s.sprache), lauf: u.lauf, ergebnisse: u.ergebnisse, letzte: u.letzte, letzteOffen: u.letzteOffen,
     letzteUmschalten: (offen) => { u.letzteOffen = offen; }, anhalten: u.anhalten, ordnerVerweigert: u.ordnerVerweigert,
-    vorgangFehlt: u.vorgang === 'fehlt', weiterLaeuft: u.weiterLaeuft, gesperrt: s.beschaeftigt || s.dokument.laeuft(),
+    vorgangFehlt: u.vorgang === 'fehlt', weiterLaeuft: u.weiterLaeuft, gesperrt: s.beschaeftigt || s.chat.laeuft(),
     beschaeftigt: s.beschaeftigt, nurLesen, link: (url) => s.link(url),
     knoten: (tag, klasse, text) => knoten(tag, klasse, text),
     knopf: (text, daten, haupt, aus) => knopf(text, daten, haupt, aus),
