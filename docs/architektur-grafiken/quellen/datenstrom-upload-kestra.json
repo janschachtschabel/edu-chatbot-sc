@@ -435,7 +435,7 @@
       "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
       "provider": "github",
       "link_mode": "web",
-      "revision": "81d66f6d0251f95256a57fd9b1be667bfaad18ae"
+      "revision": "b7aad91b78f5acf40443ea89bb6935e2a7de87b0"
     },
     "legend": {
       "entries": {
@@ -463,12 +463,12 @@
       "label": "Person · Upload-Feld"
     },
     {
-      "id": "backend",
-      "label": "Chatbot-Backend"
-    },
-    {
       "id": "teile",
       "label": "Teile im Vorgang"
+    },
+    {
+      "id": "backend",
+      "label": "Chatbot-Backend"
     },
     {
       "id": "mcp",
@@ -482,20 +482,20 @@
   "phases": [
     {
       "id": "p_wahl",
-      "label": "Auswählen",
+      "label": "Auswählen und ablegen",
       "fromCol": 0,
       "toCol": 1
     },
     {
-      "id": "p_verarbeiten",
-      "label": "Hochladen bzw. ablegen und erschließen",
+      "id": "p_freigabe",
+      "label": "Hochladen bzw. Vorschau und Freigabe",
       "fromCol": 2,
-      "toCol": 4
+      "toCol": 3
     },
     {
       "id": "p_lesen",
-      "label": "Lesen",
-      "fromCol": 5,
+      "label": "Erschließen und lesen",
+      "fromCol": 4,
       "toCol": 5
     }
   ],
@@ -578,7 +578,7 @@
       "label": "/api/ui/dokumente",
       "sublabel": "Umwandlung · Moderation",
       "tag": "Kurzangaben per LLM",
-      "width": 165,
+      "width": 155,
       "sources": [
         {
           "path": "backend/src/boerdi/api/ui_dokumente.py",
@@ -594,8 +594,8 @@
         },
         {
           "path": "backend/src/boerdi/services/dokumente/inhalt_angaben.py",
-          "line": 123,
-          "end_line": 137,
+          "line": 136,
+          "end_line": 158,
           "label": "LLM über den Anfang"
         }
       ]
@@ -607,7 +607,7 @@
       "type": "database",
       "label": "metadaten (chatbot)",
       "sublabel": "und strukturdokument",
-      "width": 165,
+      "width": 155,
       "sources": [
         {
           "path": "backend/src/boerdi/services/arbeitsstand_teile.py",
@@ -626,11 +626,11 @@
     {
       "id": "ablage",
       "lane": "mcp",
-      "col": 2,
+      "col": 1,
       "type": "external",
       "label": "Stapel-Ablage",
       "sublabel": "persönlicher Bereich",
-      "width": 165,
+      "width": 155,
       "sources": [
         {
           "path": "backend/src/boerdi/api/ui_ablage.py",
@@ -653,31 +653,90 @@
       ]
     },
     {
+      "id": "vorschau",
+      "lane": "mcp",
+      "col": 2,
+      "type": "external",
+      "label": "Vorschau",
+      "sublabel": "wlo_start_flow ohne Schlüssel",
+      "width": 155,
+      "sources": [
+        {
+          "path": "backend/seeds/06-ablaeufe/themenbaum.yaml",
+          "line": 235,
+          "end_line": 250,
+          "label": "Rückfrage vor dem Flow"
+        },
+        {
+          "path": "backend/src/boerdi/services/auftraege/mcp_vorschau.py",
+          "line": 100,
+          "end_line": 121,
+          "label": "Vorschau des MCP"
+        },
+        {
+          "path": "backend/src/boerdi/services/ablauf/auftrag_freigabe.py",
+          "line": 98,
+          "end_line": 129,
+          "label": "je Teil vorlegen"
+        }
+      ]
+    },
+    {
+      "id": "freigabe",
+      "lane": "backend",
+      "col": 3,
+      "type": "backend",
+      "label": "Freigabe-Box",
+      "sublabel": "Freigeben · Abbrechen",
+      "tag": "Schlüssel nur im Server",
+      "width": 155,
+      "sources": [
+        {
+          "path": "backend/src/boerdi/services/ablauf/auftrag_freigabe.py",
+          "line": 199,
+          "end_line": 218,
+          "label": "Schlüssel merken, Box bauen"
+        },
+        {
+          "path": "backend/src/boerdi/services/ablauf/auftrag_freigabe_zug.py",
+          "line": 141,
+          "end_line": 180,
+          "label": "Freigeben und Verwerfen"
+        },
+        {
+          "path": "frontend/projects/ui-module/src/ui-inhaltsrahmen/freigabe-liste.component.ts",
+          "line": 11,
+          "end_line": 17,
+          "label": "Liste in der Box"
+        }
+      ]
+    },
+    {
       "id": "start",
       "lane": "mcp",
       "col": 3,
       "type": "external",
       "label": "wlo_start_flow",
-      "sublabel": "Vorschau, dann Bestätigung",
-      "width": 165,
+      "sublabel": "mit confirmToken",
+      "width": 155,
       "sources": [
         {
-          "path": "backend/seeds/06-ablaeufe/themenbaum.yaml",
-          "line": 235,
-          "end_line": 249,
-          "label": "Rückfrage vor dem Flow"
-        },
-        {
-          "path": "backend/src/boerdi/services/auftraege/mcp_starter.py",
-          "line": 190,
-          "end_line": 223,
-          "label": "Start in zwei Schritten"
+          "path": "backend/src/boerdi/services/auftraege/mcp_vorschau.py",
+          "line": 123,
+          "end_line": 154,
+          "label": "Bestätigen mit Schlüssel"
         },
         {
           "path": "backend/src/boerdi/services/ablauf/auftrag_zug.py",
           "line": 77,
           "end_line": 102,
           "label": "nur mit repo_schreibt"
+        },
+        {
+          "path": "backend/seeds/06-ablaeufe/themenbaum.yaml",
+          "line": 250,
+          "end_line": 270,
+          "label": "Auftragsschritt metadaten"
         }
       ]
     },
@@ -688,7 +747,7 @@
       "type": "security",
       "label": "Repository-Proxy",
       "sublabel": "/rest/bapi · Assertion",
-      "width": 165,
+      "width": 155,
       "sources": [
         {
           "path": "docs/plans/2026-11-17-mcp-wuensche-b-api-flows.md",
@@ -698,8 +757,8 @@
         },
         {
           "path": "docs/b-api-betrieb.md",
-          "line": 85,
-          "end_line": 91,
+          "line": 116,
+          "end_line": 121,
           "label": "Rechte des Repository-Schlüssels"
         }
       ]
@@ -712,7 +771,7 @@
       "label": "Kestra-Job",
       "sublabel": "node-metadata-write",
       "tag": "Metadaten an die Knoten",
-      "width": 165,
+      "width": 155,
       "sources": [
         {
           "path": "docs/plans/2026-11-17-mcp-wuensche-b-api-flows.md",
@@ -735,12 +794,12 @@
       "type": "external",
       "label": "wlo_flow_status",
       "sublabel": "k von n fertig",
-      "width": 165,
+      "width": 155,
       "sources": [
         {
           "path": "backend/src/boerdi/services/auftraege/mcp_starter.py",
-          "line": 268,
-          "end_line": 295,
+          "line": 249,
+          "end_line": 276,
           "label": "Stand über den MCP"
         },
         {
@@ -781,7 +840,7 @@
       "type": "database",
       "label": "metadaten (aus WLO gelesen)",
       "sublabel": "dazu ablage, strukturdokument",
-      "width": 190,
+      "width": 180,
       "sources": [
         {
           "path": "backend/src/boerdi/services/ablauf/metadaten.py",
@@ -798,7 +857,7 @@
       "type": "backend",
       "label": "Abläufe · freier Chat",
       "sublabel": "dokument_lesen · Werkzeuge",
-      "width": 165,
+      "width": 155,
       "sources": [
         {
           "path": "backend/src/boerdi/services/dokument_lesen.py",
@@ -808,8 +867,8 @@
         },
         {
           "path": "backend/src/boerdi/services/ablauf/metadaten.py",
-          "line": 219,
-          "end_line": 225,
+          "line": 231,
+          "end_line": 237,
           "label": "metadaten als Dokument"
         }
       ]
@@ -865,9 +924,24 @@
     {
       "id": "w2",
       "from": "ablage",
-      "to": "start",
-      "label": "Ja, erzeugen",
+      "to": "vorschau",
+      "label": "Ja",
       "role": "branch"
+    },
+    {
+      "id": "f1",
+      "from": "vorschau",
+      "to": "freigabe",
+      "label": "Box",
+      "role": "branch"
+    },
+    {
+      "id": "f2",
+      "from": "freigabe",
+      "to": "start",
+      "label": "Freigeben",
+      "role": "branch",
+      "variant": "security"
     },
     {
       "id": "w3",
@@ -939,8 +1013,19 @@
       "title": "In WLO über Kestra",
       "items": [
         "Ablage über die Stapel-Werkzeuge des MCP, dann die Rückfrage vor dem schreibenden Flow",
-        "wlo_start_flow geht über den Proxy des Repositorys; es bürgt mit einer signierten Assertion für die Person",
+        "Vorschau: wlo_start_flow ohne confirmToken, der MCP prüft jeden Datensatz als die Person",
+        "Nach der Freigabe: wlo_start_flow mit confirmToken über den Proxy des Repositorys; es bürgt mit einer signierten Assertion für die Person",
         "Warten mit Stand prüfen, Später weitermachen, Auftrag abbrechen; md und txt gehen nicht an den Flow"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Freigabe-Box",
+      "items": [
+        "Kompakt: Zahl der Materialien, was überschrieben wird, Probleme des MCP getrennt; die Liste eingeklappt, nach Ordner gruppiert",
+        "Der Schlüssel bleibt in der Sitzung (_auftrag_freigabe), gebunden an Lauf, Schritt, Vorlage und Person; nie im Vorgang, Text, Modell oder Log",
+        "Nur der Knopf Freigeben derselben angemeldeten Person startet; ein getipptes Ja löst nichts ein, ein Doppelklick startet nichts doppelt",
+        "Abbrechen nimmt den Ersatzweg ohne_metadaten, in WLO wird nichts überschrieben; eine abgelaufene Vorschau kommt als neue Box"
       ]
     },
     {
@@ -950,6 +1035,15 @@
         "Abläufe, freier Chat (dokument_lesen, ARBEITSSTAND) und Werkzeuge lesen nur die Teile im Vorgang",
         "Teile an die Auswahl gebunden (block_id): Angaben einer früheren Auswahl zählen nicht",
         "Geht ein hier gelesener Inhalt, fällt sein Eintrag in metadaten auf den Namen zurück"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Themenbaum aus Inhalten",
+      "items": [
+        "Zuordnung Datei → Punkt: inhalte je oberem Punkt aus den Kennungen des Modells, node_id vor i",
+        "Den Rest zieht die Einbettung an den ähnlichsten Punkt, ab der Schwelle des Modells (0,36); darunter nicht_zugeordnet",
+        "Fach und Bildungsstufe nur aus dem WLO-Vokabular: genau oder über Alias, keine unscharfen Treffer; ist das Vokabular nicht erreichbar, gilt die bisherige Prüfung"
       ]
     }
   ]
