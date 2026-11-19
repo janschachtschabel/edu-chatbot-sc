@@ -61,6 +61,7 @@ from boerdi.services.db_sessions import (
     save_message,
     update_session,
 )
+from boerdi.services.mcp import auth as mcp_auth
 from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.schreibrecht import schreiben_erlaubt
 
@@ -180,6 +181,13 @@ def weiter_knopf(session_id: str, session_state: dict[str, Any], lang: str) -> s
     if ablauf is None:
         return None
     entities = session_state.get("entities") or {}
+    vw = arbeitsstand.verweis(entities, arbeitsstand.aufrufer_fuer(session_id)) or {}
+    schritt = next((s for s in ablauf.schritte if s.id == (vw.get("lauf") or {}).get("schritt")),
+                   None)
+    if schritt is not None and schritt.typ == "auftrag":
+        # Paket N4: unter einer gewöhnlichen Antwort holt der Knopf die Box neu (die alte liegt
+        # weiter oben im Verlauf; „Freigeben“ dort gilt, solange sie die neueste ist)
+        return _knopf(lang, "action.ablauf.freigabeErneutKnopf", AKTION_ERNEUT, ablauf.id)
     offen = entities.get(_PENDING)
     if (isinstance(offen, dict) and (offen.get(MARKE) or {}).get("ablauf") == ablauf.id
             and not is_expired(offen, now=time.time())):
@@ -294,7 +302,10 @@ async def erneut(session: Any, req: ChatRequest, session_state: dict, *,
     if isinstance(geladen, ChatResponse):
         return geladen
     v, lauf, ablauf, aufrufer = geladen
-    if not schreiben_erlaubt():
+    schritt = next((s for s in ablauf.schritte if s.id == lauf.get("schritt")), None)
+    # Review N4 (8): ein Auftrag legt nur mit persönlicher Anmeldung vor (nie das Gastkonto)
+    if not schreiben_erlaubt() or (schritt is not None and schritt.typ == "auftrag"
+                                   and not mcp_auth.has_personal_auth()):
         return await basis.nur_text(session, req, "action.ablauf.freigabeOhneAnmeldung", entities)
     if _plan_offen(entities, marke={"ablauf": ablauf.id, "id": lauf.get("freigabe_id")}):
         # Review S4, Befund 1: der Plan des Laufs läuft noch — eine neue Vorschau ließe ihn ein

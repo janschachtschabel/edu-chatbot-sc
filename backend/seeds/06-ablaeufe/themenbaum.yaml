@@ -235,14 +235,14 @@ schritte:
   - id: metadaten_frage
     typ: nachricht
     text:
+      # Paket N4 (Plan 2026-11-19): was überschrieben wird, zeigt danach die Freigabe-Box mit der
+      # Liste — erst „Freigeben“ dort startet den Flow
       de: >-
         Soll WLO Metadaten für die eben in WLO abgelegten Dateien erzeugen – auch für
-        Strukturdokumente (falls dabei)? Das ersetzt je Datei Titel, Beschreibung, Schlagworte,
-        Sprache, Fach, Bildungsstufe, Zielgruppe und Ressourcentyp – jede Änderung als neue Version.
+        Strukturdokumente (falls dabei)? Vor dem Start zeige ich dir, was überschrieben wird.
       en: >-
         Should WLO create metadata for the files you just stored in WLO – structure documents
-        included (if any)? For each file this replaces title, description, keywords, language,
-        subject, educational level, audience and resource type – each change as a new version.
+        included (if any)? Before it starts, I'll show you what will be overwritten.
     optionen:
       - {id: ja, label: {de: "Ja, Metadaten erzeugen", en: "Yes, create metadata"}, ziel: metadaten}
       - {id: nein, label: {de: "Nein, so lassen", en: "No, leave as is"}, ziel: lesen}
@@ -545,8 +545,10 @@ schritte:
   # (gescheiterter Auftrag, md/txt, nicht verfügbar, abgewiesen)
   - id: ohne_metadaten
     typ: nachricht
-    text: {de: "Die Angaben aus WLO ließen sich gerade nicht erzeugen oder lesen. Wie soll es weitergehen?",
-           en: "The details from WLO could not be created or read right now. How shall we continue?"}
+    # Durchtest N4 (19.11.): neutral — auch nach „Abbrechen“ an der Freigabe-Box; einen Grund nennt
+    # bei Fehlern der Satz davor
+    text: {de: "Wie soll es ohne die Angaben aus WLO weitergehen?",
+           en: "How shall we continue without the details from WLO?"}
     optionen:
       - {id: lesen, label: {de: Angaben aus WLO lesen, en: Read details from WLO}, ziel: lesen}
       - {id: ohne, label: {de: Ohne Angaben aus WLO weiter, en: Continue without WLO details}, ziel: nach_lesen}

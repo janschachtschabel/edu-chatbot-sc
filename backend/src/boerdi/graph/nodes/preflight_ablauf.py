@@ -19,6 +19,7 @@ from boerdi.i18n import resolve_locale
 from boerdi.services import plan_fortsetzen, vorgang_aktion
 from boerdi.services.ablauf import (
     abbruch_zug,
+    auftrag_freigabe_zug,
     auftrag_spaeter,
     auftrag_zug,
     freigabe_zug,
@@ -161,6 +162,12 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
         return Antwort(await freigabe_zug.erneut(session, req, state, blocked_tools=gesperrt))
     if req.action == freigabe_zug.AKTION_ABBRECHEN:
         return Antwort(await freigabe_zug.abbrechen(session, req, state))
+    if req.action == auftrag_freigabe_zug.AKTION_FREIGEBEN:
+        return Antwort(await auftrag_freigabe_zug.freigeben(session, req, state,
+                                                           blocked_tools=gesperrt))
+    if req.action == auftrag_freigabe_zug.AKTION_VERWERFEN:
+        return Antwort(await auftrag_freigabe_zug.verwerfen(session, req, state,
+                                                           blocked_tools=gesperrt))
     if req.action == plan_fortsetzen.AKTION:
         # Paket S4: gehörte der Plan zu einem Lauf, geht der weiter, wenn der Plan fertig ist
         vorher = (state.get("entities") or {}).get(plan_fortsetzen.KEY)

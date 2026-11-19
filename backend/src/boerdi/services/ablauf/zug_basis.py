@@ -166,6 +166,16 @@ async def nicht_festgehalten(aus: treiber.Ausgabe) -> None:
 
 def antwort_text(lang: str, aus: treiber.Ausgabe) -> str:
     texte = list(aus.texte)
+    if aus.auftrag_freigabe is not None:
+        # Durchtest N4 (19.11.): über der Freigabe-Box ihr Kopf statt „Weiter geht's.“
+        from boerdi.services.ablauf import auftrag_freigabe
+
+        f = aus.auftrag_freigabe
+        flow = str(f.get("flow") or "")
+        texte.append(auftrag_freigabe.kopf(
+            {"metadaten": flow == METADATEN_FLOW, "flow": flow,
+             "anzahl": len(f.get("eintraege") or [])}, lang)
+            + bot_text(lang, "action.ablauf.auftragFreigabeBitte"))
     if aus.fehler:
         texte.append(bot_text(lang, "action.ablauf.fehler"))
     elif not texte:
@@ -250,6 +260,16 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
 
         aus.bloecke.append(freigabe_zug.merken(entities, aus.freigabe, ablauf.id,
                                                resolve_locale(req.environment.locale)))
+    if aus.auftrag_freigabe is not None:
+        # Paket N4: der Schlüssel nur in der Sitzung, die Box mit der Liste (Ordner aus der Ablage)
+        from boerdi.services.ablauf import auftrag_freigabe, auftrag_teile
+
+        ablage = await arbeitsstand.teil_lader(session, req.session_id, entities)(
+            auftrag_teile.ABLAGE_TEIL)
+        aus.bloecke.append(auftrag_freigabe.merken(entities, aus.auftrag_freigabe, ablauf.id,
+                                                   resolve_locale(req.environment.locale), ablage))
+    elif aus.lauf.get("status") != treiber.WARTET_FREIGABE:
+        entities.pop("_auftrag_freigabe", None)         # N4: keine Freigabe mehr offen
     # Zweites Review TW, Befund 1: der Ausstieg wird gemerkt, BEVOR die Sitzung gespeichert wird —
     # sonst lädt der nächste Zug die Entities ohne Marke, und die Schleife bliebe
     ausgestiegen = _ist_ausstieg(ablauf, aus)
@@ -291,6 +311,8 @@ async def antwort(session: Any, req: ChatRequest, session_state: dict, aus: trei
 
         knoepfe = freigabe_zug.knoepfe(ablauf.id, resolve_locale(req.environment.locale),
                                        vorgelegt=aus.freigabe is not None)
+        if aus.auftrag_freigabe is not None:
+            knoepfe = []        # Paket N4: „Freigeben“ und „Abbrechen“ stehen in der Box
     if aus.lauf.get("status") == treiber.WARTET_WAHL:
         # AS-3a: die Schnellantworten des Schritts als Chips
         from boerdi.services.ablauf import wahl_zug
@@ -466,4 +488,6 @@ async def abbrechen(session: Any, v: Any, lauf: dict[str, Any], entities: dict[s
     ausgang = await auftraege_beenden(job_id) if bei_der_b_api else ""
     logger.info("Ablauf %s: wartender Lauf abgebrochen", lauf.get("ablauf"))
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
+    # Review N4 (NIT): eine offene Freigabe-Box gehört zum abgebrochenen Lauf — weg damit
+    entities.pop("_auftrag_freigabe", None)
     return ausgang or "ok"

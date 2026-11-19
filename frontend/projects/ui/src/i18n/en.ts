@@ -197,6 +197,7 @@ export const EN: Catalogue = {
   'error.draftFromCollection': 'Sorry, I could not open the structure of “{title}” as a draft. Please try again!',
   'error.auftragAbholen': 'I could not fetch the result of the job just now. Tap “Check status” again in a moment.',
   'error.auftragAbbrechen': 'I could not cancel the job just now. Please try again in a moment.',
+  'error.auftragFreigabe': 'Your decision did not get through just now. Please try again in a moment.',
   'error.tourStart': 'Sorry, the tour could not be started just now. Please try again.',
   'error.transcription': 'Voice input could not be processed. Please type your message.',
   'error.micDenied': 'I cannot reach your microphone. Allow access in your browser '

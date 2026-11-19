@@ -74,7 +74,9 @@ export interface ModulHost {
    *  Auftrag mehr, 403: nicht angemeldet, 503: gerade nicht abrufbar); `abholen` lässt die Shell das
    *  Ergebnis im Zug der Person holen (Direktaktion „Stand prüfen“) und löst mit `{ gesendet }` auf —
    *  `false`, solange ein anderer Zug läuft. `abbrechen` (K2b) schickt die Direktaktion „Auftrag
-   *  abbrechen“; das Backend fragt erst nach, gleiche Auflösung wie `abholen`. */
+   *  abbrechen“; das Backend fragt erst nach, gleiche Auflösung wie `abholen`. Paket N4:
+   *  `freigeben`/`verwerfen` schicken „Freigeben“ bzw. „Abbrechen“ der Freigabe-Box
+   *  (Inhaltsrahmen mit `freigabe`), gebunden an deren Kennung — gleiche Auflösung. */
   auftrag(schritt: AuftragSchritt): Promise<Record<string, unknown>>;
 }
 
@@ -82,7 +84,8 @@ export interface ModulHost {
 export type AuftragSchritt =
   | { readonly schritt: 'stand'; readonly ablauf: string; readonly kuerzel: string }
   | { readonly schritt: 'abholen'; readonly ablauf: string }
-  | { readonly schritt: 'abbrechen'; readonly ablauf: string };
+  | { readonly schritt: 'abbrechen'; readonly ablauf: string }
+  | { readonly schritt: 'freigeben' | 'verwerfen'; readonly ablauf: string; readonly freigabe: string };
 
 /** U3-3b: ein Eintrag der Freigabe — nur, was das MCP dafür braucht (keine Pfade, kein Inhalt). */
 export interface AblageEintrag {

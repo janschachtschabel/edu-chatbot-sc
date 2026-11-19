@@ -184,6 +184,49 @@ class _Starter:
                 return mcp_starter.offene_kennung()
             return None
 
+    async def _bereit(self) -> bool:
+        """Review A2: fehlen die Werkzeuge kurz (Neustart des MCP), einmal nachholen."""
+        if self.traeger is None and self.grund == MCP_KURZ_WEG:
+            if not await mcp_starter.nachholen():
+                self._fehler = client.AuftragFehler("nicht_verfuegbar")
+                return False
+            self.traeger, self.grund = MCP, ""
+        return self.traeger == MCP
+
+    async def vorlegen(self, flow: str, args: dict[str, Any], aufteilen: Any) -> Any:
+        """Paket N4: über den MCP erst die Vorschau aller Teile (``auftrag_freigabe.vorlegen``) —
+        ``None``, wenn der MCP diesen Schritt nicht trägt (dann der Weg wie bisher)."""
+        from boerdi.services.ablauf import auftrag_freigabe
+
+        self._fehler = None
+        kurz_weg = self.traeger is None and self.grund == MCP_KURZ_WEG
+        if not await self._bereit():
+            return auftrag_freigabe.AuftragVorlage(
+                ausfall="voruebergehend", fehler=self._fehler) if kurz_weg else None
+        vorlage = await auftrag_freigabe.vorlegen(flow, args, aufteilen)
+        self._fehler = vorlage.fehler
+        return vorlage
+
+    async def bestaetigen(self, flow: str, args: dict[str, Any], token: str) -> str | None:
+        """Paket N4: „Freigeben“ — der gespeicherte Schlüssel startet den Job. Wie
+        :meth:`__call__`: ein offener Ausgang ergibt eine Kennung ohne jobId; ``abgelaufen``
+        (neue Vorschau nötig) steht danach in :attr:`grund_des_fehlers`."""
+        from boerdi.services.auftraege import mcp_vorschau
+
+        self._fehler = None
+        if not await self._bereit():
+            return None
+        try:
+            return await mcp_vorschau.bestaetigen(flow, args, token)
+        except client.AuftragFehler as fehler:
+            logger.info("Auftrag nicht gestartet (%s)", fehler.grund)
+            self._fehler = fehler
+            return mcp_starter.offene_kennung() if fehler.grund == "offen" else None
+
+    @property
+    def grund_des_fehlers(self) -> str | None:
+        return self._fehler.grund if self._fehler is not None else None
+
     def _voll(self) -> bool:
         """Zweites Review K (Z4): der MCP meldete 429 ohne offenen Ausgang — nichts gestartet."""
         return (self.traeger == MCP and self._fehler is not None

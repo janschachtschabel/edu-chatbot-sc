@@ -295,13 +295,94 @@
           "type": "string",
           "minLength": 1,
           "description": "Das vollstaendige Ergebnis als Markdown (Ueberschriften, Listen, Tabellen, Links)."
+        },
+        "freigabe": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-nur-system": true,
+          "description": "Nur das System: die Liste einer Freigabe-Box vor einem schreibenden Auftrag (Paket N4).",
+          "required": [
+            "ablauf",
+            "id",
+            "anzahl",
+            "eintraege",
+            "probleme"
+          ],
+          "properties": {
+            "ablauf": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "anzahl": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "eintraege": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "titel",
+                  "ordner"
+                ],
+                "properties": {
+                  "titel": {
+                    "type": "string",
+                    "maxLength": 160
+                  },
+                  "ordner": {
+                    "type": "string",
+                    "maxLength": 160
+                  }
+                }
+              }
+            },
+            "probleme": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "titel",
+                  "grund"
+                ],
+                "properties": {
+                  "titel": {
+                    "type": "string",
+                    "maxLength": 160
+                  },
+                  "grund": {
+                    "type": "string",
+                    "maxLength": 40
+                  }
+                }
+              }
+            },
+            "flow": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "metadaten": {
+              "type": "boolean"
+            }
+          }
         }
       }
     },
     "datenquelle": null,
     "faehigkeiten": [
       "drucken",
-      "herunterladen"
+      "herunterladen",
+      "auftrag"
     ],
     "textfassung": {
       "vorlage": "markdown",
@@ -1015,7 +1096,7 @@
           "bildungsstufe": {
             "type": "string",
             "maxLength": 60,
-            "description": "Bildungsstufe als WLO-Label (Elementarbereich, Primarstufe, Sekundarstufe I, Sekundarstufe II, Berufliche Bildung, Hochschule, Erwachsenenbildung, Fortbildung), nur wenn genannt oder eindeutig; Klasse 1-4 = Primarstufe, 5-10 = Sekundarstufe I, 11-13 = Sekundarstufe II."
+            "description": "Bildungsstufe als WLO-Label (Elementarbereich, Primarstufe, Sekundarstufe I, Sekundarstufe II, Berufliche Bildung, Hochschule, Erwachsenenbildung, Fortbildung, Schule, Förderschule, Fernunterricht, Informelles Lernen), nur wenn genannt oder eindeutig; Klasse 1-4 = Primarstufe, 5-10 = Sekundarstufe I, 11-13 = Sekundarstufe II."
           },
           "anzahl_oben": {
             "type": "integer",
@@ -1111,7 +1192,7 @@
         "quelle_block": {
           "type": "string",
           "pattern": "^[a-z0-9]{8,32}$",
-          "description": "Mit quelle ordner: die block_id der Auswahl, aus der der Entwurf stammt (verknuepft inhalte mit der Ablage)."
+          "description": "Mit quelle ordner oder aus Materialien: die block_id der Auswahl, aus der der Entwurf stammt (verknuepft inhalte mit der Ablage)."
         },
         "knoten": {
           "type": "array",
@@ -1121,6 +1202,14 @@
             "$ref": "#/$defs/ebene1"
           },
           "description": "Die Punkte der oberen Ebene."
+        },
+        "nicht_zugeordnet": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/inhalt"
+          },
+          "description": "Aus Materialien: Inhalte, die keinem Punkt zugeordnet sind (Verweise wie inhalte)."
         }
       },
       "$defs": {
@@ -1133,7 +1222,11 @@
             "Berufliche Bildung",
             "Hochschule",
             "Erwachsenenbildung",
-            "Fortbildung"
+            "Fortbildung",
+            "Schule",
+            "Förderschule",
+            "Fernunterricht",
+            "Informelles Lernen"
           ],
           "description": "Bildungsstufe (WLO-Label), nur wenn erkannt."
         },
@@ -1161,7 +1254,7 @@
               "minLength": 1,
               "maxLength": 120,
               "pattern": "^[^\\n\\r]*$",
-              "description": "Dateiname."
+              "description": "Dateiname bzw. Titel des Materials."
             },
             "node_id": {
               "$ref": "#/$defs/wlo_id"
@@ -1238,7 +1331,7 @@
               "items": {
                 "$ref": "#/$defs/inhalt"
               },
-              "description": "Mit quelle ordner: die Dateien des Ordners als Verweise (nur Zahl und Name, keine Inhalte)."
+              "description": "Die Inhalte des Punkts als Verweise: mit quelle ordner die Dateien des Ordners, aus Materialien die zugeordneten (nur Nummer, Name und node_id, keine Inhalte)."
             }
           }
         },
@@ -1350,6 +1443,14 @@
           },
           "description": "Der Stand der Person."
         },
+        "nicht_zugeordnet": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/inhalt"
+          },
+          "description": "Wie in der Eingabe; unveraendert zurueck."
+        },
         "uebernommen": {
           "type": "boolean",
           "description": "true: die Person hat 'Uebernehmen' gewaehlt; false: der Stand ging mit einer getippten Nachricht mit."
@@ -1369,7 +1470,11 @@
             "Berufliche Bildung",
             "Hochschule",
             "Erwachsenenbildung",
-            "Fortbildung"
+            "Fortbildung",
+            "Schule",
+            "Förderschule",
+            "Fernunterricht",
+            "Informelles Lernen"
           ],
           "description": "Bildungsstufe (WLO-Label)."
         },
@@ -1397,7 +1502,7 @@
               "minLength": 1,
               "maxLength": 120,
               "pattern": "^[^\\n\\r]*$",
-              "description": "Dateiname."
+              "description": "Dateiname bzw. Titel des Materials."
             },
             "node_id": {
               "$ref": "#/$defs/wlo_id"
@@ -1474,7 +1579,7 @@
               "items": {
                 "$ref": "#/$defs/inhalt"
               },
-              "description": "Dateien des Ordners als Verweise (quelle ordner); bleiben beim Bearbeiten am Punkt."
+              "description": "Inhalte des Punkts als Verweise (Ordner bzw. zugeordnete Materialien); bleiben beim Bearbeiten am Punkt."
             }
           }
         },
