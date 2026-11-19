@@ -97,25 +97,23 @@ def test_review_u6_warten_auf_einen_platz_hat_eine_frist(monkeypatch):
     """Review U, MINOR 6: sind alle Plätze belegt, wartet ein Aufruf höchstens ``FRIST_S`` —
     danach ``None`` (der Titel entsteht aus dem Namen), statt den Upload unbegrenzt aufzuhalten."""
     monkeypatch.setattr(ia, "FRIST_S", 0.2)
-    frei = asyncio.Event()
-
-    async def haengt(_n):
-        await frei.wait()
-        return {"titel": "T"}
 
     async def schnell(_n):
         return {"titel": "Schnell"}
 
     async def alle():
-        belegt = [asyncio.create_task(ia.ermitteln("Text", f"{n}.pdf", llm=haengt))
-                  for n in range(ia.PARALLEL)]
-        await asyncio.sleep(0.01)
+        # Die Plätze direkt belegen: liefen sie über ``ermitteln``, gälte für sie dieselbe Frist,
+        # sie gäben ihre Plätze nach 0,2 s frei, und der vierte bekäme je nach Zeitplanung doch noch
+        # einen (CI 19.11.: rot, lokal grün).
+        platz = ia._platz()
+        for _ in range(ia.PARALLEL):
+            await platz.acquire()
         start = asyncio.get_running_loop().time()
         # ohne Frist hinge der Test — die äußere Grenze lässt ihn scheitern statt hängen
         vierter = await asyncio.wait_for(ia.ermitteln("Text", "4.pdf", llm=schnell), 2)
         dauer = asyncio.get_running_loop().time() - start
-        frei.set()
-        await asyncio.gather(*belegt)
+        for _ in range(ia.PARALLEL):
+            platz.release()
         return vierter, dauer
 
     vierter, dauer = asyncio.run(alle())
