@@ -20,6 +20,10 @@ weiter darunter (ohne JavaScript, Modul aus, Bündel nicht ladbar).
   während eines Zugs). `host.auftrag({schritt: 'abbrechen'})` schickt die Direktaktion
   `ablauf_auftrag_abbrechen` als Zug ohne Nutzerblase; das Backend fragt erst nach („Ja, abbrechen“). Das
   Nachfragen läuft weiter: nach dem bestätigten Abbruch antwortet der Stand mit 409 → „abgeschlossen“.
+- **„k von n fertig“** (Paket K6, E16): trägt die Antwort von `stand` zwei Zahlen `fertig`/`gesamt` (über den
+  MCP aus `progress`), zeigt das Modul „12 von 40 fertig“ statt „Läuft noch …“, der Balken bekommt Wert und
+  Höchstwert, und ein neuer Stand wird über die `aria-live`-Zeile angesagt. Ohne (gültige) Zahlen bleibt die
+  Anzeige wie bisher — maßgeblich ist immer die letzte Antwort.
 - **Fehler nach Status**: 409/404/400/422 → „abgeschlossen“ (etwa ein alter Block im Verlauf);
   401/403 → Hinweis auf die Anmeldung, 403 `abgewiesen` (die B-API weist den Schlüssel ab, R1-e) → eigener Satz; sonst (503, Netz) → Hinweis und weiter mit dem nächsten Abstand.
 - **Darstellung** (`fortschritt-stil.ts`, `fortschritt-texte.ts`): Gerüst einmal gebaut, `zeichne()` setzt

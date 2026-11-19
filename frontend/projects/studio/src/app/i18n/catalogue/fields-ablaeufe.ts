@@ -102,11 +102,14 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.flow.hint':
       'Bei „Auftrag“: der Kestra-Flow hinter der b-api — nur freigegebene Flows '
       + '(unten: „Kestra-Flows freigeben“). Braucht die Voraussetzung Anmeldung; „Stand prüfen“ '
-      + 'holt das Ergebnis.',
+      + 'holt das Ergebnis. Mit Anmeldung startet der WLO-MCP den Flow — welche Flows der MCP '
+      + 'wirklich startet, legt dort WLO_BAPI_FLOWS fest.',
     'feld.Schritt.warten.label': 'Während der Auftrag läuft',
     'feld.Schritt.warten.hint':
       'Nur bei „Auftrag“. „Frei“: das Gespräch geht weiter. „Gesperrt“: bis der Auftrag fertig ist, '
-      + 'nimmt das Widget nur „Stand prüfen“ und „Auftrag abbrechen“ an.',
+      + 'nimmt das Widget nur „Stand prüfen“, „Später weitermachen“ und „Auftrag abbrechen“ an. '
+      + '„Später weitermachen“ hebt die Sperre für diese Sitzung auf; „Stand prüfen“ setzt sie wieder, '
+      + 'solange der Auftrag läuft.',
     'feld.Schritt.warten.wahl.frei': 'Frei',
     'feld.Schritt.warten.wahl.gesperrt': 'Gesperrt',
     'feld.Schritt.typ.wahl.agent': 'KI-Abschnitt',
@@ -163,7 +166,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
       'Ankreuzen, wenn der Flow in WLO schreibt (Metadaten, Sammlungen …). Der Chatbot sieht nicht in '
       + 'den Flow — hier steht es für alle sichtbar. Der Flow arbeitet mit den Rechten der angemeldeten '
       + 'Person: Das Repository weist sie nach (Start über seinen Proxy). Ein Auftrag braucht immer '
-      + 'die WLO-Anmeldung.',
+      + 'die WLO-Anmeldung. Nur angekreuzte Schritte startet der WLO-MCP (die Frage davor ist die '
+      + 'Zustimmung); der Flow muss dort auch in WLO_BAPI_FLOWS stehen — ab Werk nur '
+      + 'node-metadata-write. Ohne Kreuz geht der Flow den direkten Weg zur b-api.',
     'feld.Schritt.dateien_holen.label': 'Dateien holen',
     'feld.Schritt.dateien_holen.hint':
       'Bis zu drei Dateien des Ergebnisses (ihre outputId), die beim Abholen geholt und wie ein Upload '
@@ -366,11 +371,13 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.flow.hint':
       'For “job”: the Kestra flow behind the b-api — only enabled flows '
       + '(below: “Enable Kestra flows”). Needs the sign-in requirement; “Check status” fetches '
-      + 'the result.',
+      + 'the result. With a sign-in the WLO MCP starts the flow — which flows the MCP actually '
+      + 'starts is set there by WLO_BAPI_FLOWS.',
     'feld.Schritt.warten.label': 'While the job runs',
     'feld.Schritt.warten.hint':
       'Only for “job”. “Open”: the conversation goes on. “Locked”: until the job is done, the widget '
-      + 'only accepts “Check status” and “Cancel job”.',
+      + 'only accepts “Check status”, “Continue later” and “Cancel job”. “Continue later” lifts the '
+      + 'lock for this session; “Check status” sets it again while the job is running.',
     'feld.Schritt.warten.wahl.frei': 'Open',
     'feld.Schritt.warten.wahl.gesperrt': 'Locked',
     'feld.Schritt.typ.wahl.agent': 'AI section',
@@ -426,7 +433,10 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.repo_schreibt.hint':
       'Tick if the flow writes to WLO (metadata, collections …). The chatbot cannot see into the flow — '
       + 'this makes it visible. The flow acts with the rights of the signed-in person: the repository '
-      + 'vouches for them (start via its proxy). A job always needs the WLO sign-in.',
+      + 'vouches for them (start via its proxy). A job always needs the WLO sign-in. Only ticked steps '
+      + 'are started by the WLO MCP (the question before them is the consent); the flow must also be '
+      + 'listed there in WLO_BAPI_FLOWS — by default only node-metadata-write. Without the tick the '
+      + 'flow goes straight to the b-api.',
     'feld.Schritt.dateien_holen.label': 'Fetch files',
     'feld.Schritt.dateien_holen.hint':
       'Up to three files of the result (their outputId), fetched on pick-up and checked like an upload. '

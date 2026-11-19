@@ -16,7 +16,7 @@ import type { ElementHost, NachladeElement } from '../_nachladen/element-vertrag
 import type { ModulKontext } from '../_vertrag/ui-block';
 import { FortschrittAblauf, fortschrittDaten, type Phase } from './fortschritt-ablauf';
 import { FORTSCHRITT_STIL } from './fortschritt-stil';
-import { type Sprache, texte, uhrzeit } from './fortschritt-texte';
+import { type Sprache, texte, uhrzeit, zahl } from './fortschritt-texte';
 
 export const ELEMENT = 'boerdi-ui-fortschritt';
 
@@ -115,7 +115,19 @@ export class UiFortschrittElement extends HTMLElement implements NachladeElement
     const laeuft = !nurLesen && (a.phase === 'wartet' || a.phase === 'prueft' || a.phase === 'fertig');
     this.balken.hidden = !laeuft;
     this.balken.setAttribute('aria-label', t.balken);
+    // K6: mit „k von n fertig“ zeigt der Balken den Wert, ohne läuft er unbestimmt
+    const f = a.fortschritt;
+    if (f) {
+      // Durchtest Paket K: der Balken zeigt, was abgearbeitet ist — gelungen und gescheitert
+      this.balken.max = f.gesamt;
+      this.balken.value = f.fertig + (f.fehlgeschlagen ?? 0);
+    } else {
+      this.balken.removeAttribute('value');
+      this.balken.removeAttribute('max');
+    }
     this.stand.textContent = nurLesen ? t.nurLesen : this.standText(a.phase);
+    // Drittes Review (19.11.): der Balken sagt den Stand als Text, nicht nur als Zahl
+    this.balken.setAttribute('aria-valuetext', this.stand.textContent);
     this.zeit.hidden = a.zuletzt === null || (!laeuft && a.phase !== 'manuell');
     this.zeit.textContent = a.zuletzt === null ? '' : t.zuletzt(uhrzeit(this.sprache, a.zuletzt));
     this.jetzt.textContent = t.jetzt;
@@ -125,8 +137,10 @@ export class UiFortschrittElement extends HTMLElement implements NachladeElement
     this.jetzt.setAttribute('aria-disabled', String(a.phase === 'prueft'));
     this.sichtbar(this.abholen, !nurLesen && a.abholenAngeboten() && !this._beschaeftigt);
     this.sichtbar(this.abbruch, !nurLesen && a.abbrechenAngeboten() && !this._beschaeftigt);
-    const schluessel = `${a.phase}:${a.stoerung}`;
-    if ((ANSAGEN.has(a.phase) || a.stoerung) && a.phase !== 'prueft' && this.angesagt !== schluessel) {
+    // K6: ein neuer Fortschritt wird angesagt (höflich, höchstens je Frage)
+    const zahlen = a.phase === 'wartet' && f && !a.stoerung ? `${f.fertig}/${f.gesamt}/${f.fehlgeschlagen ?? 0}` : '';
+    const schluessel = `${a.phase}:${a.stoerung}:${zahlen}`;
+    if ((ANSAGEN.has(a.phase) || a.stoerung || zahlen) && a.phase !== 'prueft' && this.angesagt !== schluessel) {
       this.angesagt = schluessel;
       this.status.textContent = this.stand.textContent;
     }
@@ -142,7 +156,13 @@ export class UiFortschrittElement extends HTMLElement implements NachladeElement
       case 'halt': return t.halt;
       case 'abgewiesen': return t.abgewiesen;
       case 'manuell': return this.ablauf.stoerung ? t.stoerungManuell : t.manuell;
-      default: return this.ablauf.stoerung ? t.stoerung : t.laeuft;
+      default: {
+        const f = this.ablauf.fortschritt;
+        if (this.ablauf.stoerung) return t.stoerung;
+        if (!f) return t.laeuft;
+        const text = t.fortschritt(zahl(this.sprache, f.fertig), zahl(this.sprache, f.gesamt));
+        return f.fehlgeschlagen ? text + t.fehlgeschlagen(zahl(this.sprache, f.fehlgeschlagen)) : text;
+      }
     }
   }
 

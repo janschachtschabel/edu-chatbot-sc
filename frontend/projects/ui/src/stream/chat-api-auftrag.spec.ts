@@ -40,6 +40,28 @@ describe('ChatApiClient.auftragStand', () => {
     expect((fehler as { code?: unknown }).code).toBeUndefined();
   });
 
+  // Paket K6 (E16): „k von n fertig“ reist als zwei Zahlen mit — nur passende, nichts sonst aus der Antwort.
+  it('K6: gibt `fertig`/`gesamt` weiter, wenn sie Zahlen sind; sonst nur den Stand', async () => {
+    const mit = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: true, status: 200,
+      json: { stand: 'laeuft', fertig: 12, gesamt: 40, outputs: { x: 1 } } }) });
+    await expect(mit.auftragStand('bb-1', 'lesen', '0123456789ab')).resolves.toEqual({ stand: 'laeuft', fertig: 12, gesamt: 40 });
+    const kaputt = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: true, status: 200,
+      json: { stand: 'laeuft', fertig: '12', gesamt: 40 } }) });
+    await expect(kaputt.auftragStand('bb-1', 'lesen', '0123456789ab')).resolves.toEqual({ stand: 'laeuft' });
+  });
+
+  // Durchtest Paket K (19.11.): gescheiterte Iterationen reisen getrennt mit — nur als ganze Zahl.
+  it('gibt `fehlgeschlagen` weiter, wenn es eine ganze Zahl ist', async () => {
+    const mit = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: true, status: 200,
+      json: { stand: 'fehler', fertig: 0, gesamt: 3, fehlgeschlagen: 3 } }) });
+    await expect(mit.auftragStand('bb-1', 'lesen', '0123456789ab'))
+      .resolves.toEqual({ stand: 'fehler', fertig: 0, gesamt: 3, fehlgeschlagen: 3 });
+    const kaputt = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: true, status: 200,
+      json: { stand: 'laeuft', fertig: 1, gesamt: 3, fehlgeschlagen: '1' } }) });
+    await expect(kaputt.auftragStand('bb-1', 'lesen', '0123456789ab'))
+      .resolves.toEqual({ stand: 'laeuft', fertig: 1, gesamt: 3 });
+  });
+
   it('ein unbekannter Stand ist ein Fehler, kein „fertig“', async () => {
     const api = new ChatApiClient({ fetchImpl: antwortFetch([], { ok: true, status: 200, json: { stand: 'irgendwas' } }) });
     await expect(api.auftragStand('bb-1', 'lesen', '0123456789ab')).rejects.toThrow();

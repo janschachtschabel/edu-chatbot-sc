@@ -565,10 +565,15 @@ export class ChatApiClient {
   }
 
   /** Der Stand eines Ablauf-Auftrags (K1b, `POST /api/ui/auftrag/stand`): kein Zug, nur Sitzung,
-   *  Ablauf und Kürzel; der Zugangsblock reist mit. Ein unbekannter Stand wirft (nie „fertig“ raten). */
-  async auftragStand(sessionId: string, ablauf: string, kuerzel: string, signal?: AbortSignal): Promise<{ stand: string }> {
+   *  Ablauf und Kürzel; der Zugangsblock reist mit. Ein unbekannter Stand wirft (nie „fertig“ raten).
+   *  Paket K6: „k von n fertig“ reist als `fertig`/`gesamt` mit, wenn beide ganze Zahlen sind (den Rest
+   *  prüft `ui_fortschritt`); sonst nichts aus der Antwort. Durchtest Paket K (19.11.): dazu
+   *  `fehlgeschlagen` (gescheiterte Iterationen), wenn es eine ganze Zahl ist. */
+  async auftragStand(
+    sessionId: string, ablauf: string, kuerzel: string, signal?: AbortSignal,
+  ): Promise<{ stand: string; fertig?: number; gesamt?: number; fehlgeschlagen?: number }> {
     await this.bereit();
-    const antwort = await postChat<{ stand?: unknown }>({
+    const antwort = await postChat<{ stand?: unknown; fertig?: unknown; gesamt?: unknown; fehlgeschlagen?: unknown }>({
       url: `${this.baseUrl}/ui/auftrag/stand`,
       body: { session_id: sessionId, ablauf, kuerzel },
       fetchImpl: this.fetchImpl,
@@ -576,7 +581,10 @@ export class ChatApiClient {
       signal,
     });
     if (!AUFTRAG_STAENDE.has(antwort?.stand)) throw new Error('Auftrag: unbekannter Stand');
-    return { stand: antwort.stand as string };
+    const { fertig, gesamt, fehlgeschlagen } = antwort;
+    if (!Number.isInteger(fertig) || !Number.isInteger(gesamt)) return { stand: antwort.stand as string };
+    const zahlen = { stand: antwort.stand as string, fertig: fertig as number, gesamt: gesamt as number };
+    return Number.isInteger(fehlgeschlagen) ? { ...zahlen, fehlgeschlagen: fehlgeschlagen as number } : zahlen;
   }
 
   /** Wartende Vorgänge der angemeldeten Person in anderen Gesprächen (K2a,
