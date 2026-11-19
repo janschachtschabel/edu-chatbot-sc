@@ -39,7 +39,7 @@ ZUEGE: Final = 5
 HOECHSTENS_ZEICHEN: Final = 60_000
 OHNE_TEXTE: Final = "_ohne_texte"
 _FELDER: Final = ("titel", "quelle", "thema", "fach", "bildungsstufe", "wurzel_wlo_id",
-                  "gekuerzt", "quelle_block", "knoten")
+                  "gekuerzt", "quelle_block", "knoten", se.RESTE)
 RAHMEN_START: Final = (
     "[DEIN LETZTER ENTWURF — so stand die Gliederung zuletzt (Titel und Einrückung). Mit "
     "vorlage: true nimmst du ihn als Grundlage (vertiefen), mit vorlage und erneut_zeigen: true "
@@ -64,6 +64,7 @@ def _merken(entities: dict[str, Any], daten: dict[str, Any]) -> None:
     gemerkt = {f: copy.deepcopy(daten[f]) for f in _FELDER if f in daten}
     if len(json.dumps(gemerkt, ensure_ascii=False)) > HOECHSTENS_ZEICHEN:
         gemerkt["knoten"] = _ohne_texte(gemerkt.get("knoten") or [])
+        gemerkt.pop(se.RESTE, None)       # Paket N3: wie die ``inhalte`` — sie stehen in ``draft``
         gemerkt[OHNE_TEXTE] = True
     entities[KEY] = {"daten": gemerkt, "zuege": ZUEGE}
 

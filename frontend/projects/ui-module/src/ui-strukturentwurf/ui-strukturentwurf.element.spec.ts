@@ -601,7 +601,7 @@ const AUS_ORDNERN = {
 } as unknown as EntwurfDaten;
 
 describe('ui_strukturentwurf: Inhalte am Punkt (TG-3f)', () => {
-  it('zeigt je Punkt die Zahl seiner Dateien — keine Namen —, beschreibt den Eintrag damit', async () => {
+  it('zeigt je Punkt die Zahl seiner Dateien — Namen nicht im Baum —, beschreibt den Eintrag damit', async () => {
     const { el } = await render(AUS_ORDNERN);
     const [mechanik, optik, akustik] = items(el);
     const beschreibung = (i: HTMLElement) => (i.getAttribute('aria-describedby') ?? '').split(' ')
@@ -609,7 +609,9 @@ describe('ui_strukturentwurf: Inhalte am Punkt (TG-3f)', () => {
     expect(beschreibung(mechanik)).toBe('3 Dateien');
     expect(beschreibung(optik)).toBe('1 Datei');
     expect(akustik.hasAttribute('aria-describedby')).toBe(false);
-    expect(text(el)).not.toContain('hebel.pdf');
+    // Paket N3: die Namen stehen nur aufklappbar beim gewählten Punkt (zugeklappt), nie im Baum
+    expect(el.querySelector('[role="tree"]')?.textContent).not.toContain('hebel.pdf');
+    expect(el.querySelector('details.ui-strukturentwurf__punktinhalte:not([open])')?.textContent).toContain('hebel.pdf');
   });
 
   it('auf Englisch', async () => {
@@ -618,7 +620,7 @@ describe('ui_strukturentwurf: Inhalte am Punkt (TG-3f)', () => {
     expect(text(el)).toContain('1 file');
   });
 
-  it('beim Umbenennen und Verschieben bleiben die Inhalte am Punkt, beim Löschen gehen sie mit', async () => {
+  it('beim Umbenennen und Verschieben bleiben die Inhalte am Punkt, beim Löschen gehen sie nach „nicht zugeordnet“', async () => {
     const { f, el } = await render(AUS_ORDNERN);
     const [mechanik] = items(el);
     mechanik.focus();
@@ -635,7 +637,9 @@ describe('ui_strukturentwurf: Inhalte am Punkt (TG-3f)', () => {
     const [daten] = h.antworten.mock.calls[0];
     expect(daten.knoten.map((k: { titel: string }) => k.titel)).toEqual(['Kräfte', 'Akustik']);
     expect(daten.knoten[0].inhalte).toEqual(AUS_ORDNERN.knoten[0].inhalte);
-    expect(JSON.stringify(daten)).not.toContain('linsen.pdf');
+    // Review N3, MINOR 9: die Dateien des gelöschten Punkts gehen nicht verloren
+    expect(JSON.stringify(daten.knoten)).not.toContain('linsen.pdf');
+    expect(daten.nicht_zugeordnet).toEqual([{ i: 3, name: 'linsen.pdf' }]);
   });
 
   it('das Manifest kennt inhalte an jedem Punkt (Eingabe und Antwort), optional', () => {

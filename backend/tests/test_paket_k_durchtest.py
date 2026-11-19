@@ -332,6 +332,8 @@ def _aus_inhalten(monkeypatch, thema: str) -> dict:
 
     monkeypatch.setattr(dienst, "erzeugen", erzeugen)
     monkeypatch.setattr(modul_dienst, "_ebene_eins_pruefen", nicht_beanstandet)
+    # Paket N3: die Zuordnung bettet sonst echt ein — im Test ohne Netz (keine Einbettung)
+    monkeypatch.setattr(modul_dienst, "_einbetten", lambda *_a: None)
     ergebnis = asyncio.run(modul_dienst.aufruf(
         katalog()["ui_strukturentwurf"], {"thema": thema, "aus_inhalten": True},
         Umgebung(teile=teile)))
@@ -425,10 +427,10 @@ def test_r3_2_derselbe_ablauf_bietet_neu_starten(zwei_ablaeufe):
 
 def test_r3_3_ohne_metadaten_nennt_keine_vermuteten_gruende():
     s = next(x for x in _SEED.schritte if x.id == "ohne_metadaten")
-    assert s.text["de"] == ("Die Angaben aus WLO ließen sich gerade nicht erzeugen oder lesen. "
-                            "Wie soll es weitergehen?")
-    assert s.text["en"] == ("The details from WLO could not be created or read right now. "
-                            "How shall we continue?")
+    # Durchtest N4 (19.11.): neutral — auch nach „Abbrechen“ an der Freigabe-Box; einen Grund
+    # nennt bei Fehlern der Satz davor
+    assert s.text["de"] == "Wie soll es ohne die Angaben aus WLO weitergehen?"
+    assert s.text["en"] == "How shall we continue without the details from WLO?"
 
 
 def test_r3_4_gruendlich_nach_anmeldung(monkeypatch):

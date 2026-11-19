@@ -247,26 +247,33 @@ async def _entwurf_mit_knoten(s: Any, v: Vorgang, wert: dict[str, Any]) -> dict[
     bleiben die node_ids des zuletzt gespeicherten Entwurfs derselben Auswahl (sie stammen vom
     Server)."""
     from boerdi.services.arbeitsstand_teile import gebunden
+    from boerdi.services.strukturentwurf_zuordnung import metadaten_ids
     from boerdi.ui_module.strukturentwurf import knoten_ids_im_entwurf, mit_knoten_ids
     from boerdi.ui_module.strukturentwurf_ordner import knoten_ids
 
     if not _hat_inhalte(wert):
         return wert
     quelle = wert.get("quelle_block")
+    # Review N3, MINOR 6: der Teil ``metadaten`` derselben Auswahl (``metadaten_lesen``, vom Server)
+    # kennt die node_ids eines Entwurfs ``aus_inhalten`` auch ohne gebundene Ablage
+    meta = await vorgaenge.teil_wert(s, v, "metadaten")
+    ids = metadaten_ids(meta) if (isinstance(meta, dict) and isinstance(quelle, str) and quelle
+                                  and meta.get("block_id") == quelle) else {}
     struktur = await vorgaenge.teil_wert(s, v, "struktur")
     ablage = await vorgaenge.teil_wert(s, v, "ablage")
     if (isinstance(quelle, str) and quelle and gebunden(struktur, ablage)
             and struktur.get("block_id") == quelle):
-        return mit_knoten_ids(wert, knoten_ids(ablage))
+        return mit_knoten_ids(wert, {**ids, **knoten_ids(ablage)})
     alt = await vorgaenge.teil_wert(s, v, "draft")
     gleiche_quelle = isinstance(alt, dict) and quelle and alt.get("quelle_block") == quelle
-    return mit_knoten_ids(wert, knoten_ids_im_entwurf(alt) if gleiche_quelle else {})
+    return mit_knoten_ids(wert, {**ids, **(knoten_ids_im_entwurf(alt) if gleiche_quelle else {})})
 
 
 def _hat_inhalte(wert: dict[str, Any]) -> bool:
-    from boerdi.ui_module.strukturentwurf import alle
+    # Paket N3: auch ``nicht_zugeordnet`` trägt node_ids — die nimmt der Server ebenso nur selbst
+    from boerdi.ui_module.strukturentwurf import hat_inhalte
 
-    return any(k.get("inhalte") for k, _ in alle(wert.get("knoten") or []))
+    return hat_inhalte(wert)
 
 
 async def _speichern(s: Any, session_id: str, entities: dict[str, Any], teile: list[Teil],

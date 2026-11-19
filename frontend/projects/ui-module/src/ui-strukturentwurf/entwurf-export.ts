@@ -2,11 +2,11 @@
  * Herunterladen des Strukturentwurfs (Paket U2-e, Plan 2026-11-04 T-12) — ohne Angular.
  *
  * JSON im Dokumenttyp `wlo.sammlungsstruktur@1` (Konzept §6.3; die Felder `vokabular`, `typ`,
- * `konfidenz`, `fuellstand`, `inhalte` fehlen noch, siehe Plan „Offen“) und Markdown als
+ * `konfidenz`, `fuellstand` fehlen noch, siehe Plan „Offen“) und Markdown als
  * eingerückte Liste mit Beschreibung und Schlagworten. Die Übergabe an andere Dienste (Kestra,
  * B-API) bleibt offen; bis dahin ist die Datei die Übergabe.
  */
-import type { Baum } from './entwurf-regeln';
+import type { Baum, EntwurfInhalt } from './entwurf-regeln';
 
 export interface EntwurfDaten {
   readonly titel: string;
@@ -19,13 +19,18 @@ export interface EntwurfDaten {
   /** Nachprüfung TG-3d–f, MINOR 2: die block_id der Auswahl (`quelle: ordner`). */
   readonly quelle_block?: string;
   readonly knoten: Baum;
+  /** Paket N3: Inhalte aus Materialien, die keinem Punkt zugeordnet sind. */
+  readonly nicht_zugeordnet?: readonly EntwurfInhalt[];
 }
 
 export const DOKUMENTTYP = 'wlo.sammlungsstruktur@1';
 
 export function alsJson(daten: EntwurfDaten): string {
-  const { titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt, knoten } = daten;
-  const dokument = { typ: DOKUMENTTYP, titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt, knoten };
+  // Paket N3: die Verweise (`inhalte` je Punkt mit node_id, `nicht_zugeordnet`) reisen mit — so
+  // sind die Inhalte in edu-sharing wiederzufinden
+  const { titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt, knoten, nicht_zugeordnet } = daten;
+  const dokument = { typ: DOKUMENTTYP, titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt, knoten,
+    nicht_zugeordnet };
   return `${JSON.stringify(dokument, null, 2)}\n`;
 }
 

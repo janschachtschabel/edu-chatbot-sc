@@ -14,7 +14,7 @@ import { alleMitKindern, ansicht, type EntwurfEintrag, schlagworte, vorfahren } 
 import type { EntwurfDaten } from './entwurf-export';
 import {
   type Ablehnung, anzahl, ausruecken, type Baum, bereinigt, einruecken, finde, hinzufuegen, KEYWORD_ZEICHEN,
-  KEYWORDS, loeschen, neueKennung, setzeFelder, verschieben,
+  KEYWORDS, loeschen, neueKennung, setzeFelder, verschieben, type EntwurfInhalt, verwaisteInhalte,
 } from './entwurf-regeln';
 import { TEXTE } from './entwurf-texte';
 
@@ -37,6 +37,9 @@ export class EntwurfZustand {
   offen: ReadonlySet<string> = new Set();
   /** R4: ist der Abschnitt „Hinweise zur Struktur“ aufgeklappt? (das Element zeichnet neu) */
   hinweiseOffen = false;
+  /** Paket N3: sind die Inhalte des Punkts bzw. die nicht zugeordneten aufgeklappt? */
+  inhalteOffen = false;
+  resteOffen = false;
   /** Das Schlagwort-Feld, solange es bearbeitet wird (sonst sprängen Komma und Leerzeichen weg). */
   kwText: string | null = null;
   private aktivId: string | null = null;
@@ -144,16 +147,27 @@ export class EntwurfZustand {
   antwortDaten(uebernommen: boolean): Record<string, unknown> {
     // Nachprüfung TG-3d–f, MINOR 2: `quelle_block` (die Auswahl, aus der der Entwurf stammt) geht
     // unverändert zurück — der Server verknüpft damit Inhalte und Ablage
+    // Paket N3: `nicht_zugeordnet` ebenso — samt den Inhalten gelöschter Punkte (Review, MINOR 9)
     const { titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt, quelle_block } = this.daten;
+    const reste = this.reste;
     return {
       titel, quelle, thema, fach, bildungsstufe, wurzel_wlo_id, gekuerzt, quelle_block,
+      nicht_zugeordnet: reste.length ? reste : undefined,
       knoten: bereinigt(this.struktur, this.texte.neuerPunkt), uebernommen, bearbeitet: this.geaendert,
     };
   }
 
   /** Daten zum Herunterladen: der bereinigte Stand. */
   herunterladDaten(): EntwurfDaten {
-    return { ...this.daten, knoten: bereinigt(this.struktur, this.texte.neuerPunkt) };
+    const reste = this.reste;
+    return { ...this.daten, knoten: bereinigt(this.struktur, this.texte.neuerPunkt),
+      nicht_zugeordnet: reste.length ? reste : undefined };
+  }
+
+  /** Review N3, MINOR 9: die nicht zugeordneten Inhalte — dazu die gelöschter Punkte. */
+  get reste(): readonly EntwurfInhalt[] {
+    const ausgang = this.quelle();
+    return verwaisteInhalte(ausgang.knoten, ausgang.nicht_zugeordnet ?? [], this.struktur);
   }
 
   // ── Bearbeiten ───────────────────────────────────────────────────────────

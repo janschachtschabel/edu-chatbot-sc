@@ -128,7 +128,8 @@ def test_das_argument_der_ki_geht_vor():
 
 def test_unbekannte_stufen_und_zu_lange_faecher_fallen_weg():
     zweites = _eintrag(_STRUKTUR_2, "struktur", titel="Lehrplan 2",
-                       faecher=["x" * 61, "Biologie"], stufen=["Förderschule", "Sekundarstufe II"])
+                       # Review N3 (MINOR 7): „Förderschule“ ist ein WLO-Label, also bekannt
+                       faecher=["x" * 61, "Biologie"], stufen=["Mondschule", "Sekundarstufe II"])
     ablage = {**_ABLAGE, "inhalte": [*_ABLAGE["inhalte"],
                                      {"index": 4, "stand": "stored", "node_id": _STRUKTUR_2,
                                       "rolle": "struktur"}]}

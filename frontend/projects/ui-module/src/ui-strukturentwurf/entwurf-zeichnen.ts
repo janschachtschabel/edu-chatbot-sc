@@ -12,6 +12,7 @@
  * und der folgende Klick fiele ins Leere; Vorleser sagten den Eintrag nach jedem Aufklappen neu an.
  */
 import type { EntwurfEintrag } from './entwurf-ansicht';
+import { inhalteDesPunkts, nichtZugeordnet } from './entwurf-inhalte';
 import { strukturHinweise } from './entwurf-pruefung';
 import { BESCHREIBUNG_ZEICHEN, TITEL_ZEICHEN } from './entwurf-regeln';
 import { PFEIL, SYMBOL, svgSymbol, type Zeichen } from './entwurf-symbole';
@@ -57,7 +58,9 @@ export function vorDemBaum(z: EntwurfZustand, k: Kennung): Node[] {
   if (d.bildungsstufe) angaben.append(el('span', '', `${t.stufe}: ${d.bildungsstufe}`));
   angaben.append(el('span', '', t.punkte(z.zahl)));
   const teile: Node[] = [kopf, angaben];
-  if (d.gekuerzt) teile.push(el('p', `${P}__hinweis`, d.quelle === 'ordner' ? t.gekuerztOrdner : t.gekuerzt));
+  // Review N3, NIT 10: aus Materialien (`ki`) kürzt nur die Zahl der Inhalte
+  const gekuerzt = d.quelle === 'ordner' ? t.gekuerztOrdner : d.quelle === 'ki' ? t.gekuerztInhalte : t.gekuerzt;
+  if (d.gekuerzt) teile.push(el('p', `${P}__hinweis`, gekuerzt));
   if (z.struktur.length && z.hatKinder) {
     teile.push(knopf(z.allesOffen ? t.allesZu : t.allesAuf, 'alles', `${P}__knopf ${P}__alles`));
   }
@@ -93,7 +96,7 @@ export function nachDemBaum(z: EntwurfZustand, k: Kennung): Node[] {
     s.dataset['fokus'] = 'status';
     teile.push(s);
   }
-  teile.push(...hinweise(z));
+  teile.push(...nichtZugeordnet(z), ...hinweise(z));
   const a = z.aktiv;
   if (!z.nurLesen && a) {
     const leiste = el('div', `${P}__aktionen`);
@@ -116,6 +119,7 @@ export function nachDemBaum(z: EntwurfZustand, k: Kennung): Node[] {
     const lesen = el('div', `${P}__details ${P}__details--lesen`);
     lesen.append(el('p', `${P}__ziel`, a.knoten.titel), el('p', '', a.knoten.beschreibung || t.keineBeschreibung));
     if (a.knoten.keywords?.length) lesen.append(el('p', `${P}__neben`, `${t.schlagworte}: ${a.knoten.keywords.join(', ')}`));
+    lesen.append(...inhalteDesPunkts(z, a.knoten));
     teile.push(lesen);
   }
   return teile;
@@ -155,7 +159,8 @@ export function details(z: EntwurfZustand, k: Kennung): Node[] {
   kw.dataset['fokus'] = 'keywords';
   const hinweis = el('span', `${P}__neben`, t.kwHinweis);
   hinweis.id = k('kw-hinweis');
-  box.append(feld(t.titel, titel), feld(t.beschreibung, beschreibung), feld(t.keywords, kw, hinweis));
+  box.append(feld(t.titel, titel), feld(t.beschreibung, beschreibung), feld(t.keywords, kw, hinweis),
+    ...inhalteDesPunkts(z, a.knoten));
   return [box];
 }
 
@@ -243,8 +248,9 @@ export class BaumZeichner {
     titel.id = k(`n-${id}`);
     zeile.append(pfeil, titel);
     if (dateien) {
-      // Plan 2026-11-16, TG-3f: nur die Zahl, keine Namen (die Liste bearbeitet niemand hier)
-      const zahl = el('span', `${P}__neben ${P}__dateien`, z.texte.dateien(dateien));
+      // Plan 2026-11-16, TG-3f: nur die Zahl; die Namen zeigt der gewählte Punkt aufklappbar (N3)
+      const zahl = el('span', `${P}__neben ${P}__dateien`,
+        z.daten.quelle === 'ordner' ? z.texte.dateien(dateien) : z.texte.materialien(dateien));
       zahl.id = k(`d-${id}`);
       zeile.append(zahl);
     }
