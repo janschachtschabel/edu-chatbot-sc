@@ -1,15 +1,16 @@
 # Architektur-Grafiken
 
-Sieben interaktive Grafiken zu boerdi-chat, erzeugt mit [archify](https://github.com/tt-a1i/archify).
+Acht interaktive Grafiken zu boerdi-chat, erzeugt mit [archify](https://github.com/tt-a1i/archify).
 **Ansehen:** als Bild über die PNG-Links unten (zeigt GitHub direkt an), interaktiv nach dem
 Herunterladen oder Klonen über `index.html` (siehe „Lokal nutzen“). Auf GitHub zeigen die
 `.html`-Dateien nur den Quelltext; eine Pages-Seite gibt es derzeit nicht (Repository privat).
 
 | Grafik | Bild (hell) | Interaktiv (lokal) | Quelle | Quellstand |
 |---|---|---|---|---|
-| Architektur: Widget, Studio, Backend, MCP, b-api | [PNG](png/architektur.png) | [architektur.html](architektur.html) | [`architektur.json`](quellen/architektur.json) | `2a589a6` |
+| Architektur: Widget, Studio, Backend, MCP, b-api (Delegation), Repository-Proxy, Kestra | [PNG](png/architektur.png) | [architektur.html](architektur.html) | [`architektur.json`](quellen/architektur.json) | `81d66f6` (Branch `ein-upload-weg`) |
 | Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [PNG](png/software-stack.png) | [software-stack.html](software-stack.html) | [`software-stack.json`](quellen/software-stack.json) | `2a589a6` |
-| UI-Module: Einbindung und Nutzung (Register, Werkzeug, Ableitung, Host, Antwortweg, Datenquelle) — Erklärung in [`../ui-module.md`](../ui-module.md) | [PNG](png/ui-module-einbindung.png) | [ui-module-einbindung.html](ui-module-einbindung.html) | [`ui-module-einbindung.json`](quellen/ui-module-einbindung.json) | `e7f10c0` (Branch `paket-u1-ui-module`) |
+| UI-Module: Einbindung und Nutzung (Register, Werkzeug, Ableitung, Host, Antwortweg, Datenquelle) — Erklärung in [`../ui-module.md`](../ui-module.md) | [PNG](png/ui-module-einbindung.png) | [ui-module-einbindung.html](ui-module-einbindung.html) | [`ui-module-einbindung.json`](quellen/ui-module-einbindung.json) | `81d66f6` (Branch `ein-upload-weg`) |
+| Datenstrom: vom Upload bis Kestra (hier im Chat oder in WLO, Teile im Vorgang) — Erklärung in [`../architektur.md`](../architektur.md) §5.8 und §5.9 | [PNG](png/datenstrom-upload-kestra.png) | [datenstrom-upload-kestra.html](datenstrom-upload-kestra.html) | [`datenstrom-upload-kestra.json`](quellen/datenstrom-upload-kestra.json) | `81d66f6` (Branch `ein-upload-weg`) |
 | Ablauf eines Zuges im Muster-Modus | [PNG](png/ablauf-muster-modus.png) | [ablauf-muster-modus.html](ablauf-muster-modus.html) | [`ablauf-muster-modus.json`](quellen/ablauf-muster-modus.json) | `2a589a6` |
 | Ablauf eines Zuges in der Agent-Schleife | [PNG](png/ablauf-agent-schleife.png) | [ablauf-agent-schleife.html](ablauf-agent-schleife.html) | [`ablauf-agent-schleife.json`](quellen/ablauf-agent-schleife.json) | `2a589a6` |
 | Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [PNG](png/konfiguration-muster-modus.png) | [konfiguration-muster-modus.html](konfiguration-muster-modus.html) | [`konfiguration-muster-modus.json`](quellen/konfiguration-muster-modus.json) | `2a589a6` |
@@ -26,13 +27,19 @@ Betriebswerte (`LOG_FORMAT`, `FORWARDED_ALLOW_IPS`, `INTERNAL_PORT` …) stehen 
 b-api-Router-Route (`gpt-6-luna` → `gpt-5.6-luna`), interner Port 8101 mit `/health`, `/ready`,
 `/metrics`, Prometheus, JSON-Logs mit Trace-ID, Compose oder Kubernetes.
 
+**Stand Pakete D, K und U (2026-11-19):** b-api-Proxy mit Delegations-Token `bdt_` (durchgereicht,
+nie Rückfall auf `B_API_KEY`), WLO-MCP mit Flow-Werkzeugen, Repository-Proxy `/rest/bapi/**` mit
+Assertion für die Person, Kestra-Jobs (`node-metadata-write`); ein Upload-Weg mit „Hier im Chat“,
+„In WLO ablegen und erschließen“ und „Nur Namen senden“, ein Datenstrom aus Teilen. Neu ist die
+Grafik zum Datenstrom; Architektur und UI-Module sind nachgezogen.
+
 Die Seiten sind in sich geschlossen: Sie laden keine externen Skripte und keine Web-Fonts.
 Jede Komponente verlinkt auf ihre Quellstelle im Repository.
 
 ## Lokal nutzen
 
 `index.html` im Browser öffnen, per Doppelklick oder über *Datei → Öffnen*. Alles läuft aus dem
-Dateisystem und offline; die Startseite verlinkt die sieben Grafiken relativ. Über das Menü
+Dateisystem und offline; die Startseite verlinkt die acht Grafiken relativ. Über das Menü
 **Exportieren** lassen sich die Grafiken zusätzlich als Bild für Folien speichern.
 
 Wer lieber eine Adresse im lokalen Netz zeigt, startet im Ordner einen einfachen Webserver und
@@ -96,6 +103,10 @@ node <archify>/bin/archify.mjs finalize architecture docs/architektur-grafiken/q
 node <archify>/bin/archify.mjs finalize architecture docs/architektur-grafiken/quellen/ui-module-einbindung.json docs/architektur-grafiken/ui-module-einbindung.html --repo-root . --quality showcase
 ```
 
+```bash
+node <archify>/bin/archify.mjs finalize workflow docs/architektur-grafiken/quellen/datenstrom-upload-kestra.json docs/architektur-grafiken/datenstrom-upload-kestra.html --repo-root . --quality showcase
+```
+
 Jede Quelle trägt ihren eigenen Stand in `meta.repository.revision`. archify prüft die Belege
 gegen diesen Commit; der Klon unter `--repo-root` muss ihn also enthalten.
 
@@ -104,4 +115,11 @@ Modus — exportiert über *Exportieren → PNG* des Viewers bei hellem Thema. N
 ebenso neu exportieren.
 
 `finalize` legt neben jede Grafik Prüfbelege (`*.delivery.json` u. a.) mit lokalen Pfaden ab.
-Die [`.gitignore`](.gitignore) hält sie aus dem Repository.
+Die [`.gitignore`](.gitignore) hält sie aus dem Repository; am besten verschiebt man sie gleich
+nach dem Lauf aus diesem Ordner.
+
+**Unter Windows** bricht die Browser-Prüfung von `finalize` gelegentlich mit
+`viewer/temp-cleanup-incomplete` ab: Chrome gibt sein Profil verzögert frei, archify wartet nur
+kurz. Dann hilft ein erneuter Lauf mit eigenem `--out-dir`, oder Node mit einem kleinen
+`--import`-Vorspann, der `fs.rmSync` für `archify-visual-check-profile-*` einige Sekunden lang
+wiederholt.

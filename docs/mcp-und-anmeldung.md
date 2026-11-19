@@ -7,6 +7,9 @@ wir uns für den laufenden Umbau des MCP-Servers wünschen. Quellen: Kurzaudit
 [`audits/2026-10-10-kurzaudit-auth-mcp-schreiben.md`](audits/2026-10-10-kurzaudit-auth-mcp-schreiben.md),
 Paket 10 und 11 (`plans/`), `docs/AUTH.md` des MCP-Servers (gelesen am 2026-10-15).
 
+**Nachtrag 2026-11-19:** §1a beschreibt die Kette bis zur b-api (Delegation, Kestra über den
+Repository-Proxy).
+
 **Einordnung (Nutzer 2026-10-15):** kurzfristig unkritisch, weil der MCP-Server umgebaut wird; langfristig
 zu lösen. Dieses Dokument ist die Liste dafür.
 
@@ -21,6 +24,29 @@ zu lösen. Dieses Dokument ist die Liste dafür.
 | Je Chat-Anfrage | Widget → Backend (Kopfzeile `WLO-Access-Block`) → MCP-Server (`Authorization: Bearer`) | Das Backend speichert den Block nirgends und reicht ihn **nur an den WLO-Server** weiter, nie an andere MCP-Server. |
 | Echtheitsprüfung | Backend → `wlo_auth_status` (seit Paket 10) | Erst ein bestätigter Block gilt als Person (Cache 5 min je Block, abgewiesen 30 s). Abgewiesener Block → `auth_invalid` an das Widget. |
 | Abmelden | Widget → Backend (`POST /api/auth/abmelden`) → MCP-Server (`/auth/revoke`) | Entfernt den Block aus dem Tab und widerruft ihn am Server (seit 2026-11-07, R2). Bei einem Block aus der Sitzung gilt der Widerruf bis zum nächsten Tausch derselben Sitzung (R6). |
+
+## 1a. Die Kette bis zur b-api (Pakete D und K, seit 2026-11-18)
+
+Seit dem 10.11. nimmt die b-api eine Person nur noch an, wenn das **Repository** für sie bürgt.
+`X-Edu-User-Id` ist abgeschafft (mit Schlüssel 403 `LEGACY_HEADERS`); der Chatbot schickt den Kopf
+nirgends mehr (Paket D). Zwei Wege führen deshalb zur b-api:
+
+| Weg | Kette | Was die b-api sieht |
+|---|---|---|
+| LLM, Einbettung, Moderation, Sprache | Widget → b-api-Proxy (`badboerdichat`, `forwardDelegation`) → Backend → b-api, `Authorization: Bearer bdt_…` durchgereicht | das Delegations-Token der Anfrage: nur LLM und lesende Repository-Pfade, keine Jobs; endet mit der Anfrage |
+| Kestra-Flows (Jobs) | Widget (`WLO-Access-Block`) → Backend → MCP (`Authorization: Bearer <Block>`, Werkzeug `wlo_start_flow`) → Repository-Proxy `{WLO_REPOSITORY_URL}/rest/bapi/**` mit der Repository-Anmeldung der Person → b-api `/api/v1/jobs` → Kestra | den Schlüssel des Repositorys und eine **signierte Assertion** des Repositorys für die Person (30 s, an Methode, Pfad und Schlüssel gebunden); der Job bekommt ein eigenes Token (`bapi_token`) und schreibt als die Person |
+
+- Der Proxy des Repositorys entfernt `x-edu-*` und `x-api-key` des Aufrufers und setzt seine eigenen.
+  Der MCP muss also nichts mitschicken außer der Anmeldung der Person, die er ohnehin hält.
+- Der Chatbot startet über den MCP nur Schritte mit `repo_schreibt`, nur mit bestätigter Anmeldung
+  und erst nach der Rückfrage an die Person; den Bestätigungsschlüssel der Vorschau sieht weder die
+  Person noch das Modell (`services/auftraege/mcp_starter.py`).
+- **Risiko (Bericht des MCP §4, an das b-api-Team):** Über `/rest/bapi/**` hängen Jobs am Schlüssel des
+  Repositorys, nicht an der Person. Jede bestätigte Person liest jeden Job, dessen jobId sie kennt. Der
+  Chatbot gibt die jobId darum nie an die Person, das Modell oder das Log; sie steht nur in
+  `vorgang_auftraege.job_id`. Die 20 offenen Jobs je Schlüssel teilen sich alle Personen des Repositorys
+  (429 → „in etwa N Minuten noch einmal“).
+- Betrieb und Fehlerzuordnung: [`b-api-betrieb.md`](b-api-betrieb.md) §5.
 
 ## 2. Was ein Block ist
 

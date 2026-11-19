@@ -100,6 +100,10 @@ wiederholen (statt Basic). Vorlage für eigene Proben: das Python-Skript des b-a
 `bapi_proxy_test.py` (validateSession → Cookie → `/rest/bapi/…`).
 
 **W1 — Proxy-Client `bapiFetch(method, path, body?)`.**
+
+> **Überholt (Antwort MCP 18.11.):** Der MCP erkennt den Repository-Proxy beim Start selbst
+> (`WLO_BAPI_VIA_REPOSITORY` legt es nur fest); ohne `WLO_BAPI_FLOWS` ist `node-metadata-write`
+> startbar – siehe Änderungsnotiz Paket K (`docs/aenderungen/2026-11-18-paket-k-kestra-ueber-mcp.md`).
 - URL `{restBase}/bapi{path}`; Anmeldung wie bei jedem Repository-Aufruf über `applyUpstreamAuth`
   (Cookie/Ticket/Basic der Anfrage, `DisableGuest: true`). Da die URL unter `WLO_REPOSITORY_URL`
   liegt, sollte `isRepositoryUrl` greifen — bitte prüfen, dass **nur** die persönliche Anmeldung

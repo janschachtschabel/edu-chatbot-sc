@@ -1,6 +1,6 @@
 # Übergabe an den Betrieb (Team 6)
 
-Stand: Paket 18, 2026-10-28 (zuerst Paket 17, 2026-10-20). Beantwortet die Checkliste „Übergabepaket“ des Leitfadens für Team 6, Punkt für Punkt. Wo eine Datei die Einzelheiten trägt und von einem Test aktuell gehalten wird, steht hier nur der Verweis.
+Stand: Paket 18, 2026-10-28 (zuerst Paket 17, 2026-10-20); §5, §11 und §13 nachgezogen für die Pakete D, K und U (2026-11-19). Beantwortet die Checkliste „Übergabepaket“ des Leitfadens für Team 6, Punkt für Punkt. Wo eine Datei die Einzelheiten trägt und von einem Test aktuell gehalten wird, steht hier nur der Verweis.
 
 **Kurzfassung:** [Service-Steckbrief](steckbrief-uebergabe.md) (Jira [GEN-329](https://edu-sharing.atlassian.net/browse/GEN-329)). **Offen, vom Nutzer einzutragen:** Wartungsverantwortung (§15), Abnahme des Beschreibungstexts der Spec (§2), Abstimmung SSE mit Wolli (§4). **Offen, technisch:** Ressourcen-Messung (§10).
 
@@ -61,7 +61,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 
 | Header | Wofür |
 |---|---|
-| `Authorization: Bearer <key>` | b-api-Schlüssel des Aufrufers (Proxy, §5) |
+| `Authorization: Bearer bdt_…` bzw. `Bearer <key>` | Delegations-Token bzw. (ältere Proxy-Einträge) Schlüssel vom b-api-Proxy (§5) |
 | `WLO-Access-Block` | persönliche WLO-Anmeldung für den MCP-Server. Hinter dem b-api-Proxy muss er durchkommen (§5) |
 | `X-Boerdi-Engine` | Maschine wählen (`agent`/`pattern`) |
 | `Accept-Language` | Sprache |
@@ -82,7 +82,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 | `application/json` | Standard | |
 | `text/event-stream` | `/api/chat/stream`, `/api/agent/stream` | **mit Wolli abstimmen**: Pufferung aus, Keepalive alle 10 s |
 | `audio/mpeg` | Sprachausgabe | |
-| `multipart/form-data` | Sprach-Upload; Studio: RAG-/Konfig-Upload | |
+| `multipart/form-data` | Sprach-Upload; Upload-Feld (`/api/ui/dokumente`, `/api/ui/ablage/datei`); Studio: RAG-/Konfig-Upload | |
 | JS/HTML | Widget-Dateien und Studio-Oberfläche | |
 | ZIP/Markdown | Studio-Downloads | |
 
@@ -103,21 +103,42 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 
 ## 5 B-API-Integration und Authentifizierung
 
+Einzelheiten zu Betriebsarten, Rückfall-Regeln, Admin-Liste und Fehlerzuordnung:
+[`b-api-betrieb.md`](b-api-betrieb.md) (Stand Pakete D und K, 2026-11-19).
+
 **Variante A (Standard, hinter dem b-api-Proxy).**
-- **Auth:** Der Proxy-Dienst `badboerdichat` ist mit `forwardApiKey` eingetragen. Chat, Agent und Sprache nehmen den durchgereichten `Authorization`-Kopf für **alle** LLM-Aufrufe des Zuges: Chat, Strom, Klassifikation, Moderation, Einbettung, Sprache.
-- **Ein Header:** Hinaus geht genau dieser eine Kopf. Er wird nie geloggt oder gespeichert.
+- **Auth (seit Paket D):** Der Proxy-Dienst `badboerdichat` ist mit `forwardDelegation` eingetragen.
+  Jede Anfrage trägt ein **Delegations-Token** `Authorization: Bearer bdt_…` (verschlüsselt, Länge
+  unbekannt; angenommen werden 8–8192 sichtbare Zeichen). Chat, Agent und Sprache reichen es für
+  **alle** LLM-Aufrufe des Zuges unverändert durch: Chat, Strom, Klassifikation, Moderation,
+  Einbettung, Sprache.
+  - Es gilt nur, solange die Anfrage läuft. Legt der Client auf, endet der Zug vor dem nächsten
+    b-api-Aufruf und speichert, was da ist.
+  - **Mit Delegation nie Rückfall auf `B_API_KEY`**: Ein unbrauchbares oder beendetes Token führt zu
+    keinem Aufruf; die Person liest „Deine Anmeldung auf der Seite ist abgelaufen …“.
+  - Das Token deckt keine Jobs. Kestra-Flows, die ins Repository schreiben, startet der WLO-MCP
+    über den Proxy des Repositorys (`/rest/bapi/**`) mit der Anmeldung der Person (siehe unten,
+    „Kestra über den MCP“).
+  - Ältere Einträge mit `forwardApiKey` (Schlüssel statt Token) nimmt der Chatbot weiter an.
+- **Ein Header:** Hinaus geht genau dieser eine Kopf, nie `X-API-KEY` daneben, nie `X-Edu-User-Id`
+  (abgeschafft). Er wird nie geloggt oder gespeichert.
 - **Schalter `B_API_KEY_MODE`:** `auto` (Vorgabe: Kopf, sonst `B_API_KEY`), `static` (immer
   `B_API_KEY`, Kopf zählt nicht), `forward` (jeder Zug braucht den Kopf, sonst 401 — für eine
-  Anlage nur hinter dem Proxy). Hintergrundläufe nehmen immer `B_API_KEY`; Studio-Proben und
+  Anlage nur hinter dem Proxy; **mit `forwardDelegation` empfohlen**, sonst liefe ein Zug ohne Kopf
+  still ohne Person unter `B_API_KEY`). Hintergrundläufe nehmen immer `B_API_KEY`; Studio-Proben und
   Züge mit gültigem Studio-Schlüssel (Evaluation, Lasttest) sind auch unter `forward` frei.
   `forward` verlangt einen Schlüssel, prüft ihn aber nicht (das tut die b-api); nur `static`
   schließt beliebige Schlüssel direkter Aufrufer aus. Im reinen Entwicklungsmodus
   (`BOERDI_ALLOW_OPEN_ADMIN` ohne Studio-Passwort und ohne `STUDIO_API_KEY`) zählt jeder Zug
   über das Studio als Probe und bucht auf `B_API_KEY` — der Modus gehört nie auf einen
   erreichbaren Server.
+- **Proxy-Eintrag (Admin-Liste, `b-api-betrieb.md` §3):** `forwardDelegation: true`,
+  `delegationScopes: [llm]`, `delegationLifetimeSeconds` ≥ 300, `responseTimeout` ≥ 120 s,
+  `allowedResponseContentTypes` mit `text/event-stream`, `pathToIgnore` für Studio-, Admin-, Eval-
+  und Debug-Pfade.
 - **Kopfzeilen am Proxy freigeben:** Der Proxy-Eintrag muss diese Kopfzeilen des Browsers
   durchlassen (`allowedRequestHeaders`): `WLO-Access-Block`, `X-Boerdi-Engine`,
-  `Accept-Language`. Ohne `WLO-Access-Block` arbeitet jede angemeldete Person still als Gast:
+  `Accept-Language`, `x-client-trace-id` und die B3-Köpfe. Ohne `WLO-Access-Block` arbeitet jede angemeldete Person still als Gast:
   Der Block der Anmeldung reist in dieser Kopfzeile, weil `Authorization` vom Schlüssel der
   b-api belegt ist. Nicht jeder Abruf mit Block hat einen JSON-Körper (der Verlauf ist ein GET,
   der Upload ein Formular); ein Feld im Körper trüge ihn dort nicht. Mit dem b-api-Team klären: die Freigabe, die
@@ -143,8 +164,32 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   b-api-Proxy die Nutzer-Adresse nicht weiter, teilen sich seine Nutzer ein Limit — mit dem
   b-api-Team klären, was der Proxy weitergibt.
 
+**Kestra über den MCP (Paket K).**
+- Ein Ablauf-Schritt mit `repo_schreibt` (ab Werk der Metadaten-Flow
+  `edusharing.chatbot/node-metadata-write` im Ablauf „Themenbaum erstellen“) startet nur über die
+  MCP-Werkzeuge `wlo_start_flow`, `wlo_flow_status`, `wlo_cancel_flow`. Der MCP ruft
+  `{WLO_REPOSITORY_URL}/rest/bapi/api/v1/jobs/…`; das Repository setzt seinen Schlüssel und eine
+  signierte Assertion für die Person. Beim Chatbot gibt es dafür **keine neue Variable** und keine
+  Migration.
+- **Am MCP** (setzt das MCP-Team): Der MCP erkennt den b-api-Proxy des Repositorys beim Start selbst
+  und bietet dann die Flow-Werkzeuge an; `WLO_BAPI_VIA_REPOSITORY=1` bzw. `0` legt es fest, statt zu
+  erkennen. `WLO_BAPI_FLOWS` schränkt die startbaren Flows nur ein (`node-metadata-write` ist ab Werk
+  startbar). Auf Staging ist nichts zu setzen.
+- **Am Chatbot:** Der Flow muss zusätzlich im Studio freigegeben sein („Abläufe → Kestra-Flows
+  freigeben“; `B_API_JOBS_FLOWS` ist die Obergrenze, ohne beides gilt die Werksvorgabe
+  `node-metadata-write`), und der Ablauf-Schritt braucht `repo_schreibt`.
+- **Bei der b-api** (Admin): Der Schlüssel des Repositorys braucht die Rolle `JOBS` (bzw.
+  `JOB_RUN_EDUSHARING_CHATBOT_NODE-METADATA-WRITE`) sowie `EDU_SHARING_REPO_READ` und
+  `EDU_SHARING_REPO_WRITE`; der Flow die Labels `bapi.expose`, `bapi.scopes` und den Input
+  `bapi_token` (`b-api-betrieb.md` §3).
+- Nach einem Neustart des MCP fehlen die Werkzeuge Sekunden bis Minuten. Der Chatbot holt die
+  Werkzeugliste nach „unbekanntes Werkzeug“ sofort neu (höchstens alle 20 s), sonst alle 5 Minuten;
+  die Person liest „gleich noch einmal“.
+- Der Flow-Katalog im Studio fragt weiter über `B_API_KEY` (das Studio hat keine Person).
+
 **Variante B (direkt).**
-- `B_API_KEY` (bzw. `OPENAI_API_KEY`) aus der Umgebung ist der Rückfall: für Direktaufrufe und für alle Hintergrundläufe (Eval, Lasttest, RAG-Import, Vorwärmung). Der Master-Skill-Abruf ist ein MCP-Aufruf und nutzt `MCP_AUTH_TOKEN`.
+- `B_API_KEY` (bzw. `OPENAI_API_KEY`) aus der Umgebung ist der Rückfall: für Direktaufrufe und für alle Hintergrundläufe (Eval, Lasttest, RAG-Import, Vorwärmung, Flow-Katalog des Studios). Mit einem Delegations-Token im Zug gilt er nie. Der Master-Skill-Abruf ist ein MCP-Aufruf und nutzt `MCP_AUTH_TOKEN`.
+- Aufträge über den Direktweg der b-api gehen nur für Schritte ohne `repo_schreibt` und nur mit dem durchgereichten Schlüssel der Person (nie `B_API_KEY` aller, nie bei Delegation).
 - Der Chat ist öffentlich und anonym, gedrosselt per IP (`RATE_LIMIT_*`).
 - Das Studio verlangt Passwort bzw. `STUDIO_API_KEY`.
 - Der Agent-Endpunkt verlangt eine persönliche WLO-Anmeldung oder den Studio-Schlüssel.
@@ -251,7 +296,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   - **MCP-Server:** Er drosselt auf 120 Anfragen je Minute **je IP**, und alle Pods teilen sich eine Egress-IP. Die Freischaltung klärt das MCP-Team.
   - **Herunterfahren:** bis 72 s (5 s Läufe schließen, 30 s Verbindungen, 25 s Nachlauf, 10 s Abbruch und Aufräumen, 2 s Verbindungen schließen), eingestellt 75 s, **plus** preStop (5 s) plus Luft = 85 s (Values) — Kubernetes zieht preStop von der Frist ab.
 - **Abnahme:** `docs/cluster-checkliste.md` (Zusagen 1–8, davon SSE über den Load-Balancer und der verlustfreie Shutdown am laufenden Cluster).
-- **Architekturübersicht:** sechs Grafiken in `docs/architektur-grafiken/` (Architektur, Abläufe Agent und Muster, Software-Stack, Konfiguration je Modus) — als PNG unter `png/`, interaktiv lokal über `index.html`.
+- **Architekturübersicht:** acht Grafiken in `docs/architektur-grafiken/` (Architektur, Software-Stack, UI-Module, Abläufe Agent und Muster, Konfiguration je Modus, Datenstrom vom Upload bis Kestra) — als PNG unter `png/`, interaktiv lokal über `index.html`.
 
 ## 10 Ressourcen
 
@@ -317,6 +362,12 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
     - Ohne die beiden Listen gelten keine 12-h-Frist für Widget-Anmeldungen und keine Sperre fremder Seiten.
     - Das Studio zeigt beides zum Abgleich auf der Seite „Vorschau“ unter „Einbettende Seiten“, als kopierbare
       Zeilen. Übernommen werden nur Einträge, die der MCP-Server als Herkunft annimmt.
+- **Upload-Feld „Hier im Chat“ (Paket U, Studio „UI-Module → Hochladen“, Bereich `01-base/upload-config`):**
+  `lokal_max_dateien` (Vorgabe 10, 1–30) und `lokal_max_mb_gesamt` (Vorgabe 50, 1–200) begrenzen,
+  was eine Sitzung im Chat lesen lässt (Inhalte und Strukturdokumente zusammen). Darüber weist das
+  Backend ab (409 `grenze_anzahl`, 413 `grenze_gesamt`), es verdrängt nichts. Jeder gelesene Inhalt
+  kostet einen kurzen LLM-Aufruf für die Kurzangaben (höchstens 3 zugleich). Der Text bleibt bis
+  `aufbewahrung_h` nach der letzten Nutzung. Keine Umgebungsvariable.
 - **Betriebswerte, die der Aufbau bestimmt:** `FORWARDED_ALLOW_IPS` (Ingress-CIDR; im
   Testbetrieb ohne Proxy `127.0.0.1`), `TRUST_FORWARDED_FOR` (`false`), `B_API_KEY_MODE`,
   `B_API_ROUTE`, `RATE_LIMIT_STORAGE_URI` (Valkey), `LOG_FORMAT=json`, `INTERNAL_PORT`.
@@ -343,14 +394,16 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 
 - **LLM je Zug** (gemessen 2026-09-27, Golden-Läufe E-5, Listenpreise USD): rund 0,0017 USD im Agent-Modus, 0,0030 USD im Muster-Modus.
 - **Wo gebucht wird:**
-  - Die b-api bucht auf den durchgereichten Schlüssel.
+  - Die b-api bucht auf das durchgereichte Delegations-Token bzw. den durchgereichten Schlüssel.
   - Der Chatbot führt eine eigene Kostenrechnung (Studio → Kosten) mit der Preistafel im Studio.
 - **Evaluationen** kosten zusätzlich (Judge, Simulator), werden gesondert gebucht und vom Nutzer gestartet.
 - **Externe Dienste:**
   - b-api (LLM)
   - WLO-MCP-Server — vorausgesetzt ist der Stand vom 07.11.2026 (Antwortvertrag mit `structuredContent`,
-    Pläne, `find_content_by_url`); bei einem Deploy zuerst den MCP, dann das Backend
-    (`docs/offene-befunde-und-todo.md` §4).
+    Pläne, `find_content_by_url`); für Kestra-Flows der Stand vom 18.11.2026 mit den Flow-Werkzeugen. Bei
+    einem Deploy zuerst den MCP, dann das Backend (`docs/offene-befunde-und-todo.md` §4).
+  - Kestra hinter der b-api (Jobs): Eingaben und Ausgaben liegen dort 30 Tage im Klartext; je
+    Schlüssel des Repositorys höchstens 20 offene Jobs, geteilt von allen Personen.
   - Hugging Face (einmaliger Modell-Download)
 
 ## 14 Ansprechperson
@@ -363,4 +416,23 @@ T4 – Jan Schachtschabel (technischer Owner).
   - CVE-Prüfung in jeder CI (`pip-audit`), Lizenz-Gate.
   - Python über `uv.lock`, Frontend über `package-lock.json`.
 - **Modellwechsel:** über die b-api-Route, ohne Deploy; neue Familie nur mit Anpassung von `LLM_CHAT_MODEL`.
+- **Deploy der Pakete D, K und U (2026-11-19):**
+  - Keine Migration, keine neue Umgebungsvariable beim Chatbot.
+  - Reihenfolge: erst der MCP mit den Flow-Werkzeugen, dann das Backend-Image (es baut Widget und
+    Modul-Bündel mit; `ui_upload` und `ui_fortschritt` haben sich geändert), danach Hard-Reload im Browser.
+  - Proxy-Eintrag auf `forwardDelegation` umstellen (`b-api-betrieb.md` §3), erst wenn das neue
+    Backend läuft. `B_API_KEY_MODE=forward` nur, wenn die Anlage ausschließlich hinter dem Proxy
+    erreichbar ist (sonst 401 für Direktaufrufe).
+  - Den Deploy selbst in einer ruhigen Zeit: Der `migrate`-Dienst gleicht die Werksfassungen bei
+    jedem Deploy ab (`import-config --werksabgleich`), darunter `06-ablaeufe/themenbaum*` und
+    `05-knowledge/mcp-servers`. Läufe dieser Abläufe, die gerade laufen oder auf einen Flow warten,
+    brechen dabei ab (der Flow selbst läuft beim MCP zu Ende). Im Studio angepasste Bereiche
+    `06-ablaeufe/themenbaum*` bleiben stehen; dort unter Sicherung → „Werk und eigene Fassung“
+    „Werksfassung verwenden“ (`deploy/README.md`, „Einen einzelnen Bereich aus dem Abbild
+    nachziehen“).
+  - b-api-Admin: Rechte des Repository-Schlüssels (Rolle `JOBS`, `EDU_SHARING_REPO_READ`/`WRITE`)
+    und Labels am Flow — siehe §5 bzw. `b-api-betrieb.md` §3.
+  - Master-Skill (`docs/skills/vorgehen-knapp.md`) gleichzeitig im Repository übertragen.
+  - Einzelheiten je Paket: `docs/aenderungen/2026-11-18-paket-d-b-api-delegation.md`,
+    `2026-11-18-paket-k-kestra-ueber-mcp.md`, `2026-11-19-paket-u-ein-upload-weg.md`.
 - **Wer Updates anstößt und umsetzt:** *(vom Nutzer einzutragen)*.

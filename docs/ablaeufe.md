@@ -20,7 +20,7 @@ Testen und Ausprobieren.
 | `werkzeug` | Ein Dienst ohne Sprachmodell oder ein lesendes WLO-Werkzeug; das Ergebnis wird ein Teil (`schreibt`). Ein schreibendes WLO-Werkzeug nur mit `freigabe`: Der Schritt legt die Änderung vor, und die Person gibt sie frei. |
 | `verzweigung` | Regeln unter `weiter`: `wenn_teil` (ein Teil ist da), `wenn_gewaehlt` (eine Wahl), `wenn_wert` (eine Stelle eines Teils vergleichen: gleich, enthält, vorhanden, leer, größer, kleiner; der Wert darf selbst eine Stelle sein, `"{teil.struktur.block_id}"` — fehlt sie, greift die Regel nicht) und `wenn_seite` (Führungen). Die erste passende gilt, `sonst` am Ende. |
 | `agent` | Ein Abschnitt, in dem die KI mit genau den genannten Werkzeugen arbeitet (`agent.werkzeuge`, höchstens `agent.zuege` Züge). |
-| `auftrag` | Ein Auftrag bei der b-api (Kestra), etwa für lange Umwandlungen. |
+| `auftrag` | Ein Kestra-Flow hinter der b-api, etwa für lange Umwandlungen. Schreibt der Flow ins Repositorium (`repo_schreibt`), startet ihn der WLO-MCP mit der Anmeldung der Person; `warten` legt fest, ob die Eingabe solange gesperrt ist (Kapitel „Aufträge, die schreiben“). |
 | `seite` | Führt auf eine Seite der Webseite (Kapitel Führungen). |
 | `ende` | Schlusssatz; der Lauf ist fertig. |
 
@@ -129,7 +129,8 @@ antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
   `ausgabe` (`uebernommen: true`, etwa „Übernehmen“ im `ui_strukturentwurf` bei `ausgabe: draft`),
   geht der Lauf ohne weiteren KI-Zug zum nächsten Schritt (`ki_schritt.uebernimmt`,
   `zug.nach_uebernahme`). Nur mitgeschickt (ohne Übernehmen) bleibt es ein gewöhnlicher Zug.
-- **`dokument_lesen`** (M2): Hat die Person im Chat ein Dokument lesen lassen, liest die KI es selbst
+- **`dokument_lesen`** (M2): Hat die Person im Chat ein Dokument lesen lassen (seit Paket U: „Hier im
+  Chat“ hochgeladen, Strukturdokumente und Inhalte), liest die KI es selbst
   — Gliederung, dann Abschnitte, höchstens 6000 Zeichen je Aufruf, nach der Moderation, gerahmt.
   Im freien Chat und am KI-Schritt (virtuell, wie `wissen_suchen`); nur die Dokumente der Sitzung
   bzw. Person. Nur in der Agent-Schleife; im Muster-Weg sagt der Rahmen, dass sie es dort nicht kann.
@@ -138,8 +139,11 @@ antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
 
 `06-ablaeufe/themenbaum` („Themenbaum erstellen“) ist **der** Themenbaum-Ablauf ab Werk. Er löst
 die vier Abläufe „Themenbaum · aus …“ ab; sie liegen weiter als Werksfassung vor, ab Werk aus
-(Beschreibung unten). Er hat keine Voraussetzung: Thema, Dokument, Ordner und der schnelle Weg
-gehen anonym, der WLO-Weg nur angemeldet.
+(Beschreibung unten). Er hat keine Voraussetzung: Thema, Dokument, Ordner und Dateien („Hier im
+Chat“ oder „Nur Namen senden“) gehen anonym, der WLO-Weg nur angemeldet. Seit Plan 2026-11-17
+(Paket U, E12) fragt er nicht mehr nach dem Weg: **Wo** verarbeitet wird, wählt die Person im
+Upload-Feld („Hier im Chat“, „In WLO ablegen und erschließen“, „Nur Namen senden“). Die Fragen
+`wlo_frage`, `schnell` und `schnell_da` sind entfallen; 38 Schritte (höchstens 40).
 
 Seit dem Review TG-4–6 gilt: erst die Grundlage und ihre Daten, dann die Fragen, die dort wirken,
 dann der Entwurf.
@@ -160,23 +164,30 @@ dann der Entwurf.
    Ordner“), ist der Text weder Wahl noch Thema: Der Hinweis `kein_treffer` fragt nach (jedes Mal),
    der Schritt wartet weiter. `kein_treffer` neben Freitext ist nur mit `synonyme_im_satz` erlaubt.
 3. **Daten:**
-   - Dokument → Upload-Feld mit `einzeldatei_als_struktur` → gelesen?
+   - Dokument → Upload-Feld mit `einzeldatei_als_struktur` → gelesen? (Ein Teil `strukturdokument`
+     ist da, hier im Chat gelesen oder in WLO abgelegt.)
    - Ordner → Upload-Feld → `strukturentwurf_aus_ordnern` → Prüfpunkt `ui_strukturentwurf` („Ordner
      sind dein Ausgangspunkt …“) → „So lassen“ (fertig, die Dateien sind je Punkt gemerkt) oder „Mit
      deinen Angaben verfeinern“. Ohne Unterordner der Weg Dateien. Überträgt die Person die Dateien
      im Feld nach WLO, folgen erst Rückfrage, Kestra-Metadaten und `metadaten_lesen`, dann der
      Entwurf mit den node_ids.
-   - Dateien → „Gründlich über WLO“ / „Nur die Dateinamen“ nur bei `wlo_erschliessen`; sonst ein Satz
-     („Ich nehme nur die Dateinamen …“) und `inhalte_aus_dateien`.
+   - Dateien → Upload-Feld (`dateien_laden`), dann `dateien_weg` nur nach den Teilen **dieser**
+     Auswahl (`block_id` gleich `{teil.struktur.block_id}`):
+     - `metadaten` dazu (hier im Chat gelesen, `quelle: chatbot`) → gleich die Fragen;
+     - `ablage` dazu (in WLO abgelegt) → Rückfrage `metadaten_frage`, Kestra-Flow `metadaten`,
+       `metadaten_lesen`, dann `angaben_da`;
+     - nur Namen → `aus_dateien` (`inhalte_aus_dateien`, Teil `metadaten` aus den Dateinamen);
+     - sonst `ohne_daten`.
+     Angaben einer früheren Auswahl zählen so nicht mit.
 4. **Fragen**: wofür, für wen bzw. welche Stufe (eine Frage), Umfang, Hinweise, dann Soll oder Ist
    (nur bei Dateien — die Metadaten liegen dann vor; gefragt in `zum_entwurf`). Unter 5 Inhalten
    (kein fünfter Eintrag in `metadaten.inhalte`) statt dessen „Mit so wenigen Dateien wird der Baum
    sehr klein. Lieber nach Stoff (Soll) aufbauen?“ (`soll_wenig`: „Nach Stoff (Soll)“ / „Trotzdem
    nur meine Dateien“, Durchtest TG-7, m4). Auf dem Ordner-Weg nur nach „verfeinern“.
    Freitext nur, wo die Antwort frei ist (Grundlage, wofür, Stufe, Umfang, Hinweise).
-   **Knopf-Fragen** (Ja/Nein, Entweder-oder: Einstieg, „So lassen“/„verfeinern“, „Gründlich“/„Nur
-   die Dateinamen“, Soll oder Ist, die Rückfrage vor Kestra, die Auswege) nehmen keinen Freitext und
-   tragen keine Synonyme — „Passt so“ oder „Ja, gründlich“ träfen sonst den falschen Knopf. Ohne
+   **Knopf-Fragen** (Ja/Nein, Entweder-oder: Einstieg, „So lassen“/„verfeinern“, Soll oder Ist, die
+   Rückfrage vor Kestra, die Auswege) nehmen keinen Freitext und tragen keine Synonyme — „Passt so“
+   oder „Ja, erzeugen“ träfen sonst den falschen Knopf. Ohne
    Treffer erscheint einmal „Bitte wähle einen der Knöpfe.“ mit denselben Chips (`kein_treffer`).
 5. **Entwurf** im KI-Schritt der Grundlage; auf dem Ordner-Weg mit `vorlage: true` (der geprüfte
    Entwurf wird verfeinert).
@@ -193,6 +204,14 @@ Hinweise gehen als Zeilen in `hinweise` (Vorsatz in der Sprache des Zugs, die Hi
 bekommen den übrigen Platz). Ein Argument, das die KI selbst setzt, geht vor; `tiefe` und
 `anzahl_oben` nur zusammen, `""` löscht `bildungsstufe` bzw. `hinweise`. Die KI sieht in
 `[VORBELEGT — …]`, was der Ablauf setzt.
+
+**Kestra im Ablauf (Paket K):** Der Schritt `metadaten` (`repo_schreibt: true`, `warten: gesperrt`)
+nimmt alle abgelegten Einträge der Ablage, Inhalte **und** Strukturdokumente (E14): So liefern auch
+Strukturdokumente Fach, Stufe und Thema für die Vorbelegung (`vorbelegung._aus_strukturdokumenten`;
+Vorrang: Argument der KI vor Antwort der Person vor Strukturdokument). Markdown- und Textdateien gehen
+nicht an `node-metadata-write` (der Flow scheitert dort); fiel etwas weg, sagt es
+`metadatenOhneText` vor dem Start, bleibt nichts, nimmt der Schritt `bei_fehler`
+(`ohne_metadaten`). Den Volltext eines md-Strukturdokuments liest der MCP selbst.
 
 **Freie Arbeit bleibt (Review TG-4–6, MAJOR 2):** Ein Ablauf mit Auftrag beginnt nur dann in einem
 frischen Vorgang, wenn im aktuellen eine Ablage, ein Metadaten-Lauf oder ein offener Lauf liegt
@@ -325,8 +344,9 @@ seit 13.11. zuerst das Thema, dann wofür, für wen und wie tief: Das Thema trä
 Anmeldung):
 
 1. `wofuer`, `stufe`, `thema`.
-2. `hochladen` (`ui_upload`): Die Person überträgt Dateien in ihren Bereich in WLO; daraus wird
-   der Teil `ablage`. Dafür muss im Studio unter „Datei-Upload“ die Ablage in WLO an sein.
+2. `hochladen` (`ui_upload` mit `orte: [wlo]`): Die Person legt Dateien mit „In WLO ablegen und
+   erschließen“ in ihrem Bereich in WLO ab; daraus wird der Teil `ablage`. „Nur Namen senden“ bleibt
+   immer wählbar. Dafür muss im Studio unter „UI-Module → Hochladen“ die Ablage in WLO an sein.
 3. `uebertragen` (`verzweigung` mit `wenn_teil: ablage`): Ohne Übertragung geht es zu
    `ohne_ablage`.
 4. `metadaten_frage`: die Rückfrage vor dem schreibenden Flow.
@@ -341,8 +361,9 @@ Anmeldung):
 8. `ende`. Sammlungen daraus anzulegen, kommt später.
 
 Damit der Auftrag im Betrieb läuft, muss der Flow im Studio freigegeben sein (Abläufe →
-„Kestra-Flows freigeben“, siehe unten), und der B-API-Schlüssel muss ihn starten dürfen. Solange
-der Ablauf aus ist, ist eine fehlende Freigabe nur ein Hinweis.
+„Kestra-Flows freigeben“, siehe unten), der WLO-MCP muss die Flow-Werkzeuge führen (und den Flow,
+falls `WLO_BAPI_FLOWS` gesetzt ist), und die Person muss angemeldet sein. Solange der Ablauf aus
+ist, ist eine fehlende Freigabe nur ein Hinweis.
 
 **Grenzen des Flows `node-metadata-write`** (Plan §5b):
 
@@ -357,8 +378,11 @@ der Ablauf aus ist, ist eine fehlende Freigabe nur ein Hinweis.
 - **Kein Limit je Job:**
   - Ein Stapel hat bis zu 200 Dateien.
   - `metadaten_lesen` liest davon 50, der Rest steht in `fehlend`.
-- **`FAILED`:** Scheitert der Flow, gibt es vermutlich keinen Bericht (F7). Der Ablauf geht mit
-  den vorhandenen Angaben weiter.
+- **`FAILED`:** Scheitert der Flow, gibt es keinen Bericht. Die Person liest „Der Auftrag in WLO
+  ist fehlgeschlagen (FLOW_FAILED).“, und der Ablauf geht über `bei_fehler` mit den vorhandenen
+  Angaben weiter.
+- **Markdown und Text:** `md`, `markdown` und `txt` gehen nicht an `node-metadata-write`
+  (`auftrag_teile.ohne_textdateien`, Durchtest 19.11.: der Flow endet dort mit `FLOW_FAILED`).
 - **In der Studio-Probe** („Ablauf ausprobieren“) legt der Upload nichts in WLO ab (Trockenlauf).
   Der Ablauf endet dort also in `ohne_ablage`.
 - **Vor der Antwort:** „Weiter im Ablauf“ am KI-Schritt, bevor die Person etwas getippt hat,
@@ -477,19 +501,55 @@ lassen sich Startdaten (JSON) mitgeben, und **„Ablauf starten“** startet ihn
 
 ## Aufträge, die schreiben (Plan 2026-11-10, TB-F1)
 
-Ein `auftrag` startet einen Kestra-Flow über die B-API **im Namen der angemeldeten Person**. Der
-Chatbot schickt `X-Edu-User-Id` mit ihrem Benutzernamen, also arbeitet der Flow im Repositorium mit
-ihren Rechten. Ohne WLO-Anmeldung startet kein Auftrag.
+Ein `auftrag` startet einen Kestra-Flow **im Namen der angemeldeten Person**. Seit Paket K
+(Plan 2026-11-17) gilt:
 
+- **Schreibende Flows startet der WLO-MCP**, nicht der Chatbot: über die Werkzeuge `wlo_start_flow`,
+  `wlo_flow_status`, `wlo_cancel_flow` und den Proxy des Repositorys (`/rest/bapi/**`). Das
+  Repository weist der b-api die Person nach, der Flow arbeitet mit ihren Rechten. `X-Edu-User-Id`
+  gibt es nicht mehr. Ohne WLO-Anmeldung startet kein Auftrag.
 - Ob ein Flow schreibt, sieht der Chatbot nicht. Die Redaktion kreuzt am Schritt **„Flow schreibt
-  ins Repositorium“** an (`repo_schreibt: true`). Der Vermerk steht im Studio, ein Ablauf mit Auftrag
-  startet nie direkt.
+  ins Repositorium“** an (`repo_schreibt: true`). **Das ist Pflicht für jeden schreibenden Flow:**
+  Nur angekreuzte Schritte startet der MCP; ein Schritt ohne den Vermerk geht den Direktweg der
+  b-api, und der geht nur mit dem Schlüssel der Person, nie bei Delegation. Die Prüfung meldet einen
+  bekannt schreibenden Flow (ab Werk `node-metadata-write`) ohne Vermerk (`auftrag_repo_schreibt`).
+  Ein Ablauf mit Auftrag startet nie direkt.
+- **Start in zwei Schritten:** Der MCP legt erst eine Vorschau vor (er prüft jeden Datensatz als die
+  Person), der Chatbot bestätigt sie im selben Zug. Die Zustimmung der Person ist die Rückfrage
+  direkt vor dem Schritt; eine eigene Freigabe-Box gibt es dort nicht.
+- **`outcomeOpen`:** Kam vom Start keine klare Antwort, kann der Job trotzdem laufen. Der Chatbot
+  startet dann nie neu; der Schritt wartet mit „Stand prüfen“, das die Datensätze liest
+  (`auftragOffen`).
+- Fehlen die Flow-Werkzeuge kurz (Neustart des MCP), führt der Schritt zurück an die Rückfrage mit
+  „gleich noch einmal“. Bei 429 ebenso, mit „in etwa N Minuten“. Antwortet der MCP `not_allowed`,
+  liest die Person „hier nicht freigegeben – Frage der Einrichtung“, dann `bei_fehler`.
 - Vor einem schreibenden Auftrag gehört eine Wahl, die sagt, was geschieht. Zum Beispiel: „Ich
   erzeuge jetzt Metadaten für deine N Dateien und schreibe sie hinein. Weiter?“
 - Ein Flow, der nicht freigegeben ist, sperrt nur einen **eingeschalteten** Ablauf, und nur, wenn
   sein Auftragsschritt keinen Ersatzweg (`bei_fehler`) hat. Bei einem ausgeschalteten Ablauf oder
   mit Ersatzweg erscheint er als Hinweis (Rückmeldung 16.11.). Zur Laufzeit startet der Auftrag
   dann nicht, und der Schritt nimmt `bei_fehler`. Dasselbe gilt beim Entziehen einer Freigabe.
+
+### Warten auf den Flow (Paket K, E16/E17)
+
+Der Lauf hält am Auftragsschritt (`wartet_auftrag`). `ui_fortschritt` fragt selbst in wachsenden
+Abständen nach (`POST /api/ui/auftrag/stand`, über `wlo_flow_status`) und zeigt „12 von 40 fertig“,
+gescheiterte getrennt („2 von 5 fertig, 1 fehlgeschlagen“).
+
+- **`warten`** am Schritt: `frei` (oder leer) — das Gespräch geht weiter. `gesperrt` — solange der
+  Auftrag läuft, nimmt das Widget nur drei Knöpfe an:
+  - **„Stand prüfen“**: fragt den Stand; ist der Flow fertig, geht es mit dem nächsten Schritt weiter.
+  - **„Später weitermachen“**: Der Lauf bleibt wartend, der Auftrag läuft weiter, die Sperre ruht
+    für diese Sitzung. Der Satz nennt die Frist: „Das geht bis {datum}.“ Die Frist ist die frühere
+    von Vorgangsablauf (Studio, wartend 8–30 Tage) und Start des Jobs plus 30 Tage. Zurück führt
+    „Stand prüfen“ in diesem Gespräch; wer später wiederkommt, landet beim wartenden Lauf. „Stand
+    prüfen“ setzt die Sperre wieder, solange der Job läuft.
+  - **„Auftrag abbrechen“**: bricht im Zug über `wlo_cancel_flow` ab; der Lauf endet, danach „Neues
+    Vorhaben“ und „Arbeitsstand löschen“.
+- Ein Start-Knopf an einem wartenden Lauf fragt erst nach („Neu starten“ oder „Stand prüfen“).
+- **`unknown_job`** (etwa nach einem Neustart des MCP) ist kein Fehlschlag: Der Ablauf geht weiter zu
+  `lesen`, die Ergebnisse stehen an den Datensätzen.
+- Die Person liest nur Zahlen („n Materialien erschlossen, m nicht“), nie die jobId.
 
 ### Kestra-Flows freigeben (Paket KF)
 
@@ -502,13 +562,18 @@ darf (`namespace/flowId`). Die Änderung wirkt ohne Neustart.
 - **Obergrenze:** Ist `B_API_JOBS_FLOWS` gesetzt, wirken nur Flows aus dieser Liste. Ist im Studio
   nichts freigegeben, gelten ihre Flows wie vor dem Paket.
 - **Werksvorgabe (16.11.):** Ist weder im Studio etwas freigegeben noch `B_API_JOBS_FLOWS`
-  gesetzt, gilt `edusharing.chatbot/node-metadata-write`. Das ist der Metadaten-Flow des Ablaufs
-  „Themenbaum · aus eigenen Inhalten“, ab Werk an.
+  gesetzt, gilt `edusharing.chatbot/node-metadata-write`. Ab Werk nutzt ihn der Ablauf
+  „Themenbaum erstellen“ (Schritt `metadaten`); „Themenbaum · aus eigenen Inhalten“ nutzt ihn auch,
+  ist ab Werk aber aus.
   - Sie steht im Code (`auftraege/client.WERKSVORGABE`), nicht im Seed. Ein Seed-Eintrag wirkte
     als Studio-Liste und nähme einer Anlage mit gesetzter Variable alle anderen Flows.
   - Wer die Variable setzt und den Ablauf nutzen will, nimmt den Flow dort auf.
 - **Start-Pfad:** Leer heißt Vorgabe `/api/v1/jobs/flows/{flow}`. Aufträge sind an, sobald
-  ein Flow wirksam freigegeben ist.
+  ein Flow wirksam freigegeben ist. Der Start-Pfad gilt nur für den Direktweg der b-api.
+- **Über den MCP** (Schritte mit `repo_schreibt`) gilt dieselbe Freigabe; zusätzlich hält der MCP
+  die Liste `WLO_BAPI_FLOWS` (nur Einschränkung, `node-metadata-write` ab Werk startbar). Die
+  Vorschläge kommen weiter über `B_API_KEY` (das Studio hat keine Person); ohne ihn schlägt der
+  Katalog die Werksvorgabe vor.
 - **Datenschutz:** Eingaben und Ausgaben liegen bei Kestra 30 Tage im Klartext. Nur Flows
   freigeben, deren Eingaben dort liegen dürfen. Das gilt auch für die Werksvorgabe: Die
   erzeugten Metadaten privater Dateien liegen 30 Tage bei Kestra.

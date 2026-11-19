@@ -1,9 +1,11 @@
 # Betrieb mit der b-api
 
-Stand: 18.11.2026 (Paket D, Plan `docs/plans/2026-11-17-b-api-delegation-und-upload.md`).
+Stand: 19.11.2026 (Pakete D und K, Plan `docs/plans/2026-11-17-b-api-delegation-und-upload.md`).
 
 Der Chatbot spricht die b-api (Bildungs-API) für LLM, Einbettungen, Moderation, Sprache und
 Aufträge (Kestra-Flows) an. Er läuft in zwei Betriebsarten. Beide gehen mit demselben Image.
+Flows, die ins Repository schreiben, startet seit Paket K nicht der Chatbot selbst, sondern der
+WLO-MCP über den b-api-Proxy des Repositorys (§5).
 
 ## 1 Betriebsarten
 
@@ -56,13 +58,14 @@ Woran der Chatbot die Art erkennt (`services/llm_auth.zug_art()`):
   - Legt der Client im Strom auf, rechnet der Zug nur noch bis zum nächsten b-api-Aufruf. Dort
     endet er und speichert, was da ist: die Nutzernachricht sowie die fertige Antwort oder den
     Vermerk „Die Verbindung zur Seite brach ab …“. Das Widget findet ihn beim Nachladen.
-  - Ein ersetzter oder abgebrochener Auftrag wird bei Delegation nicht im Hintergrund bei der b-api
-    beendet. Er läuft im Repository zu Ende. Den Abbruch im Zug über den MCP bringt Paket K.
-- **Aufträge** (Kestra) startet, prüft und bricht der Chatbot bei Delegation nicht ab
-  (`llm_auth.darf_jobs()`). „Stand prüfen“ sagt „nicht abrufbar“, ein Abbruch sagt ehrlich, dass der
-  Auftrag weiterläuft. Das Token deckt keine Jobs, ein
-  Start wäre eine sichere 401. Der Ablauf nimmt seinen Ersatzweg (`bei_fehler`). Der Start über den
-  MCP mit der Repository-Anmeldung der Person folgt mit Paket K.
+  - Ein Auftrag des Direktwegs wird bei Delegation nicht im Hintergrund bei der b-api beendet. Er
+    läuft im Repository zu Ende. Einen Auftrag über den MCP bricht der Zug selbst ab
+    (`wlo_cancel_flow`, nach dem Festschreiben; Paket K4).
+- **Aufträge** (Kestra) über den **Direktweg** der b-api startet, prüft und bricht der Chatbot bei
+  Delegation nicht ab (`llm_auth.darf_jobs()`): Das Token deckt keine Jobs, ein Start wäre eine
+  sichere 401. „Stand prüfen“ sagt dann „nicht abrufbar“, ein Abbruch sagt ehrlich, dass der
+  Auftrag weiterläuft. Schritte mit `repo_schreibt` gehen dagegen immer über den MCP — auch bei
+  Delegation (§5).
 - **`B_API_KEY` bleibt** für den Direktbetrieb und für interne Aufrufe ohne eingehende Anfrage:
   Studio, Eval, Lasttest, Vorwärmung, RAG-Import und den Flow-Katalog.
   - Das gilt, bis die b-api die offene Frage „Bleibt `B_API_KEY` außerhalb des Proxys erlaubt?“
@@ -78,11 +81,11 @@ Woran der Chatbot die Art erkennt (`services/llm_auth.zug_art()`):
 - `delegationLifetimeSeconds` mindestens 300 (längster Zug samt Agent-Schleife).
 - `responseTimeout` mindestens 120 s.
 - `allowedResponseContentTypes` mit `text/event-stream` (der Chat-Strom).
-- `allowedRequestHeaders`: `WLO-Access-Block`, `Accept-Language`, `x-client-trace-id` und die
-  B3-Köpfe.
+- `allowedRequestHeaders`: `WLO-Access-Block`, `X-Boerdi-Engine`, `Accept-Language`,
+  `x-client-trace-id` und die B3-Köpfe.
   - Ohne `WLO-Access-Block` reißt die Auth-Kette Widget → Backend → MCP hinter dem Proxy.
 - `pathToIgnore`: Studio-, Admin-, Eval- und Debug-Pfade (nicht in die öffentliche Doku).
-- **Für den Kestra-Weg** (Jobs-Doku der b-api, 18.11.; gilt erst mit Paket K):
+- **Für den Kestra-Weg** (Jobs-Doku der b-api, 18.11.; gilt seit Paket K):
   - Der b-api-Schlüssel des **Repositorys** (den sein Proxy `/rest/bapi/**` setzt) braucht die
     Rolle `JOBS` bzw. das Privileg `JOB_RUN_EDUSHARING_CHATBOT_NODE-METADATA-WRITE`.
   - Er braucht außerdem die Rechte `EDU_SHARING_REPO_READ` und `EDU_SHARING_REPO_WRITE`.
@@ -99,7 +102,7 @@ Woran der Chatbot die Art erkennt (`services/llm_auth.zug_art()`):
 | 403 bei einem Auftrag | Dem Schlüssel fehlt das Recht | Auftrag `abgewiesen`; Satz „Der Dienst hat den Auftrag abgelehnt.“ |
 | 403 `EDU_USER_NOT_VERIFIED` | Konto bei der b-api nicht freigeschaltet | „… Dein Konto ist dort noch nicht freigeschaltet.“ |
 | 403 `LEGACY_HEADERS` | Ein abgeschaffter Kopf (`X-Edu-User-Id`) kam an | „… Der Chatbot hat einen veralteten Kopf mitgeschickt (LEGACY_HEADERS) …“ (technischer Hinweis; ein Fehler der Einrichtung) |
-| 400 `EDU_USER_REQUIRED` | Die Ursprungsanfrage hatte keine verifizierte Person | Auftrag `abgewiesen` (nicht `eingaben`); „Aufträge mit deiner Anmeldung sind gerade nicht möglich – das wird gerade umgestellt.“ (bis Paket K) |
+| 400 `EDU_USER_REQUIRED` | Die Ursprungsanfrage hatte keine verifizierte Person | Auftrag `abgewiesen` (nicht `eingaben`). Über den MCP: „… Er hat keine angemeldete Person erkannt – vermutlich ist deine Anmeldung abgelaufen …“ (`auftragAbgelehntPerson`); auf dem Direktweg: „… Das geht nur über den WLO-Dienst mit deiner Anmeldung …“ (`auftragAbgelehntDirekt`) |
 | 400 ohne bekannten Code | Eingaben passen nicht zum Flow | Auftrag `eingaben`; der Ablauf nimmt seinen Ersatzweg |
 | kein Token mehr nach dem Auflegen | — (kein Aufruf) | Vermerk „Die Verbindung zur Seite brach ab …“ im Verlauf |
 | kein gültiges Token bei der Moderation | — (kein Aufruf) | Moderation gilt als ausgefallen, `MODERATION_FAILURE_MODE` entscheidet (`open`: antworten, `closed`: freundliche Absage) |
@@ -107,3 +110,60 @@ Woran der Chatbot die Art erkennt (`services/llm_auth.zug_art()`):
 Die Codes stehen in `services/auftraege/client.BEKANNTE_CODES`. Nur sie kommen ins Log, nie freier
 Servertext. Die Sätze stehen in `i18n/bot_text.py` (de und en). Die LLM-Fälle ordnet
 `services/fehlertext.antwort_fehlertext` zu.
+
+## 5 Kestra-Flows über den MCP (Paket K)
+
+Eine Person gilt bei der b-api nur, wenn das Repository für sie bürgt. Die Anmeldung der Person
+hält der WLO-MCP, also startet er. Der Chatbot steuert weiter: wann, welcher Flow, Zustimmung.
+
+- **Weg:** Backend → MCP (`wlo_start_flow`, mit dem Zugangsblock des Zuges) → Proxy des
+  Repositorys `{WLO_REPOSITORY_URL}/rest/bapi/**` → b-api → Kestra. Der Proxy des Repositorys
+  setzt seinen eigenen Schlüssel und eine signierte Assertion für die Person (30 s, an Methode,
+  Pfad und Schlüssel gebunden). Der gestartete Job bekommt ein eigenes Token (`bapi_token`, bis
+  zum Ende des Jobs) und schreibt damit als die Person. Das Delegations-Token braucht dieser Weg
+  nicht.
+- **Träger je Schritt** (`services/ablauf/auftrag_zug.traeger`):
+
+| Schritt | Lage | Träger |
+|---|---|---|
+| mit `repo_schreibt` | MCP führt die Flow-Werkzeuge, Person bestätigt angemeldet (auch bei Delegation) | MCP |
+| mit `repo_schreibt` | Werkzeuge fehlen, waren aber vor höchstens 10 Minuten da (Neustart des MCP) | keiner: „gleich noch einmal“, zurück an die Rückfrage |
+| mit `repo_schreibt` | sonst | keiner: `auftragNurUeberWlo`, dann der Ersatzweg |
+| ohne `repo_schreibt` | b-api eingerichtet und `darf_jobs()` (Schlüssel der Person, keine Delegation) | Direktweg wie vor Paket K |
+| ohne `repo_schreibt` | sonst | keiner |
+| jeder | ohne Anmeldung | keiner |
+
+- **Start in zwei Schritten** (`services/auftraege/mcp_starter.py`): erst die Vorschau (der MCP
+  prüft jeden Datensatz als die Person), dann derselbe Aufruf mit dem Bestätigungsschlüssel. Die
+  Zustimmung der Person ist die Rückfrage direkt vor dem Schritt. Der Schlüssel erreicht nie das
+  Modell, den Vorgang oder das Log.
+- **`error.outcomeOpen` entscheidet:** `true` (auch keine Antwort, 202 ohne jobId) heißt, ein Job
+  kann laufen. Der Chatbot startet dann nie neu und sagt „Stand prüfen“ (`auftragOffen`). `false`
+  heißt, nichts lief.
+- **Stand und Abbruch:** `wlo_flow_status` liefert „k von n fertig“ (gescheiterte getrennt);
+  `unknown_job` (etwa nach einem Neustart des MCP) ist kein Fehlschlag, der Ablauf liest dann die
+  Datensätze (`metadaten_lesen`). `wlo_cancel_flow` bricht im Zug ab.
+- **jobId:** Über den Proxy des Repositorys kann jede bestätigte Person jeden Job lesen, dessen
+  jobId sie kennt. Die jobId steht darum nur in `vorgang_auftraege.job_id`, nie in Text, Modell
+  oder Log.
+- **md und txt** gehen nicht an `node-metadata-write`: Der Flow scheitert dort (`FLOW_FAILED`,
+  gemessen 19.11.). Der Satz `metadatenOhneText` sagt es der Person.
+- **Flow-Katalog im Studio:** Das Studio hat keine Person. Die Vorschläge kommen weiter über
+  `B_API_KEY`; ohne ihn gilt die Werksvorgabe `edusharing.chatbot/node-metadata-write`.
+
+| Antwort des MCP | Was der Chatbot tut |
+|---|---|
+| `not_allowed` | „Dieser Auftrag ist hier nicht freigegeben – das ist eine Frage der Einrichtung.“, dann der Ersatzweg |
+| `rate_limited` (429) ohne offenen Ausgang | zurück an die Rückfrage, „in etwa N Minuten noch einmal“ (`auftragVoll`) |
+| `outcomeOpen: true` | kein neuer Start, „Stand prüfen“ liest die Datensätze (`auftragOffen`) |
+| Werkzeug unbekannt (Neustart des MCP) | Fähigkeiten neu holen, „gleich noch einmal“ (`auftragNichtVerfuegbar`) |
+| Flow `FAILED` (`FLOW_FAILED`, `TIMEOUT`) | „Der Auftrag in WLO ist fehlgeschlagen (…).“, dann der Ersatzweg |
+
+**Einstellungen am MCP** (setzt das MCP-Team, beim Chatbot gibt es keine neue Variable): Der MCP
+erkennt den b-api-Proxy des Repositorys beim Start selbst und bietet dann `wlo_start_flow`,
+`wlo_flow_status`, `wlo_cancel_flow` und `wlo_list_flows` an. `WLO_BAPI_VIA_REPOSITORY=1` bzw. `0`
+legt das fest, statt zu erkennen. `WLO_BAPI_FLOWS` schränkt die startbaren Flows nur ein;
+`node-metadata-write` ist ab Werk startbar. Ein schreibender Flow braucht am Ablauf-Schritt
+`repo_schreibt`, auf Seite des Chatbots die Freigabe im Studio („Abläufe → Kestra-Flows freigeben“,
+mit `B_API_JOBS_FLOWS` als Obergrenze; `mcp_starter.flow_erlaubt` → `client.freigegebene_flows`) und,
+falls die Liste am MCP gesetzt ist, einen Eintrag in `WLO_BAPI_FLOWS`.

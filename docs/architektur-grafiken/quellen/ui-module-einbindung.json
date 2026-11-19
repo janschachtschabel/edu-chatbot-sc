@@ -432,7 +432,7 @@
       "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
       "provider": "github",
       "link_mode": "web",
-      "revision": "e7f10c08da3b9635ad5cd28c5bde3359aeb076b5"
+      "revision": "81d66f6d0251f95256a57fd9b1be667bfaad18ae"
     },
     "legend": {
       "entries": {
@@ -471,20 +471,20 @@
       "sources": [
         {
           "path": "evals/run_golden.py",
-          "line": 195,
-          "end_line": 211,
+          "line": 207,
+          "end_line": 223,
           "label": "Katalog-Module"
         },
         {
-          "path": "evals/run_golden.py",
-          "line": 365,
-          "end_line": 373,
+          "path": "evals/ui_module_golden.py",
+          "line": 60,
+          "end_line": 68,
           "label": "gezeigte Module"
         },
         {
           "path": "backend/src/boerdi/services/eval/modul_nutzung.py",
           "line": 1,
-          "end_line": 11,
+          "end_line": 50,
           "label": "Modul-Nutzung"
         }
       ]
@@ -517,8 +517,8 @@
         },
         {
           "path": "frontend/projects/studio/src/app/views/ui-modul-vorschau.component.ts",
-          "line": 49,
-          "end_line": 54,
+          "line": 51,
+          "end_line": 56,
           "label": "Vorschau aus dem Register"
         }
       ]
@@ -539,14 +539,14 @@
       "sources": [
         {
           "path": "frontend/projects/ui-module/README.md",
-          "line": 8,
-          "end_line": 25,
+          "line": 13,
+          "end_line": 30,
           "label": "Ein neues Modul"
         },
         {
           "path": "frontend/scripts/module-neu.mjs",
-          "line": 19,
-          "end_line": 53,
+          "line": 37,
+          "end_line": 71,
           "label": "Gerüst module:neu"
         },
         {
@@ -573,8 +573,8 @@
       "sources": [
         {
           "path": "frontend/scripts/module-register.mjs",
-          "line": 75,
-          "end_line": 91,
+          "line": 145,
+          "end_line": 161,
           "label": "erzeugt drei Dateien"
         },
         {
@@ -607,8 +607,8 @@
         },
         {
           "path": "backend/src/boerdi/ui_module/katalog.py",
-          "line": 81,
-          "end_line": 102,
+          "line": 88,
+          "end_line": 109,
           "label": "lade / katalog"
         }
       ]
@@ -629,20 +629,20 @@
       "sources": [
         {
           "path": "backend/src/boerdi/ui_module/werkzeuge.py",
-          "line": 129,
-          "end_line": 140,
+          "line": 149,
+          "end_line": 160,
           "label": "Angebot je Maschine"
         },
         {
           "path": "backend/src/boerdi/services/agent_tools.py",
-          "line": 230,
-          "end_line": 234,
+          "line": 250,
+          "end_line": 254,
           "label": "Agent: gemeldete Module"
         },
         {
           "path": "backend/src/boerdi/services/response_tool_selection.py",
-          "line": 545,
-          "end_line": 559,
+          "line": 572,
+          "end_line": 586,
           "label": "Muster: nur tools:"
         }
       ]
@@ -663,14 +663,14 @@
       "sources": [
         {
           "path": "backend/src/boerdi/services/agent_loop.py",
-          "line": 602,
-          "end_line": 634,
+          "line": 732,
+          "end_line": 766,
           "label": "Agent-Schleife"
         },
         {
           "path": "backend/src/boerdi/services/tool_loop_module.py",
-          "line": 88,
-          "end_line": 100,
+          "line": 159,
+          "end_line": 171,
           "label": "Muster-Vorrunde"
         }
       ]
@@ -697,14 +697,14 @@
         },
         {
           "path": "backend/src/boerdi/ui_module/antwort.py",
-          "line": 84,
-          "end_line": 95,
+          "line": 97,
+          "end_line": 108,
           "label": "Antwort prüfen"
         },
         {
           "path": "backend/src/boerdi/ui_module/antwort.py",
-          "line": 138,
-          "end_line": 146,
+          "line": 153,
+          "end_line": 172,
           "label": "Block vor der Nachricht"
         }
       ]
@@ -732,7 +732,7 @@
         {
           "path": "frontend/projects/ui-module/src/_vertrag/register.ts",
           "line": 1,
-          "end_line": 25,
+          "end_line": 28,
           "label": "Token UI_MODUL_REGISTER"
         }
       ]
@@ -753,20 +753,20 @@
       "sources": [
         {
           "path": "backend/src/boerdi/ui_module/abgeleitet.py",
-          "line": 152,
-          "end_line": 166,
+          "line": 165,
+          "end_line": 179,
           "label": "aus cards / web_links"
         },
         {
           "path": "backend/src/boerdi/ui_module/abgeleitet.py",
-          "line": 178,
-          "end_line": 198,
+          "line": 191,
+          "end_line": 211,
           "label": "Muster ui_module: + Schalter"
         },
         {
           "path": "backend/src/boerdi/api/publikum.py",
-          "line": 87,
-          "end_line": 93,
+          "line": 90,
+          "end_line": 96,
           "label": "live an der API-Grenze"
         }
       ]
@@ -793,8 +793,8 @@
         },
         {
           "path": "backend/src/boerdi/services/turn_persist.py",
-          "line": 714,
-          "end_line": 715,
+          "line": 759,
+          "end_line": 760,
           "label": "Trichter: Dokumente zuerst"
         }
       ]
@@ -827,8 +827,8 @@
         },
         {
           "path": "backend/src/boerdi/services/turn_persist.py",
-          "line": 366,
-          "end_line": 368,
+          "line": 384,
+          "end_line": 386,
           "label": "gespeichert als _ui_bloecke"
         }
       ]
@@ -855,14 +855,14 @@
         },
         {
           "path": "backend/src/boerdi/ui_module/datenquelle.py",
-          "line": 44,
-          "end_line": 46,
+          "line": 43,
+          "end_line": 45,
           "label": "Umformer je Werkzeug"
         },
         {
           "path": "backend/src/boerdi/ui_module/datenquelle.py",
-          "line": 130,
-          "end_line": 173,
+          "line": 323,
+          "end_line": 366,
           "label": "aufruf"
         }
       ]
@@ -883,14 +883,14 @@
       "sources": [
         {
           "path": "backend/src/boerdi/services/mcp/client.py",
-          "line": 258,
-          "end_line": 262,
+          "line": 369,
+          "end_line": 373,
           "label": "call_mcp_tool_status"
         },
         {
           "path": "frontend/projects/ui-module/src/ui-themenbaum/manifest.json",
-          "line": 143,
-          "end_line": 147,
+          "line": 157,
+          "end_line": 163,
           "label": "Datenquelle im Manifest"
         }
       ]
@@ -911,20 +911,20 @@
       "sources": [
         {
           "path": "frontend/projects/ui/src/ui-bloecke/ui-bloecke.component.ts",
-          "line": 99,
-          "end_line": 124,
+          "line": 121,
+          "end_line": 146,
           "label": "Register oder Textfassung"
         },
         {
           "path": "frontend/projects/ui/src/shell/chat-shell.component.html",
-          "line": 80,
-          "end_line": 96,
+          "line": 87,
+          "end_line": 103,
           "label": "Platz oben"
         },
         {
           "path": "frontend/projects/ui/src/shell/chat-shell.component.ts",
-          "line": 1003,
-          "end_line": 1006,
+          "line": 1822,
+          "end_line": 1825,
           "label": "meldet environment.ui_module"
         }
       ]
@@ -945,20 +945,20 @@
       "sources": [
         {
           "path": "frontend/projects/ui/src/ui-bloecke/block-modul-host.ts",
-          "line": 11,
-          "end_line": 35,
+          "line": 12,
+          "end_line": 36,
           "label": "Freigabe je Fähigkeit"
         },
         {
           "path": "frontend/projects/ui/src/ui-bloecke/ui-bloecke.component.ts",
-          "line": 85,
-          "end_line": 96,
+          "line": 92,
+          "end_line": 103,
           "label": "Injector je Block"
         },
         {
           "path": "frontend/projects/ui-module/src/_vertrag/modul-host.ts",
           "line": 1,
-          "end_line": 16,
+          "end_line": 17,
           "label": "Vertrag MODUL_HOST"
         }
       ]
@@ -985,9 +985,44 @@
         },
         {
           "path": "backend/src/boerdi/services/themenbaum_zweig.py",
-          "line": 39,
-          "end_line": 54,
+          "line": 40,
+          "end_line": 58,
           "label": "Angebot und Laden"
+        }
+      ]
+    },
+    {
+      "id": "hochladen",
+      "type": "backend",
+      "label": "Hochladen (ui_upload)",
+      "sublabel": "/api/ui/dokumente · /api/ui/ablage",
+      "tag": "Orte: chat · wlo · namen",
+      "pos": [
+        620,
+        740
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "frontend/projects/ui-module/src/_vertrag/modul-host.ts",
+          "line": 59,
+          "end_line": 66,
+          "label": "hochladen(datei, onFortschritt?, rolle?)"
+        },
+        {
+          "path": "backend/src/boerdi/api/ui_dokumente.py",
+          "line": 118,
+          "end_line": 130,
+          "label": "POST /api/ui/dokumente mit rolle"
+        },
+        {
+          "path": "backend/src/boerdi/ui_module/upload_orte.py",
+          "line": 82,
+          "end_line": 104,
+          "label": "Orte und Vorauswahl"
         }
       ]
     }
@@ -1145,6 +1180,12 @@
       "label": "antworten",
       "fromSide": "bottom",
       "toSide": "right"
+    },
+    {
+      "id": "host-hochladen",
+      "from": "host",
+      "to": "hochladen",
+      "label": "hochladen (rolle)"
     }
   ],
   "cards": [
@@ -1173,6 +1214,15 @@
         "Die KI nennt nur Fach oder Kennung; das Backend holt die Knoten über MCP, sie laufen nie durchs Modell",
         "Zweig nachladen: ohne Zug und ohne KI, gedrosselt, nichts gespeichert",
         "Abfragende Module: Antwort als ui_antwort im nächsten Zug, geprüft gegen die offene Frage, gerahmt vor der Nachricht an die KI"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Upload-Feld (Paket U)",
+      "items": [
+        "Der Dienst upload_angebot rechnet im Zug die Orte: Hier im Chat, In WLO ablegen und erschließen, Nur Namen senden; dazu die Grenzen der Sitzung",
+        "Hier im Chat: Fähigkeit hochladen mit rolle an /api/ui/dokumente; In WLO: /api/ui/ablage über die Stapel-Werkzeuge des MCP",
+        "Antwort aktion: bereitgestellt mit ort; der Server macht daraus Teile im Vorgang (struktur, strukturdokument, metadaten, ablage)"
       ]
     },
     {
