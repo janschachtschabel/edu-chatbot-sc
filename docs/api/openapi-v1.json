@@ -950,6 +950,15 @@
             "title": "Datei",
             "type": "string"
           },
+          "rolle": {
+            "default": "struktur",
+            "enum": [
+              "inhalt",
+              "struktur"
+            ],
+            "title": "Rolle",
+            "type": "string"
+          },
           "session_id": {
             "pattern": "^[A-Za-z0-9_-]{1,128}$",
             "title": "Session Id",
@@ -1851,6 +1860,18 @@
       "DokumentAntwort": {
         "description": "Was das Modul anzeigt und in seiner Antwort mitschickt — kein Text des Dokuments.",
         "properties": {
+          "angaben": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Angaben"
+          },
           "befund": {
             "additionalProperties": true,
             "title": "Befund",
@@ -1862,6 +1883,15 @@
           },
           "name": {
             "title": "Name",
+            "type": "string"
+          },
+          "rolle": {
+            "default": "struktur",
+            "enum": [
+              "inhalt",
+              "struktur"
+            ],
+            "title": "Rolle",
             "type": "string"
           },
           "ueberschriften_vorschau": {
