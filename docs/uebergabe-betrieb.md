@@ -441,4 +441,14 @@ T4 – Jan Schachtschabel (technischer Owner).
   - Master-Skill (`docs/skills/vorgehen-knapp.md`) gleichzeitig im Repository übertragen.
   - Einzelheiten je Paket: `docs/aenderungen/2026-11-18-paket-d-b-api-delegation.md`,
     `2026-11-18-paket-k-kestra-ueber-mcp.md`, `2026-11-19-paket-u-ein-upload-weg.md`.
+- **Deploy von Paket N (2026-11-19):**
+  - Keine Migration, keine neue Umgebungsvariable.
+  - Image neu bauen (Widget mit `ui-inhaltsrahmen`/`ui-strukturentwurf`, Studio-Karte
+    „b-api-Betrieb“), danach Hard-Reload im Browser.
+  - Die Werksfassung „Themenbaum erstellen“ ändert sich (Texte `metadaten_frage` und
+    `ohne_metadaten`): Werksabgleich in einer ruhigen Zeit, wie oben.
+  - Die Betriebsanzeige gilt je Prozess; bei mehreren Kopien zeigt `/api/health` nur die
+    angefragte.
+  - Einzelheiten: `docs/aenderungen/2026-11-19-paket-n1-n2.md`, `…-paket-n3-zuordnung.md`,
+    `…-paket-n4-freigabe-box.md`.
 - **Wer Updates anstößt und umsetzt:** *(vom Nutzer einzutragen)*.

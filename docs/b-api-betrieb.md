@@ -160,10 +160,13 @@ hält der WLO-MCP, also startet er. Der Chatbot steuert weiter: wann, welcher Fl
 | ohne `repo_schreibt` | sonst | keiner |
 | jeder | ohne Anmeldung | keiner |
 
-- **Start in zwei Schritten** (`services/auftraege/mcp_starter.py`): erst die Vorschau (der MCP
-  prüft jeden Datensatz als die Person), dann derselbe Aufruf mit dem Bestätigungsschlüssel. Die
-  Zustimmung der Person ist die Rückfrage direkt vor dem Schritt. Der Schlüssel erreicht nie das
-  Modell, den Vorgang oder das Log.
+- **Start in zwei Schritten mit Freigabe-Box** (Paket N4; `services/auftraege/mcp_vorschau.py`,
+  `services/ablauf/auftrag_freigabe*.py`): erst die Vorschau (der MCP prüft jeden Datensatz als die
+  Person), die der Chat nach der Rückfrage als Box zeigt; erst der Knopf „Freigeben“ derselben
+  angemeldeten Person ruft `wlo_start_flow` mit dem Bestätigungsschlüssel auf. Den Schlüssel hält
+  nur die Sitzung; er erreicht nie das Modell, den Vorgang, das Log oder die Studio-Ansicht. Ein
+  abgelaufener Schlüssel (`confirm_expired`/`confirm_mismatch`) führt zu einer neuen Box, nie zu
+  einem Start ohne Freigabe.
 - **`error.outcomeOpen` entscheidet:** `true` (auch keine Antwort, 202 ohne jobId) heißt, ein Job
   kann laufen. Der Chatbot startet dann nie neu und sagt „Stand prüfen“ (`auftragOffen`). `false`
   heißt, nichts lief.
