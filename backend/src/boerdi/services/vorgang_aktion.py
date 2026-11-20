@@ -64,7 +64,7 @@ async def neu(session: Any, req: ChatRequest, session_state: dict) -> ChatRespon
     if (frage := await _neu_rueckfrage(session, req, v, entities)) is not None:
         return frage
     try:
-        alter_job = await basis.schliessen(session, v)
+        alter_job = await basis.schliessen(session, v, session_id=req.session_id)
         await session.commit()
     except vorgaenge.VorgangKonflikt:
         await session.rollback()

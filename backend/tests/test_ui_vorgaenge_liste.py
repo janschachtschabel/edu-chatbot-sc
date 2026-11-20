@@ -131,15 +131,16 @@ def test_die_liste_nennt_die_eigenen_vorgaenge_anderer_gespraeche(web, lage):
     assert "no-store" in r.headers["cache-control"]
 
 
-def test_der_vorgang_auf_den_das_gespraech_verweist_fehlt(web, lage, monkeypatch):
-    """Wie ``/offen`` (Review K2a, Befund 1): auch wenn er in einem anderen Gespräch begann."""
+def test_e_f_ein_verweis_in_ein_anderes_gespraech_blendet_nichts_aus(web, lage, monkeypatch):
+    """Review Paket F, MINOR 3 (ersetzt Review K2a, Befund 1): ausgeblendet werden nur die Vorgänge
+    dieses Gesprächs (``ohne``). Ein Verweis auf einen Vorgang eines anderen Gesprächs (Stand von
+    vor E-F) blendet ihn nicht aus — er führt nur über „Fortsetzen“ weiter."""
     from boerdi.services import arbeitsstand
 
     lage.entities = {"_vorgang": {"id": _V_DORT}}
     monkeypatch.setattr(arbeitsstand, "verweis", lambda ents, _wer: ents.get("_vorgang"))
-    assert _liste(web).json()["vorgaenge"] == []
-    # Review AS-Ud, Befund 3: in der Abfrage ausgeschlossen, nicht erst hinter ihrer Grenze
-    assert lage.ereignisse == [("eigene", "person-a", _HIER, _V_DORT)]
+    assert [v["id"] for v in _liste(web).json()["vorgaenge"]] == [_V_DORT]
+    assert lage.ereignisse == [("eigene", "person-a", _HIER, None)]
 
 
 def test_die_liste_ohne_anmeldung_nichts(web, lage):
@@ -189,13 +190,15 @@ def test_loeschen_ohne_treffer_sieht_immer_gleich_aus(web, lage, vorgang):
     assert [e for e in lage.ereignisse if e[0] not in ("schluessel", "sperren")] == []
 
 
-def test_loeschen_nicht_den_vorgang_auf_den_das_gespraech_verweist(web, lage, monkeypatch):
+def test_e_f_loeschen_auch_bei_einem_verweis_in_ein_anderes_gespraech(web, lage, monkeypatch):
+    """Review Paket F, MINOR 3: was die Liste zeigt, lässt sich löschen — der Vorgang des aktuellen
+    Gesprächs bleibt ausgenommen (``session_id``, siehe ``…ohne_treffer…``)."""
     from boerdi.services import arbeitsstand
 
     lage.entities = {"_vorgang": {"id": _V_DORT}}
     monkeypatch.setattr(arbeitsstand, "verweis", lambda ents, _wer: ents.get("_vorgang"))
-    assert _loeschen(web).status_code == 404
-    assert [e for e in lage.ereignisse if e[0] not in ("schluessel", "sperren")] == []
+    assert _loeschen(web).status_code == 200
+    assert ("loeschen", _V_DORT, "person-a") in lage.ereignisse
 
 
 def test_loeschen_ohne_anmeldung_nichts(web, lage):

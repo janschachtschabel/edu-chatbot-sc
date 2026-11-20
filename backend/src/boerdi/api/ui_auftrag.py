@@ -103,22 +103,17 @@ async def _auftrag_von(session: AsyncSession, v: Any, anfrage: StandAnfrage) -> 
 async def _wartender_auftrag(session: AsyncSession, anfrage: StandAnfrage,
                              entities: dict[str, Any]) -> Any:
     """Der offene Auftrag, auf den der Lauf dieser Person wartet — sonst 409. Dieser Abruf schreibt
-    nie. Paket R1-d: fehlt der Verweis der Sitzung oder ist sein Vorgang weg bzw. abgeschlossen,
-    gilt der jüngste offene Vorgang der angemeldeten Person — genau den nimmt der Preflight des
-    nächsten Zuges (``arbeitsstand.auffrischen``), so landet auch das Abholen bei diesem Auftrag
+    nie. Nur der Vorgang des Verweises dieser Sitzung zählt — dorthin holt das Abholen im Zug
     (Review R1, Befund 2: ein beliebiger wartender Vorgang hätte „fertig“ gemeldet, das Abholen
-    aber am Verweis vorbei). Das Kürzel muss passen."""
+    aber am Verweis vorbei). Den Rückgriff auf den jüngsten offenen Vorgang (Paket R1-d) gibt es
+    seit Plan 2026-11-20, Entscheid E-F nicht mehr: der Preflight übernimmt ihn nicht mehr still;
+    sein Auftrag ist über „Fortsetzen“ im Gespräch des Vorgangs erreichbar. Das Kürzel muss
+    passen."""
     aufrufer = arbeitsstand.aufrufer_fuer(anfrage.session_id, entities)
     vw = arbeitsstand.verweis(entities, aufrufer)
     v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
     if (auftrag := await _auftrag_von(session, v, anfrage)) is not None:
         return auftrag
-    weg = v is None or getattr(v, "status", None) in vorgaenge.ABGESCHLOSSEN
-    if weg and has_personal_auth():
-        juengster = await vorgaenge.juengster(session, aufrufer)
-        if juengster is not None and (
-                auftrag := await _auftrag_von(session, juengster, anfrage)) is not None:
-            return auftrag
     raise _kein_auftrag()
 
 

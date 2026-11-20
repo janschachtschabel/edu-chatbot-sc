@@ -452,7 +452,8 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
                    {"ablauf": gewollt, "bestaetigt": True, "kuerzel": jetzt}),
             knopf(gewollt, lang)]
         return antwort
-    ausgang = await basis.abbrechen(session, v, lauf, entities, aufrufer)
+    ausgang = await basis.abbrechen(session, v, lauf, entities, aufrufer,
+                                    session_id=req.session_id)
     if not ausgang:
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     from boerdi.services import vorgang_aktion

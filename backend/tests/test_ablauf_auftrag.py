@@ -179,7 +179,7 @@ class _Ablage:
 def im_zug(monkeypatch, freigeschaltet):
     sp, ab = _Speicher(), _Ablage()
     ab.speicher = sp
-    for name in ("lesen", "juengster", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
+    for name in ("lesen", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
                  "beruehren", "alle_loeschen", "alle_sperren", "anonyme_der_sitzung_loeschen",
                  "sitzung_setzen"):
         monkeypatch.setattr(vorgaenge, name, getattr(sp, name))
@@ -558,15 +558,20 @@ def test_ein_konflikt_beim_abbrechen_sendet_kein_delete(im_zug, monkeypatch, abb
 
 
 def test_ein_wartender_lauf_merkt_sein_gespraech(im_zug):
-    """Paket K2a (Review, Befund 1): „fortsetzen“ führt in das Gespräch, in dem der Lauf zuletzt zu
-    warten begann — auf einen Auftrag oder auf die Person; ein beendeter Lauf ändert es nicht."""
+    """Paket K2a: „fortsetzen“ führt in das Gespräch, in dem der Lauf zuletzt zu warten begann; ein
+    beendeter Lauf ändert es nicht. Seit E-F (Review Paket F, MAJOR 1; ersetzt Review K2a, Befund 1)
+    bewegt ein anderes Gespräch einen wartenden Lauf nicht — erst wenn er nicht mehr wartet, kann
+    ein neues Warten in einem anderen Gespräch beginnen."""
     state: dict = {"entities": {}}
     _starte(state)
     [v] = im_zug.speicher.v.values()
     assert v.session_id == "sitzung-0123456789"
     lauf = {**v.akte["lauf"]}
     fertig = treiber.Ausgabe(lauf={**lauf, "status": "fertig"})
-    asyncio.run(zug_basis.festhalten(_S(), v, fertig, session_id="gespraech-b"))
+    with pytest.raises(vorgaenge.VorgangKonflikt):
+        asyncio.run(zug_basis.festhalten(_S(), v, fertig, session_id="gespraech-b"))
+    assert im_zug.speicher.v[v.id].akte["lauf"]["status"] == treiber.WARTET_AUFTRAG
+    asyncio.run(zug_basis.festhalten(_S(), v, fertig, session_id="sitzung-0123456789"))
     assert im_zug.speicher.v[v.id].session_id == "sitzung-0123456789"
     wartet = treiber.Ausgabe(lauf={**lauf, "status": treiber.WARTET})
     asyncio.run(zug_basis.festhalten(_S(), im_zug.speicher.v[v.id], wartet,

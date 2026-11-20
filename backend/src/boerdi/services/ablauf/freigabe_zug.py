@@ -263,6 +263,10 @@ async def _laden(session: Any, req: ChatRequest, entities: dict[str, Any], gewol
     vw = arbeitsstand.verweis(entities, aufrufer)
     v = await vorgaenge.lesen(session, vw["id"], aufrufer) if vw else None
     lauf = (v.akte or {}).get("lauf") if v is not None else None
+    if v is not None and not basis.gehoert_hierher(v, req.session_id):
+        # E-F (Kontrolle Paket F): eine Freigabe aus einem anderen Gespräch löst nichts aus —
+        # weder eine Vorschau noch einen Start beim MCP; der fremde Verweis fällt weg
+        v = lauf = None
     if (not isinstance(lauf, dict) or lauf.get("ablauf") != gewollt
             or lauf.get("status") != treiber.WARTET_FREIGABE):
         basis.verweis_auffrischen(entities, v, aufrufer)
@@ -288,6 +292,9 @@ async def _festhalten(session: Any, req: ChatRequest, session_state: dict, v: An
         await session.commit()
     except vorgaenge.FESTHALTEN_KONFLIKTE:
         await session.rollback()
+        # Kontrolle Paket F (8, vorbestehend): ein eben gestarteter Auftrag endet wieder — wie bei
+        # jedem anderen Festhalten; sonst liefe er bei der b-api ohne Besitzer weiter
+        await basis.nicht_festgehalten(aus)
         return None
     entities[arbeitsstand.VERWEIS] = arbeitsstand.verweis_fuer(v, aufrufer)
     return await basis.antwort(session, req, session_state, aus, ablauf, anhaengen=anhaengen)
@@ -336,7 +343,8 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
     offen = _plan_offen(entities, marke={"ablauf": ablauf.id, "id": lauf.get("freigabe_id")})
     # Review S4, Befund 3: auch ein Plan, der schon weg ist (abgelaufen), hat geschrieben
     angelaufen = offen or bool(lauf.get("plan_angelaufen"))
-    if not await basis.abbrechen(session, v, lauf, entities, aufrufer):
+    if not await basis.abbrechen(session, v, lauf, entities, aufrufer,
+                                 session_id=req.session_id):
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     if offen:
         # S4: was der Plan schon erledigt hat, bleibt; fortgesetzt wird er nicht

@@ -121,16 +121,19 @@ def test_nur_der_juengste_geht_hinaus(web, lage):
     assert [v["titel"] for v in _offen(web).json()["vorgaenge"]] == ["Neu"]
 
 
-def test_nicht_der_vorgang_des_aktuellen_gespraechs(web, lage):
-    """Review K2a, Befund 1: eine neue Sitzung übernimmt den jüngsten offenen Vorgang ohnehin
-    (``arbeitsstand.auffrischen``) — dann führt er schon hier weiter, kein Hinweis auf A."""
+def test_e_f_auch_der_vorgang_eines_verweises_wird_angeboten(web, lage):
+    """Plan 2026-11-20, Entscheid E-F (ersetzt Review K2a, Befund 1): eine neue Sitzung übernimmt
+    keinen Vorgang mehr still — ein Vorgang, dessen Lauf in einem anderen Gespräch wartet, führt
+    nur über „Fortsetzen“ weiter, auch wenn ein (alter) Verweis dieses Gesprächs auf ihn zeigt:
+    hier beantwortet keine Nachricht seine Frage (``wahl_zug``), also kommt der Hinweis."""
     from boerdi.services import arbeitsstand
 
-    lage.liste = [_vorgang("v-1", "Hier schon"), _vorgang("v-2", "Woanders")]
-    hier = SimpleNamespace(id="v-1", titel="Hier schon", akte={"lauf": None},
+    lage.liste = [_vorgang("v-1", "Dort wartend"), _vorgang("v-2", "Älter")]
+    dort = SimpleNamespace(id="v-1", titel="Dort wartend", akte={"lauf": None},
                            verfaellt_am=datetime.now(UTC) + timedelta(days=3))
-    lage.entities = {arbeitsstand.VERWEIS: arbeitsstand.verweis_fuer(hier, "person-a")}
-    assert [v["titel"] for v in _offen(web).json()["vorgaenge"]] == ["Woanders"]
+    lage.entities = {arbeitsstand.VERWEIS: arbeitsstand.verweis_fuer(dort, "person-a")}
+    assert [v["titel"] for v in _offen(web).json()["vorgaenge"]] == ["Dort wartend"]
+    assert lage.gefragt == [("person-a", _HIER)]      # das aktuelle Gespräch fehlt weiter
 
 
 # ── AS-4c (Plan 2026-11-09 §5f, R3): Wiederkehr mit Vorgang- oder Auftragskennung ──────────────

@@ -61,7 +61,8 @@ async def abbrechen(session: Any, req: ChatRequest, session_state: dict) -> Chat
             entities, marke={"ablauf": lauf.get("ablauf"), "id": lauf.get("freigabe_id")})
         angelaufen = offen or bool(lauf.get("plan_angelaufen"))
     ausgang = await basis.abbrechen(session, v, lauf, entities,
-                                    arbeitsstand.aufrufer_fuer(req.session_id))
+                                    arbeitsstand.aufrufer_fuer(req.session_id),
+                                    session_id=req.session_id)
     if not ausgang:
         return await basis.nur_text(session, req, "action.ablauf.konflikt", entities)
     if offen:

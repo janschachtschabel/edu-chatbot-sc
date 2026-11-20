@@ -1072,8 +1072,9 @@ def test_ohne_freitext_schritt_bleibt_getippter_text_ein_gewoehnlicher_zug(monke
 
 
 def test_durchtest_k_eine_wendung_an_der_frage_ist_nicht_ihr_freitext(monkeypatch):
-    """Durchtest Paket K (19.11.): angemeldet übernahm eine neue Sitzung den offenen Lauf — die
-    Wendung wurde still die Freitext-Antwort. Jetzt antwortet ``wendung_beantworten``."""
+    """Durchtest Paket K (19.11.): eine Wendung an der offenen Frage wurde still ihre
+    Freitext-Antwort (damals in einer neuen Sitzung, die den Lauf still übernahm — seit Entscheid
+    E-F, Plan 2026-11-20, nicht mehr). Jetzt antwortet ``wendung_beantworten``."""
     _patch_handlers(monkeypatch)
     _patch_db(monkeypatch)
     _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))

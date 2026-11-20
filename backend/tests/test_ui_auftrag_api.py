@@ -46,8 +46,6 @@ class _Lage:
         self.abfragen: list[str] = []
         self.geschrieben: list[str] = []
         self.sitzung = True
-        #: R1-d: der jüngste offene Vorgang der Person (``vorgaenge.juengster``)
-        self.juengster: SimpleNamespace | None = None
 
     def vorgang(self) -> SimpleNamespace:
         return SimpleNamespace(id="v-1", titel="Lesen", akte={"lauf": copy.deepcopy(self.lauf)},
@@ -73,9 +71,6 @@ def lage(monkeypatch) -> _Lage:
     async def offen(s, vorgang_id):
         return lg.auftrag
 
-    async def juengster(s, aufrufer):
-        return lg.juengster if aufrufer == "person-a" else None
-
     async def stand(job_id):
         lg.abfragen.append(job_id)
         if isinstance(lg.stand, Exception):
@@ -97,7 +92,6 @@ def lage(monkeypatch) -> _Lage:
     monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: lg.person)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
     monkeypatch.setattr(vorgaenge, "lesen", lesen)
-    monkeypatch.setattr(vorgaenge, "juengster", juengster)
     monkeypatch.setattr(ablage, "offen", offen)
     monkeypatch.setattr(client, "stand", stand)
     monkeypatch.setattr(api, "laden", lambda ablauf_id: lg.ablauf if ablauf_id == "lesen"
@@ -263,24 +257,20 @@ def test_review_as8a_2_eine_echte_kennung_braucht_weiter_anmeldung(web, lage, mo
     assert lage.abfragen == []
 
 
-def test_r1d_ein_verweis_ins_leere_nimmt_den_juengsten_vorgang(web, lage, monkeypatch):
-    """Paket R1-d: der Vorgang des Verweises ist weg (ein anderer Tab hat ihn ersetzt) — wie der
-    Preflight des nächsten Zuges gilt der jüngste offene Vorgang; das Kürzel muss passen."""
+def test_e_f_ein_verweis_ins_leere_nimmt_nicht_den_juengsten_vorgang(web, lage, monkeypatch):
+    """Plan 2026-11-20, Entscheid E-F (ersetzt Paket R1-d): der Preflight des nächsten Zuges holt
+    keinen Vorgang mehr still herein — also meldet ``/stand`` auch nichts vom jüngsten offenen
+    Vorgang, wenn der des Verweises weg ist (das Abholen ginge sonst am Verweis vorbei, wie Review
+    R1, Befund 2). Der wartende Auftrag ist über „Fortsetzen“ erreichbar."""
     monkeypatch.setattr(lage, "entities", lambda: {arbeitsstand.VERWEIS: arbeitsstand.verweis_fuer(
         SimpleNamespace(id="v-alt", titel="Alt", akte={}, verfaellt_am=datetime.now(UTC)
                         + timedelta(days=3)), "person-a")})
-    lage.juengster = lage.vorgang()
-    r = _stand(web)
-    assert r.status_code == 200, r.text
-    assert lage.abfragen == ["job-1"] and lage.geschrieben == []
-    lage.abfragen.clear()
-    assert _stand(web, kuerzel="0" * 12).status_code == 409 and lage.abfragen == []
+    assert _stand(web).status_code == 409 and lage.abfragen == []
 
 
-def test_r1d_ohne_verweis_auch(web, lage, monkeypatch):
+def test_e_f_ohne_verweis_auch_nicht(web, lage, monkeypatch):
     monkeypatch.setattr(lage, "entities", lambda: {})
-    lage.juengster = lage.vorgang()
-    assert _stand(web).status_code == 200
+    assert _stand(web).status_code == 409 and lage.abfragen == []
 
 
 def test_review_r1_2_ein_lebender_verweis_auf_einen_anderen_vorgang_bleibt_409(web, lage,
@@ -296,5 +286,4 @@ def test_review_r1_2_ein_lebender_verweis_auf_einen_anderen_vorgang_bleibt_409(w
     monkeypatch.setattr(vorgaenge, "lesen", lesen)
     monkeypatch.setattr(lage, "entities", lambda: {
         arbeitsstand.VERWEIS: arbeitsstand.verweis_fuer(anderer, "person-a")})
-    lage.juengster = lage.vorgang()
     assert _stand(web).status_code == 409 and lage.abfragen == []

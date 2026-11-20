@@ -109,8 +109,33 @@ def gruendlich_nach_anmeldung() -> bool:
             and mcp_starter.flow_erlaubt(METADATEN_FLOW))
 
 
+def gehoert_hierher(v: Any, session_id: str) -> bool:
+    """Plan 2026-11-20, Entscheid E-F: darf dieses Gespräch den Lauf von ``v`` bewegen? Nicht,
+    wenn er in einem anderen wartet (``vorgaenge.wartet_woanders``). Den Verweis darauf nimmt schon
+    ``arbeitsstand.auffrischen`` (Preflight) bzw. der Seiten-Ping (``seite_zug.angekommen``, läuft
+    vor dem Preflight); hier die Verteidigung in der Tiefe: :func:`festhalten`, :func:`schliessen`,
+    :func:`abbrechen` (mit ``session_id``), ``freigabe_zug._laden``, ``zug.fortsetzen`` und
+    ``zug.nach_uebernahme``.
+
+    Bewusst **ohne** Prüfung bleiben die Aufräum-Wege, die einen Lauf beenden, weil sein Ablauf aus
+    ist oder sich seine Schritte änderten (``abbrechen`` ohne ``session_id`` in ``wahl_zug``,
+    ``seite_zug``, ``zug.wartet_auf``, ``auftrag_zug.pruefen``, ``freigabe_zug._laden``), sowie
+    ``freigabe_zug._lauf_merken``/``_konflikt_nach_schreiben``: Erstere gelten für jedes Gespräch
+    gleich (ein Lauf, der nicht mehr kann, wartet nirgends weiter), Letztere setzen nur fort, was
+    die eigene, sitzungsgebundene Abnahme (``_pending_write``) dieses Gesprächs eben ausgelöst hat
+    — und alle erreicht ein fremder Verweis erst gar nicht, weil ``auffrischen`` ihn vorher
+    nimmt."""
+    return not vorgaenge.wartet_woanders(v, session_id)
+
+
 async def festhalten(session: Any, v: Any, aus: treiber.Ausgabe, *,
                      session_id: str | None = None) -> Any:
+    """Die Ausgabe des Treibers am Vorgang festhalten. Wirft ``VorgangKonflikt`` — auch, wenn der
+    Lauf in einem anderen Gespräch wartet (E-F, :func:`gehoert_hierher`); der Aufrufer rollt dann
+    zurück wie bei jedem Konflikt."""
+    if session_id and not gehoert_hierher(v, session_id):
+        logger.warning("Ablauf: Lauf wartet in einem anderen Gespräch — nicht festgehalten")
+        raise vorgaenge.VorgangKonflikt(v.id)
     if aus.auftrag:
         # Paket K1a: die Job-ID (nie der Schlüssel); ein neuer Auftrag ersetzt den offenen.
         from boerdi.services.auftraege import ablage
@@ -119,8 +144,9 @@ async def festhalten(session: Any, v: Any, aus: treiber.Ausgabe, *,
     status = STATUS.get(aus.lauf.get("status"), "aktiv")
     if session_id and status in vorgaenge.WARTEND:
         # Paket K2a: „fortsetzen“ führt in das Gespräch, in dem der Lauf zuletzt zu warten begann —
-        # auf einen Auftrag oder auf die Person (Review K2a, Befund 1: ein Gespräch B, das den Lauf
-        # aus A übernahm und weiterführte, ist danach sein Gespräch, nicht mehr A).
+        # auf einen Auftrag oder auf die Person. Seit E-F (Plan 2026-11-20) ist das immer dieses
+        # Gespräch: ein anderes bewegt den wartenden Lauf nicht (Prüfung oben), es wechselt über
+        # „Fortsetzen“ hierher.
         await vorgaenge.sitzung_setzen(session, v.id, session_id)
     # Zweites Review TG-2 (MAJOR 1): verworfene Teile zuerst — ein Schritt danach kann denselben
     # Teil neu schreiben (dann steht er in ``neue_teile``)
@@ -133,12 +159,16 @@ async def festhalten(session: Any, v: Any, aus: treiber.Ausgabe, *,
                                        tage=arbeitsstand.tage())
 
 
-async def schliessen(session: Any, v: Any) -> str | None:
+async def schliessen(session: Any, v: Any, *, session_id: str | None = None) -> str | None:
     """Den Vorgang abschließen (``fertig``) — „neues Vorhaben“ oder der Start eines Ablaufs auf
     einem Vorgang mit beendetem oder fremdem Lauf (Querschnitts-Review 2026-11-06, M6). Ein
-    wartender Lauf wird ``abgebrochen``, sein offener Auftrag ebenso. Wirft ``VorgangKonflikt``;
-    der Aufrufer schreibt fest — und gibt die zurückgegebene Job-ID erst danach an
-    :func:`bei_der_b_api_abbrechen` (Review Job-Vertrag, Befund 1)."""
+    wartender Lauf wird ``abgebrochen``, sein offener Auftrag ebenso. Wirft ``VorgangKonflikt`` —
+    mit ``session_id`` auch, wenn der Lauf in einem anderen Gespräch wartet (E-F, wie
+    :func:`festhalten`); der Aufrufer schreibt fest — und gibt die zurückgegebene Job-ID erst danach
+    an :func:`bei_der_b_api_abbrechen` (Review Job-Vertrag, Befund 1)."""
+    if session_id and not gehoert_hierher(v, session_id):
+        logger.warning("Ablauf: Lauf wartet in einem anderen Gespräch — nicht geschlossen")
+        raise vorgaenge.VorgangKonflikt(v.id)
     lauf = (v.akte or {}).get("lauf")
     job_id = None
     if isinstance(lauf, dict) and lauf.get("status") in _WARTEND:
@@ -463,12 +493,18 @@ async def auftraege_beenden(*job_ids: str | None) -> str:
 
 
 async def abbrechen(session: Any, v: Any, lauf: dict[str, Any], entities: dict[str, Any],
-                    aufrufer: str, *, bei_der_b_api: bool = True) -> str | None:
+                    aufrufer: str, *, bei_der_b_api: bool = True,
+                    session_id: str | None = None) -> str | None:
     """Ein wartender Lauf, dessen Ablauf aus ist oder dessen Schritte sich änderten (Befund 5) —
     oder den die Person abbricht (K2b). Ohne ``bei_der_b_api`` (der Schlüssel wurde gerade
     abgewiesen) kein DELETE hinterher. ``None`` bei einem Konflikt (nichts geändert), sonst der
     Ausgang beim Träger (Paket K4, :func:`auftraege_beenden`; ``"ok"`` ohne Auftrag über den MCP)
-    — nie leer, ``if not await abbrechen(…)`` prüft auf den Konflikt."""
+    — nie leer, ``if not await abbrechen(…)`` prüft auf den Konflikt. Mit ``session_id`` (ein
+    Abbruch der Person) gilt E-F wie bei :func:`festhalten`: ein Lauf, der in einem anderen
+    Gespräch wartet, ist ein Konflikt."""
+    if session_id and not gehoert_hierher(v, session_id):
+        logger.warning("Ablauf: Lauf wartet in einem anderen Gespräch — nicht abgebrochen")
+        return None
     job_id = None
     try:
         if lauf.get("status") == treiber.WARTET_AUFTRAG:

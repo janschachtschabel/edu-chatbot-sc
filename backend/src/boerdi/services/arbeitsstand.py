@@ -121,9 +121,14 @@ async def auffrischen(s: Any, session_id: str, entities: dict[str, Any]) -> None
     """Der Verweis folgt einmal je Zug dem Vorgang — im Preflight, vor den Prüfungen, die nur ihn
     lesen (wartet ein Lauf? Auslöser?; Querschnitts-Review 2026-11-06, Review Q3, Befund 10): Frist,
     Teile und Lauf aus der Datenbank, denn eine zweite Sitzung derselben Person kann ihn bewegt
-    haben; ein abgelaufener oder abgeschlossener eigener Vorgang fällt weg. Ohne Verweis findet eine
-    angemeldete Person ihren jüngsten offenen Vorgang wieder — auch aus einer neuen Sitzung (Review
-    V1, Befund 1). Wirft nie; die Verbindung geht danach frei."""
+    haben; ein abgelaufener oder abgeschlossener eigener Vorgang fällt weg. Ohne Verweis bleibt das
+    Gespräch ohne Vorgang (Plan 2026-11-20, Entscheid E-F, ersetzt Review V1, Befund 1): ein neues
+    Gespräch übernimmt nie still einen offenen Vorgang der Person — ihre erste Nachricht wurde sonst
+    die Antwort auf die offene Frage eines alten Laufs. Zurück führen „Fortsetzen“
+    (``/api/ui/vorgaenge/offen``) und „Meine Vorgänge“, beide in das Gespräch des Vorgangs. Zeigt
+    der Verweis auf einen Vorgang, dessen Lauf in einem anderen Gespräch wartet (Stand von vor E-F),
+    fällt er hier weg (Review Paket F, MAJOR 1) — sonst bewegte jeder Ablauf-Weg dieses Zuges den
+    fremden Lauf. Wirft nie; die Verbindung geht danach frei."""
     aufrufer = aufrufer_fuer(session_id)
     try:
         await anonymen_uebernehmen(s, session_id, entities, aufrufer)
@@ -133,13 +138,13 @@ async def auffrischen(s: Any, session_id: str, entities: dict[str, Any]) -> None
             v = await vorgaenge.lesen(s, roh["id"], aufrufer)
             if v is None or v.status in vorgaenge.ABGESCHLOSSEN:
                 entities.pop(VERWEIS, None)
+            elif ist_persoenlich(aufrufer) and vorgaenge.wartet_woanders(v, session_id):
+                entities.pop(VERWEIS, None)
+                logger.info("Arbeitsstand: Lauf wartet in anderem Gespräch — Verweis entfernt")
             else:
                 entities[VERWEIS] = _verweis_aus(v, aufrufer)
         else:
             verweis_weg(entities, aufrufer)
-        if verweis(entities, aufrufer) is None and has_personal_auth():
-            if (v := await vorgaenge.juengster(s, aufrufer)) is not None:
-                entities[VERWEIS] = _verweis_aus(v, aufrufer)
     except Exception as fehler:  # noqa: BLE001 — der Arbeitsstand beendet den Zug nie
         logger.warning("Arbeitsstand nicht lesbar (%s)", type(fehler).__name__)
     finally:
@@ -285,8 +290,7 @@ async def _speichern(s: Any, session_id: str, entities: dict[str, Any], teile: l
         v = None          # M6: ein abgeschlossenes Vorhaben nimmt keine neuen Teile
     if v is None and nur_dieser:
         return None
-    if v is None and has_personal_auth():
-        v = await vorgaenge.juengster(s, aufrufer)
+    # E-F: ohne Verweis ein eigener Vorgang dieses Gesprächs — nie still der jüngste der Person
     if v is None:
         # Plan 2026-11-16, TG-2: ohne Ablauf ist der Zweck neutral — das Upload-Feld stellt nur
         # bereit (gelesen wird ``zweck`` nur als Kennung eines Ablaufs, ``api/ui_vorgaenge``)
