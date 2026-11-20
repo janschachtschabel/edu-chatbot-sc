@@ -20,11 +20,19 @@ _BEISPIELE = sorted(_ORDNER.glob("*.yaml"))
 
 def test_die_beispiele_des_handbuchs_liegen_als_seeds_vor():
     namen = {p.stem for p in _BEISPIELE}
-    assert {"sammlungsstruktur", "sammlung_pruefen", "fuehrung"} <= namen
+    assert {"themenbaum", "sammlung_pruefen", "fuehrung"} <= namen
 
 
-# Plan 2026-11-16, TG-6 (G-E2): „Themenbaum erstellen“ löst die vier Themenbaum-Abläufe ab — er
-# ist ab Werk an (mit dem WLO-Weg, Rückmeldung 16.11.), die vier bleiben als Werksfassung aus
+def test_g1_die_abgeloesten_themenbaum_ablaeufe_sind_nicht_mehr_im_werk():
+    """Plan 2026-11-20, G1: „Themenbaum erstellen“ deckt alle Grundlagen ab — die vier alten
+    Einzel-Abläufe sind aus den Werks-Seeds entfernt."""
+    alt = {"themenbaum_aus_thema", "themenbaum_aus_dokument", "themenbaum_aus_inhalten",
+           "sammlungsstruktur"}
+    assert not alt & {p.stem for p in _BEISPIELE}
+
+
+# Plan 2026-11-16, TG-6 (G-E2): „Themenbaum erstellen“ ist ab Werk an (mit dem WLO-Weg,
+# Rückmeldung 16.11.)
 _AN = {"themenbaum"}
 
 

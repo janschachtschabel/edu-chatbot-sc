@@ -1,7 +1,8 @@
 """Review TW-4, Befunde 1 und 11: die echten Themenbaum-Seeds lösen richtig aus.
 
-Alle Abläufe aus ``seeds/06-ablaeufe`` sind hier eingeschaltet — bis auf die vier, die seit Plan
-2026-11-16 (TG-6) „Themenbaum erstellen“ ablöst; sie sind im Betrieb aus. Geprüft werden:
+Alle Abläufe aus ``seeds/06-ablaeufe`` sind hier eingeschaltet. Die vier, die seit Plan 2026-11-16
+(TG-6) „Themenbaum erstellen“ ablöst, sind seit Plan 2026-11-20 (G1) nicht mehr im Werk; die
+Prüfungen, die an ihnen hingen, laufen am generischen Seed. Geprüft werden:
 
 - **Wendungen:** Neuanlagen landen im passenden Ablauf, auch in natürlicher Satzstellung.
   „Überarbeiten“, „zusammenfassen“ und Wissensfragen starten nichts.
@@ -23,10 +24,6 @@ from boerdi.services.ablauf import ausloeser, vorschlag
 SEEDS = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "06-ablaeufe"
 
 
-#: Plan 2026-11-16, TG-6: abgelöst durch ``themenbaum`` — ab Werk aus (auch hier).
-_ABGELOEST = {"themenbaum_aus_thema", "themenbaum_aus_dokument", "themenbaum_aus_inhalten",
-              "sammlungsstruktur"}
-
 
 @pytest.fixture
 def alle_an(monkeypatch):
@@ -34,8 +31,7 @@ def alle_an(monkeypatch):
     for datei in sorted(SEEDS.glob("*.yaml")):
         roh = yaml.safe_load(datei.read_text(encoding="utf-8"))
         roh.pop("tests", None)
-        ablaeufe.append(AblaufArea.model_validate(
-            {**roh, "aktiv": datei.stem not in _ABGELOEST}))
+        ablaeufe.append(AblaufArea.model_validate({**roh, "aktiv": True}))
     monkeypatch.setattr(ausloeser, "katalog", lambda: ablaeufe)
     monkeypatch.setattr(ausloeser, "laden",
                         lambda k: next((a for a in ablaeufe if a.id == k), None))
@@ -95,23 +91,23 @@ def test_tg2_ein_gelesenes_dokument_startet_keinen_ablauf(alle_an):
     assert ausloeser.per_modul(dokument) is None
     erfasst = {"modul": "ui_upload", "block_id": "b", "daten": {**grund, "aktion": "erfasst"}}
     assert ausloeser.per_modul(erfasst) is None
-    assert not any(a.art == "modul" for a in alle_an["themenbaum_aus_dokument"].ausloeser)
+    assert not any(a.art == "modul" for ablauf in alle_an.values() for a in ablauf.ausloeser)
 
 
 def test_tg2_kein_seed_nennt_die_alten_knoepfe_des_upload_felds():
     """G-E4: die Knöpfe „Themenbaum aus dem Strukturdokument erstellen“ und „Als
     Themenbaum-Entwurf übernehmen“ gibt es nicht mehr. Plan 2026-11-17, U6 (altes Soll: „Lesen
-    lassen“): der Dokument-Ablauf nennt den einen Knopf „Hochladen“."""
+    lassen“): der Dokument-Weg nennt den einen Knopf „Hochladen“ (seit Plan 2026-11-20, G1 im
+    generischen Seed)."""
     alt = ("Strukturdokument erstellen", "Themenbaum-Entwurf übernehmen", "jetzt erstellen",
            "from the structure document", "as topic tree draft")
     for datei in SEEDS.glob("*.yaml"):
         text = datei.read_text(encoding="utf-8")
         assert not [a for a in alt if a in text], datei.name
-    dokument = yaml.safe_load((SEEDS / "themenbaum_aus_dokument.yaml").read_text(encoding="utf-8"))
+    dokument = yaml.safe_load((SEEDS / "themenbaum.yaml").read_text(encoding="utf-8"))
     texte = {s["id"]: s["text"] for s in dokument["schritte"] if "text" in s}
-    assert "„Hochladen“" in texte["hochladen"]["de"]
-    assert "“Upload”" in texte["hochladen"]["en"]
-    assert "„Hochladen“" in texte["ohne_dokument"]["de"]
+    assert "„Hochladen“" in texte["dokument_laden"]["de"]
+    assert "“Upload”" in texte["dokument_laden"]["en"]
     assert not [s for s, t in texte.items() if "Lesen lassen" in t["de"]]
 
 
@@ -120,14 +116,11 @@ def test_nur_der_ablauf_ohne_schreiben_startet_direkt(alle_an):
     Frage, und ein Upload-Feld allein schreibt nichts. „Aus eigenen Inhalten“ startet einen
     schreibenden Auftrag und bleibt ein Vorschlag."""
     # Plan 2026-11-16, TG-6: „Themenbaum erstellen“ startet direkt — sein Auftrag hat die
-    # Rückfrage direkt davor (``werkzeuge.ablauf_schreibt_ungefragt``)
+    # Rückfrage direkt davor (``werkzeuge.ablauf_schreibt_ungefragt``). Plan 2026-11-20, G1: die
+    # vier alten Abläufe sind nicht mehr im Werk.
     assert vorschlag._direkt(alle_an["themenbaum"])
-    assert vorschlag._direkt(alle_an["themenbaum_aus_thema"])
-    assert vorschlag._direkt(alle_an["themenbaum_aus_dokument"])
-    assert vorschlag._direkt(alle_an["sammlungsstruktur"])
-    assert not vorschlag._direkt(alle_an["themenbaum_aus_inhalten"])
     for ablauf in alle_an.values():                 # jeder Themenbaum-Ablauf fragt zuerst
-        if ablauf.id.startswith("themenbaum") or ablauf.id == "sammlungsstruktur":
+        if ablauf.id.startswith("themenbaum"):
             # Zweites Review TG-2: vor der Frage darf nur stehen, was nichts zeigt — die Prüfung,
             # was bereitliegt (``bereitgestellt``), und eine Verzweigung
             erste = next(s for s in ablauf.schritte if not (
@@ -146,10 +139,11 @@ def test_review_qtw_5_im_muster_weg_kommen_die_module_des_schritts_dazu(alle_an)
     from boerdi.services.ablauf import ki_schritt
     from boerdi.ui_module.namen import UI_WERKZEUGE_KEY
 
-    schritt = next(s for s in alle_an["themenbaum_aus_thema"].schritte if s.id == "entwurf")
+    # Plan 2026-11-20, G1: der KI-Schritt des Themen-Wegs im generischen Seed
+    schritt = next(s for s in alle_an["themenbaum"].schritte if s.id == "entwurf_thema")
     neu = ki_schritt.mit_schrittmodulen({UI_WERKZEUGE_KEY: ["ui_upload"], "id": "M01"}, schritt)
     assert neu[UI_WERKZEUGE_KEY] == ["ui_upload", "ui_strukturentwurf"] and neu["id"] == "M01"
-    ohne = next(s for s in alle_an["themenbaum_aus_thema"].schritte if s.id == "wofuer")
+    ohne = next(s for s in alle_an["themenbaum"].schritte if s.id == "wofuer")
     assert ki_schritt.mit_schrittmodulen({"id": "M01"}, ohne) == {"id": "M01"}
     # Zweites Review TW, Befund 3: ein fehlender Slot des Musters leerte sonst die Werkzeuge
     # (``response_prompt_builder``: degradation und missing_slots → keine Werkzeuge)
@@ -167,11 +161,19 @@ def test_review_qtw_9_der_muster_weg_laesst_den_abgelehnten_aus(alle_an, monkeyp
     state = {"entities": {}, "turn_count": 1}
     from boerdi.services.ablauf import zug_basis
 
+    # Plan 2026-11-20, G1: das Werk hat nur noch einen Ablauf, den die KI vorschlägt — ein zweiter
+    # (eingefrorenes Beispiel) zeigt, dass nur der abgelehnte fehlt
+    roh = yaml.safe_load((pathlib.Path(__file__).parent / "ablauf_beispiele"
+                          / "themenbaum_aus_thema.yaml").read_text(encoding="utf-8"))
+    roh.pop("tests", None)
+    zweiter = AblaufArea.model_validate({**roh, "aktiv": True})
+    katalog = [*alle_an.values(), zweiter]
+    monkeypatch.setattr(ausloeser, "katalog", lambda: katalog)
     zug_basis.ausstieg_merken(state, "themenbaum_aus_thema")
     assert generate._abgelehnt(state) == "themenbaum_aus_thema"
     namen = [w["function"]["name"] for w in vorschlag.werkzeuge(
         "de", ohne=generate._abgelehnt(state))]
-    assert "ablauf-themenbaum_aus_thema" not in namen and namen
+    assert "ablauf-themenbaum_aus_thema" not in namen and "ablauf-themenbaum" in namen
 
 
 
@@ -195,9 +197,10 @@ def test_rueckmeldung_ohne_anmeldung_sagt_die_ki_es_statt_still(alle_an, monkeyp
 def test_tw6_ein_upload_feld_allein_schreibt_nicht(alle_an):
     from boerdi.services.ablauf import werkzeuge
 
-    assert werkzeuge.ablauf_schreibt(alle_an["themenbaum_aus_dokument"])          # Einbettung
-    assert not werkzeuge.ablauf_schreibt_selbst(alle_an["themenbaum_aus_dokument"])
-    assert werkzeuge.ablauf_schreibt_selbst(alle_an["themenbaum_aus_inhalten"])    # Auftrag
+    # Plan 2026-11-20, G1: vorher „aus einem Dokument“ und „aus eigenen Inhalten“
+    assert werkzeuge.ablauf_schreibt(alle_an["sammlung_pruefen"])                 # Einbettung
+    assert not werkzeuge.ablauf_schreibt_selbst(alle_an["sammlung_pruefen"])
+    assert werkzeuge.ablauf_schreibt_selbst(alle_an["themenbaum"])                # Auftrag
 
 
 def test_tw6_der_satz_zur_anmeldung_kommt_vom_system(alle_an, monkeypatch):
@@ -234,7 +237,7 @@ def test_tw6_ohne_arbeitsgrundlage_lenkt_ein_modul_auf_den_ablauf_um(alle_an, mo
                                {"entities": {}, vorschlag.GRUNDLAGE_KEY: True}) is None
     ausgestiegen: dict = {"entities": {}, "turn_count": 1}
     zug_basis = __import__("boerdi.services.ablauf.zug_basis", fromlist=["x"])
-    zug_basis.ausstieg_merken(ausgestiegen, "themenbaum_aus_dokument")
+    zug_basis.ausstieg_merken(ausgestiegen, "themenbaum")      # Plan 2026-11-20, G1
     assert vorschlag.umlenkung("ui_upload", {"zweck": "sammlungsstruktur"}, angeboten,
                                ausgestiegen) is None
     ohne_ablauf: set[str] = set()

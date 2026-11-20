@@ -106,6 +106,17 @@
             "title": "Titel",
             "type": "object"
           },
+          "tour_chip": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Chip"
+          },
           "voraussetzungen": {
             "default": [],
             "items": {
@@ -224,6 +235,11 @@
       "AblaufStand": {
         "description": "Paket AS-Ua (Plan 2026-11-09 §5h, U-2): der Stand des Ablaufs, der in diesem Gespräch läuft\n— für die Leiste im Widget. ``nr``/``von``: „Schritt n von m“ (``services/ablauf/fortschritt``).\n``status`` ist der Status des Laufs (``laeuft``, ``wartet_wahl``, ``wartet_person``,\n``wartet_ki``, ``wartet_auftrag``, ``wartet_freigabe`` …).",
         "properties": {
+          "fuehrung": {
+            "default": false,
+            "title": "Fuehrung",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -3571,6 +3587,48 @@
               ]
             }
           },
+          "text_antworten": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TextAntwort"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Antworten",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "nachricht"
+              ]
+            }
+          },
+          "text_erneut": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "x-widget": "textarea"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Erneut",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
+          },
           "typ": {
             "pattern": "^(nachricht|modul|werkzeug|verzweigung|agent|auftrag|seite|ende)$",
             "title": "Typ",
@@ -4185,6 +4243,25 @@
           }
         },
         "title": "TestErwartung",
+        "type": "object"
+      },
+      "TextAntwort": {
+        "additionalProperties": true,
+        "description": "Plan 2026-11-20, G2a: ein Chip, der wie getippter Text zählt — keine Wahl. Der Schritt\nnimmt ihn wie jeden Text: trifft er keine Option, kommt ``kein_treffer``, danach endet ein\nAblauf mit ``endet_bei_text`` (in der Tour ist „Bin mir nicht sicher“ ein Fehlversuch).",
+        "properties": {
+          "label": {
+            "additionalProperties": {
+              "maxLength": 60,
+              "type": "string"
+            },
+            "title": "Label",
+            "type": "object"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "TextAntwort",
         "type": "object"
       },
       "ThemenbaumZweigAnfrage": {

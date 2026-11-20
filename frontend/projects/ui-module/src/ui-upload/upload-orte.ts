@@ -42,6 +42,9 @@ export interface Orte {
   readonly vorauswahl: Ort;
   readonly chat: OrtStand;
   readonly wlo: OrtStand;
+  /** Plan 2026-11-20 §8, E3: auf dem Dokument-Weg (`einzeldatei_als_struktur`) folgt der Ablage kein
+   *  Flow — der Ort heißt nur „In WLO ablegen“ und verspricht keine Angaben. */
+  readonly nurAblegen?: true;
 }
 
 export interface LokaleGrenzen {
@@ -112,8 +115,9 @@ function ausSchaltern(daten: Readonly<Record<string, unknown>>): Orte {
 
 export function orteAus(daten: Readonly<Record<string, unknown>>): Orte {
   const o = objekt(daten['orte']);
-  if (!o || !ORTE.has(String(o['vorauswahl']))) return ausSchaltern(daten);
-  return { vorauswahl: o['vorauswahl'] as Ort, chat: stand(o['chat']), wlo: stand(o['wlo']) };
+  const orte = !o || !ORTE.has(String(o['vorauswahl'])) ? ausSchaltern(daten)
+    : { vorauswahl: o['vorauswahl'] as Ort, chat: stand(o['chat']), wlo: stand(o['wlo']) };
+  return daten['einzeldatei_als_struktur'] === true ? { ...orte, nurAblegen: true } : orte;
 }
 
 export function lokaleGrenzen(daten: Readonly<Record<string, unknown>>): LokaleGrenzen {
@@ -182,7 +186,7 @@ export function orteFuer<T>(daten: Readonly<Record<string, unknown>>, e: Erfassu
   const wlo = wloFuer(o.wlo, e, daten);
   const geht = { chat: chat.geht, wlo: wlo.geht, namen: true };
   const ersatz: Ort = o.vorauswahl === 'wlo' ? (chat.geht ? 'chat' : 'namen') : (wlo.geht ? 'wlo' : 'namen');
-  return { vorauswahl: geht[o.vorauswahl] ? o.vorauswahl : ersatz, chat, wlo };
+  return { ...o, vorauswahl: geht[o.vorauswahl] ? o.vorauswahl : ersatz, chat, wlo };
 }
 
 /** Darf die Erklärzeile „ohne Anmeldung“ sagen? Nur, wenn die Schalter es tragen: ausdrücklich

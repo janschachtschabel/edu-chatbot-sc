@@ -22,8 +22,13 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AblaufArea.aktiv.label': 'Eingeschaltet',
     'feld.AblaufArea.endet_bei_text.label': 'Endet bei eigenem Text',
     'feld.AblaufArea.endet_bei_text.hint':
-      'An: Tippt die Person an einer Frage oder auf dem Weg zu einer Seite etwas, das der Ablauf nicht nimmt, endet er still, und der Chat antwortet. Für Führungen, die nicht unter jeder Antwort stehen bleiben sollen.',
+      'An: Tippt die Person an einer Frage oder auf dem Weg zu einer Seite etwas, das der Ablauf nicht nimmt, endet er still, und der Chat antwortet. An einer Frage ohne Freitext zählt dann auch eine Wendung dieses Ablaufs als getippter Text (erst der Hinweis ohne Treffer). Für Führungen, die nicht unter jeder Antwort stehen bleiben sollen.',
     'feld.AblaufArea.aktiv.hint': 'Aus = startet nicht. Neue Abläufe sind aus.',
+    // Review G2 (Plan 2026-11-20)
+    'feld.AblaufArea.tour_chip.label': 'Startet über den Tour-Chip',
+    'feld.AblaufArea.tour_chip.hint': 'An: Ist die eingebaute Web-Tour aus (Tour & Lotse), startet der Tour-Chip der Begrüßung diesen Ablauf wie sein Knopf (Auslöser „Knopf“, „Vorschlag der KI“ oder „Seite“ nötig); ein zweiter Druck beginnt neu an der aktuellen Seite. Nur ein aktiver Ablauf sollte es tragen.',
+    'feld.Schritt.text_erneut.label': 'Text beim erneuten Zeigen',
+    'feld.Schritt.text_erneut.hint': 'Je Sprache: erscheint statt des Texts, wenn der wartende Schritt auf eine Wendung hin noch einmal gezeigt wird. Leer: der Text.',
     'feld.AblaufArea.ausloeser.label': 'Auslöser',
     'feld.AblaufArea.ausloeser.hint': 'Womit der Ablauf startet: Knopf, Vorschlag der KI, Wendung, Modul-Antwort, Gastseite (mit Startdaten) oder Seite (Angebot unter der Begrüßung).',
     'feld.AblaufArea.voraussetzungen.label': 'Voraussetzungen',
@@ -211,6 +216,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.kein_treffer.label': 'Hinweis ohne Treffer',
     'feld.Schritt.kein_treffer.hint':
       'Je Sprache: Trifft getippter Text keine Schnellantwort, erscheint dieser Text einmal mit denselben Knöpfen. Danach geht getippter Text an die KI, der Ablauf wartet weiter. Nur mit Schnellantworten und ohne Freitext — außer mit „Synonyme im Satz“: dann erscheint er, wenn ein Satz mehrere Optionen trifft (jedes Mal). Der Text steht wörtlich da, ohne Platzhalter.',
+    // Plan 2026-11-20, G2a
+    'feld.Schritt.text_antworten.label': 'Antworten als Text',
+    'feld.Schritt.text_antworten.hint':
+      'Knöpfe hinter den Schnellantworten, die wie getippter Text zählen (höchstens 3) — etwa „Bin mir nicht sicher“: erst der Hinweis ohne Treffer, beim zweiten Mal geht der Text an die KI (mit „Endet bei eigenem Text“ endet der Ablauf). Die Beschriftung darf keine Schnellantwort treffen. Nur mit Schnellantworten und Hinweis ohne Treffer, ohne Freitext.',
+    'feld.TextAntwort.label.label': 'Beschriftung',
+    'feld.TextAntwort.label.hint': 'Je Sprache, höchstens 60 Zeichen; mindestens Deutsch. Sie wird beim Klick als Nachricht geschickt.',
     'feld.Freitext.ziel.label': 'Ziel',
     'feld.Freitext.ziel.hint': 'Der Schritt nach dem getippten Text.',
     'feld.Freitext.schreibt.label': 'Schreibt Teil',
@@ -295,8 +306,12 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AblaufArea.aktiv.label': 'Switched on',
     'feld.AblaufArea.endet_bei_text.label': 'Ends on own text',
     'feld.AblaufArea.endet_bei_text.hint':
-      'On: if the person types something at a question or on the way to a page that the workflow does not take, it ends quietly and the chat answers. For tours that should not linger under every answer.',
+      'On: if the person types something at a question or on the way to a page that the workflow does not take, it ends quietly and the chat answers. At a question without free text, a phrase of this workflow then also counts as typed text (first the hint without a hit). For tours that should not linger under every answer.',
     'feld.AblaufArea.aktiv.hint': 'Off = does not start. New workflows are off.',
+    'feld.AblaufArea.tour_chip.label': 'Started by the tour chip',
+    'feld.AblaufArea.tour_chip.hint': 'On: if the built-in web tour is off (Tour & guide), the welcome tour chip starts this workflow like its button (needs the “button”, “AI suggestion” or “page” trigger); a second press starts over at the current page. Only one active workflow should carry it.',
+    'feld.Schritt.text_erneut.label': 'Text when shown again',
+    'feld.Schritt.text_erneut.hint': 'Per language: shown instead of the text when the waiting step appears again after a phrase. Empty: the text.',
     'feld.AblaufArea.ausloeser.label': 'Triggers',
     'feld.AblaufArea.ausloeser.hint': 'What starts the workflow: button, AI suggestion, phrase, module answer or host page (with start data) or page (offer below the greeting).',
     'feld.AblaufArea.voraussetzungen.label': 'Requirements',
@@ -481,6 +496,11 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.kein_treffer.label': 'Hint without a hit',
     'feld.Schritt.kein_treffer.hint':
       'Per language: if typed text hits no quick reply, this text appears once with the same buttons. After that, typed text goes to the AI and the flow keeps waiting. Only with quick replies and without free text — except with “Synonyms within a sentence”: then it appears whenever a sentence matches several options. The text is shown as written, without placeholders.',
+    'feld.Schritt.text_antworten.label': 'Replies as text',
+    'feld.Schritt.text_antworten.hint':
+      'Buttons after the quick replies that count as typed text (at most 3) — for example “I’m not sure”: first the hint without a hit, the second time the text goes to the AI (with “Ends on own text” the workflow ends). The label must not hit a quick reply. Only with quick replies and the hint without a hit, without free text.',
+    'feld.TextAntwort.label.label': 'Label',
+    'feld.TextAntwort.label.hint': 'Per language, at most 60 characters; German at least. A click sends it as the message.',
     'feld.Freitext.ziel.label': 'Target',
     'feld.Freitext.ziel.hint': 'The step after the typed text.',
     'feld.Freitext.schreibt.label': 'Writes part',

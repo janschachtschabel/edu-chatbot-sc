@@ -16,6 +16,18 @@ from typing import Any, Final
 
 #: Die Direktaktion eines Wahl-Chips (``services/ablauf/wahl_zug.AKTION``).
 AKTION: Final = "ablauf_wahl"
+#: Plan 2026-11-20, G2a: die Wahl eines Chips, der wie getippter Text zählt (``text_antworten``).
+#: Keine Option kann so heißen (Kennungen beginnen mit a–z). Ein Wahl-Chip, damit ihn kein Deckel
+#: streicht; der Vorlauf macht aus ihm Text, wenn seine Frage noch wartet
+#: (``services/ablauf/wahl_zug.text_chip_gilt``).
+TEXT_WAHL: Final = "_text"
+
+
+def als_getippt(action: str | None, params: Any) -> bool:
+    """G2a: Ist der Zug der Druck auf einen Chip, der wie getippter Text zählt? Gehört er zur
+    wartenden Frage, geht er ohne Aktion weiter — mit seiner Beschriftung als Nachricht, wie
+    getippt: Hinweis ``kein_treffer``, Ende bei ``endet_bei_text``, Antwort der KI."""
+    return action == AKTION and isinstance(params, dict) and params.get("wahl") == TEXT_WAHL
 
 
 #: Die Knöpfe einer Rückfrage „Neu starten?“ (``ablauf/zug._ersetzen_fragen``) tragen die Marke

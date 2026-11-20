@@ -124,6 +124,9 @@ export interface AblaufStand {
   /** AS-7 (Querschnitts-Review, Befund 1): bei `wartet_seite` der Weg zur Seite — die Leiste zeigt
    *  ihn als Knopf, auch nach dem Neuladen (die Chips der alten Blase sind dann weg). */
   weg?: { label: string; url: string };
+  /** Plan 2026-11-20, G2d: der Ablauf führt über Seiten — auch an seiner Frage (`wartet_wahl`) pingt
+   *  das Widget nach einem Seitenwechsel und öffnet sich (wie bei der Tour, `controllers/ablauf-seite-merker.wartendeFuehrung`). */
+  fuehrung?: boolean;
   /** Zweites Review, Z-8: der Lauf einer angemeldeten Person — abgemeldet zeigt das Widget ihn nicht. */
   persoenlich?: boolean;
   /** Kurztexte des Arbeitsstands (ohne Kennungen, ohne die Startdaten). */

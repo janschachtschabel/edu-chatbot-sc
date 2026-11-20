@@ -274,8 +274,9 @@ def test_querschnitt_q2_ohne_lauf_setzt_ein_plan_des_ablaufs_nicht_fort(plan_zug
                                        ("schritt", "ein-anderer-schritt")])
 def test_zweites_review_z3_ein_anderer_lauf_desselben_ablaufs_setzt_den_plan_nicht_fort(
         plan_zug, feld, wert):
-    """Zweites Review, Z-3: übernimmt das Gespräch nach dem Löschen einen anderen Vorgang mit
-    demselben Ablauf (``auffrischen`` → ``juengster``), gilt der alte Plan nicht für ihn."""
+    """Zweites Review, Z-3: zeigt der Verweis nach dem Löschen auf einen anderen Vorgang mit
+    demselben Ablauf (früher ``auffrischen`` → ``juengster``, seit Entscheid E-F etwa nach
+    „Fortsetzen“), gilt der alte Plan nicht für ihn."""
     state: dict = {"entities": {}}
     _starte(state)
     plan_zug.antworten.append(_plan(False, 1))

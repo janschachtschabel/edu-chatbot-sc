@@ -138,7 +138,8 @@ async def upload_angebot(manifest: Manifest, args: dict[str, Any], umgebung: Umg
         return Ergebnis(None, FEHLER, ToolOutcome(tool=modul, status="error", error="abweichung"))
     block = neuer_block(modul, manifest["version"], manifest["art"], daten, TEXTFASSUNG)
     schalter_ = daten["schalter"]
-    return Ergebnis(block, QUITTUNG + _was_geht(schalter_) + _ablage_satz(schalter_),
+    return Ergebnis(block, QUITTUNG + _was_geht(schalter_) + _ablage_satz(
+        schalter_, dokument=daten.get("einzeldatei_als_struktur") is True),
                     ToolOutcome(tool=modul, status="success", item_count=1))
 
 
@@ -156,9 +157,14 @@ async def _rest_der_sitzung(umgebung: Umgebung, cfg: Any) -> tuple[int, float] |
     return max(0, cfg.lokal_max_dateien - anzahl), frei_mb
 
 
-def _ablage_satz(schalter: dict[str, bool]) -> str:
+def _ablage_satz(schalter: dict[str, bool], *, dokument: bool = False) -> str:
     """Rückmeldung 16.11. (Review m5): die Ablage ist ab Werk an — die KI soll sie nicht verneinen
-    und die Voraussetzung kennen."""
+    und die Voraussetzung kennen. ``dokument`` (Plan 2026-11-20 §8, E3; Review Paket E, MINOR 8):
+    auf dem Dokument-Weg läuft nach der Ablage kein Flow — keine Metadaten versprechen."""
+    if schalter.get("ablage_in_wlo") and dokument:
+        return (" Die Person kann das Dokument im Feld in ihrem persönlichen Bereich in WLO "
+                "ablegen; dort liest der Chat danach den Text. Metadaten entstehen auf diesem Weg "
+                "nicht — versprich keine.")
     if schalter.get("ablage_in_wlo"):
         # Paket K3: Metadaten erzeugt ein Flow — nur, wenn ein Träger ihn starten kann (der MCP).
         # Die Ablage selbst hängt nicht daran.

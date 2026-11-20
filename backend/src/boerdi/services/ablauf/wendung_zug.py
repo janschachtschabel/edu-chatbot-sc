@@ -1,14 +1,17 @@
 """Eine Wendung an einer wartenden Frage (Durchtest Paket K, 19.11.; drittes Review).
 
-Angemeldet übernimmt eine neue Sitzung den jüngsten offenen Vorgang (``arbeitsstand.auffrischen``,
-gewollt). Dort wurde „Themenbaum aus meinen Dateien“ still die Freitext-Antwort ``zweck`` des
-fremden Laufs. Jetzt gilt:
+Damals übernahm angemeldet eine neue Sitzung den jüngsten offenen Vorgang (``arbeitsstand.
+auffrischen``; seit Plan 2026-11-20, Entscheid E-F, nicht mehr — eine Frage gilt nur ihrem
+Gespräch, ``wahl_zug._fortsetzen``). Dort wurde „Themenbaum aus meinen Dateien“ still die
+Freitext-Antwort ``zweck`` des fremden Laufs. An einer offenen Frage im eigenen Gespräch gilt:
 
 - :func:`wendung_trifft`: eine Nachricht an einer offenen Frage ist eine Wendung, wenn sie **im
   Wesentlichen** die Wendung ist (``ausloeser.per_text_genau``: gleich, mit der Wendung vorn und
   höchstens drei Wörtern danach, oder höchstens 15 Zeichen länger; nur ganze Wörter). Eine
   Beschriftung oder ein Synonym der Frage bleibt die Wahl. Kommt derselbe Text an derselben Frage
-  ein zweites Mal, ist er die Antwort — die Person kommt immer heraus.
+  ein zweites Mal, ist er die Antwort — die Person kommt immer heraus. Ausnahme (Plan 2026-11-20,
+  G2b): in einem Ablauf mit ``endet_bei_text`` ist die eigene Wendung an einer Frage ohne
+  Freitext getippter Text — wie in der Tour.
 - :func:`wendung_beantworten`: speichert nichts am Lauf. Derselbe Ablauf: die offene Frage erneut
   mit „Du bist schon mitten in …“, ihren Chips und „Neu starten“ (gebunden an diesen Lauf). Ein
   anderer Ablauf: die Ersetzen-Rückfrage samt „Hier weitermachen“; wer sie übergeht, hat den
@@ -61,6 +64,11 @@ def wendung_trifft(session_id: str, session_state: dict[str, Any], text: str | N
     ziel = ausloeser.per_text_genau(text)
     if ziel is None or (ziel.id != ablauf.id and (ziel.id == ohne
                                                   or not ausloeser.erfuellt(ziel))):
+        return None
+    if ziel.id == ablauf.id and ablauf.endet_bei_text and schritt.freitext is None:
+        # Plan 2026-11-20, G2b: in einem Ablauf mit ``endet_bei_text`` ist die eigene Wendung an
+        # der Frage getippter Text (Hinweis, dann Ende) — wie die Tour im Gruppen-Schritt; ohne
+        # Freitext wird sie nie still die Antwort
         return None
     return ziel
 

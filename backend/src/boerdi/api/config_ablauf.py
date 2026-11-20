@@ -74,6 +74,7 @@ async def ablauf_pruefen(ablauf: AblaufArea, lang: Lang) -> AblaufPruefung:
             for i, t in pruefung.pruefe_gegliedert(ablauf, lang)],
         # AS-Db: dazu die Hinweise zum Datenfluss (sperren das Speichern nicht)
         warnungen=[*pruefung.wendungs_warnungen(ablauf, ausloeser.katalog(), lang),
+                   *pruefung.tour_chip_warnungen(ablauf, ausloeser.katalog(), lang),
                    *pruefung.agent_warnungen(ablauf, ausloeser.katalog(), lang),
                    *pruefung.warnungen(ablauf, lang)],
         teile=[AblaufTeil(**vars(z)) for z in datensicht.tabelle(ablauf)])

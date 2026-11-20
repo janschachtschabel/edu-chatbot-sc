@@ -44,7 +44,7 @@ def _req(**mehr):
 @pytest.fixture
 def im_zug(monkeypatch):
     sp = _Speicher()
-    for name in ("lesen", "juengster", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
+    for name in ("lesen", "anlegen", "teil_setzen", "lauf_setzen", "teil_wert",
                  "beruehren", "alle_loeschen", "alle_sperren", "anonyme_der_sitzung_loeschen",
                  "sitzung_setzen"):
         monkeypatch.setattr(vorgaenge, name, getattr(sp, name))

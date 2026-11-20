@@ -461,6 +461,8 @@ def _wahl(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
     if any("{teil." in t or "{wahl." in t or "{start." in t
            for t in (s.kein_treffer or {}).values()):
         b.append(_t(lang, "kein_treffer_platzhalter", s=s.id))
+    if s.text_antworten is not None:
+        b += _text_antworten(s, lang)
     if not mit_wahl(s):
         return b
     optionen = s.optionen or []
@@ -482,6 +484,22 @@ def _wahl(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
     if s.typ == "modul" and (module.get(s.modul or "") or {}).get("art") == "abfragen":
         b.append(_t(lang, "wahl_abfragend", s=s.id, m=s.modul))
     return b
+
+
+def _text_antworten(s: Schritt, lang: str) -> list[str]:
+    """G2a: Chips, die wie getippter Text zählen, stehen neben Optionen ohne Freitext (mit Freitext
+    wäre jeder Text die Antwort), tragen einen deutschen Text und treffen keine Option — sonst
+    wären sie eine Wahl. Der Hinweis ``kein_treffer`` gehört dazu (Review G2, NIT 5): ohne ihn
+    beendete schon der erste Druck eine Führung mit ``endet_bei_text`` — die Tour hilft zuerst."""
+    from boerdi.services.ablauf.treiber import wahl_aus_text  # treiber importiert dieses Modul
+
+    texte = s.text_antworten or []
+    if (not s.optionen or s.freitext is not None or not s.kein_treffer
+            or any(not (a.label.get("de") or "").strip() for a in texte)
+            or any(wahl_aus_text(s, t, sprache) is not None
+                   for a in texte for sprache, t in a.label.items())):
+        return [_t(lang, "text_antworten", s=s.id)]
+    return []
 
 
 def _schreibt_je_schritt(ablauf: AblaufArea, module: dict[str, Any], i: int) -> set[str]:
@@ -868,6 +886,9 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
     ids = [s.id for s in ablauf.schritte]
     if doppelt := sorted({i for i in ids if ids.count(i) > 1}):
         befunde.append((None, _t(lang, "doppelt", ids=", ".join(doppelt))))
+    # Review G2 (MINOR 7): der Tour-Chip startet wie ein Knopf (``zug.tour_chip``)
+    if ablauf.tour_chip and not any(a.art in ("knopf", "agent", "seite") for a in ablauf.ausloeser):
+        befunde.append((None, _t(lang, "tour_chip_knopf")))
     bekannt = set(ids)
     module = katalog.katalog()
     davor = _teile_davor(ablauf, module)
@@ -1018,6 +1039,17 @@ def wendungs_warnungen(
         if treffer:
             warnungen.append(_t(lang, "wendung_doppelt", w=w, andere=", ".join(treffer)))
     return warnungen
+
+
+def tour_chip_warnungen(ablauf: AblaufArea, andere: list[AblaufArea],
+                        lang: str = "de") -> list[str]:
+    """Review G2 (MINOR 7): trägt ein weiterer aktiver Ablauf ``tour_chip``, startet der Tour-Chip
+    nur den ersten (Reihenfolge der Schlüssel, ``ausloeser.per_tour_chip``) — eine Warnung, kein
+    Befund (wie :func:`wendungs_warnungen`)."""
+    if not (ablauf.aktiv and ablauf.tour_chip):
+        return []
+    mit = sorted(a.id for a in andere if a.id != ablauf.id and a.aktiv and a.tour_chip)
+    return [_t(lang, "tour_chip_doppelt", andere=", ".join(mit))] if mit else []
 
 
 #: Wie ``vorschlag.MAX_WERKZEUGE`` (ohne Import: ``vorschlag`` hängt an den Auslösern).

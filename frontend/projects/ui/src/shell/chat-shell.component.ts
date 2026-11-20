@@ -74,7 +74,7 @@ import {
   themenbaumZweig,
 } from '../controllers/collection-actions';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
-import { merkerNachStand, setzeAblaufSeiteMerker } from '../controllers/ablauf-seite-merker';
+import { merkerFaelltNachVerlauf, merkerNachStand, setzeAblaufSeiteMerker } from '../controllers/ablauf-seite-merker';
 import { SeitenPing, seitenPingNoetig, UnbestimmtMarke } from '../controllers/seiten-ping';
 import { type AblaufSeite, fuehrungsChips } from '../widget/fuehrung-angebote';
 
@@ -88,7 +88,6 @@ import { SpeechService } from '../speech/speech.service';
 import { CORE_TRUSTED_DOMAINS } from '../session/trusted-host';
 import { runSignIn } from '../session/sign-in-flow';
 import { authButtonState } from '../session/auth-button';
-import { initialen } from '../session/initialen';
 import { FortsetzenController, type OffenerVorgang, fortsetzenDatum } from './fortsetzen';
 import { type WiederkehrKennung, wiederkehrKennung } from '../stream/offene-vorgaenge';
 import { sitzungsWache } from '../session/session-id';
@@ -133,6 +132,7 @@ import { fehlerKurz } from '../obs/fehler-kurz';
 import { AblaufLeisteComponent } from './ablauf-leiste.component';
 import { type EigenerVorgang, MeineVorgaengeController } from './meine-vorgaenge';
 import { MeineVorgaengeComponent } from './meine-vorgaenge.component';
+import { KontoKnopfComponent } from './konto-knopf.component';
 import { MessageStore } from './message-store';
 import { ScrollFollowController } from './scroll-follow';
 import { ShellRender } from './shell-render';
@@ -173,7 +173,7 @@ import { ShellRender } from './shell-render';
   imports: [
     AblaufLeisteComponent, SafeSvgPipe, CardListComponent, DebugPanelHuelleComponent,
     QuickRepliesComponent, ResultGroupsComponent, SwimlanesComponent, UiBloeckeComponent,
-    WebLinksComponent, MeineVorgaengeComponent,
+    WebLinksComponent, MeineVorgaengeComponent, KontoKnopfComponent,
   ],
 })
 export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, OnDestroy {
@@ -602,7 +602,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     seitenPingWartet: () => seitenPingNoetig(this.ablaufStand(), this._unbestimmtMarke.gilt(this._ablaufUnbestimmt())),
     // WF-5 (Review M1): nach dem Verlauf — wartet nichts mehr, fällt der Merker (auch bei leerem Verlauf)
     verlaufGeklaert: () => {
-      if (!this._ablaufUnbestimmt() && this.ablaufStand()?.status !== 'wartet_seite') setzeAblaufSeiteMerker(false);
+      if (merkerFaelltNachVerlauf(this.ablaufStand(), !!this._ablaufUnbestimmt())) setzeAblaufSeiteMerker(false);
     },
     showWelcome: () => _attrIsTrue(this.showWelcome()),
     sessionId: () => this.sessionId,
@@ -1095,6 +1095,24 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     block: () => readAccessBlock(),
   });
   private readonly _vorgaengeKnopf = viewChild<ElementRef<HTMLButtonElement>>('vorgaengeKnopf');
+  /** Paket D2 (Plan 2026-11-20, E-D2): in DIESEM Gespräch läuft ein Auftrag — die Eingabe wartet
+   *  (K2b) oder der Lauf wartet auf ihn. Markiert den Knopf „Meine Vorgänge“. */
+  readonly vorgaengeHier = computed(() =>
+    this.eingabeGesperrt() || this.ablaufStand()?.status === 'wartet_auftrag');
+  /** D2: die Zahl am Knopf — ab zehn „9+“; die genaue Zahl steht im Namen. */
+  readonly vorgaengeZahl = computed(() => {
+    const n = this.meineVorgaenge.anzahl();
+    return n > 9 ? '9+' : n > 0 ? String(n) : '';
+  });
+  /** D2: Name des Knopfs — sagt, was Abzeichen und Markierung zeigen. */
+  readonly vorgaengeName = computed(() => {
+    const n = this.meineVorgaenge.anzahl();
+    return [
+      this.t('vorgaenge.knopf'),
+      n > 0 ? this.t('vorgaenge.knopfOffen', { anzahl: n }) : '',
+      this.vorgaengeHier() ? this.t('vorgaenge.knopfHier') : '',
+    ].filter(Boolean).join(' – ');
+  });
 
   /** Zählt Anlässe, neu zu fragen, die kein anderes Signal trägt: ein neuer Block (Ticket-Tausch,
    *  Anmeldung — Review K2a, Befund 2/3), ein Neustart (Befund 8). */
@@ -1102,7 +1120,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private readonly _fortsetzenFragen = effect(() => {
     this._fortsetzenAnlass();
     if (!this._hasAccessBlock() || this.isLoading() || this.probe()) return;
-    untracked(() => { void this.fortsetzen.pruefen().then(() => this._cdr.markForCheck()); });
+    untracked(() => {
+      // D2: danach die Zahl am Knopf „Meine Vorgänge“ — derselbe Abruf wie das Panel, je Gespräch und
+      // Block einmal. Nacheinander (Review D, 4): der zweite trifft den gewärmten `/auth/status`.
+      void this.fortsetzen.pruefen()
+        .then(() => { this._cdr.markForCheck(); return this.meineVorgaenge.vorladen(); })
+        .then(() => this._cdr.markForCheck());
+    });
   });
 
   /** Ein neuer Block oder ein neues Gespräch: altes Angebot weg, neu fragen. */
@@ -1525,8 +1549,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Arbeitsspeicher; geräumt bei Abmelden, Abweisung und neuem Block. */
   private readonly _nameAusDemZug = signal('');
 
-  /** Der Name am Knopf und im Kürzel: der aus der Sitzung der Seite geht vor. */
-  private readonly _anzeigename = computed(() => this._angemeldetAls() || this._nameAusDemZug());
+  /** Der Name am Konto-Knopf (Initialen, Name, Menü): der aus der Sitzung der Seite geht vor. Abgemeldet
+   *  zeigt der Knopf ihn nicht — auch wenn `_angemeldetAls` den Namen der letzten Anmeldung noch hält
+   *  (Abmelden räumt ihn nicht). */
+  readonly anzeigename = computed(() => this._angemeldetAls() || this._nameAusDemZug());
 
   /** B4: den Namen aus der Antwort übernehmen — nur Text, nur mit Block, nur für den Block, mit dem
    *  der Zug hinausging, und nicht über einen Namen aus der Sitzung der Seite. Ein Zug ohne Namen
@@ -1539,26 +1565,6 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     if (!name || block === null || this._api.letzterZugBlock !== block) return;
     this._nameAusDemZug.set(name);
   }
-
-  /** Beschriftung des Knopfs. Wer aus der Sitzung der Seite angemeldet wurde, hat nichts
-   *  angeklickt — der Knopf sagt deshalb, unter welchem Namen der Chatbot arbeitet. */
-  readonly authTitel = computed(() => {
-    if (this.authButton() !== 'signOut') return this.t('auth.signIn');
-    const name = this._anzeigename();
-    return name ? this.t('auth.signOutAs', { name }) : this.t('auth.signOut');
-  });
-
-  /** Plan 2026-11-19 (E8): das Kürzel im Kreis links vom Anmelde-Knopf. Einen Namen kennt nur der
-   *  Weg über die Sitzung der Seite sofort, von Hand und über das Ticket nach dem ersten Zug (B4);
-   *  bis dahin das Personen-Symbol. Abgemeldet steht dort das ausgegraute Symbol — auch wenn
-   *  `_angemeldetAls` den Namen der letzten Anmeldung noch hält (Abmelden räumt ihn nicht). */
-  readonly kuerzel = computed(() =>
-    this.authButton() === 'signOut' ? initialen(this._anzeigename()) : '');
-  readonly kuerzelTitel = computed(() => {
-    if (this.authButton() !== 'signOut') return this.t('auth.notSignedIn');
-    const name = this._anzeigename().trim();
-    return name ? this.t('auth.signedInAs', { name }) : this.t('auth.signedIn');
-  });
 
   /** Der Server wies den Block eines Zugs ab. Das gilt dem Block, mit dem der Zug hinausging:
    *  ist inzwischen keiner mehr da (die Wache hat ihn verworfen und es gesagt) oder ein anderer

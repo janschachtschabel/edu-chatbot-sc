@@ -601,7 +601,7 @@ eigenen Rechner, das Repository im Cluster. Die Schritte, in dieser Reihenfolge:
      Firewall des Anbieters, `compose.session.yml` eingebunden?).
    - Andere Ziele am Repository-Host antworten weiter wie zuvor (Server-Block, Schritt 2).
    - `curl -s https://<PUBLIC_HOST>/api/config/guide-mode` nennt `mcp_session_url`.
-   - In der Redaktion angemeldet: Das Widget zeigt in der Fußzeile den Kreis mit dem Kürzel, der
-     Knopf heißt „Abmelden — angemeldet als …“.
+   - In der Redaktion angemeldet: Der Konto-Knopf in der Fußzeile zeigt die Initialen und heißt
+     „Konto – angemeldet als …“; sein Menü bietet „Abmelden“.
 
 Die Abnahme auf Staging macht der Betrieb (Plan §5, S3).

@@ -19,21 +19,19 @@ FEHLER: Final = {
     "volltext_fehlt": ("Fehler: Den Volltext der Strukturdokumente der Person ({namen}) konnte "
                        "WLO gerade nicht liefern. Rufe {name} jetzt nicht noch einmal auf; sag "
                        "der Person, dass es in einigen Minuten noch einmal geht."),
-    # m3: ``not_extracted`` heißt „aus der Datei kam (noch) kein Text“ — für eine Datei, deren Text
-    # gerade entsteht, ebenso wie für einen Scan oder ein Bild, das nie Text hat. Das MCP
-    # unterscheidet beides nicht; der Satz nennt beides ehrlich.
-    # Paket K5 (E14): meist entsteht der Text nach dem Übertragen gerade — der Ablauf scheitert
-    # nicht, er wartet an seinem KI-Schritt; erneut anstoßen ist eine neue Nachricht dort (Review
-    # B5: konkret „nochmal“ schreiben).
-    "volltext_fehlt_datei": ("Fehler: Aus den Strukturdokumenten der Person ({namen}) hat WLO "
-                             "(noch) keinen Text gewonnen — meist wird er nach dem Übertragen "
-                             "gerade erzeugt (das dauert einige Minuten); selten enthält die "
-                             "Datei keinen lesbaren Text (etwa ein Scan oder ein Bild). Der Ablauf "
-                             "wartet an diesem Schritt, nichts ist verloren. Rufe {name} jetzt "
-                             "nicht noch einmal auf; sag der Person: Der Text wird gerade erzeugt "
-                             "— in ein paar Minuten einfach „nochmal“ schreiben; geht es dann "
-                             "nicht, eine Fassung mit Text hochladen (etwa ein PDF mit Textschicht "
-                             "oder Word)."),
+    # Plan 2026-11-20 §8, E1: ``not_extracted`` ist endgültig — das Repositorium erzeugt den Text
+    # synchron beim ersten Lesen und wiederholt eine gescheiterte Extraktion nie (Messung §7). Statt
+    # „nochmal“ (Paket K5) die beiden Auswege; im Ablauf tragen sie feste Knöpfe hinter „Weiter im
+    # Ablauf“ (Seed ``themenbaum``, Schritt ``ohne_dokumenttext``).
+    "volltext_endgueltig": ("Fehler: WLO konnte aus den Strukturdokumenten der Person ({namen}) "
+                            "keinen Text gewinnen (etwa ein Scan, oder die Umwandlung in WLO ist "
+                            "gescheitert); ein neuer Versuch hilft nicht. Rufe {name} nicht noch "
+                            "einmal auf und vertröste die Person nicht auf später. Sag es ihr in "
+                            "einem Satz und nenne die zwei Auswege: „Hier im Chat lesen lassen“ "
+                            "(das Dokument im Auswahlfeld mit dem Ort „Hier im Chat“ "
+                            "hochladen{scan}) oder „Ohne Dokument weiter“ "
+                            "(etwa mit einem Thema). In einem Ablauf führt der Knopf „Weiter im "
+                            "Ablauf“ zu beiden."),
     # Nachprüfung TG-3d–f, MINOR 4: derselbe Code, der Satz nach dem Grund
     "volltext_fehlt_anmeldung": ("Fehler: Die Strukturdokumente der Person liegen in ihrem "
                                  "persönlichen Bereich in WLO ({namen}); ohne Anmeldung lassen "
@@ -103,19 +101,46 @@ def namen(fehlend: tuple[tuple[str, str], ...]) -> str:
 
 
 def volltext_satz(fehlend: tuple[tuple[str, str], ...]) -> str:
-    """Nachprüfung TG-3d–f, MINOR 4: welcher Satz zu ``volltext_fehlt`` passt — später (der Text
-    entsteht noch), Anmeldung fehlt, oder kein Zugriff bzw. nicht gefunden."""
+    """Nachprüfung TG-3d–f, MINOR 4: welcher Satz zu ``volltext_fehlt`` passt — kein Text
+    (endgültig, E1), später (Lesefehler, Frist), Anmeldung fehlt, oder kein Zugriff bzw. nicht
+    gefunden. Der Satz ``volltext_endgueltig`` ist zugleich der Code des Ergebnisses."""
     from boerdi.services.dokumente.strukturdokument import NICHT_EXTRAHIERT, SPAETER
 
     gruende = {g for _n, g in fehlend}
     if NICHT_EXTRAHIERT in gruende:
-        # Durchtest TG-7, m3: vor dem Lesefehler — „noch nicht oder nie“ ist die ehrlichere Auskunft
-        return "volltext_fehlt_datei"
+        # Durchtest TG-7, m3: vor dem Lesefehler. E1: endgültig — die Auswege statt „nochmal“
+        return "volltext_endgueltig"
     if gruende & SPAETER:
         return "volltext_fehlt"
     if gruende == {"ohne_anmeldung"}:
         return "volltext_fehlt_anmeldung"
     return "volltext_fehlt_zugriff"
+
+
+def _chat_mit_texterkennung() -> bool:
+    """Review Paket E, MINOR 7: liest „Hier im Chat“ gerade auch Scans (Studio, Texterkennung)?"""
+    from boerdi.services.config_loader.upload import load_upload_config
+    from boerdi.services.dokumente import ocr
+
+    cfg = load_upload_config()
+    return bool(cfg.dokument_im_chat) and ocr.aktiv(cfg)
+
+
+def volltext_fehler(name: str, fehlend: tuple[tuple[str, str], ...]) -> tuple[str, str]:
+    """Text an die KI und Code des Ergebnisses, wenn kein Strukturdokument einen Volltext hat.
+    Review Paket E, MINOR 3: ``volltext_endgueltig`` nennt nur die Dokumente ohne Text; zu den
+    übrigen folgt je ein Satz aus :func:`ohne_volltext`. MINOR 7: „auch Text in Scans“ nur, wenn
+    hier im Chat die Texterkennung läuft."""
+    from boerdi.services.dokumente.strukturdokument import NICHT_EXTRAHIERT
+
+    satz = volltext_satz(fehlend)
+    if satz != "volltext_endgueltig":
+        return FEHLER[satz].format(name=name, namen=namen(fehlend)), "volltext_fehlt"
+    ohne_text = tuple(f for f in fehlend if f[1] == NICHT_EXTRAHIERT)
+    rest = tuple(f for f in fehlend if f[1] != NICHT_EXTRAHIERT)
+    scan = "; dort wird auch Text in Scans erkannt" if _chat_mit_texterkennung() else ""
+    text = FEHLER[satz].format(name=name, namen=namen(ohne_text), scan=scan)
+    return (f"{text} {ohne_volltext(rest)}" if rest else text), satz
 
 
 def ohne_volltext(fehlend: tuple[tuple[str, str], ...]) -> str:
@@ -124,9 +149,9 @@ def ohne_volltext(fehlend: tuple[tuple[str, str], ...]) -> str:
     def satz(n: str, g: str) -> str:
         name = namen(((n, g),))
         if g == NICHT_EXTRAHIERT:
-            # Durchtest TG-7, m3
-            return (f"Dokument {name}: (noch) keinen lesbaren Text — entsteht er gerade oder ist "
-                    "es ein Scan; sonst eine Fassung mit Text hochladen.")
+            # Durchtest TG-7, m3; E1: endgültig, mit dem Ausweg
+            return (f"Dokument {name}: WLO konnte keinen Text gewinnen — es lässt sich hier im "
+                    "Chat lesen lassen.")
         if g in SPAETER:
             return f"Dokument {name}: Volltext gerade nicht lesbar, später erneut."
         if g == ABGELAUFEN:

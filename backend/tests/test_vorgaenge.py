@@ -245,27 +245,25 @@ def test_loeschen_nur_fuer_die_besitzerin_und_mit_ablage(db_url):
     assert bleibt is not None and weg is None and ablage == 0
 
 
-def test_juengster_offener_vorgang_und_purge_nimmt_die_anonymen_mit(db_url):
-    from boerdi.services import vorgaenge
+def test_purge_nimmt_die_anonymen_mit(db_url):
+    """Review Paket F, NIT 4: ``vorgaenge.juengster`` ist weg (E-F) — es bleibt die Bereinigung."""
     from boerdi.services.db_sessions import purge_all
 
     async def ablauf(sitzungen):
         async with sitzungen() as s:
-            alt = await _neu(s, titel="alt")
+            await _neu(s, titel="alt")
             await s.commit()
             neu = await _neu(s, titel="neu")
             await s.execute(text("UPDATE vorgaenge SET status = 'fertig' WHERE id = :k"),
                             {"k": neu.id})
             await _neu(s, aufrufer="sitzung:sitzung-zwei-0002", sid="sitzung-zwei-0002")
             await s.commit()
-            juengster = await vorgaenge.juengster(s, "person-a")
             counts = await purge_all(s, sessions=True)
             await s.commit()
             rest = (await s.execute(text("SELECT count(*) FROM vorgaenge"))).scalar_one()
-            return alt.id, juengster.id, counts, rest
+            return counts, rest
 
-    alt, juengster, counts, rest = _lauf(db_url, ablauf)
-    assert juengster == alt                       # der abgeschlossene zählt nicht
+    counts, rest = _lauf(db_url, ablauf)
     assert counts["vorgaenge"] == 1 and rest == 2  # die der Person überdauern
 
 
@@ -399,29 +397,22 @@ def test_eigene_nicht_abgeschlossene_vorgaenge_anderer_gespraeche(db_url):
     assert alle == ["dort", "hier"]
 
 
-def test_eigene_zeigt_auch_mehr_als_drei_und_schliesst_vor_der_grenze_aus(db_url):
+def test_eigene_zeigt_auch_mehr_als_drei(db_url):
     """Review AS-Ud, Befund 3: wartende Vorgänge weichen nie (``anlegen``) — eine Person kann mehr
-    als drei haben; keiner darf aus der Liste fallen. Der Vorgang, auf den das aktuelle Gespräch
-    verweist (``ohne_id``), fällt in der Abfrage weg, nicht erst danach."""
+    als drei haben; keiner darf aus der Liste fallen. (``ohne_id`` entfiel mit E-F.)"""
     from boerdi.services import vorgaenge
 
     async def ablauf(sitzungen):
         async with sitzungen() as s:
-            ids = []
             for i in range(4):
                 v = await _neu(s, sid="sitzung-zwei-0002", titel=f"v{i}")
                 if i < 3:          # drei warten — der vierte verdrängt keinen
                     await s.execute(text("UPDATE vorgaenge SET status = 'wartet_auftrag' "
                                          "WHERE id = :k"), {"k": v.id})
                 await s.commit()
-                ids.append(v.id)
-            alle = [v.titel for v in await vorgaenge.eigene(s, "person-a")]
-            ohne = [v.titel for v in await vorgaenge.eigene(s, "person-a", ohne_id=ids[3])]
-            return alle, ohne
+            return [v.titel for v in await vorgaenge.eigene(s, "person-a")]
 
-    alle, ohne = _lauf(db_url, ablauf)
-    assert sorted(alle) == ["v0", "v1", "v2", "v3"]
-    assert sorted(ohne) == ["v0", "v1", "v2"]
+    assert sorted(_lauf(db_url, ablauf)) == ["v0", "v1", "v2", "v3"]
 
 
 def test_alle_sperren_laeuft_auf_postgres(db_url):

@@ -84,10 +84,13 @@ export const FASSUNGEN: CataloguePart = {
     'fassungen.abgleichRunning': 'Werksabgleich läuft …',
     'fassungen.abgleichHint':
       'Läuft auch bei jedem Start von selbst. Legt Fehlendes an, hebt Unberührtes auf die '
-      + 'neue Werksfassung und fasst Angepasstes und Gelöschtes nicht an.',
+      + 'neue Werksfassung, entfernt Unberührtes, das nicht mehr zum Werk gehört, und fasst '
+      + 'Angepasstes und Gelöschtes nicht an.',
     'fassungen.abgleichDone':
       'Werksabgleich: {neu} neu, {aktualisiert} aktualisiert, {neues_werk} angepasst mit '
       + 'neuer Werksfassung.',
+    'fassungen.abgleichOhneWerk':
+      'Nicht mehr im Werk: {entfernt} entfernt, {verwaist} angepasst und deshalb behalten.',
     'fassungen.abgleichNachtrag':
       '{uebersprungen} übersprungen (inzwischen geändert — der nächste Abgleich sieht sie neu), '
       + '{konflikt} nicht angelegt, weil ihre Kennung nicht verwendbar ist (schon vergeben '
@@ -170,10 +173,14 @@ export const FASSUNGEN: CataloguePart = {
     'fassungen.abgleichRunning': 'Factory sync running …',
     'fassungen.abgleichHint':
       'Also runs on every start. Creates what is missing, lifts untouched areas to the new '
-      + 'factory version and leaves customized and deleted ones alone.',
+      + 'factory version, removes untouched ones that are no longer part of it and leaves '
+      + 'customized and deleted ones alone.',
     'fassungen.abgleichDone':
       'Factory sync: {neu} new, {aktualisiert} updated, {neues_werk} customized with a new '
       + 'factory version.',
+    'fassungen.abgleichOhneWerk':
+      'No longer in the factory version: {entfernt} removed, {verwaist} customized and '
+      + 'therefore kept.',
     'fassungen.abgleichNachtrag':
       '{uebersprungen} skipped (changed meanwhile — the next sync sees them again), {konflikt} '
       + 'not created because their id cannot be used (already taken or invalid).',

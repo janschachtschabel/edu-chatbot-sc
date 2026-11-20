@@ -247,10 +247,11 @@ def test_m3_ohne_text_aus_der_datei_ein_ehrlicher_sammelsatz():
     from boerdi.ui_module import katalog
     from boerdi.ui_module.aufruf import Umgebung
 
-    assert modul_dienst._volltext_satz((("a", "not_extracted"),)) == "volltext_fehlt_datei"
+    # Plan 2026-11-20 §8, E1: ``not_extracted`` ist endgültig (gemessen) — eigener Satz und Code
+    assert modul_dienst._volltext_satz((("a", "not_extracted"),)) == "volltext_endgueltig"
     assert modul_dienst._volltext_satz((("a", "text_unreadable"),)) == "volltext_fehlt"
     assert modul_dienst._volltext_satz((("a", "frist"), ("b", "not_extracted"))) == (
-        "volltext_fehlt_datei")
+        "volltext_endgueltig")
 
     async def ohne():
         return stand.OhneVolltext((("Scan.pdf", "not_extracted"),))
@@ -258,10 +259,11 @@ def test_m3_ohne_text_aus_der_datei_ein_ehrlicher_sammelsatz():
     erg = asyncio.run(modul_dienst.aufruf(katalog.katalog()["ui_strukturentwurf"],
                                           {"thema": "Physik", "aus_dokument": True},
                                           Umgebung(dokument=ohne)))
-    assert erg.outcome.error == "volltext_fehlt"
-    assert "Scan" in erg.text and "lesbaren Text" in erg.text and "Fassung mit Text" in erg.text
-    assert "erzeugt gerade" not in erg.text
-    assert "keinen lesbaren Text" in modul_dienst._ohne_volltext((("Scan.pdf", "not_extracted"),))
+    assert erg.outcome.error == "volltext_endgueltig"
+    # E1: statt „eine Fassung mit Text hochladen“ der Ausweg hier im Chat (dort Texterkennung)
+    assert "Scan" in erg.text and "keinen Text gewinnen" in erg.text
+    assert "Hier im Chat lesen lassen" in erg.text and "erzeugt gerade" not in erg.text
+    assert "keinen Text gewinnen" in modul_dienst._ohne_volltext((("Scan.pdf", "not_extracted"),))
 
 
 # ── m4: wenige Dateien → erst fragen, ob nach Stoff ───────────────────────────────────────────

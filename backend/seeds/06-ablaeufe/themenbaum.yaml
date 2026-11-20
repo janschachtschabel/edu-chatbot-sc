@@ -19,8 +19,10 @@
 #    ``metadaten_lesen``; nur ``struktur`` (Namen) → ``inhalte_aus_dateien``. Ordner mit
 #    Unterordnern bleiben auch hier im Chat der Ordner-Weg (die Angaben liegen im Vorgang bei);
 #    in WLO abgelegt folgen erst die Metadaten. Das Dokument gilt gelesen, wenn ein Teil
-#    ``strukturdokument`` da ist (hier im Chat oder in WLO abgelegt). Kein Schritt schränkt die
-#    Orte ein (``orte``): jeder Weg trägt jeden Ort.
+#    ``strukturdokument`` da ist (hier im Chat oder in WLO abgelegt). Nur ``dokument_chat`` (der
+#    Ausweg „hier im Chat lesen lassen“, Plan 2026-11-20 §8, E1) schränkt die Orte ein
+#    (``orte: [chat]``); sonst trägt jeder Weg jeden Ort. Auf dem Dokument-Weg heißt der WLO-Ort nur
+#    „In WLO ablegen“ (E3): dort läuft kein Flow.
 # 4. Fragen (wofür, für wen/Stufe, Umfang, Hinweise; Soll oder Ist nur bei Dateien), dann der
 #    KI-Schritt der Grundlage mit ``vorbelegen`` (TG-5). Auf dem Ordner-Weg nur nach „verfeinern“,
 #    dann mit ``vorlage``.
@@ -30,8 +32,8 @@
 # Verzweigt wird auf das deutsche Label der Grundlage (``gleich``) bzw. nach „Ja, verwenden“ auf
 # ``bereit.art``; nach einem Upload auf die Teile selbst. Ein Entwurf aus freier Arbeit kann im
 # Vorgang liegen (MAJOR 2) — darum prüft keine Regel ``draft``, sondern Teile dieses Laufs
-# (``ordnerweg``, ``metadaten``). Die Leiste zählt die Halte des Laufs (Befund 10). 38 Schritte
-# (höchstens 40).
+# (``ordnerweg``, ``metadaten``). Die Leiste zählt die Halte des Laufs (Befund 10). 40 Schritte
+# (die Obergrenze; Plan 2026-11-20, E1: ``ohne_dokumenttext`` und ``dokument_chat``).
 #
 # Ohne Voraussetzung: anonym gehen Thema, Dokument, Ordner und Dateien (hier im Chat oder nur die
 # Namen); Auftrag und
@@ -448,7 +450,8 @@ schritte:
           - By purpose: "Unterricht planen" (plan lessons) keeps the document's order, "Material finden" (find material) factual titles, "Teilen oder Redaktion" and "Überblick für eine Webseite" audience-friendly titles.
       ausgabe: draft
       zuege: 5
-    bei_fehler: ohne_entwurf
+    # Plan 2026-11-20 §8, E1: eigene Auswege (WLO gewann keinen Text — „nochmal“ hilft dann nie)
+    bei_fehler: ohne_dokumenttext
   - id: entwurf_inhalte
     typ: agent
     weiter: ende
@@ -531,6 +534,35 @@ schritte:
       - {id: andere, label: {de: Andere Grundlage, en: Different basis}, ziel: grundlage, verwirft: [grundlage, structure, document, metadaten, ordnerweg, soll_ist]}
       - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  # Plan 2026-11-20 §8, E1: der Ausweg des Dokument-Entwurfs. Hat WLO aus dem Dokument keinen Text
+  # gewonnen (``volltext_endgueltig``: Scan, gescheiterte Umwandlung), hilft „nochmal“ nie — die KI
+  # verweist auf „Weiter im Ablauf“, hier stehen die Auswege als Knöpfe: hier im Chat lesen lassen
+  # (eigenes Feld ``dokument_chat``, nur dieser Ort) oder ohne Dokument weiter (zur Grundlage, dort
+  # ein Thema tippen). „Nochmal“ zuletzt, für andere Fehler (ausgelastet); die Knöpfe hängen nicht am
+  # Fehlercode (das könnte der Baukasten erst mit einer Regel auf den Code). Kein Freitext: an einem
+  # Schritt mit Freitext leert jede Wahl dessen Teil (Querschnitts-Review AS-3, Befund 3) — hier
+  # wäre das ``grundlage``. Texterkennung nur „oft“: ob sie an ist, weiß der Seed nicht.
+  - id: ohne_dokumenttext
+    typ: nachricht
+    text: {de: "Aus deinem Dokument ist kein Entwurf entstanden. Du kannst es hier im Chat lesen lassen – dort lässt sich der Text oft auch aus Scans lesen – oder ohne Dokument weitermachen, etwa mit einem Thema.",
+           en: "No draft came out of your document. You can have it read here in the chat – there the text can often be read from scans too – or continue without the document, for example with a topic."}
+    optionen:
+      - {id: chat, label: {de: Dokument hier im Chat lesen lassen, en: Read the document here in the chat}, ziel: dokument_chat, verwirft: [structure, document, metadaten]}
+      - {id: ohne, label: {de: Ohne Dokument weiter, en: Continue without the document}, ziel: grundlage, verwirft: [grundlage, structure, document, metadaten, ordnerweg, soll_ist]}
+      - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
+      - {id: nochmal, label: {de: "Nochmal, falls es eben ausgelastet war", en: "Try again if it was just busy"}, ziel: zum_entwurf}
+    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  # Plan 2026-11-20 §8, E1 (Review Paket E, MAJOR 1): der Ausweg „hier im Chat lesen lassen“ — ein
+  # eigenes Feld nur mit diesem Ort (hier bei den Auswegen: ``dokument_laden`` geht ohne ``weiter``
+  # zum folgenden Schritt); in ``dokument_laden`` wäre angemeldet mit Flow-Träger „In WLO
+  # ablegen“ vorgewählt, und der Weg führte zurück in denselben Fehler
+  - id: dokument_chat
+    typ: modul
+    modul: ui_upload
+    text: {de: "Wähle das Dokument noch einmal und klick auf „Hochladen“ – es wird hier im Chat gelesen.",
+           en: "Choose the document again and click “Upload” – it is read here in the chat."}
+    daten: {zweck: bereitstellen, einzeldatei_als_struktur: true, orte: [chat]}
+    weiter: dokument_gelesen
   - id: ohne_daten
     typ: nachricht
     text: {de: "Damit komme ich noch nicht weiter: Es fehlt ein gelesenes Dokument, ein Ordner mit Unterordnern oder Dateien mit Namen. Wähle noch einmal aus, nimm eine andere Grundlage oder mach frei im Chat weiter.",
@@ -1077,9 +1109,12 @@ tests:
       weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, ohne_daten,
             grundlage, wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_thema]
       status: wartet_ki
-  # U6: „Nur Namen senden“ liest kein Dokument → nochmal, dann hier im Chat gelesen
+  # U6: „Nur Namen senden“ liest kein Dokument → nochmal, dann hier im Chat gelesen. Plan 2026-11-20
+  # §8, E1: ohne Entwurf („Weiter im Ablauf“, etwa weil WLO keinen Text gewann) die Auswege —
+  # hier im Chat lesen lassen (eigenes Feld ``dokument_chat``; die Fragen kommen nach dem Lesen
+  # erneut), dann ohne Dokument weiter mit einem Thema. Angemeldet (Review Paket E, MAJOR 1: dort
+  # wäre im alten Feld WLO vorgewählt); höchstens 20 Selbsttests, darum in diesem Fall
   - name: Dokument nicht gelesen, nochmal
-    angemeldet: false
     eingaben:
       - {bei: einstieg, option: neu}
       - {bei: grundlage, option: dokument}
@@ -1098,7 +1133,7 @@ tests:
           warnungen: []
       - {bei: ohne_daten, option: nochmal}
       - bei: dokument_laden
-        antwort:
+        antwort: &lehrplan_chat
           aktion: bereitgestellt
           ort: chat
           struktur: *lehrplan_allein
@@ -1110,12 +1145,28 @@ tests:
       - {bei: stufe, option: sek1}
       - {bei: umfang, option: mittel}
       - {bei: hinweise, option: keine}
-      - bei: entwurf_dokument
-        teile: {draft: {titel: Augenoptik, quelle: dokument, knoten: [{titel: Kundenberatung}]}}
+      - {bei: entwurf_dokument}
+      - {bei: ohne_dokumenttext, option: chat}
+      - {bei: dokument_chat, antwort: *lehrplan_chat}
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - {bei: entwurf_dokument}
+      - {bei: ohne_dokumenttext, option: ohne}
+      - {bei: grundlage, text: "Optik (Physik)"}
+      - {bei: wofuer, option: unterricht}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: mittel}
+      - {bei: hinweise, option: keine}
+      - bei: entwurf_thema
+        teile: {draft: {titel: Optik, quelle: ki, knoten: [{titel: Linsen}, {titel: Spiegel}]}}
     erwartet:
       weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, ohne_daten,
             daten, dokument_laden, dokument_gelesen, wofuer, stufe, umfang, hinweise,
-            zum_entwurf, entwurf_dokument, ende]
+            zum_entwurf, entwurf_dokument, ohne_dokumenttext, dokument_chat, dokument_gelesen,
+            wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_dokument, ohne_dokumenttext,
+            grundlage, wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_thema, ende]
       status: fertig
   - name: Kein Entwurf, nochmal versuchen
     eingaben:

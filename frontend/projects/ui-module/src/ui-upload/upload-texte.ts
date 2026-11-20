@@ -14,6 +14,8 @@ const DE = {
   // Review der Oberfläche, 8: die Namen der Orte statt „lesen lassen“/„übertragen“
   lesenNachAnmeldung: 'Dateien „Hier im Chat“ hochladen geht erst, wenn du bei WLO angemeldet bist.',
   ablageNachAnmeldung: 'Dateien „In WLO ablegen“ – in deinem persönlichen Bereich, dort entstehen Volltexte und Metadaten – geht, wenn du bei WLO angemeldet bist.',
+  // Review Paket E, MINOR 8: auf dem Dokument-Weg läuft kein Flow — keine Metadaten versprechen
+  ablageNachAnmeldungDokument: 'Dateien „In WLO ablegen“ – in deinem persönlichen Bereich, dort liest der Chat danach ihren Text – geht, wenn du bei WLO angemeldet bist.',
   ablage: 'Ordner oder Dateien hier ablegen',
   ordnerWaehlen: 'Ordner wählen',
   dateienWaehlen: 'Dateien wählen',
@@ -30,11 +32,14 @@ const DE = {
   // Plan 2026-11-17, Paket U4: „Wo sollen sie verarbeitet werden?“ — Chips, ein Knopf „Hochladen“
   frage: 'Wo sollen sie verarbeitet werden?',
   ort: { chat: 'Hier im Chat', wlo: 'In WLO ablegen und erschließen' },
+  // Plan 2026-11-20 §8, E3: ohne folgenden Flow (Dokument-Weg, kein Flow-Träger) kein „erschließen“
+  ortWloAblegen: 'In WLO ablegen',
   // Review der Oberfläche, 9: „ohne Anmeldung“ nur, wenn die Schalter es tragen
   // zweites Review, 2: die Frist beginnt bei jeder Nutzung neu (`ablage.beruehren`)
   erklaerChat: (n: number, h: number, ohneAnmeldung: boolean) => `schnell, ${ohneAnmeldung ? 'ohne Anmeldung, ' : ''}bis ${zahl('de', n)} ${mehrzahl('de', n, 'Datei', 'Dateien')} – Text bleibt bis zu ${zahl('de', h)} ${mehrzahl('de', h, 'Stunde', 'Stunden')} nach der letzten Nutzung hier`,
   erklaerWlo: 'alle Dateien, mit WLO-Anmeldung – Titel, Beschreibung, Fach und Stufe entstehen in WLO im Hintergrund',
   erklaerWloOhne: 'alle Dateien, mit WLO-Anmeldung – nur ablegen; Angaben werden gerade nicht erzeugt',
+  erklaerWloDokument: 'alle Dateien, mit WLO-Anmeldung – nur ablegen; den Text liest der Chat danach aus WLO',
   nichtWaehlbar: (grund: string) => `nicht wählbar – ${grund}`,
   gesperrt: {
     aus: 'gerade ausgeschaltet', nur_angemeldet: 'braucht eine WLO-Anmeldung',
@@ -119,6 +124,8 @@ const DE = {
   datenschutzChat: (h: number) => `Ordner- und Dateinamen gehen an den Chat. „Hochladen“ schickt die lesbaren Dateien an den Chat; er behält nur ihren Text, bis zu ${zahl('de', h)} ${mehrzahl('de', h, 'Stunde', 'Stunden')} nach der letzten Nutzung, und für kurze Angaben liest sein KI-Modell den Anfang jedes Inhalts; ein daraus erstellter Entwurf bleibt im Arbeitsstand. Alle anderen Dateien bleiben auf deinem Gerät.`,
   datenschutzWlo: 'Ordner- und Dateinamen gehen an den Chat. „Hochladen“ legt die Dateien nach deiner Bestätigung in deinem persönlichen Bereich in WLO ab; dort bleiben sie, bis du sie löschst, und WLO erzeugt daraus Titel, Beschreibung, Fach und Stufe.',
   datenschutzWloOhne: 'Ordner- und Dateinamen gehen an den Chat. „Hochladen“ legt die Dateien nach deiner Bestätigung in deinem persönlichen Bereich in WLO ab; dort bleiben sie, bis du sie löschst.',
+  // Review Paket E, MINOR 9: der Dokument-Weg — was mit dem Text geschieht
+  datenschutzWloDokument: 'Ordner- und Dateinamen gehen an den Chat. „Hochladen“ legt die Dateien nach deiner Bestätigung in deinem persönlichen Bereich in WLO ab; danach liest der Chat den Text aus WLO, sein KI-Modell erstellt daraus den Entwurf.',
   // Review TG-3a–c, NIT: ein Dateiname nur aus Leerzeichen
   dateiOhneName: '(ohne Namen)',
   nichtVerwendet: 'Nicht verwendet.',
@@ -150,6 +157,7 @@ const EN: typeof DE = {
   hinweisLeer: 'Drop a folder here or choose one. Nothing is uploaded yet.',
   lesenNachAnmeldung: 'Uploading files “Here in the chat” only works once you are signed in to WLO.',
   ablageNachAnmeldung: '“Store in WLO” – in your personal area, where full texts and metadata are created – works once you are signed in to WLO.',
+  ablageNachAnmeldungDokument: '“Store in WLO” – in your personal area, where the chat then reads their text – works once you are signed in to WLO.',
   ablage: 'Drop folders or files here',
   ordnerWaehlen: 'Choose folder',
   dateienWaehlen: 'Choose files',
@@ -165,9 +173,11 @@ const EN: typeof DE = {
   wiederEinschliessenIn: (name: string) => `Include files in ${name} again`,
   frage: 'Where should they be processed?',
   ort: { chat: 'Here in the chat', wlo: 'Store and index in WLO' },
+  ortWloAblegen: 'Store in WLO',
   erklaerChat: (n: number, h: number, ohneAnmeldung: boolean) => `quick, ${ohneAnmeldung ? 'no sign-in, ' : ''}up to ${zahl('en', n)} ${mehrzahl('en', n, 'file', 'files')} – the text stays here for up to ${zahl('en', h)} ${mehrzahl('en', h, 'hour', 'hours')} after last use`,
   erklaerWlo: 'all files, with WLO sign-in – title, description, subject and level are created in WLO in the background',
   erklaerWloOhne: 'all files, with WLO sign-in – store only; details are not being created right now',
+  erklaerWloDokument: 'all files, with WLO sign-in – store only; the chat then reads the text from WLO',
   nichtWaehlbar: (grund: string) => `not available – ${grund}`,
   gesperrt: {
     aus: 'switched off right now', nur_angemeldet: 'needs a WLO sign-in',
@@ -238,6 +248,7 @@ const EN: typeof DE = {
   datenschutzChat: (h: number) => `Folder and file names go to the chat. “Upload” sends the readable files to the chat; it keeps only their text, for up to ${zahl('en', h)} ${mehrzahl('en', h, 'hour', 'hours')} after last use, and its AI model reads the beginning of each content file for short details; a draft made from them stays in your work in progress. All other files stay on your device.`,
   datenschutzWlo: 'Folder and file names go to the chat. After you confirm, “Upload” stores the files in your personal area in WLO; they stay there until you delete them, and WLO creates title, description, subject and level from them.',
   datenschutzWloOhne: 'Folder and file names go to the chat. After you confirm, “Upload” stores the files in your personal area in WLO; they stay there until you delete them.',
+  datenschutzWloDokument: 'Folder and file names go to the chat. After you confirm, “Upload” stores the files in your personal area in WLO; the chat then reads the text from WLO, and its AI model creates the draft from it.',
   dateiOhneName: '(no name)',
   nichtVerwendet: 'Not used.',
   andereAuswahl: 'Choose again',

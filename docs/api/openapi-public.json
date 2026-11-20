@@ -4,6 +4,11 @@
       "AblaufStand": {
         "description": "Paket AS-Ua (Plan 2026-11-09 §5h, U-2): der Stand des Ablaufs, der in diesem Gespräch läuft\n— für die Leiste im Widget. ``nr``/``von``: „Schritt n von m“ (``services/ablauf/fortschritt``).\n``status`` ist der Status des Laufs (``laeuft``, ``wartet_wahl``, ``wartet_person``,\n``wartet_ki``, ``wartet_auftrag``, ``wartet_freigabe`` …).",
         "properties": {
+          "fuehrung": {
+            "default": false,
+            "title": "Fuehrung",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"

@@ -799,6 +799,28 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               ]
             }
           },
+          "text_antworten": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/TextAntwort"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Text Antworten",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "nachricht"
+              ]
+            }
+          },
           "synonyme_im_satz": {
             "anyOf": [
               {
@@ -953,6 +975,28 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "seite"
+              ]
+            }
+          },
+          "text_erneut": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "x-widget": "textarea"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Text Erneut",
             "x-nur-bei": {
               "feld": "typ",
               "werte": [
@@ -1195,6 +1239,25 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "title": "TestErwartung",
         "type": "object"
       },
+      "TextAntwort": {
+        "additionalProperties": true,
+        "description": "Plan 2026-11-20, G2a: ein Chip, der wie getippter Text zählt — keine Wahl. Der Schritt\nnimmt ihn wie jeden Text: trifft er keine Option, kommt ``kein_treffer``, danach endet ein\nAblauf mit ``endet_bei_text`` (in der Tour ist „Bin mir nicht sicher“ ein Fehlversuch).",
+        "properties": {
+          "label": {
+            "additionalProperties": {
+              "maxLength": 60,
+              "type": "string"
+            },
+            "title": "Label",
+            "type": "object"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "TextAntwort",
+        "type": "object"
+      },
       "Umsehen": {
         "additionalProperties": true,
         "description": "WF-4 (Plan 2026-11-15): Auf diesen Seiten sieht sich die Person um, während ein ``seite``-\nSchritt wartet (die Angebote der Webseitenführung) — statt des Hinweises ``abweichung`` dieser\nText, mit demselben Chip.",
@@ -1409,6 +1472,18 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         ],
         "default": null,
         "title": "Endet Bei Text"
+      },
+      "tour_chip": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Tour Chip"
       },
       "ausloeser": {
         "default": [],

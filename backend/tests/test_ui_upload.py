@@ -150,7 +150,8 @@ def test_tg2_eine_alte_ordner_antwort_setzt_den_wartenden_lauf_aus_ordnern_fort(
     from boerdi.domain.config_models.ablauf import AblaufArea, AblaufTest
     from boerdi.services.ablauf import simulation
 
-    datei = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe" / "sammlungsstruktur.yaml"
+    # Plan 2026-11-20, G1: kein Werks-Seed mehr — ein in der Anlage behaltener Lauf „aus Ordnern“
+    datei = pathlib.Path(__file__).parent / "ablauf_beispiele" / "sammlungsstruktur.yaml"
     ablauf = AblaufArea.model_validate(yaml.safe_load(datei.read_text(encoding="utf-8")))
     test = AblaufTest.model_validate({
         "name": "Alte Antwort", "eingaben": [
@@ -337,7 +338,7 @@ def test_nachpruefung_n8_der_entwurfsweg_passt_zur_art(monkeypatch):
     from boerdi.services.ablauf import ausloeser
     from boerdi.ui_module import schalter
 
-    seeds = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe"
+    seeds = pathlib.Path(__file__).parent / "ablauf_beispiele"   # Plan 2026-11-20, G1
     ordner_ablauf = AblaufArea.model_validate(yaml.safe_load(
         (seeds / "sammlungsstruktur.yaml").read_text(encoding="utf-8")))
     dokument_ablauf = AblaufArea.model_validate(yaml.safe_load(

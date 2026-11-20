@@ -160,7 +160,6 @@ def test_die_befunde_gibt_es_auf_englisch():
 @pytest.mark.parametrize(("datei", "schritt", "argumente"), [
     ("themenbaum.yaml", "entwurf_dokument", {"aus_dokument": True}),
     ("themenbaum.yaml", "entwurf_inhalte", {"aus_inhalten": True}),
-    ("themenbaum_aus_inhalten.yaml", "entwurf", {"aus_inhalten": True}),
 ])
 def test_die_seeds_entwerfen_dort_nie_frei(datei, schritt, argumente):
     ablauf = AblaufArea.model_validate(yaml.safe_load((_SEEDS / datei).read_text("utf-8")))
@@ -184,8 +183,9 @@ def test_scan_im_wlo_weg_kein_freier_entwurf_sondern_kein_lesbarer_text():
 
     erg = _rufe({"thema": "Unterricht planen in der beruflichen Bildung"}, dokument=lader,
                 feste_argumente={STRUKTURENTWURF: {"aus_dokument": True}})
-    assert erg.block is None and erg.outcome.error == "volltext_fehlt"
-    assert erg.text.startswith(FEHLER["volltext_fehlt_datei"].split("{namen}")[0])
+    # Plan 2026-11-20 §8, E1: endgültig ohne Text — eigener Code und Satz (statt „nochmal“)
+    assert erg.block is None and erg.outcome.error == "volltext_endgueltig"
+    assert erg.text.startswith(FEHLER["volltext_endgueltig"].split("{namen}")[0])
     assert "Scan" in erg.text
 
 

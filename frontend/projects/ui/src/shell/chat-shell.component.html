@@ -294,8 +294,8 @@
 
   <!-- Eingabe-Footer (ALT 609-632) -->
   <!-- AS-Ud: angemeldet ein Knopf mehr — bei schmaler Breite bricht die Zeile um (`_chat-footer.scss`). -->
-  <div class="chat-footer" [class.chat-footer--konto]="authButton() === 'signOut'"
-       [class.chat-footer--anmeldung]="authButton() !== 'hidden' && !probe()"
+  <div class="chat-footer" [class.chat-footer--konto]="authButton() === 'signOut' && !probe()"
+       [class.chat-footer--anmeldung]="authButton() !== 'hidden'"
        [class.chat-footer--mikro]="languageButtonsVisible">
     @if (languageButtonsVisible) {
       <button
@@ -343,54 +343,40 @@
          also derselben Quelle wie die Material-Token. -->
     <!-- WLO-Anmeldung. Ganz links in der Knopfgruppe, weil sie am weitesten von
          der Absende-Handlung entfernt ist: sie betrifft nicht dieses Gespräch,
-         sondern die Sitzung (Senden > Neustart > Größe > Anmelden). Hier unten
+         sondern die Sitzung (Senden > Neustart > Größe > Konto). Hier unten
          und nicht in einer Kopfzeile, damit sie im rahmenlosen Einbettungs-
          Modus bleibt — derselbe Grund, aus dem der Neustart hierher wanderte.
          `hidden` heißt: diese Anlage bietet keine Anmeldung an. -->
-    <!-- Paket AS-Ud: „Meine Vorgänge“ — nur angemeldet; ein Aufklapp-Knopf mit festem Namen, darum
-         mit aria-expanded (anders als der Umschalter der Leiste, dessen Beschriftung den Zustand sagt). -->
+    <!-- Paket AS-Ud: „Meine Vorgänge“ — nur angemeldet; ein Aufklapp-Knopf mit aria-expanded (anders als
+         der Umschalter der Leiste, dessen Beschriftung den Zustand sagt). Paket D2 (Plan 2026-11-20):
+         eigenes Symbol, die Zahl offener Vorgänge anderer Gespräche als Abzeichen und eine Markierung,
+         solange hier ein Auftrag läuft — beides steht auch im Namen; das Abzeichen ist für Vorleser stumm. -->
     @if (authButton() === 'signOut' && !probe()) {
       <button
         #vorgaengeKnopf
         type="button"
         class="btn-vorgaenge"
+        [class.btn-vorgaenge--hier]="vorgaengeHier()"
         (click)="onVorgaengeUmschalten()"
-        [title]="t('vorgaenge.knopf')"
-        [attr.aria-label]="t('vorgaenge.knopf')"
+        [title]="vorgaengeName()"
+        [attr.aria-label]="vorgaengeName()"
         [attr.aria-expanded]="meineVorgaenge.offen()"
         aria-controls="boerdi-meine-vorgaenge"
       >
-        <span class="bb-icon" [innerHTML]="ICONS.restore | safeSvg"></span>
-      </button>
-    }
-    <!-- Plan 2026-11-19 (E8): wer angemeldet ist, als Kürzel im Kreis direkt links vom Anmelde-Knopf;
-         abgemeldet der Umriss einer Person in einem gestrichelten Kreis. Nur eine Anzeige, kein Knopf:
-         `role="img"` mit Namen, der Inhalt ist für Vorleser stumm. -->
-    @if (authButton() !== 'hidden' && !probe()) {
-      <span class="konto-kuerzel" [class.konto-kuerzel--aus]="authButton() !== 'signOut'"
-            role="img" [attr.aria-label]="kuerzelTitel()" [title]="kuerzelTitel()">
-        @if (kuerzel()) {
-          <span aria-hidden="true">{{ kuerzel() }}</span>
-        } @else {
-          <!-- Review B (4): abgemeldet eine andere FORM (Umriss), nicht nur ein anderer Ton -->
-          <span class="bb-icon" aria-hidden="true"
-                [innerHTML]="(authButton() === 'signOut' ? ICONS.person : ICONS.person_outline) | safeSvg"></span>
+        <span class="bb-icon" [innerHTML]="ICONS.vorgaenge | safeSvg"></span>
+        @if (vorgaengeZahl()) {
+          <span class="btn-vorgaenge__zahl" aria-hidden="true">{{ vorgaengeZahl() }}</span>
         }
-      </span>
-    }
-    @if (authButton() !== 'hidden') {
-      <button
-        type="button"
-        class="btn-auth"
-        (click)="onAuthClick()"
-        [title]="authTitel()"
-        [attr.aria-label]="authTitel()"
-      >
-        <span
-          class="bb-icon"
-          [innerHTML]="(authButton() === 'signOut' ? ICONS.logout : ICONS.login) | safeSvg"
-        ></span>
       </button>
+    }
+    <!-- Paket D1 (Plan 2026-11-20, E-D1): EIN Konto-Knopf statt Kürzel-Kreis und Anmelde-Knopf —
+         abgemeldet meldet er an, angemeldet öffnet er das Menü mit „Abmelden“. Beides geht durch
+         `onAuthClick` (der Klick bleibt die Nutzergeste für das Anmeldefenster). -->
+    @if (authButton() !== 'hidden') {
+      <boerdi-konto-knopf
+        [angemeldet]="authButton() === 'signOut'" [name]="anzeigename()" [translate]="translate()"
+        (anmelden)="onAuthClick()" (abmelden)="onAuthClick()"
+      />
     }
     <!-- Größe (U2a). Steht links vom Neustart, weil er noch weiter von der
          eigentlichen Absende-Handlung entfernt ist: Senden > Neustart > Größe.

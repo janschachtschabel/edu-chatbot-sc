@@ -89,7 +89,9 @@ async def _import_config(src: Path, only_missing: bool = False) -> int:
 
 async def _werksabgleich(src: Path) -> int:
     """Werksfassung nachziehen, Angepasstes lassen (Paket 12) — der Schritt beim Hochfahren
-    (``migrate``-Dienst)."""
+    (``migrate``-Dienst). Werksbereiche, die der Seed nicht mehr trägt, entfernt er nur aus dem
+    Seed-Ordner (``CONFIG_SEED_DIR``): einem fremden Baum fehlt sonst alles Übrige
+    (Review G1, 6)."""
     from boerdi.api.config_guards import pruefe_bereiche
     from boerdi.api.config_kennungen import kennungs_kollisionen
     from boerdi.services import seed_sync
@@ -101,11 +103,13 @@ async def _werksabgleich(src: Path) -> int:
     async def schreiben(eintraege: dict) -> dict[str, int]:
         return await store.werk_schreiben(eintraege, updated_by="werksabgleich")
 
+    aus_dem_werk = _ist_seed(src)
     try:
         bericht = await seed_sync.werksabgleich(
             src, pruefen=lambda seed: pruefe_bereiche(seed, "de"), lesen=store.fassungen,
             entfernte=store.entfernte, schreiben=schreiben, zuordnen=store.werk_hashes_setzen,
-            kollisionen=kennungs_kollisionen)
+            entfernen=store.werk_entfernen, kollisionen=kennungs_kollisionen,
+            abraeumen=aus_dem_werk)
     except Exception as fehler:  # noqa: BLE001 — eine Zeile statt Stacktrace, Exit 1
         detail = getattr(fehler, "detail", None)
         print(f"Werksabgleich abgebrochen: {_einwaende(detail) if detail else fehler}",
@@ -115,7 +119,11 @@ async def _werksabgleich(src: Path) -> int:
         await engine.dispose()
     print("Werksabgleich: {neu} neu, {aktualisiert} aktualisiert, {zugeordnet} zugeordnet, "
           "{neues_werk} angepasst mit neuer Werksfassung, {uebersprungen} übersprungen "
-          "(inzwischen geändert), {konflikt} mit nicht verwendbarer Kennung".format(**bericht))
+          "(inzwischen geändert), {konflikt} mit nicht verwendbarer Kennung, {entfernt} entfernt "
+          "(nicht mehr im Werk), {verwaist} angepasst ohne Werk behalten".format(**bericht))
+    if not aus_dem_werk:
+        print("Hinweis: --from ist nicht der Seed-Ordner (CONFIG_SEED_DIR) — Bereiche, die dem "
+              "Baum fehlen, wurden nicht entfernt.")
     return 0
 
 
@@ -292,7 +300,9 @@ def main(argv: list[str] | None = None) -> int:
                             "areas and delete areas found only in the database")
     p_imp.add_argument("--werksabgleich", dest="werksabgleich", action="store_true",
                        help="create missing areas, lift untouched ones to a new factory version, "
-                            "never touch customized or deleted ones (the migrate step)")
+                            "remove untouched factory areas the seed no longer carries (only "
+                            "from the seed directory), never touch customized or deleted ones "
+                            "(the migrate step)")
     p_imp.add_argument("--dry-run", dest="dry_run", action="store_true",
                        help="with --exact: only list what would change")
 

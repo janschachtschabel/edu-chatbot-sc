@@ -236,6 +236,22 @@ describe("FassungenPanelComponent", () => {
     expect(meldung).toContain("Kennung");
   });
 
+  it("meldet entfernte und angepasst behaltene Bereiche ohne Werk (Plan 2026-11-20, G1)", async () => {
+    const h = await mount();
+    knopf(h.el, "Werksabgleich starten").click();
+    await settle(h);
+    h.http.expectOne(`${BASE}/werksabgleich`).flush(
+      { neu: 0, aktualisiert: 0, zugeordnet: 0, neues_werk: 0, uebersprungen: 0, konflikt: 0,
+        entfernt: 3, verwaist: 1 });
+    await settle(h);
+    h.http.expectOne(BASE).flush(LISTE);
+    await settle(h);
+    const meldung = h.el.querySelector('[role="status"]')?.textContent ?? "";
+    expect(meldung).toContain("3 entfernt");
+    expect(meldung).toContain("1 angepasst");
+    expect(meldung).not.toContain("übersprungen");
+  });
+
   it("markiert eine angepasste Fassung als geprüft (Review 2 #5)", async () => {
     const h = await mount();
     knopf(zeile(h, "03-patterns/m05"), "Als geprüft markieren").click();

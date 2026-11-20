@@ -169,7 +169,9 @@ Selten gebrauchte oder große Module kommen deshalb **nicht** ins Haupt-Bündel,
   **Begriffe im Widget (Querschnitts-Review Q-12):** „Vorgang“ ist die gespeicherte Arbeit einer
   Person (Liste „Meine Vorgänge“); „Ablauf“ ist, was darin läuft (Leiste); „Auftrag“ ist ein Job bei
   der b-api. „Fortsetzen“ heißt immer: in das Gespräch eines Vorgangs wechseln — die Leiste klappt
-  dagegen nur „Ein“/„Auf“. Die Bot-Texte „Neues Vorhaben“ (beginnt einen neuen Vorgang) und
+  dagegen nur „Ein“/„Auf“. Ein neues Gespräch übernimmt nie still einen Vorgang (Entscheid E-F,
+  2026-11-20; `docs/ablaeufe.md`, „Gespräch und Vorgang“): nur „Fortsetzen“ und „Meine Vorgänge“
+  führen zurück. Die Bot-Texte „Neues Vorhaben“ (beginnt einen neuen Vorgang) und
   „Arbeitsstand löschen“ (alle Vorgänge **und** das hochgeladene Dokument) bleiben bewusst.
   **Dev-Server:** `ng serve widget` bindet den leeren `nachlade-index.ts` ein, dort lädt kein
   nachgeladener Teil (Module zeigen ihre Textfassung, das Debug-Panel seinen Ladefehler). Zum
@@ -544,7 +546,12 @@ Frage **„Wo sollen sie verarbeitet werden?“** als zwei Chips — echte Radio
 Umrandung (nicht nur Farbe). Je Chip eine Erklärzeile (`aria-describedby`): **Hier im Chat** „schnell,
 ohne Anmeldung, bis {n} Dateien – Text bleibt {h} Stunden hier“, **In WLO ablegen und erschließen**
 „alle Dateien, mit WLO-Anmeldung – Titel, Beschreibung, Fach und Stufe entstehen in WLO im Hintergrund“
-(`ohne_erschliessung`: „… nur ablegen; Angaben werden gerade nicht erzeugt“). Ein gesperrter Ort
+(`ohne_erschliessung`: „… nur ablegen; Angaben werden gerade nicht erzeugt“). Folgt der Ablage kein
+Flow — auf dem Dokument-Weg (`einzeldatei_als_struktur`) oder mit `ohne_erschliessung` —, heißt der Ort
+nur **In WLO ablegen** (Plan 2026-11-20 §8, E3); auf dem Dokument-Weg erklärt er „… nur ablegen; den
+Text liest der Chat danach aus WLO“, der Datenschutz-Satz sagt „… danach liest der Chat den Text aus
+WLO, sein KI-Modell erstellt daraus den Entwurf“, der Satz vor der Anmeldung verspricht keine Metadaten.
+Ein gesperrter Ort
 bleibt sichtbar und nennt den Grund als Text („nicht wählbar – braucht eine WLO-Anmeldung“, „… zu viele
 Dateien für hier (höchstens {n}) – mit Anmeldung über WLO“, „… gerade ausgeschaltet“, „… in diesem
 Ablauf nicht vorgesehen“; nur in der Oberfläche gerechnet: mehr als 200 Dateien bzw. keine übertragbare

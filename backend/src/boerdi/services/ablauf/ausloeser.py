@@ -238,6 +238,14 @@ def per_extern(ablauf: AblaufArea) -> bool:
     return ablauf.aktiv and any(a.art == "extern" for a in ablauf.ausloeser)
 
 
+def per_tour_chip() -> AblaufArea | None:
+    """Review G2 (MINOR 7): der aktive Ablauf mit ``tour_chip`` — der erste in der Reihenfolge der
+    Schlüssel (zwei meldet die Prüfung als Warnung). Nicht einer mit Pflichtfeldern in den
+    Startdaten: der Chip bringt keine Daten."""
+    return next((a for a in katalog()
+                 if a.aktiv and a.tour_chip and not startdaten.pflichtfelder(a)), None)
+
+
 def per_knopf(ablauf: AblaufArea) -> bool:
     """Review A2a (Vorbefund aus A1): die Liste der Auslöser gilt auch für den Knopf."""
     return ablauf.aktiv and any(a.art in ("knopf", "agent", "seite") for a in ablauf.ausloeser)

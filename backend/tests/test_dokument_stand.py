@@ -270,12 +270,13 @@ def test_tg3d_ein_dokument_aus_wlo_braucht_den_schalter_des_chat_lesens_nicht(mo
 def _mcp(monkeypatch, antwort: dict, gerufen: list | None = None):
     from boerdi.services.mcp import client
 
-    async def call_mcp_tool(name, args, *, use_cache=True):
+    async def call_mcp_tool_antwort(name, args, *, use_cache=True):
         if gerufen is not None:
             gerufen.append((name, args, use_cache))
-        return json.dumps(antwort)
+        return client.McpAntwort(text=json.dumps(antwort))
 
-    monkeypatch.setattr(client, "call_mcp_tool", call_mcp_tool)
+    # Review Paket E, MINOR 5: der Leser fragt mit Art des Fehlers
+    monkeypatch.setattr(client, "call_mcp_tool_antwort", call_mcp_tool_antwort)
     monkeypatch.setattr(leser, "has_personal_auth", lambda: True)
 
 
@@ -305,7 +306,10 @@ def test_nit_ohne_anmeldung_wird_kein_volltext_gelesen(monkeypatch):
     assert asyncio.run(leser.volltext("n-1")) == (None, "ohne_anmeldung") and gerufen == []
 
 
-def test_tg3e_im_vorgang_ergaenzt_strukturdokumente_aus_der_ablage():
+def test_tg3e_im_vorgang_nimmt_die_ablage_nur_ohne_teil():
+    """Review Paket E, MINOR 2: neue Ablagen trägt ``vorgang_teil`` (``sd.mit_ablage``) in den Teil
+    ein — die Ablage ist nur der Rückgriff für einen Vorgang ohne Teil (vor TG-3d). Sonst kehrte ein
+    verworfener Knoten zurück."""
     ablage = {"inhalte": [
         {"index": 0, "name": "lp.pdf", "rolle": "struktur", "stand": "stored", "node_id": _KNOTEN},
         {"index": 1, "name": "x.pdf", "rolle": "inhalt", "stand": "stored",
@@ -315,5 +319,9 @@ def test_tg3e_im_vorgang_ergaenzt_strukturdokumente_aus_der_ablage():
     async def teile(name):
         return {sd.TEIL: sd.wert([sd.chatbot("u-1", "a.pdf")]), "ablage": ablage}.get(name)
 
-    eintraege = asyncio.run(leser.im_vorgang(teile))
-    assert eintraege == [sd.chatbot("u-1", "a.pdf"), sd.wlo(_KNOTEN, "lp.pdf")]
+    assert asyncio.run(leser.im_vorgang(teile)) == [sd.chatbot("u-1", "a.pdf")]
+
+    async def ohne_teil(name):
+        return {"ablage": ablage}.get(name)
+
+    assert asyncio.run(leser.im_vorgang(ohne_teil)) == [sd.wlo(_KNOTEN, "lp.pdf")]

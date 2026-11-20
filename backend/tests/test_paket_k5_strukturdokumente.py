@@ -152,9 +152,8 @@ def test_ein_lesefehler_beendet_die_vorbelegung_nicht():
 
 # ── Volltext fehlt noch ──────────────────────────────────────────────────────────────────────────
 
-def test_ein_fehlender_volltext_aus_wlo_heisst_er_entsteht_gerade():
-    """Der Lauf scheitert nicht: der KI-Schritt hält (sein Startknopf ist „Stand prüfen“), das
-    Werkzeug sagt der KI, dass WLO den Text gerade erzeugt."""
-    text = dienst._FEHLER["volltext_fehlt_datei"]
-    assert "gerade erzeugt" in text
-    assert "wartet" in text
+def test_ein_fehlender_volltext_aus_wlo_ist_endgueltig():
+    """Plan 2026-11-20 §8, E1 (ersetzt K5): gemessen entsteht der Text synchron beim ersten Lesen —
+    kein „gerade erzeugt“, sondern die Auswege (``tests/test_paket_e_volltext_ehrlich.py``)."""
+    text = dienst._FEHLER["volltext_endgueltig"]
+    assert "gerade erzeugt" not in text and "keinen Text gewinnen" in text

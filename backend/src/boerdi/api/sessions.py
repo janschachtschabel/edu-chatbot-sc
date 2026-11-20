@@ -365,11 +365,15 @@ async def _ablauf_stand(session: AsyncSession, session_id: str,
             await update_session(session, session_id, entities=frisch)
         # Zweites Review, Z-5: der Verweis der Sitzung kann veraltet sein (in einem anderen Tab
         # gelöscht oder beendet) — einmal nachfragen statt eine tote Leiste zu zeigen. Kein
-        # ``auffrischen``: das übernähme den jüngsten Vorgang (das macht erst der nächste Zug).
+        # ``auffrischen`` (ein Lesepfad schreibt den Verweis nicht; das macht der nächste Zug), aber
+        # dieselbe Regel E-F (Kontrolle Paket F): ein Lauf, der in einem anderen Gespräch wartet,
+        # zeigt hier keine Leiste — „Fortsetzen“ führt zu ihm.
         vw = arbeitsstand.verweis(entities, aufrufer)
         if vw is not None:
             v = await vorgaenge.lesen(session, str(vw.get("id") or ""), aufrufer)
-            if v is None or v.status in vorgaenge.ABGESCHLOSSEN:
+            if v is None or v.status in vorgaenge.ABGESCHLOSSEN or (
+                    arbeitsstand.ist_persoenlich(aufrufer)
+                    and vorgaenge.wartet_woanders(v, session_id)):
                 return None, False
         stand = fortschritt.stand(entities, aufrufer,
                                   resolve_locale(request.headers.get("accept-language")))

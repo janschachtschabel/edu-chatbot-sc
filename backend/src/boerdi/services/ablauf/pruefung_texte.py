@@ -34,6 +34,11 @@ _T: Final[dict[str, dict[str, str]]] = {
     "kein_treffer_platzhalter": {"de": "Schritt {s}: im Hinweis ohne Treffer gibt es keine "
                                        "Platzhalter",
                                  "en": "Step {s}: the hint without a hit takes no placeholders"},
+    "text_antworten": {"de": "Schritt {s}: text_antworten brauchen Schnellantworten, keinen "
+                             "Freitext, den Hinweis kein_treffer und einen deutschen Text, und "
+                             "sie treffen keine Option",
+                       "en": "Step {s}: text_antworten need quick replies, no free text, the "
+                             "kein_treffer hint and a German text, and they match no option"},
     "kein_treffer": {"de": "Schritt {s}: kein_treffer braucht Schnellantworten, keinen Freitext "
                            "(außer mit synonyme_im_satz) und einen deutschen Text",
                      "en": "Step {s}: kein_treffer needs quick replies, no free text (unless "
@@ -276,6 +281,14 @@ _T: Final[dict[str, dict[str, str]]] = {
               "en": "Step {s}: branch without sonst as the last rule"},
     "ziel": {"de": "Schritt {s}: Ziel {z!r} gibt es nicht",
              "en": "Step {s}: target {z!r} does not exist"},
+    "tour_chip_doppelt": {"de": "tour_chip tragen auch: {andere} — der Tour-Chip der Begrüßung "
+                                 "startet nur den Ablauf mit der kleinsten Kennung",
+                           "en": "tour_chip is also set on: {andere} — the welcome tour chip only "
+                                 "starts the workflow with the smallest id"},
+    "tour_chip_knopf": {"de": "tour_chip braucht einen Auslöser knopf, agent oder seite (der "
+                               "Tour-Chip startet wie ein Knopf)",
+                        "en": "tour_chip needs a knopf, agent or seite trigger (the tour chip "
+                              "starts like a button)"},
     "wendung_doppelt": {"de": "Die Wendung „{w}“ überschneidet sich mit: {andere} — es gilt die "
                                "längere Wendung, bei gleicher Länge der Ablauf mit der kleinsten "
                                "Kennung",

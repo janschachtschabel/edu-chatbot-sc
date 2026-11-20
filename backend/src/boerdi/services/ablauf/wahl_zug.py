@@ -30,6 +30,7 @@ from typing import Any, Final
 from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
 from boerdi.domain.wahl_knopf import AKTION as WAHL_AKTION
+from boerdi.domain.wahl_knopf import TEXT_WAHL, als_getippt
 from boerdi.i18n import resolve_locale
 from boerdi.services import arbeitsstand, vorgaenge
 from boerdi.services.ablauf import treiber, vorschlag
@@ -40,6 +41,8 @@ from boerdi.services.ablauf.pruefung import mit_wahl
 logger = logging.getLogger(__name__)
 
 AKTION: Final = WAHL_AKTION
+#: G2a: die Wahl eines Chips, der wie getippter Text zählt (:func:`text_chip_gilt`).
+TEXT: Final = TEXT_WAHL
 #: So lang darf ein Label im Chip sein (die Prüfung deckelt bei 60).
 _LABEL_ZEICHEN: Final = 60
 #: WF-2 (Plan 2026-11-15): wo der Hinweis ``kein_treffer`` schon stand (``zug_basis``). Einmal je
@@ -48,13 +51,15 @@ KEIN_TREFFER_KEY: Final = basis.KEIN_TREFFER_KEY
 
 
 def knoepfe(ablauf_id: str, wahl: dict[str, Any] | None) -> list[str]:
-    """Die Chips der angebotenen Wahl (``treiber.Ausgabe.wahl``)."""
+    """Die Chips der angebotenen Wahl (``treiber.Ausgabe.wahl``) — zuerst die Optionen, dahinter
+    die Chips, die wie getippter Text zählen (G2a, Wahl :data:`TEXT`)."""
     if not wahl:
         return []
+    paare = [*(wahl.get("optionen") or []), *((TEXT, t) for t in wahl.get("texte") or [])]
     return [f"__action__|{label[:_LABEL_ZEICHEN].replace('|', '/')}|{AKTION}|"
             + json.dumps({"ablauf": ablauf_id, "schritt": wahl["schritt"], "wahl": kennung},
                          ensure_ascii=False)
-            for kennung, label in wahl.get("optionen") or []]
+            for kennung, label in paare]
 
 
 def _wartend(session_id: str, session_state: dict[str, Any]
@@ -77,6 +82,24 @@ def _wartend(session_id: str, session_state: dict[str, Any]
 
 #: Für ``wendung_zug``: Lauf, Ablauf und Schritt einer wartenden Frage (nur aus dem Verweis).
 wartende_frage = _wartend
+
+
+def text_chip_gilt(req: Any, session_state: dict[str, Any]) -> bool:
+    """G2a (Review G2, MAJOR 1): wird dieser Chip, der wie getippter Text zählt, Text? Wartet eine
+    Frage, nur wenn es seine ist (Ablauf und Schritt aus dem Chip) — ein alter Chip wurde sonst die
+    Antwort auf die Frage eines anderen Laufs. Wartet sonst ein Lauf, nur wenn er zum selben Ablauf
+    gehört: dann zählt der Chip wie in der Tour als getippt (``endet_bei_text`` beendet ihn). Ohne
+    wartenden Lauf ist er gewöhnlicher Text."""
+    if not als_getippt(req.action, req.action_params):
+        return False
+    params = req.action_params
+    if (frage := _wartend(req.session_id, session_state)) is not None:
+        return frage[1].id == params.get("ablauf") and frage[2].id == params.get("schritt")
+    vw = arbeitsstand.verweis(session_state.get("entities") or {},
+                              arbeitsstand.aufrufer_fuer(req.session_id))
+    lauf = (vw or {}).get("lauf")
+    return not (isinstance(lauf, dict) and lauf.get("status") in treiber.WARTEND
+                and lauf.get("ablauf") != params.get("ablauf"))
 
 
 def platz_fuer_vorschlag(session_id: str, session_state: dict[str, Any], lang: str,
@@ -263,6 +286,12 @@ async def _fortsetzen(session: Any, req: ChatRequest, session_state: dict,
             or lauf.get("ablauf") != ablauf_id or lauf.get("schritt") != schritt_id):
         # Querschnitts-Review M5: der Verweis folgt dem Vorgang (zweite Sitzung, verdrängt).
         basis.verweis_auffrischen(entities, v, aufrufer)
+        return None
+    if not basis.gehoert_hierher(v, req.session_id):
+        # Plan 2026-11-20, Entscheid E-F: die Frage gilt nur dem Gespräch, in dem der Lauf zu warten
+        # begann (``zug_basis.festhalten`` setzt es) — eine Nachricht eines anderen ist nie ihre
+        # Antwort, und sie räumt dort auch nichts ab. Zurück führt „Fortsetzen“.
+        logger.info("Ablauf: Antwort aus einem anderen Gespräch nicht angenommen")
         return None
     ablauf = laden(ablauf_id)
     if not treiber.gilt(ablauf, lauf):

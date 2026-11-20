@@ -10,7 +10,8 @@ entfernt. Mit ``ankunft`` wartet der Lauf (``treiber.WARTET_SEITE``):
   ``graph/nodes/ablauf_seite`` ruft ihn vor dem Speichern der Nutzernachricht: Passt die Seite,
   geht der Lauf weiter, und die Antwort erscheint. Sonst der Hinweis des Schritts (``abweichung``
   oder ``umsehen``, WF-4) mit dem Chip, ohne ihn zu speichern; ohne Hinweis ist sie leer, und das
-  Widget zeigt nichts.
+  Widget zeigt nichts. Wartet eine Führung an einer Frage (Plan 2026-11-20, G2d), zeigt der Ping
+  die Frage samt Chips erneut, ungespeichert — wie der Tour-Tick im Gruppen-Schritt.
 - :func:`aktueller_knopf`: solange ein Schritt wartet, steht sein Chip unter jeder Antwort (F-5),
   wie die Chips einer Wahl.
 """
@@ -29,7 +30,7 @@ from boerdi.domain.hintergrund_zug import ABLAUF_SEITE
 from boerdi.domain.wahl_knopf import FUEHRUNG_PRAEFIX
 from boerdi.i18n import resolve_locale
 from boerdi.services import arbeitsstand, vorgaenge
-from boerdi.services.ablauf import platzhalter, treiber
+from boerdi.services.ablauf import fortschritt, platzhalter, treiber, wahl_zug
 from boerdi.services.ablauf import zug_basis as basis
 from boerdi.services.ablauf.ausloeser import laden, trifft_text
 
@@ -96,11 +97,39 @@ async def wiederholen(session: Any, req: ChatRequest, session_state: dict) -> Ch
     _lauf, ablauf, s = treffer
     entities = session_state.setdefault("entities", {})
     lang = resolve_locale(req.environment.locale)
-    text = ((s.text or {}).get(lang) or (s.text or {}).get("de") or "").strip()
+    # Review G2 (MINOR 3): wie die Tour den Schritt neu rendert — ``text_erneut``, sonst ``text``
+    text = await _schritt_text(session, req, entities, ablauf, s, s.text_erneut or s.text)
+    return await basis.fester_text(session, req, text, entities, aktueller_knopf_von(s, lang))
+
+
+async def _schritt_text(session: Any, req: ChatRequest, entities: dict[str, Any],
+                        ablauf: AblaufArea, s: Schritt,
+                        texte: dict[str, str] | None = None) -> str:
+    """Der Text eines Schritts (oder ``texte``) in der Sprache des Zuges, mit Wahl- und
+    Teil-Platzhaltern."""
+    lang = resolve_locale(req.environment.locale)
+    texte = texte if texte is not None else s.text
+    text = ((texte or {}).get(lang) or (texte or {}).get("de") or "").strip()
     teile = basis.umgebung(session, req, entities, ()).teile
     text, _fremd = await treiber.wahl_einsetzen(text, ablauf, lang, teile)
-    text = await platzhalter.einsetzen(text, teile)
-    return await basis.fester_text(session, req, text, entities, aktueller_knopf_von(s, lang))
+    return await platzhalter.einsetzen(text, teile)
+
+
+async def _frage_erneut(session: Any, req: ChatRequest, session_state: dict
+                        ) -> ChatResponse | None:
+    """G2d (Plan 2026-11-20): wartet eine Führung an einer Frage, nach einem Seitenwechsel die
+    Frage samt Chips erneut — ungespeichert, wie der Tour-Tick im Gruppen-Schritt (nach dem
+    Neuladen sind die Chips der alten Blase weg). ``None``: keine wartende Frage einer Führung."""
+    frage = wahl_zug.wartende_frage(req.session_id, session_state)
+    if frage is None or not fortschritt.ist_fuehrung(frage[1]):
+        return None
+    _lauf, ablauf, s = frage
+    entities = session_state.setdefault("entities", {})
+    lang = resolve_locale(req.environment.locale)
+    return ChatResponse(session_id=req.session_id,
+                        content=await _schritt_text(session, req, entities, ablauf, s),
+                        quick_replies=wahl_zug.knoepfe(ablauf.id, treiber.wahl_angebot(s, lang)),
+                        ui=UiInfo(fester_text=True))
 
 
 def _leer(req: ChatRequest) -> ChatResponse:
@@ -136,6 +165,17 @@ async def angekommen(session: Any, req: ChatRequest, session_state: dict) -> Cha
     entities = session_state.setdefault("entities", {})
     aufrufer = arbeitsstand.aufrufer_fuer(req.session_id)
     vw = arbeitsstand.verweis(entities, aufrufer)
+    if isinstance((vw or {}).get("lauf"), dict) and vw["lauf"].get("status") in treiber.WARTEND:
+        # E-F (Kontrolle Paket F): der Ping läuft vor dem Preflight, also ohne ``auffrischen`` —
+        # ein Lauf, der in einem anderen Gespräch wartet, gehört nicht hierher: nichts rechnen,
+        # keine fremde Frage zeigen, den Verweis still entfernen (wie ``auffrischen``)
+        fremd = await vorgaenge.lesen(session, vw["id"], aufrufer)
+        if fremd is not None and not basis.gehoert_hierher(fremd, req.session_id):
+            arbeitsstand.verweis_weg(entities, aufrufer)
+            await basis.update_session(session, req.session_id, entities=entities)
+            return _leer(req)
+    if (erneut := await _frage_erneut(session, req, session_state)) is not None:
+        return erneut
     if not isinstance((vw or {}).get("lauf"), dict) or vw["lauf"].get("status") != (
             treiber.WARTET_SEITE):
         return _leer(req)   # ohne wartenden Verweis kein Lesen

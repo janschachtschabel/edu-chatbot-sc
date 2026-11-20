@@ -1,0 +1,144 @@
+// Paket D1 (Plan 2026-11-20, E-D1): der Konto-Knopf — Form und Maß der Nachbarknöpfe der Fußzeile
+// (`_chat-footer.scss`: 36 px, voller Radius, Rand 30 % Primär), damit er nicht mehr kleiner ist als
+// „Vollbild“ und Neustart. Nur M3-Systemtoken; dunkel kippen sie mit.
+
+:host {
+  display: flex;
+  flex: none;
+}
+
+// Wie `.bb-icon` der Shell — deren Regel erreicht diese Komponente nicht (gekapselte Stile).
+.bb-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.bb-icon > svg {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  display: block;
+}
+
+.btn-auth {
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+  border-radius: var(--mat-sys-corner-full);
+  // Angemeldet: dasselbe Farbpaar wie die Nutzer-Blase und bis 2026-11-20 der Kürzel-Kreis —
+  // gefüllt heißt „angemeldet“. Kontrast der Initialen gerechnet für die Marke #1c4587 / #1f6feb:
+  // hell 10,0 / 6,3 : 1, dunkel 10,3 / 7,8 : 1 (≥ 4,5 : 1); nachgemessen in `e2e/auth-button.spec.ts`.
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  @media (prefers-reduced-motion: no-preference) {
+    transition: background-color .2s, color .2s;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-primary) 16%, var(--mat-sys-secondary-container));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  &[aria-expanded='true'] {
+    border-color: var(--mat-sys-primary);
+  }
+}
+
+.btn-auth__kuerzel {
+  font-size: .75rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: .02em;
+  user-select: none;
+}
+
+// Abgemeldet (Review B, 4 — weiter gültig): nicht nur ein anderer Ton, eine andere FORM — ohne
+// Füllung, gestrichelter Rand, die Person als Umriss, in `outline` statt `on-surface-variant`.
+// Das Symbol trägt die Bedeutung und braucht ≥ 3 : 1 (WCAG 1.4.11) gegen die Fußzeile; gemessen in
+// `e2e/auth-button.spec.ts`.
+.btn-auth--aus {
+  background: none;
+  border: 1px dashed var(--mat-sys-outline);
+  color: var(--mat-sys-outline);
+
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+    color: var(--mat-sys-primary);
+  }
+}
+
+// Das Menü steht über der Fußzeile, rechtsbündig zu ihr (die Fußzeile ist `position: relative`):
+// so bleibt es bei jeder Breite — auch bei 320 px nach dem Umbruch — ganz im Widget.
+.konto-menue {
+  position: absolute;
+  inset-block-end: calc(100% + 4px);
+  inset-inline-end: 12px;
+  z-index: 2;
+  box-sizing: border-box;
+  min-width: 12rem;
+  max-width: calc(100% - 24px);
+  padding-block: 4px;
+  background: var(--mat-sys-surface-container, var(--mat-sys-surface));
+  color: var(--mat-sys-on-surface);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium, 12px);
+  box-shadow: 0 2px 8px color-mix(in srgb, black 18%, transparent);
+  font-size: .875rem;
+}
+
+.konto-menue__wer {
+  margin: 0;
+  padding: 6px 12px 8px;
+  color: var(--mat-sys-on-surface-variant);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+  overflow-wrap: anywhere;
+}
+
+.konto-menue__liste {
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+}
+
+.konto-menue__eintrag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+
+  .bb-icon { font-size: 1.125rem; }
+
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: -2px;
+  }
+}

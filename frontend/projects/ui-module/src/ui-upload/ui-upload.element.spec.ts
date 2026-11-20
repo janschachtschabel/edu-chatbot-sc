@@ -320,6 +320,53 @@ describe('<boerdi-ui-upload> Wo verarbeiten? (Paket U4)', () => {
     expect(wurzel.textContent).not.toContain('erzeugt daraus Titel');
   });
 
+  // Plan 2026-11-20 §8, E3: auf dem Dokument-Weg (`einzeldatei_als_struktur`) läuft nach der Ablage kein
+  // Flow — der Ort verspricht kein „erschließen“, weder im Namen noch in Erklärung und Datenschutz-Satz
+  it('Dokument-Weg: „In WLO ablegen“ ohne „erschließen“, auch gesperrt; Datei-Weg unverändert', async () => {
+    const dokument = { ...ANGEMELDET, einzeldatei_als_struktur: true };
+    const { wurzel } = erzeuge({}, host(), dokument);
+    await waehle(wurzel, [datei('P/Lehrplan.pdf')]);
+    expect(radio(wurzel, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen');
+    expect(radio(wurzel, 'wlo').checked).toBe(true);
+    expect(erklaerung(wurzel, 'wlo')).toBe('alle Dateien, mit WLO-Anmeldung – nur ablegen; den Text liest der Chat danach aus WLO');
+    expect(wurzel.textContent).not.toContain('erzeugt daraus Titel');
+    expect(wurzel.textContent).not.toContain('erschließen');
+
+    document.body.innerHTML = '';
+    const anonym = erzeuge({}, host(), { ...ANONYM, einzeldatei_als_struktur: true }).wurzel;
+    await waehle(anonym, [datei('P/Lehrplan.pdf')]);
+    expect(radio(anonym, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen');
+    expect(erklaerung(anonym, 'wlo')).toBe('nicht wählbar – braucht eine WLO-Anmeldung');
+
+    document.body.innerHTML = '';
+    const dateiWeg = erzeuge({}, host(), ANGEMELDET).wurzel;
+    await waehle(dateiWeg, [datei('P/a.pdf')]);
+    expect(radio(dateiWeg, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen und erschließen');
+  });
+
+  // Review Paket E, MINOR 8/9: auf dem Dokument-Weg verspricht weder der Satz vor der Auswahl noch der
+  // Datenschutz-Satz Metadaten; der Datenschutz-Satz sagt, was mit dem Text geschieht
+  it('Dokument-Weg: Datenschutz-Satz und Hinweis vor der Anmeldung ohne Metadaten', async () => {
+    const { wurzel } = erzeuge({}, host(), { ...ANGEMELDET, einzeldatei_als_struktur: true });
+    await waehle(wurzel, [datei('P/Lehrplan.pdf')]);
+    expect(wurzel.textContent).toContain('legt die Dateien nach deiner Bestätigung in deinem persönlichen Bereich in WLO ab; danach liest der Chat den Text aus WLO, sein KI-Modell erstellt daraus den Entwurf.');
+
+    document.body.innerHTML = '';
+    const vorher = erzeuge({}, host(), {
+      ...DATEN, einzeldatei_als_struktur: true,
+      schalter: { dokument_im_chat: true, ablage_in_wlo: false, ablage_nach_anmeldung: true },
+    }).wurzel;
+    expect(vorher.textContent).toContain('Dateien „In WLO ablegen“ – in deinem persönlichen Bereich, dort liest der Chat danach ihren Text – geht, wenn du bei WLO angemeldet bist.');
+    expect(vorher.textContent).not.toContain('Metadaten');
+  });
+
+  it('E3: ohne Flow-Träger (`ohne_erschliessung`) heißt der Ort ebenso nur „In WLO ablegen“', async () => {
+    const daten = { ...ANGEMELDET, orte: { ...ORTE_WLO, wlo: { geht: true, hinweis: 'ohne_erschliessung' } } };
+    const { wurzel } = erzeuge({}, host(), daten);
+    await waehle(wurzel, [datei('P/a.pdf')]);
+    expect(radio(wurzel, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen');
+  });
+
   it('über der Grenze: „Hier im Chat“ gesperrt mit Grund, ohne Ort ist „Nur Namen senden“ der Hauptknopf', async () => {
     const daten = { ...ANONYM, grenzen: { ...GRENZEN_LOKAL, lokal_max_dateien: 2 } };
     const { h, wurzel } = erzeuge({}, host(), daten);

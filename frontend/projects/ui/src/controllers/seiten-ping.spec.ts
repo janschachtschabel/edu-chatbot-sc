@@ -69,6 +69,13 @@ describe('seitenPingNoetig (R2-c)', () => {
     expect(seitenPingNoetig(stand('wartet_wahl'), true)).toBe(false);
     expect(seitenPingNoetig(null, false)).toBe(false);
   });
+
+  it('G2d (Plan 2026-11-20): an der Frage einer Führung pingt es auch — wie der Tour-Tick', () => {
+    const frage = { id: 'fuehrung', titel: 'F', nr: 2, von: 5, status: 'wartet_wahl', teile: [] };
+    expect(seitenPingNoetig({ ...frage, fuehrung: true }, false)).toBe(true);
+    expect(seitenPingNoetig(frage, false)).toBe(false);
+    expect(seitenPingNoetig({ ...frage, status: 'wartet_ki', fuehrung: true }, false)).toBe(false);
+  });
 });
 
 describe('UnbestimmtMarke (Review R2, Befund 1)', () => {

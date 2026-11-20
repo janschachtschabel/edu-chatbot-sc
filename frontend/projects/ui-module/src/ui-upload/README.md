@@ -64,7 +64,9 @@ eigenen Bündel (siehe `docs/ui-module.md` §2.5).
      **Hier im Chat** („schnell, ohne Anmeldung, bis {n} Dateien – Text bleibt {h} Stunden hier“) und
      **In WLO ablegen und erschließen** („alle Dateien, mit WLO-Anmeldung – Titel, Beschreibung, Fach und
      Stufe entstehen in WLO im Hintergrund“; mit `hinweis: ohne_erschliessung` „nur ablegen; Angaben
-     werden gerade nicht erzeugt“). Gesperrte bleiben sichtbar, der Grund steht als Text („nicht
+     werden gerade nicht erzeugt“). Ohne folgenden Flow — Dokument-Weg (`einzeldatei_als_struktur`) oder
+     `ohne_erschliessung` — heißt der Ort nur **In WLO ablegen** (Plan 2026-11-20 §8, E3; auf dem
+     Dokument-Weg „nur ablegen; den Text liest der Chat danach aus WLO“). Gesperrte bleiben sichtbar, der Grund steht als Text („nicht
      wählbar – braucht eine WLO-Anmeldung“, „zu viele Dateien für hier (höchstens {n}) – mit Anmeldung
      über WLO“, „zu viel für hier (höchstens {mb} MB zusammen)“, „gerade ausgeschaltet“, „in diesem
      Ablauf nicht vorgesehen“; nur hier gerechnet: mehr als 200 für WLO, keine übertragbare Art).

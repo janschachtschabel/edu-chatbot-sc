@@ -17,22 +17,25 @@ $text-muted: var(--mat-sys-on-surface-variant);
 $border:     var(--mat-sys-outline-variant);
 
 .chat-footer {
+  // Paket D1: Bezug des Konto-Menüs (`konto-knopf.component.scss`) — es steht über der Fußzeile.
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
   // 10% Primary auf der Grundfläche — sehr dezenter Tönungs-Untergrund, der den
   // Eingabe-Bereich vom Chat-Body absetzt und mit der Akzentfarbe harmoniert.
-  background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
+  // Review D (9): als Eigenschaft, damit Abzeichen und Punkt ihren Ring im selben Ton zeichnen.
+  --bb-footer-bg: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
+  background: var(--bb-footer-bg);
   border-top: 1px solid $border;
 }
 
-// AS-Ud (Plan 2026-11-09 §5j): angemeldet steht „Meine Vorgänge“ als weiteres Element in der Zeile,
-// seit Plan 2026-11-19 (E8) dazu das Kürzel (28 + 8 px) — dieses auch abgemeldet, sobald die Anlage
-// die Anmeldung anbietet (`--anmeldung`). Bliebe dem Eingabefeld weniger als 120 px (gemessen bei
-// 320 px vor dem Kürzel: 76 px), bricht die Zeile um (WCAG 1.4.10 Reflow): das Feld steht allein
-// oben, die Knöpfe rechtsbündig darunter. Die Grenzen (12 + 120 + Knöpfe × 44 + Kürzel 36 + 12):
-// abgemeldet 356 px, angemeldet (ein Knopf mehr) 400 px, mit Mikrofon vor dem Feld je 44 px mehr.
+// AS-Ud (Plan 2026-11-09 §5j): angemeldet steht „Meine Vorgänge“ als weiteres Element in der Zeile.
+// Bliebe dem Eingabefeld weniger als 120 px, bricht die Zeile um (WCAG 1.4.10 Reflow): das Feld steht
+// allein oben, die Knöpfe rechtsbündig darunter. Seit Paket D1 (Plan 2026-11-20) ist der Kürzel-Kreis
+// IM Konto-Knopf — die Grenzen (12 + 120 + Knöpfe × 44 + 12) sinken um seine 36 px: mit Anmelde-
+// Angebot (`--anmeldung`, vier Knöpfe) 320 px, angemeldet (fünf) 364 px, mit Mikrofon je 44 px mehr.
 // Mit Mikrofon teilen sich Mikrofon und Feld die erste Zeile — ohne `order`, damit Sicht- und
 // Tab-Reihenfolge gleich bleiben (Review AS-Ud, Befund 6). Ohne Anmelde-Angebot (`hidden`) bleibt
 // es eine Zeile.
@@ -51,16 +54,16 @@ $border:     var(--mat-sys-outline-variant);
   }
 }
 
-@container chat (width < 356px) {
+@container chat (width < 320px) {
   .chat-footer--anmeldung { @include umbruch; }
 }
 
-@container chat (width < 400px) {
+@container chat (width < 364px) {
   .chat-footer--konto { @include umbruch; }
   .chat-footer--anmeldung.chat-footer--mikro { @include umbruch(true); }
 }
 
-@container chat (width < 444px) {
+@container chat (width < 408px) {
   .chat-footer--konto.chat-footer--mikro { @include umbruch(true); }
 }
 
@@ -90,13 +93,12 @@ $border:     var(--mat-sys-outline-variant);
   }
 }
 
-// Anmelden/Abmelden — dieselbe sekundäre Form wie Neustart und Größe, eigene
-// Regel aus demselben Grund wie dort. 36 px bleibt bewusst gleich: über dem
-// WCAG-2.2-Mindestmaß von 24 px, und eine Abweichung nach oben würde die Zeile
-// bei 320 px als Einzige sprengen. „Meine Vorgänge“ (AS-Ud) steht daneben in derselben Form;
-// geöffnet ist er getönt wie beim Hover (sein Zustand steht zudem in `aria-expanded`).
-.btn-auth,
+// „Meine Vorgänge“ (AS-Ud) — dieselbe sekundäre Form wie Neustart und Größe, eigene Regel aus
+// demselben Grund wie dort. 36 px wie die Nachbarn: über dem WCAG-2.2-Mindestmaß von 24 px. Geöffnet
+// ist er getönt wie beim Hover (sein Zustand steht zudem in `aria-expanded`). Der Konto-Knopf
+// daneben trägt seine Form selbst (`konto-knopf.component.scss`).
 .btn-vorgaenge {
+  position: relative;
   background: none;
   border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
   border-radius: var(--mat-sys-corner-full);
@@ -121,43 +123,46 @@ $border:     var(--mat-sys-outline-variant);
   color: var(--mat-sys-primary);
 }
 
-// Plan 2026-11-19 (E8): das Kürzel der angemeldeten Person — eine Anzeige, kein Knopf, darum ohne
-// Hover und Zeiger, kleiner als die Knöpfe (28 px, über dem Mindestmaß von 24 px). Das Farbpaar ist
-// das der Nutzer-Blase (`secondary-container`): beide Werte folgen der Kundenfarbe und kippen im
-// Dunkelmodus mit. Kontrast gerechnet für die Marke #1c4587 / #1f6feb: hell 10,0 / 6,3 : 1, dunkel
-// 10,3 / 7,8 : 1 (≥ 4,5 : 1). Die Fläche liegt hell fast im Ton der Fußzeile (gemessen) — den Kreis
-// zeichnet deshalb derselbe Rand wie bei den Knöpfen daneben. `flex: none`, damit er bei 320 px
-// nicht zur Ellipse wird.
-.konto-kuerzel {
-  flex: none;
+// Paket D2 (Plan 2026-11-20, E-D2): die Zahl offener Vorgänge anderer Gespräche — ein Abzeichen oben
+// am Rand des Knopfs, im Paar `primary`/`on-primary` wie der Senden-Knopf (≥ 4,5 : 1, kippt dunkel
+// mit). Für Vorleser stumm: die Zahl steht im Namen des Knopfs.
+.btn-vorgaenge__zahl {
+  position: absolute;
+  inset-block-start: -6px;
+  inset-inline-end: -6px;
   box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--mat-sys-secondary-container);
-  color: var(--mat-sys-on-secondary-container);
-  font-size: .75rem;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--mat-sys-corner-full);
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  // ein Ring im Ton der Fußzeile trennt das Abzeichen vom Rand des Knopfs
+  box-shadow: 0 0 0 2px var(--bb-footer-bg);
+  font-size: .6875rem;
   font-weight: 600;
-  line-height: 1;
-  letter-spacing: .02em;
-  user-select: none;
-
-  .bb-icon { font-size: 1.125rem; }
+  line-height: 18px;
+  text-align: center;
 }
 
-// Nicht angemeldet (Nachtrag des Nutzers): derselbe Kreis, ausgegraut. Review B (4): nicht nur ein
-// anderer Ton — eine andere Form: ohne Füllung, gestrichelter Rand, die Person als Umriss
-// (`ICONS.person_outline`), heller als angemeldet (`outline` statt `on-surface-variant`). Das
-// Symbol trägt die Bedeutung und braucht ≥ 3 : 1 (WCAG 1.4.11) gegen die Fußzeile; gemessen in
-// `e2e/auth-button.spec.ts`.
-.konto-kuerzel--aus {
-  background: none;
-  border: 1px dashed var(--mat-sys-outline);
-  color: var(--mat-sys-outline);
+// D2: hier läuft ein Auftrag (die Eingabe wartet). Nicht nur Farbe (WCAG 1.4.1): der Rand wird
+// durchgezogen kräftig, unten rechts sitzt ein Punkt, und der Name sagt es. `tertiary` hält ≥ 3 : 1
+// gegen die Fußzeile (Symbol, WCAG 1.4.11); gemessen in `e2e/meine-vorgaenge.spec.ts`.
+.btn-vorgaenge--hier {
+  border: 2px solid var(--mat-sys-tertiary);
+  color: var(--mat-sys-tertiary);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-block-end: -3px;
+    inset-inline-end: -3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--mat-sys-tertiary);
+    box-shadow: 0 0 0 2px var(--bb-footer-bg);
+  }
 }
 
 .btn-restart {

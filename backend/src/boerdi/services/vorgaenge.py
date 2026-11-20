@@ -165,15 +165,13 @@ def ist_deadlock(fehler: BaseException) -> bool:
     return "40P01" in (getattr(orig, "sqlstate", None), getattr(orig, "pgcode", None))
 
 
-async def juengster(s: AsyncSession, aufrufer: str) -> Vorgang | None:
-    """Der zuletzt geänderte offene Vorgang der Besitzerin — damit ihn eine neue Sitzung derselben
-    Person wiederfindet (Review V1, Befund 1)."""
-    stmt = (select(Vorgang)
-            .where(Vorgang.aufrufer == aufrufer, Vorgang.verfaellt_am > _jetzt(),
-                   Vorgang.status.not_in(ABGESCHLOSSEN))
-            .order_by(Vorgang.geaendert.desc()).limit(1)
-            .execution_options(populate_existing=True))
-    return (await s.execute(stmt)).scalar_one_or_none()
+def wartet_woanders(v: Vorgang, session_id: str) -> bool:
+    """Plan 2026-11-20, Entscheid E-F: wartet der Lauf dieses Vorgangs in einem **anderen**
+    Gespräch? ``session_id`` ist das Gespräch, in dem er zu warten begann
+    (``zug_basis.festhalten``). Dann beantwortet und bewegt ihn hier nichts; zurück führen
+    ``offene`` („Fortsetzen“) und ``eigene`` („Meine Vorgänge“). Ein Vorgang ohne wartenden Lauf
+    gehört keinem Gespräch."""
+    return v.status in WARTEND and bool(v.session_id) and v.session_id != session_id
 
 
 async def offene(s: AsyncSession, aufrufer: str, *, ohne: str | None = None) -> list[Vorgang]:
@@ -189,11 +187,11 @@ async def offene(s: AsyncSession, aufrufer: str, *, ohne: str | None = None) -> 
     return list((await s.execute(stmt)).scalars())
 
 
-async def eigene(s: AsyncSession, aufrufer: str, *, ohne: str | None = None,
-                 ohne_id: str | None = None) -> list[Vorgang]:
+async def eigene(s: AsyncSession, aufrufer: str, *, ohne: str | None = None) -> list[Vorgang]:
     """AS-Ud („Meine Vorgänge“, Plan 2026-11-09 §5j): die nicht abgeschlossenen Vorgänge der
-    Besitzerin mit Gespräch — aktiv und wartend —, außer denen des Gesprächs ``ohne`` und dem
-    Vorgang ``ohne_id`` (auf den das aktuelle Gespräch verweist). Jüngste zuerst.
+    Besitzerin mit Gespräch — aktiv und wartend —, außer denen des Gesprächs ``ohne``. Jüngste
+    zuerst. (Den Ausschluss nach dem Verweis des Gesprächs, ``ohne_id``, gibt es seit E-F nicht
+    mehr — Kontrolle Paket F.)
 
     Nicht auf :data:`MAX_JE_PERSON` begrenzt (Review AS-Ud, Befund 3): wartende Vorgänge weichen
     nie, eine Person kann mehr haben — keiner darf aus der Liste fallen. :data:`LISTE_HOECHSTENS`
@@ -205,8 +203,6 @@ async def eigene(s: AsyncSession, aufrufer: str, *, ohne: str | None = None,
             .execution_options(populate_existing=True))
     if ohne is not None:
         stmt = stmt.where(Vorgang.session_id != ohne)
-    if ohne_id is not None:
-        stmt = stmt.where(Vorgang.id != ohne_id)
     return list((await s.execute(stmt)).scalars())
 
 

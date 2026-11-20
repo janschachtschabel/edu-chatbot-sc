@@ -187,8 +187,8 @@ def test_minor2_der_dienst_schreibt_die_auswahl_in_den_entwurf():
 def test_minor4_der_satz_nach_dem_grund():
     from boerdi.ui_module import dienst as modul_dienst
 
-    # Durchtest TG-7, m3: eine Datei ohne Text hat einen eigenen Satz
-    assert modul_dienst._volltext_satz((("a", "not_extracted"),)) == "volltext_fehlt_datei"
+    # Durchtest TG-7, m3: eine Datei ohne Text hat einen eigenen Satz (Plan 2026-11-20, E1)
+    assert modul_dienst._volltext_satz((("a", "not_extracted"),)) == "volltext_endgueltig"
     assert modul_dienst._volltext_satz((("a", "ohne_anmeldung"),)) == "volltext_fehlt_anmeldung"
     assert modul_dienst._volltext_satz((("a", "access_denied"),)) == "volltext_fehlt_zugriff"
     assert modul_dienst._volltext_satz((("a", "node_not_found"), ("b", "frist"))) == (

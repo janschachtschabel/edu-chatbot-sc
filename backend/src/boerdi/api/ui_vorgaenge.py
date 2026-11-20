@@ -12,9 +12,10 @@ Die Kennung eines Gesprächs ist dessen Geheimnis (wer sie hat, liest den Verlau
 - die Antwort wird nicht zwischengespeichert (``no-store``), und kein Log nennt eine Kennung.
 
 Angeboten wird nur der jüngste wartende Vorgang (Review K2a, Befund 7: das Widget nutzt nur ihn —
-eine Kennung weniger, die hinausgeht), und nie der, auf den das aktuelle Gespräch schon verweist
-(Befund 1: eine neue Sitzung übernimmt den jüngsten offenen Vorgang ohnehin, ``arbeitsstand.
-auffrischen`` — dann führt er schon hier weiter).
+eine Kennung weniger, die hinausgeht), und nie einer des aktuellen Gesprächs. Seit Plan 2026-11-20,
+Entscheid E-F übernimmt eine neue Sitzung keinen Vorgang mehr still (ersetzt Befund 1); zeigt ein
+Verweis dieses Gesprächs auf einen Vorgang, dessen Lauf in einem anderen wartet, beantwortet hier
+keine Nachricht seine Frage (``wahl_zug``) — also wird auch er angeboten.
 
 Kein Zug, nichts wird geschrieben. IP-Drossel wie die übrigen Modul-Abrufe.
 
@@ -27,10 +28,12 @@ bei einem Auftrag „Stand prüfen“.
 
 ``POST /api/ui/vorgaenge/liste`` und ``/loeschen`` (AS-Ud, „Meine Vorgänge“, Plan 2026-11-09 §5j):
 die eigenen, nicht abgeschlossenen Vorgänge **anderer** Gespräche (alle, Sicherung 20) und das
-Löschen eines davon. Dieselben Regeln wie oben. Den Vorgang des aktuellen Gesprächs steuern dort die
-Ablauf-Leiste und „Arbeitsstand löschen“ — hier fehlt er, und Löschen trifft ihn nie (404 wie
-alles Fremde). Ein offener Auftrag endet nach dem Festschreiben auch bei der b-api, mit dem
-Schlüssel der Person (wie bei „Arbeitsstand löschen“).
+Löschen eines davon. Dieselben Regeln wie oben. Die Vorgänge des aktuellen Gesprächs steuern dort
+die Ablauf-Leiste und „Arbeitsstand löschen“ — hier fehlen sie, und Löschen trifft sie nie (404 wie
+alles Fremde). Ausgeblendet wird nach ``session_id`` des Vorgangs, nicht nach dem Verweis des
+Gesprächs (Review Paket F, MINOR 3): ein Verweis von vor E-F auf einen Vorgang eines anderen
+Gesprächs blendet ihn nicht aus. Ein offener Auftrag endet nach dem Festschreiben auch bei der
+b-api, mit dem Schlüssel der Person (wie bei „Arbeitsstand löschen“).
 """
 
 from __future__ import annotations
@@ -51,7 +54,7 @@ from boerdi.api.turn_auth import (
     uebernimm_llm_schluessel,
 )
 from boerdi.db.verbindung import verbindung_freigeben
-from boerdi.services import arbeitsstand, probe, vorgaenge
+from boerdi.services import probe, vorgaenge
 from boerdi.services.ablauf import ausloeser
 from boerdi.services.ablauf.zug_basis import auftraege_beenden, bei_der_b_api_abbrechen
 from boerdi.services.auftraege import ablage as auftraege_ablage
@@ -94,12 +97,10 @@ class OffeneVorgaenge(BaseModel):
 _NO_STORE = {"Cache-Control": "private, no-store"}
 
 
-async def _angemeldet(request: Request, session: AsyncSession, session_id: str, *,
-                      mit_verweis: bool = True) -> tuple[str, str | None]:
+async def _angemeldet(request: Request, session: AsyncSession, session_id: str) -> str:
     """Der gemeinsame Vorspann aller Pfade hier (Review AS-Ud, Befund 8): Kennung des Gesprächs
     prüfen, Anmeldung bestätigen (403 ``nur_angemeldet``, auch ohne Zwischenspeicher) — gibt die
-    Besitzerin zurück und mit ``mit_verweis`` den Vorgang, auf den das aktuelle Gespräch
-    verweist."""
+    Besitzerin zurück. Den Verweis des Gesprächs braucht seit E-F keiner der Pfade mehr."""
     pruefe_oeffentliche_kennung(request, session_id)
     entities = await sitzung_entities(session, session_id) or {}
     if probe.in_sitzung(entities):
@@ -112,10 +113,7 @@ async def _angemeldet(request: Request, session: AsyncSession, session_id: str, 
     await bestaetige_anmeldung()
     if not has_personal_auth():
         raise HTTPException(status_code=403, detail="nur_angemeldet", headers=_NO_STORE)
-    kennung = aufrufer_kennung()
-    if not mit_verweis:
-        return kennung, None
-    return kennung, (arbeitsstand.verweis(entities, kennung) or {}).get("id")
+    return aufrufer_kennung()
 
 
 def _ablauf_von(v: vorgaenge.Vorgang) -> str | None:
@@ -145,9 +143,8 @@ def _als_offener(v: vorgaenge.Vorgang, lang: str = "de") -> OffenerVorgang:
 @public_rate_limit
 async def offen(anfrage: OffenAnfrage, request: Request, response: Response,
                 session: Annotated[AsyncSession, Depends(get_session)]) -> OffeneVorgaenge:
-    kennung, hier = await _angemeldet(request, session, anfrage.session_id)
-    liste = [v for v in await vorgaenge.offene(session, kennung, ohne=anfrage.session_id)
-             if v.id != hier]
+    kennung = await _angemeldet(request, session, anfrage.session_id)
+    liste = await vorgaenge.offene(session, kennung, ohne=anfrage.session_id)
     response.headers["Cache-Control"] = "private, no-store"
     return OffeneVorgaenge(vorgaenge=[_als_offener(v, anfrage.sprache) for v in liste[:1]])
 
@@ -182,7 +179,7 @@ def _unbekannt() -> HTTPException:
 @public_rate_limit
 async def wiederkehr(anfrage: WiederkehrAnfrage, request: Request, response: Response,
                      session: Annotated[AsyncSession, Depends(get_session)]) -> OffenerVorgang:
-    kennung, _ = await _angemeldet(request, session, anfrage.session_id, mit_verweis=False)
+    kennung = await _angemeldet(request, session, anfrage.session_id)
     # gespeichert werden Kennungen klein (``uuid4``) — eine groß geschriebene träfe nie
     vid = anfrage.vorgang.lower() if anfrage.vorgang else None
     if anfrage.auftrag is not None:
@@ -230,9 +227,9 @@ class LoeschAnfrage(BaseModel):
 @public_rate_limit
 async def liste(anfrage: ListenAnfrage, request: Request, response: Response,
                 session: Annotated[AsyncSession, Depends(get_session)]) -> EigeneVorgaenge:
-    kennung, hier = await _angemeldet(request, session, anfrage.session_id)
+    kennung = await _angemeldet(request, session, anfrage.session_id)
     # Review AS-Ud, Befund 3: der Ausschluss gehört in die Abfrage, nicht hinter eine Grenze
-    eigene = await vorgaenge.eigene(session, kennung, ohne=anfrage.session_id, ohne_id=hier)
+    eigene = await vorgaenge.eigene(session, kennung, ohne=anfrage.session_id)
     response.headers["Cache-Control"] = "private, no-store"
     return EigeneVorgaenge(vorgaenge=[_als_eigener(v, anfrage.sprache) for v in eigene])
 
@@ -249,7 +246,7 @@ _LOESCH_ANTWORTEN: dict[int | str, dict[str, Any]] = {
 async def loeschen(anfrage: LoeschAnfrage, request: Request, response: Response,
                    session: Annotated[AsyncSession, Depends(get_session)]) -> dict[str, bool]:
     uebernimm_llm_schluessel(request, pflicht=False)
-    kennung, hier = await _angemeldet(request, session, anfrage.session_id)
+    kennung = await _angemeldet(request, session, anfrage.session_id)
     vid = anfrage.vorgang.lower()
     # Review AS-Ud, Befund 2: die Zeile bis zum Festschreiben sperren — ein Auftrag, den ein Zug
     # gerade anlegt (FK auf diese Zeile), wartet; einer, der schon steht, wird unten gelesen. Erst
@@ -258,7 +255,7 @@ async def loeschen(anfrage: LoeschAnfrage, request: Request, response: Response,
     await vorgaenge.sperren(session, vid, kennung)
     v = await vorgaenge.lesen(session, vid, kennung)
     # Ud-3 und Review AS-Ud, Kleinigkeit 9: nur, was die Liste zeigt — sonst wie Fremdes
-    if (v is None or v.id == hier or v.session_id == anfrage.session_id
+    if (v is None or v.session_id == anfrage.session_id
             or v.status in vorgaenge.ABGESCHLOSSEN or not v.session_id):
         raise _unbekannt()
     # Wie „Arbeitsstand löschen“: die Job-ID vorher lesen, den Auftrag erst nach dem Festschreiben

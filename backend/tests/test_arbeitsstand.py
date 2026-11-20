@@ -108,10 +108,6 @@ class _Ablage:
         v = self.vorgaenge.get(vorgang_id)
         return v if v is not None and v.aufrufer == aufrufer else None
 
-    async def juengster(self, s, aufrufer):
-        eigene = [v for v in self.vorgaenge.values() if v.aufrufer == aufrufer]
-        return eigene[-1] if eigene else None
-
     async def beruehren(self, s, vorgang_id, *, tage):
         self.beruehrt = vorgang_id
 
@@ -161,7 +157,7 @@ class _S:
 @pytest.fixture
 def ablage(monkeypatch):
     a = _Ablage()
-    for name in ("lesen", "anlegen", "teil_setzen", "juengster", "beruehren", "teil_wert"):
+    for name in ("lesen", "anlegen", "teil_setzen", "beruehren", "teil_wert"):
         monkeypatch.setattr(arbeitsstand.vorgaenge, name, getattr(a, name))
     monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: True)
     monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
@@ -252,16 +248,24 @@ def test_der_teil_lader_liest_per_name(ablage, monkeypatch):
 
 
 
-def test_eine_neue_sitzung_der_person_findet_den_vorgang_wieder(ablage):
-    """Review V1, Befund 1: ohne Verweis nimmt die Person ihren jüngsten offenen Vorgang."""
+def test_e_f_eine_neue_sitzung_uebernimmt_keinen_vorgang_still(ablage, monkeypatch):
+    """Plan 2026-11-20, Entscheid E-F (ersetzt Review V1, Befund 1): ein neues Gespräch der
+    angemeldeten Person holt ihren offenen Vorgang nie still herein — weder beim Auffrischen noch
+    beim Speichern eines Teils. Wieder hinein führt nur „Fortsetzen“ bzw. „Meine Vorgänge“ (dann
+    ist es das Gespräch des Vorgangs, und sein Verweis gilt dort weiter)."""
     alt: dict = {}
     asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-1", alt, _entwurf()))
+    assert not hasattr(arbeitsstand.vorgaenge, "juengster")    # Review Paket F, NIT 4
     neu: dict = {}
     asyncio.run(arbeitsstand.auffrischen(_S(), "sitzung-2", neu))
-    zeile = arbeitsstand.kennzeile(neu, "person-a")
-    assert zeile.startswith("[ARBEITSSTAND") and neu[arbeitsstand.VERWEIS]["id"] == "v-1"
-    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-2", {}, _upload()))
-    assert len(ablage.vorgaenge) == 1        # kein zweiter Vorgang aus der neuen Sitzung
+    assert arbeitsstand.VERWEIS not in neu and arbeitsstand.kennzeile(neu, "person-a") == ""
+    asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-2", neu, _upload()))
+    assert len(ablage.vorgaenge) == 2        # ein eigener Vorgang des neuen Gesprächs
+    assert neu[arbeitsstand.VERWEIS]["id"] == "v-2"
+    assert "structure" not in ablage.vorgaenge["v-1"].akte["teile"]
+    # „Fortsetzen“ wechselt in das Gespräch des Vorgangs — dort bleibt sein Verweis
+    asyncio.run(arbeitsstand.auffrischen(_S(), "sitzung-1", alt))
+    assert alt[arbeitsstand.VERWEIS]["id"] == "v-1"
 
 
 def test_ein_fremder_verweis_bleibt_verborgen_stehen(ablage, monkeypatch):

@@ -231,6 +231,38 @@ def text_ausloeser(nachricht: str | None, ohne: str | None = None) -> AblaufArea
     return ablauf if ausloeser.erfuellt(ablauf) else None
 
 
+def tour_chip(req: ChatRequest) -> AblaufArea | None:
+    """Plan 2026-11-20, G2c: der Tour-Chip der Begrüßung (``tour_action: start``), den die
+    eingebaute Tour nicht genommen hat (sie ist aus) — der aktive Ablauf mit dem Merkmal
+    ``tour_chip`` (Review G2, MINOR 7: nicht mehr über eine Wendung im Text des Chips), mit Knopf
+    und erfüllten Voraussetzungen. Ein Druck ist ausdrücklich — auch ein eben abgelehnter
+    startet."""
+    if req.action or (req.environment.tour_action or "").strip().lower() != "start":
+        return None
+    ablauf = ausloeser.per_tour_chip()
+    return (ablauf if ablauf is not None and ausloeser.per_knopf(ablauf)
+            and ausloeser.erfuellt(ablauf) else None)
+
+
+async def per_tour_chip(session: Any, req: ChatRequest, session_state: dict, ablauf: AblaufArea,
+                        *, blocked_tools: Iterable[str] = ()) -> ChatResponse:
+    """G2c: der Tour-Chip startet ``ablauf`` wie sein Knopf — ein wartender Lauf desselben Ablaufs
+    beginnt neu an der aktuellen Seite (wie die Tour). Review G2, MAJOR 2: wartet ein ANDERER
+    Ablauf, erst die Ersetzen-Rückfrage — an seiner Frage wie bei einer Wendung samt „Hier
+    weitermachen“ (``wendung_zug``), sonst mit „Neu starten“ (und „Stand prüfen“ am Auftrag)."""
+    aktiv = await _aktiver_lauf(session, req, session_state)
+    if (aktiv is not None and aktiv[1].get("ablauf") != ablauf.id
+            and aktiv[1].get("status") in treiber.WARTEND):
+        from boerdi.services.ablauf import wendung_zug  # zyklenfrei erst zur Laufzeit
+
+        if (frage := await wendung_zug.wendung_beantworten(session, req, session_state,
+                                                           ablauf)) is not None:
+            return frage
+        return await _ersetzen_fragen(session, req, ablauf, None, *aktiv)
+    knopf = req.model_copy(update={"action": AKTION, "action_params": {"ablauf": ablauf.id}})
+    return await starten(session, knopf, session_state, blocked_tools=blocked_tools)
+
+
 def anmelde_zeile(nachricht: str | None, lang: str, ohne: str | None = None) -> str | None:
     """Rückmeldung 11.11. (Nutzer-Entscheid „Hinweis + weiterhelfen“): passt eine Wendung zu einem
     Ablauf, dessen Voraussetzung (Anmeldung) fehlt, startet er nicht (:func:`text_ausloeser`) —
@@ -416,7 +448,7 @@ async def _ziel_vorbereiten(session: Any, req: ChatRequest, entities: dict[str, 
     try:
         mitnehmen = await _bereitstellung(session, v) if v is not None else []
         if v is not None:
-            alter_job = await basis.schliessen(session, v)
+            alter_job = await basis.schliessen(session, v, session_id=req.session_id)
             # Ein neues Vorhaben: der gemerkte Entwurf des alten ist kein Gegenstand mehr.
             entities.pop(strukturentwurf_merken.KEY, None)
         neu = await _anlegen(session, req, aufrufer, ablauf)
@@ -533,7 +565,9 @@ async def fortsetzen(session: Any, req: ChatRequest, session_state: dict,
     lauf = _offener_lauf(v, geprueft)
     ablauf = laden(lauf.get("ablauf")) if lauf else None
     # Review A1, Befund 6: erst prüfen, dann übernehmen — sonst speichert ``persist`` sie doppelt.
-    if lauf is None or not treiber.gilt(ablauf, lauf) or not treiber.kann_weiter(ablauf, lauf):
+    # E-F (Review Paket F): ein Lauf, der in einem anderen Gespräch wartet, nimmt hier nichts an.
+    if (lauf is None or not basis.gehoert_hierher(v, req.session_id)
+            or not treiber.gilt(ablauf, lauf) or not treiber.kann_weiter(ablauf, lauf)):
         return None
     if not await arbeitsstand.uebernehmen(session, req.session_id, entities, geprueft,
                                           nur_dieser=True):
@@ -591,7 +625,8 @@ async def nach_uebernahme(session: Any, req: ChatRequest, session_state: dict,
     # steht schon an einem anderen KI-Schritt) übernimmt nicht in den falschen
     if (not isinstance(lauf, dict) or lauf.get("ablauf") != treffer[0].id
             or lauf.get("status") != treiber.WARTET_KI
-            or lauf.get("schritt") != treffer[1].id):
+            or lauf.get("schritt") != treffer[1].id
+            or not basis.gehoert_hierher(v, req.session_id)):     # E-F (Review Paket F)
         return None
     if not await arbeitsstand.uebernehmen(session, req.session_id, entities, geprueft,
                                           nur_dieser=True):

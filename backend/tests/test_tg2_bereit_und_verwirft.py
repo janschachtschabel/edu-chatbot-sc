@@ -184,8 +184,10 @@ def test_nachpruefung_5_repositorium_teile_sind_nicht_verwerfbar():
 
 
 # ── Seeds: Prüfung, Platzhalter, Leiste (MINOR 6) ────────────────────────────────────────────────
+# Plan 2026-11-20, G1: „aus einem Dokument“ und „aus Ordnern“ sind nicht mehr im Werk — dieselben
+# Regeln am generischen Seed, der ihre Wege (Dokument, Ordner, Dateien) und Einstiege übernimmt.
 
-@pytest.mark.parametrize("name", ["themenbaum_aus_dokument", "sammlungsstruktur"])
+@pytest.mark.parametrize("name", ["themenbaum"])
 def test_die_seeds_pruefen_zuerst_was_bereitliegt(name):
     ablauf = _seed(name)
     assert pruefe(ablauf) == []          # auch der Platzhalter {teil.bereit.…} ist zulässig
@@ -198,8 +200,8 @@ def test_die_seeds_pruefen_zuerst_was_bereitliegt(name):
 # ``bereitgestellt`` und Verzweigungen zählen nicht, der Einstieg ist Schritt 1.
 
 @pytest.mark.parametrize(("name", "fall"), [
-    ("themenbaum_aus_dokument", "Vom Start mit Fragen bis zum Entwurf"),
-    ("sammlungsstruktur", "Vom Ordner zum Entwurf"),
+    ("themenbaum", "Thema getippt bis zum Entwurf"),
+    ("themenbaum", "Ordner, anonym, so lassen"),
 ])
 def test_ohne_daten_zaehlt_die_leiste_ohne_sprung(monkeypatch, name, fall):
     halte = leiste(monkeypatch, _seed(name), fall)
@@ -208,8 +210,8 @@ def test_ohne_daten_zaehlt_die_leiste_ohne_sprung(monkeypatch, name, fall):
 
 
 @pytest.mark.parametrize(("name", "fall"), [
-    ("themenbaum_aus_dokument", "Schon gelesenes Dokument verwenden, mit Fragen"),
-    ("sammlungsstruktur", "Schon erfasste Ordner verwenden"),
+    ("themenbaum", "Dokument schon gelesen, verwenden"),
+    ("themenbaum", "Dateien schon erfasst, verwenden, anonym"),
 ])
 def test_mit_daten_steht_der_einstieg_an_derselben_stelle(monkeypatch, name, fall):
     halte = leiste(monkeypatch, _seed(name), fall)

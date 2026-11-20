@@ -217,16 +217,23 @@ async def seed_lesen(pfad: Path) -> dict[str, dict[str, Any]]:
     nur neu, wenn sich Name, Größe oder Zeitstempel einer Datei ändern (lokale Entwicklung). Jeder
     Aufrufer bekommt eine eigene Kopie — ein Schreibender träfe sonst den Speicher.
     """
+    bereiche, _uebersprungen = await _seed_gelesen(pfad)
+    return bereiche
+
+
+async def _seed_gelesen(pfad: Path) -> tuple[dict[str, dict[str, Any]], int]:
+    """Wie :func:`seed_lesen`, dazu die Zahl der still übersprungenen Dateien (Review G1, 5)."""
     schluessel = str(pfad)
     signatur = await asyncio.to_thread(_signatur, pfad)
     treffer = _SEED_SPEICHER.get(schluessel)
     if treffer is None or treffer[0] != signatur:
-        treffer = (signatur, await asyncio.to_thread(_lesen, pfad))
+        treffer = (signatur, *await asyncio.to_thread(_lesen, pfad))
         _SEED_SPEICHER[schluessel] = treffer
-    return copy.deepcopy(treffer[1])
+    return copy.deepcopy(treffer[1]), treffer[2]
 
 
-_SEED_SPEICHER: dict[str, tuple[tuple[tuple[str, int, int], ...], dict[str, dict[str, Any]]]] = {}
+_SEED_SPEICHER: dict[
+    str, tuple[tuple[tuple[str, int, int], ...], dict[str, dict[str, Any]], int]] = {}
 
 
 def _signatur(pfad: Path) -> tuple[tuple[str, int, int], ...]:
@@ -238,8 +245,9 @@ def _signatur(pfad: Path) -> tuple[tuple[str, int, int], ...]:
     return tuple(sorted(eintraege))
 
 
-def _lesen(pfad: Path) -> dict[str, dict[str, Any]]:
-    """Im Thread: ``import_tree`` ist async, läuft hier auf einer eigenen Schleife."""
+def _lesen(pfad: Path) -> tuple[dict[str, dict[str, Any]], int]:
+    """Im Thread: ``import_tree`` ist async, läuft hier auf einer eigenen Schleife. Gibt die
+    Bereiche und die Zahl der übersprungenen Dateien zurück."""
     gesammelt: dict[str, dict[str, Any]] = {}
 
     async def einsammeln(area: str, data: dict[str, Any]) -> None:
@@ -250,7 +258,7 @@ def _lesen(pfad: Path) -> dict[str, dict[str, Any]]:
                 stats["areas"], stats["yaml"], stats["md"], pfad)
     # Querschnitts-Review AS-0…AS-2: ein Baum von vor AS-0 (``export-config``) trägt noch den
     # Katalog — geteilt wie eine ZIP-Sicherung, sonst löschte ``exact`` die Abläufe.
-    return katalog_aufteilen(gesammelt)
+    return katalog_aufteilen(gesammelt), stats["uebersprungen"]
 
 
 async def werksabgleich(
@@ -263,8 +271,10 @@ async def werksabgleich(
         [dict[str, tuple[dict[str, Any], str, int | None, dict[str, Any] | None]]],
         Awaitable[dict[str, int]]],
     zuordnen: Callable[[dict[str, str]], Awaitable[Any]],
+    entfernen: Callable[[dict[str, int]], Awaitable[set[str]]],
     kollisionen: Callable[[dict[str, dict[str, Any]], dict[str, dict[str, Any]]], set[str]]
     | None = None,
+    abraeumen: bool = True,
 ) -> dict[str, int]:
     """Die Werksfassung nachziehen, ohne Angepasstes anzufassen (Paket 12).
 
@@ -282,10 +292,22 @@ async def werksabgleich(
     ``uebersprungen``; der nächste Abgleich sieht es neu.
     **Kennungs-Kollisionen** (Review #6, ``kollisionen``: zu schreibende Bereiche gegen den
     Bestand → kollidierende): übersprungen und als ``konflikt`` gemeldet, nicht abgebrochen.
+    **Werksbereiche ohne Seed** (Plan 2026-11-20, G1): ``entfernen`` bekommt Bereich → gelesene
+    Version der nachweislich unberührten (``plane_werksabgleich``) und gibt die entfernten
+    zurück; Angepasste bleiben und zählen als ``verwaist``. Nur, wenn ``pfad`` das Werk ist
+    (``abraeumen``; ein fremder Baum bei ``import-config --from``, Review G1, 6) und der Seed
+    vollständig gelesen wurde: eine übersprungene Datei oder ein von ``pruefen`` verworfener
+    Bereich sähe sonst aus wie „nicht mehr im Werk“ (Review G1, 5).
     """
-    seed = await asyncio.to_thread(pruefen, await seed_lesen(pfad))
+    roh, uebersprungen = await _seed_gelesen(pfad)
+    seed = await asyncio.to_thread(pruefen, roh)
+    luecken = uebersprungen + len(roh.keys() - seed.keys())
+    if abraeumen and luecken:
+        logger.warning("Werksabgleich: Seed nicht vollständig gelesen (%d übersprungen) — "
+                       "nichts wird als „nicht mehr im Werk“ entfernt", luecken)
     zeilen = {z["area"]: z for z in await lesen()}
-    plan = werkfassung.plane_werksabgleich(seed, zeilen, entfernt=await entfernte())
+    plan = werkfassung.plane_werksabgleich(seed, zeilen, entfernt=await entfernte(),
+                                           abraeumen=abraeumen and not luecken)
     konflikt = (kollisionen(plan.schreiben, {a: z["data"] for a, z in zeilen.items()})
                 if kollisionen and plan.schreiben else set())
     for area in konflikt:
@@ -296,13 +318,21 @@ async def werksabgleich(
     geschrieben = await schreiben(eintraege) if eintraege else {}
     if plan.zuordnen:
         await zuordnen(plan.zuordnen)
+    entfernt = await entfernen(plan.entfernen) if plan.entfernen else set()
     # Gezählt wird, was geschrieben wurde, nicht was geplant war (Review 2 #3).
     neu = sum(1 for a in geschrieben if plan.versionen[a] is None)
     bericht = {**plan.bericht(), "neu": neu, "aktualisiert": len(geschrieben) - neu,
-               "uebersprungen": len(eintraege) - len(geschrieben), "konflikt": len(konflikt)}
+               "uebersprungen": len(eintraege) - len(geschrieben)
+               + len(plan.entfernen) - len(entfernt),
+               "konflikt": len(konflikt), "entfernt": len(entfernt)}
     if konflikt:
         logger.warning("Werksabgleich: Kennung schon vergeben, nicht angelegt: %s",
                        sorted(konflikt))
+    if entfernt:
+        logger.info("Werksabgleich: nicht mehr im Werk, entfernt: %s", sorted(entfernt))
+    if plan.verwaist:
+        logger.warning("Werksabgleich: angepasst, aber nicht mehr im Werk — bleibt: %s",
+                       plan.verwaist)
     logger.info("Werksabgleich: %s", bericht)
     return bericht
 

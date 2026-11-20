@@ -152,7 +152,8 @@ def test_fremde_besitzerin_sieht_keinen_stand(umgebung):  # noqa: F811 — Fixtu
 def test_antwort_fuer_behaelt_stand_und_festen_text():
     stand = {"id": "probe", "titel": "Probe", "nr": 1, "von": 2, "status": "laeuft", "lauf": "a1",
              "persoenlich": False,
-             "teile": [], "weg": None}   # AS-7: ``weg`` nur bei ``wartet_seite``
+             "teile": [], "weg": None,   # AS-7: ``weg`` nur bei ``wartet_seite``
+             "fuehrung": False}          # G2d: nur bei einem Ablauf mit ``seite``-Schritt
     resp = ChatResponse(session_id="bb-1", content="x",
                         ui=UiInfo(ablauf=stand, fester_text=True))
     aus = publikum.antwort_fuer(resp, intern=False)
@@ -531,12 +532,13 @@ def test_der_verlauf_traegt_den_stand_an_allen_antworten_nach_der_frage():
 
 def test_wf1_review_rueckwege_auch_hinter_bei_fehler():
     """Review WF-1, Befund 2: ein Schritt, den nur ``bei_fehler`` erreicht, bekam keine Rückwege
-    ausgeschlossen — in „Themenbaum aus Inhalten“ stand ``ohne_metadaten`` auf 10 von 12."""
+    ausgeschlossen — in „Themenbaum aus Inhalten“ stand ``ohne_metadaten`` auf 10 von 12. Seit
+    Plan 2026-11-20 (G1) am generischen Seed, der denselben Schritt hat."""
     import pathlib
 
     import yaml
 
-    roh = yaml.safe_load(pathlib.Path("seeds/06-ablaeufe/themenbaum_aus_inhalten.yaml")
+    roh = yaml.safe_load(pathlib.Path("seeds/06-ablaeufe/themenbaum.yaml")
                          .read_text(encoding="utf-8"))
     nr, von = fortschritt.position(AblaufArea.model_validate(roh), "ohne_metadaten")
     assert nr == von

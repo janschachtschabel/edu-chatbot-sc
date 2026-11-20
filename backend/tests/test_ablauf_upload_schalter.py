@@ -13,7 +13,8 @@ import asyncio
 from boerdi.services.ablauf.treiber_bloecke import modul_block
 from boerdi.ui_module.namen import UPLOAD
 
-#: Die Daten des Schritts ``hochladen`` aus ``seeds/06-ablaeufe/themenbaum_aus_dokument.yaml``.
+#: Die Daten des Schritts ``hochladen`` aus ``themenbaum_aus_dokument`` (seit Plan 2026-11-20, G1
+#: nicht mehr im Werk; Testbeispiel ``tests/ablauf_beispiele``).
 _SCHRITT = {"zweck": "sammlungsstruktur", "einzeldatei_als_struktur": True}
 
 

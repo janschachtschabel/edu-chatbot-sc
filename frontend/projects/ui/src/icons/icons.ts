@@ -37,16 +37,11 @@ export const ICONS = {
   explore: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="m260-260 300-140 140-300-300 140-140 300Zm220-180q-17 0-28.5-11.5T440-480q0-17 11.5-28.5T480-520q17 0 28.5 11.5T520-480q0 17-11.5 28.5T480-440Zm0 360q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>`,
   /** Neu starten / Refresh */
   refresh: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>`,
-  // Anmelden/Abmelden — wie die beiden Größen-Symbole unten NICHT aus dem
-  // Material-Set kopiert, sondern auf demselben Raster von Hand konstruiert:
-  // eine Tür (Rahmen, an einer Seite offen) und ein Pfeil, der hindurchgeht.
-  // Beide teilen exakt dieselben Maße, damit sie als ZWEI ZUSTÄNDE EINES Knopfs
-  // nicht springen: Rahmen y -800…-160, Balken- und Schaftstärke 80, Pfeilmitte
-  // y -480, Spitze 180 lang mit ±120 Widerhaken. `login` spiegelt `logout` —
-  // Rahmen rechts statt links, Pfeil hinein statt hinaus. Beide Pfeile zeigen
-  // nach rechts; die Richtung der Handlung sagt die Lage des Rahmens.
-  /** Anmelden (Pfeil in die Tür hinein) */
-  login: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M840-800L480-800L480-720L760-720L760-240L480-240L480-160L840-160Z"/><path d="M120-520L380-520L380-600L560-480L380-360L380-440L120-440Z"/></svg>`,
+  // Abmelden — wie die beiden Größen-Symbole unten NICHT aus dem Material-Set kopiert, sondern auf
+  // demselben Raster von Hand konstruiert: eine Tür (Rahmen links, rechts offen) und ein Pfeil, der
+  // hinausgeht. Rahmen y -800…-160, Balken- und Schaftstärke 80, Pfeilmitte y -480, Spitze 180 lang
+  // mit ±120 Widerhaken. Seit Paket D1 (Plan 2026-11-20) nur noch am Eintrag „Abmelden“ im
+  // Konto-Menü; das Gegenstück „Anmelden“ entfiel mit dem eigenen Anmelde-Knopf.
   /** Abmelden (Pfeil aus der Tür hinaus) */
   logout: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M120-800L480-800L480-720L200-720L200-240L480-240L480-160L120-160Z"/><path d="M380-520L660-520L660-600L840-480L660-360L660-440L380-440Z"/></svg>`,
   // Plan 2026-11-19 (E8): angemeldet, aber ohne bekannten Namen. Auf demselben Raster von Hand
@@ -59,6 +54,15 @@ export const ICONS = {
   person_outline: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path fill-rule="evenodd" d="M480-800A160 160 0 1 1 480-480A160 160 0 1 1 480-800ZM480-720A80 80 0 1 0 480-560A80 80 0 1 0 480-720ZM160-160L160-240Q160-400 480-400Q800-400 800-240L800-160ZM240-240Q240-320 480-320Q720-320 720-240Z"/></svg>`,
   /** Person (Kürzel ohne Namen) */
   person: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M480-800A160 160 0 1 1 480-480A160 160 0 1 1 480-800Z"/><path d="M160-160L160-240Q160-400 480-400Q800-400 800-240L800-160Z"/></svg>`,
+  // Paket D2 (Plan 2026-11-20, E-D2): „Meine Vorgänge“ — bis dahin der Kreispfeil `restore`, der
+  // dem Neustart (`refresh`) zum Verwechseln glich. Von Hand auf demselben Raster: drei Zeilen einer
+  // Liste (Balken x 440…840, 80 hoch, Mitten y -720/-480/-240), die oberen zwei abgehakt, die
+  // untere offen (Ring um 230/-240, außen 80, innen 40). Die Haken: Mittellinie 140/-734 →
+  // 200/-674 → 320/-794 unter 45°, Strichstärke 80 — Kanten um 40·√2 ≈ 28 versetzt, Innen- und
+  // Außenecke um 80/√2·2 ≈ 57 über bzw. unter dem Knick; die zweite Zeile 240 tiefer. `evenodd`
+  // stanzt den Ring aus.
+  /** Meine Vorgänge (Liste mit Häkchen und einem offenen Schritt) */
+  vorgaenge: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path fill-rule="evenodd" d="M112-706L168-762L200-731L292-822L348-766L200-617ZM112-466L168-522L200-491L292-582L348-526L200-377ZM230-320A80 80 0 1 1 230-160A80 80 0 1 1 230-320ZM230-280A40 40 0 1 0 230-200A40 40 0 1 0 230-280ZM440-760L840-760L840-680L440-680ZM440-520L840-520L840-440L440-440ZM440-280L840-280L840-200L440-200Z"/></svg>`,
   // U2a — die beiden Größen-Symbole sind, anders als alle übrigen hier, NICHT
   // aus dem Material-Set kopiert, sondern auf demselben Raster (0 -960 960 960)
   // von Hand konstruiert: vier Eckwinkel, Strichstärke 80, Rand 120. Nach außen
@@ -89,8 +93,6 @@ export const ICONS = {
   check: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>`,
   /** Editieren (Stift) */
   edit: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></svg>`,
-  /** Wiederherstellen (Pfeil-im-Kreis) */
-  restore: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M440-122q-121-15-200.5-105.5T160-440q0-66 26-126.5T260-672l57 57q-38 34-57.5 79T240-440q0 88 56 155.5T440-202v80Zm80 0v-80q87-16 143.5-83T720-440q0-100-70-170t-170-70h-3l46 46-56 56-144-144 144-144 56 56-46 46h3q134 0 227 93t93 227q0 121-79.5 211.5T520-122Z"/></svg>`,
   /** Drucken */
   print: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M640-640v-120H320v120h-80v-200h480v200h-80Zm-480 80h640-640Zm560 100q17 0 28.5-11.5T760-500q0-17-11.5-28.5T720-540q-17 0-28.5 11.5T680-500q0 17 11.5 28.5T720-460Zm-80 260v-160H320v160h320Zm80 80H240v-160H80v-240q0-51 35-85.5t85-34.5h560q51 0 85.5 34.5T880-520v240H720v160Zm80-240v-160q0-17-11.5-28.5T760-560H200q-17 0-28.5 11.5T160-520v160h80v-80h480v80h80Z"/></svg>`,
   /** Download */

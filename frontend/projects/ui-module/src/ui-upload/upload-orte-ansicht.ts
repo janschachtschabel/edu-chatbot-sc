@@ -51,11 +51,22 @@ function grenzSatz(t: UploadTexte, g: LokaleGrenzen, grenze: OrtStand['grenze'])
   return t.zuVieleHier(g.maxDateien);
 }
 
+/** Plan 2026-11-20 §8, E3: folgt der Ablage keine Erschließung (Dokument-Weg, kein Flow-Träger)? */
+function ohneErschliessung(orte: Orte): boolean {
+  return orte.nurAblegen === true || orte.wlo.hinweis === 'ohne_erschliessung';
+}
+
+/** Der Name eines Orts — „erschließen“ nur, wenn danach ein Flow die Angaben erzeugt (E3). */
+export function ortName(t: UploadTexte, orte: Orte, ort: 'chat' | 'wlo'): string {
+  return ort === 'wlo' && ohneErschliessung(orte) ? t.ortWloAblegen : t.ort[ort];
+}
+
 /** Die Erklärzeile eines Orts: was er tut — oder, gesperrt, warum nicht. */
-export function erklaerung(a: Pick<OrteAnsicht, 't' | 'grenzen' | 'ohneAnmeldung'>, ort: 'chat' | 'wlo', s: OrtStand): string {
+export function erklaerung(a: Pick<OrteAnsicht, 't' | 'grenzen' | 'ohneAnmeldung' | 'orte'>, ort: 'chat' | 'wlo', s: OrtStand): string {
   const { t, grenzen: g } = a;
   if (s.geht) {
     if (ort === 'chat') return t.erklaerChat(Math.min(g.maxDateien, g.freiDateien ?? Infinity), g.aufbewahrungH, a.ohneAnmeldung);
+    if (a.orte.nurAblegen) return t.erklaerWloDokument;
     return s.hinweis === 'ohne_erschliessung' ? t.erklaerWloOhne : t.erklaerWlo;
   }
   let grund: string;
@@ -80,7 +91,10 @@ export function datenschutzSatz(t: UploadTexte, orte: Orte, wahl: 'chat' | 'wlo'
     // Paket C: die Seitenbilder verlassen den Server — das sagt das Feld vor dem Hochladen
     return orte.chat.texterkennung ? `${t.datenschutzChat(g.aufbewahrungH)} ${t.datenschutzOcr}` : t.datenschutzChat(g.aufbewahrungH);
   }
-  if (wahl === 'wlo') return orte.wlo.hinweis === 'ohne_erschliessung' ? t.datenschutzWloOhne : t.datenschutzWlo;
+  if (wahl === 'wlo') {
+    if (orte.nurAblegen) return t.datenschutzWloDokument;
+    return ohneErschliessung(orte) ? t.datenschutzWloOhne : t.datenschutzWlo;
+  }
   return t.datenschutz;
 }
 
@@ -99,7 +113,7 @@ function chip(a: OrteAnsicht, ort: 'chat' | 'wlo'): HTMLElement {
   radio.dataset['fokus'] = `r:${ort}`;
   const id = `u-ort-${ort}`;
   radio.setAttribute('aria-describedby', id);
-  label.append(radio, a.knoten('span', undefined, a.t.ort[ort]));
+  label.append(radio, a.knoten('span', undefined, ortName(a.t, a.orte, ort)));
   const zeile = a.knoten('p', 'u__erklaer', erklaerung(a, ort, s));
   zeile.id = id;
   huelle.append(label, zeile);
