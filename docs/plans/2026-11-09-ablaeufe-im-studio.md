@@ -838,7 +838,9 @@ in einem zweiten Tab offen, zeigt dessen Ablauf-Leiste bis zum nächsten Zug noc
 Verweis fällt weg, und eine angemeldete Person übernimmt dann ihren jüngsten offenen Vorgang (Review
 V1, Befund 1) — die Leiste zeigt danach dessen Lauf, auch wenn er in einem anderen Gespräch begann
 (Querschnitts-Review Q-9; bewusst, eine neue Sitzung soll ihren Vorgang wiederfinden). Ein Push an
-fremde Tabs gibt es nicht; der Fall ist selten.
+fremde Tabs gibt es nicht; der Fall ist selten. *(Überholt durch Entscheid E-F, Plan 2026-11-20 §6:
+der nächste Zug übernimmt keinen Vorgang mehr — das Gespräch bleibt danach ohne Vorgang, „Fortsetzen“
+bietet den wartenden an.)*
 
 **Aufgaben:** Backend zuerst (Tests, dann Endpunkte, Vertragsliste und OpenAPI), danach Widget (Controller rein, Komponente, i18n de/en, Specs), dann ein Review mit Befundbehebung. Danach ein übergreifendes Review über AS-U und BU sowie die Browser-Abnahme gegen eine Wegwerf-DB.
 
@@ -857,7 +859,7 @@ Review (Projektregel bei mehreren schweren Befunden). Stand je Befund: **offen**
 | Q-6 | Ohne Schlüssel der Person endet der Auftrag bei der b-api nicht, die Rückfrage verspricht es aber. | `/loeschen` meldet `auftrag_laeuft_weiter`; das Widget sagt es in einem eigenen Satz. | erledigt |
 | Q-7 | Der Vorgangsstatus ist gröber als der Laufstatus („Offen“ für beendete, „wartet auf dich“ statt Freigabe/KI). | `/liste` liefert zusätzlich `lauf_status`; das Widget nutzt die Wörter der Leiste. Beendet heißt „Ablauf beendet“. | erledigt |
 | Q-8 | Der Titel ist immer deutsch, die Leiste zeigt ihn in der Sprache des Zugs. | `/liste` und `/offen` nehmen `sprache`; ist der Titel der des Ablaufs, kommt er in dieser Sprache. | erledigt |
-| Q-9 | Der Plantext zu Kleinigkeit 11 stimmt nicht: der nächste Zug übernimmt den jüngsten offenen Vorgang. | Text berichtigen. `juengster` bleibt (Review V1, Befund 1: eine neue Sitzung findet ihren Vorgang wieder). | erledigt |
+| Q-9 | Der Plantext zu Kleinigkeit 11 stimmt nicht: der nächste Zug übernimmt den jüngsten offenen Vorgang. | Text berichtigen. `juengster` bleibt (Review V1, Befund 1: eine neue Sitzung findet ihren Vorgang wieder). *(Überholt: E-F, Plan 2026-11-20 §6.)* | erledigt |
 | Q-10 | Hülle des Debug-Panels und Platzhalter der Module doppeln die Lade-Logik; die Hülle hängt das Element vor den Eigenschaften ein. | Reihenfolge wie im Vertrag (erst setzen, dann einhängen). Kein gemeinsamer Helfer: zwei Nutzer mit verschiedenem Rückfall (Textfassung vs. Satz), je rund 15 Zeilen; §2.5 nennt beide Verträge. | erledigt |
 | Q-11 | Im Dev-Server lädt das Debug-Panel nie. | Mit Review BU-3, Befund 2 erledigt (Satz ohne falschen Grund, §2.5). | erledigt |
 | Q-12 | Begriffe: „Vorgang“, „Vorhaben“, „Arbeitsstand“; „Später fortsetzen“ klappt nur zu, „Fortsetzen“ wechselt das Gespräch. | Der Leisten-Knopf heißt „Einklappen“ / „Collapse“. Die Bot-Texte bleiben: „Arbeitsstand löschen“ umfasst auch das Dokument, „Neues Vorhaben“ beginnt etwas Neues; Glossar in `docs/ui-module.md`. | erledigt |

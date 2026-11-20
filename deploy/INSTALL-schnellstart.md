@@ -141,7 +141,8 @@ cd /opt/boerdi/deploy && docker compose -f compose.prod.yml --env-file .env run 
 Der `migrate`-Dienst führt `alembic upgrade head` **und**
 `boerdi import-config --werksabgleich` aus. Das `--werksabgleich` ist der Grund,
 warum er automatisch laufen darf: er legt an, was fehlt, hebt Unberührtes auf die
-neue Werksfassung und lässt im Studio Angepasstes stehen. Ein Lauf ohne Option
+neue Werksfassung, entfernt unberührte Werksbereiche, die der Seed nicht mehr trägt,
+und lässt im Studio Angepasstes stehen. Ein Lauf ohne Option
 überschreibt jede redaktionelle Änderung aus dem Studio.
 
 ## 8. Stack starten

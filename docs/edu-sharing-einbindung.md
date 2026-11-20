@@ -285,8 +285,9 @@ es verschlüsselt; lesen kann ihn nur der MCP-Server.
 5. **Der Block bleibt im Arbeitsspeicher**, nicht im `sessionStorage`. Nach dem Neuladen
    tauscht das Widget neu. Ab hier wie bei jedem Block: Kopfzeile `WLO-Access-Block` je
    Anfrage, das Backend gibt ihn nur an den MCP-Server.
-6. **Der Knopf zeigt, wer handelt:** „Abmelden — angemeldet als …“, wenn das Profil einen
-   Vor- oder Nachnamen hat; sonst nur „Abmelden“. Im Chat steht dazu kein Satz.
+6. **Der Konto-Knopf zeigt, wer handelt:** die Initialen, sein Name „Konto – angemeldet als …“,
+   wenn das Profil einen Vor- oder Nachnamen hat; sonst die Person als Symbol und „Konto –
+   angemeldet“. Abgemeldet wird über sein Menü („Abmelden“). Im Chat steht dazu kein Satz.
 7. **Vor jedem Abruf mit Block fragt es noch einmal, wer da ist** (wie in Schritt 2, höchstens
    3 s). Das gilt für Züge wie für Verlauf, „Meine Vorgänge“, Ablage und Dokumente.
    - Dieselbe Person: nichts.
@@ -881,7 +882,7 @@ Volle Herleitung: [`plans/2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2
    Repositorys heißt: Die Regel fehlt. Eine 404 mit JSON „nicht eingerichtet“ kommt von unserem
    Backend: `MCP_SESSION_URL` fehlt, oder sie nennt einen anderen Host.
    → `GET /api/config/guide-mode` nennt `mcp_session_url`; angemeldet im Repository
-   steht der Knopf auf „Abmelden — angemeldet als …“, ohne dass jemand geklickt hat.
+   zeigt der Konto-Knopf die Initialen („Konto – angemeldet als …“), ohne dass jemand geklickt hat.
 6. **Engine wählen** (§5) und, wenn ihr strukturierte Ergebnisse braucht, §8
    verdrahten.
 

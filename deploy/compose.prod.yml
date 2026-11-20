@@ -114,8 +114,9 @@ services:
     # `alembic upgrade head` aus.
     #
     # Der Seed hängt dran, damit eine frische Installation ohne Handgriff
-    # lauffähig ist. `--werksabgleich` (Paket 12) legt an, was fehlt, und hebt
-    # unberührte Bereiche auf eine neue Werksfassung; im Studio Angepasstes und
+    # lauffähig ist. `--werksabgleich` (Paket 12) legt an, was fehlt, hebt
+    # unberührte Bereiche auf eine neue Werksfassung und entfernt unberührte
+    # Werksbereiche, die der Seed nicht mehr trägt (G1); im Studio Angepasstes und
     # Gelöschtes bleibt, wie es ist — sonst drehte jeder Neustart die
     # redaktionelle Arbeit auf den Auslieferungsstand zurück. Der Seed-Baum
     # liegt im Image unter /app/seeds, kommt also aus demselben Commit wie der

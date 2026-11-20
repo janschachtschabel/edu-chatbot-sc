@@ -46,7 +46,7 @@ Review mit Befundbehebung, Änderungsnotiz unter `docs/aenderungen/`.
 - R1-a Limit je Job (R-E13).
 - R1-b Sprache der Person als Flow-Eingabe (R-E14).
 - R1-c `X-Edu-User-Id` bei Abfrage, Abbruch und Datei (R-E12).
-- R1-d `ui_auftrag._wartender_auftrag`: fehlt der Verweis oder ist sein Vorgang weg, gilt der jüngste offene Vorgang (wie der Preflight des nächsten Zuges). Er liest nur.
+- R1-d `ui_auftrag._wartender_auftrag`: fehlt der Verweis oder ist sein Vorgang weg, gilt der jüngste offene Vorgang (wie der Preflight des nächsten Zuges). Er liest nur. *(Zurückgenommen mit E-F, Plan 2026-11-20 §6: der Preflight übernimmt keinen Vorgang mehr, also auch `/stand` nicht.)*
 - R1-e `ui_fortschritt`: 403 `abgewiesen` eigener Text, nicht „nicht angemeldet“.
 
 ### R2 Abläufe

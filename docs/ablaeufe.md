@@ -46,22 +46,22 @@ Bei `agent` legt `modus` fest, wie der Ablauf startet:
 - Die KI bietet nur **eingeschaltete** Abläufe an. Einen ausgeschalteten Ablauf mit `direkt` kann man
   in der Studio-Vorschau also nicht über die KI ausprobieren, nur über „Ablauf ausprobieren“.
 
-## Beispiel: Sammlung aus Ordnern
+## Grundmuster: Modul erfasst → Dienst rechnet → Modul zeigt
 
-`06-ablaeufe/sammlungsstruktur` („Themenbaum · aus Ordnern“) ist der kürzeste vollständige Ablauf.
-Davor stehen seit dem zweiten Review TG-2 `bereit`, `vorhanden` und eine von zwei Fassungen des
-Einstiegs (siehe „Bereitgestelltes übernehmen“ unten).
+Das Grundmuster aller Abläufe, mit einem eigenen Ausweg für den Fehlerweg (so beginnen
+`sammlung_pruefen` unten und der Ordner-Weg von „Themenbaum erstellen“):
 
-1. `erfassen` (`modul ui_upload`, Zweck `sammlungsstruktur`): Die Person wählt einen Ordner. Die
-   Ordnerstruktur wird der Teil `structure`.
-2. `entwurf` (`werkzeug strukturentwurf_aus_ordnern`): Ein Dienst ohne Sprachmodell macht daraus
-   einen Themenbaum-Entwurf, Teil `draft`. Ohne Unterordner geht es zu `ohne_ordner`.
-3. `bearbeiten` (`modul ui_strukturentwurf` mit `daten: {$teil: draft}`): Die Person sieht und
+1. Ein `modul`-Schritt `ui_upload` (Zweck `sammlungsstruktur` oder `bereitstellen`): Die Person
+   wählt einen Ordner. Die Ordnerstruktur wird der Teil `structure`.
+2. Ein `werkzeug`-Schritt `strukturentwurf_aus_ordnern`: Ein Dienst ohne Sprachmodell macht daraus
+   einen Themenbaum-Entwurf, Teil `draft`. Ohne Unterordner geht es über `bei_fehler` zu einer
+   Nachricht mit Ausweg („Nochmal wählen“ / „Frei weiter“).
+3. Ein `modul`-Schritt `ui_strukturentwurf` mit `daten: {$teil: draft}`: Die Person sieht und
    bearbeitet den Entwurf.
 4. `ende`.
 
-Er zeigt das Grundmuster: Modul erfasst → Dienst rechnet → Modul zeigt, mit einem eigenen Ende für
-den Fehlerweg.
+Bis Plan 2026-11-20 (G1) lag dieses Muster als eigener Werks-Ablauf `06-ablaeufe/sammlungsstruktur`
+(„Themenbaum · aus Ordnern“) vor; heute deckt es „Themenbaum erstellen“ ab.
 
 ## Beispiel: Sammlung prüfen
 
@@ -145,12 +145,14 @@ antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
 ## Beispiel: Themenbaum erstellen (Plan 2026-11-16, TG-6)
 
 `06-ablaeufe/themenbaum` („Themenbaum erstellen“) ist **der** Themenbaum-Ablauf ab Werk. Er löst
-die vier Abläufe „Themenbaum · aus …“ ab; sie liegen weiter als Werksfassung vor, ab Werk aus
-(Beschreibung unten). Er hat keine Voraussetzung: Thema, Dokument, Ordner und Dateien („Hier im
+die vier Abläufe „Themenbaum · aus …“ ab; seit Plan 2026-11-20 (G1) sind sie nicht mehr im Werk
+(Beschreibung unten, für Anlagen mit einer angepassten Fassung). Er hat keine Voraussetzung: Thema, Dokument, Ordner und Dateien („Hier im
 Chat“ oder „Nur Namen senden“) gehen anonym, der WLO-Weg nur angemeldet. Seit Plan 2026-11-17
 (Paket U, E12) fragt er nicht mehr nach dem Weg: **Wo** verarbeitet wird, wählt die Person im
-Upload-Feld („Hier im Chat“, „In WLO ablegen und erschließen“, „Nur Namen senden“). Die Fragen
-`wlo_frage`, `schnell` und `schnell_da` sind entfallen; 38 Schritte (höchstens 40).
+Upload-Feld („Hier im Chat“, „In WLO ablegen und erschließen“, „Nur Namen senden“; auf dem
+Dokument-Weg nur „In WLO ablegen“, dort läuft kein Flow — Plan 2026-11-20 §8, E3). Die Fragen
+`wlo_frage`, `schnell` und `schnell_da` sind entfallen; 40 Schritte (die Obergrenze; Paket E brachte
+`ohne_dokumenttext` und `dokument_chat`).
 
 Seit dem Review TG-4–6 gilt: erst die Grundlage und ihre Daten, dann die Fragen, die dort wirken,
 dann der Entwurf.
@@ -216,11 +218,26 @@ bekommen den übrigen Platz). Ein Argument, das die KI selbst setzt, geht vor; `
 `anzahl_oben` nur zusammen, `""` löscht `bildungsstufe` bzw. `hinweise`. Die KI sieht in
 `[VORBELEGT — …]`, was der Ablauf setzt.
 
-Die Schritte `entwurf_dokument` und `entwurf_inhalte` (und `entwurf` in
-`themenbaum_aus_inhalten`) tragen dazu `agent.feste_argumente` (Plan 2026-11-19, A2):
+Die Schritte `entwurf_dokument` und `entwurf_inhalte` tragen dazu `agent.feste_argumente` (Plan 2026-11-19, A2):
 `aus_dokument: true` bzw. `aus_inhalten: true` — dort entsteht nie ein freier Entwurf, auch wenn
 die KI das Argument vergisst. Mit `vorlage: true` (Vertiefen) gelten sie nicht. `zuege: 5`, damit
 ein „nochmal“ nach einem vorübergehenden Fehler (`voruebergehend`) das Budget nicht aufzehrt.
+
+**Kein Text aus WLO (Plan 2026-11-20 §8, Paket E):** Liefert WLO für ein dort abgelegtes
+Strukturdokument keinen Text (`not_extracted`: Scan, Markdown, gescheiterte Umwandlung im
+Repositorium), ist das endgültig — das Repositorium erzeugt den Text synchron beim ersten Lesen und
+wiederholt eine gescheiterte Extraktion nie. Der Dienst meldet `volltext_endgueltig`; die KI nennt
+die Auswege und verweist auf „Weiter im Ablauf“. Ohne Entwurf führt `entwurf_dokument` dann zu
+`ohne_dokumenttext` mit festen Knöpfen: „Dokument hier im Chat lesen lassen“ (eigenes Upload-Feld
+`dokument_chat` nur mit dem Ort „Hier im Chat“ — im alten Feld wäre angemeldet „In WLO ablegen“
+vorgewählt; dort hilft oft die Texterkennung), „Ohne Dokument weiter“ (zur Grundlage, etwa ein
+Thema), „Frei weiter“ und zuletzt „Nochmal, falls es eben ausgelastet war“ (für andere Fehler).
+Vorübergehende Gründe (`text_unreadable`, `abruf_fehler` — auch Frist, Transport oder Auslastung
+des MCP-Aufrufs) wiederholt der Leser im selben Zug selbst nach 5 s und 10 s, solange die Frist der
+Lesung (50 s; der MCP wartet beim ersten Lesen bis 25 s) reicht; erst danach sagt die KI „gleich
+nochmal“. Ein Lesen, das lange dauert, kürzt die Zeit des Entwurfs (Frist des Dienstes 90 s, vor
+dem Lesen gerechnet). Strukturdokumente aus `ablage` liest der Leser nur, wenn der Teil
+`strukturdokument` fehlt (Vorgang vor TG-3d).
 
 **Kestra im Ablauf (Paket K):** Der Schritt `metadaten` (`repo_schreibt: true`, `warten: gesperrt`)
 nimmt alle abgelegten Einträge der Ablage, Inhalte **und** Strukturdokumente (E14): So liefern auch
@@ -269,7 +286,11 @@ mehr als Bereitstellung schreibt (etwa `draft`). Alle Seeds sind frei davon.
 
 Die vier Themenbaum-Abläufe heißen im Studio einheitlich „Themenbaum · aus …“: aus Ordnern, aus
 einem Thema, aus eigenen Inhalten und aus einem Dokument. Seit Plan 2026-11-16 (TG-6) sind sie ab
-Werk aus und durch „Themenbaum erstellen“ abgelöst; die Beschreibung bleibt für eigene Fassungen.
+Werk aus und durch „Themenbaum erstellen“ abgelöst; seit Plan 2026-11-20 (G1) fehlen sie in den
+Werks-Seeds (`sammlungsstruktur`, `themenbaum_aus_thema`, `themenbaum_aus_dokument`,
+`themenbaum_aus_inhalten`). Der Werksabgleich entfernt sie aus einer Anlage, wenn sie dort
+unberührt sind; eine angepasste Fassung bleibt als eigener Ablauf stehen. Für sie bleibt die
+Beschreibung.
 Vorher waren „aus Ordnern“, „aus einem Thema“ und „aus einem Dokument“ an (sie schreiben nichts),
 „aus eigenen Inhalten“ war aus, bis der Flow freigeschaltet war. Ohne Anmeldung startet „aus eigenen Inhalten“ nicht: passt die
 Wendung, sagt die KI das in einem Satz und hilft ohne ihn weiter.
@@ -419,6 +440,9 @@ Bausteine gibt es dafür.
 | `url` | Wohin der Chip führt: ein Pfad mit `/` (etwa `/mitmachen/`) oder eine `https://`-Adresse. |
 | `label` | Aufschrift des Chips je Sprache, etwa „Zur Mitmach-Seite“ (Pflicht, Deutsch). |
 | `ankunft` | Pfadmuster. Gesetzt: Der Ablauf wartet, bis die Person auf einer passenden Seite ist. Leer: Der Chip steht da, und es geht sofort weiter. |
+| `abweichung` | Hinweis je Sprache, wenn die Person woanders landet, während der Schritt wartet — mit demselben Chip. |
+| `umsehen` | Seiten (Muster) und Text: dort darf sie sich umsehen, statt der `abweichung` erscheint dieser Text. |
+| `text_erneut` | Text je Sprache, wenn der wartende Schritt auf eine Wendung hin („starte die Tour“) noch einmal erscheint. Leer: `text`. So zeigt die Führung beim Einstieg mitten drin erst die Begrüßung, danach die Lösungen — wie die Tour. |
 
 - Der Chip öffnet die Seite im selben Fenster. Das Gespräch geht dort weiter, wenn das Widget auf
   der Zielseite eingebunden ist und die Sitzung behält (`persist-session`, oder die Übergabe zu
@@ -431,7 +455,8 @@ Bausteine gibt es dafür.
 - Steht die Person schon auf der Seite, zeigt der Schritt keinen Chip und geht gleich weiter.
 - Schreibe den Text als Ankündigung („Als Nächstes …“): Er erscheint vor dem Wechsel.
 - Tippt sie zwischendurch etwas, antwortet die KI. Der Ablauf wartet weiter, und der Chip steht
-  wieder unter der Antwort.
+  wieder unter der Antwort — außer mit `endet_bei_text` (siehe unten): dann endet die Führung.
+  Eine Wendung des Ablaufs („starte die Tour“) zeigt den Schritt noch einmal.
 - Die Prüfung meldet, wenn das eigene Ziel (`url`) zu keinem Muster der `ankunft` passt. Der
   Ablauf wartete sonst für immer.
 
@@ -463,12 +488,39 @@ Ein Testfall nennt die Seite beim Start (`seite`) und an einem wartenden Seitens
 auf der die Person ankommt (Eingabe `seite`). „Tests ausführen“ spielt den Ablauf ohne Browser durch
 (siehe auch das Kapitel „Testen“ unten).
 
+### Wie die eingebaute Tour: was eine Führung dafür nutzt
+
+- **`endet_bei_text`** (am Ablauf): getippter Text, den der wartende Schritt nicht nimmt, beendet
+  den Ablauf still, und die KI antwortet — wie die Tour, die bei einem Themenwechsel aufhört. An
+  einer Frage ohne Freitext ist dort auch eine Wendung des eigenen Ablaufs getippter Text: erst der
+  Hinweis `kein_treffer`, beim zweiten Mal das Ende (ohne `endet_bei_text` antwortet der Chat „Du
+  bist schon mitten in …“ mit „Neu starten“).
+- **`text_antworten`** (am Schritt `nachricht` mit Schnellantworten, höchstens 3): Knöpfe hinter
+  den Schnellantworten, die wie getippter Text zählen, etwa „Bin mir nicht sicher“ — erst der
+  Hinweis `kein_treffer` mit denselben Knöpfen, beim zweiten Mal geht der Text an die KI. Der
+  Schritt braucht dafür `kein_treffer` (die Prüfung meldet es sonst). Die Beschriftung darf keine
+  Schnellantwort treffen. Ein alter Knopf beantwortet nie die Frage eines
+  anderen Ablaufs („gilt nicht mehr“).
+- **`tour_chip`** (am Ablauf): den Ablauf startet der Tour-Chip der Begrüßung, wenn die eingebaute
+  Tour aus ist (Tour & Lotse: `website_tour.enabled = false`) — wie sein Knopf; der Ablauf braucht
+  dafür den Auslöser `knopf`, `agent` oder `seite`. Ein zweiter Druck beginnt neu an der aktuellen Seite. Wartet gerade
+  ein anderer Ablauf, fragt der Chat erst („Neu starten“, an einer Frage auch „Hier
+  weitermachen“). Nur ein aktiver Ablauf sollte `tour_chip` tragen (die Prüfung warnt).
+- **Frage nach einem Seitenwechsel**: Hat der Ablauf einen Schritt `seite` und wartet er an einer
+  Frage, meldet das Widget auch dort jeden Seitenaufruf und öffnet sich von selbst; die Frage
+  erscheint samt Knöpfen erneut (nicht im Verlauf gespeichert) — nach dem Neuladen wären die Knöpfe
+  der alten Blase sonst weg.
+
 ### Beispiel
 
-Im Werkszustand liegt `06-ablaeufe/fuehrung` („Kurze Führung durch WLO“), ausgeschaltet. Er prüft
-zuerst mit `wenn_seite`, ob die Person schon auf der Mitmach-Seite ist. Dann führt er über
-Startseite und Bildungsinhalte dorthin, mit drei Testfällen. Die bestehende Webseiten-Tour bleibt
-davon unberührt.
+Im Werkszustand liegt `06-ablaeufe/fuehrung` („Führung durch WLO“), ausgeschaltet. Er ist aus der
+eingebauten Web-Tour erzeugt (`backend/scripts/fuehrung_aus_tour.py`, Texte aus der Tour selbst)
+und verhält sich Zug für Zug wie sie: Einstieg je Seite mit `wenn_seite`, Gruppenwahl mit
+„Bin mir nicht sicher“ als `text_antworten`, Seite der Gruppe, Bildungsinhalte, Lösungen,
+Mitmach-Seite. `tests/test_fuehrung_durchspiel.py` vergleicht beide. Wer ihn einschaltet, schaltet
+die eingebaute Tour ab; dann startet der Tour-Chip der Begrüßung die Führung. Wurde er im Studio
+geändert (auch eingeschaltet, bevor eine neue Werksfassung kam), bleibt die eigene Fassung — zur
+neuen Werksfassung im Studio umschalten.
 
 ## Testen
 
@@ -495,6 +547,27 @@ Ein Testfall (`tests`) nennt:
 Die Antwort an ein Modul muss so aussehen wie im Betrieb; bei `ui_strukturentwurf` also mit
 `titel`, `quelle`, `knoten`, `uebernommen`, `bearbeitet`. Sonst meldet der Test „passt nicht zur
 Frage“.
+
+## Gespräch und Vorgang (Entscheid E-F, 2026-11-20)
+
+Ein Lauf gehört zu einem Vorgang, und eine offene Frage gehört zu dem **Gespräch**, in dem der Lauf
+zu warten begann (`vorgaenge.session_id`).
+
+- **Ein neues Gespräch übernimmt nie still einen Vorgang**, auch nicht angemeldet. „Neues Gespräch“
+  beginnt ohne Lauf und ohne Arbeitsstand; die erste Nachricht ist ein gewöhnlicher Zug.
+- Zurück zu einem offenen Vorgang führen nur **„Fortsetzen“** (Hinweis im Widget aus
+  `/api/ui/vorgaenge/offen`) und **„Meine Vorgänge“**. Beide wechseln in das Gespräch des Vorgangs;
+  dort stehen Lauf und Leiste wie zuvor, und die Antwort zählt.
+- **Ein wartender Lauf gehört seinem Gespräch.** Kein anderes Gespräch bewegt ihn — weder eine
+  Nachricht noch ein Chip, eine Modul-Antwort, „Weiter im Ablauf“, „Stand prüfen“, eine Freigabe
+  oder „Abbrechen“. Zeigt der Verweis eines Gesprächs auf einen Lauf, der woanders wartet (Stand
+  von vor E-F), fällt der Verweis im ersten Zug weg (`arbeitsstand.auffrischen`): keine fremden
+  Chips, keine Sperre, keine Leiste; „Fortsetzen“ bietet den Lauf an. Zusätzlich prüft jede Antwort
+  vor dem Festhalten und jeder Abbruch der Person (`zug_basis.gehoert_hierher`).
+- „Meine Vorgänge“ blendet nur die Vorgänge des aktuellen Gesprächs aus (nach ihrem Gespräch, nicht
+  nach dem Verweis).
+- Ohne Anmeldung gehört ein Vorgang der Sitzung. Meldet sich die Person im **selben** Gespräch an,
+  geht er auf sie über (`arbeitsstand.anonymen_uebernehmen`) — das bleibt so.
 
 ## Im Widget ausprobieren
 
@@ -597,8 +670,7 @@ darf (`namespace/flowId`). Die Änderung wirkt ohne Neustart.
   nichts freigegeben, gelten ihre Flows wie vor dem Paket.
 - **Werksvorgabe (16.11.):** Ist weder im Studio etwas freigegeben noch `B_API_JOBS_FLOWS`
   gesetzt, gilt `edusharing.chatbot/node-metadata-write`. Ab Werk nutzt ihn der Ablauf
-  „Themenbaum erstellen“ (Schritt `metadaten`); „Themenbaum · aus eigenen Inhalten“ nutzt ihn auch,
-  ist ab Werk aber aus.
+  „Themenbaum erstellen“ (Schritt `metadaten`).
   - Sie steht im Code (`auftraege/client.WERKSVORGABE`), nicht im Seed. Ein Seed-Eintrag wirkte
     als Studio-Liste und nähme einer Anlage mit gesetzter Variable alle anderen Flows.
   - Wer die Variable setzt und den Ablauf nutzen will, nimmt den Flow dort auf.

@@ -168,6 +168,10 @@ Eval-Läufe dieses Pods (`services/laeufe_beenden`). Wessen `X-Forwarded-*` er g
 Der `migrate`-Dienst ist **idempotent**: `--werksabgleich` legt an, was fehlt, hebt
 unberührte Bereiche auf eine neue Werksfassung und rührt Gepflegtes nicht an — sonst
 drehte jeder Neustart die redaktionelle Arbeit auf den Auslieferungsstand zurück.
+Trägt der Seed einen Werksbereich nicht mehr (Plan 2026-11-20, G1: die vier alten
+Themenbaum-Abläufe), entfällt er nur, wenn er nachweislich unberührt ist und keine eigene
+Fassung stillliegt; Angepasstes bleibt und wird als `verwaist` gemeldet. Abgeräumt wird nur in
+Ordnern, die der Seed kennt — ein leerer oder falsch gesetzter Seed löscht nichts.
 Je Bereich merkt sich die Datenbank, auf welcher Werksfassung er steht (`werk_hash`),
 und eine stillgelegte eigene Fassung (`eigene_fassung`); Status und Regeln stehen in
 `services/werkfassung.py` (Paket 12).

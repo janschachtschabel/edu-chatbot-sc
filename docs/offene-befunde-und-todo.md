@@ -393,9 +393,29 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   Nummern“), die Fachrichtungen B–D fehlen oben. Vorgaben des Schritts `entwurf_dokument` um „Schuljahr
   bzw. Fachrichtung als Ebene 1, wenn das Dokument danach ordnet“ ergänzen — im Master-Skill bzw.
   Studio prüfen.
+- **E2E-Kippler `e2e/strukturentwurf.spec.ts:42`** (Review Paket D, 20.11.): Z. 81
+  (`toBeFocused` auf der Statuszeile nach „Übernehmen“) kippt unter Last — mit 8 Workern ≥ 3 von 20,
+  seriell 20/20 grün. Der Fokus landet dann im Eingabefeld. Vermutete Ursache: `focusInput()`
+  (`shell/chat-shell.component.ts:1022-1033`) merkt sich `vorher` erst beim Aufruf, nicht beim Start
+  des Zugs, und holt den Fokus nach dem Zug zurück, obwohl das Modul ihn inzwischen auf die
+  Statuszeile gesetzt hat. Eigenes Debug-Paket (`/better-coding-debug`).
 
 ## 4 Beim nächsten Deploy
 
+- **Paket G1 (2026-11-20, Werks-Seeds bereinigt):** keine Migration, keine neue Variable; Image neu
+  bauen (Backend mit neuem Seed, Studio-Text „Werksabgleich“). Der `migrate`-Dienst entfernt die vier
+  alten Abläufe `06-ablaeufe/{sammlungsstruktur,themenbaum_aus_thema,themenbaum_aus_dokument,
+  themenbaum_aus_inhalten}`, wenn sie in der Anlage unberührt sind (ab Werk aus, also ohne Wirkung
+  auf neue Gespräche; ein Lauf, der noch in einem davon wartet, wird beim nächsten Zug abgebrochen
+  wie bei einem gelöschten Ablauf). Hat die Redaktion einen davon angepasst (etwa eingeschaltet), bleibt er als eigener
+  Ablauf und erscheint in der Zeile „… angepasst ohne Werk behalten“ bzw. im Log (`verwaist`) —
+  dann im Studio prüfen und selbst löschen. **Ausnahme:** Trägt so ein Bereich eine stillgelegte
+  eigene Fassung (Studio: „Eine eigene Fassung liegt still“), lässt ihn das Studio nicht löschen,
+  und `--exact` schont ihn. Dann von Hand: erst sichern —
+  `SELECT data, eigene_fassung FROM config_areas WHERE area = '06-ablaeufe/<id>';` (Schnappschüsse
+  enthalten die stillgelegte Fassung nicht) —, dann
+  `DELETE FROM config_areas WHERE area = '06-ablaeufe/<id>';` (der Trigger aus Migration 0003
+  benachrichtigt alle Kopien, kein Neustart). Notiz `aenderungen/2026-11-20-paket-g1-seeds-bereinigt.md`.
 - **Pakete A/B/C (2026-11-20, Plan `2026-11-19-dokument-entwurf-und-sitzung.md`):** keine Migration.
   Image neu bauen (Widget, Module `ui-strukturentwurf`/`ui-upload`, Studio), danach Hard-Reload.
   Werksfassungen ändern sich (`06-ablaeufe/themenbaum*`: `feste_argumente`, `zuege: 5`;
@@ -429,6 +449,13 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   `aenderungen/2026-11-16-webseitenfuehrung-als-ablauf.md`. Nach dem Deploy
   `import-config --werksabgleich`. Offen: der Umstieg (Redaktion schaltet die Führung ein und die
   eingebaute Tour aus) und eine Probe im Browser danach.
+  Offen seit dem zweiten Review G2 (20.11., Entscheid ausstehend, nicht dringend): eine per
+  Tour-Chip gestartete Führung übernimmt freie Arbeit (Vorgang ohne Lauf); ein späterer Start
+  eines anderen Ablaufs schließt diesen Vorgang und trägt nur die bereitgestellten Teile weiter.
+  Frage: soll eine Führung (schreibt nichts) einen eigenen Vorgang bekommen? Vorher schon so über
+  die Wendung; G2 macht daraus einen Klick ab der Begrüßung. Ebenfalls alt: `tour.controller.
+  startTour` wendet `_onResult` nicht an (`auth_*`, `eingabe_gesperrt`, `page_action` am ersten
+  Zug der Führung) — für den ersten Schritt folgenlos.
 - **Anmeldung aus der WLO-Sitzung (2026-11-15):** Das Widget übernimmt auf Seiten des
   Repositorys die angemeldete Sitzung, ohne Ticket und ohne Anmeldung im Widget. Plan
   `plans/2026-11-15-anmeldung-aus-der-sitzung.md` (SA-1 bis SA-15), Notiz
@@ -912,6 +939,11 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - `services/eval/runner.py` 703 Zeilen (ALT-Abbild, über der Schwelle).
 - **„coroutine … was never awaited“ in älteren Start-Tests:** `tests/test_eval_router.py::_patch_guard_and_spawn` schließt nur die äußere Koroutine (`mit_herzschlag`), die innere `_execute_…_run` bleibt offen — im vollen Lauf 2026-11-03: `test_eval_router.py` (4 Tests), `test_eval_pg.py` (1); dazu, anderer Ursache, `test_startup_warmup.py` (2 Tests, je 4). In `test_eval_ui_module.py` behoben (Attrappe `_ohne_start`, Review U1-g #14); gleiche Abhilfe für die älteren Tests: `mit_herzschlag` mit ersetzen und die innere Koroutine schließen.
 - ~~**Paket U1 — vier Postgres-Tests veraltet**~~ erledigt 2026-11-03 ([`aenderungen/2026-11-03-paket-u1-db-tests.md`](aenderungen/2026-11-03-paket-u1-db-tests.md)): alle vier Tests veraltet, der Code entsprach dem Plan; ganze Suite mit Postgres grün (7786 bestanden, 4 übersprungen).
+- **Widget-Bündel an der Rohgrenze** (Review Paket D, 20.11.): nach Paket D 695,4 von 700 kB roh
+  (99,3 %), gzip 202,0 von 210 kB (über der Warnung ab 200). Vor dem nächsten UI-Paket, das das
+  Hauptbündel wachsen lässt, einen Nachlade-Kandidaten bestimmen und messen — z. B.
+  `shell/meine-vorgaenge.component.ts` (nur angemeldet und erst auf Klick gebraucht), nach dem
+  Muster des Debug-Panels (Paket BU-3). Nicht im Paket D umgebaut.
 
 ## 6 Zurückgestellte Plan-Teile
 
