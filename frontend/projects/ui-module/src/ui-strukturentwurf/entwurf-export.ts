@@ -21,6 +21,18 @@ export interface EntwurfDaten {
   readonly knoten: Baum;
   /** Paket N3: Inhalte aus Materialien, die keinem Punkt zugeordnet sind. */
   readonly nicht_zugeordnet?: readonly EntwurfInhalt[];
+  /** Plan 2026-11-19, A6: was der Entwurf aus dem Dokument gelesen hat — nur Anzeige, nie in Antwort
+   *  oder Download. */
+  readonly gelesen?: readonly EntwurfGelesen[];
+}
+
+/** Plan 2026-11-19, A6: je Dokument Name, Zeichen, Weg, Anfang und Abschnittstitel (Manifest). */
+export interface EntwurfGelesen {
+  readonly name: string;
+  readonly zeichen: number;
+  readonly weg: 'ganz' | 'gliederung';
+  readonly anfang: string;
+  readonly abschnitte: readonly string[];
 }
 
 export const DOKUMENTTYP = 'wlo.sammlungsstruktur@1';

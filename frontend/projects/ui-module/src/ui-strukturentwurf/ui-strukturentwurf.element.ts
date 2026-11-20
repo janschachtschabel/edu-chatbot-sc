@@ -25,6 +25,7 @@ import { tastenAktion } from '../_baum/baum-tasten';
 import type { ElementHost, NachladeElement } from '../_nachladen/element-vertrag';
 import type { ModulKontext } from '../_vertrag/ui-block';
 import { alsJson, alsMarkdown, dateiname } from './entwurf-export';
+import { gelesenAbschnitte } from './entwurf-gelesen';
 import { abschluss, BaumZeichner, details, el, nachDemBaum, vorDemBaum } from './entwurf-zeichnen';
 import { type Bewegung, EntwurfZustand, type Feld, type Fokus } from './entwurf-zustand';
 import { STIL } from './ui-strukturentwurf.stil.generated';
@@ -143,7 +144,8 @@ export class UiStrukturentwurfElement extends HTMLElement implements NachladeEle
     const schluessel = vorher ? (vorher.id ? `#${vorher.id}` : vorher.dataset['fokus'] ? `[data-fokus="${vorher.dataset['fokus']}"]` : '') : '';
     this.zeichnet = true;
     try {
-      this.teile.vor.replaceChildren(...vorDemBaum(z, k));
+      // Plan 2026-11-19, A6: „Gelesener Text“ unter dem Kopf, vor dem Baum
+      this.teile.vor.replaceChildren(...vorDemBaum(z, k), ...gelesenAbschnitte(z));
       this.baum.wurzel.setAttribute('aria-labelledby', k('kopf'));
       this.baum.wurzel.hidden = !z.struktur.length;
       this.baum.zeichne(z, k);

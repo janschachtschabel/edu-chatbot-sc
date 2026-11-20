@@ -119,6 +119,14 @@ class AgentSchritt(AreaModel):
     #: Hinweise; ``services/ablauf/vorbelegung``). Ein Argument der KI geht vor. Abgewählt
     #: (``False``) ist nicht gesetzt — Vorgabe ``None`` (wegen ``treiber.fassung``).
     vorbelegen: Annotated[bool | None, BeforeValidator(lambda w: None if w is False else w)] = None
+    #: Plan 2026-11-19, A2 (E4): feste Argumente je Werkzeug des Schritts (``{ui_strukturentwurf:
+    #: {aus_dokument: true}}``) — der Server setzt sie in JEDEN Aufruf des Werkzeugs in diesem
+    #: Schritt; anders als ``vorbelegen`` geht der Ablauf vor der KI (``ui_module/dienst.aufruf``).
+    #: Sie gelten für neue Entwürfe — nicht mit ``vorlage: true`` (vertiefen, erneut zeigen; Review
+    #: A, MAJOR 1). Nur UI-Module mit Dienst, nur Argumente ihres Schemas (``pruefung_feste``).
+    #: Leer ist nicht gesetzt — Vorgabe ``None`` (wegen ``treiber.fassung``).
+    feste_argumente: Annotated[dict[str, dict[str, Any]] | None,
+                               BeforeValidator(lambda w: None if w == {} else w)] = None
 
 
 class Umsehen(AreaModel):

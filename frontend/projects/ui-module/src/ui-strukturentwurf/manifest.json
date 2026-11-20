@@ -103,7 +103,25 @@
       "gekuerzt": { "type": "boolean", "description": "Die WLO-Sammlung hatte mehr Punkte, als der Entwurf uebernommen hat." },
       "quelle_block": { "type": "string", "pattern": "^[a-z0-9]{8,32}$", "description": "Mit quelle ordner oder aus Materialien: die block_id der Auswahl, aus der der Entwurf stammt (verknuepft inhalte mit der Ablage)." },
       "knoten": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "$ref": "#/$defs/ebene1" }, "description": "Die Punkte der oberen Ebene." },
-      "nicht_zugeordnet": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/inhalt" }, "description": "Aus Materialien: Inhalte, die keinem Punkt zugeordnet sind (Verweise wie inhalte)." }
+      "nicht_zugeordnet": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/inhalt" }, "description": "Aus Materialien: Inhalte, die keinem Punkt zugeordnet sind (Verweise wie inhalte)." },
+      "gelesen": {
+        "type": "array",
+        "maxItems": 10,
+        "x-nur-system": true,
+        "description": "Nur das System (Plan 2026-11-19, A6): mit quelle dokument je Dokument, was der Entwurf gelesen hat — zur Rueckkontrolle fuer die Person, nie an die KI.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "zeichen", "weg", "anfang", "abschnitte"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Name des Dokuments." },
+            "zeichen": { "type": "integer", "minimum": 0, "description": "Zeichen des gelesenen Texts." },
+            "weg": { "enum": ["ganz", "gliederung"], "description": "ganz: der ganze Text ging an die obere Ebene; gliederung: Gliederung, Anfang und Auszuege." },
+            "anfang": { "type": "string", "maxLength": 2000, "description": "Die ersten Zeichen des gelesenen Texts." },
+            "abschnitte": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 120 }, "description": "Abschnittstitel, wie die Gliederung sie fand." }
+          }
+        }
+      }
     },
     "$defs": {
       "stufe": {

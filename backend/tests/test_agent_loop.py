@@ -104,7 +104,7 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
           limits=None, usage_acc=None, progress=None, clock=None, raises=None,
           echter_transport=False, on_tool_result=None, wissen=None,
           on_offene_abnahme=None, tools=None, modul_vorlage=None, modul_dokument=None,
-          modul_teile=None, modul_umlenkung=None):
+          modul_teile=None, modul_umlenkung=None, modul_feste=None):
     """``echter_transport=True`` fälscht eine Ebene tiefer (``llm._acompletion``).
 
     Nötig für alles, was die **Buchung** prüft: die Schleife reicht ``usage_acc``
@@ -141,6 +141,8 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
         kwargs["modul_teile"] = modul_teile
     if modul_umlenkung is not None:
         kwargs["modul_umlenkung"] = modul_umlenkung
+    if modul_feste is not None:
+        kwargs["modul_feste"] = modul_feste
     if tools is None:
         # Angeboten ist, was das Modell im Skript ruft: so rufen die Tests nur
         # Angebotenes, wie im Betrieb. Wer die Sperre fuer nicht Angebotenes

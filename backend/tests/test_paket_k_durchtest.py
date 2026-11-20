@@ -319,7 +319,9 @@ def _aus_inhalten(monkeypatch, thema: str) -> dict:
     from boerdi.ui_module.aufruf import Umgebung
     from boerdi.ui_module.katalog import katalog
 
-    async def erzeugen(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
+    async def erzeugen(auftrag, *, llm, frist_ende, vorlage=None, dokument=None,
+                       moderieren=None, ganz_moderiert=False,
+                       llm_vorwaermen=None):
         return dienst.Erzeugt(daten={"titel": "Fotosynthese und Blattaufbau", "quelle": "dokument",
                                      "thema": thema, "knoten": [{"id": "k1", "titel": "Blatt"}]})
 

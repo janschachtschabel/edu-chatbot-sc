@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from boerdi.services import strukturentwurf_dienst as dienst
+from boerdi.services import strukturentwurf_lauf as lauf_teil
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.ui_module import strukturentwurf as se
 
@@ -270,7 +271,7 @@ async def test_gegenreview_1_warten_und_aufruf_enden_am_fristende(monkeypatch):
     40 s über das Fristende (die Reserve ist 15 s)."""
     import time
 
-    monkeypatch.setattr(dienst, "MINDEST_REST_S", 0.05)
+    monkeypatch.setattr(lauf_teil, "MINDEST_REST_S", 0.05)
     beginn = time.monotonic()
     erg = await _erzeugen(_auftrag(), Attrappe([_k("Licht")], pause=5), frist=0.3)
     assert time.monotonic() - beginn < 1.5

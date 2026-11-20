@@ -40,6 +40,13 @@ die Spec der Komponente gilt am Element weiter (`ui-strukturentwurf.element.spec
   n Materialien“) und unter dem Baum („Nicht zugeordnet: n Materialien“) — nie im Baumeintrag selbst.
   Review N3: Löschen eines Punkts schiebt seine Inhalte (samt Unterpunkten) nach `nicht_zugeordnet`
   (`verwaisteInhalte`, abgeleitet — „Rückgängig“ holt sie zurück); vorher gingen sie mit.
+  Plan 2026-11-19, A6: mit `quelle: dokument` in der Wurzel `gelesen[]` (`x-nur-system`, höchstens
+  10): je Dokument `name`, `zeichen`, `weg` (`ganz`/`gliederung`), `anfang` (≤ 2000) und
+  `abschnitte` (≤ 30 Titel). Nur Anzeige (`entwurf-gelesen.ts`): je Dokument ein eingeklapptes
+  `<details>` unter dem Kopf, „Gelesener Text (Name, n Zeichen)“ (Name in `<bdi>`), aufgeklappt Weg,
+  Abschnitte und Anfang (benannter, rollbarer Bereich `role="region"`, `tabindex=0`); Fokus und
+  Aufgeklappt-Zustand überstehen das Neuzeichnen (`data-fokus`, Zustand). `gelesen` geht nicht in
+  Antwort, Vormerkung oder Download; über dem Datendeckel lässt das Backend es weg.
 - **Bearbeiten:** Baum nach APG „Tree View“ wie der Bestand; Leiste für den aktiven Punkt
   (Unterpunkt, Punkt danach, Hoch, Runter, Einrücken, Ausrücken, Löschen, Rückgängig mit 20
   Schritten) und Detailfeld (Titel, Beschreibung, Schlagworte durch Komma). Keine Eingabefelder im

@@ -429,6 +429,8 @@ schritte:
         en: "Call ui_strukturentwurf once with aus_dokument: true (thema is prefilled). Once accepted, do not draft again."
       startknopf: {de: Entwurf erstellen, en: Create draft}
       vorbelegen: true
+      # Plan 2026-11-19, A2 (E4): hier nie ein freier Entwurf — der Server setzt aus_dokument
+      feste_argumente: {ui_strukturentwurf: {aus_dokument: true}}
       vorgaben:
         de: |-
           Das Dokument ist meist ein Lehrplan oder eine Systematik. So wird es ein Themenbaum:
@@ -445,7 +447,7 @@ schritte:
           - Not items: expected competences, competence areas, basic concepts, differentiation, assessment, didactic notes, timetables, time guidelines, preface; nor facets such as level, grade, format or audience.
           - By purpose: "Unterricht planen" (plan lessons) keeps the document's order, "Material finden" (find material) factual titles, "Teilen oder Redaktion" and "Überblick für eine Webseite" audience-friendly titles.
       ausgabe: draft
-      zuege: 3
+      zuege: 5
     bei_fehler: ohne_entwurf
   - id: entwurf_inhalte
     typ: agent
@@ -459,6 +461,8 @@ schritte:
         en: "Call ui_strukturentwurf once with aus_inhalten: true; thema = what the files are about, never the purpose and no placeholder. Once accepted, do not draft again."
       startknopf: {de: Entwurf erstellen, en: Create draft}
       vorbelegen: true
+      # Plan 2026-11-19, A2 (E4): hier nie ein freier Entwurf — der Server setzt aus_inhalten
+      feste_argumente: {ui_strukturentwurf: {aus_inhalten: true}}
       vorgaben:
         de: |-
           Der Baum entsteht von unten aus den Materialien der Person (Titel, Beschreibungen, Schlagworte; ohne WLO nur aus Dateinamen):
@@ -475,7 +479,7 @@ schritte:
           - "Nur, was meine Dateien abdecken" or "Trotzdem nur meine Dateien" (actual): only topics backed by materials; at least 2 items at the top, even with few materials (then one material may carry an item); avoid single children. "Alles, was zum Stoff gehört" or "Nach Stoff (Soll)" (target): add missing topics of the subject matter as items (they stay empty for now).
           - By purpose: "Unterricht planen" (plan lessons) as a planning tree of one's own topics, "Material finden" (find material) by subject systematics, "Teilen oder Redaktion" with audience-friendly labels, "Überblick für eine Webseite" (overview for a website) the main aspects in plain words.
       ausgabe: draft
-      zuege: 3
+      zuege: 5
     bei_fehler: ohne_entwurf
   # MAJOR 4: auf dem Ordner-Weg verfeinert die KI den geprüften Entwurf (``vorlage``) mit den
   # Antworten — Ist: was die Ordner tragen

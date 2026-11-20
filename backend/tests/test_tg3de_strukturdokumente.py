@@ -197,6 +197,7 @@ def test_der_generator_nimmt_mehrere_dokumente_mit_praefix_und_fundstelle():
     oben = llm.aufrufe[0]
     assert "NACH MEHREREN DOKUMENTEN" in oben["aufgabe"]
     assert "- Plan A [d1]" in oben["auftrag"]["dokument"]["gliederung"]
+    # Zweites Review A, MINOR 5: ohne Zusage der Moderation (``ganz_moderiert``) der Anfang
     assert oben["auftrag"]["dokument"]["anfang"].startswith("# Plan A")
     # Ebene 2 liest den Text beider Fundstellen — gedeckelt wie bei einem Dokument
     kinder = next(a for a in llm.aufrufe if "knoten" in a["auftrag"])

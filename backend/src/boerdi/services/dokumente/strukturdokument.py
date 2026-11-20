@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Final
 
@@ -63,6 +64,28 @@ SPAETER: Final = frozenset({"not_extracted", "text_unreadable", "abruf_fehler", 
 NICHT_EXTRAHIERT: Final = "not_extracted"
 #: Nachprüfung, NIT 6: ein Sitzungsdokument, das nicht mehr lesbar ist (24 h vorbei, verdrängt).
 ABGELAUFEN: Final = "abgelaufen"
+#: Plan 2026-11-19, A3 (E5, Befund S2c): unter so vielen Wörtern ist ein Volltext aus WLO „kein
+#: lesbarer Text“ (Seitenzahlen, OCR-Reste eines Scans) — Seitenzahlen kennt der WLO-Weg nicht.
+#: Review A, MINOR 7: 30 statt 100 (echte kurze Systematiken), dazu der Anteil der Buchstaben.
+KAUM_TEXT_WOERTER: Final = 30
+#: Unter diesem Anteil an Buchstaben (ohne Leerraum) sind es Zahlen- und Zeichenreste.
+KAUM_BUCHSTABEN: Final = 0.3
+#: Ein Wort: mindestens zwei Buchstaben am Stück (Zahlen, Zeichen und einzelne Buchstaben nicht).
+_WORT: Final = re.compile(r"[^\W\d_]{2,}")
+
+
+def woerter(text: str) -> int:
+    """Die Wörter eines Texts nach :data:`_WORT`."""
+    return len(_WORT.findall(text))
+
+
+def lesbar(text: str) -> bool:
+    """Ist ``text`` lesbarer Text — mindestens :data:`KAUM_TEXT_WOERTER` Wörter und mindestens
+    :data:`KAUM_BUCHSTABEN` Buchstaben unter den Zeichen ohne Leerraum?"""
+    zeichen = "".join(text.split())
+    buchstaben = sum(z.isalpha() for z in zeichen)
+    return woerter(text) >= KAUM_TEXT_WOERTER and buchstaben >= KAUM_BUCHSTABEN * len(zeichen)
+
 
 @dataclass
 class Lesung:
@@ -104,7 +127,11 @@ async def volltext(node_id: str) -> tuple[str | None, str]:
         return None, "abruf_fehler"
     gelesen = parse_content_text(roh)
     if inhalt := str(gelesen.get("text") or "").strip():
-        return inhalt, ""
+        if lesbar(bereinigen(inhalt)[0]):
+            return inhalt, ""
+        # A3 (E5): ein Scan mit Seitenzahlen ist kein Dokument — dieselben Texte wie ohne Text
+        logger.info("Strukturdokument aus WLO: kaum Text (%s)", NICHT_EXTRAHIERT)
+        return None, NICHT_EXTRAHIERT
     grund = str(gelesen.get("reason") or "")
     grund = grund if grund in GRUENDE else "ohne_text"
     logger.info("Strukturdokument aus WLO: kein Volltext (%s)", grund)

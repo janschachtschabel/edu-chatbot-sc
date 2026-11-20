@@ -71,6 +71,7 @@ from boerdi.services.quick_replies_llm import generate_quick_replies
 from boerdi.services.tool_loop_module import (
     BELEGUNG_KEY,
     DOKUMENT_LADER_KEY,
+    FESTE_KEY,
     MODUL_BLOECKE_KEY,
     TEIL_LADER_KEY,
     VORBELEGUNG_KEY,
@@ -480,6 +481,8 @@ async def respond(
                 resolve_locale(req.environment.locale), ablauf=_ki[0])
             session_state[VORBELEGUNG_KEY] = (
                 _vorbelegt, frozenset(_ki[1].agent.werkzeuge if _ki[1].agent else ()))
+            # Plan 2026-11-19, A2 (E4): feste Argumente des Schritts (je Werkzeug, der Ablauf vor)
+            session_state[FESTE_KEY] = _ki[1].agent.feste_argumente if _ki[1].agent else None
             _kennzeile = "\n\n".join(t for t in (_kennzeile, ki_schritt.zeile(
                 *_ki, resolve_locale(req.environment.locale),
                 zuege=ki_schritt.zaehlen(_entities, *_ki), eingeengt=False,
@@ -598,6 +601,7 @@ async def respond(
         session_state.pop(BELEGUNG_KEY, None)
         session_state.pop(VORGABEN_KEY, None)
         session_state.pop(VORBELEGUNG_KEY, None)
+        session_state.pop(FESTE_KEY, None)
         ctx.ui_bloecke = regeln_anwenden(list(session_state.pop(MODUL_BLOECKE_KEY, None) or []))
         entwurf_merken.aus_bloecken(session_state.setdefault("entities", {}), ctx.ui_bloecke)
         if offen := next((b for b in ctx.ui_bloecke if b.art == "abfragen"), None):

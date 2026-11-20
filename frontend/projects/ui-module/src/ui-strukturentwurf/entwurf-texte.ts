@@ -24,6 +24,15 @@ export const TEXTE = {
       }
     },
     gekuerztOrdner: 'Der Ordner hat mehr Ebenen oder Unterordner, als der Entwurf übernommen hat.',
+    // Plan 2026-11-19, A6: die Rückkontrolle „Gelesener Text“
+    // Review A, NIT 14: [vor, nach] um den Namen (der steht als <bdi> dazwischen)
+    gelesenTitel: (n: number): [string, string] => ['Gelesener Text (', `, ${n.toLocaleString('de-DE')} Zeichen)`],
+    gelesenWeg: {
+      ganz: 'Gelesen: der ganze Text.',
+      gliederung: 'Gelesen: Gliederung, Anfang und Auszüge je Punkt – das Dokument ist für den ganzen Text zu lang.',
+    } as Record<string, string>,
+    gelesenAbschnitte: 'Erkannte Abschnitte',
+    gelesenAnfang: (name: string) => `Anfang des gelesenen Texts (${name})`,
     leer: 'Der Entwurf ist leer.',
     ausstehend: 'Unterthemen fehlen noch',
     // Plan 2026-11-16, TG-3f: die Dateien des Ordners am Punkt — nur ihre Zahl
@@ -109,6 +118,13 @@ export const TEXTE = {
       }
     },
     gekuerztOrdner: 'The folder has more levels or subfolders than the draft took over.',
+    gelesenTitel: (n: number): [string, string] => ['Text read (', `, ${n.toLocaleString('en-GB')} characters)`],
+    gelesenWeg: {
+      ganz: 'Read: the whole text.',
+      gliederung: 'Read: outline, beginning and excerpts per item – the document is too long for the whole text.',
+    } as Record<string, string>,
+    gelesenAbschnitte: 'Sections found',
+    gelesenAnfang: (name: string) => `Beginning of the text read (${name})`,
     leer: 'The draft is empty.',
     ausstehend: 'subtopics still missing',
     dateien: (n: number) => zahl(n, 'file', 'files', 'en'),

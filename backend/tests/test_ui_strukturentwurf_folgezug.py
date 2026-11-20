@@ -68,7 +68,7 @@ async def test_erneut_zeigen_ergibt_den_entwurf_unveraendert_ohne_llm(monkeypatc
     async def kein_llm(*_a, **_k):
         raise AssertionError("kein LLM-Aufruf")
 
-    monkeypatch.setattr(dienst, "llm_json", lambda _z: kein_llm)
+    monkeypatch.setattr(dienst, "llm_json", lambda *_a, **_k: kein_llm)
     erg = await aufruf.asynchron(STRUKTURENTWURF, {"thema": "Optik", "vorlage": True,
                                                    "erneut_zeigen": True},
                                  aufruf.Umgebung(vorlage=dict(_DATEN)))

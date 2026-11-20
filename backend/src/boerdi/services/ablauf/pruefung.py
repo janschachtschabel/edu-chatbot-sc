@@ -31,6 +31,7 @@ from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 from boerdi.services.ablauf import (
     auftrag_teile,
     platzhalter,
+    pruefung_feste,
     startdaten,
     typen,
     vergleich,
@@ -778,7 +779,8 @@ def _agent(s: Schritt, module: dict[str, Any], lang: str) -> list[str]:
         b.append(_t(lang, "agent_hinweis", s=s.id, max=MAX_AGENT_HINWEIS))
     if not 1 <= s.agent.zuege <= MAX_AGENT_ZUEGE:
         b.append(_t(lang, "agent_zuege", s=s.id, max=MAX_AGENT_ZUEGE))
-    return b
+    # Plan 2026-11-19, A2 (E4): nur Werkzeuge des Schritts, nur Argumente ihres Schemas
+    return b + pruefung_feste.befunde(s, module, lang)
 
 
 def _schleife_ohne_halt(ablauf: AblaufArea) -> bool:
