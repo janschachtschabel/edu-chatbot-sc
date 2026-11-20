@@ -83,6 +83,9 @@ def test_ein_unbekannter_umfang_geht_als_zeile_in_die_hinweise():
     ("Sekundarstufe II", "Sekundarstufe II"), ("Berufliche Bildung", "Berufliche Bildung"),
     ("Hochschule", "Hochschule"), ("Klasse 7", None), ("Allgemein", None),
     ("Für alle", None),
+    # Rückmeldung 20.11.: Elementarbereich, Erwachsenen- und Fortbildung fehlten als Wahl
+    ("Elementarbereich", "Elementarbereich"), ("Erwachsenenbildung", "Erwachsenenbildung"),
+    ("Fortbildung", "Fortbildung"),
 ])
 def test_stufe_wird_bildungsstufe(stufe, erwartet):
     assert _belegt({"stufe": stufe}).get("bildungsstufe") == erwartet
@@ -223,3 +226,23 @@ def test_die_vorbelegung_gilt_nur_fuer_die_werkzeuge_des_schritts():
     assert _vorbelegung_fuer("ui_strukturentwurf", eintrag) == {"tiefe": 3}
     assert _vorbelegung_fuer("ui_upload", eintrag) is None
     assert _vorbelegung_fuer("ui_strukturentwurf", None) is None
+
+
+def test_jede_stufe_des_themenbaums_ist_ein_wlo_label():
+    """Rückmeldung 20.11.: jede Wahl an „Für wen – welche Stufe?“ wird ein Label des WLO-Vokabulars
+    (oder bewusst keins: „Für alle“) — eine neue Wahl ohne Abbildung fiele sonst in die Hinweise."""
+    import pathlib
+
+    import yaml
+
+    from boerdi.services.ablauf.vorbelegung import bildungsstufe
+    from boerdi.ui_module.strukturentwurf import BILDUNGSSTUFEN
+
+    seed = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe" / "themenbaum.yaml"
+    [stufe] = [s for s in yaml.safe_load(seed.read_text(encoding="utf-8"))["schritte"]
+               if s["id"] == "stufe"]
+    labels = [o["label"]["de"] for o in stufe["optionen"]]
+    assert "Elementarbereich" in labels and "Erwachsenenbildung" in labels
+    for label in labels:
+        bekannt, wert = bildungsstufe(label)
+        assert bekannt and (wert is None or wert in BILDUNGSSTUFEN), label

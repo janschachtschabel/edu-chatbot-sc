@@ -42,6 +42,7 @@ from typing import Any, Final
 
 from boerdi.domain.config_models.ablauf import Schritt
 from boerdi.ui_module import strukturentwurf
+from boerdi.ui_module.rollen import ist_gliederung
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,8 @@ STUFEN: Final[dict[str, str | None]] = {
     "sekundarstufe ii": "Sekundarstufe II", "sek ii": "Sekundarstufe II",
     "berufliche bildung": "Berufliche Bildung", "beruf": "Berufliche Bildung",
     "hochschule": "Hochschule", "erwachsenenbildung": "Erwachsenenbildung",
+    # Rückmeldung 20.11.: dazu Elementarbereich und Fortbildung (Labels des WLO-Vokabulars)
+    "elementarbereich": "Elementarbereich", "fortbildung": "Fortbildung",
     "allgemein": None, "alle, ohne bildungsstufe": None, "für alle": None,
 }
 #: Die Teile, die als Zeile in ``hinweise`` gehen, mit ihrem Vorsatz je Sprache (Review TG-4–6,
@@ -166,9 +169,10 @@ async def _aus_strukturdokumenten(teile: Callable[[str], Awaitable[Any]]) -> dic
     """Paket K5 (E14): ``fach``, ``bildungsstufe`` und ``thema`` aus den Metadaten der
     Strukturdokumente (Teil ``metadaten``, von ``metadaten_lesen``) — je der erste brauchbare
     Wert in der Reihenfolge der Dokumente. Ein Strukturdokument ist, was der Teil ``ablage`` mit
-    Rolle ``struktur`` abgelegt führt — nie die Rolle, die ``metadaten`` selbst nennt (die Ablage
-    schreibt der Endpunkt, nicht das Modell). Materialien belegen nichts vor. Ein Lesefehler heißt
-    „nichts“. Fach und Stufe gehen durch das WLO-Vokabular (N2, ``mcp/vokabular_labels``)."""
+    Rolle ``struktur`` oder ``beides`` abgelegt führt — nie die Rolle, die ``metadaten`` selbst
+    nennt (die Ablage schreibt der Endpunkt, nicht das Modell). Reine Materialien belegen nichts
+    vor. Ein Lesefehler heißt „nichts“. Fach und Stufe gehen durch das WLO-Vokabular (N2,
+    ``mcp/vokabular_labels``)."""
     from boerdi.services.ablauf import metadaten
     from boerdi.services.mcp import vokabular_labels
 
@@ -181,7 +185,7 @@ async def _aus_strukturdokumenten(teile: Callable[[str], Awaitable[Any]]) -> dic
     if not isinstance(ablage, dict) or not isinstance(teil, dict):
         return {}
     strukturen = {e.get("node_id") for e in ablage.get("inhalte") or [] if isinstance(e, dict)
-                  and e.get("rolle") == "struktur" and e.get("stand") == "stored"}
+                  and ist_gliederung(e.get("rolle")) and e.get("stand") == "stored"}
     aus: dict[str, str] = {}
     for e in teil.get("inhalte") or []:
         if not isinstance(e, dict) or e.get("node_id") not in strukturen:
