@@ -363,10 +363,13 @@ def test_b4_der_metadaten_schritt_sperrt_die_eingabe():
     assert schritte["metadaten"]["warten"] == "gesperrt"
 
 
-def test_b9_die_rueckfrage_nennt_strukturdokumente_nur_falls_dabei():
+def test_b9_aufgehoben_die_rueckfrage_entfiel():
+    """Plan 2026-11-20, P4 (UO-3): die Rückfrage (B9: „Strukturdokumente, falls dabei“) gibt es
+    nicht mehr — der Upload-Klick ist die Zustimmung; was er für Gliederungen bedeutet, sagt der
+    Schritt (``test_paket_k5_strukturdokumente``)."""
     schritte = {s["id"]: s for s in _seed_themenbaum()["schritte"]}
-    text = schritte["metadaten_frage"]["text"]
-    assert "falls dabei" in text["de"] and "if any" in text["en"]
+    assert "metadaten_frage" not in schritte
+    assert schritte["metadaten"]["zustimmung"] == "upload"
 
 
 # ── B5: der Satz zum fehlenden Volltext ─────────────────────────────────────────────────────────

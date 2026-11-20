@@ -6,8 +6,8 @@
 - **Wo verarbeitet wird**, wählt seit Plan 2026-11-17 (U6, E12) das Upload-Feld; der Ablauf fragt
   nicht mehr danach („gründlich über WLO“ entfiel) — nur Namen gehen zu ``inhalte_aus_dateien``.
 - **Kein stummes Ende** (``stumme_enden``): eine Prüfung über alle Seeds.
-- **Direktstart** trotz Auftrag, weil vor ihm direkt die Rückfrage steht; der frische Vorgang
-  (N14) bleibt.
+- **Direktstart** trotz Auftrag, weil er ohne Box nur nach dem Upload-Klick startet (seit Plan
+  2026-11-20, P4; vorher die Rückfrage); der frische Vorgang (N14) bleibt.
 - Die Leiste springt nicht.
 """
 
@@ -114,7 +114,8 @@ def test_die_leitfragen_nehmen_getippten_text():
     for sid in ("grundlage", "wofuer", "stufe", "umfang", "hinweise"):
         s = next(x for x in ablauf.schritte if x.id == sid)
         assert s.freitext is not None, sid
-    for sid in ("soll_ist", "ordner_weiter", "metadaten_frage"):
+    # P4 (Plan 2026-11-20): die Rückfrage ``metadaten_frage`` entfiel — dafür der Ausweg
+    for sid in ("soll_ist", "ordner_weiter", "ohne_metadaten"):
         s = next(x for x in ablauf.schritte if x.id == sid)
         assert s.freitext is None and s.kein_treffer, sid
 

@@ -69,10 +69,13 @@ def test_major1_mit_nein_daneben_ist_es_eine_rueckfrage():
     assert werkzeuge.ablauf_schreibt_ungefragt(mit_text)
 
 
-def test_major1_themenbaum_erstellen_fragt_mit_nein():
+def test_major1_themenbaum_erstellen_fragt_mit_dem_upload_klick():
+    """Plan 2026-11-20, P4 (UO-3): die Rückfrage ``metadaten_frage`` entfiel — der Klick „In WLO
+    ablegen und erschließen“ ist die Zustimmung (``zustimmung: upload``, sonst die Freigabe-Box);
+    der Direktstart bleibt gefragt (P3, ``_ehrlich_gefragt``)."""
     ablauf = _seed()
-    frage = next(s for s in ablauf.schritte if s.id == "metadaten_frage")
-    assert {o.ziel for o in frage.optionen} == {"metadaten", "lesen"}
+    assert "metadaten_frage" not in {s.id for s in ablauf.schritte}
+    assert next(s for s in ablauf.schritte if s.id == "metadaten").zustimmung == "upload"
     assert not werkzeuge.ablauf_schreibt_ungefragt(ablauf)
 
 
@@ -152,9 +155,12 @@ def test_minor8_der_ort_kommt_aus_dem_feld_nicht_aus_bereit():
     Teilen der Auswahl."""
     weg = next(s for s in _seed().schritte if s.id == "dateien_weg")
     quellen = [r.wenn_wert.quelle for r in weg.weiter if r.wenn_wert is not None]
-    assert quellen == ["teil.metadaten.block_id", "teil.ablage.block_id",
+    # Review P4 (20.11.), MAJOR 1: die Ablage zählt erst mit einer abgelegten Datei
+    # (``abgelegt_block``) — ``block_id`` schreibt schon die Vorschau
+    assert quellen == ["teil.metadaten.block_id", "teil.ablage.abgelegt_block",
                        "teil.struktur.zahlen.inhalte"]
-    assert [r.dann for r in weg.weiter][:3] == ["wofuer", "metadaten_frage", "aus_dateien"]
+    # P4 (Plan 2026-11-20): die Ablage dieser Auswahl führt zum Häkchen, nicht zur Rückfrage
+    assert [r.dann for r in weg.weiter][:3] == ["wofuer", "erschliessen_weg", "aus_dateien"]
 
 
 def test_minor7_aufgehoben_kestra_fuer_inhalte_und_strukturdokumente():

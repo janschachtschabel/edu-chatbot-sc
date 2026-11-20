@@ -8,21 +8,28 @@
 #    Liegt etwas bereit, bietet ``einstieg_mit`` es an — sonst ``einstieg``.
 # 2. ``grundlage``: getippt ist es das Thema; sonst ein Dokument mit Gliederung, Ordner oder Dateien
 #    (Synonyme nur als ganze Wörter, MAJOR 3).
-# 3. Daten: Dokument → Upload mit „Einzeldatei als Struktur“; Ordner → Upload → Entwurf aus den
+# 3. Daten: Dokument → Upload (Rolle „Gliederung“); Ordner → Upload → Entwurf aus den
 #    Ordnern → Prüfpunkt → „So lassen“ (fertig, Inhalte gemerkt) oder „Mit deinen Angaben
 #    verfeinern“; ohne Unterordner der Weg Dateien. Dateien → Upload, dann ``dateien_weg``.
-#    Plan 2026-11-17, E12 (Paket U6): WO verarbeitet wird, wählt die Person im Upload-Feld („Hier
-#    im Chat“, „In WLO ablegen und erschließen“, „Nur Namen senden“) — die Fragen ``wlo_frage``,
-#    ``schnell`` und ``schnell_da`` sind entfallen. ``dateien_weg`` verzweigt nur nach den Teilen
-#    der Auswahl (``block_id``): ``metadaten`` dazu (hier im Chat gelesen, ``quelle: chatbot``) →
-#    die Fragen; ``ablage`` dazu (in WLO abgelegt) → Rückfrage, Kestra-Metadaten und
-#    ``metadaten_lesen``; nur ``struktur`` (Namen) → ``inhalte_aus_dateien``. Ordner mit
-#    Unterordnern bleiben auch hier im Chat der Ordner-Weg (die Angaben liegen im Vorgang bei);
-#    in WLO abgelegt folgen erst die Metadaten. Das Dokument gilt gelesen, wenn ein Teil
-#    ``strukturdokument`` da ist (hier im Chat oder in WLO abgelegt). Nur ``dokument_chat`` (der
-#    Ausweg „hier im Chat lesen lassen“, Plan 2026-11-20 §8, E1) schränkt die Orte ein
-#    (``orte: [chat]``); sonst trägt jeder Weg jeden Ort. Auf dem Dokument-Weg heißt der WLO-Ort nur
-#    „In WLO ablegen“ (E3): dort läuft kein Flow.
+#    Plan 2026-11-17, E12 (Paket U6): WO verarbeitet wird, wählt die Person im Upload-Feld („In
+#    WLO ablegen und erschließen“, „Nur hier im Chat lesen“, Nebenknopf „Nur die Dateinamen
+#    senden“) — die Fragen ``wlo_frage``, ``schnell`` und ``schnell_da`` sind entfallen. Plan
+#    2026-11-20 (Upload-Ort und Erschließung, P4): die Upload-Schritte setzen ``rolle_vorgabe``,
+#    ``vorauswahl: auto`` und ``erschliessen: true`` (das Häkchen „Metadaten von WLO erzeugen
+#    lassen“, ab Werk an). ``dateien_weg`` verzweigt nur nach den Teilen der Auswahl
+#    (``block_id``): ``metadaten`` dazu (hier im Chat gelesen, ``quelle: chatbot``) → die Fragen;
+#    ``ablage`` dazu (in WLO abgelegt: Marke ``abgelegt_block``, die erst die erste abgelegte
+#    Datei setzt — Review P4, MAJOR 1) → ``erschliessen_weg``; nur ``struktur`` (Namen) →
+#    ``inhalte_aus_dateien``. Ordner mit Unterordnern bleiben auch hier im Chat der Ordner-Weg (die
+#    Angaben liegen im Vorgang bei); in WLO abgelegt folgen erst die Metadaten. Das Dokument gilt
+#    gelesen, wenn ein Teil ``strukturdokument`` da ist (hier im Chat) — in WLO abgelegt geht es
+#    erst über ``erschliessen_weg`` (UO-6: auch Lehrpläne bekommen den Flow; hebt E3 vom 20.11.
+#    auf). Nur ``dokument_chat`` (der Ausweg „hier im Chat lesen lassen“, Plan 2026-11-20 §8, E1)
+#    schränkt die Orte ein (``orte: [chat]``); sonst trägt jeder Weg jeden Ort.
+#    ``erschliessen_weg`` (UO-3): mit Häkchen (``ablage.erschliessen``) → ``metadaten``; der Klick
+#    „In WLO ablegen und erschließen“ ist die Zustimmung (``zustimmung: upload``, nur für Knoten,
+#    die genau dieser Upload neu anlegte — sonst die Freigabe-Box). Ohne Häkchen → ``lesen``. Eine
+#    Rückfrage „Metadaten erzeugen?“ gibt es nicht mehr.
 # 4. Fragen (wofür, für wen/Stufe, Umfang, Hinweise; Soll oder Ist nur bei Dateien), dann der
 #    KI-Schritt der Grundlage mit ``vorbelegen`` (TG-5). Auf dem Ordner-Weg nur nach „verfeinern“,
 #    dann mit ``vorlage``.
@@ -38,8 +45,9 @@
 # Ohne Voraussetzung: anonym gehen Thema, Dokument, Ordner und Dateien (hier im Chat oder nur die
 # Namen); Auftrag und
 # ``metadaten_lesen`` haben einen Ersatzweg (``bei_fehler``) und starten ohne Anmeldung nicht.
-# Ab Werk an. Direktstart der KI: Der Auftrag startet nur nach „Ja, Metadaten erzeugen“, daneben
-# steht „Nein, so lassen“ (``werkzeuge.ablauf_schreibt_ungefragt``, MAJOR 1).
+# Ab Werk an. Direktstart der KI: Der Auftrag startet ohne Box nur nach dem Upload-Klick in genau
+# diesem Lauf (``zustimmung: upload``; ``werkzeuge.ablauf_schreibt_ungefragt`` zählt ihn als
+# gefragt, P3) — ein Direktstart ab dem Auftrag hat keinen Upload-Block und bekommt die Box.
 id: themenbaum
 titel: {de: Themenbaum erstellen, en: Create a topic tree}
 beschreibung: >-
@@ -149,14 +157,19 @@ schritte:
   - id: dokument_laden
     typ: modul
     modul: ui_upload
-    text: {de: "Wähle das Dokument (etwa einen Lehrplan, auch mehrere), dann, wo es verarbeitet wird, und klick auf „Hochladen“.",
-           en: "Choose the document (such as a curriculum, several are fine), then where it should be processed, and click “Upload”."}
-    daten: {zweck: bereitstellen, einzeldatei_als_struktur: true}
-  # U6: ``strukturdokument`` schreibt „Hier im Chat“ (gelesen) wie „In WLO ablegen“ (abgelegt, über
-  # den Ablage-Endpunkt); ``document`` nur die alte Antwort ``aktion: dokument``. Nur Namen → keins
+    text: {de: "Wähle das Dokument (etwa einen Lehrplan, auch mehrere) und wo es verarbeitet wird: „In WLO ablegen und erschließen“ (nur angemeldet) legt es in deinem Bereich in WLO ab und lässt WLO es beschreiben (Häkchen „Metadaten von WLO erzeugen lassen“, einige Minuten), „Nur hier im Chat lesen“ speichert nichts in WLO.",
+           en: "Choose the document (such as a curriculum, several are fine) and where it should be processed: “Store and index in WLO” (signed in only) keeps it in your area in WLO and has WLO describe it (checkbox “Let WLO create metadata”, a few minutes), “Only read here in the chat” stores nothing in WLO."}
+    daten: {zweck: bereitstellen, rolle_vorgabe: gliederung, vorauswahl: auto, erschliessen: true}
+  # U6: ``strukturdokument`` schreibt „Nur hier im Chat lesen“ (gelesen) wie „In WLO ablegen“
+  # (abgelegt, über den Ablage-Endpunkt); ``document`` nur die alte Antwort ``aktion: dokument``.
+  # Nur Namen → keins. P4 (UO-6): eine WLO-Ablage dieses Blocks zuerst (``abgelegt_block`` wie
+  # ``dateien_weg``) — erst Metadaten bzw. lesen, dann die Fragen (``nach_lesen``). Review P4,
+  # MAJOR 1: nicht ``ablage.block_id`` — die schreibt schon die Vorschau; nach „Abbrechen“ und
+  # „Nur hier im Chat lesen“ gälte sie sonst als Ablage
   - id: dokument_gelesen
     typ: verzweigung
     weiter:
+      - {wenn_wert: {quelle: teil.ablage.abgelegt_block, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: erschliessen_weg}
       - {wenn_teil: strukturdokument, dann: wofuer}
       - {wenn_teil: document, dann: wofuer}
       - {sonst: ohne_daten}
@@ -164,18 +177,19 @@ schritte:
   - id: ordner_laden
     typ: modul
     modul: ui_upload
-    text: {de: "Wähle den Ordner mit deinen Unterlagen, dann, wo er verarbeitet wird, und klick auf „Hochladen“. Legst du ihn in WLO ab (nur angemeldet), beschreibt WLO deine Dateien mit Metadaten.",
-           en: "Choose the folder with your materials, then where it should be processed, and click “Upload”. If you store it in WLO (signed in only), WLO describes your files with metadata."}
-    daten: {zweck: bereitstellen}
-  # Zweites Review H: die Ablage zählt nur, wenn sie zu dieser Auswahl gehört (dasselbe Feld,
-  # ``block_id``) — nach „Andere Grundlage“ läge sonst die Ablage der früheren Auswahl da.
+    text: {de: "Wähle den Ordner mit deinen Unterlagen und wo er verarbeitet wird: „In WLO ablegen und erschließen“ (nur angemeldet) legt die Dateien in deinem Bereich in WLO ab und lässt WLO sie beschreiben (Häkchen „Metadaten von WLO erzeugen lassen“, einige Minuten), „Nur hier im Chat lesen“ speichert nichts in WLO.",
+           en: "Choose the folder with your materials and where it should be processed: “Store and index in WLO” (signed in only) keeps the files in your area in WLO and has WLO describe them (checkbox “Let WLO create metadata”, a few minutes), “Only read here in the chat” stores nothing in WLO."}
+    daten: {zweck: bereitstellen, rolle_vorgabe: material, vorauswahl: auto, erschliessen: true}
+  # Zweites Review H: die Ablage zählt nur, wenn sie zu dieser Auswahl gehört (dasselbe Feld) —
+  # nach „Andere Grundlage“ läge sonst die Ablage der früheren Auswahl da. Review P4, MAJOR 1:
+  # und nur, wenn etwas abgelegt ist (``abgelegt_block``, nicht schon die Vorschau).
   # U6 (Entscheid): hier im Chat gelesen (``metadaten``) bleibt ein Ordner mit Unterordnern der
   # Ordner-Weg — Ordner sind der Ausgangspunkt; ohne Unterordner gilt ``dateien_weg`` (dort führen
   # die gelesenen Angaben zu den Fragen)
   - id: ordner_geladen
     typ: verzweigung
     weiter:
-      - {wenn_wert: {quelle: teil.ablage.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: metadaten_frage}
+      - {wenn_wert: {quelle: teil.ablage.abgelegt_block, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: erschliessen_weg}
       - {wenn_wert: {quelle: teil.structure.struktur.kinder, vergleich: vorhanden}, dann: aus_ordnern}
       - {wenn_wert: {quelle: teil.struktur.zahlen.inhalte, vergleich: groesser, wert: "0"}, dann: dateien_weg}
       - {sonst: ohne_daten}
@@ -209,19 +223,20 @@ schritte:
   - id: dateien_laden
     typ: modul
     modul: ui_upload
-    text: {de: "Wähle deine Dateien oder einen Ordner, dann, wo sie verarbeitet werden, und klick auf „Hochladen“: „Hier im Chat“ liest sie nur für diese Sitzung, „In WLO ablegen und erschließen“ lässt WLO sie gründlich beschreiben (einige Minuten), „Nur Namen senden“ nimmt nur die Dateinamen.",
-           en: "Choose your files or a folder, then where they should be processed, and click “Upload”: “Here in the chat” reads them for this session only, “Store and index in WLO” has WLO describe them thoroughly (a few minutes), “Send names only” takes just the file names."}
-    daten: {zweck: bereitstellen}
+    text: {de: "Wähle deine Dateien oder einen Ordner und wo sie verarbeitet werden: „In WLO ablegen und erschließen“ (nur angemeldet) legt sie in deinem Bereich in WLO ab und lässt WLO sie gründlich beschreiben (Häkchen „Metadaten von WLO erzeugen lassen“, einige Minuten), „Nur hier im Chat lesen“ liest sie nur für diese Sitzung; „Nur die Dateinamen senden“ nimmt nur die Namen.",
+           en: "Choose your files or a folder and where they should be processed: “Store and index in WLO” (signed in only) keeps them in your area in WLO and has WLO describe them thoroughly (checkbox “Let WLO create metadata”, a few minutes), “Only read here in the chat” reads them for this session only; “Send file names only” takes just the names."}
+    daten: {zweck: bereitstellen, rolle_vorgabe: material, vorauswahl: auto, erschliessen: true}
   # Nach dem Upload, nach „Ja, verwenden“ und vom Ordner ohne Unterordner: nach den Teilen der
   # Auswahl (``block_id``, zweites Review H) — Angaben da (hier im Chat gelesen, ``quelle:
-  # chatbot``; auch Metadaten aus WLO zu derselben Auswahl) → fragen; in WLO abgelegt → Metadaten;
-  # sonst nur die Dateinamen (G-E9). Die Bindung an die Auswahl hält Angaben einer früheren
-  # Auswahl draußen (etwa nach „Nochmal auswählen“ mit „Nur Namen senden“).
+  # chatbot``; auch Metadaten aus WLO zu derselben Auswahl) → fragen; in WLO abgelegt
+  # (``abgelegt_block``) → das Häkchen entscheidet (``erschliessen_weg``); sonst nur die
+  # Dateinamen (G-E9). Die Bindung an die Auswahl hält Angaben einer früheren Auswahl draußen
+  # (etwa nach „Nochmal auswählen“ mit „Nur die Dateinamen senden“).
   - id: dateien_weg
     typ: verzweigung
     weiter:
       - {wenn_wert: {quelle: teil.metadaten.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: wofuer}
-      - {wenn_wert: {quelle: teil.ablage.block_id, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: metadaten_frage}
+      - {wenn_wert: {quelle: teil.ablage.abgelegt_block, vergleich: gleich, wert: "{teil.struktur.block_id}"}, dann: erschliessen_weg}
       - {wenn_wert: {quelle: teil.struktur.zahlen.inhalte, vergleich: groesser, wert: "0"}, dann: aus_dateien}
       - {sonst: ohne_daten}
   - id: aus_dateien
@@ -231,39 +246,36 @@ schritte:
     schreibt: metadaten
     weiter: wofuer
     bei_fehler: ohne_daten
-  # ── Gründlich über WLO: Rückfrage, Kestra-Metadaten, lesen ────────────────────────────────────
-  # Die Rückfrage vor dem schreibenden Flow (Prüfung auftrag_rueckfrage, TB-F1) — mit „Nein“
-  # daneben (MAJOR 1: nur dann zählt sie für den Direktstart)
-  - id: metadaten_frage
-    typ: nachricht
-    text:
-      # Paket N4 (Plan 2026-11-19): was überschrieben wird, zeigt danach die Freigabe-Box mit der
-      # Liste — erst „Freigeben“ dort startet den Flow
-      de: >-
-        Soll WLO Metadaten für die eben in WLO abgelegten Dateien erzeugen – auch für
-        Strukturdokumente (falls dabei)? Vor dem Start zeige ich dir, was überschrieben wird.
-      en: >-
-        Should WLO create metadata for the files you just stored in WLO – structure documents
-        included (if any)? Before it starts, I'll show you what will be overwritten.
-    optionen:
-      - {id: ja, label: {de: "Ja, Metadaten erzeugen", en: "Yes, create metadata"}, ziel: metadaten}
-      - {id: nein, label: {de: "Nein, so lassen", en: "No, leave as is"}, ziel: lesen}
-    kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
+  # ── Über WLO: Kestra-Metadaten (mit Häkchen), lesen ───────────────────────────────────────────
+  # Plan 2026-11-20, P4 (UO-3): statt der Rückfrage „Metadaten erzeugen?“ entscheidet das Häkchen
+  # „Metadaten von WLO erzeugen lassen“ im Upload-Feld. Der Server hielt ``ablage.erschliessen``
+  # nur fest, wenn der Flow startbar war (``api/ui_ablage``); hierher kommt der Lauf nur mit einer
+  # Ablage dieser Auswahl (``abgelegt_block``, Regeln davor)
+  - id: erschliessen_weg
+    typ: verzweigung
+    weiter:
+      - {wenn_wert: {quelle: teil.ablage.erschliessen, vergleich: gleich, wert: "ja"}, dann: metadaten}
+      - {sonst: lesen}
   - id: metadaten
     typ: auftrag
     flow: edusharing.chatbot/node-metadata-write
     repo_schreibt: true
+    # P3 (UO-3): der Klick „In WLO ablegen und erschließen“ ist die Zustimmung — nur für Knoten,
+    # die genau dieser Upload im selben Lauf neu anlegte (``upload_zustimmung``); sonst (vorhandene
+    # Inhalte, anderer Aufrufer, Direktstart ab hier) zeigt die Freigabe-Box, was überschrieben wird
+    zustimmung: upload
     # Plan 2026-11-17, E16 (Review B4): während der Flow läuft, ist die Eingabe gesperrt — „Stand
     # prüfen“, „Später weitermachen“ und „Auftrag abbrechen“ bleiben
     warten: gesperrt
     weiter: lesen
-    text: {de: "Ich lasse die Metadaten erzeugen. Das kann ein paar Minuten dauern.",
-           en: "I'm having the metadata created. This can take a few minutes."}
+    text: {de: "WLO erschließt die abgelegten Dateien – das dauert ein paar Minuten. Du kannst warten oder später unter „Meine Vorgänge“ weitermachen.",
+           en: "WLO is indexing the stored files – this takes a few minutes. You can wait or continue later under “My tasks”."}
     argumente:
       # Plan 2026-11-17, E14 (hebt MINOR 7 auf): Inhalte UND Strukturdokumente — so liefern auch
-      # Strukturdokumente Fach, Stufe und Schlagworte für die Vorbelegung. Die Ablage kennt nur die
-      # Rollen ``inhalt`` und ``struktur`` (``ablage/vorgang_teil``): ohne Filter auf die Rolle
-      # sind es beide.
+      # Strukturdokumente Fach, Stufe und Schlagworte für die Vorbelegung. Die Ablage kennt die
+      # Rollen ``inhalt``, ``struktur`` und ``beides`` (P1, ``ablage/vorgang_teil``): ohne Filter
+      # auf die Rolle sind es alle — ein Filter ``wo: {rolle: …}`` vergleicht genau und ließe
+      # ``beides`` weg.
       node_ids: {$teil: ablage, liste: inhalte, wo: {stand: stored}, feld: node_id}
       language: {$sprache: true}
     # Paket R1 (N14): höchstens 50 Dateien je Job, die Teile laufen nacheinander
@@ -276,15 +288,18 @@ schritte:
     argumente: {ablage: {$teil: ablage}}
     schreibt: metadaten
     bei_fehler: ohne_metadaten
-  # Ordner mit Unterordnern → Entwurf aus den Ordnern (mit node_ids); Dateien → ``angaben_da``
+  # Ordner mit Unterordnern → Entwurf aus den Ordnern (mit node_ids); Dateien → ``angaben_da``.
+  # P4 (UO-6): das Dokument → die Fragen, auch ohne Angaben aus WLO (der Entwurf liest das
+  # Dokument selbst) — nie ``aus_dateien`` (die Dateinamen)
   - id: nach_lesen
     typ: verzweigung
     weiter:
+      - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: "Ein Dokument mit Gliederung, etwa ein Lehrplan"}, dann: wofuer}
       - {wenn_wert: {quelle: teil.grundlage, vergleich: gleich, wert: Meine Dateien}, dann: angaben_da}
       - {wenn_wert: {quelle: teil.structure.struktur.kinder, vergleich: vorhanden}, dann: aus_ordnern}
       - {sonst: angaben_da}
   # U6: Angaben aus WLO gelesen → fragen; sonst („Ohne Angaben aus WLO weiter“) die Dateinamen.
-  # Nicht über ``dateien_weg``: dort führte die Ablage ohne Angaben zurück zur Rückfrage. Review U
+  # Nicht über ``dateien_weg``: dort führte die Ablage ohne Angaben zurück zum Flow. Review U
   # (19.11.), MAJOR 1: nur Angaben zu dieser Auswahl (``block_id`` wie ``dateien_weg``) — hier im
   # Chat gelesene einer früheren Auswahl gehen sonst mit in einen neuen Vorgang
   - id: angaben_da
@@ -311,11 +326,15 @@ schritte:
     text: {de: "Für wen ist er – welche Stufe? Wähle aus oder schreib es mir.",
            en: "Who is it for – which level? Pick one or tell me."}
     optionen:
+      # Rückmeldung 20.11.: dazu Elementarbereich, Erwachsenen- und Fortbildung (WLO-Labels)
+      - {id: elementar, label: {de: Elementarbereich, en: Early childhood}, ziel: umfang}
       - {id: grundschule, label: {de: Grundschule, en: Primary school}, ziel: umfang}
       - {id: sek1, label: {de: Sekundarstufe I, en: Lower secondary}, ziel: umfang}
       - {id: sek2, label: {de: Sekundarstufe II, en: Upper secondary}, ziel: umfang}
       - {id: beruf, label: {de: Berufliche Bildung, en: Vocational training}, ziel: umfang}
       - {id: hochschule, label: {de: Hochschule, en: Higher education}, ziel: umfang}
+      - {id: erwachsene, label: {de: Erwachsenenbildung, en: Adult education}, ziel: umfang}
+      - {id: fortbildung, label: {de: Fortbildung, en: Further training}, ziel: umfang}
       - {id: alle, label: {de: Für alle, en: Everyone}, ziel: umfang}
     freitext: {ziel: umfang, schreibt: stufe}
   - id: umfang
@@ -554,14 +573,14 @@ schritte:
     kein_treffer: {de: "Bitte wähle einen der Knöpfe.", en: "Please choose one of the buttons."}
   # Plan 2026-11-20 §8, E1 (Review Paket E, MAJOR 1): der Ausweg „hier im Chat lesen lassen“ — ein
   # eigenes Feld nur mit diesem Ort (hier bei den Auswegen: ``dokument_laden`` geht ohne ``weiter``
-  # zum folgenden Schritt); in ``dokument_laden`` wäre angemeldet mit Flow-Träger „In WLO
-  # ablegen“ vorgewählt, und der Weg führte zurück in denselben Fehler
+  # zum folgenden Schritt); in ``dokument_laden`` wäre angemeldet mit Flow-Träger „In WLO ablegen
+  # und erschließen“ vorgewählt, und der Weg führte zurück in denselben Fehler
   - id: dokument_chat
     typ: modul
     modul: ui_upload
-    text: {de: "Wähle das Dokument noch einmal und klick auf „Hochladen“ – es wird hier im Chat gelesen.",
-           en: "Choose the document again and click “Upload” – it is read here in the chat."}
-    daten: {zweck: bereitstellen, einzeldatei_als_struktur: true, orte: [chat]}
+    text: {de: "Wähle das Dokument noch einmal und klick auf „Hier lesen“ – es wird nur hier im Chat gelesen, nichts wird in WLO gespeichert.",
+           en: "Choose the document again and click “Read here” – it is only read here in the chat, nothing is stored in WLO."}
+    daten: {zweck: bereitstellen, rolle_vorgabe: gliederung, vorauswahl: auto, orte: [chat]}
     weiter: dokument_gelesen
   - id: ohne_daten
     typ: nachricht
@@ -586,6 +605,14 @@ schritte:
     text: {de: "Wie soll es ohne die Angaben aus WLO weitergehen?",
            en: "How shall we continue without the details from WLO?"}
     optionen:
+      # P4-Nachtrag (Entscheid 20.11.): die Erschließung derselben Dateien — ein zweiter Versuch
+      # oder (ohne Häkchen) der erste, daher kein „nochmal“ (Review P4, MINOR 3). Ohne Box nur,
+      # solange der Upload-Block dieses Laufs gebunden ist (nur nach einem vorübergehenden Ausfall;
+      # jedes endgültige Ende des Auftrags löst ihn, Review P4, MAJOR 2) und das Häkchen gesetzt
+      # war — sonst fragt die Freigabe-Box (``upload_zustimmung``, fail closed). Als Ziel einer
+      # Wahl ist dies zugleich die Frage, an die ein vorübergehender Fehlschlag zurückführt
+      # (``_rueckfrage``)
+      - {id: erschliessen, label: {de: Von WLO erschließen lassen (dieselben Dateien), en: Have WLO index the same files}, ziel: metadaten}
       - {id: lesen, label: {de: Angaben aus WLO lesen, en: Read details from WLO}, ziel: lesen}
       - {id: ohne, label: {de: Ohne Angaben aus WLO weiter, en: Continue without WLO details}, ziel: nach_lesen}
       - {id: frei, label: {de: Frei weiter, en: Continue freely}, ziel: frei}
@@ -649,7 +676,7 @@ tests:
             zum_entwurf, entwurf_thema]
       status: wartet_ki
       teile: [grundlage, zweck, umfang]
-  # U6: „Hier im Chat“ liest den Lehrplan (``strukturdokument``) und den Inhalt daneben
+  # U6: „Nur hier im Chat lesen“ liest den Lehrplan (``strukturdokument``) und den Inhalt daneben
   # (``metadaten``) — der Entwurf bleibt der aus dem Dokument
   - name: Dokument hier im Chat lesen, mit Inhalt
     angemeldet: false
@@ -761,7 +788,7 @@ tests:
       weg: [bereit, vorhanden, einstieg_mit, daten, wofuer, stufe, umfang, hinweise,
             zum_entwurf, entwurf_dokument, ende]
       status: fertig
-  # MINOR 9/12: nach „Anderes wählen“ bleibt ``bereit``. U6: „Hier im Chat“ gelesen → die
+  # MINOR 9/12: nach „Anderes wählen“ bleibt ``bereit``. U6: hier im Chat gelesen → die
   # Angaben (``metadaten``, ``quelle: chatbot``) führen direkt zu den Fragen
   - name: Dokument da, anderes wählen, Dateien hier im Chat
     teile: {document: {ref: "dokument:11111111-1111-4111-8111-111111111111", name: Alt.pdf}}
@@ -870,11 +897,13 @@ tests:
       status: fertig
       teile: [structure, metadaten, ordnerweg, draft]
   # Ordner im Feld in WLO abgelegt (die Ablage schreibt der Endpunkt, hier liegt sie schon da):
-  # erst die Metadaten, dann der Entwurf aus den Ordnern mit den node_ids
+  # mit Häkchen (``erschliessen``, P4) ohne Rückfrage erst die Metadaten, dann der Entwurf aus den
+  # Ordnern mit den node_ids
   - name: Ordner in WLO abgelegt und erschlossen
     teile:
-      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
-               node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
+      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, abgelegt_block: simulationuiupload, erschliessen: true,
+               inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored, neu: true,
+                          node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
     werkzeuge:
       # wie ``metadaten_lesen``: die ``block_id`` der Ablage reist mit (Review U, MAJOR 1)
       lesen: {format: wlo.metadaten@1, block_id: simulationuiupload, titel: Metadaten zu 1 Inhalten,
@@ -894,16 +923,15 @@ tests:
           dateien: [{i: 0, rolle: inhalt}, {i: 1, rolle: inhalt}, {i: 2, rolle: inhalt}, {i: 3, rolle: inhalt}]
           ablage: {layout: ordner, gesamt: 4, abgelegt: 4, unklar: 0, fehler: 0, abgebrochen: 0,
                              ordner_verweigert: false, vorgang_abgelegt: false}
-      - {bei: metadaten_frage, option: ja}
       - {bei: metadaten, ergebnis: {status: SUCCEEDED, outputs: {report: []}}}
       - {bei: ordner_pruefen, antwort: *geprueft}
       - {bei: ordner_weiter, option: lassen}
     erwartet:
-      weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, metadaten_frage,
+      weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, erschliessen_weg,
             metadaten, lesen, nach_lesen, aus_ordnern, ordner_pruefen, ordner_weiter, ende]
       status: fertig
       teile: [metadatenlauf, metadaten, draft]
-  # Alte Antwort ``aktion: erfasst`` (wie „Nur Namen senden“): nur die Auswahl
+  # Alte Antwort ``aktion: erfasst`` (wie „Nur die Dateinamen senden“): nur die Auswahl
   - name: Ordner ohne Unterordner wird der Weg Dateien
     angemeldet: false
     eingaben:
@@ -925,7 +953,7 @@ tests:
             zum_entwurf, inhalte_menge, soll_wenig, entwurf_inhalte, ende]
       status: fertig
       teile: [struktur, metadaten, draft]
-  # U6: „Nur Namen senden“ → nur die Auswahl → die Dateinamen (``inhalte_aus_dateien``)
+  # U6: „Nur die Dateinamen senden“ → nur die Auswahl → die Dateinamen (``inhalte_aus_dateien``)
   - name: Dateien nur mit Namen, anonym
     angemeldet: false
     eingaben:
@@ -983,12 +1011,13 @@ tests:
       weg: [bereit, vorhanden, einstieg_mit, daten, dateien_weg, aus_dateien,
             wofuer, stufe, umfang, hinweise, zum_entwurf, inhalte_menge, soll_wenig, entwurf_inhalte, ende]
       status: fertig
-  # In WLO ablegen und erschließen: die Ablage schreibt der Ablage-Endpunkt beim Hochladen (nicht
-  # die Antwort) — hier liegt sie wie danach im Vorgang (``block_id`` des Felds der Simulation)
+  # In WLO ablegen und erschließen: die Ablage schreibt der Ablage-Endpunkt beim Ablegen (nicht
+  # die Antwort) — hier liegt sie wie danach im Vorgang (``block_id`` des Felds der Simulation,
+  # das Häkchen ``erschliessen``); P4: ohne Rückfrage direkt der Flow
   - name: Dateien in WLO ablegen und erschließen
     teile:
-      ablage: &ablage_linsen {format: wlo.ablage@1, block_id: simulationuiupload,
-                              inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored,
+      ablage: &ablage_linsen {format: wlo.ablage@1, block_id: simulationuiupload, abgelegt_block: simulationuiupload, erschliessen: true,
+                              inhalte: [{index: 0, i: 0, titel: Linsen.pdf, stand: stored, neu: true,
                                          node_id: 11111111-1111-4111-8111-111111111111, rolle: inhalt}]}
     werkzeuge:
       # wie ``metadaten_lesen``: die ``block_id`` der Ablage reist mit (Review U, MAJOR 1)
@@ -1012,7 +1041,6 @@ tests:
           dateien: [{i: 0, rolle: inhalt}]
           ablage: {layout: flach, gesamt: 1, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 0,
                    ordner_verweigert: false, vorgang_abgelegt: false}
-      - {bei: metadaten_frage, option: ja}
       - {bei: metadaten, ergebnis: {status: SUCCEEDED, outputs: {report: []}}}
       - {bei: wofuer, option: material}
       - {bei: stufe, option: sek1}
@@ -1022,32 +1050,14 @@ tests:
       - bei: entwurf_inhalte
         teile: {draft: {titel: Optik, quelle: dokument, knoten: [{titel: Linsen}]}}
     erwartet:
-      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, metadaten_frage,
+      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, erschliessen_weg,
             metadaten, lesen, nach_lesen, angaben_da, wofuer, stufe, umfang, hinweise,
             zum_entwurf, inhalte_menge, soll_wenig, entwurf_inhalte, ende]
       status: fertig
       teile: [ablage, metadatenlauf, metadaten, draft]
-  # U6: „In WLO“ gewählt, aber nichts zur Auswahl abgelegt (keine ``ablage``) → die Dateinamen
-  - name: In WLO gewählt, nichts abgelegt
-    eingaben:
-      - {bei: einstieg, option: neu}
-      - {bei: grundlage, option: dateien}
-      - bei: dateien_laden
-        antwort:
-          aktion: bereitgestellt
-          ort: wlo
-          struktur: *flach_struktur
-          zahlen: *flach_zahlen
-          strukturdokument: null
-          warnungen: []
-          dateien: [{i: 0, rolle: inhalt}, {i: 1, rolle: inhalt}, {i: 2, rolle: inhalt}]
-          ablage: {layout: flach, gesamt: 3, abgelegt: 0, unklar: 0, fehler: 3, abgebrochen: 0,
-                   ordner_verweigert: false, vorgang_abgelegt: false}
-      - {bei: wofuer, option: material}
-    erwartet:
-      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, aus_dateien, wofuer,
-            stufe]
-      status: wartet_wahl
+  # „In WLO gewählt, nichts abgelegt“ (→ die Dateinamen) prüft seit P4 (Plan 2026-11-20)
+  # tests/test_paket_u6_themenbaum.py — höchstens 20 Selbsttests, der Platz ging an den
+  # Dokument-Weg über WLO
   - name: Kestra scheitert, weiter mit den Dateinamen
     teile:
       ablage: *ablage_linsen
@@ -1055,11 +1065,10 @@ tests:
       - {bei: einstieg, option: neu}
       - {bei: grundlage, option: dateien}
       - {bei: dateien_laden, antwort: *in_wlo}
-      - {bei: metadaten_frage, option: ja}
       - {bei: metadaten, fehler: true}
       - {bei: ohne_metadaten, option: ohne}
     erwartet:
-      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, metadaten_frage,
+      weg: [bereit, vorhanden, einstieg, grundlage, dateien_laden, dateien_weg, erschliessen_weg,
             metadaten, ohne_metadaten, nach_lesen, angaben_da, aus_dateien, wofuer]
       status: wartet_wahl
   - name: Ohne Führung
@@ -1086,8 +1095,9 @@ tests:
       weg: [bereit, vorhanden, einstieg, grundlage, ordner_laden, ordner_geladen, ohne_daten, daten,
             ordner_laden, ordner_geladen, aus_ordnern, ordner_pruefen, ordner_weiter, ende]
       status: fertig
-  # MAJOR 3: falsch getroffen — über „Andere Grundlage“ zurück zur Frage
-  - name: Andere Grundlage nach einem leeren Upload
+  # MAJOR 3: falsch getroffen — über „Andere Grundlage“ zurück zur Frage; danach kein Entwurf und
+  # „Nochmal versuchen“ (P4: zusammengelegt, höchstens 20 Selbsttests)
+  - name: Andere Grundlage nach einem leeren Upload, kein Entwurf, nochmal
     angemeldet: false
     eingaben:
       - {bei: einstieg, option: neu}
@@ -1105,11 +1115,16 @@ tests:
       - {bei: stufe, option: sek1}
       - {bei: umfang, option: mittel}
       - {bei: hinweise, option: keine}
+      - {bei: entwurf_thema}
+      - {bei: ohne_entwurf, option: nochmal}
+      - bei: entwurf_thema
+        teile: {draft: {titel: Optik, quelle: ki, knoten: [{titel: Linsen}]}}
     erwartet:
       weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen, ohne_daten,
-            grundlage, wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_thema]
-      status: wartet_ki
-  # U6: „Nur Namen senden“ liest kein Dokument → nochmal, dann hier im Chat gelesen. Plan 2026-11-20
+            grundlage, wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_thema, ohne_entwurf,
+            zum_entwurf, entwurf_thema, ende]
+      status: fertig
+  # U6: nur die Dateinamen gesendet: kein Dokument → nochmal, dann hier im Chat gelesen. Plan 2026-11-20
   # §8, E1: ohne Entwurf („Weiter im Ablauf“, etwa weil WLO keinen Text gewann) die Auswege —
   # hier im Chat lesen lassen (eigenes Feld ``dokument_chat``; die Fragen kommen nach dem Lesen
   # erneut), dann ohne Dokument weiter mit einem Thema. Angemeldet (Review Paket E, MAJOR 1: dort
@@ -1168,19 +1183,69 @@ tests:
             wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_dokument, ohne_dokumenttext,
             grundlage, wofuer, stufe, umfang, hinweise, zum_entwurf, entwurf_thema, ende]
       status: fertig
-  - name: Kein Entwurf, nochmal versuchen
+  # P4 (Plan 2026-11-20, UO-6): der Lehrplan in WLO abgelegt, mit Häkchen — ohne Rückfrage der
+  # Flow (der Upload-Klick ist die Zustimmung), dann lesen, die Fragen und der Entwurf aus dem
+  # Dokument (nicht aus den Dateinamen). Die Ablage liegt in der Simulation schon beim Start da —
+  # mit Rolle ``struktur`` böte ``bereit`` sie als Dokument an (``einstieg_mit``); im Betrieb
+  # entsteht sie erst beim Ablegen. Darum hier Rolle ``inhalt``: der Weg hängt nicht an der Rolle
+  - name: Lehrplan in WLO ablegen und erschließen
+    teile:
+      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, abgelegt_block: simulationuiupload, erschliessen: true,
+               inhalte: [{index: 0, i: 0, titel: Rahmenlehrplan.pdf, stand: stored, neu: true,
+                          node_id: 33333333-3333-4333-8333-333333333333, rolle: inhalt}]}
+    werkzeuge:
+      lesen: &lehrplan_gelesen
+        {format: wlo.metadaten@1, block_id: simulationuiupload, titel: Metadaten zu 0 Inhalten,
+         fehlend: [], inhalte: [{node_id: 33333333-3333-4333-8333-333333333333, i: 0,
+                                 rolle: struktur, titel: Rahmenlehrplan Physik, faecher: [Physik],
+                                 stufen: [Sekundarstufe I]}]}
     eingaben:
       - {bei: einstieg, option: neu}
-      - {bei: grundlage, text: Säuren}
+      - {bei: grundlage, option: dokument}
+      - bei: dokument_laden
+        antwort: &lehrplan_wlo
+          aktion: bereitgestellt
+          ort: wlo
+          struktur: *lehrplan_allein
+          zahlen: *lehrplan_zahlen
+          strukturdokument: {name: Rahmenlehrplan.pdf, groesse: 1000, endung: pdf}
+          warnungen: []
+          dateien: [{i: 0, rolle: struktur}]
+          ablage: {layout: flach, gesamt: 1, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 0,
+                   ordner_verweigert: false, vorgang_abgelegt: false}
+      - {bei: metadaten, ergebnis: {status: SUCCEEDED, outputs: {report: []}}}
       - {bei: wofuer, option: unterricht}
-      - {bei: stufe, option: sek2}
+      - {bei: stufe, option: sek1}
       - {bei: umfang, option: mittel}
       - {bei: hinweise, option: keine}
-      - {bei: entwurf_thema}
-      - {bei: ohne_entwurf, option: nochmal}
-      - bei: entwurf_thema
-        teile: {draft: {titel: Säuren, quelle: ki, knoten: [{titel: pH-Wert}]}}
+      - bei: entwurf_dokument
+        teile: {draft: {titel: Physik, quelle: dokument, knoten: [{titel: Mechanik}]}}
     erwartet:
-      weg: [bereit, vorhanden, einstieg, grundlage, wofuer, stufe, umfang, hinweise,
-            zum_entwurf, entwurf_thema, ohne_entwurf, zum_entwurf, entwurf_thema, ende]
+      weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen,
+            erschliessen_weg, metadaten, lesen, nach_lesen, wofuer, stufe, umfang, hinweise,
+            zum_entwurf, entwurf_dokument, ende]
       status: fertig
+      teile: [ablage, metadatenlauf, metadaten, draft]
+  # P4: ohne Häkchen nur abgelegt — kein Flow, die Angaben lesen, dann wie oben
+  - name: Lehrplan in WLO nur ablegen
+    teile:
+      ablage: {format: wlo.ablage@1, block_id: simulationuiupload, abgelegt_block: simulationuiupload, erschliessen: false,
+               inhalte: [{index: 0, i: 0, titel: Rahmenlehrplan.pdf, stand: stored, neu: true,
+                          node_id: 33333333-3333-4333-8333-333333333333, rolle: inhalt}]}
+    werkzeuge: {lesen: *lehrplan_gelesen}
+    eingaben:
+      - {bei: einstieg, option: neu}
+      - {bei: grundlage, option: dokument}
+      - {bei: dokument_laden, antwort: *lehrplan_wlo}
+      - {bei: wofuer, option: material}
+      - {bei: stufe, option: sek1}
+      - {bei: umfang, option: kompakt}
+      - {bei: hinweise, option: keine}
+      - bei: entwurf_dokument
+        teile: {draft: {titel: Physik, quelle: dokument, knoten: [{titel: Mechanik}]}}
+    erwartet:
+      weg: [bereit, vorhanden, einstieg, grundlage, dokument_laden, dokument_gelesen,
+            erschliessen_weg, lesen, nach_lesen, wofuer, stufe, umfang, hinweise, zum_entwurf,
+            entwurf_dokument, ende]
+      status: fertig
+      teile: [ablage, metadaten, draft]

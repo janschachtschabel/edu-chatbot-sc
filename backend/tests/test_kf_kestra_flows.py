@@ -371,8 +371,9 @@ def _mit_auftrag(**auftrag):
         "id": "probe", "titel": {"de": "Probe"}, "aktiv": True, "ausloeser": [{"art": "knopf"}],
         "voraussetzungen": ["anmeldung"],
         "schritte": [
+            # Plan 2026-11-20, P5 (UO-8): ein Knopf vor einem schreibenden Auftrag sagt die Folge
             {"id": "frage", "typ": "nachricht", "text": {"de": "Los?"}, "optionen": [
-                {"id": "ja", "label": {"de": "Ja"}, "ziel": "job"}]},
+                {"id": "ja", "label": {"de": "Volltext erzeugen"}, "ziel": "job"}]},
             {"id": "job", "typ": "auftrag", "flow": "wlo/volltext", "argumente": {},
              "schreibt": "ergebnis", "repo_schreibt": True, **auftrag},
             {"id": "ende", "typ": "ende", "text": {"de": "Fertig."}},
