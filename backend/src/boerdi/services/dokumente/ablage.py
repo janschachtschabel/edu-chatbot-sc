@@ -15,8 +15,9 @@ Plan 2026-11-17, Paket U (E8/E13, „Hier im Chat“): auch **Inhalte** liegen h
 mit Kurzangaben aus ``inhalt_angaben``). Rolle und Angaben stehen im Befund (``befund.rolle``,
 ``befund.angaben``; ohne Rolle = Strukturdokument, wie vor U) — keine Migration. Die Lesewege der
 Strukturdokumente sehen nur Rolle ``struktur`` (Argument ``rolle``, Vorgabe); ``dokument_lesen``
-sieht beide. Die Grenzen je Sitzung (Anzahl, Gesamtgröße) aus dem Studio (``lokal_max_dateien``,
-``lokal_max_mb_gesamt``) zählen beide Rollen; darüber weist :func:`speichern` ab
+sieht beide. Plan 2026-11-20, P1: ``beides`` (Gliederung und Material) sehen beide Lesewege.
+Die Grenzen je Sitzung (Anzahl, Gesamtgröße) aus dem Studio (``lokal_max_dateien``,
+``lokal_max_mb_gesamt``) zählen alle Rollen; darüber weist :func:`speichern` ab
 (:class:`GrenzeErreicht`) — es verdrängt nichts mehr (vorher ersetzte ein sechstes das älteste).
 """
 
@@ -33,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from boerdi.db.models import DokumentUpload
 from boerdi.services import vorgaenge_dokumente
 from boerdi.services.config_loader.upload import load_upload_config
+from boerdi.ui_module.rollen import BEIDES, GLIEDERUNG, MATERIAL
 
 ROLLE_STRUKTUR: Final = "struktur"
 ROLLE_INHALT: Final = "inhalt"
@@ -59,9 +61,15 @@ def max_bytes_je_sitzung() -> int:
     return load_upload_config().lokal_max_mb_gesamt * _MIB
 
 
+def _gespeicherte_rolle(rolle: object) -> str:
+    """P1 (Plan 2026-11-20): ``inhalt`` und ``beides`` bleiben, alles andere ist ein
+    Strukturdokument (Stand vor U)."""
+    return rolle if isinstance(rolle, str) and rolle in (ROLLE_INHALT, BEIDES) else ROLLE_STRUKTUR
+
+
 def rolle(zeile: DokumentUpload) -> str:
     """Rolle eines gespeicherten Dokuments — ohne Angabe ein Strukturdokument (Stand vor U)."""
-    return ROLLE_INHALT if (zeile.befund or {}).get("rolle") == ROLLE_INHALT else ROLLE_STRUKTUR
+    return _gespeicherte_rolle((zeile.befund or {}).get("rolle"))
 
 
 def angaben(zeile: DokumentUpload) -> dict[str, Any] | None:
@@ -111,7 +119,7 @@ async def speichern(s: AsyncSession, *, session_id: str, block_id: str, aufrufer
         raise GrenzeErreicht("grenze_anzahl")
     if int(belegt) + groesse > max_bytes_je_sitzung():
         raise GrenzeErreicht("grenze_gesamt")
-    befund = {**befund, "rolle": ROLLE_INHALT if rolle == ROLLE_INHALT else ROLLE_STRUKTUR}
+    befund = {**befund, "rolle": _gespeicherte_rolle(rolle)}
     if angaben is not None:
         befund["angaben"] = angaben
     kennung = str(uuid.uuid4())
@@ -173,8 +181,11 @@ def _lesbar(session_id: str, aufrufer: str | None,  # noqa: ANN202 — SQLAlchem
     else:
         bedingung &= DokumentUpload.aufrufer.is_(None)
     if rolle is not None:
-        # Paket U: ohne Rolle im Befund ein Strukturdokument (Zeilen von vor U)
-        bedingung &= func.coalesce(DokumentUpload.befund["rolle"].astext, ROLLE_STRUKTUR) == rolle
+        # Paket U: ohne Rolle im Befund ein Strukturdokument (Zeilen von vor U). P1: ``beides``
+        # gehört zu beiden Lesewegen — gefragt wird nach Strukturdokumenten bzw. Inhalten
+        werte = {ROLLE_STRUKTUR: GLIEDERUNG, ROLLE_INHALT: MATERIAL}.get(rolle, frozenset({rolle}))
+        bedingung &= func.coalesce(DokumentUpload.befund["rolle"].astext,
+                                   ROLLE_STRUKTUR).in_(sorted(werte))
     return bedingung
 
 

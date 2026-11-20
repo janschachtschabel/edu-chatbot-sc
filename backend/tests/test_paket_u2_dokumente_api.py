@@ -71,6 +71,15 @@ def test_von_der_moderation_abgewiesen_kein_llm_aufruf(client, lage, angaben):
     assert angaben == [] and lage.gespeichert == []
 
 
+def test_p1_beides_bekommt_kurzangaben_und_bleibt_beides(client, lage, angaben):
+    """Plan 2026-11-20, P1: „Gliederung und Material“ ist auch ein Inhalt — mit Kurzangaben."""
+    r = _post(client, rolle="beides")
+    assert r.status_code == 200, r.text
+    assert r.json()["rolle"] == "beides" and r.json()["angaben"] == _ANGABEN
+    assert lage.gespeichert[0]["rolle"] == "beides"
+    assert angaben == [("# Lehrplan", "Lehrplan.md")]
+
+
 def test_unbekannte_rolle_wird_abgewiesen(client, lage, angaben):
     assert _post(client, rolle="bild").status_code == 422
     assert lage.aufbereitet == []

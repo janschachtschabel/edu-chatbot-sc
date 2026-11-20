@@ -32,6 +32,8 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any, Final
 
+from boerdi.ui_module.rollen import BEIDES, INHALT, STRUKTUR, ist_material
+
 if TYPE_CHECKING:
     from boerdi.services.dokumente.stand import DokumentStand
 
@@ -74,7 +76,8 @@ def _kennungen(ablage: Any) -> dict[str, tuple[str, int | None]]:
     for e in eintraege:
         kennung = e.get("node_id")
         if isinstance(kennung, str) and _UUID.fullmatch(kennung) and kennung not in aus:
-            rolle = e.get("rolle") if e.get("rolle") in ("inhalt", "struktur") else "inhalt"
+            # P1 (Plan 2026-11-20): ``beides`` bleibt — Strukturdokument und Inhalt zugleich
+            rolle = e.get("rolle") if e.get("rolle") in (INHALT, STRUKTUR, BEIDES) else INHALT
             aus[kennung] = (rolle, _nummer(e))
     return aus
 
@@ -105,7 +108,10 @@ def _groesse(wert: Any) -> int:
 
 def _teil(inhalte: list[dict[str, Any]], fehlend: list[str],
           block_id: Any = None) -> dict[str, Any]:
-    teil = {"format": FORMAT, "titel": f"Metadaten zu {len(inhalte)} Inhalten",
+    # Review P2, Befund 5: der Titel zählt Material wie :func:`materialien` — reine Gliederungen
+    # stehen im Teil (für die Vorbelegung), sind aber keine Inhalte
+    anzahl = len(materialien({"format": FORMAT, "inhalte": inhalte}) or [])
+    teil = {"format": FORMAT, "titel": f"Metadaten zu {anzahl} Inhalten",
             "inhalte": inhalte, "fehlend": fehlend}
     if isinstance(block_id, str) and block_id:
         # Review TG-3a–c, R3-2: ``i`` gilt nur für die Auswahl desselben Upload-Felds — wer
@@ -219,13 +225,18 @@ _ZEILEN: Final = (("schlagworte", "Schlagworte"), ("faecher", "Fächer"), ("stuf
 def materialien(teil: Any) -> list[dict[str, Any]] | None:
     """Die Materialien des Teils ``wlo.metadaten@1`` in der Reihenfolge, in der
     :func:`als_dokument` sie nummeriert (das n-te trägt die Kennung ``an``) — ``None`` bei einem
-    Teil anderer Form. Paket N3 ordnet über diese Kennungen Dateien den Punkten zu."""
+    Teil anderer Form. Paket N3 ordnet über diese Kennungen Dateien den Punkten zu.
+
+    Review P1, Befund 1: der Teil trägt alle abgelegten Einträge, auch reine Gliederungen
+    (``struktur``, für die Vorbelegung) — einsortiert werden nur ``inhalt`` und ``beides`` (wie
+    im Chat-Weg, ``metadaten_lokal``). Ein Eintrag ohne ``rolle`` (alter Teil) bleibt Material."""
     if not isinstance(teil, dict) or teil.get("format") != FORMAT:
         return None
     inhalte = teil.get("inhalte")
     if not isinstance(inhalte, list):
         return None
-    return [i for i in inhalte if isinstance(i, dict)]
+    return [i for i in inhalte if isinstance(i, dict)
+            and ("rolle" not in i or ist_material(i.get("rolle")))]
 
 
 def als_dokument(teil: Any) -> DokumentStand | None:

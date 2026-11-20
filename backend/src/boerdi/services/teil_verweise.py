@@ -12,7 +12,7 @@ Listenstellen, mit Punkt getrennt, :data:`PFAD`); fehlt sie, fehlt der Teil (``<
 Fehlt ein Teil (kein Vorgang, kein solcher Teil), wird das Werkzeug nicht gerufen
 (:func:`fehlertext`).
 Paket AS-Da (Plan 2026-11-09 §5e, R1): eine **Auswahl** aus einem Teil —
-``{"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}``:
+``{"$teil": "ablage", "liste": "inhalte", "wo": {"stand": "stored"}, "feld": "node_id"}``:
 ``liste`` (statt ``pfad``) ist die Liste im Teil, ``wo`` filtert ihre Einträge (bis zu
 :data:`MAX_WO` Bedingungen Pfad → genau gleicher Wert), ``feld`` zieht je Eintrag eine Stelle
 heraus (Einträge ohne sie fallen weg). Das Ergebnis ist immer eine Liste, auch eine leere; ist die

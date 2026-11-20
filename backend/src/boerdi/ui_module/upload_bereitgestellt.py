@@ -24,6 +24,7 @@ from typing import Any, Final
 
 from boerdi.domain.dokument_art import ENDUNG as _LESBAR
 from boerdi.services.config_loader.upload import load_upload_config
+from boerdi.ui_module.rollen import ist_gliederung, ist_material
 
 AKTION: Final = "bereitgestellt"
 ORTE: Final = ("chat", "wlo", "namen")
@@ -148,9 +149,11 @@ def _nicht_gelesen(daten: dict[str, Any], auswahl: list[dict[str, Any]]) -> str 
     max_mb = load_upload_config().max_mb
     zahlen: dict[str, dict[str, int]] = {}
     for d in auswahl:
-        if d.get("rolle") in ("inhalt", "struktur") and d.get("i") not in gelesen:
+        rolle = d.get("rolle")
+        if (ist_gliederung(rolle) or ist_material(rolle)) and d.get("i") not in gelesen:
             je = zahlen.setdefault(_grund_je_datei(d, max_mb), {"inhalt": 0, "struktur": 0})
-            je[d["rolle"]] += 1
+            # P1: ``beides`` steht bei den Strukturdokumenten (wie in ``zahlen``)
+            je["struktur" if ist_gliederung(rolle) else "inhalt"] += 1
     teile = []
     for code, text in _GRUENDE:
         if not (je := zahlen.get(code)):
@@ -176,8 +179,9 @@ def zeilen(daten: dict[str, Any], *, ablage_zeilen: Any, ordner: Any,
     if ort != "chat":
         return ordner(daten)
     dateien = daten.get("dateien") or []
-    inhalte = sum(1 for d in dateien if d.get("rolle") == "inhalt")
-    strukturen = sum(1 for d in dateien if d.get("rolle") == "struktur")
+    # P1 (Plan 2026-11-20): ``beides`` ist beides — es zählt bei Inhalten und Strukturdokumenten
+    inhalte = sum(1 for d in dateien if ist_material(d.get("rolle")))
+    strukturen = sum(1 for d in dateien if ist_gliederung(d.get("rolle")))
     z = [f"Ort: hier im Chat gelesen — {inhalte} Inhalte (mit kurzen Angaben), "
          f"{strukturen} Strukturdokumente.",
          _ZUGRIFF]

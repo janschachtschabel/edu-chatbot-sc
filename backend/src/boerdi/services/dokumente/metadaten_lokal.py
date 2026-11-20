@@ -6,8 +6,10 @@ Kestra-Flow (``metadaten_lesen``): Format ``wlo.metadaten@1``, gelesen von
 und damit von ``ui_strukturentwurf`` mit ``aus_inhalten`` — mit ``quelle: chatbot``.
 
 - **nur Dateien mit Rolle ``inhalt``** aus der Auswahl (``dateiliste``; Strukturdokumente stehen im
-  Teil ``strukturdokument``), je Eintrag die feste Nummer ``i``, kein ``node_id``;
-- **gelesen** (``upload_id`` einer lesbaren Zeile dieser Sitzung mit Rolle ``inhalt``): Titel,
+  Teil ``strukturdokument``; P1, Plan 2026-11-20: ``beides`` steht in beiden), je Eintrag die feste
+  Nummer ``i``, kein ``node_id``;
+- **gelesen** (``upload_id`` einer lesbaren Zeile dieser Sitzung mit Rolle ``inhalt`` oder
+  ``beides``): Titel,
   Beschreibung, Schlagworte, Fach (``faecher``) und Stufe (``stufen``) aus den Kurzangaben, die der
   Server beim Hochladen speicherte (``inhalt_angaben``); ohne Angaben der Titel aus dem Namen;
   ``lesbar: true`` und die ``upload_id`` (``dokument_lesen`` liest den Text);
@@ -36,6 +38,7 @@ from boerdi.services.ablauf.inhalte_aus_dateien import (
     ordnerpfad,
     titel,
 )
+from boerdi.ui_module.rollen import als_material, ist_material
 
 QUELLE: Final = "chatbot"
 _TITEL: Final = {"de": "Inhalte aus {n} Dateien ({k} gelesen)",
@@ -68,7 +71,7 @@ def _teil(inhalte: list[dict[str, Any]], ausgelassen: int, block_id: Any,
 
 
 def _nach_namen(d: dict[str, Any], pfad: list[str]) -> dict[str, Any]:
-    eintrag: dict[str, Any] = {"i": nummer(d), "rolle": "inhalt",
+    eintrag: dict[str, Any] = {"i": nummer(d), "rolle": als_material(d.get("rolle")),
                                "titel": titel(d["name"], str(d.get("endung") or ""))
                                or f"Datei {(nummer(d) or 0) + 1}", "lesbar": False}
     if beschreibung := ordnerpfad(pfad, PFAD_ZEICHEN):
@@ -101,7 +104,7 @@ def aus_antwort(daten: dict[str, Any], block_id: Any, sprache: str = "de"
     """Der Platzhalter aus einer Antwort ``ort: chat`` — Titel aus den Namen, die gelesenen mit
     ``upload_id`` (ungeprüft; :func:`neu_berechnet` gilt). ``None`` ohne Inhalt."""
     gelesen = {d.get("i"): d["upload_id"] for d in daten.get("dateien") or []
-               if isinstance(d, dict) and d.get("rolle") == "inhalt"
+               if isinstance(d, dict) and ist_material(d.get("rolle"))
                and isinstance(d.get("upload_id"), str)}
     roh = dateien_mit_pfad(daten.get("struktur"), [])
     if not roh:
@@ -124,7 +127,8 @@ def _texte(wert: Any) -> list[str]:
 
 
 def _aus_angaben(eintrag: dict[str, Any], angaben: dict[str, Any] | None) -> dict[str, Any]:
-    neu = {k: eintrag[k] for k in ("i", "rolle", "titel", "upload_id") if k in eintrag}
+    neu = {k: eintrag[k] for k in ("i", "titel", "upload_id") if k in eintrag}
+    neu["rolle"] = als_material(eintrag.get("rolle"))
     neu["lesbar"] = True
     if angaben:
         neu["titel"] = " ".join(str(angaben.get("titel") or "").split())[:200] or neu["titel"]
@@ -160,7 +164,7 @@ def neu_berechnet(wert: dict[str, Any], zeilen: list[Any], sprache: str | None =
     Zurück: Wert und Kurzbeschreibung."""
     from boerdi.services.dokumente import ablage
 
-    inhalte_db = {z.id: z for z in zeilen if ablage.rolle(z) == ablage.ROLLE_INHALT}
+    inhalte_db = {z.id: z for z in zeilen if ist_material(ablage.rolle(z))}
     inhalte = []
     for e in wert.get("inhalte") or []:
         if not isinstance(e, dict):
@@ -177,7 +181,7 @@ def neu_berechnet(wert: dict[str, Any], zeilen: list[Any], sprache: str | None =
             basis["beschreibung"] = gekuerzt(str(basis.get("beschreibung") or ""), PFAD_ZEICHEN)
             if not basis["beschreibung"]:
                 basis.pop("beschreibung")
-            inhalte.append({**basis, "rolle": "inhalt", "lesbar": False})
+            inhalte.append({**basis, "rolle": als_material(basis.get("rolle")), "lesbar": False})
     neu = _einpassen(inhalte, wert.get("block_id"), sprache or _sprache(wert))
     if ausgelassen := int(wert.get("ausgelassen") or 0):
         neu["ausgelassen"] = int(neu.get("ausgelassen") or 0) + ausgelassen
