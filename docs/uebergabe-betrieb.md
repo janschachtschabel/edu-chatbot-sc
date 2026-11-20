@@ -464,6 +464,33 @@ T4 – Jan Schachtschabel (technischer Owner).
     angefragte.
   - Einzelheiten: `docs/aenderungen/2026-11-19-paket-n1-n2.md`, `…-paket-n3-zuordnung.md`,
     `…-paket-n4-freigabe-box.md`.
+- **Deploy „Upload-Ort und Erschließung“ (2026-11-20, P1–P7):**
+  - Keine Migration, keine neue Umgebungsvariable, keine Änderung am MCP nötig.
+  - Image neu bauen (Backend mit Seeds, Studio, Widget und Modul-Bündel — `ui-upload` hat sich
+    geändert), danach Hard-Reload im Browser. Das Budget von `ui-upload` ist eine benannte Ausnahme
+    von 24 auf **26 kB** gzip angehoben (gebaut rund 25,1 kB; Summe aller Module unter 60 kB).
+  - **Werksabgleich** (`import-config --werksabgleich`, läuft im `migrate`-Dienst) in einer ruhigen
+    Zeit: Die Werksfassungen `06-ablaeufe/themenbaum` (keine Rückfrage `metadaten_frage` mehr, neu
+    `erschliessen_weg`, `zustimmung: upload`, Schritt-Daten der Upload-Felder) und
+    `01-base/upload-config` (Kopf mit `vorauswahl`) ändern sich. Wartende Läufe von „Themenbaum
+    erstellen“ brechen dabei ab. Im Studio angepasste Fassungen bleiben stehen und arbeiten wie
+    bisher (Rückfrage und Freigabe-Box) — dann unter Sicherung → „Werk und eigene Fassung“
+    „Werksfassung verwenden“.
+  - **Neues Studio-Feld:** „UI-Module → Hochladen“ → „Vorgewählter Ort im freien Chat“
+    (`vorauswahl`: `chat` Vorgabe, `wlo`, `auto`).
+  - **Verhalten ändert sich:**
+    - Auf den Upload-Wegen gibt es keine Rückfrage „Metadaten erzeugen?“ vor Kestra mehr. Der Klick
+      „In WLO ablegen und erschließen“ (mit dem Häkchen „Metadaten von WLO erzeugen lassen“, ab Werk
+      an) ist die Zustimmung — nur für die Knoten, die genau dieser Upload neu anlegte; sonst
+      erscheint die Freigabe-Box wie bisher. Der Flow überschreibt auch den Titel; der Hinweis am
+      Häkchen sagt das.
+    - Auch der Dokument-Weg (Lehrplan) bekommt in WLO den Metadaten-Flow (E3 aufgehoben).
+    - Im freien Chat ist jetzt „Nur hier im Chat lesen“ vorgewählt, auch angemeldet (vorher WLO).
+    - Neue Rolle „Gliederung und Material“ (`beides`); neue Prüfbefunde `zustimmung_upload`,
+      `ablage_reserviert`, `knopf_nichtssagend`, `dienst_daten_wert` — eigene Abläufe nach dem Deploy
+      im Studio „Prüfen“; ein Befund hält einen gespeicherten Ablauf nicht an, verhindert aber das
+      nächste Speichern. Alle Werkseeds sind ohne Befund.
+  - Einzelheiten: `docs/aenderungen/2026-11-20-upload-ort-und-erschliessung.md`.
 - **Wer Updates anstößt und umsetzt:** *(vom Nutzer einzutragen)*.
 
 ## 16 Sitzungsübernahme auf Staging einrichten

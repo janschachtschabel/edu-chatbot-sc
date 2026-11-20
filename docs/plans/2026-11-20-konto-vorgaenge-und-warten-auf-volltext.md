@@ -178,7 +178,8 @@ liegt im Repository (Transformer-Logs nötig). Auf dem Dokument-Weg läuft kein 
   selbst noch ein-, zweimal (nach ~5 s und ~10 s, innerhalb der Frist), bevor er „gleich nochmal“ sagt — kein
   langer Wartezustand nötig (Messung §7: erstes Lesen ≤ 10,5 s bei 8 MB).
 - **E3:** Beschriftung im Upload-Feld auf dem Dokument-Weg „In WLO ablegen“ (ohne „erschließen“), solange dort
-  kein Flow läuft.
+  kein Flow läuft. — **Aufgehoben 20.11. nachmittags, siehe Plan upload-ort-und-erschliessung UO-6**
+  (`docs/plans/2026-11-20-upload-ort-und-erschliessung.md`): der Dokument-Weg bekommt den Flow (P4).
 - **E4:** Rückmeldung an den MCP-Entwickler `docs/mcp-rueckmeldung-2026-11-20-volltext-status.md`:
   `ccm:fulltext_status` in `NODE_PROPS`, neues optionales Feld `extractionStatus` (bzw. eigener Grund
   `extraction_error`), zu klären: bestätigtes Werkzeug „Extraktion neu anstoßen“ für eigene Knoten (Status-

@@ -29,6 +29,17 @@ mit `schreibt: <name>`. In Texten setzt `{teil.<name>.<pfad>}` einen Wert ein, `
 Feld der Startdaten. Die Sicht **Daten** im Studio zeigt, welcher Schritt welchen Teil schreibt
 und liest.
 
+**Daten eines Modul-Schritts** (`daten`): Unter der Tabelle „Daten des Moduls“ zeigt das Studio seit
+Plan 2026-11-20 (P6) die Parameter des gewählten Moduls aus seinem Manifest (`dienst.parameter`) —
+Name, Beschreibung, erlaubte Werte (auch je Eintrag einer Liste), Typ, Vorgabe und ob Pflicht. Die
+Liste ist nur zum Nachlesen; eingetragen wird in der Tabelle. Quelle ist `GET /api/config/ui-module`
+(einmal je Sitzung geladen; scheitert der Abruf, fehlt nur die Hilfe). Für `ui_upload` sind das etwa
+`zweck`, `hinweis`, `orte`, `vorauswahl`, `rolle_vorgabe` und `erschliessen` (Bedeutung:
+`docs/ui-module.md`, „Ort, Rollen und Erschließung“). **Prüfen** meldet unbekannte Namen
+(`modul_feld`) und seit P6 auch Werte, die nicht zum Schema des Parameters passen
+(`dienst_daten_wert`: erlaubte Werte, Typ, Länge, mit dem Erwarteten im Text). Ein Wert mit
+`$teil`-Verweis bleibt ungeprüft — er steht erst im Lauf fest.
+
 **Auslöser** sagen, wie ein Ablauf startet: `knopf` (Direktaktion), `text` (eine Wendung in der
 Nachricht), `agent` (die KI schlägt ihn vor), `modul` (die Antwort eines Moduls), `extern` (die
 Gastseite, mit Startdaten) und `seite` (Angebot unter der Begrüßung).
@@ -42,7 +53,10 @@ Bei `agent` legt `modus` fest, wie der Ablauf startet:
   zählt ein Auftrag nicht, vor dem auf jedem Weg direkt eine echte Rückfrage steht: eine Wahl mit
   mindestens einer Option, die nicht zum Auftrag führt, und ohne Freitext dorthin (wie „Ja,
   Metadaten erzeugen“ / „Nein, so lassen“), oder eine Freigabe. Geschrieben wird erst nach dem Klick
-  der Person.
+  der Person. Seit Plan 2026-11-20 (Upload-Ort, P3) zählt auch ein Auftrag mit `zustimmung: upload`,
+  den die Prüfung für passend hält, als gefragt: Ohne Box startet er nur nach dem Upload-Klick in
+  genau diesem Lauf; ein Direktstart ab dem Auftrag hat keinen Upload-Block und bekommt die Box
+  (Kapitel „Aufträge, die schreiben“).
 - Die KI bietet nur **eingeschaltete** Abläufe an. Einen ausgeschalteten Ablauf mit `direkt` kann man
   in der Studio-Vorschau also nicht über die KI ausprobieren, nur über „Ablauf ausprobieren“.
 
@@ -146,13 +160,28 @@ antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
 
 `06-ablaeufe/themenbaum` („Themenbaum erstellen“) ist **der** Themenbaum-Ablauf ab Werk. Er löst
 die vier Abläufe „Themenbaum · aus …“ ab; seit Plan 2026-11-20 (G1) sind sie nicht mehr im Werk
-(Beschreibung unten, für Anlagen mit einer angepassten Fassung). Er hat keine Voraussetzung: Thema, Dokument, Ordner und Dateien („Hier im
-Chat“ oder „Nur Namen senden“) gehen anonym, der WLO-Weg nur angemeldet. Seit Plan 2026-11-17
-(Paket U, E12) fragt er nicht mehr nach dem Weg: **Wo** verarbeitet wird, wählt die Person im
-Upload-Feld („Hier im Chat“, „In WLO ablegen und erschließen“, „Nur Namen senden“; auf dem
-Dokument-Weg nur „In WLO ablegen“, dort läuft kein Flow — Plan 2026-11-20 §8, E3). Die Fragen
+(Beschreibung unten, für Anlagen mit einer angepassten Fassung). Er hat keine Voraussetzung: Thema, Dokument, Ordner und Dateien („Nur hier im
+Chat lesen“ oder „Nur die Dateinamen senden“) gehen anonym, der WLO-Weg nur angemeldet. Seit Plan
+2026-11-17 (Paket U, E12) fragt er nicht mehr nach dem Weg: **Wo** verarbeitet wird, wählt die Person
+im Upload-Feld („In WLO ablegen und erschließen“, „Nur hier im Chat lesen“, Nebenknopf „Nur die
+Dateinamen senden“). Seit Plan 2026-11-20 (Upload-Ort und Erschließung, P4) bekommt **jeder** Weg in
+WLO den Flow, auch der Dokument-Weg (UO-6; die Ausnahme E3 vom 20.11. — „auf dem Dokument-Weg nur
+ablegen“ — ist aufgehoben); ob erschlossen wird, entscheidet das Häkchen „Metadaten von WLO erzeugen
+lassen“ im Upload-Feld, eine Rückfrage „Metadaten erzeugen?“ gibt es nicht mehr. Die Fragen
 `wlo_frage`, `schnell` und `schnell_da` sind entfallen; 40 Schritte (die Obergrenze; Paket E brachte
-`ohne_dokumenttext` und `dokument_chat`).
+`ohne_dokumenttext` und `dokument_chat`, P4 tauschte `metadaten_frage` gegen `erschliessen_weg`).
+
+Die vier Upload-Schritte setzen die Vorgaben des Felds (`docs/ui-module.md`, „Ort, Rollen und
+Erschließung“):
+
+| Schritt | `daten` |
+|---|---|
+| `dokument_laden` | `zweck: bereitstellen`, `rolle_vorgabe: gliederung`, `vorauswahl: auto`, `erschliessen: true` |
+| `dokument_chat` | `zweck: bereitstellen`, `rolle_vorgabe: gliederung`, `vorauswahl: auto`, `orte: [chat]` (kein Häkchen) |
+| `ordner_laden`, `dateien_laden` | `zweck: bereitstellen`, `rolle_vorgabe: material`, `vorauswahl: auto`, `erschliessen: true` |
+
+Ihre Texte nennen die Orte so, wie sie im Feld heißen, und was dort geschieht (Dauer, was WLO tut);
+`einzeldatei_als_struktur` kommt im Werkseed nicht mehr vor.
 
 Seit dem Review TG-4–6 gilt: erst die Grundlage und ihre Daten, dann die Fragen, die dort wirken,
 dann der Entwurf.
@@ -173,21 +202,29 @@ dann der Entwurf.
    Ordner“), ist der Text weder Wahl noch Thema: Der Hinweis `kein_treffer` fragt nach (jedes Mal),
    der Schritt wartet weiter. `kein_treffer` neben Freitext ist nur mit `synonyme_im_satz` erlaubt.
 3. **Daten:**
-   - Dokument → Upload-Feld mit `einzeldatei_als_struktur` → gelesen? (Ein Teil `strukturdokument`
-     ist da, hier im Chat gelesen oder in WLO abgelegt.)
+   - Dokument → Upload-Feld (`dokument_laden`, Rolle „Gliederung“) → `dokument_gelesen`: liegt eine
+     WLO-Ablage **dieses** Felds vor (`ablage.block_id` gleich `{teil.struktur.block_id}`), geht es
+     zuerst über `erschliessen_weg` (s. u.); sonst gelesen, wenn ein Teil `strukturdokument` da ist
+     (hier im Chat gelesen) → die Fragen. Nach dem Lesen aus WLO führt `nach_lesen` das Dokument
+     immer zu den Fragen (`wofuer`), auch nach „Ohne Angaben aus WLO weiter“ — nie zu den
+     Dateinamen; der Entwurf liest das Dokument selbst.
    - Ordner → Upload-Feld → `strukturentwurf_aus_ordnern` → Prüfpunkt `ui_strukturentwurf` („Ordner
      sind dein Ausgangspunkt …“) → „So lassen“ (fertig, die Dateien sind je Punkt gemerkt) oder „Mit
-     deinen Angaben verfeinern“. Ohne Unterordner der Weg Dateien. Überträgt die Person die Dateien
-     im Feld nach WLO, folgen erst Rückfrage, Kestra-Metadaten und `metadaten_lesen`, dann der
-     Entwurf mit den node_ids.
+     deinen Angaben verfeinern“. Ohne Unterordner der Weg Dateien. Legt die Person die Dateien im
+     Feld in WLO ab, folgen erst `erschliessen_weg`, ggf. Kestra-Metadaten und `metadaten_lesen`,
+     dann der Entwurf mit den node_ids.
    - Dateien → Upload-Feld (`dateien_laden`), dann `dateien_weg` nur nach den Teilen **dieser**
      Auswahl (`block_id` gleich `{teil.struktur.block_id}`):
      - `metadaten` dazu (hier im Chat gelesen, `quelle: chatbot`) → gleich die Fragen;
-     - `ablage` dazu (in WLO abgelegt) → Rückfrage `metadaten_frage`, Freigabe-Box (siehe
-       „Aufträge, die schreiben“), Kestra-Flow `metadaten`, `metadaten_lesen`, dann `angaben_da`;
+     - `ablage` dazu (in WLO abgelegt) → `erschliessen_weg`, dann `lesen` (`metadaten_lesen`) und
+       `angaben_da`;
      - nur Namen → `aus_dateien` (`inhalte_aus_dateien`, Teil `metadaten` aus den Dateinamen);
      - sonst `ohne_daten`.
      Angaben einer früheren Auswahl zählen so nicht mit.
+   - **`erschliessen_weg`** (Verzweigung, seit P4): `teil.ablage.erschliessen` gleich `ja` (das
+     Häkchen war gesetzt und der Server hielt es fest) → `metadaten` (Kestra-Flow mit
+     `zustimmung: upload`, ohne Rückfrage und ohne Box, siehe „Aufträge, die schreiben“); sonst →
+     `lesen` (nur abgelegt; WLO erzeugt keine Metadaten).
 4. **Fragen**: wofür, für wen bzw. welche Stufe (eine Frage), Umfang, Hinweise, dann Soll oder Ist
    (nur bei Dateien — die Metadaten liegen dann vor; gefragt in `zum_entwurf`). Unter 5 Inhalten
    (kein fünfter Eintrag in `metadaten.inhalte`) statt dessen „Mit so wenigen Dateien wird der Baum
@@ -195,7 +232,7 @@ dann der Entwurf.
    nur meine Dateien“, Durchtest TG-7, m4). Auf dem Ordner-Weg nur nach „verfeinern“.
    Freitext nur, wo die Antwort frei ist (Grundlage, wofür, Stufe, Umfang, Hinweise).
    **Knopf-Fragen** (Ja/Nein, Entweder-oder: Einstieg, „So lassen“/„verfeinern“, Soll oder Ist, die
-   Rückfrage vor Kestra, die Auswege) nehmen keinen Freitext und tragen keine Synonyme — „Passt so“
+   Auswege wie `ohne_metadaten`) nehmen keinen Freitext und tragen keine Synonyme — „Passt so“
    oder „Ja, erzeugen“ träfen sonst den falschen Knopf. Ohne
    Treffer erscheint einmal „Bitte wähle einen der Knöpfe.“ mit denselben Chips (`kein_treffer`).
 5. **Entwurf** im KI-Schritt der Grundlage; auf dem Ordner-Weg mit `vorlage: true` (der geprüfte
@@ -229,8 +266,8 @@ Repositorium), ist das endgültig — das Repositorium erzeugt den Text synchron
 wiederholt eine gescheiterte Extraktion nie. Der Dienst meldet `volltext_endgueltig`; die KI nennt
 die Auswege und verweist auf „Weiter im Ablauf“. Ohne Entwurf führt `entwurf_dokument` dann zu
 `ohne_dokumenttext` mit festen Knöpfen: „Dokument hier im Chat lesen lassen“ (eigenes Upload-Feld
-`dokument_chat` nur mit dem Ort „Hier im Chat“ — im alten Feld wäre angemeldet „In WLO ablegen“
-vorgewählt; dort hilft oft die Texterkennung), „Ohne Dokument weiter“ (zur Grundlage, etwa ein
+`dokument_chat` nur mit dem Ort „Nur hier im Chat lesen“, Knopf „Hier lesen“ — im alten Feld wäre
+angemeldet „In WLO ablegen und erschließen“ vorgewählt; dort hilft oft die Texterkennung), „Ohne Dokument weiter“ (zur Grundlage, etwa ein
 Thema), „Frei weiter“ und zuletzt „Nochmal, falls es eben ausgelastet war“ (für andere Fehler).
 Vorübergehende Gründe (`text_unreadable`, `abruf_fehler` — auch Frist, Transport oder Auslastung
 des MCP-Aufrufs) wiederholt der Leser im selben Zug selbst nach 5 s und 10 s, solange die Frist der
@@ -245,7 +282,20 @@ Strukturdokumente Fach, Stufe und Thema für die Vorbelegung (`vorbelegung._aus_
 Vorrang: Argument der KI vor Antwort der Person vor Strukturdokument). Markdown- und Textdateien gehen
 nicht an `node-metadata-write` (der Flow scheitert dort); fiel etwas weg, sagt es
 `metadatenOhneText` vor dem Start, bleibt nichts, nimmt der Schritt `bei_fehler`
-(`ohne_metadaten`). Den Volltext eines md-Strukturdokuments liest der MCP selbst.
+(`ohne_metadaten`). Den Volltext eines md-Strukturdokuments liest der MCP selbst. Seit Plan
+2026-11-20 (P4) trägt `metadaten` `zustimmung: upload` und den Text „WLO erschließt deine Dateien –
+das dauert ein paar Minuten. Du kannst warten oder später unter „Meine Vorgänge“ weitermachen.“; der
+Flow überschreibt dabei auch den Titel (der Hinweis am Häkchen sagt das vorher).
+
+**Von WLO erschließen lassen (P4-Nachtrag):** `ohne_metadaten` („Wie soll es ohne die Angaben aus
+WLO weitergehen?“) bietet als erste Option „Von WLO erschließen lassen (dieselben Dateien)“ (Ziel
+`metadaten`), danach „Angaben aus WLO lesen“, „Ohne Angaben aus WLO weiter“, „Frei weiter“. Der Knopf
+steht immer da; über die Zustimmung entscheidet der Server (fail closed): Nur nach einem
+**vorübergehenden** Ausfall bleibt der Upload-Block des Laufs gebunden, und der zweite Versuch startet
+ohne Box. Nach einem endgültigen Fehlschlag, nach einem gelungenen Start (der Block ist verbraucht; jeder endgültige Ausgang des Schritts gibt ihn frei, auch eine abgelehnte Vorschau),
+ohne Häkchen und nach der Freigabe-Box („Abbrechen“) fragt die Freigabe-Box — kein Flow, den die
+Person nicht gewählt hat, startet von selbst. Als Ziel einer Wahl ist `ohne_metadaten` zugleich die
+Frage, an die ein vorübergehender Ausfall zurückführt (`treiber._rueckfrage`).
 
 **Freie Arbeit bleibt (Review TG-4–6, MAJOR 2):** Ein Ablauf mit Auftrag beginnt nur dann in einem
 frischen Vorgang, wenn im aktuellen eine Ablage, ein Metadaten-Lauf oder ein offener Lauf liegt
@@ -265,6 +315,15 @@ dem Hauptweg steigt `m` nie (zweites Review, B).
 Repositorium schreibt, trägt keine `synonyme` — ohne Freitext träfe „Nein, nicht erzeugen“ über
 „erzeugen“ die Zustimmung. Die Prüfung meldet das (`auftrag_synonym`), und für den Direktstart zählt
 eine solche Frage nicht als Rückfrage.
+
+**Knöpfe vor einem schreibenden Schritt sagen die Folge (Plan 2026-11-20, P5):** Eine Option, deren
+Ziel ins Repositorium schreibt (Auftrag mit `repo_schreibt` oder einem bekannt schreibenden Flow,
+schreibendes Werkzeug), und die Text-Chips derselben Frage dürfen nicht nur „OK“, „Okay“, „Weiter“,
+„Ja“, „Nein“, „Los“, „Start“, „Go“, „Yes“, „No“, „Next“, „Continue“ oder „Fortfahren“ heißen —
+verglichen ohne Satzzeichen, Leerzeichen und Groß-/Kleinschreibung, in jeder Sprache des Labels. Die
+Prüfung meldet das als `knopf_nichtssagend` und schlägt eine Beschriftung vor, die sagt, was geschieht
+(etwa „In WLO ablegen und erschließen“). „Ja, Metadaten erzeugen“ oder „Erschließung nochmal
+versuchen (dieselben Dateien)“ bleiben frei. Alle Werkseeds bestehen.
 
 **Simulation und Hinweis:** Bekommt getippter Text den Hinweis `kein_treffer`, wartet der Lauf auch
 im Selbsttest weiter; die nächste Eingabe gilt demselben Schritt. Ohne Freitext einmal je Besuch
@@ -387,7 +446,9 @@ Anmeldung):
    immer wählbar. Dafür muss im Studio unter „UI-Module → Hochladen“ die Ablage in WLO an sein.
 3. `uebertragen` (`verzweigung` mit `wenn_teil: ablage`): Ohne Übertragung geht es zu
    `ohne_ablage`.
-4. `metadaten_frage`: die Rückfrage vor dem schreibenden Flow; danach die Freigabe-Box.
+4. `metadaten_frage`: die Rückfrage vor dem schreibenden Flow; danach die Freigabe-Box. (Stand dieses
+   abgelösten Ablaufs; „Themenbaum erstellen“ hat die Rückfrage seit Plan 2026-11-20, P4, durch das
+   Häkchen im Upload-Feld und `zustimmung: upload` ersetzt.)
 5. `metadaten` (`auftrag` `edusharing.chatbot/node-metadata-write`, `repo_schreibt: true`). Die
    nodeIds nimmt der Schritt nur aus der Ablage desselben Vorgangs, als Auswahl
    `{$teil: ablage, liste: inhalte, wo: {stand: stored}, feld: node_id}`. Scheitert der Flow, sagt
@@ -408,7 +469,8 @@ ist, ist eine fehlende Freigabe nur ein Hinweis.
 
 - Er ersetzt acht Felder je Datei: Titel, Beschreibung, Schlagworte, Sprache, Fach,
   Bildungsstufe, Zielgruppe, Ressourcentyp. Jede Änderung wird eine neue Version. Die Rückfrage
-  nennt sie alle.
+  nennt sie alle; der Hinweis am Häkchen im Upload-Feld nennt Titel, Beschreibung, Fach, Stufe und
+  Schlagworte und dass der Dateiname nicht der Titel bleibt.
 - **Nur Dateien dieses Laufs:**
   - Ein schreibender Ablauf beginnt immer in einem frischen Vorgang, damit keine alte Ablage
     hineinrutscht.
@@ -526,6 +588,9 @@ neuen Werksfassung im Studio umschalten.
 
 - **Prüfen** meldet, was der Treiber nicht sicher ausführen könnte (fehlende Ziele, Teile, die nie
   entstehen, schreibende Werkzeuge ohne Freigabe …). Gespeichert wird nur ein Ablauf ohne Befund.
+  Seit Plan 2026-11-20 neu: `zustimmung_upload` und `ablage_reserviert` (Kapitel „Aufträge, die
+  schreiben“), `knopf_nichtssagend` (oben, „Knöpfe vor einem schreibenden Schritt“) und
+  `dienst_daten_wert` (Bausteine, „Daten eines Modul-Schritts“).
 - **Tests ausführen** spielt jeden Testfall mit dem echten Treiber durch, ohne Sprachmodell, WLO
   oder b-api. Das kostet nichts und kommt jedes Mal gleich heraus.
 
@@ -606,8 +671,10 @@ Ein `auftrag` startet einen Kestra-Flow **im Namen der angemeldeten Person**. Se
   Nur angekreuzte Schritte startet der MCP; ein Schritt ohne den Vermerk geht den Direktweg der
   b-api, und der geht nur mit dem Schlüssel der Person, nie bei Delegation. Die Prüfung meldet einen
   bekannt schreibenden Flow (ab Werk `node-metadata-write`) ohne Vermerk (`auftrag_repo_schreibt`).
-  Ein Ablauf mit Auftrag startet nie direkt.
-- **Start in zwei Schritten mit Freigabe-Box (Paket N4):** Nach der Rückfrage holt der Chatbot die
+  Ein Ablauf mit Auftrag startet nur dann direkt, wenn vor dem Auftrag eine echte Rückfrage oder die
+  Zustimmung durch den Upload steht (Bausteine, `modus: direkt`).
+- **Start in zwei Schritten mit Freigabe-Box (Paket N4):** Nach der Rückfrage (mit `zustimmung: upload`
+  nach dem Upload-Klick, wenn der Server die Zustimmung nicht nachweisen kann) holt der Chatbot die
   Vorschau des MCP (er prüft jeden Datensatz als die Person) und zeigt sie als Box: Zahl der
   Materialien, welche Felder überschrieben werden, Probleme getrennt („gehen nicht mit“), die Liste
   eingeklappt (nach Ordner gruppiert, bei mehr als 20 Einträgen mit Filter und „Weitere zeigen“, je
@@ -622,20 +689,62 @@ Ein `auftrag` startet einen Kestra-Flow **im Namen der angemeldeten Person**. Se
     eine neue Box. Ein Stapel, den der Schritt aufteilt (`aufteilen.hoechstens`, ab Werk 50), bekommt
     eine Box für alle Teile.
   - Ein Feld `freigabe` am Schritt gibt es nicht: Jeder Auftragsschritt mit `repo_schreibt` über den
-    MCP zeigt die Box. In der Simulation und in der Probe zeigt der Schritt keine Box (der Auftrag
+    MCP zeigt die Box — außer mit `zustimmung: upload`, wenn der Server die Zustimmung nachweist
+    (Abschnitt „Zustimmung durch den Upload“ unten). In der Simulation und in der Probe zeigt der Schritt keine Box (der Auftrag
     läuft dort nicht, siehe „Probe“).
 - **`outcomeOpen`:** Kam vom Start keine klare Antwort, kann der Job trotzdem laufen. Der Chatbot
   startet dann nie neu; der Schritt wartet mit „Stand prüfen“, das die Datensätze liest
   (`auftragOffen`).
-- Fehlen die Flow-Werkzeuge kurz (Neustart des MCP), führt der Schritt zurück an die Rückfrage mit
+- Fehlen die Flow-Werkzeuge kurz (Neustart des MCP), führt der Schritt zurück an die Frage davor
+  (eine Wahl mit einer Option auf den Auftrag; in „Themenbaum erstellen“ seit P4 `ohne_metadaten`) mit
   „gleich noch einmal“. Bei 429 ebenso, mit „in etwa N Minuten“. Antwortet der MCP `not_allowed`,
   liest die Person „hier nicht freigegeben – Frage der Einrichtung“, dann `bei_fehler`.
-- Vor einem schreibenden Auftrag gehört eine Wahl, die sagt, was geschieht. Zum Beispiel: „Ich
-  erzeuge jetzt Metadaten für deine N Dateien und schreibe sie hinein. Weiter?“
+- Vor einem schreibenden Auftrag gehört eine Wahl, die sagt, was geschieht — oder, nur für den
+  Metadaten-Flow nach einem Upload, der Klick „In WLO ablegen und erschließen“ (`zustimmung: upload`).
+  Zum Beispiel: „Ich erzeuge jetzt Metadaten für deine N Dateien und schreibe sie hinein.“ mit dem Knopf
+  „Ja, Metadaten erzeugen“ — nicht nur „Weiter?“ mit „OK“ (die Prüfung meldet `knopf_nichtssagend`).
 - Ein Flow, der nicht freigegeben ist, sperrt nur einen **eingeschalteten** Ablauf, und nur, wenn
   sein Auftragsschritt keinen Ersatzweg (`bei_fehler`) hat. Bei einem ausgeschalteten Ablauf oder
   mit Ersatzweg erscheint er als Hinweis (Rückmeldung 16.11.). Zur Laufzeit startet der Auftrag
   dann nicht, und der Schritt nimmt `bei_fehler`. Dasselbe gilt beim Entziehen einer Freigabe.
+
+### Zustimmung durch den Upload (Plan 2026-11-20, P3)
+
+Ein Auftragsschritt kann das Feld **`zustimmung`** tragen (Studio „Zustimmung zum Start“):
+`freigabe` (oder leer, Vorgabe) = Freigabe-Box wie oben; **`upload`** = der Klick „In WLO ablegen und
+erschließen“ im Upload-Feld davor ist die Zustimmung zum Ablegen **und** zum Metadaten-Flow. Dann
+startet der Chatbot nach der Vorschau des MCP im selben Zug mit der Bestätigung (Schlüssel des ersten
+Teils, Stapel aus den freigegebenen Argumenten — derselbe Stand wie Box + „Freigeben“), ohne Box. Für
+vorhandene Inhalte bleibt es bei Rückfrage und Freigabe-Box.
+
+- **Nur der Metadaten-Flow:** `zustimmung: upload` gilt nur für `edusharing.chatbot/node-metadata-write`
+  mit „Flow schreibt ins Repositorium“ (`repo_schreibt`); jeder andere Flow zeigt die Box.
+- **Bedingungen, alle nötig** (`services/ablauf/upload_zustimmung.py`): persönliche WLO-Anmeldung; ein
+  Teil `ablage` mit `erschliessen: true` (das Häkchen war gesetzt und der Server hielt es fest);
+  `ablage.block_id` ist der Upload-Block, den **dieser Lauf** zuletzt beantwortet hat (nur eine fertige
+  WLO-Ablage ohne Abbruch bindet den Lauf); `ablage.aufrufer` ist die Marke des Aufrufers dieses Zugs;
+  die `node_ids` sind nicht leer und stehen alle in `inhalte` dieser Ablage mit `stand: stored` und
+  `neu: true` (nicht in `frueher`); die Vorschau des MCP meldet keine Probleme und deckt nur diese
+  Knoten. Der Server liest dafür den **gespeicherten** Teil, nicht einen im selben Zug geschriebenen.
+- **Sonst Freigabe-Box (fail closed):** fremde oder ältere Knoten, ohne Häkchen, andere Person,
+  abgemeldet, Direktstart ab dem Auftrag oder ein Upload im freien Chat (dort hat der Lauf keinen
+  Upload-Block), ein abgelaufener Vorschau-Schlüssel, Probleme in der Vorschau. Lehnt der MCP die
+  Bestätigung ab, gilt der Ersatzweg wie nach „Freigeben“.
+- **Einmal:** Nach einem Start ohne Box ist der Upload-Block verbraucht. Kommt an einem solchen Schritt
+  die Box, löst sie die Bindung ebenfalls — die Box ist dann der einzige Weg. Nur ein
+  **vorübergehender** Ausfall (zurück an die Frage bzw. `bei_fehler`) lässt die Bindung stehen.
+- **Vermerk:** Der Lauf trägt nach einem Start ohne Box `auftrag_zustimmung: upload`; das Log sagt
+  „Auftrag ohne Box gestartet: Zustimmung durch Upload (Ablauf …, Schritt …, Lauf …)“ — ohne nodeIds,
+  Schlüssel oder Kennung einer Person.
+- **Prüfung:** `zustimmung: upload` braucht `repo_schreibt`, den Metadaten-Flow, die Knotenliste
+  (`aufteilen.argument`, sonst `node_ids`) als `{$teil: ablage, liste: inhalte, …}` und einen
+  `ui_upload`-Schritt, von dem aus der Auftrag erreichbar ist — dann entfällt der Befund
+  `auftrag_rueckfrage`, sonst meldet sie `zustimmung_upload`. Den Teil `ablage` schreibt nur der Server
+  (`/api/ui/ablage/*`): Ein Schritt, der ihn füllen will (`schreibt` außer am Modul, `agent.ausgabe`,
+  `freitext.schreibt`), ergibt `ablage_reserviert`.
+- Damit der Upload-Schritt das Häkchen zeigt, setzt er `erschliessen` ausdrücklich
+  (`docs/ui-module.md`); der Ablauf verzweigt danach auf `teil.ablage.erschliessen` (Beispiel
+  `erschliessen_weg` in „Themenbaum erstellen“).
 
 ### Warten auf den Flow (Paket K, E16/E17)
 

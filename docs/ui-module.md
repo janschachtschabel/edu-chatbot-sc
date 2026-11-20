@@ -118,7 +118,7 @@ export class UiBeispiel {
 | `antworten(daten, text)` | `antworten` | nächster Zug mit `ui_antwort` |
 | `vormerken(daten \| null)` (U2) | `antworten` | die nächste **getippte** Nachricht nimmt `daten` als `ui_antwort` mit, solange der Block offen ist (Block wird `beantwortet` statt `veraltet`) |
 | `zweig(nodeId)` | `nachladen` | Daten ohne Zug nachladen (heute nur Themenbaum); ohne Fähigkeit Ablehnung mit `status: 403` |
-| `hochladen(datei, onFortschritt?, rolle?)` | `hochladen` | Eine Datei ohne Zug „Hier im Chat“ lesen (U3-2c, Paket U: `POST /api/ui/dokumente`, `rolle` = `inhalt` \| `struktur` als Formularfeld, nur wenn angegeben); löst mit dem Befund auf, lehnt mit `status` und `code` ab |
+| `hochladen(datei, onFortschritt?, rolle?)` | `hochladen` | Eine Datei ohne Zug „Nur hier im Chat lesen“ (U3-2c, Paket U: `POST /api/ui/dokumente`, `rolle` = `inhalt` \| `struktur` \| `beides` als Formularfeld, nur wenn angegeben); löst mit dem Befund auf, lehnt mit `status` und `code` ab |
 | `ablegen(schritt)` | `hochladen` | Ein Schritt der Ablage im persönlichen Bereich (U3-3b, `POST /api/ui/ablage/*`), ohne Zug; `vorbereiten` bringt seit M6 die eigenen letzten Ablagen mit (`letzte`) |
 | `auftrag(schritt)` | `auftrag` | K1b: `stand` fragt den Stand eines Ablauf-Auftrags ohne Zug (`POST /api/ui/auftrag/stand`, `{stand}`; 409 = kein wartender Auftrag); `abholen` lässt die Shell das Ergebnis im Zug holen (Direktaktion `ablauf_auftrag_pruefen`, ohne Nutzerblase) → `{gesendet}` |
 | `markdown(text)`, `treffer()`, `beschaeftigt()` | immer | Darstellung; ohne `oeffnen` baut der Kontext von `treffer()` keine Adressen (`withBsid`/`externalLinkWarning` leer) |
@@ -407,7 +407,9 @@ mehrdeutigen Fall („Themenbaum für <Fachportal>“ → Bestand + Schnellantwo
 entwerfen“; „entwirf / gliedere / neue Struktur / Unterrichtsreihe“ → Entwurf).
 
 **Ordner erfassen (U3-1):** `ui_upload` liest einen Ordner im Browser (Knopf oder Ablegen) und zeigt
-ihn als Baum mit Dateizahlen; die Person setzt Rollen (Inhalt, Strukturdokument, ignorieren). Zurück
+ihn als Baum mit Dateizahlen; die Person setzt Rollen (seit Plan 2026-11-20, P1: „Gliederung“,
+„Material“, „Gliederung und Material“, „Nicht verwenden“ — technisch `struktur`, `inhalt`, `beides`,
+`ignorieren`; Einzelheiten unter „Ort, Rollen und Erschließung“ unten). Zurück
 gehen Ordner- und Dateinamen mit Zahlen; hochgeladen wird nichts. Seit Plan 2026-11-16, TG-3a trägt
 jeder Ordner seine Dateien (`dateiliste`: feste Nummer `i`, Name, Endung, Größe, Rolle) — daraus wird
 der Teil `struktur` (`wlo.auswahl@1`), daneben bleibt `structure` (nur Ordner) als abgeleitete
@@ -459,8 +461,10 @@ Weg, Anfang, Abschnittstitel; nie an die KI, nicht gemerkt, nicht in Antwort ode
 
 **Ein Upload-Weg — „Wo verarbeiten?“ (Plan 2026-11-17, Paket U; Vertrag Teil a, Oberfläche Teil b):** Statt
 „Senden“, „Lesen lassen“ und „Übertragen“ wählt die Person nach der Auswahl einen **Ort** und klickt
-einen Knopf „Hochladen“; klein daneben „Nur Namen senden (nichts hochladen)“. Das Backend liefert die
-Daten dafür, die Oberfläche übersetzt nur Codes.
+den Knopf dieses Orts (seit Plan 2026-11-20, P2: „Hier lesen“ bzw. „Weiter zur Vorschau“ — ein Knopf
+„Hochladen“ heißt so nicht mehr); klein daneben „Nur die Dateinamen senden (der Inhalt bleibt auf
+deinem Gerät)“. Das Backend liefert die Daten dafür, die Oberfläche übersetzt nur Codes. Wortlaut,
+Rollen, Vorauswahl und Häkchen: Abschnitt „Ort, Rollen und Erschließung“ unten.
 
 *Eingabe (setzt das System, `x-nur-system`):*
 
@@ -469,14 +473,20 @@ Daten dafür, die Oberfläche übersetzt nur Codes.
   ```json
   {"vorauswahl": "wlo|chat|namen",
    "chat":  {"geht": true, "ueber_grenze": "ueber_grenze|ueber_grenze_anmelden", "texterkennung": true},
-   "wlo":   {"geht": true, "hinweis": "ohne_erschliessung"},
+   "wlo":   {"geht": true, "hinweis": "ohne_erschliessung",
+             "grund_erschliessung": "flow_nicht_freigegeben|dienst_nicht_erreichbar"},
    "namen": {"geht": true}}
   ```
   Je Ort `geht`; gesperrt mit `grund`: `aus` (Studio aus bzw. der MCP führt die Stapel-Ablage nicht),
   `nur_angemeldet` (geht nach der WLO-Anmeldung), `ablauf` (der Ablauf lässt den Ort nicht zu).
-  `hinweis: ohne_erschliessung` = WLO geht als Ablage, aber ohne Kestra-Metadaten (kein Flow-Träger).
+  `hinweis: ohne_erschliessung` = WLO geht als Ablage, aber ohne Kestra-Metadaten (der
+  Metadaten-Flow ist nicht startbar). Seit Plan 2026-11-20 (Review P2, Befund 3) steht daneben der
+  Grund `grund_erschliessung`: `flow_nicht_freigegeben` (der MCP trägt, der Flow ist aber nicht
+  freigegeben — Oberfläche „in diesem Chat nicht freigegeben“) bzw. `dienst_nicht_erreichbar` (kein
+  Träger: MCP fehlt oder ist kurz weg — „der Dienst dafür ist gerade nicht erreichbar“); unbekannte
+  Codes lässt die Oberfläche weg.
   `chat.ueber_grenze`: der Code, den die Oberfläche zeigt, wenn die Auswahl die Grenzen überschreitet
-  (dann ist „Hier im Chat“ für diese Auswahl gesperrt) — `ueber_grenze_anmelden`, wenn eine
+  (dann ist „Nur hier im Chat lesen“ für diese Auswahl gesperrt) — `ueber_grenze_anmelden`, wenn eine
   Anmeldung den WLO-Weg öffnete, sonst `ueber_grenze`. `namen` geht immer.
   `chat.texterkennung: true` (Plan 2026-11-19, Paket C): gescannte PDF liest der Server per
   Texterkennung (`services/dokumente/ocr.aktiv`: Studio `ocr`, `DOCUMENT_OCR` nicht `off`, Anbieter
@@ -486,23 +496,27 @@ Daten dafür, die Oberfläche übersetzt nur Codes.
   PDF gescannt ist, weiß erst der Server). Die Blase nennt danach „davon k per Texterkennung
   gelesen“ bzw. „per Texterkennung gelesen“/„alle …“ (Warnung `ocr` im Befund); in der Antwort
   steht davon nichts.
-- Regeln (E13): angemeldet mit Ablage **und** Flow-Träger → Vorauswahl `wlo`, „chat“ Zweitwahl bis
-  zur Grenze; ohne Anmeldung → `chat` bis zur Grenze, darüber nur `namen`; `wlo` ohne Anmeldung
-  `nur_angemeldet`; angemeldet ohne Flow-Träger → `wlo` mit Hinweis, Vorauswahl `chat`. Sonst die
-  erste wählbare von `chat`, `wlo`, `namen`. Liegt die Vorauswahl über der Grenze (chat), wählt die
-  Oberfläche `wlo`, wenn es geht, sonst `namen`.
+- Regeln (E13, seit Plan 2026-11-20 die Regel `auto`): angemeldet mit Ablage **und** Flow-Träger →
+  Vorauswahl `wlo`, „chat“ Zweitwahl bis zur Grenze; ohne Anmeldung → `chat` bis zur Grenze, darüber
+  nur `namen`; `wlo` ohne Anmeldung `nur_angemeldet`; angemeldet ohne Flow-Träger → `wlo` mit
+  Hinweis, Vorauswahl `chat`. Sonst die erste wählbare von `chat`, `wlo`, `namen`. Liegt die
+  Vorauswahl über der Grenze (chat), wählt die Oberfläche `wlo`, wenn es geht, sonst `namen`.
+  **Welche Regel gilt, legt der Anwendungsfall fest (UO-5):** im freien Chat das Studio
+  (`upload-config.vorauswahl`, Vorgabe `chat` — auch angemeldet), in einem Ablauf der Upload-Schritt
+  (`vorauswahl`, Vorgabe `auto`). `wlo`/`chat` nehmen diesen Ort, wenn er geht, sonst gilt `auto`
+  (`upload_orte.orte(vorzug=…)`). Die Sperrgründe bleiben globale Regeln im Code.
 - `grenzen` zusätzlich `lokal_max_dateien` (Studio, 1–30, Vorgabe 10), `lokal_max_mb_gesamt` (1–200,
   Vorgabe 50) und `lokal_max_mb_datei` (= `max_mb`). Sie gelten **je Sitzung** für Inhalte und
   Strukturdokumente zusammen; das Backend erzwingt sie (s. u.). Seit Teil b dazu
   `lokal_aufbewahrung_h` (= Studio `aufbewahrung_h`, 1–72) — die Oberfläche nennt die Frist in der
   Erklärzeile und im Datenschutz-Satz.
 - Dienst-Argument `orte` (Liste aus `chat`, `wlo`, `namen`): schränkt die Orte ein, wirkt nur aus
-  einem Ablauf (wie `einzeldatei_als_struktur`); `namen` bleibt immer.
+  einem Ablauf (wie `vorauswahl`, `rolle_vorgabe` und `erschliessen`, s. u.); `namen` bleibt immer.
 
-*Hochladen „Hier im Chat“:* je lesbare Datei (pdf, docx, txt, md) `POST /api/ui/dokumente` mit
-`session_id`, `block_id`, `datei` und neu `rolle` (`inhalt` | `struktur`, Vorgabe `struktur`).
+*Hochladen „Nur hier im Chat lesen“:* je lesbare Datei (pdf, docx, txt, md) `POST /api/ui/dokumente` mit
+`session_id`, `block_id`, `datei` und neu `rolle` (`inhalt` | `struktur` | `beides`, Vorgabe `struktur`).
 Antwort `{upload_id, name, format, befund, ueberschriften_vorschau, rolle, angaben?}` — `angaben`
-nur bei Inhalten: `{titel, beschreibung ≤ 400, schlagworte ≤ 8[, fach, stufe]}` (LLM über den
+nur bei Material (`inhalt`, `beides`): `{titel, beschreibung ≤ 400, schlagworte ≤ 8[, fach, stufe]}` (LLM über den
 moderierten Anfang ≤ 4000 Zeichen; fehlt, wenn das LLM nichts lieferte — das Hochladen gilt
 trotzdem). Nie der Text. Neue Fehlercodes: 409 `grenze_anzahl`, 413 `grenze_gesamt` (Grenzen der
 Sitzung; vorab ohne Sperre, verbindlich unter der Sperre — es wird nichts verdrängt), dazu die
@@ -513,8 +527,21 @@ Seite (Anbieter, Frist), antwortet der Endpunkt 503 `ausgelastet`; ließ sich ke
 `grenze_ocr`. Ein Format, das
 nicht gelesen wird (etwa pptx), lädt die Oberfläche nicht hoch; es fehlt in `dateien`.
 
-*Hochladen „In WLO“:* unverändert über `/api/ui/ablage/{vorbereiten,datei,abschluss}` (der Server
-schreibt den Teil `ablage`); danach startet der Ablauf den Flow (Paket K).
+*Hochladen „In WLO“:* über `/api/ui/ablage/{vorbereiten,datei,abschluss}` (der Server
+schreibt den Teil `ablage`); danach startet der Ablauf den Flow (Paket K). Seit Plan 2026-11-20 (P2,
+P3) nimmt `vorbereiten` das Häkchen `erschliessen` (`StrictBool`, Vorgabe `false` — ältere Widgets
+schicken nichts). Der Server hält es im Teil `ablage.erschliessen` nur fest, wenn die offene Frage ein
+Häkchen zeigte (`haekchen`, gemerkt von `upload_antwort.merken`, wenn der Schritt `erschliessen`
+ausdrücklich setzt) **und** der Metadaten-Flow startbar ist (`upload_orte.flow_da()`), und meldet den
+festgehaltenen Wert in der Antwort zurück. Dazu trägt jeder Eintrag in `ablage.inhalte` `neu`
+(`stand: stored`, auch `already` unter demselben Stapel-Schlüssel) und der Teil die Marke `aufrufer`
+(Streuwert der Kennung des Aufrufers) — beides braucht die Zustimmung durch den Upload.
+Sobald die erste Datei wirklich in WLO liegt (`stand: stored`), setzt der Server
+`ablage.abgelegt_block` auf den `block_id` des Upload-Felds; nur danach verzweigt der Themenbaum auf
+den Erschließungsweg (eine abgebrochene Vorschau mit anschließender Wahl „Nur hier im Chat lesen“
+lässt den Weg unberührt)
+(`docs/ablaeufe.md`, „Zustimmung durch den Upload“). Den Teil `ablage` schreibt nur der Server; die
+Prüfung meldet jeden Ablauf-Schritt, der ihn füllen will (`ablage_reserviert`).
 
 *Antwort:* `aktion: "bereitgestellt"` mit `ort` und wie immer `struktur`, `zahlen`,
 `strukturdokument`, `warnungen`:
@@ -541,44 +568,44 @@ nur den Rahmen `[BEREITGESTELLT VON DER PERSON …]` mit Zahlen (bei `wlo` `[ABL
 `[ORDNER …]`); lesen kann sie hier gelesene Inhalte und Strukturdokumente mit `dokument_lesen`.
 
 *Bedienung (Teil b, Modul `ui-upload/upload-orte*.ts`, `upload-chat*.ts`):* nach der Auswahl die
-Frage **„Wo sollen sie verarbeitet werden?“** als zwei Chips — echte Radioknöpfe in `fieldset`/`legend`
-(Pfeiltasten wählen, gesperrte überspringt der Browser), gewählt mit Radiokreis und kräftiger
-Umrandung (nicht nur Farbe). Je Chip eine Erklärzeile (`aria-describedby`): **Hier im Chat** „schnell,
-ohne Anmeldung, bis {n} Dateien – Text bleibt {h} Stunden hier“, **In WLO ablegen und erschließen**
-„alle Dateien, mit WLO-Anmeldung – Titel, Beschreibung, Fach und Stufe entstehen in WLO im Hintergrund“
-(`ohne_erschliessung`: „… nur ablegen; Angaben werden gerade nicht erzeugt“). Folgt der Ablage kein
-Flow — auf dem Dokument-Weg (`einzeldatei_als_struktur`) oder mit `ohne_erschliessung` —, heißt der Ort
-nur **In WLO ablegen** (Plan 2026-11-20 §8, E3); auf dem Dokument-Weg erklärt er „… nur ablegen; den
-Text liest der Chat danach aus WLO“, der Datenschutz-Satz sagt „… danach liest der Chat den Text aus
-WLO, sein KI-Modell erstellt daraus den Entwurf“, der Satz vor der Anmeldung verspricht keine Metadaten.
+Frage **„Wo sollen die Dateien verarbeitet werden?“** als zwei Chips — echte Radioknöpfe in
+`fieldset`/`legend` (Pfeiltasten wählen, gesperrte überspringt der Browser), gewählt mit Radiokreis und
+kräftiger Umrandung (nicht nur Farbe). Je Chip eine Erklärzeile (`aria-describedby`); Wortlaut seit
+Plan 2026-11-20 (P2) im Abschnitt „Ort, Rollen und Erschließung“ unten. Der Ort heißt **In WLO ablegen
+und erschließen** nur, wenn der Ablauf-Schritt das Häkchen vorsieht und der Metadaten-Flow da ist;
+sonst **In WLO ablegen** (nur ablegen). Die frühere Regel „auf dem Dokument-Weg
+(`einzeldatei_als_struktur`) nur ablegen“ (Plan 2026-11-20 §8, E3) ist aufgehoben (UO-6).
 Ein gesperrter Ort
-bleibt sichtbar und nennt den Grund als Text („nicht wählbar – braucht eine WLO-Anmeldung“, „… zu viele
-Dateien für hier (höchstens {n}) – mit Anmeldung über WLO“, „… gerade ausgeschaltet“, „… in diesem
-Ablauf nicht vorgesehen“; nur in der Oberfläche gerechnet: mehr als 200 Dateien bzw. keine übertragbare
-Art für WLO). Die Grenzen `lokal_*` prüft das Modul gegen die lesbaren Dateien der Auswahl (Inhalte und
-Strukturdokumente zusammen); darüber ist „Hier im Chat“ gesperrt und die Vorauswahl wechselt (s. o.).
+bleibt sichtbar und nennt den Grund als Text („nicht wählbar – melde dich über den Konto-Knopf unten
+an“, „… zu viele Dateien für hier (höchstens {n}) – mit Anmeldung über WLO“, „… gerade ausgeschaltet“,
+„… in diesem Ablauf nicht vorgesehen“; nur in der Oberfläche gerechnet: mehr als 200 Dateien bzw.
+keine übertragbare Art für WLO). Die Grenzen `lokal_*` prüft das Modul gegen die lesbaren Dateien der
+Auswahl (Material und Gliederungen zusammen); darüber ist „Nur hier im Chat lesen“ gesperrt und die
+Vorauswahl wechselt (s. o.).
 Darunter Hinweise zum Ort (nicht lesbare Dateien: „nur der Name geht mit“; was WLO nicht annimmt) und
-der Datenschutz-Satz zum Ort. **Ein Hauptknopf „Hochladen“**, daneben „Nur Namen senden (nichts
-hochladen)“ und „Andere Auswahl“; geht kein Ort, ist „Nur Namen senden“ der Hauptknopf. „Hier im Chat“
+der Datenschutz-Satz zum Ort. **Ein Hauptknopf je Ort** — „Hier lesen“ bzw. „Weiter zur Vorschau“ —,
+daneben „Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)“ und „Andere Auswahl“; geht
+kein Ort, ist „Nur die Dateinamen senden“ der Hauptknopf. „Hier lesen“
 lädt die lesbaren Dateien **nacheinander** mit Rolle hoch (`host.hochladen(datei, fortschritt, rolle)`
 — der Host-Vertrag `_vertrag/modul-host.ts` und die Widget-Kette reichen `rolle` als Formularfeld
 durch), „Datei k von n“, Fehler je Datei als Satz mit dem Namen, „Noch einmal versuchen“ nur, wo es
 hilft, und „Ohne diese weiter“. *Review der Oberfläche (19.11.):* `grenze_anzahl` **beendet** den Lauf
 (jede weitere Datei scheiterte ebenso) — dann „Mit den gelesenen weiter“ (Antwort mit den bisher
-gelesenen) und „Nur Namen senden“; `grenze_gesamt` lässt „Ohne diese weiter“ zu (eine kleinere Datei
+gelesenen) und „Nur die Dateinamen senden“; `grenze_gesamt` lässt „Ohne diese weiter“ zu (eine kleinere Datei
 passt vielleicht). Während des Hochladens „Nach dieser Datei anhalten“; danach „Mit den gelesenen
 weiter“ oder „Andere Auswahl“. Ein entferntes Element (Widget zu) lädt nach der laufenden Datei nichts
 mehr hoch und antwortet nicht im Verborgenen. Nach Fehler oder Ende mit gelesenen Dateien: „Bereits
 gelesene Dateien bleiben bis zu {h} Stunden hier im Chat.“ Dateien über `grenzen.lokal_max_mb_datei`
-gehen wie nicht lesbare nur mit dem Namen; ohne lesbare Datei ist „Hier im Chat“ gesperrt (eigener
+gehen wie nicht lesbare nur mit dem Namen; ohne lesbare Datei ist „Nur hier im Chat lesen“ gesperrt (eigener
 Grund). Dieselbe Datei (Name, Größe, Rolle; im Browser zusätzlich das Änderungsdatum) geht einmal hoch
 und teilt die `upload_id`; Dubletten zählen einmal gegen die Grenzen. Schickt
 das Backend den Rest der Sitzung (`grenzen.lokal_frei_dateien`, `lokal_frei_mb`) bzw. den Sperrgrund
-`grenze_sitzung`, sperrt das Modul „Hier im Chat“ schon vorher mit eigenem Text; fehlen sie, gilt nur
+`grenze_sitzung`, sperrt das Modul „Nur hier im Chat lesen“ schon vorher mit eigenem Text; fehlen sie, gilt nur
 die Grenze je Auswahl. Angesagt (`aria-live`) werden nur die erste, jede zehnte und die letzte Datei.
-„In WLO“ beginnt die Übertragung wie bisher (prüfen → Vorschau mit
-„Jetzt übertragen“/„Abbrechen“ → je Datei → Abschluss); ein Fehler vor dem Senden bringt die Frage
-zurück. Ohne `orte` (älteres Backend, Studio-Vorschau) leitet das Modul die Orte aus `schalter` ab.
+„Weiter zur Vorschau“ (Ort WLO) beginnt die Übertragung (prüfen → Vorschau des Servers mit
+**„In WLO ablegen und erschließen“** bzw. **„In WLO ablegen“** — je nachdem, ob der Server
+`erschliessen` festhielt; vorher „Jetzt übertragen“ — und „Abbrechen“ → je Datei → Abschluss);
+„Weiter zur Vorschau“ legt noch nichts ab. Ein Fehler vor dem Senden bringt die Frage zurück. Ohne `orte` (älteres Backend, Studio-Vorschau) leitet das Modul die Orte aus `schalter` ab.
 Ältere Antworten (`dokument`, `uebertragen`) zeigt es „nur lesend“ weiter.
 
 *Vertrag nach dem Backend-Review (19.11., Ergänzung):*
@@ -593,7 +620,7 @@ zurück. Ohne `orte` (älteres Backend, Studio-Vorschau) leitet das Modul die Or
   `nur_angemeldet`, `grenze_sitzung`, dann `ablauf`.
 - **`ueber_grenze_anmelden`** nur, wenn die Anmeldung den ganzen WLO-Weg öffnete: Ablage da,
   Metadaten-Flow startbar und `wlo` vom Ablauf erlaubt — sonst `ueber_grenze`.
-- **`schalter.dokument_ohne_anmeldung`** (Studio): „Hier im Chat“ geht auch ohne Anmeldung — die
+- **`schalter.dokument_ohne_anmeldung`** (Studio): „Nur hier im Chat lesen“ geht auch ohne Anmeldung — die
   Erklärzeile nennt „ohne Anmeldung“ nur dann.
 - **Orte des Ablaufs serverseitig:** die offene Frage merkt sich die erlaubten Orte (`orte`, aus
   den mit `ablauf` gesperrten; andere Sperrgründe binden nicht). Eine Antwort `bereitgestellt` an
@@ -610,6 +637,78 @@ zurück. Ohne `orte` (älteres Backend, Studio-Vorschau) leitet das Modul die Or
   Auswahl) — wie der Eintrag im Teil `strukturdokument`.
 - **Rahmen für die KI:** nennt je nicht gelesener Datei den Grund (Format, zu groß, Grenze der
   Sitzung oder Fehler beim Lesen), für Inhalte und Strukturdokumente; nie Namen.
+
+**Ort, Rollen und Erschließung (Plan 2026-11-20, Upload-Ort und Erschließung, P1–P6):** Mit
+WLO-Anmeldung ist „In WLO ablegen und erschließen“ der Normalfall, auch für Lehrpläne; „Nur hier im
+Chat lesen“ ist der Weg ohne Anmeldung und für Dateien, die nicht nach WLO sollen. Was vorausgewählt
+ist, legt der Anwendungsfall fest (Studio bzw. Ablauf-Schritt), nicht der Code.
+
+*Zwei Orte und ein Nebenknopf (Wortlaut de; en sinngemäß, `upload-texte.ts`):*
+
+| Stelle | Text |
+|---|---|
+| Frage | Wo sollen die Dateien verarbeitet werden? |
+| WLO (mit Häkchen im Schritt, Flow da) | **In WLO ablegen und erschließen** — „Deine Dateien werden Inhalte in deinem persönlichen Bereich in WLO und bleiben dort. WLO liest den Text und erzeugt Titel, Beschreibung, Fach, Stufe und Schlagworte. Dauert ein paar Minuten.“ |
+| WLO ohne Häkchen im Schritt | **In WLO ablegen** — derselbe Satz ohne den Teil über die Metadaten |
+| WLO ohne Flow (`ohne_erschliessung`) | **In WLO ablegen** — „… Metadaten kann WLO gerade nicht erzeugen ({Grund}).“ mit dem Grund aus `grund_erschliessung` (ohne Code ohne Klammer) |
+| WLO ohne Anmeldung | ausgegraut: „nicht wählbar – melde dich über den Konto-Knopf unten an“ (das Modul hat keine eigene Anmelde-Aktion) |
+| Chat | **Nur hier im Chat lesen** — „Nichts wird in WLO gespeichert[, keine Anmeldung nötig]. Der Chat liest den Text [(auch von Scans)] und vergisst ihn spätestens {h} Stunden nach der letzten Nutzung. Bis {n} Dateien.“ |
+| Nebenknopf | Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät) |
+| Knöpfe | Chat „Hier lesen“; WLO „Weiter zur Vorschau“, in der Vorschau „In WLO ablegen und erschließen“ bzw. „In WLO ablegen“ |
+
+*Häkchen „Metadaten von WLO erzeugen lassen“:* ein echtes Kontrollkästchen unter dem **gewählten** Ort
+WLO, mit der Hinweiszeile „WLO setzt dabei Titel, Beschreibung, Fach, Stufe und Schlagworte neu – der
+Dateiname bleibt nicht der Titel.“ (abgewählt: „Ohne Häkchen legt WLO die Dateien nur ab.“). Es
+erscheint **nur**, wenn der Ablauf-Schritt `erschliessen` ausdrücklich setzt (`true` oder `false` als
+Vorgabe) — damit erklärt der Ablauf, dass ein späterer Schritt die Wahl nutzt (Auftragsschritt mit
+`zustimmung: upload`, `docs/ablaeufe.md`) — **und** der Metadaten-Flow da ist. Ohne die Angabe (freier
+Chat, Schritt ohne sie) gibt es kein Häkchen: der Ort heißt „In WLO ablegen“, `vorbereiten` schickt
+`erschliessen: false`, Erklärzeile und Datenschutz-Satz sagen „nur ablegen“. Die Wahl der Person bleibt
+über eine neue Auswahl im selben Block erhalten; gesperrt, solange ein Zug läuft. In der Vorschau gilt
+der Wert, den der Server festhielt (Knopf und Datenschutz-Satz folgen ihm). Im freien Chat hat das
+Häkchen bewusst keinen Verbraucher — darum zeigt es sich dort nicht.
+
+*Rollen je Datei (UO-4):* Auswahl in Klartext mit einer Legende unter der Liste (`#u-legende`, jedes
+Auswahlfeld verweist per `aria-describedby`): „Gliederung: liefert die Struktur, wird nicht einsortiert ·
+Material: wird in den Baum einsortiert · Gliederung und Material: beides“.
+
+| Anzeige | Wert | Wirkung |
+|---|---|---|
+| Gliederung | `struktur` | Strukturdokument für den Entwurf; wird nicht als Material einsortiert |
+| Material | `inhalt` | wird in den Baum einsortiert; bekommt Kurzangaben bzw. Metadaten |
+| Gliederung und Material | `beides` | beides; beim MCP als `structure` abgelegt, im Teil `ablage` bleibt `beides` |
+| Nicht verwenden | `ignorieren` | geht nicht mit (Sammelknöpfe „Alle nicht verwenden“ / „Wieder verwenden“) |
+
+Höchstzahl 5 und die lesbaren Formate gelten für `struktur` und `beides`. Im Backend fragen alle
+Lesestellen `ui_module/rollen.py` (`ist_gliederung`: `struktur`, `beides`; `ist_material`: `inhalt`,
+`beides`). `zahlen.strukturdokumente` zählt `struktur` + `beides`, `zahlen.inhalte` nur `inhalt` (so
+bleibt die Summe die Zahl der verwendeten Dateien). Alte Einträge mit `inhalt`/`struktur` bleiben
+gültig; keine Migration. Achtung bei Auswahlen im Ablauf: `wo: {rolle: struktur}` vergleicht genau und
+ließe `beides` weg.
+
+*Schritt-Parameter (Dienst `upload_angebot`, `dienst.parameter` im Manifest; wirken nur aus einem
+Ablauf — die KI setzt keinen davon):*
+
+| Parameter | Werte | Bedeutung |
+|---|---|---|
+| `vorauswahl` | `auto` (Vorgabe), `wlo`, `chat` | vorgewählter Ort; `auto` = Regel E13 (WLO, wenn angemeldet und der Metadaten-Flow da ist, sonst Chat); `wlo`/`chat` gelten, wenn der Ort geht, sonst `auto`. Im Ablauf ohne Angabe gilt `auto`, nicht das Studio |
+| `rolle_vorgabe` | `auto` (Vorgabe), `gliederung`, `material`, `beides` | mit welcher Rolle die Dateien beginnen; `auto` = ein Lehrplan-Name in der Wurzel wird Gliederung, sonst Material; `gliederung`/`beides` gibt jeder nutzbaren lesbaren Datei die Rolle (höchstens 5, der Rest Material); `material` lässt auch einen Lehrplan-Namen Material |
+| `erschliessen` | `true`, `false` | Vorgabe des Häkchens (s. o.); ohne Angabe kein Häkchen |
+| `orte` | Liste aus `chat`, `wlo`, `namen` | schränkt die Orte ein (unverändert) |
+| `einzeldatei_als_struktur` | `true` | älterer Schalter, bleibt gültig: wird beim Lesen zu `rolle_vorgabe: gliederung`; schaltet nichts mehr auf „nur ablegen“ und steht nicht mehr in den Block-Daten |
+
+Das Themenbaum-Angebot nach dem Lesen (`upload_rahmen._themenbaum_angeboten`) fragt
+`rolle_vorgabe ∈ {gliederung, beides}`. Das Studio zeigt diese Parameter unter „Daten des Moduls“
+(Abläufe, Schritt `typ: modul`) samt erlaubten Werten; „Prüfen“ meldet unbekannte Namen (`modul_feld`)
+und unpassende Werte (`dienst_daten_wert`) — `docs/ablaeufe.md`, „Bausteine“.
+
+*Freier Chat:* Studio **„UI-Module → Hochladen“**, Feld **„Vorgewählter Ort im freien Chat“**
+(`upload-config.vorauswahl`: `chat` — Vorgabe, auch angemeldet —, `wlo` oder `auto`). Abläufe legen die
+Vorauswahl je Upload-Schritt selbst fest; der Studio-Wert gilt dort nicht.
+
+*Rahmen für die KI:* nach einer Ablage in WLO sagt `[ABLAGE …]` aus dem festgehaltenen
+`ablage.erschliessen`, ob die Person die Metadaten gewählt hat („… sag nicht, sie seien schon da“)
+oder nur ablegte („… biete sie nicht an und behaupte keine“); ältere Widgets ohne den Wert: keine Zeile.
 
 `ui_inhaltsrahmen` ist im Studio fest (nicht abschaltbar); seine Anzeige steuert
 `display_rules.inline_documents.enabled`.
