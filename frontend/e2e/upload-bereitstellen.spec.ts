@@ -1,6 +1,7 @@
 /**
  * Ein Upload-Weg (Plan 2026-11-17, Paket U4, Teil b) im gebauten Widget: nach der Auswahl die Frage
- * „Wo sollen sie verarbeitet werden?“ (Chips als echte Radioknöpfe), ein Knopf „Hochladen“.
+ * „Wo sollen die Dateien verarbeitet werden?“ (Chips als echte Radioknöpfe), ein Knopf je Ort (Plan
+ * 2026-11-20, P2: „Hier lesen“ bzw. „Weiter zur Vorschau“).
  *
  * Warum e2e: nur hier bedient der echte Browser die Radiogruppe mit den Pfeiltasten (jsdom kennt das
  * nicht), schickt die echte Ordnerauswahl je Datei als multipart mit der Rolle an
@@ -95,13 +96,16 @@ test.describe('ui_upload: ein Upload-Weg (Paket U4)', () => {
 
   test('Hier im Chat: je lesbare Datei mit Rolle hochladen, eine Antwort mit Ort chat', async ({ page }) => {
     const { w, modul, hoch } = await feldZeigen(page, uploadBlock(ANONYM));
-    const gruppe = modul.getByRole('group', { name: 'Wo sollen sie verarbeitet werden?' });
-    await expect(gruppe.getByRole('radio', { name: 'Hier im Chat' })).toBeChecked();
-    await expect(gruppe.getByRole('radio', { name: 'In WLO ablegen und erschließen' })).toBeDisabled();
-    await expect(modul.getByText('nicht wählbar – braucht eine WLO-Anmeldung')).toBeVisible();
+    const gruppe = modul.getByRole('group', { name: 'Wo sollen die Dateien verarbeitet werden?' });
+    await expect(gruppe.getByRole('radio', { name: 'Nur hier im Chat lesen' })).toBeChecked();
+    // Review P2: ohne `erschliessen` im Block nur „ablegen“; der Weg zur Anmeldung ist der Konto-Knopf
+    await expect(gruppe.getByRole('radio', { name: 'In WLO ablegen', exact: true })).toBeDisabled();
+    await expect(modul.getByText('nicht wählbar – melde dich über den Konto-Knopf unten an')).toBeVisible();
+    // P2: ohne Anmeldung kein Häkchen
+    await expect(modul.getByRole('checkbox')).toHaveCount(0);
     await expect(modul.getByText('1 Datei kann der Chat nicht lesen – davon geht nur der Name mit.')).toBeVisible();
 
-    await modul.getByRole('button', { name: 'Hochladen', exact: true }).click();
+    await modul.getByRole('button', { name: 'Hier lesen' }).click();
     await w.waitForTurns(2);
     expect(hoch.map((x) => [x.name, x.rolle])).toEqual([
       ['Lehrplan_Physik.pdf', 'struktur'], ['hebel.pdf', 'inhalt'], ['kraft.docx', 'inhalt']]);
@@ -114,12 +118,12 @@ test.describe('ui_upload: ein Upload-Weg (Paket U4)', () => {
     expect(JSON.stringify(req.ui_antwort)).not.toContain('%PDF');
   });
 
-  test('nur mit der Tastatur: Ort per Pfeiltaste wählen, „Hochladen“ mit Enter', async ({ page }) => {
+  test('nur mit der Tastatur: Ort per Pfeiltaste wählen, „Hier lesen“ mit Enter', async ({ page }) => {
     let oeffnen: () => void = () => undefined;
     const tor = new Promise<void>((r) => { oeffnen = r; });
     const { w, modul, hoch } = await feldZeigen(page, uploadBlock(ANGEMELDET), Infinity, tor);
-    const wlo = modul.getByRole('radio', { name: 'In WLO ablegen und erschließen' });
-    const chat = modul.getByRole('radio', { name: 'Hier im Chat' });
+    const wlo = modul.getByRole('radio', { name: 'In WLO ablegen', exact: true });
+    const chat = modul.getByRole('radio', { name: 'Nur hier im Chat lesen' });
     await expect(wlo).toBeChecked();
     await wlo.focus();
     await page.keyboard.press('ArrowLeft');
@@ -129,7 +133,7 @@ test.describe('ui_upload: ein Upload-Weg (Paket U4)', () => {
     await page.keyboard.press('ArrowRight');
     await expect(wlo).toBeChecked();
     await page.keyboard.press('ArrowLeft');
-    await modul.getByRole('button', { name: 'Hochladen', exact: true }).focus();
+    await modul.getByRole('button', { name: 'Hier lesen' }).focus();
     await page.keyboard.press('Enter');
     // der Fokus ging vom verschwundenen Knopf auf den Stand „Datei k von n“ — im Modul, nie auf body
     // (Review der Oberfläche, NIT 11: geprüft im Schatten-DOM)
@@ -144,7 +148,7 @@ test.describe('ui_upload: ein Upload-Weg (Paket U4)', () => {
 
   test('Sitzung voll bei Datei 2: der Lauf endet, „Mit den gelesenen weiter“ antwortet mit Datei 1', async ({ page }) => {
     const { w, modul, hoch } = await feldZeigen(page, uploadBlock(ANONYM), 2);
-    await modul.getByRole('button', { name: 'Hochladen', exact: true }).click();
+    await modul.getByRole('button', { name: 'Hier lesen' }).click();
     await expect(modul.getByText('Mach mit den gelesenen weiter oder sende nur die Namen.', { exact: false })).toBeVisible();
     await expect(modul.getByText('Bereits gelesene Dateien bleiben bis zu 24 Stunden nach der letzten Nutzung hier im Chat', { exact: false })).toBeVisible();
     // Datei 3 ging nicht mehr hoch
@@ -157,12 +161,12 @@ test.describe('ui_upload: ein Upload-Weg (Paket U4)', () => {
     expect(daten.dateien.map((d) => d.rolle)).toEqual(['struktur']);
   });
 
-  test('über der Grenze „Hier im Chat“: gesperrt mit Grund, „Nur Namen senden“ ist der Weg', async ({ page }) => {
+  test('über der Grenze „Nur hier im Chat lesen“: gesperrt mit Grund, „Nur die Dateinamen senden“ ist der Weg', async ({ page }) => {
     const { w, modul, hoch } = await feldZeigen(page, uploadBlock(ANONYM, { ...GRENZEN, lokal_max_dateien: 2 }));
-    await expect(modul.getByRole('radio', { name: 'Hier im Chat' })).toBeDisabled();
+    await expect(modul.getByRole('radio', { name: 'Nur hier im Chat lesen' })).toBeDisabled();
     await expect(modul.getByText('nicht wählbar – zu viele Dateien für hier (höchstens 2) – mit Anmeldung über WLO')).toBeVisible();
-    await expect(modul.getByRole('button', { name: 'Hochladen', exact: true })).toHaveCount(0);
-    await modul.getByRole('button', { name: 'Nur Namen senden (nichts hochladen)' }).click();
+    await expect(modul.getByRole('button', { name: 'Hier lesen' })).toHaveCount(0);
+    await modul.getByRole('button', { name: 'Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)' }).click();
     await w.waitForTurns(2);
     expect(hoch).toHaveLength(0);
     expect(w.chatRequests().at(-1)!.ui_antwort?.daten).toMatchObject({ aktion: 'bereitgestellt', ort: 'namen' });
@@ -171,7 +175,7 @@ test.describe('ui_upload: ein Upload-Weg (Paket U4)', () => {
   test('passt auf 320 px — die Chips brechen um', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 760 });
     const { modul } = await feldZeigen(page, uploadBlock(ANGEMELDET));
-    await expect(modul.getByRole('radio', { name: 'Hier im Chat' })).toBeVisible();
+    await expect(modul.getByRole('radio', { name: 'Nur hier im Chat lesen' })).toBeVisible();
     const ueber = await modul.evaluate((el) => {
       const r = el.shadowRoot!.querySelector('.u') as HTMLElement;
       return r.scrollWidth - r.clientWidth;
@@ -183,7 +187,7 @@ test.describe('ui_upload: ein Upload-Weg (Paket U4)', () => {
   });
 
   // WCAG 1.4.4/1.4.10: 200 % Zoom eines 1280×800-Bildschirms ist ein Fenster von 640×400 CSS-Pixeln
-  test('200 % Zoom (640 × 400 CSS-Pixel): nichts läuft seitlich über, „Hochladen“ bleibt erreichbar', async ({ page }) => {
+  test('200 % Zoom (640 × 400 CSS-Pixel): nichts läuft seitlich über, der Hauptknopf bleibt erreichbar', async ({ page }) => {
     await page.setViewportSize({ width: 640, height: 400 });
     const { modul } = await feldZeigen(page, uploadBlock(ANGEMELDET));
     const ueber = await modul.evaluate((el) => {
@@ -191,7 +195,7 @@ test.describe('ui_upload: ein Upload-Weg (Paket U4)', () => {
       return r.scrollWidth - r.clientWidth;
     });
     expect(ueber).toBeLessThanOrEqual(1);
-    const hochladen = modul.getByRole('button', { name: 'Hochladen', exact: true });
+    const hochladen = modul.getByRole('button', { name: 'Weiter zur Vorschau' });
     await hochladen.scrollIntoViewIfNeeded();
     await expect(hochladen).toBeInViewport();
   });

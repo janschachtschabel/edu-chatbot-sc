@@ -14,7 +14,14 @@ from typing import Any, Final
 
 from boerdi.ui_module import upload_bereitgestellt as bereit
 from boerdi.ui_module.rahmen import zeile
-from boerdi.ui_module.upload_antwort import dateien, dateien_satz, gelesene, uebersicht
+from boerdi.ui_module.rollen import BEIDES, ist_gliederung, vorgabe
+from boerdi.ui_module.upload_antwort import (
+    dateien,
+    dateien_satz,
+    gelesene,
+    material_zahl,
+    uebersicht,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,11 +99,12 @@ def _themenbaum_angeboten(*, dokument: bool) -> bool:
 
     def aus_dokument(a: Any) -> bool:
         # Plan 2026-11-16, TG-6: „Themenbaum erstellen“ hat die Voraussetzung nicht (es startet
-        # auch für ein Thema) — es liest ein Dokument über ein Upload-Feld, das eine einzelne
-        # Datei als Strukturdokument markiert
+        # auch für ein Thema) — es liest ein Dokument über ein Upload-Feld, dessen Dateien als
+        # Gliederung beginnen (Plan 2026-11-20, P2: ``rolle_vorgabe`` gliederung/beides; der alte
+        # Schlüssel ``einzeldatei_als_struktur`` heißt gliederung)
         liest = "dokument_lesen" in (a.voraussetzungen or []) or any(
             s.typ == "modul" and s.modul == "ui_upload"
-            and (s.daten or {}).get("einzeldatei_als_struktur") is True for s in a.schritte)
+            and vorgabe(s.daten or {}) in ("gliederung", "beides") for s in a.schritte)
         return liest and any(
             s.typ == "agent" and s.agent and STRUKTURENTWURF in s.agent.werkzeuge
             for s in a.schritte)
@@ -161,6 +169,15 @@ def _ablage_zeilen(daten: dict[str, Any], ablage: dict[str, Any]) -> list[str]:
              else "Vorgangsdatei (vorgang.json) nicht abgelegt.")
     if int(ablage.get("unklar") or 0):
         z.append("„Unklar“ heißt: keine Antwort von WLO — die Person sieht im Modul, welche.")
+    # Review P2, Befund 1: ob erschlossen wird, entschied das Häkchen (der Wert, den der Server
+    # festhielt) — die KI bietet oder behauptet Metadaten nie dagegen. Ältere Widgets: nichts.
+    if ablage.get("erschliessen") is True:
+        z.append("Die Person hat „Metadaten von WLO erzeugen lassen“ gewählt: WLO erzeugt Titel, "
+                 "Beschreibung, Fach, Stufe und Schlagworte erst im nächsten Schritt des Ablaufs "
+                 "— sag nicht, sie seien schon da.")
+    elif ablage.get("erschliessen") is False:
+        z.append("Nur abgelegt: Metadaten erzeugt WLO für diese Dateien nicht — biete sie nicht "
+                 "an und behaupte keine.")
     return z
 
 
@@ -191,7 +208,7 @@ def _ordner_zeilen(daten: dict[str, Any]) -> tuple[str, list[str]]:
     z = daten.get("zahlen") or {}
     sd = daten.get("strukturdokument")
     kopf = [_ERFASST, _ORDNER_BEREIT, _fragen(strukturdokument=isinstance(sd, dict)),
-            (f"{int(z.get('ordner') or 0)} Ordner, {int(z.get('inhalte') or 0)} Inhalte, "
+            (f"{int(z.get('ordner') or 0)} Ordner, {material_zahl(daten)} Dateien als Material, "
              f"{int(z.get('ignoriert') or 0)} ignoriert."),
             _markiert_zeile(daten)]
     if isinstance(sd, dict) and daten.get("aktion") == "erfasst":
@@ -210,16 +227,15 @@ def _ordner_zeilen(daten: dict[str, Any]) -> tuple[str, list[str]]:
 
 
 def _markiert_zeile(daten: dict[str, Any]) -> str:
-    """Die markierten Strukturdokumente — TG-3e: mehrere mit allen Namen aus ``dateiliste`` (eine
-    Antwort ohne Dateien kennt nur das erste)."""
+    """Die Dateien mit Rolle Gliederung — TG-3e: mehrere mit allen Namen aus ``dateiliste`` (eine
+    Antwort ohne Dateien kennt nur die erste). Review P1, MINOR 4: in den Worten der Oberfläche;
+    ``beides`` mit „(auch Material)“."""
     sd = daten.get("strukturdokument")
     if not isinstance(sd, dict):
-        return "Kein Strukturdokument markiert."
-    namen = [zeile(d.get("name"), 120) for d in dateien(daten.get("struktur"))
-             if d.get("rolle") == "struktur"]
-    if len(namen) > 1:
-        return f"Strukturdokumente: {', '.join(namen)}"
-    return f"Strukturdokument: {zeile(sd.get('name'), 120)}"
+        return "Keine Datei als Gliederung markiert."
+    namen = [zeile(d.get("name"), 120) + (" (auch Material)" if d.get("rolle") == BEIDES else "")
+             for d in dateien(daten.get("struktur")) if ist_gliederung(d.get("rolle"))]
+    return f"Gliederung: {', '.join(namen) or zeile(sd.get('name'), 120)}"
 
 
 def frage_zeilen(offen: dict[str, Any]) -> list[str]:

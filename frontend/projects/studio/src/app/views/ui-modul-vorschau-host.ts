@@ -84,6 +84,8 @@ export class VorschauModulHost implements ModulHost {
         gesamt: schritt.eintraege.reduce((s, e) => s + e.groesse, 0),
         eintraege: schritt.eintraege.map((e, index) => ({ index, titel: e.titel, art: e.art, groesse: e.groesse,
           name: `${e.titel}.${e.art}` })),
+        // P2: die Vorschau hält das Häkchen fest, wie es kam — der Knopf heißt wie im Betrieb
+        erschliessen: schritt.erschliessen === true,
       });
     }
     if (schritt.schritt === 'datei') {

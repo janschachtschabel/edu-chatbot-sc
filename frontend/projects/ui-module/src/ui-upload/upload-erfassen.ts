@@ -2,13 +2,14 @@
  * Ordner und Dateien im Browser erfassen (Paket U3-1a) — reine Regeln ohne DOM.
  *
  * Nichts davon verlässt das Gerät: aus Pfaden, Größen und Typen entsteht der Ordnerbaum, den das
- * Modul zeigt. Jede Datei bekommt eine Rolle (`inhalt`, `struktur`, `ignorieren`); ignoriert sind
+ * Modul zeigt. Jede Datei bekommt eine Rolle (`inhalt`, `struktur`, `beides`, `ignorieren`; `beides`
+ * seit Plan 2026-11-20, P1: Gliederung und Material zugleich); ignoriert sind
  * Systemdateien, leere und zu große Dateien. Über der Höchstzahl bleiben die ersten nach Pfad, zu tiefe
  * Ordner werden in der tiefsten erlaubten Ebene zusammengefasst, Pfade mit `..`, `.` oder Steuerzeichen
  * verworfen. Was dabei wegfällt, steht als Warnung im Ergebnis.
  */
 
-export type Rolle = 'inhalt' | 'struktur' | 'ignorieren';
+export type Rolle = 'inhalt' | 'struktur' | 'beides' | 'ignorieren';
 export type Warnung = 'zu_viele' | 'zu_tief' | 'zu_gross' | 'leer' | 'ungueltiger_pfad';
 /** Warum eine Datei ignoriert bleibt: Systemdateien ohne Warnung, leere und zu große mit. */
 export type Grund = 'system' | 'leer' | 'zu_gross';

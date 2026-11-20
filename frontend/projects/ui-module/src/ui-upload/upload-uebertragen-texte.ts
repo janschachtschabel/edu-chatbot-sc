@@ -17,7 +17,8 @@ const DE = {
   titel: 'In deinen persönlichen Bereich in WLO übertragen',
   auswahl: 'Auswahl',
   liste: 'Dateien der Übertragung',
-  strukturdokument: 'Strukturdokument',
+  // Review P1, NIT 7: die Namen der Rollen-Auswahl (`beides` liest das MCP als Strukturdokument)
+  rolle: { struktur: 'Gliederung', beides: 'Gliederung und Material' },
   // Review TG-3a–c, NIT: wie `dateiOhneName` im Feld
   dateiOhneName: '(ohne Namen)',
   ausgelassen: (ohneArt: number, zuGross: number, mb: number) => [
@@ -29,7 +30,9 @@ const DE = {
   zielOrdner: (ordner: string) => `Ziel: dein persönlicher Bereich in WLO, neuer Ordner „${ordner}“.`,
   zielFlach: 'Ziel: dein persönlicher Bereich in WLO, ohne eigenen Ordner (dein Konto darf dort keine Ordner anlegen).',
   umfang: (dateien: string, bytes: number) => `${dateien}, zusammen ${groesse('de', bytes)}.`,
-  jetzt: 'Jetzt übertragen',
+  // Plan 2026-11-20, P2: der Klick, der wirklich ablegt, sagt, was geschieht (in P3 die Zustimmung zum Flow)
+  ablegenErschliessen: 'In WLO ablegen und erschließen',
+  ablegen: 'In WLO ablegen',
   abbrechen: 'Abbrechen',
   anhalten: 'Nach dieser Datei anhalten',
   haeltAn: 'Hält nach dieser Datei an …',
@@ -91,7 +94,7 @@ const EN: typeof DE = {
   titel: 'Transfer to your personal area in WLO',
   auswahl: 'Selection',
   liste: 'Files in the transfer',
-  strukturdokument: 'Structure document',
+  rolle: { struktur: 'Outline', beides: 'Outline and material' },
   dateiOhneName: '(no name)',
   ausgelassen: (ohneArt: number, zuGross: number, mb: number) => [
     ohneArt ? `${zahl('en', ohneArt)} ${mehrzahl('en', ohneArt, 'file has', 'files have')} a type WLO does not accept here.` : '',
@@ -102,7 +105,8 @@ const EN: typeof DE = {
   zielOrdner: (ordner: string) => `Destination: your personal area in WLO, new folder “${ordner}”.`,
   zielFlach: 'Destination: your personal area in WLO, without a folder of its own (your account may not create folders there).',
   umfang: (dateien: string, bytes: number) => `${dateien}, ${groesse('en', bytes)} in total.`,
-  jetzt: 'Transfer now',
+  ablegenErschliessen: 'Store and index in WLO',
+  ablegen: 'Store in WLO',
   abbrechen: 'Cancel',
   anhalten: 'Stop after this file',
   haeltAn: 'Stopping after this file …',

@@ -14,6 +14,7 @@ import { antwortDaten, einZeiler, type UploadAntwort } from './upload-antwort';
 import { codeVon } from './upload-chat';
 import type { AblageRolle } from '../_vertrag/modul-host';
 import type { Erfassung } from './upload-erfassen';
+import { alsAblageRolle } from './upload-rollen';
 
 /** Höchstzahl je Freigabe (Backend `Vorbereiten.eintraege`). */
 export const MAX_STAPEL = 200;
@@ -57,6 +58,9 @@ export interface Plan {
   readonly gesamt: number;
   readonly eintraege: readonly { readonly index: number; readonly titel: string; readonly art: string;
     readonly groesse: number; readonly name: string; readonly rolle: AblageRolle }[];
+  /** Plan 2026-11-20, P2: hält der Server das Häkchen fest (der Metadaten-Flow ist da)? Ein älteres
+   *  Backend sagt nichts — dann nein; danach heißt der Knopf, der ablegt. */
+  readonly erschliessen: boolean;
 }
 
 export type Stand = 'wartet' | 'sendet' | 'stored' | 'dropped' | 'unverified' | 'failed' | 'abgebrochen';
@@ -144,7 +148,7 @@ export function auswahl<T>(e: Erfassung<T>, maxBytes: number): Auswahl<T> {
     else if (d.groesse > maxBytes) zuGross++;
     else kandidaten.push({
       datei: i, titel: titelVon(d.name), art, groesse: d.groesse,
-      rolle: d.rolle === 'struktur' ? 'struktur' : 'inhalt', handle: d.handle,
+      rolle: alsAblageRolle(d.rolle), handle: d.handle,
     });
   });
   return { kandidaten, ohneArt, zuGross };
@@ -176,14 +180,14 @@ export function planAus(roh: Readonly<Record<string, unknown>>, anzahl: number):
     eintraege.push({
       index: i, titel: einZeiler(String(e['titel'] ?? '')), art: String(e['art'] ?? ''),
       groesse: typeof e['groesse'] === 'number' ? e['groesse'] : 0, name: einZeiler(String(e['name'] ?? e['titel'] ?? '')),
-      rolle: e['rolle'] === 'struktur' ? 'struktur' : 'inhalt',
+      rolle: alsAblageRolle(e['rolle']),
     });
   }
   return {
     // Seit dem Querschnitts-Review spricht das Backend den Wortschatz des Moduls (`ordner` | `flach`);
     // `folder` bleibt verstanden (ältere Antworten, Review U3-3b, Befund 1).
     token, layout: roh['layout'] === 'folder' || roh['layout'] === 'ordner' ? 'ordner' : 'flach', ordner: einZeiler(String(roh['ordner'] ?? '')),
-    gesamt: typeof roh['gesamt'] === 'number' ? roh['gesamt'] : 0, eintraege,
+    gesamt: typeof roh['gesamt'] === 'number' ? roh['gesamt'] : 0, eintraege, erschliessen: roh['erschliessen'] === true,
   };
 }
 
@@ -256,6 +260,8 @@ export function uebertragenAntwort<T>(
     ablage: {
       layout: o.ordnerVerweigert ? 'flach' : plan.layout, gesamt: ergebnisse.length, ...zaehlung(ergebnisse),
       ordner_verweigert: o.ordnerVerweigert, vorgang_abgelegt: o.vorgangAbgelegt,
+      // Review P2, Befund 1: was der Server zum Häkchen festhielt — der Rahmen sagt es der KI
+      erschliessen: plan.erschliessen,
     },
   };
 }

@@ -47,29 +47,57 @@ describe('Texte ui_upload (U3-1a)', () => {
     }
   });
 
-  // Plan 2026-11-17, Paket U4: ein Weg — die Labels passen zu den Ablauftexten der Seeds
-  // (`06-ablaeufe/themenbaum*.yaml` nennen „Hochladen“, „Hier im Chat“, „In WLO ablegen und erschließen“,
-  // „Nur Namen senden“ bzw. “Upload”, “Here in the chat”, “Store and index in WLO”, “Send names only”)
-  it('U4: Frage, Chips und Knöpfe (de/en)', () => {
+  // Plan 2026-11-17, Paket U4: ein Weg. Plan 2026-11-20, P2 (§4 Wortlaut): Frage, Orte und ein Knopf je Ort —
+  // „Hier lesen“ (Chat), „Weiter zur Vorschau“ (WLO, der Klick legt noch nichts ab)
+  it('P2: Frage, Orte und Knöpfe nach §4 (de/en)', () => {
     const de = texte('de');
     const en = texte('en');
-    expect([de.frage, de.ort.chat, de.ort.wlo, de.hochladen, de.nurNamen]).toEqual([
-      'Wo sollen sie verarbeitet werden?', 'Hier im Chat', 'In WLO ablegen und erschließen', 'Hochladen',
-      'Nur Namen senden (nichts hochladen)']);
-    expect([en.frage, en.ort.chat, en.ort.wlo, en.hochladen, en.nurNamen]).toEqual([
-      'Where should they be processed?', 'Here in the chat', 'Store and index in WLO', 'Upload',
-      'Send names only (upload nothing)']);
-    // zweites Review, 2: die Frist beginnt bei jeder Nutzung neu
-    expect(de.erklaerChat(10, 24, true)).toBe('schnell, ohne Anmeldung, bis 10 Dateien – Text bleibt bis zu 24 Stunden nach der letzten Nutzung hier');
-    expect(de.erklaerChat(1, 1, true)).toBe('schnell, ohne Anmeldung, bis 1 Datei – Text bleibt bis zu 1 Stunde nach der letzten Nutzung hier');
-    // Review der Oberfläche, 9: ohne den Teilsatz, wenn die Schalter ihn nicht tragen
-    expect(de.erklaerChat(10, 24, false)).toBe('schnell, bis 10 Dateien – Text bleibt bis zu 24 Stunden nach der letzten Nutzung hier');
-    expect(en.erklaerChat(10, 24, false)).toBe('quick, up to 10 files – the text stays here for up to 24 hours after last use');
-    expect(de.erklaerWlo).toBe('alle Dateien, mit WLO-Anmeldung – Titel, Beschreibung, Fach und Stufe entstehen in WLO im Hintergrund');
+    expect([de.frage, de.ort.chat, de.ort.wlo, de.ortWloAblegen, de.hierLesen, de.zurVorschau, de.nurNamen]).toEqual([
+      'Wo sollen die Dateien verarbeitet werden?', 'Nur hier im Chat lesen', 'In WLO ablegen und erschließen',
+      'In WLO ablegen', 'Hier lesen', 'Weiter zur Vorschau', 'Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)']);
+    expect([en.frage, en.ort.chat, en.ort.wlo, en.ortWloAblegen, en.hierLesen, en.zurVorschau, en.nurNamen]).toEqual([
+      'Where should the files be processed?', 'Only read here in the chat', 'Store and index in WLO', 'Store in WLO',
+      'Read here', 'Continue to preview', 'Send file names only (the content stays on your device)']);
+    // zweites Review, 2: die Frist beginnt bei jeder Nutzung neu; Review der Oberfläche, 9: „ohne Anmeldung“
+    // nur, wenn die Schalter es tragen; Paket C: „auch von Scans“ nur mit Texterkennung
+    expect(de.erklaerChat(10, 24, true, true)).toBe('Nichts wird in WLO gespeichert, keine Anmeldung nötig. Der Chat '
+      + 'liest den Text (auch von Scans) und vergisst ihn spätestens 24 Stunden nach der letzten Nutzung. Bis 10 Dateien.');
+    expect(de.erklaerChat(1, 1, false, false)).toBe('Nichts wird in WLO gespeichert. Der Chat liest den Text und '
+      + 'vergisst ihn spätestens 1 Stunde nach der letzten Nutzung. Bis 1 Datei.');
+    expect(en.erklaerChat(10, 24, false, false)).toBe('Nothing is stored in WLO. The chat reads the text and forgets '
+      + 'it at the latest 24 hours after last use. Up to 10 files.');
+    expect(de.erklaerWlo(true)).toBe('Deine Dateien werden Inhalte in deinem persönlichen Bereich in WLO und bleiben dort. '
+      + 'WLO liest den Text und erzeugt Titel, Beschreibung, Fach, Stufe und Schlagworte. Dauert ein paar Minuten.');
+    expect(de.erklaerWlo(false)).toBe('Deine Dateien werden Inhalte in deinem persönlichen Bereich in WLO und bleiben dort.');
+    // Review P2, Befund 3: der Grund in Klammern (Plan §4), ohne Code ohne Klammer
+    expect(de.erklaerWloOhne(null)).toBe('Deine Dateien werden Inhalte in deinem persönlichen Bereich in WLO und bleiben dort. '
+      + 'Metadaten kann WLO gerade nicht erzeugen.');
+    expect(de.erklaerWloOhne(de.ohneFlow.flow_nicht_freigegeben)).toContain('erzeugen (in diesem Chat nicht freigegeben).');
+    expect(en.erklaerWloOhne(en.ohneFlow.dienst_nicht_erreichbar))
+      .toContain('WLO cannot create metadata right now (the service for it cannot be reached right now).');
+    expect(Object.keys(en.ohneFlow)).toEqual(Object.keys(de.ohneFlow));
+    expect([de.haken, de.hakenHinweis]).toEqual(['Metadaten von WLO erzeugen lassen',
+      'WLO setzt dabei Titel, Beschreibung, Fach, Stufe und Schlagworte neu – der Dateiname bleibt nicht der Titel.']);
+    // Review P2, Befund 3: der Weg zur Anmeldung ist der Konto-Knopf in der Eingabezeile
+    expect(de.nichtWaehlbar(de.gesperrt.nur_angemeldet)).toBe('nicht wählbar – melde dich über den Konto-Knopf unten an');
+    expect(en.nichtWaehlbar(en.gesperrt.nur_angemeldet)).toBe('not available – sign in with the account button below');
+    // Review P2, Befund 4: „ignorieren“ heißt in der Oberfläche „Nicht verwenden“
+    expect(de.zuVieleStapel(200)).toBe('höchstens 200 Dateien auf einmal – bitte einige auf „Nicht verwenden“ stellen');
+    expect(en.zuVieleStapel(200)).toBe("at most 200 files at once – please set some to “Don't use”");
     expect(de.mitAnmeldung(de.zuVieleHier(10))).toBe('zu viele Dateien für hier (höchstens 10) – mit Anmeldung über WLO');
     // Review TG-1, m4: der Name von „Weiter“ trägt die Beschriftung und sagt, was gesendet wird
     expect(de.weiterNachLesenName.startsWith(de.weiterNachLesen)).toBe(true);
     expect(en.weiterNachLesenName.startsWith(en.weiterNachLesen)).toBe(true);
+  });
+
+  // Review P1, NIT 7: die Sammelknöpfe heißen wie die Option „Nicht verwenden“
+  it('P1-Review: „Nicht verwenden“ auch an den Sammelknöpfen (de/en)', () => {
+    const de = texte('de');
+    const en = texte('en');
+    expect([de.alleIgnorieren, de.wiederEinschliessen, de.alleIgnorierenIn('A'), de.wiederEinschliessenIn('A')])
+      .toEqual(['Alle nicht verwenden', 'Wieder verwenden', 'Alle Dateien in A nicht verwenden', 'Dateien in A wieder verwenden']);
+    expect([en.alleIgnorieren, en.wiederEinschliessen, en.alleIgnorierenIn('A'), en.wiederEinschliessenIn('A')])
+      .toEqual(["Don't use any", 'Use again', "Don't use any files in A", 'Use files in A again']);
   });
 
   it('U4: jeder Fehlercode „Hier im Chat“ auf Deutsch und Englisch, die Grenzen der Sitzung dabei', () => {
@@ -117,6 +145,12 @@ describe('Texte ui_upload (U3-1a)', () => {
     expect(texte('en').datenschutzChat(6)).toContain('up to 6 hours after last use');
     expect(texte('de').datenschutzWlo).toContain('bis du sie löschst');
     expect(texte('de').datenschutzWloOhne).not.toContain('Titel');
+    // P2: „Weiter zur Vorschau“ legt nichts ab — erst der Knopf mit dem Namen des Orts
+    expect(texte('de').datenschutzWlo).toContain('erst „In WLO ablegen und erschließen“ legt die Dateien');
+    expect(texte('de').datenschutzWloOhne).toContain('erst „In WLO ablegen“ legt die Dateien');
+    expect(texte('en').datenschutzWlo).toContain('only “Store and index in WLO” stores the files');
+    expect(texte('de').datenschutzChat(6)).toContain('„Hier lesen“ schickt');
+    for (const t of [texte('de'), texte('en')]) expect(alleTexte(t).join(' ')).not.toMatch(/„Hochladen“|“Upload”/);
   });
 });
 

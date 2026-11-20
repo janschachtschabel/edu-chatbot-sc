@@ -28,8 +28,8 @@ FEHLER: Final = {
                             "gescheitert); ein neuer Versuch hilft nicht. Rufe {name} nicht noch "
                             "einmal auf und vertröste die Person nicht auf später. Sag es ihr in "
                             "einem Satz und nenne die zwei Auswege: „Hier im Chat lesen lassen“ "
-                            "(das Dokument im Auswahlfeld mit dem Ort „Hier im Chat“ "
-                            "hochladen{scan}) oder „Ohne Dokument weiter“ "
+                            "(das Dokument im Auswahlfeld mit dem Ort „Nur hier im Chat "
+                            "lesen“ hochladen{scan}) oder „Ohne Dokument weiter“ "
                             "(etwa mit einem Thema). In einem Ablauf führt der Knopf „Weiter im "
                             "Ablauf“ zu beiden."),
     # Nachprüfung TG-3d–f, MINOR 4: derselbe Code, der Satz nach dem Grund

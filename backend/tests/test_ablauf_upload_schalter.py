@@ -27,9 +27,10 @@ def test_der_upload_schritt_eines_ablaufs_traegt_die_schalter_des_systems(monkey
     daten = block.daten
     assert daten["schalter"]["dokument_im_chat"] is True
     assert daten["grenzen"]["max_mb_datei"] == 50
-    # Was der Ablauf mitgibt, bleibt erhalten (der Dienst nimmt es nur aus einem Ablauf an)
+    # Was der Ablauf mitgibt, bleibt erhalten (der Dienst nimmt es nur aus einem Ablauf an);
+    # Plan 2026-11-20, P2: ``einzeldatei_als_struktur`` als Rollen-Vorgabe ``gliederung``
     assert daten["zweck"] == "sammlungsstruktur"
-    assert daten["einzeldatei_als_struktur"] is True
+    assert daten["rolle_vorgabe"] == "gliederung"
 
 
 def test_systemfelder_aus_dem_ablauf_gelten_nicht(monkeypatch):

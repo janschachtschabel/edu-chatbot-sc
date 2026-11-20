@@ -71,10 +71,11 @@ test.describe('ui_upload (U3-1a, nachgeladen)', () => {
     await expect(modul.getByLabel('Rolle von Lehrplan_Physik.pdf')).toHaveValue('struktur');
 
     // Plan 2026-11-16, TG-1: kein Zielknopf. Paket U4: ohne wählbaren Ort (keine Schalter) bleibt nur
-    // „Nur Namen senden (nichts hochladen)“ — Antwort mit Ort namen
+    // „Nur die Dateinamen senden“ (Plan 2026-11-20, P2) — Antwort mit Ort namen
     await expect(modul.getByRole('button', { name: 'Als Themenbaum-Entwurf übernehmen' })).toHaveCount(0);
-    await expect(modul.getByRole('button', { name: 'Hochladen', exact: true })).toHaveCount(0);
-    await modul.getByRole('button', { name: 'Nur Namen senden (nichts hochladen)' }).click();
+    await expect(modul.getByRole('button', { name: 'Hier lesen' })).toHaveCount(0);
+    await expect(modul.getByRole('button', { name: 'Weiter zur Vorschau' })).toHaveCount(0);
+    await modul.getByRole('button', { name: 'Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)' }).click();
     await w.waitForTurns(2);
     const req = w.chatRequests().at(-1)!;
     expect(req.ui_antwort?.daten).toMatchObject({ aktion: 'bereitgestellt', ort: 'namen', struktur: { name: 'Physik 7' } });

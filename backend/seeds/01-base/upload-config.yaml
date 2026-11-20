@@ -13,4 +13,8 @@
 #                                   gehen als Bild an das Chat-Modell (Plan 2026-11-19, Paket C);
 #                                   DOCUMENT_OCR=off und AcademicCloud (kein Bildeingang) schalten ab
 #   ocr_max_seiten: 20 (1–50)       Seiten je PDF für die Texterkennung (je Seite ein KI-Aufruf)
+#   vorauswahl: chat                vorgewählter Ort im freien Chat: chat | wlo | auto (WLO, wenn
+#                                   angemeldet und der Metadaten-Flow da ist, sonst Chat); geht der
+#                                   Ort nicht, gilt auto. Abläufe setzen ihn je Schritt (Plan
+#                                   2026-11-20, P2)
 upload: {}

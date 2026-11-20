@@ -15,6 +15,7 @@ from boerdi.ui_module import upload_antwort as upload
 from boerdi.ui_module import upload_bereitgestellt as bereit
 from boerdi.ui_module.namen import STRUKTURENTWURF, UPLOAD
 from boerdi.ui_module.rahmen import zeile
+from boerdi.ui_module.rollen import ist_gliederung
 
 _ANTWORT_MERKER: Final = ("uebernommen", "bearbeitet")
 #: Plan 2026-11-16, Nachprüfung TG-2: die Teile, die ein Modul BEREITSTELLT (Daten der Person, kein
@@ -64,7 +65,8 @@ def _teile(geprueft: dict[str, Any]) -> list[Teil]:
         teile: list[Teil] = [(
             "structure", "wlo.ordnerbaum@1",
             {"struktur": upload.ohne_dateien(daten["struktur"]), "zahlen": z},
-            f"{int(z.get('ordner') or 0)} Ordner, {int(z.get('inhalte') or 0)} Inhalte")]
+            # Review P2, Befund 6: Material wie im Rahmen (``inhalt`` und ``beides``)
+            f"{int(z.get('ordner') or 0)} Ordner, {upload.material_zahl(daten)} Inhalte")]
         if satz := upload.dateien_satz(daten):
             # TG-3a: der volle Baum mit den Dateien je Ordner (feste Nummer ``i``), nur wenn das
             # Widget sie schickt — eine Antwort von vorher ergäbe sonst eine leere Auswahl
@@ -107,7 +109,7 @@ def _hier_gelesen(daten: dict[str, Any], block_id: Any) -> list[Teil]:
     gelesen = bereit.gelesene(daten)
     teile: list[Teil] = []
     liste = [sd.chatbot(d["upload_id"], namen.get(d.get("i"))) for d in gelesen
-             if d.get("rolle") == "struktur"]
+             if ist_gliederung(d.get("rolle"))]
     if liste := sd.eintraege(sd.wert(liste)):
         teile.append((sd.TEIL, sd.TYP, sd.wert(liste), sd.zusammenfassung(liste)))
     if (wert := metadaten_lokal.aus_antwort(daten, block_id)) is not None:

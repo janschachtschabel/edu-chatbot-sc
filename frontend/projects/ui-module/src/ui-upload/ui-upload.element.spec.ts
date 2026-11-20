@@ -47,6 +47,9 @@ async function waehle(wurzel: ShadowRoot, dateien: File[]): Promise<void> {
 const knopf = (w: ShadowRoot, text: string) =>
   [...w.querySelectorAll('button')].find((b) => b.textContent?.trim() === text) as HTMLButtonElement | undefined;
 
+/** Plan 2026-11-20, P2 (§4): der Nebenknopf sagt, dass der Inhalt auf dem Gerät bleibt. */
+const NAMEN = 'Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)';
+
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('<boerdi-ui-upload> (U3-1a)', () => {
@@ -109,8 +112,9 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     const { h, wurzel } = erzeuge();
     await waehle(wurzel, [datei('Physik/A/x.pdf')]);
     expect(knopf(wurzel, 'Als Themenbaum-Entwurf übernehmen')).toBeUndefined();
-    expect(knopf(wurzel, 'Hochladen')).toBeUndefined();
-    const namen = knopf(wurzel, 'Nur Namen senden (nichts hochladen)')!;
+    expect(knopf(wurzel, 'Hier lesen')).toBeUndefined();
+    expect(knopf(wurzel, 'Weiter zur Vorschau')).toBeUndefined();
+    const namen = knopf(wurzel, NAMEN)!;
     expect(namen.classList.contains('u__haupt')).toBe(true);
     namen.click();
     expect(h.antworten.mock.calls[0][0]).toMatchObject({ aktion: 'bereitgestellt', ort: 'namen' });
@@ -151,7 +155,8 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
     const { wurzel } = erzeuge();
     await waehle(wurzel, [datei('P/A/a.pdf'), datei('P/B/b.pdf')]);
     const namen = [...wurzel.querySelectorAll('button[data-ignorieren]')].map((b) => b.getAttribute('aria-label'));
-    expect(namen).toEqual(['Alle Dateien in P ignorieren', 'Alle Dateien in A ignorieren', 'Alle Dateien in B ignorieren']);
+    // Review P1, NIT 7: wie die Option „Nicht verwenden“
+    expect(namen).toEqual(['Alle Dateien in P nicht verwenden', 'Alle Dateien in A nicht verwenden', 'Alle Dateien in B nicht verwenden']);
   });
 
   it('„Andere Auswahl“ setzt zurück und nimmt die Vormerkung zurück', async () => {
@@ -233,7 +238,8 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
 
   it('R3-b: hilft die Anmeldung beim Lesen, steht das vor der Auswahl gleich unter dem Hinweis', () => {
     // Review der Oberfläche, 8: der Name des Orts statt „lesen lassen“
-    const satz = 'Dateien „Hier im Chat“ hochladen geht erst, wenn du bei WLO angemeldet bist.';
+    // Plan 2026-11-20, P2: der Ort heißt „Nur hier im Chat lesen“
+    const satz = '„Nur hier im Chat lesen“ geht erst, wenn du bei WLO angemeldet bist.';
     const { wurzel } = erzeuge({}, host(), {
       ...DATEN, hinweis: 'Lade deinen Lehrplan hoch.',
       schalter: { dokument_im_chat: false, ablage_in_wlo: false, lesen_nach_anmeldung: true },
@@ -245,14 +251,20 @@ describe('<boerdi-ui-upload> (U3-1a)', () => {
   });
 
   it('Rückmeldung 16.11.: ohne Anmeldung nennt das Feld vor der Auswahl die Voraussetzung der Ablage', () => {
-    const satz = 'Dateien „In WLO ablegen“ – in deinem persönlichen Bereich, dort entstehen Volltexte '
-      + 'und Metadaten – geht, wenn du bei WLO angemeldet bist.';
+    const satz = '„In WLO ablegen und erschließen“ – in deinem persönlichen Bereich, dort entstehen Volltexte '
+      + 'und Metadaten – geht nur mit WLO-Anmeldung.';
     const { wurzel } = erzeuge({}, host(), {
-      ...DATEN, schalter: { dokument_im_chat: true, ablage_in_wlo: false, ablage_nach_anmeldung: true },
+      ...DATEN, erschliessen: true, schalter: { dokument_im_chat: true, ablage_in_wlo: false, ablage_nach_anmeldung: true },
     });
     expect([...wurzel.querySelectorAll('.u__hinweis')].map((p) => p.textContent)).toContain(satz);
     const angemeldet = erzeuge({}, host(), { ...DATEN, schalter: { dokument_im_chat: true, ablage_in_wlo: true } }).wurzel;
     expect([...angemeldet.querySelectorAll('.u__hinweis')].map((p) => p.textContent)).not.toContain(satz);
+    // Review P2, Befund 1: ohne `erschliessen` (freier Chat) verspricht der Satz keine Metadaten
+    const frei = erzeuge({}, host(), {
+      ...DATEN, schalter: { dokument_im_chat: true, ablage_in_wlo: false, ablage_nach_anmeldung: true },
+    }).wurzel;
+    expect([...frei.querySelectorAll('.u__hinweis')].map((p) => p.textContent)).toContain(
+      '„In WLO ablegen“ – in deinem persönlichen Bereich, dort entstehen Volltexte – geht nur mit WLO-Anmeldung.');
   });
 });
 
@@ -268,11 +280,17 @@ const ORTE_ANONYM = {
 const GRENZEN_LOKAL = { ...DATEN.grenzen, lokal_max_dateien: 10, lokal_max_mb_gesamt: 50, lokal_aufbewahrung_h: 24 };
 const ANGEMELDET = { ...DATEN, grenzen: GRENZEN_LOKAL, orte: ORTE_WLO, schalter: { dokument_im_chat: true, ablage_in_wlo: true } };
 const ANONYM = { ...DATEN, grenzen: GRENZEN_LOKAL, orte: ORTE_ANONYM, schalter: { dokument_im_chat: true, ablage_in_wlo: false } };
+/** Review P2, Befund 1: ein Ablauf-Schritt, der das Häkchen vorsieht (`erschliessen` gesetzt) — ohne die Angabe
+ *  (freier Chat) gibt es keins. */
+const MIT_HAKEN = { ...ANGEMELDET, erschliessen: true };
+/** Review P2, Befund 3: gesperrt ohne Anmeldung — der Weg zur Anmeldung ist der Konto-Knopf. */
+const OHNE_ANMELDUNG = 'nicht wählbar – melde dich über den Konto-Knopf unten an';
 
 const warte = () => new Promise((r) => setTimeout(r, 0));
 const radio = (w: ShadowRoot, ort: string) => w.querySelector(`input[type="radio"][data-ort="${ort}"]`) as HTMLInputElement;
 const erklaerung = (w: ShadowRoot, ort: string) =>
   w.getElementById(radio(w, ort).getAttribute('aria-describedby') ?? '-')?.textContent;
+const haken = (w: ShadowRoot) => w.querySelector('input[type="checkbox"][data-erschliessen]') as HTMLInputElement;
 function waehleOrt(w: ShadowRoot, ort: string): void {
   const r = radio(w, ort);
   r.focus();
@@ -282,82 +300,66 @@ function waehleOrt(w: ShadowRoot, ort: string): void {
 
 describe('<boerdi-ui-upload> Wo verarbeiten? (Paket U4)', () => {
   it('nach der Auswahl: Frage als Gruppe, zwei Chips mit Erklärzeile, Vorauswahl aus `orte`', async () => {
-    const { wurzel } = erzeuge({}, host(), ANGEMELDET);
+    const { wurzel } = erzeuge({}, host(), MIT_HAKEN);
     expect(wurzel.querySelector('fieldset')).toBeNull();          // leer: noch keine Frage
     await waehle(wurzel, [datei('P/a.pdf'), datei('P/b.pdf')]);
-    expect(wurzel.querySelector('fieldset > legend')?.textContent).toBe('Wo sollen sie verarbeitet werden?');
+    expect(wurzel.querySelector('fieldset > legend')?.textContent).toBe('Wo sollen die Dateien verarbeitet werden?');
     const radios = [...wurzel.querySelectorAll('input[type="radio"]')] as HTMLInputElement[];
     expect(radios.map((r) => [r.value, r.name, r.checked, r.disabled])).toEqual([
       ['chat', 'u-ort', false, false], ['wlo', 'u-ort', true, false]]);
-    expect(radios.map((r) => r.closest('label')?.textContent)).toEqual(['Hier im Chat', 'In WLO ablegen und erschließen']);
-    expect(erklaerung(wurzel, 'chat')).toBe('schnell, ohne Anmeldung, bis 10 Dateien – Text bleibt bis zu 24 Stunden nach der letzten Nutzung hier');
-    expect(erklaerung(wurzel, 'wlo')).toBe('alle Dateien, mit WLO-Anmeldung – Titel, Beschreibung, Fach und Stufe entstehen in WLO im Hintergrund');
-    // ein Hauptknopf; „Nur Namen senden“ daneben
-    expect(knopf(wurzel, 'Hochladen')!.classList.contains('u__haupt')).toBe(true);
-    expect(knopf(wurzel, 'Nur Namen senden (nichts hochladen)')!.classList.contains('u__haupt')).toBe(false);
+    expect(radios.map((r) => r.closest('label')?.textContent)).toEqual(['Nur hier im Chat lesen', 'In WLO ablegen und erschließen']);
+    expect(erklaerung(wurzel, 'chat')).toBe('Nichts wird in WLO gespeichert, keine Anmeldung nötig. Der Chat liest den Text '
+      + 'und vergisst ihn spätestens 24 Stunden nach der letzten Nutzung. Bis 10 Dateien.');
+    expect(erklaerung(wurzel, 'wlo')).toBe('Deine Dateien werden Inhalte in deinem persönlichen Bereich in WLO und bleiben '
+      + 'dort. WLO liest den Text und erzeugt Titel, Beschreibung, Fach, Stufe und Schlagworte. Dauert ein paar Minuten.');
+    // ein Hauptknopf je Ort (P2: WLO „Weiter zur Vorschau“ — er legt noch nichts ab); „Nur die Dateinamen senden“ daneben
+    expect(knopf(wurzel, 'Weiter zur Vorschau')!.classList.contains('u__haupt')).toBe(true);
+    expect(knopf(wurzel, NAMEN)!.classList.contains('u__haupt')).toBe(false);
+    expect(knopf(wurzel, 'Hochladen')).toBeUndefined();
     expect(knopf(wurzel, 'Senden')).toBeUndefined();
     expect(knopf(wurzel, 'Lesen lassen')).toBeUndefined();
     expect(knopf(wurzel, 'Übertragen vorbereiten …')).toBeUndefined();
-    expect(wurzel.textContent).toContain('in deinem persönlichen Bereich in WLO ab; dort bleiben sie, bis du sie löschst');
+    expect(wurzel.textContent).toContain('erst „In WLO ablegen und erschließen“ legt die Dateien in deinem persönlichen '
+      + 'Bereich in WLO ab. Dort bleiben sie, bis du sie löschst');
   });
 
   it('gesperrt bleibt sichtbar, mit dem Grund als Text; ohne Anmeldung ist „Hier im Chat“ vorgewählt', async () => {
     const { wurzel } = erzeuge({}, host(), ANONYM);
     await waehle(wurzel, [datei('P/a.pdf')]);
     expect(radio(wurzel, 'wlo').disabled).toBe(true);
-    expect(erklaerung(wurzel, 'wlo')).toBe('nicht wählbar – braucht eine WLO-Anmeldung');
+    expect(erklaerung(wurzel, 'wlo')).toBe(OHNE_ANMELDUNG);
     expect(radio(wurzel, 'chat').checked).toBe(true);
+    // Review P2, Befund 1: ohne `erschliessen` nur „ablegen“
+    expect(radio(wurzel, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen');
     expect(wurzel.textContent).toContain('er behält nur ihren Text, bis zu 24 Stunden nach der letzten Nutzung');
   });
 
-  it('WLO ohne Erschließung sagt es; ein Ablauf kann einen Ort ausschließen', async () => {
-    const daten = { ...ANGEMELDET, orte: { ...ORTE_WLO, wlo: { geht: true, hinweis: 'ohne_erschliessung' },
-      chat: { geht: false, grund: 'ablauf' } } };
+  it('WLO ohne Erschließung sagt es mit Grund; ein Ablauf kann einen Ort ausschließen', async () => {
+    const daten = { ...MIT_HAKEN, orte: { ...ORTE_WLO, chat: { geht: false, grund: 'ablauf' },
+      wlo: { geht: true, hinweis: 'ohne_erschliessung', grund_erschliessung: 'flow_nicht_freigegeben' } } };
     const { wurzel } = erzeuge({}, host(), daten);
     await waehle(wurzel, [datei('P/a.pdf')]);
-    expect(erklaerung(wurzel, 'wlo')).toBe('alle Dateien, mit WLO-Anmeldung – nur ablegen; Angaben werden gerade nicht erzeugt');
+    expect(erklaerung(wurzel, 'wlo')).toBe('Deine Dateien werden Inhalte in deinem persönlichen Bereich in WLO und bleiben '
+      + 'dort. Metadaten kann WLO gerade nicht erzeugen (in diesem Chat nicht freigegeben).');
     expect(erklaerung(wurzel, 'chat')).toBe('nicht wählbar – in diesem Ablauf nicht vorgesehen');
     expect(wurzel.textContent).not.toContain('erzeugt daraus Titel');
   });
 
-  // Plan 2026-11-20 §8, E3: auf dem Dokument-Weg (`einzeldatei_als_struktur`) läuft nach der Ablage kein
-  // Flow — der Ort verspricht kein „erschließen“, weder im Namen noch in Erklärung und Datenschutz-Satz
-  it('Dokument-Weg: „In WLO ablegen“ ohne „erschließen“, auch gesperrt; Datei-Weg unverändert', async () => {
-    const dokument = { ...ANGEMELDET, einzeldatei_als_struktur: true };
-    const { wurzel } = erzeuge({}, host(), dokument);
-    await waehle(wurzel, [datei('P/Lehrplan.pdf')]);
-    expect(radio(wurzel, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen');
-    expect(radio(wurzel, 'wlo').checked).toBe(true);
-    expect(erklaerung(wurzel, 'wlo')).toBe('alle Dateien, mit WLO-Anmeldung – nur ablegen; den Text liest der Chat danach aus WLO');
-    expect(wurzel.textContent).not.toContain('erzeugt daraus Titel');
-    expect(wurzel.textContent).not.toContain('erschließen');
-
-    document.body.innerHTML = '';
-    const anonym = erzeuge({}, host(), { ...ANONYM, einzeldatei_als_struktur: true }).wurzel;
-    await waehle(anonym, [datei('P/Lehrplan.pdf')]);
-    expect(radio(anonym, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen');
-    expect(erklaerung(anonym, 'wlo')).toBe('nicht wählbar – braucht eine WLO-Anmeldung');
-
-    document.body.innerHTML = '';
-    const dateiWeg = erzeuge({}, host(), ANGEMELDET).wurzel;
-    await waehle(dateiWeg, [datei('P/a.pdf')]);
-    expect(radio(dateiWeg, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen und erschließen');
-  });
-
-  // Review Paket E, MINOR 8/9: auf dem Dokument-Weg verspricht weder der Satz vor der Auswahl noch der
-  // Datenschutz-Satz Metadaten; der Datenschutz-Satz sagt, was mit dem Text geschieht
-  it('Dokument-Weg: Datenschutz-Satz und Hinweis vor der Anmeldung ohne Metadaten', async () => {
-    const { wurzel } = erzeuge({}, host(), { ...ANGEMELDET, einzeldatei_als_struktur: true });
-    await waehle(wurzel, [datei('P/Lehrplan.pdf')]);
-    expect(wurzel.textContent).toContain('legt die Dateien nach deiner Bestätigung in deinem persönlichen Bereich in WLO ab; danach liest der Chat den Text aus WLO, sein KI-Modell erstellt daraus den Entwurf.');
+  // Plan 2026-11-20, P2: `einzeldatei_als_struktur` (alt) heißt nur noch Rollen-Vorgabe „gliederung“ — es
+  // schaltet nicht mehr auf „nur ablegen“ (E3 vom 20.11. hebt UO-6 auf; den Flow bekommt der Dokument-Weg in P4)
+  it('P2: der alte Schlüssel macht die Datei zur Gliederung, der Ort bleibt „ablegen und erschließen“', async () => {
+    const { wurzel } = erzeuge({}, host(), { ...MIT_HAKEN, einzeldatei_als_struktur: true });
+    await waehle(wurzel, [datei('P/Ausbildung.pdf')]);
+    expect((wurzel.querySelector('select[aria-label="Rolle von Ausbildung.pdf"]') as HTMLSelectElement).value).toBe('struktur');
+    expect(radio(wurzel, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen und erschließen');
+    expect(erklaerung(wurzel, 'wlo')).toContain('WLO liest den Text und erzeugt Titel');
 
     document.body.innerHTML = '';
     const vorher = erzeuge({}, host(), {
-      ...DATEN, einzeldatei_als_struktur: true,
+      ...DATEN, einzeldatei_als_struktur: true, erschliessen: true,
       schalter: { dokument_im_chat: true, ablage_in_wlo: false, ablage_nach_anmeldung: true },
     }).wurzel;
-    expect(vorher.textContent).toContain('Dateien „In WLO ablegen“ – in deinem persönlichen Bereich, dort liest der Chat danach ihren Text – geht, wenn du bei WLO angemeldet bist.');
-    expect(vorher.textContent).not.toContain('Metadaten');
+    expect(vorher.textContent).toContain('„In WLO ablegen und erschließen“ – in deinem persönlichen Bereich');
   });
 
   it('E3: ohne Flow-Träger (`ohne_erschliessung`) heißt der Ort ebenso nur „In WLO ablegen“', async () => {
@@ -373,8 +375,8 @@ describe('<boerdi-ui-upload> Wo verarbeiten? (Paket U4)', () => {
     await waehle(wurzel, [datei('P/a.pdf'), datei('P/b.pdf'), datei('P/c.pdf')]);
     expect(radio(wurzel, 'chat').disabled).toBe(true);
     expect(erklaerung(wurzel, 'chat')).toBe('nicht wählbar – zu viele Dateien für hier (höchstens 2) – mit Anmeldung über WLO');
-    expect(knopf(wurzel, 'Hochladen')).toBeUndefined();
-    const namen = knopf(wurzel, 'Nur Namen senden (nichts hochladen)')!;
+    expect(knopf(wurzel, 'Hier lesen')).toBeUndefined();
+    const namen = knopf(wurzel, NAMEN)!;
     expect(namen.classList.contains('u__haupt')).toBe(true);
     // eine Datei ignorieren → wieder unter der Grenze, „Hier im Chat“ geht wieder
     const rolle = wurzel.querySelector('select[aria-label="Rolle von c.pdf"]') as HTMLSelectElement;
@@ -382,7 +384,7 @@ describe('<boerdi-ui-upload> Wo verarbeiten? (Paket U4)', () => {
     rolle.dispatchEvent(new Event('change', { bubbles: true }));
     expect(radio(wurzel, 'chat').disabled).toBe(false);
     expect(radio(wurzel, 'chat').checked).toBe(true);
-    expect(knopf(wurzel, 'Hochladen')).toBeTruthy();
+    expect(knopf(wurzel, 'Hier lesen')).toBeTruthy();
     expect(h.hochladen).not.toHaveBeenCalled();
   });
 
@@ -410,7 +412,7 @@ describe('<boerdi-ui-upload> Wo verarbeiten? (Paket U4)', () => {
   it('„Nur Namen senden“ antwortet mit Ort namen — nichts wird hochgeladen', async () => {
     const { h, wurzel } = erzeuge({}, host(), ANGEMELDET);
     await waehle(wurzel, [datei('Physik/A/x.pdf')]);
-    knopf(wurzel, 'Nur Namen senden (nichts hochladen)')!.click();
+    knopf(wurzel, NAMEN)!.click();
     const [daten, text] = h.antworten.mock.calls[0];
     expect(daten).toMatchObject({ aktion: 'bereitgestellt', ort: 'namen', struktur: { name: 'Physik' } });
     expect(daten).not.toHaveProperty('dateien');
@@ -419,12 +421,13 @@ describe('<boerdi-ui-upload> Wo verarbeiten? (Paket U4)', () => {
     expect(h.ablegen).not.toHaveBeenCalled();
   });
 
-  it('solange ein Zug läuft, sind Chips, „Hochladen“ und „Nur Namen senden“ gesperrt', async () => {
-    const { el, wurzel } = erzeuge({}, host(), ANGEMELDET);
+  it('solange ein Zug läuft, sind Chips, Häkchen, Hauptknopf und „Nur die Dateinamen senden“ gesperrt', async () => {
+    const { el, wurzel } = erzeuge({}, host(), MIT_HAKEN);
     await waehle(wurzel, [datei('P/a.pdf')]);
     el.beschaeftigt = true;
-    expect(knopf(wurzel, 'Hochladen')!.disabled).toBe(true);
-    expect(knopf(wurzel, 'Nur Namen senden (nichts hochladen)')!.disabled).toBe(true);
+    expect(knopf(wurzel, 'Weiter zur Vorschau')!.disabled).toBe(true);
+    expect(haken(wurzel).disabled).toBe(true);
+    expect(knopf(wurzel, NAMEN)!.disabled).toBe(true);
     expect(radio(wurzel, 'chat').disabled).toBe(true);
     expect(knopf(wurzel, 'Andere Auswahl')!.disabled).toBe(false);
   });
@@ -436,18 +439,112 @@ describe('<boerdi-ui-upload> Wo verarbeiten? (Paket U4)', () => {
     expect(erklaerung(wurzel, 'wlo')).toBe('nicht wählbar – gerade ausgeschaltet');
     const ohne = erzeuge().wurzel;
     await waehle(ohne, [datei('P/a.pdf')]);
-    expect(knopf(ohne, 'Hochladen')).toBeUndefined();
+    expect(knopf(ohne, 'Hier lesen')).toBeUndefined();
+    expect(knopf(ohne, 'Weiter zur Vorschau')).toBeUndefined();
     expect(ohne.textContent).toContain('alle Inhalte bleiben auf deinem Gerät');
   });
 
   it('auf Englisch: Frage, Chips und Knöpfe', async () => {
     const { wurzel } = erzeuge({ sprache: 'en' }, host(), ANONYM);
     await waehle(wurzel, [datei('P/a.pdf')]);
-    expect(wurzel.querySelector('legend')?.textContent).toBe('Where should they be processed?');
-    expect(radio(wurzel, 'chat').closest('label')?.textContent).toBe('Here in the chat');
-    expect(erklaerung(wurzel, 'wlo')).toBe('not available – needs a WLO sign-in');
-    expect(knopf(wurzel, 'Upload')).toBeTruthy();
-    expect(knopf(wurzel, 'Send names only (upload nothing)')).toBeTruthy();
+    expect(wurzel.querySelector('legend')?.textContent).toBe('Where should the files be processed?');
+    expect(radio(wurzel, 'chat').closest('label')?.textContent).toBe('Only read here in the chat');
+    expect(erklaerung(wurzel, 'wlo')).toBe('not available – sign in with the account button below');
+    expect(knopf(wurzel, 'Read here')).toBeTruthy();
+    expect(knopf(wurzel, 'Send file names only (the content stays on your device)')).toBeTruthy();
+  });
+});
+
+// ── Plan 2026-11-20, P2: Häkchen „Metadaten von WLO erzeugen lassen“, Rollen-Vorgabe ─────────────
+
+describe('<boerdi-ui-upload> Häkchen und Vorgaben (P2)', () => {
+  const hinweis = (w: ShadowRoot) => w.getElementById(haken(w).getAttribute('aria-describedby') ?? '-')?.textContent;
+
+  it('unter WLO, vom Schritt gesetzt, mit Label und Hinweis; ein Klick stellt um, der Fokus bleibt', async () => {
+    const { wurzel } = erzeuge({}, host(), MIT_HAKEN);
+    await waehle(wurzel, [datei('P/a.pdf')]);
+    const h0 = haken(wurzel);
+    expect(h0.checked).toBe(true);
+    expect(h0.closest('label')?.textContent).toBe('Metadaten von WLO erzeugen lassen');
+    expect(h0.closest('.u__ort')?.querySelector('input[data-ort="wlo"]')).toBeTruthy();     // unter dem Ort WLO
+    expect(hinweis(wurzel)).toBe('WLO setzt dabei Titel, Beschreibung, Fach, Stufe und Schlagworte neu – der Dateiname bleibt nicht der Titel.');
+    h0.focus();
+    h0.checked = false;
+    h0.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(haken(wurzel).checked).toBe(false);
+    expect(wurzel.activeElement).toBe(haken(wurzel));
+    expect(hinweis(wurzel)).toBe('Ohne Häkchen legt WLO die Dateien nur ab.');
+    expect(erklaerung(wurzel, 'wlo')).toBe('Deine Dateien werden Inhalte in deinem persönlichen Bereich in WLO und bleiben dort.');
+    expect(wurzel.textContent).toContain('erst „In WLO ablegen“ legt die Dateien');
+    // beim Ort chat gibt es kein Häkchen
+    waehleOrt(wurzel, 'chat');
+    expect(haken(wurzel)).toBeNull();
+    expect(knopf(wurzel, 'Hier lesen')!.classList.contains('u__haupt')).toBe(true);
+  });
+
+  it('die Vorgabe kommt aus den Daten (`erschliessen`)', async () => {
+    const { wurzel } = erzeuge({}, host(), { ...ANGEMELDET, erschliessen: false });
+    await waehle(wurzel, [datei('P/a.pdf')]);
+    expect(haken(wurzel).checked).toBe(false);
+  });
+
+  it('ohne Flow kein Häkchen: der Ort heißt „In WLO ablegen“ und nennt den Grund', async () => {
+    const ohne = (grund?: string) => ({ ...MIT_HAKEN, orte: { ...ORTE_WLO,
+      wlo: { geht: true, hinweis: 'ohne_erschliessung', ...(grund ? { grund_erschliessung: grund } : {}) } } });
+    const { wurzel } = erzeuge({}, host(), ohne('dienst_nicht_erreichbar'));
+    await waehle(wurzel, [datei('P/a.pdf')]);
+    expect(haken(wurzel)).toBeNull();
+    expect(radio(wurzel, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen');
+    expect(erklaerung(wurzel, 'wlo')).toContain('Metadaten kann WLO gerade nicht erzeugen (der Dienst dafür ist gerade nicht erreichbar).');
+    expect(knopf(wurzel, 'Weiter zur Vorschau')).toBeTruthy();
+    // ohne Code (älteres Backend) ohne Klammer
+    document.body.innerHTML = '';
+    const alt = erzeuge({}, host(), ohne()).wurzel;
+    await waehle(alt, [datei('P/a.pdf')]);
+    expect(erklaerung(alt, 'wlo')).toContain('Metadaten kann WLO gerade nicht erzeugen.');
+    // auf Englisch
+    document.body.innerHTML = '';
+    const en = erzeuge({ sprache: 'en' }, host(), ohne('flow_nicht_freigegeben')).wurzel;
+    await waehle(en, [datei('P/a.pdf')]);
+    expect(erklaerung(en, 'wlo')).toContain('WLO cannot create metadata right now (not enabled in this chat).');
+  });
+
+  it('ohne Anmeldung kein Häkchen; WLO bleibt sichtbar und sagt, wo man sich anmeldet', async () => {
+    const { wurzel } = erzeuge({}, host(), ANONYM);
+    await waehle(wurzel, [datei('P/a.pdf')]);
+    expect(haken(wurzel)).toBeNull();
+    expect(erklaerung(wurzel, 'wlo')).toBe(OHNE_ANMELDUNG);
+  });
+
+  // Review P2, Befund 1: ohne `erschliessen` (freier Chat, Schritt ohne die Angabe) nutzt niemand die Wahl
+  it('ohne `erschliessen` in den Daten kein Häkchen: der Ort heißt „In WLO ablegen“, alle Sätze sagen „nur ablegen“', async () => {
+    const { wurzel } = erzeuge({}, host(), ANGEMELDET);
+    await waehle(wurzel, [datei('P/a.pdf')]);
+    expect(radio(wurzel, 'wlo').checked).toBe(true);
+    expect(haken(wurzel)).toBeNull();
+    expect(radio(wurzel, 'wlo').closest('label')?.textContent).toBe('In WLO ablegen');
+    expect(erklaerung(wurzel, 'wlo')).toBe('Deine Dateien werden Inhalte in deinem persönlichen Bereich in WLO und bleiben dort.');
+    expect(wurzel.textContent).toContain('erst „In WLO ablegen“ legt die Dateien');
+    expect(wurzel.textContent).toContain('Metadaten erzeugt WLO dabei nicht.');
+    expect(wurzel.textContent).not.toContain('erschließen');
+    document.body.innerHTML = '';
+    const en = erzeuge({ sprache: 'en' }, host(), ANGEMELDET).wurzel;
+    await waehle(en, [datei('P/a.pdf')]);
+    expect(radio(en, 'wlo').closest('label')?.textContent).toBe('Store in WLO');
+    expect(en.textContent).toContain('WLO does not create metadata.');
+  });
+
+  it('Rollen-Vorgabe aus den Daten: material, beides; auto bleibt die Lehrplan-Regel', async () => {
+    const rollen = async (daten: Record<string, unknown>) => {
+      document.body.innerHTML = '';
+      const { wurzel } = erzeuge({}, host(), daten);
+      await waehle(wurzel, [datei('P/Lehrplan.pdf'), datei('P/b.pdf')]);
+      return [...wurzel.querySelectorAll('select')].map((x) => (x as HTMLSelectElement).value);
+    };
+    expect(await rollen({ ...ANGEMELDET, rolle_vorgabe: 'material' })).toEqual(['inhalt', 'inhalt']);
+    expect(await rollen({ ...ANGEMELDET, rolle_vorgabe: 'beides' })).toEqual(['beides', 'beides']);
+    expect(await rollen({ ...ANGEMELDET, rolle_vorgabe: 'gliederung' })).toEqual(['struktur', 'struktur']);
+    expect(await rollen({ ...ANGEMELDET, rolle_vorgabe: 'auto' })).toEqual(['struktur', 'inhalt']);
   });
 });
 
@@ -479,8 +576,8 @@ describe('<boerdi-ui-upload> Hier im Chat (Paket U4)', () => {
     const { wurzel } = await bereit(h);
     // die Lehrplan-Automatik hat den Lehrplan als Strukturdokument vorgemerkt
     expect((wurzel.querySelector('select[aria-label="Rolle von Lehrplan.pdf"]') as HTMLSelectElement).value).toBe('struktur');
-    knopf(wurzel, 'Hochladen')!.focus();
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.focus();
+    knopf(wurzel, 'Hier lesen')!.click();
     expect(h.hochladen).toHaveBeenCalledTimes(1);
     const [erste, , rolle] = h.hochladen.mock.calls[0] as [File, unknown, string];
     expect([erste.name, rolle]).toEqual(['Lehrplan.pdf', 'struktur']);
@@ -490,7 +587,7 @@ describe('<boerdi-ui-upload> Hier im Chat (Paket U4)', () => {
     expect(wurzel.textContent).toContain('Datei 1 von 2 wird hochgeladen … 40 %');
     expect((wurzel.querySelector('progress') as HTMLProgressElement).value).toBe(40);
     expect(knopf(wurzel, 'Andere Auswahl')!.disabled).toBe(true);
-    expect(knopf(wurzel, 'Hochladen')).toBeUndefined();
+    expect(knopf(wurzel, 'Hier lesen')).toBeUndefined();
     melder[0](1);
     expect(wurzel.textContent).toContain('Datei 1 von 2 wird gelesen');
     fertig[0](befundVon(1, 'struktur'));
@@ -519,7 +616,7 @@ describe('<boerdi-ui-upload> Hier im Chat (Paket U4)', () => {
     h.hochladen.mockResolvedValueOnce(befundVon(1, 'struktur'))
       .mockRejectedValueOnce(Object.assign(new Error('x'), { status: 422, code: 'abgewiesen' }));
     const { wurzel } = await bereit(h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     await warte();
     await warte();
     const fehler = wurzel.querySelector('.u__fehler') as HTMLElement;
@@ -541,7 +638,7 @@ describe('<boerdi-ui-upload> Hier im Chat (Paket U4)', () => {
       .mockResolvedValueOnce(befundVon(1, 'struktur'))
       .mockResolvedValueOnce(befundVon(2));
     const { wurzel } = await bereit(h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     await warte();
     expect(wurzel.textContent).toContain('„Lehrplan.pdf“: Keine Verbindung zum Server.');
     knopf(wurzel, 'Noch einmal versuchen')!.click();
@@ -558,7 +655,7 @@ describe('<boerdi-ui-upload> Hier im Chat (Paket U4)', () => {
     const h = host();
     h.hochladen.mockResolvedValueOnce(befundVon(1, 'struktur')).mockResolvedValueOnce(befundVon(2));
     const { el, wurzel } = await bereit(h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     el.beschaeftigt = true;
     await warte();
     await warte();
@@ -578,7 +675,7 @@ describe('<boerdi-ui-upload> Hier im Chat (Paket U4)', () => {
     const h = host();
     h.hochladen.mockResolvedValueOnce({ name: 'x' });
     const { wurzel } = await bereit(h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     await warte();
     expect(wurzel.textContent).toContain('„Lehrplan.pdf“: Die Datei ließ sich nicht lesen.');
     h.hochladen.mockRejectedValueOnce(Object.assign(new Error('x'), { status: 413, code: 'fehler' }));
@@ -593,7 +690,7 @@ describe('<boerdi-ui-upload> Hier im Chat (Paket U4)', () => {
     let melde: (anteil: number) => void = () => undefined;
     h.hochladen.mockImplementation((_d: File, f: (a: number) => void) => { melde = f; return new Promise(() => undefined); });
     const { wurzel } = await bereit(h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     expect([...wurzel.querySelectorAll('select')].every((s) => s.disabled)).toBe(true);
     expect([...wurzel.querySelectorAll('button[data-ignorieren]')].every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
     const balken = wurzel.querySelector('progress');
@@ -635,7 +732,7 @@ describe('<boerdi-ui-upload> zielneutral (TG-1)', () => {
       expect(sichtbar(wurzel)).not.toMatch(THEMENBAUM);
       waehleOrt(wurzel, 'chat');
       expect(sichtbar(wurzel)).not.toMatch(THEMENBAUM);
-      knopf(wurzel, sprache === 'de' ? 'Hochladen' : 'Upload')!.click();
+      knopf(wurzel, sprache === 'de' ? 'Hier lesen' : 'Read here')!.click();
       el.beschaeftigt = true;     // ein Zug läuft: die Antwort wartet auf „Weiter“
       await warte();
       await warte();
@@ -649,7 +746,7 @@ describe('<boerdi-ui-upload> zielneutral (TG-1)', () => {
     const { wurzel } = erzeuge({}, h, ANONYM);
     await waehle(wurzel, [datei('P/Lehrplan_Physik.pdf'), datei('P/b.pdf')]);
     expect(h.vormerken.mock.calls.at(-1)?.[0].strukturdokument).toMatchObject({ name: 'Lehrplan_Physik.pdf' });
-    expect(knopf(wurzel, 'Hochladen')).toBeTruthy();
+    expect(knopf(wurzel, 'Hier lesen')).toBeTruthy();
     expect(h.hochladen).not.toHaveBeenCalled();
     expect(h.antworten).not.toHaveBeenCalled();
   });
@@ -677,7 +774,7 @@ describe('<boerdi-ui-upload> mehrere Strukturdokumente (TG-3e)', () => {
     const rollen = [...wurzel.querySelectorAll('select')].map((s) => (s as HTMLSelectElement).value);
     expect(rollen.filter((r) => r === 'struktur')).toHaveLength(2);
     expect(h.vormerken.mock.calls.at(-1)?.[0].zahlen.strukturdokumente).toBe(2);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     for (let k = 0; k < 4; k++) await warte();
     expect(h.hochladen.mock.calls.map((c) => c[2])).toEqual(['struktur', 'struktur', 'inhalt']);
     expect(h.antworten.mock.calls[0][0].dateien.map((d: { rolle: string }) => d.rolle)).toEqual(['struktur', 'struktur', 'inhalt']);
@@ -690,5 +787,52 @@ describe('<boerdi-ui-upload> mehrere Strukturdokumente (TG-3e)', () => {
     expect(option.disabled).toBe(true);
     const markiert = wurzel.querySelector('select[aria-label="Rolle von a.pdf"] option[value="struktur"]') as HTMLOptionElement;
     expect(markiert.disabled).toBe(false);
+    // P1: auch „Gliederung und Material“ zählt zu den fünf
+    const beides = wurzel.querySelector('select[aria-label="Rolle von inhalt.pdf"] option[value="beides"]') as HTMLOptionElement;
+    expect(beides.disabled).toBe(true);
+  });
+});
+
+// ── Plan 2026-11-20, P1 (UO-4): Gliederung / Material / Gliederung und Material ────────────────
+
+describe('<boerdi-ui-upload> Rollen mit Legende (P1)', () => {
+  const optionen = (w: ShadowRoot, name: string) =>
+    [...w.querySelectorAll(`select[aria-label="${name}"] option`)].map((o) => [(o as HTMLOptionElement).value, o.textContent]);
+
+  it('vier Rollen in Klartext, darunter eine Legende, auf die jedes Auswahlfeld verweist', async () => {
+    const { wurzel } = erzeuge();
+    await waehle(wurzel, [datei('P/a.pdf'), datei('P/b.pdf')]);
+    expect(optionen(wurzel, 'Rolle von a.pdf')).toEqual([
+      ['struktur', 'Gliederung'], ['inhalt', 'Material'], ['beides', 'Gliederung und Material'],
+      ['ignorieren', 'Nicht verwenden']]);
+    const legende = wurzel.querySelector('#u-legende');
+    expect(legende?.textContent).toBe(
+      'Gliederung: liefert die Struktur, wird nicht einsortiert · Material: wird in den Baum einsortiert · Gliederung und Material: beides');
+    expect(wurzel.querySelector('select[aria-label="Rolle von a.pdf"]')?.getAttribute('aria-describedby')).toBe('u-legende');
+  });
+
+  it('auf Englisch ebenso', async () => {
+    const { wurzel } = erzeuge({ sprache: 'en' });
+    await waehle(wurzel, [datei('P/a.pdf'), datei('P/b.pdf')]);
+    expect(optionen(wurzel, 'Role of a.pdf').map((o) => o[1])).toEqual(
+      ['Outline', 'Material', 'Outline and material', "Don't use"]);
+    expect(wurzel.querySelector('#u-legende')?.textContent).toBe(
+      'Outline: provides the structure, is not sorted in · Material: is sorted into the tree · Outline and material: both');
+  });
+
+  it('beides nur für lesbare Formate; die Datei geht mit Rolle beides hoch', async () => {
+    const h = host();
+    h.hochladen.mockResolvedValueOnce(befundVon(1, 'beides')).mockResolvedValueOnce(befundVon(2));
+    const { wurzel } = erzeuge({}, h, ANONYM);
+    await waehle(wurzel, [datei('P/Plan.pdf'), datei('P/blatt.pdf'), datei('P/bild.png', 100, 'image/png')]);
+    expect((wurzel.querySelector('select[aria-label="Rolle von bild.png"] option[value="beides"]') as HTMLOptionElement).disabled).toBe(true);
+    const auswahl = wurzel.querySelector('select[aria-label="Rolle von Plan.pdf"]') as HTMLSelectElement;
+    auswahl.value = 'beides';
+    auswahl.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(h.vormerken.mock.calls.at(-1)?.[0].strukturdokument).toMatchObject({ name: 'Plan.pdf' });
+    knopf(wurzel, 'Hier lesen')!.click();
+    for (let k = 0; k < 4; k++) await warte();
+    expect(h.hochladen.mock.calls.map((c) => c[2])).toEqual(['beides', 'inhalt']);
+    expect(h.antworten.mock.calls[0][0].dateien.map((d: { rolle: string }) => d.rolle)).toEqual(['beides', 'inhalt']);
   });
 });

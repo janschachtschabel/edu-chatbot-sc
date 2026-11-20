@@ -110,6 +110,10 @@ select {
 .u__chip--aus { border-style: dashed; color: var(--mat-sys-on-surface-variant); cursor: not-allowed; }
 .u__chip:has(> input:focus-visible) { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
 .u__erklaer { color: var(--mat-sys-on-surface-variant); font-size: .78rem; padding-inline-start: 4px; }
+/* P2: das Häkchen unter WLO — Ziel mindestens 24px hoch, Fokus wie an den Chips */
+.u__haken { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding-inline-start: 4px; cursor: pointer; }
+.u__haken > input { margin: 0; width: 18px; height: 18px; accent-color: var(--mat-sys-primary); cursor: inherit; }
+.u__haken > input:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
 .u__unsichtbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @container (max-width: 340px) {
   .u__eintrag { grid-template-columns: 1.4em minmax(0, 1fr); }

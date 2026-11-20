@@ -31,13 +31,15 @@ test('ein Bündel über der Grenze je Modul (20 kB gzip) fällt durch', () => {
   assert.match(fehler[0], /ui-gross.*> 20000 B/);
 });
 
-test('benannte Ausnahme: nur ui-upload darf über 20 kB gzip (bis 24 kB)', () => {
+test('benannte Ausnahme: nur ui-upload darf über 20 kB gzip (bis 26 kB, Plan 2026-11-20 P1+P2)', () => {
   const inhalt = randomBytes(21_000).toString('base64');   // zwischen 20 und 22 kB gzip
   const { fehler } = pruefe(verzeichnis({ 'ui-upload.0123abcd.js': inhalt, 'ui-uploadx.0123abcd.js': inhalt }));
   assert.equal(fehler.length, 1);
   assert.match(fehler[0], /^ui-uploadx/);
-  const gross = pruefe(verzeichnis({ 'ui-upload.0123abcd.js': randomBytes(25_000).toString('base64') }));
-  assert.match(gross.fehler[0], /ui-upload.*> 24000 B/);
+  // ~25 kB gzip: über der alten Ausnahme (24 kB), unter der neuen
+  assert.deepEqual(pruefe(verzeichnis({ 'ui-upload.0123abcd.js': randomBytes(25_000).toString('base64') })).fehler, []);
+  const gross = pruefe(verzeichnis({ 'ui-upload.0123abcd.js': randomBytes(27_000).toString('base64') }));
+  assert.match(gross.fehler[0], /ui-upload.*> 26000 B/);
 });
 
 test('alle zusammen höchstens 60 kB gzip', () => {

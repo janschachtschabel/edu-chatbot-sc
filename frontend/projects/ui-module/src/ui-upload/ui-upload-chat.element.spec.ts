@@ -83,7 +83,7 @@ describe('Review Oberfläche 1: Sitzungsgrenze beim Hochladen „Hier im Chat“
     const h = host();
     h.hochladen.mockResolvedValueOnce(befund(1)).mockRejectedValueOnce(abgelehnt('grenze_anzahl')).mockResolvedValue(befund(3));
     const { wurzel } = await feld(DREI(), h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     for (let i = 0; i < 5; i++) await warte();
     // Datei 3 geht nicht mehr hoch: jede weitere scheiterte an derselben Grenze
     expect(h.hochladen).toHaveBeenCalledTimes(2);
@@ -91,7 +91,7 @@ describe('Review Oberfläche 1: Sitzungsgrenze beim Hochladen „Hier im Chat“
       + 'Dateien, wie gehen. Mach mit den gelesenen weiter oder sende nur die Namen.');
     expect(knopf(wurzel, 'Ohne diese weiter')).toBeUndefined();
     expect(knopf(wurzel, 'Noch einmal versuchen')).toBeUndefined();
-    expect(knopf(wurzel, 'Nur Namen senden (nichts hochladen)')).toBeTruthy();
+    expect(knopf(wurzel, 'Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)')).toBeTruthy();
     expect(wurzel.textContent).toContain('Bereits gelesene Dateien bleiben bis zu 24 Stunden nach der letzten Nutzung hier im Chat; ein daraus erstellter Entwurf bleibt im Arbeitsstand.');
     const weiter = knopf(wurzel, 'Mit den gelesenen weiter')!;
     expect(weiter.classList.contains('u__haupt')).toBe(true);
@@ -106,13 +106,13 @@ describe('Review Oberfläche 1: Sitzungsgrenze beim Hochladen „Hier im Chat“
     const h = host();
     h.hochladen.mockRejectedValueOnce(abgelehnt('grenze_anzahl'));
     const { wurzel } = await feld(DREI(), h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     await warte();
     expect(wurzel.querySelector('.u__fehler')?.textContent).toBe('„a.pdf“: Hier im Chat liegen für dieses Gespräch schon so viele '
       + 'Dateien, wie gehen. Sende nur die Namen.');
     expect(knopf(wurzel, 'Mit den gelesenen weiter')).toBeUndefined();
     expect(wurzel.textContent).not.toContain('Bereits gelesene Dateien');
-    const namen = knopf(wurzel, 'Nur Namen senden (nichts hochladen)')!;
+    const namen = knopf(wurzel, 'Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)')!;
     expect(namen.classList.contains('u__haupt')).toBe(true);
     expect(knopf(wurzel, 'Andere Auswahl')!.disabled).toBe(false);
     namen.click();
@@ -124,7 +124,7 @@ describe('Review Oberfläche 1: Sitzungsgrenze beim Hochladen „Hier im Chat“
     const h = host();
     h.hochladen.mockResolvedValueOnce(befund(1)).mockRejectedValueOnce(abgelehnt('grenze_gesamt', 413)).mockResolvedValueOnce(befund(3));
     const { wurzel } = await feld(DREI(), h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     for (let i = 0; i < 4; i++) await warte();
     expect(wurzel.querySelector('.u__fehler')?.textContent).toBe('„b.pdf“: Diese Datei passt nicht mehr dazu – hier im Chat liegt für '
       + 'dieses Gespräch schon fast so viel, wie geht. Mach ohne diese weiter; eine kleinere passt vielleicht noch.');
@@ -141,7 +141,7 @@ describe('Review Oberfläche 2: „Hier im Chat“ anhalten', () => {
     const h = host();
     const { fertig } = haendisch(h);
     const { wurzel } = await feld(DREI(), h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     const anhalten = knopf(wurzel, 'Nach dieser Datei anhalten')!;
     anhalten.focus();
     anhalten.click();
@@ -155,7 +155,7 @@ describe('Review Oberfläche 2: „Hier im Chat“ anhalten', () => {
     expect(wurzel.textContent).toContain('Angehalten – gelesen: 1 Datei.');
     expect(wurzel.textContent).toContain('Bereits gelesene Dateien bleiben bis zu 24 Stunden nach der letzten Nutzung hier im Chat; ein daraus erstellter Entwurf bleibt im Arbeitsstand.');
     expect(knopf(wurzel, 'Andere Auswahl')!.disabled).toBe(false);
-    expect(knopf(wurzel, 'Nur Namen senden (nichts hochladen)')).toBeUndefined();
+    expect(knopf(wurzel, 'Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)')).toBeUndefined();
     knopf(wurzel, 'Mit den gelesenen weiter')!.click();
     expect(h.antworten.mock.calls[0][0].dateien).toEqual([expect.objectContaining({ upload_id: ID(1) })]);
   });
@@ -164,7 +164,7 @@ describe('Review Oberfläche 2: „Hier im Chat“ anhalten', () => {
     const h = host();
     const { scheitert } = haendisch(h);
     const { wurzel } = await feld(DREI(), h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     knopf(wurzel, 'Nach dieser Datei anhalten')!.click();
     scheitert[0](abgelehnt('kein_text', 422));
     await warte();
@@ -175,14 +175,14 @@ describe('Review Oberfläche 2: „Hier im Chat“ anhalten', () => {
     expect(wurzel.textContent).toContain('Angehalten – gelesen: 0 Dateien.');
     // ohne gelesene führt „Nur Namen senden“ weiter
     expect(knopf(wurzel, 'Mit den gelesenen weiter')).toBeUndefined();
-    expect(knopf(wurzel, 'Nur Namen senden (nichts hochladen)')).toBeTruthy();
+    expect(knopf(wurzel, 'Nur die Dateinamen senden (der Inhalt bleibt auf deinem Gerät)')).toBeTruthy();
   });
 
   it('ein entferntes Element (Widget zu) lädt nicht im Verborgenen weiter und antwortet nicht; zurück zeigt es den Stand', async () => {
     const h = host();
     const { fertig } = haendisch(h);
     const { el, wurzel } = await feld([datei('P/a.pdf'), datei('P/b.pdf', 200)], h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     el.remove();
     fertig[0](befund(1));
     await warte();
@@ -196,7 +196,7 @@ describe('Review Oberfläche 2: „Hier im Chat“ anhalten', () => {
     const h = host();
     const { fertig } = haendisch(h);
     const { el, wurzel } = await feld([datei('P/a.pdf')], h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     el.remove();
     fertig[0](befund(1));
     await warte();
@@ -210,7 +210,7 @@ describe('Review Oberfläche 2: „Hier im Chat“ anhalten', () => {
     const h = host();
     const { fertig } = haendisch(h);
     const { wurzel } = await feld([datei('P/a.pdf'), datei('P/b.pdf', 200)], h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     knopf(wurzel, 'Nach dieser Datei anhalten')!.click();
     fertig[0](befund(1));
     await warte();
@@ -219,7 +219,7 @@ describe('Review Oberfläche 2: „Hier im Chat“ anhalten', () => {
     Object.defineProperty(input, 'files', { value: [datei('Q/x.pdf'), datei('Q/y.pdf', 200)], configurable: true });
     input.dispatchEvent(new Event('change', { bubbles: true }));
     await warte();
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     fertig[1](befund(2));
     await warte();
     expect(h.hochladen).toHaveBeenCalledTimes(3);
@@ -229,7 +229,7 @@ describe('Review Oberfläche 2: „Hier im Chat“ anhalten', () => {
     const h = host();
     const { fertig } = haendisch(h);
     const { wurzel } = await feld(DREI(), h, ANONYM, { sprache: 'en' });
-    knopf(wurzel, 'Upload')!.click();
+    knopf(wurzel, 'Read here')!.click();
     knopf(wurzel, 'Stop after this file')!.click();
     fertig[0](befund(1));
     await warte();
@@ -244,7 +244,7 @@ describe('Review Oberfläche 3, 5, 9 und Sitzungsrest: die Wahl „Hier im Chat�
     const { wurzel } = await feld([datei('P/f.pptx', 100, 'application/vnd.ms-powerpoint')]);
     expect(radio(wurzel, 'chat').disabled).toBe(true);
     expect(erklaerung(wurzel, 'chat')).toBe('nicht wählbar – keine Datei, die der Chat lesen kann – PDF, Word, Text oder Markdown');
-    expect(knopf(wurzel, 'Hochladen')).toBeUndefined();
+    expect(knopf(wurzel, 'Hier lesen')).toBeUndefined();
   });
 
   it('5: eine Datei über der Grenze je Datei geht nicht hoch; der Hinweis nennt sie', async () => {
@@ -253,7 +253,7 @@ describe('Review Oberfläche 3, 5, 9 und Sitzungsrest: die Wahl „Hier im Chat�
     const daten = { ...ANONYM, grenzen: { ...GRENZEN, lokal_max_mb_datei: 1 } };
     const { wurzel } = await feld([datei('P/klein.pdf'), datei('P/riesig.pdf', 2 * 1024 * 1024)], h, daten);
     expect(wurzel.textContent).toContain('1 Datei ist größer als 1 MB – davon geht nur der Name mit.');
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     await warte();
     expect(h.hochladen.mock.calls.map((c) => (c[0] as File).name)).toEqual(['klein.pdf']);
     // alle zu groß: gesperrt mit Grund
@@ -264,11 +264,13 @@ describe('Review Oberfläche 3, 5, 9 und Sitzungsrest: die Wahl „Hier im Chat�
 
   it('9: „ohne Anmeldung“ nur, wenn die Schalter es tragen', async () => {
     const mit = (await feld([datei('P/a.pdf')])).wurzel;
-    expect(erklaerung(mit, 'chat')).toBe('schnell, ohne Anmeldung, bis 10 Dateien – Text bleibt bis zu 24 Stunden nach der letzten Nutzung hier');
+    expect(erklaerung(mit, 'chat')).toBe('Nichts wird in WLO gespeichert, keine Anmeldung nötig. Der Chat liest den Text '
+      + 'und vergisst ihn spätestens 24 Stunden nach der letzten Nutzung. Bis 10 Dateien.');
     document.body.innerHTML = '';
     const daten = { ...ANGEMELDET, schalter: { ...ANGEMELDET.schalter, dokument_ohne_anmeldung: false } };
     const ohne = (await feld([datei('P/a.pdf')], host(), daten)).wurzel;
-    expect(erklaerung(ohne, 'chat')).toBe('schnell, bis 10 Dateien – Text bleibt bis zu 24 Stunden nach der letzten Nutzung hier');
+    expect(erklaerung(ohne, 'chat')).toBe('Nichts wird in WLO gespeichert. Der Chat liest den Text und vergisst ihn '
+      + 'spätestens 24 Stunden nach der letzten Nutzung. Bis 10 Dateien.');
   });
 
   it('Sitzungsrest: `grenze_sitzung` und `lokal_frei_*` sperren mit eigenem Grund; die Erklärzeile nennt den Rest', async () => {
@@ -292,7 +294,8 @@ describe('Review Oberfläche 3, 5, 9 und Sitzungsrest: die Wahl „Hier im Chat�
     document.body.innerHTML = '';
     const passt = { ...ANONYM, grenzen: { ...GRENZEN, lokal_frei_dateien: 3 } };
     expect(erklaerung((await feld([datei('P/a.pdf')], host(), passt)).wurzel, 'chat'))
-      .toBe('schnell, ohne Anmeldung, bis 3 Dateien – Text bleibt bis zu 24 Stunden nach der letzten Nutzung hier');
+      .toBe('Nichts wird in WLO gespeichert, keine Anmeldung nötig. Der Chat liest den Text und vergisst ihn '
+        + 'spätestens 24 Stunden nach der letzten Nutzung. Bis 3 Dateien.');
   });
 });
 
@@ -302,7 +305,7 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
     h.ablegen.mockRejectedValue(abgelehnt('nicht_erreichbar', 503));
     h.hochladen.mockImplementation(() => new Promise(() => undefined));
     const { wurzel } = await feld([datei('P/a.pdf')], h, ANGEMELDET);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
     // die Frage kommt nach dem Fehler beim Vorbereiten zurück, der Fehler steht darüber
     for (let i = 0; i < 20 && !radio(wurzel, 'chat'); i++) await warte();
     const alt = wurzel.querySelector('.u__wlo')?.textContent ?? '';
@@ -310,8 +313,8 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
     const chat = radio(wurzel, 'chat');
     chat.checked = true;
     chat.dispatchEvent(new Event('change', { bubbles: true }));
-    knopf(wurzel, 'Hochladen')!.focus();
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.focus();
+    knopf(wurzel, 'Hier lesen')!.click();
     expect(h.hochladen).toHaveBeenCalledTimes(1);
     expect(wurzel.querySelectorAll('.u__wlo')).toHaveLength(1);
     expect(wurzel.textContent).not.toContain(alt);
@@ -322,7 +325,7 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
     const h = host();
     h.hochladen.mockResolvedValueOnce(befund(1)).mockResolvedValueOnce(befund(2));
     const { wurzel } = await feld([datei('P/a/blatt.pdf', 100), datei('P/b/blatt.pdf', 100), datei('P/c.pdf', 300)], h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     for (let i = 0; i < 4; i++) await warte();
     expect(h.hochladen).toHaveBeenCalledTimes(2);
     const daten = h.antworten.mock.calls[0][0];
@@ -339,7 +342,7 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
     const h2 = host();
     h2.hochladen.mockResolvedValueOnce(befund(1)).mockResolvedValueOnce(befund(2));
     const zwei = (await feld([datei('P/a/blatt.pdf', 100), datei('P/b/blatt.pdf', 101)], h2)).wurzel;
-    knopf(zwei, 'Hochladen')!.click();
+    knopf(zwei, 'Hier lesen')!.click();
     for (let i = 0; i < 4; i++) await warte();
     expect(h2.hochladen).toHaveBeenCalledTimes(2);
     // gleicher Name und gleiche Größe, aber ein anderes Änderungsdatum: zwei Dateien
@@ -347,7 +350,7 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
     const h3 = host();
     h3.hochladen.mockResolvedValueOnce(befund(1)).mockResolvedValueOnce(befund(2));
     const drei = (await feld([datei('P/a/blatt.pdf', 100), datei('P/b/blatt.pdf', 100, 'application/pdf', 1)], h3)).wurzel;
-    knopf(drei, 'Hochladen')!.click();
+    knopf(drei, 'Hier lesen')!.click();
     for (let i = 0; i < 4; i++) await warte();
     expect(h3.hochladen).toHaveBeenCalledTimes(2);
   });
@@ -357,7 +360,7 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
     h.hochladen.mockResolvedValueOnce(befund(1)).mockResolvedValueOnce(befund(2));
     // die Lehrplan-Automatik macht nur die Datei in der Wurzel zum Strukturdokument; die Kopie bleibt Inhalt
     const { wurzel } = await feld([datei('P/Lehrplan.pdf', 100), datei('P/Material/Lehrplan.pdf', 100)], h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     for (let i = 0; i < 4; i++) await warte();
     expect(h.hochladen.mock.calls.map((c) => c[2])).toEqual(['struktur', 'inhalt']);
     const dateien = h.antworten.mock.calls[0][0].dateien as { rolle: string; upload_id: string }[];
@@ -369,7 +372,7 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
     const h = host();
     h.hochladen.mockResolvedValueOnce(befund(1)).mockRejectedValueOnce(abgelehnt('ort_nicht_erlaubt', 403));
     const { wurzel } = await feld(DREI(), h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     for (let i = 0; i < 4; i++) await warte();
     expect(h.hochladen).toHaveBeenCalledTimes(2);
     expect(wurzel.querySelector('.u__fehler')?.textContent).toBe('„b.pdf“: In diesem Ablauf ist „Hier im Chat“ nicht '
@@ -387,7 +390,7 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
       return new Promise((ok, nein) => ergebnis.push({ ok, nein }));
     });
     const { wurzel } = await feld([...DREI(), datei('P/d.pdf', 400)], h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     const balken = () => wurzel.querySelector('progress') as HTMLProgressElement;
     expect(balken().getAttribute('aria-label')).toBe('Datei 1 von 4');
     melder[0](0.5);
@@ -410,7 +413,7 @@ describe('Review Oberfläche 4, 6, 7: Fehler der Übertragung, Dubletten, Ansage
     const angesagt: string[] = [];
     new MutationObserver(() => angesagt.push(status.textContent ?? '')).observe(status, { childList: true, characterData: true, subtree: true });
     h.hochladen.mockImplementation((_d: File, f: (a: number) => void) => { f(1); return Promise.resolve(befund(1)); });
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Hier lesen')!.click();
     for (let i = 0; i < 6; i++) await warte();
     expect(angesagt.some((s) => s.includes('Datei 1 von 3'))).toBe(true);
     expect(angesagt.some((s) => s.includes('Datei 3 von 3'))).toBe(true);

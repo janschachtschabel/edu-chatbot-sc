@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { erfasse, type Quelle } from './upload-erfassen';
-import { gewaehlt, lokaleAuswahl, lokaleGrenzen, orteAus, orteFuer } from './upload-orte';
+import {
+  erschliessenVorgabe, flowDa, gewaehlt, hakenVorgesehen, lokaleAuswahl, lokaleGrenzen, orteAus, orteFuer,
+} from './upload-orte';
 import { setzeRolle } from './upload-rollen';
 
 /**
@@ -167,5 +169,46 @@ describe('Orte gegen die Auswahl (E13)', () => {
     const anonym = orteFuer({ orte: ORTE_ANONYM }, e);
     expect(gewaehlt(anonym, 'wlo')).toBe('chat');
     expect(gewaehlt(orteFuer({}, e), null)).toBeNull();
+  });
+});
+
+// Plan 2026-11-20, P2: das Häkchen „Metadaten von WLO erzeugen lassen“ und der alte Schlüssel
+describe('Häkchen und Rollen-Vorgabe (P2)', () => {
+  it('der Flow ist da, wenn WLO geht und kein Hinweis „ohne_erschliessung“ steht', () => {
+    expect(flowDa(orteAus({ orte: ORTE_WLO }).wlo)).toBe(true);
+    expect(flowDa(orteAus({ orte: { ...ORTE_WLO, wlo: { geht: true, hinweis: 'ohne_erschliessung' } } }).wlo)).toBe(false);
+    expect(flowDa(orteAus({ orte: ORTE_ANONYM }).wlo)).toBe(false);
+  });
+
+  // Review P2, Befund 1: das Häkchen gibt es nur, wenn der Ablauf-Schritt `erschliessen` setzt — ohne die
+  // Angabe (freier Chat) nutzt niemand die Wahl, WLO legt nur ab
+  it('das Häkchen ist nur vorgesehen, wenn die Daten `erschliessen` tragen; ohne die Angabe aus', () => {
+    expect(hakenVorgesehen({})).toBe(false);
+    expect(hakenVorgesehen({ erschliessen: 'ja' })).toBe(false);
+    expect(hakenVorgesehen({ erschliessen: false })).toBe(true);
+    expect(hakenVorgesehen({ erschliessen: true })).toBe(true);
+    expect(erschliessenVorgabe({})).toBe(false);
+    expect(erschliessenVorgabe({ erschliessen: true })).toBe(true);
+    expect(erschliessenVorgabe({ erschliessen: false })).toBe(false);
+  });
+
+  // Review P2, Befund 3: der Grund ohne Flow kommt als Code mit; Unbekanntes fällt weg
+  it('ohne Flow trägt WLO den Grund (`grund_erschliessung`), unbekannte Codes fallen weg', () => {
+    const mit = (grund: string) => orteAus({ orte: { ...ORTE_WLO,
+      wlo: { geht: true, hinweis: 'ohne_erschliessung', grund_erschliessung: grund } } }).wlo;
+    expect(mit('flow_nicht_freigegeben'))
+      .toEqual({ geht: true, hinweis: 'ohne_erschliessung', grund_erschliessung: 'flow_nicht_freigegeben' });
+    expect(mit('dienst_nicht_erreichbar').grund_erschliessung).toBe('dienst_nicht_erreichbar');
+    expect(mit('<b>x</b>')).toEqual({ geht: true, hinweis: 'ohne_erschliessung' });
+  });
+
+  it('der alte Schlüssel schaltet nicht mehr auf „nur ablegen“', () => {
+    expect('nurAblegen' in orteAus({ orte: ORTE_WLO, einzeldatei_als_struktur: true })).toBe(false);
+  });
+
+  it('ohne Flow-Träger bleibt der Hinweis, auch wenn WLO für die Auswahl gesperrt ist', () => {
+    const ohne = { orte: { ...ORTE_WLO, wlo: { geht: true, hinweis: 'ohne_erschliessung' } } };
+    expect(orteFuer(ohne, erfasse([q('x.exe', 10, '')])).wlo)
+      .toEqual({ geht: false, grund: 'keine', hinweis: 'ohne_erschliessung' });
   });
 });

@@ -6,7 +6,7 @@
     "de": "Ordner und Dateien",
     "en": "Folders and files"
   },
-  "beschreibung": "Laesst die Person einen Ordner (oder einzelne Dateien) auswaehlen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Danach waehlt sie, wo verarbeitet wird: hier im Chat (begrenzt, liest Inhalte und Strukturdokumente), in WLO (angemeldet, mit Erschliessung) oder nur die Namen. Das Feld stellt nur bereit und kennt kein Ziel: was damit geschieht, klaerst du danach oder ein Ablauf. Zurueck kommen Ordner- und Dateinamen mit Zahlen (du siehst nur eine Zusammenfassung), nie Inhalte; Gelesenes liegt im Vorgang.",
+  "beschreibung": "Lässt die Person einen Ordner (oder einzelne Dateien) auswählen oder ablegen und zeigt ihn als Baum mit Dateizahlen. Danach wählt sie, wo verarbeitet wird: hier im Chat (begrenzt, liest Inhalte und Strukturdokumente), in WLO (angemeldet, mit Erschließung) oder nur die Namen. Das Feld stellt nur bereit und kennt kein Ziel: was damit geschieht, klärst du danach oder ein Ablauf. Zurück kommen Ordner- und Dateinamen mit Zahlen (du siehst nur eine Zusammenfassung), nie Inhalte; Gelesenes liegt im Vorgang.",
   "wann": [
     "die Person will eigene Ordner, Dateien oder ein Dokument (etwa einen Lehrplan) einbringen",
     "die Person will einen Ordner mit Dateien einbringen, sichten oder ordnen",
@@ -33,16 +33,16 @@
             "bereitstellen",
             "sammlungsstruktur"
           ],
-          "description": "bereitstellen: Ordner, Dateien oder ein Dokument bereitstellen, ohne Ziel (Vorgabe). sammlungsstruktur: aelterer Wert, bleibt gueltig; ein passender Ablauf geht dann vor."
+          "description": "bereitstellen: Ordner, Dateien oder ein Dokument bereitstellen, ohne Ziel (Vorgabe). sammlungsstruktur: älterer Wert, bleibt gültig; ein passender Ablauf geht dann vor."
         },
         "hinweis": {
           "type": "string",
           "maxLength": 300,
-          "description": "Kurzer Satz an die Person, was sie auswaehlen soll (z. B. 'Waehle den Ordner mit deinen Physik-Materialien.')."
+          "description": "Kurzer Satz an die Person, was sie auswählen soll (z. B. 'Wähle den Ordner mit deinen Physik-Materialien.')."
         },
         "einzeldatei_als_struktur": {
           "type": "boolean",
-          "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer Ablaeufe, die ein einzelnes Dokument erwarten. Sonst bleibt sie Inhalt."
+          "description": "Älterer Schalter, bleibt gültig: true heißt rolle_vorgabe gliederung (Plan 2026-11-20, P2). Neue Abläufe setzen rolle_vorgabe."
         },
         "orte": {
           "type": "array",
@@ -57,6 +57,27 @@
             ]
           },
           "description": "Nur aus einem Ablauf: welche Orte das Feld anbieten darf (chat, wlo, namen). Ohne Angabe alle; namen bleibt immer."
+        },
+        "vorauswahl": {
+          "enum": [
+            "auto",
+            "wlo",
+            "chat"
+          ],
+          "description": "Nur aus einem Ablauf: welcher Ort vorgewählt ist. auto (Vorgabe): WLO, wenn angemeldet und der Metadaten-Flow da ist, sonst Chat. wlo/chat: dieser Ort, wenn er geht, sonst auto. Im freien Chat gilt das Studio (upload-config vorauswahl)."
+        },
+        "rolle_vorgabe": {
+          "enum": [
+            "auto",
+            "gliederung",
+            "material",
+            "beides"
+          ],
+          "description": "Nur aus einem Ablauf: mit welcher Rolle die Dateien beginnen. auto (Vorgabe): ein Lehrplan-Name in der Wurzel wird Gliederung, sonst Material. gliederung/beides: jede lesbare Datei (PDF, Word, Text, Markdown, höchstens 5), die übrigen Material. material: alle Material."
+        },
+        "erschliessen": {
+          "type": "boolean",
+          "description": "Nur aus einem Ablauf, der die Erschließung danach nutzt (Auftragsschritt mit zustimmung: upload): setzt der Schritt den Wert (true oder false), erscheint das Häkchen 'Metadaten von WLO erzeugen lassen' mit dieser Vorgabe; die Person kann es umstellen. Es erscheint nur, wenn der Metadaten-Flow da ist. Ohne Angabe (auch im freien Chat) kein Häkchen: der Ort heißt 'In WLO ablegen', WLO legt nur ab."
         }
       }
     }
@@ -73,78 +94,78 @@
           "bereitstellen",
           "sammlungsstruktur"
         ],
-        "description": "Wozu erfasst wird: bereitstellen (ohne Ziel); sammlungsstruktur ist der aeltere Wert (Rueckwaerts)."
+        "description": "Wozu erfasst wird: bereitstellen (ohne Ziel); sammlungsstruktur ist der ältere Wert (Rückwärts)."
       },
       "hinweis": {
         "type": "string",
         "maxLength": 300,
-        "description": "Satz an die Person ueber dem Auswahlfeld."
+        "description": "Satz an die Person über dem Auswahlfeld."
       },
       "grenzen": {
         "type": "object",
         "x-nur-system": true,
         "additionalProperties": false,
-        "description": "Grenzen fuer das Erfassen (setzt das System).",
+        "description": "Grenzen für das Erfassen (setzt das System).",
         "properties": {
           "max_dateien": {
             "type": "integer",
             "minimum": 1,
             "maximum": 5000,
-            "description": "Hoechstzahl erfasster Dateien."
+            "description": "Höchstzahl erfasster Dateien."
           },
           "max_tiefe": {
             "type": "integer",
             "minimum": 1,
             "maximum": 20,
-            "description": "Hoechste Ordnertiefe."
+            "description": "Höchste Ordnertiefe."
           },
           "max_mb_datei": {
             "type": "integer",
             "minimum": 1,
             "maximum": 500,
-            "description": "Groesste Datei in MB."
+            "description": "Größte Datei in MB."
           },
           "max_mb_ablage": {
             "type": "integer",
             "minimum": 1,
             "maximum": 500,
-            "description": "Groesste Datei in MB fuer die Ablage in WLO."
+            "description": "Größte Datei in MB für die Ablage in WLO."
           },
           "lokal_max_dateien": {
             "type": "integer",
             "minimum": 1,
             "maximum": 30,
-            "description": "Hier im Chat: hoechstens so viele Dateien je Sitzung."
+            "description": "Hier im Chat: höchstens so viele Dateien je Sitzung."
           },
           "lokal_max_mb_gesamt": {
             "type": "integer",
             "minimum": 1,
             "maximum": 200,
-            "description": "Hier im Chat: hoechstens so viele MB je Sitzung."
+            "description": "Hier im Chat: höchstens so viele MB je Sitzung."
           },
           "lokal_max_mb_datei": {
             "type": "integer",
             "minimum": 1,
             "maximum": 500,
-            "description": "Hier im Chat: groesste Datei in MB."
+            "description": "Hier im Chat: größte Datei in MB."
           },
           "lokal_aufbewahrung_h": {
             "type": "integer",
             "minimum": 1,
             "maximum": 72,
-            "description": "Hier im Chat: so viele Stunden bleibt der Text nach letzter Nutzung (Studio aufbewahrung_h); die Oberflaeche nennt es."
+            "description": "Hier im Chat: so viele Stunden bleibt der Text nach letzter Nutzung (Studio aufbewahrung_h); die Oberfläche nennt es."
           },
           "lokal_frei_dateien": {
             "type": "integer",
             "minimum": 0,
             "maximum": 30,
-            "description": "Hier im Chat: so viele Dateien darf die Sitzung noch (lokal_max_dateien minus nicht abgelaufene Uploads; Review U, MAJOR 3). Fehlt: nicht gezaehlt."
+            "description": "Hier im Chat: so viele Dateien darf die Sitzung noch (lokal_max_dateien minus nicht abgelaufene Uploads; Review U, MAJOR 3). Fehlt: nicht gezählt."
           },
           "lokal_frei_mb": {
             "type": "number",
             "minimum": 0,
             "maximum": 200,
-            "description": "Hier im Chat: so viele MB darf die Sitzung noch (abgerundet auf 0,1). Fehlt: nicht gezaehlt."
+            "description": "Hier im Chat: so viele MB darf die Sitzung noch (abgerundet auf 0,1). Fehlt: nicht gezählt."
           }
         }
       },
@@ -160,25 +181,40 @@
           },
           "lesen_nach_anmeldung": {
             "type": "boolean",
-            "description": "Ein Dokument liesse sich nach der WLO-Anmeldung lesen (R3-b)."
+            "description": "Ein Dokument ließe sich nach der WLO-Anmeldung lesen (R3-b)."
           },
           "ablage_in_wlo": {
             "type": "boolean",
-            "description": "Duerfen Inhalte in WLO abgelegt werden."
+            "description": "Dürfen Inhalte in WLO abgelegt werden."
           },
           "ablage_nach_anmeldung": {
             "type": "boolean",
-            "description": "Inhalte liessen sich nach der WLO-Anmeldung in WLO ablegen (Rueckmeldung 16.11.)."
+            "description": "Inhalte ließen sich nach der WLO-Anmeldung in WLO ablegen (Rückmeldung 16.11.)."
           },
           "dokument_ohne_anmeldung": {
             "type": "boolean",
-            "description": "Studio: Hier im Chat geht auch ohne WLO-Anmeldung (die Erklaerzeile nennt es nur dann)."
+            "description": "Studio: Hier im Chat geht auch ohne WLO-Anmeldung (die Erklärzeile nennt es nur dann)."
           }
         }
       },
       "einzeldatei_als_struktur": {
         "type": "boolean",
-        "description": "Eine einzeln gewaehlte Datei (PDF, Word, Text, Markdown) gleich als Strukturdokument vormerken — fuer Ablaeufe, die ein einzelnes Dokument erwarten. Sonst bleibt sie Inhalt."
+        "description": "Älterer Schalter, bleibt gültig: true heißt rolle_vorgabe gliederung (Plan 2026-11-20, P2). Neue Abläufe setzen rolle_vorgabe."
+      },
+      "rolle_vorgabe": {
+        "enum": [
+          "auto",
+          "gliederung",
+          "material",
+          "beides"
+        ],
+        "x-nur-system": true,
+        "description": "Mit welcher Rolle die Dateien beginnen (setzt das System aus dem Ablauf-Schritt; frei: auto). auto: Lehrplan-Name in der Wurzel wird Gliederung. gliederung/beides: jede lesbare Datei bis 5, die übrigen Material. material: alle Material."
+      },
+      "erschliessen": {
+        "type": "boolean",
+        "x-nur-system": true,
+        "description": "Vorgabe des Häkchens 'Metadaten von WLO erzeugen lassen' (setzt das System aus dem Ablauf-Schritt). Fehlt der Wert, gibt es kein Häkchen (nur ablegen). Gezeigt nur, wenn WLO geht und der Metadaten-Flow da ist."
       },
       "orte": {
         "type": "object",
@@ -198,7 +234,7 @@
               "wlo",
               "namen"
             ],
-            "description": "Der vorgewaehlte Ort."
+            "description": "Der vorgewählte Ort."
           },
           "chat": {
             "type": "object",
@@ -210,7 +246,7 @@
             "properties": {
               "geht": {
                 "type": "boolean",
-                "description": "Ist der Ort waehlbar."
+                "description": "Ist der Ort wählbar."
               },
               "grund": {
                 "enum": [
@@ -219,20 +255,20 @@
                   "ablauf",
                   "grenze_sitzung"
                 ],
-                "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf laesst ihn nicht zu), grenze_sitzung (nur chat: die Sitzung haelt schon so viele Uploads, wie sie darf)."
+                "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf lässt ihn nicht zu), grenze_sitzung (nur chat: die Sitzung hält schon so viele Uploads, wie sie darf)."
               },
               "hinweis": {
                 "enum": [
                   "ohne_erschliessung"
                 ],
-                "description": "Geht, aber eingeschraenkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
+                "description": "Geht, aber eingeschränkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
               },
               "ueber_grenze": {
                 "enum": [
                   "ueber_grenze",
                   "ueber_grenze_anmelden"
                 ],
-                "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* ueberschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles ueber WLO."
+                "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* überschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles über WLO."
               },
               "texterkennung": {
                 "type": "boolean",
@@ -246,11 +282,11 @@
             "required": [
               "geht"
             ],
-            "description": "In WLO ablegen und erschliessen (Anmeldung, Kestra).",
+            "description": "In WLO ablegen und erschließen (Anmeldung, Kestra).",
             "properties": {
               "geht": {
                 "type": "boolean",
-                "description": "Ist der Ort waehlbar."
+                "description": "Ist der Ort wählbar."
               },
               "grund": {
                 "enum": [
@@ -258,20 +294,27 @@
                   "nur_angemeldet",
                   "ablauf"
                 ],
-                "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf laesst ihn nicht zu)."
+                "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf lässt ihn nicht zu)."
               },
               "hinweis": {
                 "enum": [
                   "ohne_erschliessung"
                 ],
-                "description": "Geht, aber eingeschraenkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
+                "description": "Geht, aber eingeschränkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
+              },
+              "grund_erschliessung": {
+                "enum": [
+                  "flow_nicht_freigegeben",
+                  "dienst_nicht_erreichbar"
+                ],
+                "description": "Nur mit hinweis ohne_erschliessung: warum WLO gerade keine Metadaten erzeugt. flow_nicht_freigegeben: der Metadaten-Flow ist nicht freigegeben; dienst_nicht_erreichbar: der Dienst, der ihn startet, ist nicht erreichbar."
               },
               "ueber_grenze": {
                 "enum": [
                   "ueber_grenze",
                   "ueber_grenze_anmelden"
                 ],
-                "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* ueberschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles ueber WLO."
+                "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* überschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles über WLO."
               }
             }
           },
@@ -285,7 +328,7 @@
             "properties": {
               "geht": {
                 "type": "boolean",
-                "description": "Ist der Ort waehlbar."
+                "description": "Ist der Ort wählbar."
               },
               "grund": {
                 "enum": [
@@ -293,20 +336,20 @@
                   "nur_angemeldet",
                   "ablauf"
                 ],
-                "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf laesst ihn nicht zu)."
+                "description": "Warum gesperrt: aus (Studio oder Dienst fehlt), nur_angemeldet (geht nach der WLO-Anmeldung), ablauf (der Ablauf lässt ihn nicht zu)."
               },
               "hinweis": {
                 "enum": [
                   "ohne_erschliessung"
                 ],
-                "description": "Geht, aber eingeschraenkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
+                "description": "Geht, aber eingeschränkt: ohne_erschliessung = Ablage in WLO ohne Kestra-Metadaten."
               },
               "ueber_grenze": {
                 "enum": [
                   "ueber_grenze",
                   "ueber_grenze_anmelden"
                 ],
-                "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* ueberschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles ueber WLO."
+                "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* überschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles über WLO."
               }
             }
           }
@@ -757,7 +800,7 @@
             "minLength": 1,
             "maxLength": 120,
             "pattern": "^[^\n\r]*$",
-            "description": "Dateiname (eine Zeile, hoechstens 120 Zeichen); fehlt bei Rolle ignorieren."
+            "description": "Dateiname (eine Zeile, höchstens 120 Zeichen); fehlt bei Rolle ignorieren."
           },
           "endung": {
             "type": "string",
@@ -768,15 +811,16 @@
           "groesse": {
             "type": "integer",
             "minimum": 0,
-            "description": "Groesse in Bytes."
+            "description": "Größe in Bytes."
           },
           "rolle": {
             "enum": [
               "inhalt",
               "struktur",
+              "beides",
               "ignorieren"
             ],
-            "description": "Rolle der Datei in der Auswahl."
+            "description": "Rolle der Datei in der Auswahl: struktur (Gliederung: liefert die Struktur, wird nicht einsortiert), inhalt (Material: wird einsortiert), beides (Gliederung und Material), ignorieren (nicht verwenden)."
           }
         },
         "if": {
@@ -808,7 +852,7 @@
           "uebertragen",
           "bereitgestellt"
         ],
-        "description": "bereitgestellt (neu, Plan 2026-11-17): die Person hat einen Ort gewaehlt und die Dateien bereitgestellt (Feld ort, je Datei dateien). Aeltere Werte bleiben gueltig: erfasst (nur Befund), dokument (Strukturdokumente gelesen, Feld dokument/dokumente), uebertragen (in WLO abgelegt, Feld ablage). Kein Ziel: was damit geschieht, entscheiden die naechsten Schritte."
+        "description": "bereitgestellt (neu, Plan 2026-11-17): die Person hat einen Ort gewählt und die Dateien bereitgestellt (Feld ort, je Datei dateien). Ältere Werte bleiben gültig: erfasst (nur Befund), dokument (Strukturdokumente gelesen, Feld dokument/dokumente), uebertragen (in WLO abgelegt, Feld ablage). Kein Ziel: was damit geschieht, entscheiden die nächsten Schritte."
       },
       "struktur": {
         "$ref": "#/$defs/ordner1",
@@ -843,7 +887,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 5000,
-            "description": "Dateien mit der Rolle Inhalt."
+            "description": "Dateien mit der Rolle inhalt (nur Material; beides zählt bei strukturdokumente)."
           },
           "ignoriert": {
             "type": "integer",
@@ -855,12 +899,12 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 5,
-            "description": "Markierte Strukturdokumente (hoechstens fuenf)."
+            "description": "Markierte Strukturdokumente, Rolle struktur oder beides (höchstens fünf)."
           },
           "bytes": {
             "type": "integer",
             "minimum": 0,
-            "description": "Groesse aller nicht ignorierten Dateien."
+            "description": "Größe aller nicht ignorierten Dateien."
           }
         }
       },
@@ -888,7 +932,7 @@
               "groesse": {
                 "type": "integer",
                 "minimum": 0,
-                "description": "Groesse in Bytes."
+                "description": "Größe in Bytes."
               },
               "endung": {
                 "enum": [
@@ -902,7 +946,7 @@
             }
           }
         ],
-        "description": "Das erste markierte Strukturdokument oder null (alle markierten stehen mit Rolle struktur in dateiliste)."
+        "description": "Das erste markierte Strukturdokument oder null (alle markierten stehen mit Rolle struktur oder beides in dateiliste)."
       },
       "warnungen": {
         "type": "array",
@@ -981,7 +1025,7 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 10000000,
-                "description": "Woerter."
+                "description": "Wörter."
               },
               "abschnitte": {
                 "type": "integer",
@@ -1021,7 +1065,7 @@
               "maxLength": 120,
               "pattern": "^[^\n\r]*$"
             },
-            "description": "Die ersten Ueberschriften des Dokuments."
+            "description": "Die ersten Überschriften des Dokuments."
           }
         }
       },
@@ -1045,7 +1089,7 @@
               "ordner",
               "flach"
             ],
-            "description": "ordner: in einem eigenen Ordner; flach: direkt im persoenlichen Bereich."
+            "description": "ordner: in einem eigenen Ordner; flach: direkt im persönlichen Bereich."
           },
           "gesamt": {
             "type": "integer",
@@ -1063,7 +1107,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 200,
-            "description": "Ohne Antwort - koennen abgelegt sein."
+            "description": "Ohne Antwort - können abgelegt sein."
           },
           "fehler": {
             "type": "integer",
@@ -1084,6 +1128,10 @@
           "vorgang_abgelegt": {
             "type": "boolean",
             "description": "vorgang.json liegt im Ordner."
+          },
+          "erschliessen": {
+            "type": "boolean",
+            "description": "Ob WLO nach der Ablage Metadaten erzeugen soll (das Häkchen, wie der Server es festhielt). Fehlt bei älteren Widgets."
           }
         }
       },
@@ -1151,7 +1199,7 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 10000000,
-                  "description": "Woerter."
+                  "description": "Wörter."
                 },
                 "abschnitte": {
                   "type": "integer",
@@ -1191,7 +1239,7 @@
                 "maxLength": 120,
                 "pattern": "^[^\n\r]*$"
               },
-              "description": "Die ersten Ueberschriften des Dokuments."
+              "description": "Die ersten Überschriften des Dokuments."
             }
           }
         },
@@ -1208,7 +1256,7 @@
       "dateien": {
         "type": "array",
         "maxItems": 500,
-        "description": "Nur mit ort chat oder wlo: je bereitgestellte Datei die Nummer i der Auswahl, die Rolle und beim Ort chat die upload_id aus POST /api/ui/dokumente (beim Ort wlo verknuepft i mit dem Teil ablage). Nicht lesbare Dateien fehlen hier.",
+        "description": "Nur mit ort chat oder wlo: je bereitgestellte Datei die Nummer i der Auswahl, die Rolle und beim Ort chat die upload_id aus POST /api/ui/dokumente (beim Ort wlo verknüpft i mit dem Teil ablage). Nicht lesbare Dateien fehlen hier.",
         "items": {
           "type": "object",
           "additionalProperties": false,
@@ -1226,9 +1274,10 @@
             "rolle": {
               "enum": [
                 "inhalt",
-                "struktur"
+                "struktur",
+                "beides"
               ],
-              "description": "Rolle der Datei."
+              "description": "Rolle der Datei (beides: Gliederung und Material)."
             },
             "upload_id": {
               "type": "string",
@@ -1267,7 +1316,7 @@
       "titel": "Bereit zum Erfassen",
       "daten": {
         "zweck": "bereitstellen",
-        "hinweis": "Waehle den Ordner mit deinen Physik-Materialien.",
+        "hinweis": "Wähle den Ordner mit deinen Physik-Materialien.",
         "grenzen": {
           "max_dateien": 500,
           "max_tiefe": 8,

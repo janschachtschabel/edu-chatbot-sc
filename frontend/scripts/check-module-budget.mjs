@@ -24,7 +24,10 @@ export const JE_MODUL_GZIP = 20_000;
 // Die Summe bleibt bei 60 kB.
 // Plan 2026-11-19, Paket C (2026-11-20): Texterkennung — Datenschutz-Satz, Hinweis zur Dauer, Blase
 // „per Texterkennung gelesen“, Grenze je Gespräch (`grenze_ocr`), je zweisprachig: 23,45 kB, also 24 kB.
-export const AUSNAHMEN = Object.freeze({ 'ui-upload': 24_000 });
+// Plan 2026-11-20, P1+P2 (2026-11-20): Rollen „Gliederung / Material / Gliederung und Material“ mit Legende
+// (P1, 24 041 B) und Ort, Vorauswahl, Häkchen „Metadaten von WLO erzeugen lassen“ samt Hinweisen und dem
+// Wortlaut nach §4 je Ort und Knopf (P2), je zweisprachig: also 26 kB. Die Summe bleibt bei 60 kB.
+export const AUSNAHMEN = Object.freeze({ 'ui-upload': 26_000 });
 export const ZUSAMMEN_GZIP = 60_000;
 const DATEI = /^(ui-[a-z0-9-]+)\.[0-9a-f]{8}\.js$/;
 

@@ -7,9 +7,9 @@ import './ui-upload.element';
 
 /**
  * Paket U3-3b (T7): `<boerdi-ui-upload>` überträgt die erfassten Dateien per Klick in den
- * persönlichen Bereich — prüfen (sha256) → Vorschau → „Jetzt übertragen“ → je Datei nacheinander →
+ * persönlichen Bereich — prüfen (sha256) → Vorschau → „In WLO ablegen“ → je Datei nacheinander →
  * Ergebnisliste mit Stand als Text und Symbol, Link je Knoten → „Im Chat weitermachen“. Seit Paket U4
- * beginnt es mit Ort „In WLO ablegen und erschließen“ und „Hochladen“ (hier ohne `orte` aus den
+ * beginnt es mit Ort „In WLO ablegen und erschließen“ und (seit Plan 2026-11-20, P2) „Weiter zur Vorschau“ (hier ohne `orte` aus den
  * Schaltern abgeleitet: angemeldet mit Ablage → WLO vorgewählt).
  */
 const KONTEXT: ModulKontext = { blockId: 'b1', sprache: 'de', nurLesen: false, antwort: null, schriftSkala: 0.85, anzeigeRegeln: null };
@@ -79,8 +79,8 @@ async function bisVorschau(h = host(), dateien: Array<Record<string, unknown> | 
   plan: Record<string, unknown> = PLAN) {
   backend(h, dateien, plan);
   const r = await erzeugt(h);
-  knopf(r.wurzel, 'Hochladen')!.click();
-  for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
+  knopf(r.wurzel, 'Weiter zur Vorschau')!.click();
+  for (let i = 0; i < 10 && !knopf(r.wurzel, 'In WLO ablegen'); i++) await warte();
   return r;
 }
 
@@ -98,7 +98,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
   it('ohne Schalter ist WLO nicht wählbar — mit Grund, ohne „Hochladen“', async () => {
     const { wurzel } = await erzeugt(host(), { ...DATEN, schalter: { ablage_in_wlo: false } });
     expect(wurzel.querySelector('h4')).toBeNull();
-    expect(knopf(wurzel, 'Hochladen')).toBeUndefined();
+    expect(knopf(wurzel, 'Weiter zur Vorschau')).toBeUndefined();
     expect(wurzel.textContent).toContain('nicht wählbar – gerade ausgeschaltet');
   });
 
@@ -109,7 +109,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     expect((wurzel.querySelector('input[data-ort="wlo"]') as HTMLInputElement).checked).toBe(true);
     expect(wurzel.querySelector('h4')).toBeNull();
     expect(wurzel.textContent).toContain('1 Datei hat eine Art, die WLO hier nicht annimmt');
-    expect(knopf(wurzel, 'Hochladen')!.classList.contains('u__haupt')).toBe(true);
+    expect(knopf(wurzel, 'Weiter zur Vorschau')!.classList.contains('u__haupt')).toBe(true);
     expect(h.ablegen).not.toHaveBeenCalled();
   });
 
@@ -132,7 +132,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
   it('Abbrechen in der Vorschau sendet nichts', async () => {
     const { h, wurzel } = await bisVorschau();
     knopf(wurzel, 'Abbrechen')!.click();
-    expect(knopf(wurzel, 'Hochladen')).toBeTruthy();
+    expect(knopf(wurzel, 'Weiter zur Vorschau')).toBeTruthy();
     expect(wurzel.querySelector('fieldset')).not.toBeNull();
     expect(schritte(h).map((s) => s.schritt)).toEqual(['vorbereiten']);
   });
@@ -146,7 +146,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
       melde = s.onFortschritt;
       return new Promise((r) => { erste = r; });
     });
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     melde(0.5);
     expect(wurzel.textContent).toContain('Datei 1 von 2 wird übertragen … 50 %');
@@ -178,7 +178,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
   it('ein Fehler einer Datei geht weiter; einer des Stapels hält an, der Rest bleibt „nicht gesendet“', async () => {
     const h = host();
     const { wurzel } = await bisVorschau(h, [Object.assign(new Error('x'), { status: 422, code: 'passt_nicht' })]);
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     for (let i = 0; i < 10 && !knopf(wurzel, 'Im Chat weitermachen'); i++) await warte();
     expect(wurzel.textContent).toContain('nicht abgelegt: Die Datei passt nicht zur Freigabe');
     expect(wurzel.textContent).toContain('1 von 2 Dateien in WLO abgelegt.');
@@ -186,7 +186,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     document.body.innerHTML = '';
     const h2 = host();
     const r2 = await bisVorschau(h2, [Object.assign(new Error('x'), { status: 403, code: 'nur_angemeldet' })]);
-    knopf(r2.wurzel, 'Jetzt übertragen')!.click();
+    knopf(r2.wurzel, 'In WLO ablegen')!.click();
     for (let i = 0; i < 10 && !knopf(r2.wurzel, 'Im Chat weitermachen'); i++) await warte();
     expect(schritte(h2).filter((s) => s.schritt === 'datei')).toHaveLength(1);
     expect(r2.wurzel.querySelector('.u__fehler')?.textContent).toContain('bitte bei WLO anmelden');
@@ -199,7 +199,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     let erste: (v: unknown) => void = () => undefined;
     const { wurzel } = await bisVorschau(h);
     h.ablegen.mockImplementationOnce(() => new Promise((r) => { erste = r; }));
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     knopf(wurzel, 'Nach dieser Datei anhalten')!.click();
     expect(wurzel.textContent).toContain('Hält nach dieser Datei an');
@@ -219,13 +219,13 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     const h = host();
     h.ablegen.mockRejectedValueOnce(Object.assign(new Error('x'), { status: 0, code: 'netz' }));
     const { wurzel } = await erzeugt(h);
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
     for (let i = 0; i < 10 && !wurzel.querySelector('.u__fehler'); i++) await warte();
     expect(wurzel.querySelector('.u__fehler')?.textContent).toBe('Keine Verbindung zum Server.');
     backend(h);
-    knopf(wurzel, 'Hochladen')!.click();
-    for (let i = 0; i < 10 && !knopf(wurzel, 'Jetzt übertragen'); i++) await warte();
-    expect(knopf(wurzel, 'Jetzt übertragen')).toBeTruthy();
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'In WLO ablegen'); i++) await warte();
+    expect(knopf(wurzel, 'In WLO ablegen')).toBeTruthy();
   });
 
   // ── Review U3-3b ─────────────────────────────────────────────────────────────────────
@@ -239,8 +239,8 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     h.ablegen.mockImplementation(async (s: { schritt: string }) =>
       s.schritt === 'vorbereiten' ? { ...PLAN, layout: 'flat' } : { stand: 'stored' });
     const r = await erzeugt(h);
-    knopf(r.wurzel, 'Hochladen')!.click();
-    for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
+    knopf(r.wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(r.wurzel, 'In WLO ablegen'); i++) await warte();
     expect(r.wurzel.textContent).toContain('ohne eigenen Ordner');
   });
 
@@ -249,7 +249,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     let erste: (v: unknown) => void = () => undefined;
     const { el, wurzel } = await bisVorschau(h);
     h.ablegen.mockImplementationOnce(() => new Promise((r) => { erste = r; }));
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     el.remove();
     erste({ index: 0, stand: 'stored', link: null });
@@ -260,7 +260,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
   it('Befund 2: ein Abbruch (Widget geschlossen) beendet den Stapel statt als Dateifehler weiterzulaufen', async () => {
     const h = host();
     const { wurzel } = await bisVorschau(h, [new DOMException('weg', 'AbortError')]);
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     for (let i = 0; i < 10 && !knopf(wurzel, 'Im Chat weitermachen'); i++) await warte();
     expect(schritte(h).filter((s) => s.schritt === 'datei')).toHaveLength(1);
     expect(wurzel.querySelector('.u__fehler')?.textContent).toBe('Das Übertragen wurde abgebrochen.');
@@ -270,7 +270,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     const h = host();
     const { wurzel } = await bisVorschau(h);
     h.ablegen.mockImplementationOnce(() => new Promise(() => undefined));
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     const balken = wurzel.querySelector('progress') as HTMLProgressElement;
     expect(balken.closest('[data-ablage]')).toBeNull();
@@ -281,7 +281,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     let erste: (v: unknown) => void = () => undefined;
     const { wurzel } = await bisVorschau(h);
     h.ablegen.mockImplementationOnce(() => new Promise((r) => { erste = r; }));
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     knopf(wurzel, 'Nach dieser Datei anhalten')!.click();
     erste({ index: 0, stand: 'stored', link: null });
@@ -298,7 +298,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     const h = host();
     const { wurzel } = await bisVorschau(h);
     h.ablegen.mockImplementationOnce(() => new Promise(() => undefined));
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     const anhalten = knopf(wurzel, 'Nach dieser Datei anhalten')!;
     anhalten.focus();
@@ -309,7 +309,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
   it('Befund 7: ohne Antwort von WLO „unklar“ — und das lässt sich nachfragen', async () => {
     const h = host();
     const { wurzel } = await bisVorschau(h, [Object.assign(new Error('x'), { status: 503, code: 'nicht_erreichbar' })]);
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     for (let i = 0; i < 10 && !knopf(wurzel, 'Im Chat weitermachen'); i++) await warte();
     expect(wurzel.querySelector('.u__eintrag')?.textContent).toContain('unklar');
     expect(h.vormerken.mock.calls.at(-1)?.[0]).toMatchObject({ ablage: { unklar: 1, fehler: 0, abgebrochen: 1 } });
@@ -333,7 +333,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
     Object.defineProperty(input, 'files', { value: [datei(`${lang}/a.pdf`)], configurable: true });
     input.dispatchEvent(new Event('change', { bubbles: true }));
     await warte();
-    knopf(wurzel, 'Hochladen')!.click();
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
     for (let i = 0; i < 10 && !h.ablegen.mock.calls.length; i++) await warte();
     expect(h.ablegen.mock.calls[0][0].ordner).toHaveLength(120);
   });
@@ -349,7 +349,7 @@ describe('<boerdi-ui-upload> Übertragen in WLO (U3-3b)', () => {
   it('Befund 6: nach einem Halt wegen der Anmeldung kein sinnloses Nachsenden', async () => {
     const h = host();
     const { wurzel } = await bisVorschau(h, [Object.assign(new Error('x'), { status: 403, code: 'nur_angemeldet' })]);
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     for (let i = 0; i < 10 && !knopf(wurzel, 'Im Chat weitermachen'); i++) await warte();
     expect(knopf(wurzel, 'Nicht übertragene noch einmal senden')).toBeUndefined();
   });
@@ -372,7 +372,7 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     let erste: (v: unknown) => void = () => undefined;
     const { el, wurzel } = await bisVorschau(h);
     h.ablegen.mockImplementationOnce(() => new Promise((r) => { erste = r as (v: unknown) => void; }));
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     const vorgemerkt = h.vormerken.mock.calls.length;   // der Befund des Erfassens kam schon vorher
     el.kontext = { ...KONTEXT, nurLesen: true };
@@ -392,7 +392,7 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     let erste: (v: unknown) => void = () => undefined;
     const { el, wurzel } = await bisVorschau(h, [Object.assign(new Error('x'), { status: 504, code: 'zu_langsam' })]);
     h.ablegen.mockImplementationOnce(() => new Promise((r) => { erste = r as (v: unknown) => void; }));
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     el.kontext = { ...KONTEXT, nurLesen: true };
     erste({ index: 0, stand: 'stored', link: null });
@@ -403,7 +403,7 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
 
   it('nur lesen ohne Übertragung: der Fokus fällt nicht auf body', async () => {
     const { el, wurzel } = await erzeugt();
-    (knopf(wurzel, 'Hochladen') as HTMLButtonElement).focus();
+    (knopf(wurzel, 'Weiter zur Vorschau') as HTMLButtonElement).focus();
     el.kontext = { ...KONTEXT, nurLesen: true };
     expect(wurzel.activeElement).not.toBeNull();
   });
@@ -423,16 +423,19 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     expect(wurzel.querySelector('input[webkitdirectory]')).toBe(vorher);
   });
 
+  // P2: der Satz nennt den Knopf, der wirklich ablegt — „Weiter zur Vorschau“ legt noch nichts ab
   it('FE-3/U4: mit Ort WLO sagt der Datenschutz-Satz, dass die Dateien erst nach der Bestätigung dorthin gehen und bleiben', async () => {
     const { wurzel } = await erzeugt();
     expect(wurzel.textContent).not.toContain('alle Inhalte bleiben auf deinem Gerät');
-    expect(wurzel.textContent).toContain('„Hochladen“ legt die Dateien nach deiner Bestätigung in deinem persönlichen Bereich in WLO ab; dort bleiben sie, bis du sie löschst');
+    // Review P2, Befund 1: ohne `erschliessen` in den Daten nur ablegen
+    expect(wurzel.textContent).toContain('„Weiter zur Vorschau“ zeigt zuerst, was abgelegt wird; erst „In WLO ablegen“ '
+      + 'legt die Dateien in deinem persönlichen Bereich in WLO ab. Dort bleiben sie, bis du sie löschst');
   });
 
   it('FE-5: eine Fehlerzeile ist keine assertive Region, die bei jedem Zeichnen neu ansagt', async () => {
     const h = host();
     const { el, wurzel } = await bisVorschau(h, [Object.assign(new Error('x'), { status: 403, code: 'nur_angemeldet' })]);
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     for (let i = 0; i < 10 && !wurzel.querySelector('.u__fehler'); i++) await warte();
     expect(wurzel.querySelector('[role="alert"]')).toBeNull();
     expect(status(wurzel)).toContain('anmelden');
@@ -447,8 +450,8 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     h.ablegen.mockImplementation(async (x: { schritt: string; index?: number }) =>
       (x.schritt === 'vorbereiten' ? { ...PLAN, layout: 'ordner' } : { index: x.index, stand: 'stored' }));
     const r = await erzeugt(h);
-    knopf(r.wurzel, 'Hochladen')!.click();
-    for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
+    knopf(r.wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(r.wurzel, 'In WLO ablegen'); i++) await warte();
     expect(r.wurzel.textContent).toContain('neuer Ordner „Physik“');
   });
 
@@ -458,8 +461,8 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
       ? { ...PLAN, letzte: { ablagen: [{ titel: 'Physik', datum: 'kein Datum', lesbar: true, stored: 2, failed: 0, open: 0 }] } }
       : { stand: 'stored' });
     const r = await erzeugt(h);
-    knopf(r.wurzel, 'Hochladen')!.click();
-    for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
+    knopf(r.wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(r.wurzel, 'In WLO ablegen'); i++) await warte();
     const kasten = r.wurzel.querySelector('details.u__letzte');
     expect(kasten?.querySelector('summary')?.textContent).toBe('Deine letzte Ablage in WLO (1)');
     expect(kasten?.textContent).toContain('Physik (kein Datum) – 2 abgelegt');
@@ -473,8 +476,8 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
       ? { ...PLAN, letzte: { gekappt: true, ablagen: [{ titel: 'Physik', datum: 'x', lesbar: false }] } }
       : { stand: 'stored' });
     const r = await erzeugt(h);
-    knopf(r.wurzel, 'Hochladen')!.click();
-    for (let i = 0; i < 10 && !knopf(r.wurzel, 'Jetzt übertragen'); i++) await warte();
+    knopf(r.wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(r.wurzel, 'In WLO ablegen'); i++) await warte();
     const kasten = r.wurzel.querySelector('details.u__letzte') as HTMLDetailsElement;
     expect(kasten.textContent).toContain('es können weitere fehlen');
     kasten.open = true;
@@ -489,7 +492,7 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     let erste: (v: unknown) => void = () => undefined;
     const { el, wurzel } = await bisVorschau(h);
     h.ablegen.mockImplementationOnce(() => new Promise((r) => { erste = r; }));
-    knopf(wurzel, 'Jetzt übertragen')!.click();
+    knopf(wurzel, 'In WLO ablegen')!.click();
     await warte();
     (wurzel.querySelector('.u__ergebnis') as HTMLElement).focus();
     erste({ index: 0, stand: 'stored', link: null });
@@ -507,13 +510,17 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     expect(wurzel.querySelector('button')).toBe(vorher);
   });
 
-  // W4-Anbindung: die Rolle ist Teil der Freigabe — die Vorschau nennt das Strukturdokument.
-  it('die Vorschau nennt das Strukturdokument', async () => {
-    const plan = { ...PLAN, eintraege: [{ ...PLAN.eintraege[0], rolle: 'struktur' }, PLAN.eintraege[1]] };
+  // W4-Anbindung: die Rolle ist Teil der Freigabe — die Vorschau nennt sie. Review P1, NIT 7: mit den
+  // Namen der Rollen-Auswahl (Gliederung / Gliederung und Material), nicht „Strukturdokument“
+  it('die Vorschau nennt die Gliederung in den Worten der Rollen-Auswahl', async () => {
+    const plan = { ...PLAN, eintraege: [{ ...PLAN.eintraege[0], rolle: 'struktur' }, { ...PLAN.eintraege[1], rolle: 'beides' }] };
     const { wurzel } = await bisVorschau(host(), [], plan);
     const zeilen = [...wurzel.querySelectorAll('.u__eintrag')];
-    expect(zeilen[0].querySelector('.u__rolle')?.textContent).toBe('Strukturdokument');
-    expect(zeilen[1].querySelector('.u__rolle')).toBeNull();
+    expect(zeilen[0].querySelector('.u__rolle')?.textContent).toBe('Gliederung');
+    expect(zeilen[1].querySelector('.u__rolle')?.textContent).toBe('Gliederung und Material');
+    document.body.innerHTML = '';
+    const ohne = await bisVorschau(host(), [], PLAN);
+    expect(ohne.wurzel.querySelector('.u__eintrag .u__rolle')).toBeNull();
   });
 
   // Review W4, Befund 7: eine in der Oberfläche gesetzte Rolle kommt als `struktur` in der Freigabe an.
@@ -525,8 +532,8 @@ describe('<boerdi-ui-upload> Übertragen — Querschnitts-Review 2026-11-06', ()
     wahl.value = 'struktur';
     wahl.dispatchEvent(new Event('change', { bubbles: true }));
     await warte();
-    knopf(wurzel, 'Hochladen')!.click();
-    for (let i = 0; i < 10 && !knopf(wurzel, 'Jetzt übertragen'); i++) await warte();
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'In WLO ablegen'); i++) await warte();
     const vorbereiten = h.ablegen.mock.calls[0][0];
     expect(vorbereiten.eintraege.map((e: { rolle: string }) => e.rolle)).toEqual(['struktur', 'inhalt']);
   });
@@ -557,10 +564,140 @@ describe('<boerdi-ui-upload> feste Nummer je Datei (TG-3b)', () => {
     const nummern = (h.vormerken.mock.calls.at(-1)?.[0] as { struktur: { dateiliste: { name: string; i: number }[] } })
       .struktur.dateiliste.map((d) => [d.name, d.i]);
     expect(nummern).toEqual([['Grosse.pdf', 0], ['Hebel.pdf', 1], ['Linse.pdf', 2]]);
-    knopf(wurzel, 'Hochladen')!.click();
-    for (let n = 0; n < 10 && !knopf(wurzel, 'Jetzt übertragen'); n++) await warte();
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let n = 0; n < 10 && !knopf(wurzel, 'In WLO ablegen'); n++) await warte();
     const vorbereiten = h.ablegen.mock.calls[0][0];
     expect(vorbereiten.eintraege.map((e: { titel: string; i: number }) => [e.titel, e.i]))
       .toEqual([['Hebel', 1], ['Linse', 2]]);
+  });
+});
+
+// Plan 2026-11-20, P2: das Häkchen geht mit dem Vorbereiten; der letzte Klick — der, der ablegt (in P3 die
+// Zustimmung zum Flow) — heißt danach, was der Server festhielt
+describe('<boerdi-ui-upload> Häkchen beim Ablegen (P2)', () => {
+  const haken = (w: ShadowRoot) => w.querySelector('input[type="checkbox"][data-erschliessen]') as HTMLInputElement;
+  // Review P2, Befund 1: das Häkchen sieht nur ein Ablauf-Schritt vor (`erschliessen` gesetzt)
+  const MIT_HAKEN = { ...DATEN, erschliessen: true };
+
+  it('gesetzt: `erschliessen: true` geht mit; hält der Server es fest, heißt der Knopf „In WLO ablegen und erschließen“', async () => {
+    const h = host();
+    backend(h, [], { ...PLAN, erschliessen: true });
+    const { wurzel } = await erzeugt(h, MIT_HAKEN);
+    expect(haken(wurzel).checked).toBe(true);
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'In WLO ablegen und erschließen'); i++) await warte();
+    expect(h.ablegen.mock.calls[0][0]).toMatchObject({ schritt: 'vorbereiten', erschliessen: true });
+    expect(knopf(wurzel, 'In WLO ablegen und erschließen')!.classList.contains('u__haupt')).toBe(true);
+    expect(knopf(wurzel, 'In WLO ablegen')).toBeUndefined();
+  });
+
+  it('abgewählt: `erschliessen: false`, der Knopf heißt „In WLO ablegen“', async () => {
+    const h = host();
+    backend(h, [], { ...PLAN, erschliessen: false });
+    const { wurzel } = await erzeugt(h, MIT_HAKEN);
+    const x = haken(wurzel);
+    x.checked = false;
+    x.dispatchEvent(new Event('change', { bubbles: true }));
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'In WLO ablegen'); i++) await warte();
+    expect(h.ablegen.mock.calls[0][0]).toMatchObject({ schritt: 'vorbereiten', erschliessen: false });
+    expect(knopf(wurzel, 'In WLO ablegen')).toBeTruthy();
+  });
+
+  it('ohne Flow (`ohne_erschliessung`) geht `erschliessen: false` mit, auch wenn die Daten es vorgeben', async () => {
+    const h = host();
+    backend(h);
+    const daten = { ...DATEN, erschliessen: true, orte: { vorauswahl: 'wlo', chat: { geht: false, grund: 'aus' },
+      wlo: { geht: true, hinweis: 'ohne_erschliessung' }, namen: { geht: true } } };
+    const { wurzel } = await erzeugt(h, daten);
+    expect(haken(wurzel)).toBeNull();
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'In WLO ablegen'); i++) await warte();
+    expect(h.ablegen.mock.calls[0][0]).toMatchObject({ erschliessen: false });
+  });
+
+  it('ohne `erschliessen` in den Daten (freier Chat): kein Häkchen, `erschliessen: false`, der Knopf heißt „In WLO ablegen“', async () => {
+    const h = host();
+    backend(h);
+    const { wurzel } = await erzeugt(h);
+    expect(haken(wurzel)).toBeNull();
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'In WLO ablegen'); i++) await warte();
+    expect(h.ablegen.mock.calls[0][0]).toMatchObject({ schritt: 'vorbereiten', erschliessen: false });
+    expect(knopf(wurzel, 'In WLO ablegen und erschließen')).toBeUndefined();
+  });
+
+  // Review P2, Befund 2: in der Vorschau gilt, was der Server festhielt — Satz und Knopf sagen dasselbe
+  it('in der Vorschau folgt der Datenschutz-Satz dem Wert des Servers, nicht dem Häkchen', async () => {
+    const h = host();
+    backend(h, [], { ...PLAN, erschliessen: false });
+    const { wurzel } = await erzeugt(h, MIT_HAKEN);
+    expect(haken(wurzel).checked).toBe(true);
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'In WLO ablegen'); i++) await warte();
+    expect(h.ablegen.mock.calls[0][0]).toMatchObject({ erschliessen: true });
+    expect(wurzel.textContent).toContain('erst „In WLO ablegen“ legt die Dateien');
+    expect(wurzel.textContent).toContain('Metadaten erzeugt WLO dabei nicht.');
+    expect(wurzel.textContent).not.toContain('erst „In WLO ablegen und erschließen“');
+  });
+
+  it('die Antwort nennt, was der Server zum Häkchen festhielt (`ablage.erschliessen`)', async () => {
+    const h = host();
+    backend(h, [], { ...PLAN, erschliessen: true });
+    const { wurzel } = await erzeugt(h, MIT_HAKEN);
+    knopf(wurzel, 'Weiter zur Vorschau')!.click();
+    for (let i = 0; i < 10 && !knopf(wurzel, 'In WLO ablegen und erschließen'); i++) await warte();
+    knopf(wurzel, 'In WLO ablegen und erschließen')!.click();
+    for (let i = 0; i < 20 && !knopf(wurzel, 'Im Chat weitermachen'); i++) await warte();
+    expect(h.vormerken.mock.calls.at(-1)?.[0]).toMatchObject({ ort: 'wlo', ablage: { erschliessen: true } });
+  });
+});
+
+describe('<boerdi-ui-upload> nach der Ablage (zweites Review P4–P6, MINOR 1)', () => {
+  /** Bis „Im Chat weitermachen“: legt die Dateien in WLO ab (`dateien`: Antworten je Datei). */
+  async function abgelegt(dateien: Array<Record<string, unknown> | Error> = [], sprache: 'de' | 'en' = 'de') {
+    const h = host();
+    backend(h, dateien);
+    const r = await erzeugt(h, DATEN, { sprache });
+    const [vorschau, ablegen, weiter] = sprache === 'de'
+      ? ['Weiter zur Vorschau', 'In WLO ablegen', 'Im Chat weitermachen']
+      : ['Continue to preview', 'Store in WLO', 'Continue in the chat'];
+    knopf(r.wurzel, vorschau)!.click();
+    for (let i = 0; i < 10 && !knopf(r.wurzel, ablegen); i++) await warte();
+    knopf(r.wurzel, ablegen)!.click();
+    for (let i = 0; i < 10 && !knopf(r.wurzel, weiter); i++) await warte();
+    return { ...r, h };
+  }
+
+  it('liegen Dateien in WLO, ist „Andere Auswahl“ gesperrt — mit Grund, und ein Klick setzt nichts zurück', async () => {
+    const { h, wurzel } = await abgelegt();
+    const zurueck = knopf(wurzel, 'Andere Auswahl')!;
+    expect(zurueck.disabled).toBe(true);
+    const grund = wurzel.getElementById(zurueck.getAttribute('aria-describedby') ?? '');
+    expect(grund?.textContent).toBe('Die Dateien liegen schon in WLO.');
+    expect(knopf(wurzel, 'Im Chat weitermachen')!.disabled).toBe(false);
+    zurueck.dataset['zurueck'] = '1';
+    zurueck.disabled = false;      // auch ein erzwungener Klick setzt die Auswahl nicht zurück
+    zurueck.click();
+    await warte();
+    expect(h.vormerken).not.toHaveBeenCalledWith(null);
+    expect(knopf(wurzel, 'Im Chat weitermachen')).toBeTruthy();
+  });
+
+  it('auf Englisch nennt der Grund dasselbe', async () => {
+    const { wurzel } = await abgelegt([], 'en');
+    const zurueck = knopf(wurzel, 'Choose again')!;
+    expect(zurueck.disabled).toBe(true);
+    expect(wurzel.getElementById(zurueck.getAttribute('aria-describedby') ?? '')?.textContent)
+      .toBe('The files are already in WLO.');
+  });
+
+  it('ist nichts abgelegt, bleibt „Andere Auswahl“ frei — ohne den Grund', async () => {
+    const fehler = () => Object.assign(new Error('x'), { status: 422, code: 'passt_nicht' });
+    const { wurzel } = await abgelegt([fehler(), fehler()]);
+    const zurueck = knopf(wurzel, 'Andere Auswahl')!;
+    expect(zurueck.disabled).toBe(false);
+    expect(zurueck.hasAttribute('aria-describedby')).toBe(false);
+    expect(wurzel.textContent).not.toContain('Die Dateien liegen schon in WLO.');
   });
 });

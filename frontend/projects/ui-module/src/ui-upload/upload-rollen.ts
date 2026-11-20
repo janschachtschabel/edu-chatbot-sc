@@ -6,7 +6,11 @@
  * {@link MAX_STRUKTUR} je Erfassung (vorher genau eins; ein zweites nahm dem ersten die Rolle). Mehr
  * lässt die Rolle nicht zu — das Auswahlfeld sperrt die Wahl dann. Leere und zu große Dateien bleiben
  * ignoriert, auch wenn die Person einen ganzen Ordner wieder einschließt.
+ *
+ * Plan 2026-11-20, P1 (UO-4): `beides` (Gliederung und Material) gilt als Strukturdokument UND als
+ * Inhalt — Höchstzahl und lesbare Formate gelten auch dafür ({@link istGliederung}).
  */
+import type { AblageRolle } from '../_vertrag/modul-host';
 import type { Erfassung, ErfassteDatei, Rolle } from './upload-erfassen';
 
 const STRUKTUR_ENDUNG = /\.(pdf|docx|txt|md)$/i;
@@ -17,6 +21,22 @@ const STRUKTUR_ENDUNG = /\.(pdf|docx|txt|md)$/i;
  *  die Sitzungsgrenze des Backends (`dokumente/ablage.max_je_sitzung`) weist ab, verdrängt nicht. */
 export const MAX_STRUKTUR = 5;
 const LEHRPLAN = /(lehrplan|curricul|bildungsplan|rahmenplan|fachanforderung|kompetenzraster)/i;
+
+/** Liefert die Datei die Struktur (`struktur` oder `beides`)? */
+export function istGliederung(r: Rolle): boolean {
+  return r === 'struktur' || r === 'beides';
+}
+
+/** Wird die Datei einsortiert (`inhalt` oder `beides`)? */
+export function istMaterial(r: Rolle): boolean {
+  return r === 'inhalt' || r === 'beides';
+}
+
+/** Die Rolle für Ablage und `hochladen` — aus der Erfassung oder einer Antwort des Backends; was
+ *  keine Gliederung ist, geht als `inhalt`. */
+export function alsAblageRolle(r: unknown): AblageRolle {
+  return r === 'struktur' || r === 'beides' ? r : 'inhalt';
+}
 
 export function kannStrukturSein(d: Pick<ErfassteDatei<unknown>, 'name' | 'typ' | 'grund'>): boolean {
   return !d.grund && !d.typ.startsWith('image/') && STRUKTUR_ENDUNG.test(d.name);
@@ -29,21 +49,34 @@ function mitRollen<T>(e: Erfassung<T>, neu: (d: ErfassteDatei<T>, i: number) => 
   }) };
 }
 
+/** Plan 2026-11-20, P2: mit welcher Rolle die Dateien beginnen (Block-Daten `rolle_vorgabe`, aus dem
+ *  Ablauf-Schritt; im freien Chat `auto`). */
+export type RollenVorgabe = 'auto' | 'gliederung' | 'material' | 'beides';
+const VORGABEN = new Set<string>(['auto', 'gliederung', 'material', 'beides']);
+
+/** Die Rollen-Vorgabe des Blocks. Ein ausdrücklicher Wert zählt; sonst heißt der alte Schlüssel
+ *  `einzeldatei_als_struktur: true` `gliederung` (wie `ui_module/rollen.vorgabe` im Backend). */
+export function rollenVorgabe(daten: Readonly<Record<string, unknown>>): RollenVorgabe {
+  const wert = daten['rolle_vorgabe'];
+  if (typeof wert === 'string' && VORGABEN.has(wert)) return wert as RollenVorgabe;
+  return daten['einzeldatei_als_struktur'] === true ? 'gliederung' : 'auto';
+}
+
 /**
- * Genau ein Lehrplan-Kandidat direkt in der Wurzel → Strukturdokument. Mit `einzelneAlsStruktur`
- * (der Block verlangt es, `einzeldatei_als_struktur` — nur der Ablauf „Themenbaum aus einem
- * Dokument“) ebenso eine **einzelne** Datei ohne Ordner, die ein Strukturdokument sein kann
- * (Rückmeldung 11.11.: dort blieb sonst „Senden“ der Hauptknopf). Review 12.11., Befund 1: nicht in
- * jedem Upload-Feld — beim Übertragen nach WLO wäre die Datei sonst still als Strukturdokument
- * markiert. Sonst bleibt alles, wie es ist.
+ * Plan 2026-11-20, P2: die Rollen am Anfang nach der Vorgabe des Blocks. `gliederung`/`beides`: jede
+ * nutzbare, lesbare Datei bekommt diese Rolle (höchstens {@link MAX_STRUKTUR}, der Rest bleibt
+ * Material); `material`: alle bleiben Material. `auto`: genau ein Lehrplan-Kandidat direkt in der
+ * Wurzel → Gliederung (Review 12.11., Befund 1: nicht jede Einzeldatei — beim Übertragen nach WLO
+ * wäre sie sonst still als Strukturdokument markiert).
  *
- * Plan 2026-11-16, TG-1 (G-E4): die Automatik merkt nur vor — hochgeladen wird erst auf „Hochladen“.
+ * Plan 2026-11-16, TG-1 (G-E4): die Automatik merkt nur vor — hochgeladen wird erst auf den Knopf.
  */
-export function vorschlagen<T>(e: Erfassung<T>, einzelneAlsStruktur = false): Erfassung<T> {
-  const nutzbar = e.dateien.filter((d) => d.rolle === 'inhalt');
-  if (einzelneAlsStruktur && !e.wurzel.ordner.length && nutzbar.length === 1
-      && kannStrukturSein(nutzbar[0])) {
-    return setzeRolle(e, e.dateien.indexOf(nutzbar[0]), 'struktur');
+export function vorschlagen<T>(e: Erfassung<T>, vorgabe: RollenVorgabe = 'auto'): Erfassung<T> {
+  if (vorgabe === 'material') return e;
+  if (vorgabe === 'gliederung' || vorgabe === 'beides') {
+    const rolle: Rolle = vorgabe === 'beides' ? 'beides' : 'struktur';
+    let zahl = 0;
+    return mitRollen(e, (d) => (d.rolle === 'inhalt' && kannStrukturSein(d) && zahl++ < MAX_STRUKTUR ? rolle : d.rolle));
   }
   const kandidaten = e.wurzel.dateien.filter((i) => {
     const d = e.dateien[i];
@@ -53,23 +86,23 @@ export function vorschlagen<T>(e: Erfassung<T>, einzelneAlsStruktur = false): Er
   return setzeRolle(e, kandidaten[0], 'struktur');
 }
 
-/** Wie viele Dateien gerade die Rolle `struktur` tragen. */
+/** Wie viele Dateien gerade Strukturdokument sind (`struktur` oder `beides`). */
 export function strukturZahl<T>(e: Erfassung<T>): number {
-  return e.dateien.filter((d) => d.rolle === 'struktur').length;
+  return e.dateien.filter((d) => istGliederung(d.rolle)).length;
 }
 
 /** Kann diese Datei (noch) Strukturdokument werden? Sie muss lesbar sein, und es dürfen nicht schon
  *  {@link MAX_STRUKTUR} andere markiert sein (TG-3e). */
 export function strukturWaehlbar<T>(e: Erfassung<T>, index: number): boolean {
   const d = e.dateien[index];
-  return !!d && kannStrukturSein(d) && (d.rolle === 'struktur' || strukturZahl(e) < MAX_STRUKTUR);
+  return !!d && kannStrukturSein(d) && (istGliederung(d.rolle) || strukturZahl(e) < MAX_STRUKTUR);
 }
 
 export function setzeRolle<T>(e: Erfassung<T>, index: number, rolle: Rolle): Erfassung<T> {
   const ziel = e.dateien[index];
   if (!ziel || ziel.grund) return e;
   // TG-3e: andere Strukturdokumente behalten ihre Rolle; über der Grenze bleibt alles, wie es ist
-  if (rolle === 'struktur' && !strukturWaehlbar(e, index)) return e;
+  if (istGliederung(rolle) && !strukturWaehlbar(e, index)) return e;
   return mitRollen(e, (d, i) => (i === index ? rolle : d.rolle));
 }
 

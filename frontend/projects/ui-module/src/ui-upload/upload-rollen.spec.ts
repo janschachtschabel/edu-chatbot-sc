@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { antwortDaten, MAX_KNOTEN } from './upload-antwort';
 import { erfasse, type Quelle } from './upload-erfassen';
 import {
-  alleIgnorieren, MAX_STRUKTUR, setzeRolle, strukturWaehlbar, strukturZahl, vorschlagen,
+  alleIgnorieren, alsAblageRolle, istGliederung, istMaterial, MAX_STRUKTUR, rollenVorgabe, setzeRolle,
+  strukturWaehlbar, strukturZahl, vorschlagen,
 } from './upload-rollen';
 
 function q(relPfad: string, size = 10, type = 'application/pdf'): Quelle<null> {
@@ -17,13 +18,34 @@ describe('Rollen (U3-1a)', () => {
     expect(e.dateien.find((d) => d.name === 'blatt.pdf')?.rolle).toBe('inhalt');
   });
 
-  it('eine einzeln gewählte Datei wird Strukturdokument, wenn der Block es verlangt (Rückmeldung 11.11.)', () => {
-    expect(vorschlagen(erfasse([q('Ausbildung_Augenoptik.pdf')]), true).dateien[0].rolle).toBe('struktur');
-    // zwei Dateien, ein Bild oder ein Ordner bleiben ohne Vorschlag
-    const zwei = vorschlagen(erfasse([q('a.pdf'), q('b.pdf')]), true);
-    expect(zwei.dateien.every((d) => d.rolle === 'inhalt')).toBe(true);
-    expect(vorschlagen(erfasse([q('foto.png', 10, 'image/png')]), true).dateien[0].rolle).toBe('inhalt');
-    expect(vorschlagen(erfasse([q('P/A/notizen.pdf')]), true).dateien[0].rolle).toBe('inhalt');
+  // Plan 2026-11-20, P2: die Rollen-Vorgabe des Schritts ersetzt „einzeldatei_als_struktur“ (Rückmeldung
+  // 11.11.: eine einzeln gewählte Datei wurde nur dann Strukturdokument) — jetzt jede lesbare Datei
+  it('P2: Vorgabe gliederung — jede lesbare Datei beginnt als Gliederung, höchstens fünf, der Rest Material', () => {
+    expect(vorschlagen(erfasse([q('Ausbildung_Augenoptik.pdf')]), 'gliederung').dateien[0].rolle).toBe('struktur');
+    const zwei = vorschlagen(erfasse([q('a.pdf'), q('b.pdf')]), 'gliederung');
+    expect(zwei.dateien.map((d) => d.rolle)).toEqual(['struktur', 'struktur']);
+    expect(vorschlagen(erfasse([q('foto.png', 10, 'image/png')]), 'gliederung').dateien[0].rolle).toBe('inhalt');
+    expect(vorschlagen(erfasse([q('P/A/notizen.pdf')]), 'gliederung').dateien[0].rolle).toBe('struktur');
+    const sieben = vorschlagen(erfasse(['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((n) => q(`P/${n}.pdf`))), 'gliederung');
+    expect(strukturZahl(sieben)).toBe(MAX_STRUKTUR);
+    expect(sieben.dateien.filter((d) => d.rolle === 'inhalt')).toHaveLength(2);
+  });
+
+  it('P2: Vorgabe beides wie gliederung, Vorgabe material lässt auch einen Lehrplan Material', () => {
+    const beides = vorschlagen(erfasse([q('P/a.pdf'), q('P/folien.pptx', 10, 'application/vnd.ms-powerpoint')]), 'beides');
+    expect(beides.dateien.map((d) => d.rolle)).toEqual(['beides', 'inhalt']);
+    expect(vorschlagen(erfasse([q('P/Lehrplan.pdf')]), 'material').dateien[0].rolle).toBe('inhalt');
+    // auto: die bisherige Regel — eine Einzeldatei ohne Lehrplan-Namen bleibt Material
+    expect(vorschlagen(erfasse([q('Ausbildung_Augenoptik.pdf')]), 'auto').dateien[0].rolle).toBe('inhalt');
+    expect(vorschlagen(erfasse([q('P/Lehrplan.pdf')]), 'auto').dateien[0].rolle).toBe('struktur');
+  });
+
+  it('P2: rollenVorgabe liest den Block — der alte Schlüssel heißt gliederung, ein ausdrücklicher Wert zählt', () => {
+    expect(rollenVorgabe({})).toBe('auto');
+    expect(rollenVorgabe({ einzeldatei_als_struktur: true })).toBe('gliederung');
+    expect(rollenVorgabe({ rolle_vorgabe: 'material', einzeldatei_als_struktur: true })).toBe('material');
+    expect(rollenVorgabe({ rolle_vorgabe: 'beides' })).toBe('beides');
+    expect(rollenVorgabe({ rolle_vorgabe: 'quatsch' })).toBe('auto');
   });
 
   it('ohne Wunsch des Blocks bleibt eine Einzeldatei Inhalt (Review 12.11., Befund 1)', () => {
@@ -76,6 +98,41 @@ describe('Rollen (U3-1a)', () => {
     e = alleIgnorieren(e, 'P/A', true);
     e = alleIgnorieren(e, 'P/A', false);
     expect(e.dateien.map((d) => d.rolle)).toEqual(['ignorieren', 'ignorieren', 'ignorieren']);
+  });
+});
+
+// Plan 2026-11-20, P1 (UO-4): „Gliederung und Material“ ist Strukturdokument und Inhalt zugleich
+describe('Rolle beides (P1)', () => {
+  it('istGliederung / istMaterial / alsAblageRolle', () => {
+    expect((['struktur', 'inhalt', 'beides', 'ignorieren'] as const).map((r) => [istGliederung(r), istMaterial(r)]))
+      .toEqual([[true, false], [false, true], [true, true], [false, false]]);
+    expect(['struktur', 'beides', 'inhalt', 'ignorieren', 'structure', undefined].map(alsAblageRolle))
+      .toEqual(['struktur', 'beides', 'inhalt', 'inhalt', 'inhalt', 'inhalt']);
+  });
+
+  it('beides zählt zur Höchstzahl der Strukturdokumente', () => {
+    let e = erfasse(['a', 'b', 'c', 'd', 'e', 'f'].map((n) => q(`P/${n}.pdf`)));
+    for (const i of [0, 1, 2, 3]) e = setzeRolle(e, i, 'struktur');
+    e = setzeRolle(e, 4, 'beides');
+    expect(e.dateien[4].rolle).toBe('beides');
+    expect(strukturZahl(e)).toBe(MAX_STRUKTUR);
+    expect(strukturWaehlbar(e, 5)).toBe(false);
+    expect(setzeRolle(e, 5, 'beides')).toBe(e);
+    expect(strukturWaehlbar(e, 4)).toBe(true);           // ein markiertes bleibt wählbar
+  });
+
+  it('beides nur für lesbare Formate', () => {
+    const e = erfasse([q('P/x.png', 10, 'image/png')]);
+    expect(setzeRolle(e, 0, 'beides').dateien[0].rolle).toBe('inhalt');
+  });
+
+  it('antwortDaten: beides zählt als Strukturdokument (nicht doppelt bei den Inhalten)', () => {
+    let e = erfasse([q('P/Lehrplan.pdf'), q('P/blatt.pdf')]);
+    e = setzeRolle(e, e.dateien.findIndex((d) => d.name === 'Lehrplan.pdf'), 'beides');
+    const a = antwortDaten(e, 'erfasst');
+    expect(a.zahlen).toMatchObject({ strukturdokumente: 1, inhalte: 1 });
+    expect(a.strukturdokument).toMatchObject({ name: 'Lehrplan.pdf' });
+    expect(a.struktur.dateiliste.map((d) => d.rolle).sort()).toEqual(['beides', 'inhalt']);
   });
 });
 

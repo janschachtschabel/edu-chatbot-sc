@@ -234,7 +234,9 @@ def test_upload_schalter_und_satz_folgen_dem_traeger(upload, monkeypatch, erschl
     monkeypatch.setattr(zug_basis, "wlo_erschliessen", lambda: erschliessen)
     schalter = dienst_upload.schalter()
     assert schalter["ablage_in_wlo"] is True
-    satz = dienst_upload._ablage_satz(schalter)
+    # Review P2, Befund 1: Metadaten verspricht der Satz nur mit Häkchen (der Schritt setzt
+    # ``erschliessen``); ohne Häkchen legt das Feld nur ab (``test_p2_review_befunde``)
+    satz = dienst_upload._ablage_satz(schalter, True)
     assert ("Metadaten" in satz and "nicht" not in satz) is erschliessen
     if not erschliessen:
         assert "Metadaten erzeugen geht hier gerade nicht" in satz
