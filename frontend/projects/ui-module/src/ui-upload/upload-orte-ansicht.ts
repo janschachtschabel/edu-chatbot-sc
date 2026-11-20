@@ -76,7 +76,10 @@ export function erklaerung(a: Pick<OrteAnsicht, 't' | 'grenzen' | 'ohneAnmeldung
 
 /** Der Datenschutz-Satz zum gewählten Ort. */
 export function datenschutzSatz(t: UploadTexte, orte: Orte, wahl: 'chat' | 'wlo' | null, g: LokaleGrenzen): string {
-  if (wahl === 'chat') return t.datenschutzChat(g.aufbewahrungH);
+  if (wahl === 'chat') {
+    // Paket C: die Seitenbilder verlassen den Server — das sagt das Feld vor dem Hochladen
+    return orte.chat.texterkennung ? `${t.datenschutzChat(g.aufbewahrungH)} ${t.datenschutzOcr}` : t.datenschutzChat(g.aufbewahrungH);
+  }
   if (wahl === 'wlo') return orte.wlo.hinweis === 'ohne_erschliessung' ? t.datenschutzWloOhne : t.datenschutzWlo;
   return t.datenschutz;
 }

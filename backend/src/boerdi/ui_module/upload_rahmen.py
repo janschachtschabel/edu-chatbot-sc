@@ -53,7 +53,9 @@ _GLIEDERUNG: Final = {"ueberschriften": "Überschriften", "nummeriert": "nummeri
                       "teile": "Textteilen (keine Gliederung erkannt)"}
 _WARNUNG: Final = {"bilder_entfernt": "Bilder wurden nicht übernommen",
                    "wenig_text": "wenig Text je Seite", "keine_gliederung": "keine Gliederung",
-                   "gekuerzt": "der Text wurde gekürzt"}
+                   "gekuerzt": "der Text wurde gekürzt",
+                   # Plan 2026-11-19, Paket C: gescannt, vom KI-Modell gelesen — Lesefehler möglich
+                   "ocr": "per Texterkennung gelesen (Lesefehler möglich)"}
 _ERFASST: Final = "Die Person hat den Befund geschickt."
 
 

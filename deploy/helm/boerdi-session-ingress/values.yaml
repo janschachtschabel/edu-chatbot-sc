@@ -1,0 +1,69 @@
+# Vorgaben des Charts `boerdi-session-ingress` (Plan 2026-11-19, E9). Ohne `host` und ein Ziel bricht
+# das Rendern mit einer Meldung ab — ein halb gesetztes Chart geht nicht still durch.
+# Schritte für Staging: docs/uebergabe-betrieb.md §16 · Beispiel: values-staging.example.yaml
+
+nameOverride: ""
+
+# Host des Repositorys, so wie die Redaktion ihn im Browser aufruft (ohne https://). Nur dort schickt
+# der Browser das Sitzungs-Cookie (JSESSIONID, Path=/edu-sharing).
+host: ""
+
+# Der Pfad, den das Backend annimmt (backend/src/boerdi/api/sitzung.py, PFAD_AM_REPOSITORY). Er geht
+# unverändert weiter — ein anderer Pfad bräuchte ein rewrite-target, und das stellte bei ingress-nginx
+# alle Pfade des Repository-Hosts auf Regex um. Die Prüfung beim Rendern lässt nur diesen zu.
+# Steht am Host schon use-regex (etwa der md-editor), schreibt ingress-nginx auch unser Exact als
+# `~* "^…"` (Präfix, ohne Groß/klein) — harmlos: längere Pfade gehen vor, das Backend prüft exakt.
+path: /edu-sharing/services/boerdi/auth/session
+
+# Ingress-Klasse des Clusters (wie beim Repository).
+className: nginx
+
+# Eigene Annotationen. Was verboten ist (das Rendern bricht ab), steht in
+# templates/_helpers.tpl (boerdi_session.pruefen): alles, was den Weg oder den ganzen
+# Repository-Host verbiegt, und bei Ziel B die Schlüssel, die das Chart selbst setzt.
+# Zugriffslog: ohne $http_cookie (der Standard von ingress-nginx hat keins) — das Cookie ist eine
+# Anmeldung.
+annotations: {}
+
+# TLS mit dem Zertifikat des Repository-Hosts. Das Secret muss im Namespace DIESES Releases liegen
+# (oder cert-manager stellt es hier aus); das Secret im Namespace von edu-sharing ist nicht lesbar.
+tls: []    # [{secretName: …, hosts: [repository.example.org]}]
+
+# Wohin der Pfad geht — genau eins von beiden:
+backend:
+  # A) Das Backend läuft im selben Cluster: Name und öffentlicher Port seines Service (8100).
+  service:
+    name: ""
+    port: 8100
+  # B) Das Backend läuft auf einem eigenen Rechner (deploy/compose.prod.yml + compose.session.yml):
+  #    ein Service vom Typ ExternalName auf den Chat-Host, angesprochen über HTTPS. Der Host-Kopf
+  #    des Repositorys bleibt erhalten — sonst antwortet das Backend 404 (api/sitzung.py) und
+  #    Traefik fände den Router nicht.
+  externalName:
+    host: ""          # Chat-Host ohne https://, z. B. chat.example.org
+    # Der eigene Eingang `sitzung` des Chat-Rechners (compose.session.yml), nicht 443: nur dort
+    # behält Traefik X-Forwarded-For des Clusters, der öffentliche Chat bleibt unberührt.
+    port: 8443
+    # Prüfung des Zertifikats des Chat-Hosts — Pflicht, denn auf diesem Weg reist das
+    # Sitzungs-Cookie. ingress-nginx wertet proxy-ssl-name, -server-name und -verify NUR mit einem
+    # proxy-ssl-secret aus; ohne gingen weder der Name im TLS-Handschlag (SNI) noch eine Prüfung
+    # hinaus. Genau eins von beiden setzen, sonst bricht das Rendern ab:
+    # a) caBundle: die Wurzelzertifikate als PEM; das Chart legt daraus das Secret (Schlüssel
+    #    ca.crt) im Namespace dieses Releases an. Für Let's Encrypt die Wurzeln ISRG Root X1 und X2
+    #    (https://letsencrypt.org/certificates/), etwa:
+    #      cat isrgrootx1.pem isrg-root-x2.pem > le-wurzeln.pem
+    #      helm … --set-file backend.externalName.caBundle=le-wurzeln.pem
+    caBundle: ""
+    # b) verifySecret: ein vorhandenes Secret mit ca.crt, „<secret>“ oder „<namespace>/<secret>“ —
+    #    im Namespace dieses Releases: ingress-nginx liest Secrets anderer Namespaces nur mit
+    #    --allow-cross-namespace-resources.
+    verifySecret: ""
+    # Pflicht mit a) oder b): ausdrücklich bestätigen, dass die ConfigMap des Controllers
+    # `proxy-ssl-location-only: "true"` hat. Sonst übernimmt ingress-nginx die Prüfung des
+    # Chat-Hosts für den ganzen Server-Block des Repository-Hosts (502 für alles, was dort HTTPS
+    # spricht). Die Einstellung gilt für alle Ingresse des Controllers: Prüfwerte nur noch je
+    # Location — mit dem Betrieb des Clusters abstimmen. Prüfbefehl: docs/uebergabe-betrieb.md §16.
+    proxySslLocationOnlyGesetzt: false
+    # Nur ausdrücklich: ohne Prüfung und ohne SNI (verschlüsselt, aber gegen jeden Gegenüber).
+    # NOTES.txt warnt dann.
+    insecureSkipVerify: false

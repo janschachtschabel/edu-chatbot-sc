@@ -17,7 +17,9 @@ from boerdi.ui_module.namen import UPLOAD
 @pytest.fixture
 def lage(monkeypatch):
     """Studio, Anmeldung, Stapel-Ablage des MCP und Flow-Träger — je Test einstellbar."""
-    werte = {"cfg": UploadSettings(), "person": True, "ablage": True, "flow": True}
+    werte = {"cfg": UploadSettings(), "person": True, "ablage": True, "flow": True, "ocr": False}
+    # Paket C: die Texterkennung prüfen ihre eigenen Tests (``test_paket_c_ocr_orte``)
+    monkeypatch.setattr(upload_orte, "_texterkennung", lambda cfg: werte["ocr"])
     monkeypatch.setattr(upload_orte, "load_upload_config", lambda: werte["cfg"])
     monkeypatch.setattr(upload_orte, "has_personal_auth", lambda: werte["person"])
     monkeypatch.setattr(upload_orte, "_ablage_da", lambda: werte["ablage"])

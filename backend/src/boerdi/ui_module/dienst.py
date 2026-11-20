@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Final
@@ -22,20 +23,26 @@ from typing import TYPE_CHECKING, Any, Final
 from jsonschema import Draft202012Validator
 
 from boerdi.api.schemas_debug import ToolOutcome
+from boerdi.domain import ui_bloecke
 from boerdi.domain.ui_bloecke import neuer_block
 from boerdi.services import strukturentwurf_vokabular
 from boerdi.services import strukturentwurf_zuordnung as zuordnung
 from boerdi.services.dokumente.stand import OhneVolltext
-from boerdi.ui_module import katalog
+from boerdi.services.strukturentwurf_dokument import ganzer_text
+from boerdi.ui_module import dienst_ganztext, katalog
 from boerdi.ui_module import strukturentwurf as se
 from boerdi.ui_module import strukturentwurf_merken as entwurf_merken
 from boerdi.ui_module import strukturentwurf_text as st
 from boerdi.ui_module.datenquelle import Ergebnis
 
-# Review N3, MINOR 8: die Fehlertexte stehen in ``dienst_fehler`` (die alten Namen bleiben)
+# Review N3, MINOR 8: die Fehlertexte stehen in ``dienst_fehler`` (die alten Namen bleiben); Review
+# Paket A (zweites), MINOR 6: ebenso die Sätze zu fehlenden Volltexten
 from boerdi.ui_module.dienst_fehler import FEHLER as _FEHLER
 from boerdi.ui_module.dienst_fehler import FEHLER_ARGUMENTE as _FEHLER_ARGUMENTE
 from boerdi.ui_module.dienst_fehler import FEHLER_SONST as _FEHLER_SONST
+from boerdi.ui_module.dienst_fehler import namen as _namen
+from boerdi.ui_module.dienst_fehler import ohne_volltext as _ohne_volltext
+from boerdi.ui_module.dienst_fehler import volltext_satz as _volltext_satz
 from boerdi.ui_module.dienst_strukturabgleich import strukturabgleich
 from boerdi.ui_module.dienst_upload import upload_angebot
 from boerdi.ui_module.katalog import Manifest
@@ -58,29 +65,42 @@ def _fehlschlag(modul: str, text: str, art: str, latenz_ms: int = 0) -> Ergebnis
                                             else "error", error=art, latency_ms=latenz_ms))
 
 
-def _moderation():
+def _moderation(stufe: str = "strukturentwurf_auszug"):
     """Querschnitts-Review 2026-11-06: der Auszug des Dokuments für Ebene 2 geht erst nach der
-    Moderation ans Modell (``services/strukturentwurf_auszug``)."""
+    Moderation ans Modell (``services/strukturentwurf_auszug``). Zweites Review A, NIT 11: der
+    ganze Text unter ``strukturentwurf_ganztext``."""
     import functools
 
     from boerdi.services.safety.moderation import moderate
 
     # Review Q4, Befund 1: unter eigener Stufe gezählt, nicht im Alarm der Chat-Züge.
-    return functools.partial(moderate, stufe="strukturentwurf_auszug")
+    return functools.partial(moderate, stufe=stufe)
 
 
-async def _ebene_eins_pruefen(text: str) -> str | None:
+async def _ebene_eins_pruefen(text: str, stufe: str | None = None, *,
+                              offen: str | None = None) -> str | None:
     """Review TB-T1, Befund 1: Übersicht und Anfang der Materialien vor Ebene 1 durch die
     Moderation — ``abgewiesen``, ``pruefung_fehlt`` (ohne Urteil bei Ausfallmodus ``closed``,
-    wie ``dokumente/aufnahme``) oder ``None``."""
+    wie ``dokumente/aufnahme``) oder ``None``. ``stufe``: eine eigene Stufe der Moderation.
+    ``offen``: das Ergebnis ohne Urteil im Modus ``open`` (sonst ``None`` = weiter)."""
     from boerdi.settings import get_settings
 
-    urteil = await _moderation()(text)
+    urteil = await (_moderation(stufe) if stufe else _moderation())(text)
     if urteil.get("flagged"):
         return "abgewiesen"
-    if not urteil and get_settings().moderation_failure_mode == "closed":
-        return "pruefung_fehlt"
+    # Review Paket A, NIT 12: nur teilweise geprüft (sehr langer Text) ist kein Urteil übers Ganze
+    ohne_urteil = not urteil or urteil.get("teilweise")
+    if ohne_urteil:
+        return "pruefung_fehlt" if get_settings().moderation_failure_mode == "closed" else offen
     return None
+
+
+async def _ganztext_pruefen(text: str) -> str | None:
+    """Ein Stück des ganzen Texts — eigene Stufe ``strukturentwurf_ganztext`` (NIT 11). Ohne Urteil
+    im Modus ``open`` :data:`~dienst_ganztext.OHNE_URTEIL` (viertes Review A, MINOR 7): der ganze
+    Text geht dann nie ungeprüft ans Modell, es gilt der Weg „gliederung“."""
+    return await _ebene_eins_pruefen(text, stufe="strukturentwurf_ganztext",
+                                     offen=dienst_ganztext.OHNE_URTEIL)
 
 
 #: Paket N3: die Einbettungs-Naht der Zuordnung (Tests setzen eine Attrappe).
@@ -122,7 +142,8 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
         return _block(manifest, dict(umgebung.vorlage or {}), 0)
     if args.get("vertiefen") and args.get("vorlage") is not True:
         return _fehlschlag(modul, _FEHLER["vertiefen"].format(name=modul), "argumente")
-    dokument = None
+    frist_ende = _frist(umgebung)
+    dokument = ganz = None
     if args.get("aus_inhalten") is True:
         # TB-T1: die Metadaten der Materialien aus dem Vorgang (Teil ``metadaten``, vom Ablauf-
         # Werkzeug ``metadaten_lesen``) — serverseitig gelesen, nie aus den Argumenten.
@@ -146,25 +167,37 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
         if dokument is None:
             return _fehlschlag(modul, _FEHLER["kein_dokument"].format(name=modul),
                                "kein_dokument")
+        abgewiesen = None
         if getattr(dokument, "ungeprueft", False):
             # Plan 2026-11-16, TG-3d: ein Volltext aus WLO sah beim Lesen keine Moderation (anders
             # als ein im Chat hochgeladenes Dokument) — Übersicht und Anfang vor Ebene 1 prüfen
             from boerdi.services.strukturentwurf_dokument import uebersicht_und_anfang
 
-            if (abgewiesen := await _ebene_eins_pruefen("\n".join(
-                    uebersicht_und_anfang(dokument)))):
-                return _fehlschlag(modul, _FEHLER[abgewiesen].format(name=modul), abgewiesen)
+            abgewiesen = await _ebene_eins_pruefen("\n".join(uebersicht_und_anfang(dokument)))
+        # Plan 2026-11-19, A4 (E2): was ganz an Ebene 1 geht, ist vorher moderiert — in Stücken
+        if not abgewiesen and (ganz := ganzer_text(dokument)) is not None:
+            # Zweites Review A, MINOR 4: an die Frist des Dienstes gebunden
+            abgewiesen = await dienst_ganztext.in_frist(ganz, _ganztext_pruefen, frist_ende)
+            if abgewiesen == dienst_ganztext.OHNE_URTEIL:
+                # Drittes Review A, MAJOR 4; viertes, MINOR 7: Frist abgelaufen oder Moderation
+                # ohne Urteil im Modus ``open`` — der Weg „gliederung“, nie „ganz“ ungeprüft
+                ganz = abgewiesen = None
+        if abgewiesen:   # Review A: eigene Sätze für ein Dokument (nicht „Materialien“)
+            satz = _FEHLER[f"{abgewiesen}_dokument"]
+            return _fehlschlag(modul, satz.format(name=modul), abgewiesen)
     auftrag = dienst.Auftrag(
         thema=" ".join(args["thema"].split()), fach=args.get("fach"),
         bildungsstufe=args.get("bildungsstufe"), anzahl_oben=args.get("anzahl_oben", 10),
         tiefe=args.get("tiefe", 2), hinweise=str(args.get("hinweise") or ""),
         vertiefen=tuple(args.get("vertiefen") or ()), vorgaben=umgebung.vorgaben)
     t0 = time.monotonic()
-    frist_ende = _frist(umgebung)
     erzeugt = await dienst.erzeugen(
         auftrag, llm=dienst.llm_json(umgebung.usage_acc), frist_ende=frist_ende,
         vorlage=umgebung.vorlage if args.get("vorlage") is True else None, dokument=dokument,
-        moderieren=_moderation() if dokument is not None else None)
+        moderieren=_moderation() if dokument is not None else None,
+        ganz_moderiert=ganz is not None,
+        llm_vorwaermen=dienst.llm_json(umgebung.usage_acc, dienst.PHASE_VORWAERMEN)
+        if ganz is not None else None)
     latenz_ms = int((time.monotonic() - t0) * 1000)
     daten = erzeugt.daten
     if daten is not None and args.get("aus_inhalten") is True:
@@ -197,56 +230,16 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
     return ergebnis
 
 
-def _namen(fehlend: tuple[tuple[str, str], ...]) -> str:
-    """Die Namen fehlender Dokumente für die KI — eine Zeile je Name, ohne Anführungs- und
-    Rahmenzeichen (Text der Person, Review TG-3d–f, MINOR 3)."""
-    from boerdi.ui_module.rahmen import name_fuer_ki
-
-    return ", ".join(f"„{name_fuer_ki(n)}“" for n, _grund in fehlend[:5])
-
-
-def _volltext_satz(fehlend: tuple[tuple[str, str], ...]) -> str:
-    """Nachprüfung TG-3d–f, MINOR 4: welcher Satz zu ``volltext_fehlt`` passt — später (der Text
-    entsteht noch), Anmeldung fehlt, oder kein Zugriff bzw. nicht gefunden."""
-    from boerdi.services.dokumente.strukturdokument import NICHT_EXTRAHIERT, SPAETER
-
-    gruende = {g for _n, g in fehlend}
-    if NICHT_EXTRAHIERT in gruende:
-        # Durchtest TG-7, m3: vor dem Lesefehler — „noch nicht oder nie“ ist die ehrlichere Auskunft
-        return "volltext_fehlt_datei"
-    if gruende & SPAETER:
-        return "volltext_fehlt"
-    if gruende == {"ohne_anmeldung"}:
-        return "volltext_fehlt_anmeldung"
-    return "volltext_fehlt_zugriff"
-
-
-def _ohne_volltext(fehlend: tuple[tuple[str, str], ...]) -> str:
-    from boerdi.services.dokumente.strukturdokument import ABGELAUFEN, NICHT_EXTRAHIERT, SPAETER
-
-    def satz(n: str, g: str) -> str:
-        name = _namen(((n, g),))
-        if g == NICHT_EXTRAHIERT:
-            # Durchtest TG-7, m3
-            return (f"Dokument {name}: (noch) keinen lesbaren Text — entsteht er gerade oder ist "
-                    "es ein Scan; sonst eine Fassung mit Text hochladen.")
-        if g in SPAETER:
-            return f"Dokument {name}: Volltext gerade nicht lesbar, später erneut."
-        if g == ABGELAUFEN:
-            # Nachprüfung, NIT 6: ein Sitzungsdokument, das nicht mehr lesbar ist
-            return f"Dokument {name}: nicht mehr lesbar (abgelaufen), bitte neu lesen lassen."
-        if g == "ohne_anmeldung":
-            return f"Dokument {name}: nur mit Anmeldung bei WLO lesbar."
-        return f"Dokument {name}: kein Volltext lesbar."
-
-    return " ".join(satz(n, g) for n, g in fehlend[:5])
-
-
 def _block(manifest: Manifest, daten: dict[str, Any], latenz_ms: int) -> Ergebnis:
     """Daten prüfen (Eingabe und Deckel) und als offenen Block mit Quittung liefern."""
     modul = manifest["name"]
     if not daten.get("knoten") or katalog.daten_fehler(manifest, daten) or se.fehler(daten):
         return _fehlschlag(modul, _FEHLER_SONST.format(name=modul), "abweichung", latenz_ms)
+    if "gelesen" in daten and len(json.dumps(daten, ensure_ascii=False)) > (
+            ui_bloecke.DATEN_DECKEL_ZEICHEN):
+        # Review A, NIT 16: die Rückkontrolle ist nur Anzeige — sie hebt den Entwurf nie über den
+        # Deckel der Blockdaten (der Block ginge sonst nicht in Antwort und Verlauf)
+        daten = {k: v for k, v in daten.items() if k != "gelesen"}
     block = neuer_block(modul, manifest["version"], manifest["art"], daten, st.textfassung(daten))
     return Ergebnis(block, st.quittung(daten), ToolOutcome(
         tool=modul, status="success", item_count=se.anzahl(daten["knoten"]),
@@ -283,6 +276,13 @@ async def aufruf(manifest: Manifest, args: Any, umgebung: Umgebung) -> Ergebnis:
         from boerdi.services.ablauf.vorbelegung import vorbelegt
 
         args = vorbelegt(args, umgebung.vorbelegung)
+    if (isinstance(args, dict) and args.get("vorlage") is not True
+            and (feste := (umgebung.feste_argumente or {}).get(modul))):
+        # Plan 2026-11-19, A2 (E4): die festen Argumente des Schritts zuletzt — sie überschreiben
+        # die KI (ein Dokument-Schritt entwirft nie frei, wenn sie ``aus_dokument`` vergisst).
+        # Review A, MAJOR 1: nur für neue Entwürfe — mit ``vorlage`` (vertiefen, erneut zeigen)
+        # schlössen sie sich aus, und die Bearbeitungen der Person gingen verloren
+        args = {**args, **feste}
     pruefer = Draft202012Validator(manifest["dienst"]["parameter"])
     if not isinstance(args, dict) or (fehler := [f.message for f in pruefer.iter_errors(args)]):
         abweichung = "; ".join(fehler) if isinstance(args, dict) else "kein Objekt"

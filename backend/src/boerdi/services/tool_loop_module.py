@@ -63,6 +63,8 @@ VORGABEN_KEY: Final = "_modul_vorgaben_zug"
 #: Plan 2026-11-16, TG-5: die Vorbelegung des KI-Schritts (``ablauf/vorbelegung``) und die
 #: Werkzeuge des Schritts, für die sie gilt — nur für diesen Zug, wie die Vorgaben.
 VORBELEGUNG_KEY: Final = "_modul_vorbelegung_zug"
+#: Plan 2026-11-19, A2 (E4): die festen Argumente des KI-Schritts je Werkzeug — nur für diesen Zug.
+FESTE_KEY: Final = "_modul_feste_zug"
 
 
 @dataclass(slots=True)
@@ -139,7 +141,8 @@ async def _ergebnis(name: str, roh_args: Any, angeboten: Collection[str],
                 teile=session_state.get(TEIL_LADER_KEY), verfuegbar=frozenset(angeboten),
                 belegung=session_state.get(BELEGUNG_KEY),
                 vorgaben=_vorgaben_fuer(name, session_state.get(VORGABEN_KEY)),
-                vorbelegung=_vorbelegung_fuer(name, session_state.get(VORBELEGUNG_KEY))))
+                vorbelegung=_vorbelegung_fuer(name, session_state.get(VORBELEGUNG_KEY)),
+                feste_argumente=session_state.get(FESTE_KEY)))
         outcomes.append(ergebnis.outcome)
         if ergebnis.block is not None:
             session_state.setdefault(MODUL_BLOECKE_KEY, []).append(ergebnis.block)

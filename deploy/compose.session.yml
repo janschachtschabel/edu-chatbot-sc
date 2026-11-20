@@ -1,0 +1,31 @@
+# Zusatzdatei: Anmeldung aus der WLO-Sitzung, wenn der Chatbot mit Docker Compose auf einem eigenen
+# Rechner läuft (Plan 2026-11-19, E9). Nur einbinden, wenn der Tausch genutzt wird:
+#
+#   docker compose -f compose.prod.yml -f compose.session.yml --env-file .env up -d
+#
+# Der Weg: Browser → Ingress am Repository-Host im Cluster (Chart deploy/helm/boerdi-session-ingress,
+# Ziel `backend.externalName` = dieser Rechner, Port 8443) → HTTPS an den eigenen Eingang `sitzung`
+# von traefik, der Host-Kopf bleibt der des Repositorys → dieser Router → Backend. Das Backend nimmt
+# den Pfad unverändert an (api/sitzung.py) und prüft Host und Origin gegen MCP_SESSION_URL.
+#
+# - SESSION_HOST: der Host des Repositorys, z. B. repository.staging.openeduhub.net (Pflicht, sobald
+#   die Datei eingebunden ist). MCP_SESSION_URL = https://<SESSION_HOST>/edu-sharing/services/boerdi/auth/session
+# - Eigener Eingang `sitzung` (:8443, in compose.prod.yml angelegt, hier veröffentlicht): Nur dort
+#   behält traefik X-Forwarded-For von TRAEFIK_TRUSTED_IPS (Ausgangsadressen des Clusters) — sonst
+#   zählte es alle Personen als die eine Adresse des Ingress (Grenze je Adresse: 10 Tausche je
+#   Minute für alle). Der öffentliche Chat (`websecure`, 443) glaubt weiterhin niemandem. Am
+#   Eingang `sitzung` gibt es nur diesen einen Router; alles andere antwortet 404.
+# - TLS ohne certresolver: Ein Zertifikat für den fremden Host kann Let's Encrypt hier nicht ausstellen
+#   (die Herausforderung ginge an das Repository). Der Ingress nennt im TLS-Handschlag den Chat-Host
+#   (proxy-ssl-name) und prüft dessen Zertifikat (Chart: caBundle).
+# Schritte für Staging: docs/uebergabe-betrieb.md §16.
+services:
+  traefik:
+    ports:
+      - "8443:8443"
+  backend:
+    labels:
+      - traefik.http.routers.boerdi-sitzung.rule=Host(`${SESSION_HOST:?SESSION_HOST fehlt — Host des Repositorys, z. B. repository.staging.openeduhub.net}`) && Path(`/edu-sharing/services/boerdi/auth/session`)
+      - traefik.http.routers.boerdi-sitzung.entrypoints=sitzung
+      - traefik.http.routers.boerdi-sitzung.tls=true
+      - traefik.http.routers.boerdi-sitzung.service=boerdi

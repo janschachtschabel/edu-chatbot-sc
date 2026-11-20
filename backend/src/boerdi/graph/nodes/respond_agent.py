@@ -433,6 +433,8 @@ async def respond_agent(
         # Plan 2026-11-11, TW-2: Vorgaben der Redaktion aus dem KI-Schritt des Laufs
         modul_vorgaben=ki_schritt.vorgaben(_ki[1], sprache) if _ki else "",
         modul_vorbelegung=_vorbelegt or None,
+        # Plan 2026-11-19, A2 (E4): feste Argumente des Schritts (der Ablauf geht vor der KI)
+        modul_feste=_ki[1].agent.feste_argumente if _ki and _ki[1].agent else None,
         # TW-6: ohne Arbeitsgrundlage geht ein passender Ablauf vor (``vorschlag.umlenkung``)
         modul_umlenkung=None if _ki else (
             lambda name, args, angeboten, merken=True: ablauf_vorschlag.umlenkung(

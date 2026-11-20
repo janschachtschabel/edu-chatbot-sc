@@ -54,6 +54,9 @@ class Umgebung:
     #: Review Paket U (19.11.), MAJOR 3: die Belegung der Sitzung (``dokumente/ablage.belegung``)
     #: — der Upload-Dienst sperrt „Hier im Chat“ bei voller Sitzung. ``None``: nicht gezählt.
     belegung: BelegungLader | None = None
+    #: Plan 2026-11-19, A2 (E4): die festen Argumente des KI-Schritts je Werkzeug
+    #: (``agent.feste_argumente``) — sie gehen der KI und der Vorbelegung vor (``dienst.aufruf``).
+    feste_argumente: dict[str, dict[str, Any]] | None = None
 
 
 async def asynchron(name: str, args: Any, umgebung: Umgebung | None = None) -> Ergebnis:

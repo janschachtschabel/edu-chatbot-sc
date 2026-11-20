@@ -1,0 +1,17 @@
+{{- if .Values.backend.externalName.host }}
+# Ziel B: das Backend läuft auf einem eigenen Rechner (Docker Compose). Ein Service vom Typ
+# ExternalName macht dessen Host im Cluster ansprechbar; ingress-nginx löst ihn per DNS auf.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "boerdi_session.name" . }}
+  labels:
+    {{- include "boerdi_session.labels" . | nindent 4 }}
+spec:
+  type: ExternalName
+  externalName: {{ .Values.backend.externalName.host | quote }}
+  ports:
+    - name: https
+      port: {{ .Values.backend.externalName.port | int }}
+      targetPort: {{ .Values.backend.externalName.port | int }}
+{{- end }}

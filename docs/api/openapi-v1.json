@@ -701,6 +701,21 @@
             ],
             "title": "Ausgabe"
           },
+          "feste_argumente": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feste Argumente"
+          },
           "hinweis": {
             "anyOf": [
               {
@@ -1249,6 +1264,17 @@
       },
       "ChatResponse": {
         "properties": {
+          "auth_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Display Name"
+          },
           "auth_expires_at": {
             "anyOf": [
               {

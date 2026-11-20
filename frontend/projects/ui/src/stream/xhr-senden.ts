@@ -22,7 +22,11 @@ export interface SendenOptionen {
   /** Anteil 0…1 des gesendeten Rumpfs. */
   readonly onFortschritt?: (anteil: number) => void;
   readonly signal?: AbortSignal;
+  /** Gesamtfrist samt Hochladen (`xhr.timeout`). */
   readonly fristMs: number;
+  /** Frist für die Antwort, gezählt ab dem Ende des Hochladens (Paket C, zweites Review 3): ein
+   *  langsames Hochladen soll die Zeit des Servers nicht aufbrauchen. Ohne Angabe nur `fristMs`. */
+  readonly antwortFristMs?: number;
   /** Für Tests. */
   readonly xhrFabrik?: () => XMLHttpRequest;
 }
@@ -51,13 +55,24 @@ export function xhrSenden(o: SendenOptionen): Promise<unknown> {
     if (o.signal?.aborted) return abgelehnt(abgebrochen());
     const xhr = (o.xhrFabrik ?? (() => new XMLHttpRequest()))();
     const abbrechen = () => xhr.abort();
-    const ende = () => o.signal?.removeEventListener('abort', abbrechen);
+    let uhr: ReturnType<typeof setTimeout> | undefined;
+    let zuLangsam = false;
+    const ende = () => {
+      o.signal?.removeEventListener('abort', abbrechen);
+      if (uhr !== undefined) clearTimeout(uhr);
+    };
     xhr.open('POST', o.url);
     for (const [name, wert] of Object.entries(accessBlockHeaders())) xhr.setRequestHeader(name, wert);
     xhr.timeout = o.fristMs;
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && e.total > 0) o.onFortschritt?.(Math.min(1, e.loaded / e.total));
     };
+    if (o.antwortFristMs !== undefined) {
+      const frist = o.antwortFristMs;
+      xhr.upload.onload = () => {
+        uhr = setTimeout(() => { zuLangsam = true; xhr.abort(); }, frist);
+      };
+    }
     xhr.onload = () => {
       ende();
       if (xhr.status !== 200) return abgelehnt(transportFehler(xhr.status, codeAus(xhr.responseText)));
@@ -69,7 +84,7 @@ export function xhrSenden(o: SendenOptionen): Promise<unknown> {
     };
     xhr.onerror = () => { ende(); abgelehnt(transportFehler(0, 'netz')); };
     xhr.ontimeout = () => { ende(); abgelehnt(transportFehler(0, 'zu_langsam')); };
-    xhr.onabort = () => { ende(); abgelehnt(abgebrochen()); };
+    xhr.onabort = () => { ende(); abgelehnt(zuLangsam ? transportFehler(0, 'zu_langsam') : abgebrochen()); };
     o.signal?.addEventListener('abort', abbrechen, { once: true });
     if (o.rumpf instanceof FormData) {
       xhr.send(o.rumpf);

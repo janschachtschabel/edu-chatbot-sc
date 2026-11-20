@@ -26,6 +26,8 @@ const ABLAUF_KENNUNG = /^[a-z][a-z0-9_]{0,39}$/;
 /** Frühe Grenzen der Startdaten (das Backend nimmt höchstens 20 Schlüssel, Review AS-4b, 13). */
 export const START_SCHLUESSEL_MAX = 20;
 export const START_JSON_MAX = 16_000;
+/** B4: so lang höchstens ein Name aus der Antwort eines Zuges (wie das Backend, `anmeldung.py`). */
+const NAME_AUS_DEM_ZUG_MAX = 120;
 
 /** AS-4b: Kennung und Startdaten der Gastseite — als reines JSON kopiert, oder `null`. Leere Daten
  *  zählen als keine (Review AS-4b, Befund 9: sonst wiese das Backend einen Knopf-Ablauf ab). */
@@ -86,6 +88,7 @@ import { SpeechService } from '../speech/speech.service';
 import { CORE_TRUSTED_DOMAINS } from '../session/trusted-host';
 import { runSignIn } from '../session/sign-in-flow';
 import { authButtonState } from '../session/auth-button';
+import { initialen } from '../session/initialen';
 import { FortsetzenController, type OffenerVorgang, fortsetzenDatum } from './fortsetzen';
 import { type WiederkehrKennung, wiederkehrKennung } from '../stream/offene-vorgaenge';
 import { sitzungsWache } from '../session/session-id';
@@ -915,7 +918,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     this.eingabeGesperrt.set(resp.eingabe_gesperrt === true);
     if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
     if (resp.auth_invalid) this._zugAbgewiesen();
-    else this._frist.planen(resp.auth_expires_at);
+    else {
+      this._frist.planen(resp.auth_expires_at);
+      this._nameUebernehmen(resp.auth_display_name);
+    }
     if (this._speech.autoSpeak && resp.content) {
       this._speech.autoSpeakText(resp.content);
     }
@@ -1339,6 +1345,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       if (weg === 'sitzung') this._wache.getauscht(outcome);
       if (outcome === 'done') {
         this._angemeldetAls.set(displayName ?? '');
+        this._nameAusDemZug.set('');   // B4: ein neuer Block — ein Name aus einem Zug galt dem alten
         this._hasAccessBlock.set(readAccessBlock() !== null);
         this._fortsetzenNeu();   // K2a: ein neuer Block kann einer anderen Person gehören
         void this._standNachladen();   // Z-1: der Lauf der Person, nun angemeldet
@@ -1427,6 +1434,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Knopf, Frist und die Listen der Person nachziehen. Den Block selbst löscht der Aufrufer. */
   private _blockVerworfen(): void {
     this._hasAccessBlock.set(false);
+    this._nameAusDemZug.set('');
     this._frist.vergessen();
     this.fortsetzen.vergessen();
     this.meineVorgaenge.vergessen();
@@ -1512,12 +1520,44 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Name der Person aus der Sitzung der Seite (SA-9): nur im Arbeitsspeicher, nur am Knopf. */
   private readonly _angemeldetAls = signal('');
 
+  /** Plan 2026-11-19 (B4): der Name, den das Backend in der Antwort eines Zuges nennt
+   *  (`auth_display_name`, aus `/auth/status`) — für die Anmeldung von Hand und per Ticket. Nur im
+   *  Arbeitsspeicher; geräumt bei Abmelden, Abweisung und neuem Block. */
+  private readonly _nameAusDemZug = signal('');
+
+  /** Der Name am Knopf und im Kürzel: der aus der Sitzung der Seite geht vor. */
+  private readonly _anzeigename = computed(() => this._angemeldetAls() || this._nameAusDemZug());
+
+  /** B4: den Namen aus der Antwort übernehmen — nur Text, nur mit Block, nur für den Block, mit dem
+   *  der Zug hinausging, und nicht über einen Namen aus der Sitzung der Seite. Ein Zug ohne Namen
+   *  (Server gerade nicht prüfbar) lässt den bisherigen stehen. */
+  private _nameUebernehmen(wert: unknown): void {
+    if (typeof wert !== 'string' || this._angemeldetAls()) return;
+    // nach Zeichen gekürzt, nicht nach UTF-16-Einheiten — sonst bliebe ein halbes Surrogatpaar
+    const name = Array.from(wert.trim()).slice(0, NAME_AUS_DEM_ZUG_MAX).join('').trim();
+    const block = readAccessBlock();
+    if (!name || block === null || this._api.letzterZugBlock !== block) return;
+    this._nameAusDemZug.set(name);
+  }
+
   /** Beschriftung des Knopfs. Wer aus der Sitzung der Seite angemeldet wurde, hat nichts
    *  angeklickt — der Knopf sagt deshalb, unter welchem Namen der Chatbot arbeitet. */
   readonly authTitel = computed(() => {
     if (this.authButton() !== 'signOut') return this.t('auth.signIn');
-    const name = this._angemeldetAls();
+    const name = this._anzeigename();
     return name ? this.t('auth.signOutAs', { name }) : this.t('auth.signOut');
+  });
+
+  /** Plan 2026-11-19 (E8): das Kürzel im Kreis links vom Anmelde-Knopf. Einen Namen kennt nur der
+   *  Weg über die Sitzung der Seite sofort, von Hand und über das Ticket nach dem ersten Zug (B4);
+   *  bis dahin das Personen-Symbol. Abgemeldet steht dort das ausgegraute Symbol — auch wenn
+   *  `_angemeldetAls` den Namen der letzten Anmeldung noch hält (Abmelden räumt ihn nicht). */
+  readonly kuerzel = computed(() =>
+    this.authButton() === 'signOut' ? initialen(this._anzeigename()) : '');
+  readonly kuerzelTitel = computed(() => {
+    if (this.authButton() !== 'signOut') return this.t('auth.notSignedIn');
+    const name = this._anzeigename().trim();
+    return name ? this.t('auth.signedInAs', { name }) : this.t('auth.signedIn');
   });
 
   /** Der Server wies den Block eines Zugs ab. Das gilt dem Block, mit dem der Zug hinausging:
@@ -1609,7 +1649,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       if (angemeldet) clearSignedOut();
       // Ein neuer Block: der Name am Knopf gehörte zur Sitzung der Seite. Bricht die Person das
       // Anmeldefenster ab, bleibt er (Review 2026-11-15).
-      if (readAccessBlock() !== vorher) this._angemeldetAls.set('');
+      if (readAccessBlock() !== vorher) {
+        this._angemeldetAls.set('');
+        this._nameAusDemZug.set('');
+      }
       this._hasAccessBlock.set(angemeldet);
       this._fortsetzenNeu();     // K2a: nach der Anmeldung fragen, mit diesem Block
       if (angemeldet) {

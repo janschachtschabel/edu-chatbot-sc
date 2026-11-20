@@ -35,13 +35,20 @@ export interface HochladenOptionen {
   /** Anteil 0…1 des gesendeten Rumpfs; danach liest das Backend (ohne eigene Meldung). */
   readonly onFortschritt?: (anteil: number) => void;
   readonly signal?: AbortSignal;
-  /** Über der Frist des Backends (60 s Umwandlung) plus Hochladen. */
+  /** Gesamtfrist samt Hochladen (Vorgabe {@link GESAMT_FRIST_MS}). */
   readonly fristMs?: number;
+  /** Frist der Antwort ab dem Ende des Hochladens (Vorgabe {@link ANTWORT_FRIST_MS}). */
+  readonly antwortFristMs?: number;
   /** Für Tests. */
   readonly xhrFabrik?: () => XMLHttpRequest;
 }
 
-const FRIST_MS = 120_000;
+/** Die Antwort nach dem Hochladen: über der Arbeit des Backends (Umwandlung 60 s bzw. Texterkennung
+ *  80 s, Moderation, Kurzangaben, Speichern — `api/ui_dokumente.OCR_FRIST_S`) und unter der
+ *  Lesefrist des Ingress (120 s). Paket C, zweites Review 3: gezählt erst ab dem Ende des Hochladens. */
+export const ANTWORT_FRIST_MS = 120_000;
+/** Deckel für alles samt Hochladen (25 MB auch bei langsamer Leitung). */
+export const GESAMT_FRIST_MS = 600_000;
 
 function istBefund(d: unknown): d is DokumentBefund {
   const b = d as Partial<DokumentBefund> | null;
@@ -57,7 +64,8 @@ export async function dokumentHochladen(o: HochladenOptionen): Promise<DokumentB
   if (o.rolle) rumpf.append('rolle', o.rolle);
   const antwort = await xhrSenden({
     url: o.url, rumpf, onFortschritt: o.onFortschritt, signal: o.signal,
-    fristMs: o.fristMs ?? FRIST_MS, xhrFabrik: o.xhrFabrik,
+    fristMs: o.fristMs ?? GESAMT_FRIST_MS, antwortFristMs: o.antwortFristMs ?? ANTWORT_FRIST_MS,
+    xhrFabrik: o.xhrFabrik,
   });
   if (!istBefund(antwort)) throw transportFehler(200, 'fehler');
   return antwort;

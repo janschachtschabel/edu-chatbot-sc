@@ -214,7 +214,9 @@ def test_nit_quelle_aus_inhalten_ist_ki(monkeypatch):
     from boerdi.ui_module.aufruf import Umgebung
     from boerdi.ui_module.katalog import katalog
 
-    async def erzeugen(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
+    async def erzeugen(auftrag, *, llm, frist_ende, vorlage=None, dokument=None,
+                       moderieren=None, ganz_moderiert=False,
+                       llm_vorwaermen=None):
         return dienst.Erzeugt(daten={"titel": "Zahlen", "quelle": "dokument", "thema": "Zahlen",
                                      "knoten": [{"id": "k1", "titel": "Brüche"}]})
 

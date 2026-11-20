@@ -104,7 +104,9 @@ def test_der_dienst_nimmt_aus_inhalten_den_teil_metadaten(monkeypatch):
 
     gesehen: dict = {}
 
-    async def erzeugen(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
+    async def erzeugen(auftrag, *, llm, frist_ende, vorlage=None, dokument=None,
+                       moderieren=None, ganz_moderiert=False,
+                       llm_vorwaermen=None):
         gesehen["dokument"] = dokument
         return strukturentwurf_dienst.Erzeugt(daten=None, grund="test")
 

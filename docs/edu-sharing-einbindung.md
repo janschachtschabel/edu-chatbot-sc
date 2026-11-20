@@ -38,8 +38,9 @@ Wollt ihr `/api/agent` selbst aufrufen (§8), geht das mit dem Block des Widgets
 
 Was ihr für A und B **nicht** tun müsst: nichts an edu-sharing bauen, keinen Endpunkt
 bereitstellen, keine Anwendung registrieren, keinen Reverse-Proxy einrichten. Für C
-legt das Chart des Chatbots ein eigenes Ingress-Objekt mit eurem Hostnamen an, genau wie das
-Chart des md-editors; an edu-sharing selbst wird auch dort nichts gebaut.
+legt unser Chart `deploy/helm/boerdi-session-ingress` ein eigenes Ingress-Objekt mit eurem
+Hostnamen an, genau wie das Chart des md-editors; an edu-sharing selbst wird auch dort nichts
+gebaut.
 
 **Was ihr entscheidet:** mit welchem Konto der MCP-Server liest.
 
@@ -254,7 +255,8 @@ Rechten. Plan mit allen Entscheiden:
 **Warum das jetzt geht:** Nicht der Browser holt sich einen Ausweis vom Repository (das bleibt
 unmöglich, siehe oben; auch die Schnittstelle des Repositorys gibt keinem Browser ein Ticket,
 gemessen am 15.11. an 321 Pfaden). Unser Chart legt einen Pfad **auf eurem Host** unterhalb
-von `/edu-sharing` an (`sessionIngress`). Dorthin schickt der Browser das Sitzungs-Cookie von
+von `/edu-sharing` an (`deploy/helm/boerdi-session-ingress`). Dorthin schickt der Browser das
+Sitzungs-Cookie von
 selbst mit; unser Backend reicht es an den MCP-Server weiter, und der tauscht die Sitzung gegen
 einen gewöhnlichen Zugangsblock. Dasselbe Muster nutzt der md-editor für seine Anmeldung aus der
 Sitzung (`config.auth.cookie.enabled`, `ingress.basePath`, läuft so auf Staging). Ohne einen
@@ -307,7 +309,7 @@ Ein Ticket im Attribut geht vor: Mit `ticket` nimmt das Widget §3, ohne diesen 
 | Wo | Was | Sonst |
 |---|---|---|
 | **MCP-Server** | `WLO_AUTH_PRIVATE_KEY` und `WLO_SESSION_EXCHANGE=1` (der MCP bleibt, wo er ist) | Tausch → 404 → `unavailable` |
-| **Chart des Chatbots** | `sessionIngress`: ein eigenes Ingress-Objekt mit eurem Hostnamen, das genau `/edu-sharing/services/boerdi/auth/session` unverändert an unser Backend leitet (`pathType: Exact`, kein `rewrite-target`), wie beim md-editor (läuft so auf Staging unter `/edu-sharing/services/md-editor/`); an edu-sharing selbst ändert sich nichts | Tausch → 404 vom Repository (gemessen) → `unavailable` |
+| **Cluster des Repositorys** | Chart `deploy/helm/boerdi-session-ingress`: ein eigenes Ingress-Objekt mit eurem Hostnamen, das genau `/edu-sharing/services/boerdi/auth/session` unverändert an unser Backend leitet (`pathType: Exact`, kein `rewrite-target`), wie beim md-editor (läuft so auf Staging unter `/edu-sharing/services/md-editor/`); an edu-sharing selbst ändert sich nichts. Läuft unser Backend außerhalb des Clusters (Docker Compose), zeigt der Ingress über einen `ExternalName`-Service per HTTPS mit Zertifikatsprüfung dorthin, und dort gehört `compose.session.yml` mit `SESSION_HOST` dazu. **Vorbedingung dafür:** die ConfigMap eures Controllers hat `proxy-ssl-location-only: "true"` — sonst gälte die Prüfung für alles, was am Repository-Host HTTPS spricht (502); die Einstellung gilt für alle Ingresse des Controllers (Prüfwerte nur noch je Location). Dazu `annotations-risk-level` mindestens `High`. Hat am Host schon ein Ingress Regex-Pfade (md-editor), wird unser Exact-Pfad zu `~* "^…"` — harmlos, das Backend prüft exakt (`docs/uebergabe-betrieb.md` §16) | Tausch → 404 vom Repository (gemessen) → `unavailable` |
 | **MCP-Server** | die Adresse eurer Seite ist `WLO_REPOSITORY_URL` oder steht in `WLO_SESSION_ALLOWED_ORIGINS` (unser Backend reicht die geprüfte Herkunft weiter) | Tausch → 403 → `not-allowed` |
 | **Chatbot-Backend** | `MCP_SESSION_URL` = `https://<euer Host>/edu-sharing/services/boerdi/auth/session`; bei `CORS_ALLOW_ALL=false` euer Host in `CORS_ORIGINS` | Feld leer, das Widget versucht nichts; die Route antwortet 404 |
 
@@ -870,8 +872,9 @@ Volle Herleitung: [`plans/2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2
    → Der Anmelde-Knopf steht auf „angemeldet", ohne dass jemand geklickt hat.
    Steht er auf „Anmelden": Konsole lesen, das Wort dort benennt die Station
    (§3).
-   **Oder ohne Ticket (§3a):** im Chart des Chatbots `sessionIngress` einschalten (Pfad auf
-   eurem Host), am Chatbot-Backend `MCP_SESSION_URL`, am MCP-Server `WLO_SESSION_EXCHANGE=1`.
+   **Oder ohne Ticket (§3a):** das Chart `deploy/helm/boerdi-session-ingress` einspielen (Pfad
+   auf eurem Host; Schritte in `docs/uebergabe-betrieb.md` §16), am Chatbot-Backend
+   `MCP_SESSION_URL`, am MCP-Server `WLO_SESSION_EXCHANGE=1`.
    → `curl -s -X POST https://<euer Host>/edu-sharing/services/boerdi/auth/session
    -H 'Content-Type: application/json' -H 'Origin: https://<euer Host>' -d '{}'` antwortet
    ohne Sitzung mit 400 „Es kam keine WLO-Sitzung mit“. Eine 404 als Text-Seite des

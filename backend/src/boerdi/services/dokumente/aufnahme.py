@@ -1,7 +1,10 @@
 """Ein hochgeladenes Dokument aufbereiten (Paket U3-2a, Plan 2026-11-04 §16.6).
 
 Art (Magic Bytes) → Umwandlung (``umwandlung.wandle``) → bereinigen → Gliederung → „kein Text?“
-→ Moderation (Übersicht + Anfang) → Befund. Kein HTTP, keine Datenbank: zurück kommt entweder
+→ Moderation (Übersicht + Anfang) → Befund. Plan 2026-11-19, Paket C (C2): ist eine PDF gescannt und
+gibt der Aufrufer eine Texterkennung mit (``ocr_lesen``, nur der Weg „Hier im Chat“), liest sie die
+Seiten; danach derselbe Weg, der Befund trägt die Warnung ``ocr``. Kein HTTP, keine Datenbank:
+zurück kommt entweder
 :class:`Aufbereitet` oder eine :class:`Abweisung` mit Status und Code, die der Endpunkt als
 ``detail`` ausliefert — nie ein Text des Servers (der bleibt im Log, ohne Dateinamen).
 """
@@ -19,6 +22,7 @@ from typing import Any, Final
 from boerdi.domain.dokument_art import erkenne, ist_bild
 from boerdi.domain.dokument_befund import befund, gescannt
 from boerdi.domain.dokument_gliederung import bereinigen, gliederung, uebersicht
+from boerdi.services.dokumente.ocr import OcrGrenze, OcrLesen
 from boerdi.services.dokumente.umwandlung import wandle
 from boerdi.services.rag.umwandeln import Ausfuehrer
 from boerdi.services.rag.umwandeln_fehler import Umwandlungsfehler
@@ -75,8 +79,8 @@ def sauberer_name(roh: str) -> str:
 
 
 async def aufbereiten(rumpf: bytes, name: str, *, max_seiten: int, frist_s: float,
-                      moderieren: Moderieren, ausfuehren: Ausfuehrer | None = None
-                      ) -> Aufbereitet | Abweisung:
+                      moderieren: Moderieren, ausfuehren: Ausfuehrer | None = None,
+                      ocr_lesen: OcrLesen | None = None) -> Aufbereitet | Abweisung:
     if ist_bild(rumpf[:256]):
         return Abweisung(415, "bild")
     # In Threads (Review U3-2, Befund 1/2): ZIP-Verzeichnis, Bereinigen und Gliedern von bis zu zwei
@@ -91,8 +95,29 @@ async def aufbereiten(rumpf: bytes, name: str, *, max_seiten: int, frist_s: floa
         logger.info("Dokument (%s) nicht umgewandelt: %s", art, gewandelt.art)
         return Abweisung(status, code)
     md, bilder = await asyncio.to_thread(bereinigen, gewandelt.markdown)
+    gekuerzt, ocr, text_seiten = gewandelt.gekuerzt, False, gewandelt.seiten
     if gescannt(md, gewandelt.seiten):
-        return Abweisung(400, "kein_text")
+        if art != "pdf" or ocr_lesen is None:
+            return Abweisung(400, "kein_text")
+        try:
+            gelesen = await ocr_lesen(rumpf)
+        except OcrGrenze:
+            return Abweisung(429, "grenze_ocr")
+        logger.info("Dokument per Texterkennung: %d von %d Seiten gelesen", gelesen.gelesen,
+                    gelesen.seiten)
+        if not gelesen.gelesen:
+            # Review 5: fehlten Frist oder Anbieter, kann ein neuer Versuch helfen — eine Seite,
+            # die sich nicht rendern lässt (kaputt, Pixelbudget, zu schwer), bleibt es
+            if gelesen.code == "zu_gross":
+                return Abweisung(413, "zu_gross")
+            return Abweisung(503, "ausgelastet") if gelesen.fehlend else Abweisung(400, "unlesbar")
+        # die Bilder der Seiten sind jetzt gelesen — keine Warnung „bilder_entfernt“
+        md, bilder = await asyncio.to_thread(bereinigen, gelesen.markdown)
+        # Review 7: Text je Seite zählt über die gelesenen Seiten, nicht über die ganze PDF
+        text_seiten = gelesen.gelesen
+        if gescannt(md, text_seiten):
+            return Abweisung(400, "kein_text")
+        gekuerzt, ocr = gekuerzt or gelesen.gekuerzt, True
     abschnitte, gliederung_art = await asyncio.to_thread(gliederung, md)
     kurz, _ = uebersicht(abschnitte, MODERATION_UEBERSICHT)
     urteil = await moderieren(kurz + "\n\n" + md[:MODERATION_ANFANG])
@@ -105,8 +130,9 @@ async def aufbereiten(rumpf: bytes, name: str, *, max_seiten: int, frist_s: floa
             return Abweisung(503, "pruefung_fehlt")
         logger.warning("Dokument (%s) ohne Moderation angenommen", art)
     werte = await asyncio.to_thread(
-        lambda: befund(md, seiten=gewandelt.seiten, gekuerzt=gewandelt.gekuerzt, bilder=bilder,
-                       abschnitte=abschnitte, gliederung_art=gliederung_art))
+        lambda: befund(md, seiten=gewandelt.seiten, gekuerzt=gekuerzt, bilder=bilder,
+                       abschnitte=abschnitte, gliederung_art=gliederung_art, ocr=ocr,
+                       text_seiten=text_seiten))
     return Aufbereitet(format=art, markdown=md, befund=werte,
                        gliederung=[asdict(a) for a in abschnitte],
                        vorschau=[a.titel for a in abschnitte[:VORSCHAU]])

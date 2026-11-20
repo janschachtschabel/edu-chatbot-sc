@@ -283,6 +283,9 @@ export interface ChatResponse {
   /** Bis wann der MCP-Server den Block annimmt (ISO; Plan 2026-11-07, R1) — nur Ticket- und
    *  Widget-Blöcke. Das Widget meldet kurz davor neu an (`session/anmelde-frist`). */
   auth_expires_at?: string | null;
+  /** Plan 2026-11-19 (B4): der Name der Person, die der MCP-Server für den Block dieses Zuges
+   *  bestätigt hat — für das Kürzel. Nur in der Antwort des Zuges, nie im Verlauf. */
+  auth_display_name?: string | null;
   /** K2b: ein Auftragsschritt mit `warten: gesperrt` wartet — das Eingabefeld ruht, bis eine Antwort
    *  ohne diese Marke kommt (das Backend weist Getipptes ohnehin mit einem Hinweis ab). */
   eingabe_gesperrt?: boolean;

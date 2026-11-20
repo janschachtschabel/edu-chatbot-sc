@@ -92,7 +92,7 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
                     on_token=None, start=None, modul_vorlage=None, modul_dokument=None,
                     modul_teile=None, modul_belegung=None, modul_vorgaben="",
-                    modul_vorbelegung=None,
+                    modul_vorbelegung=None, modul_feste=None,
                     modul_umlenkung=None, dokument_leser=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
@@ -100,7 +100,7 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
             "on_tool_result": on_tool_result, "wissen": wissen,
             "on_offene_abnahme": on_offene_abnahme, "on_token": on_token,
             "start": start, "modul_vorlage": modul_vorlage,
-            "modul_vorbelegung": modul_vorbelegung,
+            "modul_vorbelegung": modul_vorbelegung, "modul_feste": modul_feste,
         }
         if on_token is not None:
             on_token("Hallo [Li")  # wie ein Antwort-Aufruf mit offenem Link am Ende

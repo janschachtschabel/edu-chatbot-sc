@@ -23,6 +23,7 @@ import functools
 import os
 import shutil
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -79,7 +80,27 @@ async def wandle(rumpf: bytes, art: str, *, max_seiten: int, frist_s: float,
     """``rumpf`` (Art aus :func:`boerdi.domain.dokument_art.erkenne`) als Markdown."""
     if art in ("txt", "md"):
         return _fertig(_text(rumpf), None)
+    ergebnis = await im_kind_mit_datei(pruefe_und_wandle, rumpf, ENDUNG[art], max_seiten,
+                                       frist_s=frist_s, ausfuehren=ausfuehren)
+    if isinstance(ergebnis, Umwandlungsfehler):
+        return ergebnis
+    kopf, _, text = ergebnis.partition(_TRENNER)
+    return _fertig(text, int(kopf) if kopf.isdigit() else None)
+
+
+async def im_kind_mit_datei(funktion: Callable[..., str], rumpf: bytes, endung: str, *args: Any,
+                            frist_s: float, ausfuehren: Ausfuehrer | None = None,
+                            platz_frist_s: float | None = None, max_mb: int | None = None
+                            ) -> str | Umwandlungsfehler:
+    """``funktion(pfad, *args)`` im Kindprozess, ``rumpf`` als Datei ``dokument<endung>`` in einem
+    eigenen Verzeichnis — mit Platz, :data:`MAX_WARTENDE` und Frist wie die Umwandlung. Auch das
+    Rendern gescannter Seiten (Plan 2026-11-19, Paket C, Review 1) läuft so: PDFium dekodiert
+    eingebettete Bilder in voller Größe, das darf nur den Kindprozess treffen. ``platz_frist_s`` und
+    ``max_mb`` (zweites Review, 1 und 3): kürzeres Warten auf den Platz bzw. eigene
+    Speichergrenze."""
     global _wartende
+    if platz_frist_s is None:
+        platz_frist_s = PLATZ_FRIST_S
     if _wartende >= MAX_WARTENDE:
         return Umwandlungsfehler("Fehler: Umwandlung ausgelastet", art="ausgelastet")
     _wartende += 1
@@ -90,19 +111,20 @@ async def wandle(rumpf: bytes, art: str, *, max_seiten: int, frist_s: float,
         # Verzeichnis entsteht vorher hier — ein Abbruch während des Schreibens räumt es im
         # ``finally`` mit weg (Review Q1, Befund 8).
         verzeichnis = tempfile.mkdtemp(prefix="boerdi-dok-")   # 0700 laut mkdtemp
-        pfad = os.path.join(verzeichnis, "dokument" + ENDUNG[art])
+        pfad = os.path.join(verzeichnis, "dokument" + endung)
         await asyncio.to_thread(_schreiben, pfad, rumpf)
         abgesagt = asyncio.Event()
         rufe = ausfuehren or functools.partial(im_kindprozess, frist_s=frist_s,
-                                               platz_frist_s=PLATZ_FRIST_S, abgesagt=abgesagt)
+                                               platz_frist_s=platz_frist_s, abgesagt=abgesagt,
+                                               max_mb=max_mb)
         # Der Zähler sinkt und die Datei geht erst, wenn der Lauf wirklich vorbei ist — ein Abbruch
         # des Aufrufers (etwa ``auftraege/dateien``) beendet nur das Warten; der Kindprozess hält
         # seinen Platz bis zur Frist (vorbestehender Befund, Review 2 zu P1).
-        lauf = asyncio.ensure_future(rufe(pruefe_und_wandle, pfad, max_seiten))
+        lauf = asyncio.ensure_future(rufe(funktion, pfad, *args))
         lauf.add_done_callback(functools.partial(_lauf_vorbei, verzeichnis))
         try:
             ergebnis = await asyncio.wait_for(asyncio.shield(lauf),
-                                              frist_s + PLATZ_FRIST_S + _PUFFER_S)
+                                              frist_s + platz_frist_s + _PUFFER_S)
         except asyncio.CancelledError:
             abgesagt.set()      # wartet er noch auf den Platz, wandelt er nicht mehr um
             raise
@@ -117,10 +139,7 @@ async def wandle(rumpf: bytes, art: str, *, max_seiten: int, frist_s: float,
             _wartende -= 1
             if verzeichnis:
                 await asyncio.to_thread(shutil.rmtree, verzeichnis, ignore_errors=True)
-    if isinstance(ergebnis, Umwandlungsfehler):
-        return ergebnis
-    kopf, _, text = ergebnis.partition(_TRENNER)
-    return _fertig(text, int(kopf) if kopf.isdigit() else None)
+    return ergebnis
 
 
 def _lauf_vorbei(verzeichnis: str, lauf: asyncio.Future[Any]) -> None:

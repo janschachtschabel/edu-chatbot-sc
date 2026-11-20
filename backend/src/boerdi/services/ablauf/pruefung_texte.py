@@ -372,6 +372,28 @@ _T: Final[dict[str, dict[str, str]]] = {
                       "en": "Step {s}: hint to the AI at most {max} characters per language"},
     "agent_zuege": {"de": "Schritt {s}: 1 bis {max} Züge erwartet",
                     "en": "Step {s}: 1 to {max} turns expected"},
+    # Plan 2026-11-19, A2 (E4): feste Argumente am KI-Schritt (``pruefung_feste``)
+    "feste_werkzeug": {"de": "Schritt {s}: feste_argumente nennt {w!r} — das Werkzeug steht nicht "
+                             "unter den Werkzeugen des Schritts",
+                       "en": "Step {s}: feste_argumente names {w!r} — the tool is not among the "
+                             "step's tools"},
+    "feste_dienst": {"de": "Schritt {s}: feste_argumente für {w!r} wirken nicht — sie gelten nur "
+                           "für UI-Module mit Dienst (etwa ui_strukturentwurf)",
+                     "en": "Step {s}: feste_argumente for {w!r} have no effect — they only apply "
+                           "to UI modules with a service (such as ui_strukturentwurf)"},
+    "feste_argument": {"de": "Schritt {s}: feste_argumente für {w}: {a!r} ist kein Argument des "
+                             "Werkzeugs (erlaubt: {e})",
+                       "en": "Step {s}: feste_argumente for {w}: {a!r} is not an argument of the "
+                             "tool (allowed: {e})"},
+    # Review A, NIT 11: widersprüchliche oder unwirksame feste Argumente
+    "feste_nie": {"de": "Schritt {s}: feste_argumente für {w}: {a} gehört zu einem mitgeschickten "
+                        "Entwurf und kann nicht fest sein",
+                  "en": "Step {s}: feste_argumente for {w}: {a} belongs to a draft sent along and "
+                        "cannot be fixed"},
+    "feste_ausschluss": {"de": "Schritt {s}: feste_argumente für {w}: {a} schließen sich aus",
+                         "en": "Step {s}: feste_argumente for {w}: {a} exclude each other"},
+    "feste_wert": {"de": "Schritt {s}: feste_argumente für {w}: der Wert von {a} passt nicht ({f})",
+                   "en": "Step {s}: feste_argumente for {w}: the value of {a} does not fit ({f})"},
     "modus": {"de": "Auslöser: Modus {m!r} gibt es nicht",
               "en": "Trigger: mode {m!r} does not exist"},
     # AS-7a (Plan 2026-11-09 §5m): Führungen

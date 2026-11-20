@@ -1210,6 +1210,57 @@
             "$ref": "#/$defs/inhalt"
           },
           "description": "Aus Materialien: Inhalte, die keinem Punkt zugeordnet sind (Verweise wie inhalte)."
+        },
+        "gelesen": {
+          "type": "array",
+          "maxItems": 10,
+          "x-nur-system": true,
+          "description": "Nur das System (Plan 2026-11-19, A6): mit quelle dokument je Dokument, was der Entwurf gelesen hat — zur Rueckkontrolle fuer die Person, nie an die KI.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "zeichen",
+              "weg",
+              "anfang",
+              "abschnitte"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Name des Dokuments."
+              },
+              "zeichen": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Zeichen des gelesenen Texts."
+              },
+              "weg": {
+                "enum": [
+                  "ganz",
+                  "gliederung"
+                ],
+                "description": "ganz: der ganze Text ging an die obere Ebene; gliederung: Gliederung, Anfang und Auszuege."
+              },
+              "anfang": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "Die ersten Zeichen des gelesenen Texts."
+              },
+              "abschnitte": {
+                "type": "array",
+                "maxItems": 30,
+                "items": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "description": "Abschnittstitel, wie die Gliederung sie fand."
+              }
+            }
+          }
         }
       },
       "$defs": {
@@ -2498,6 +2549,10 @@
                     "ueber_grenze_anmelden"
                   ],
                   "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* ueberschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles ueber WLO."
+                },
+                "texterkennung": {
+                  "type": "boolean",
+                  "description": "Nur chat (Plan 2026-11-19, Paket C): gescannte PDF liest der Chat per Texterkennung; ihre Seiten gehen als Bild an das KI-Modell."
                 }
               }
             },

@@ -40,6 +40,8 @@ export class EntwurfZustand {
   /** Paket N3: sind die Inhalte des Punkts bzw. die nicht zugeordneten aufgeklappt? */
   inhalteOffen = false;
   resteOffen = false;
+  /** Plan 2026-11-19, A6: welche Abschnitte „Gelesener Text“ aufgeklappt sind (Nummer je Dokument). */
+  gelesenOffen: ReadonlySet<number> = new Set();
   /** Das Schlagwort-Feld, solange es bearbeitet wird (sonst sprängen Komma und Leerzeichen weg). */
   kwText: string | null = null;
   private aktivId: string | null = null;

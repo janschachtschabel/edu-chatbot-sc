@@ -30,7 +30,9 @@ def erzeugt(monkeypatch):
         "knoten": [{"id": "k1", "titel": "Licht", "kinder": [{"id": "k1-1", "titel": "Quellen"}]},
                    {"id": "k2", "titel": "Farben", "ausstehend": True}]})}
 
-    async def attrappe(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
+    async def attrappe(auftrag, *, llm, frist_ende, vorlage=None, dokument=None,
+                       moderieren=None, ganz_moderiert=False,
+                       llm_vorwaermen=None):
         gesehen.update(auftrag=auftrag, frist_ende=frist_ende, vorlage=vorlage, llm=llm,
                        dokument=dokument, moderieren=moderieren)
         return antwort["wert"]

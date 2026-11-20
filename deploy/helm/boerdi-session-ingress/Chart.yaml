@@ -1,0 +1,12 @@
+apiVersion: v2
+
+# Plan 2026-11-19 (E9): der Tauschpfad der Anmeldung aus der WLO-Sitzung am Host des Repositorys —
+# ein Ingress, sonst nichts. Das Backend selbst läuft im Cluster (Ziel `backend.service`) oder auf
+# einem eigenen Rechner mit Docker Compose (Ziel `backend.externalName`). Das vollständige Chart des
+# Chatbots baut Team 6; dieses hier ist bewusst klein und unabhängig davon.
+name: boerdi-session-ingress
+description: Ingress für /edu-sharing/services/boerdi/auth/session am Repository-Host (boerdi-chat)
+type: application
+version: 0.1.0
+appVersion: "0.6.0"
+kubeVersion: ">= 1.25.0-0"

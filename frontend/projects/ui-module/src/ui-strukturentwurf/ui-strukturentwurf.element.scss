@@ -139,3 +139,41 @@
     }
   }
 }
+
+// Plan 2026-11-19, A6: „Gelesener Text“ unter dem Kopf — zurückhaltend wie die Inhalte; der Anfang
+// behält seine Zeilen und rollt ab seiner Höhengrenze (per Tastatur erreichbar, Fokus sichtbar)
+.ui-strukturentwurf__gelesen {
+  font-size: .8rem;
+
+  // Zweites Review A, NIT 12: ein Ziel von mindestens 24 px Höhe (WCAG 2.5.8)
+  summary {
+    cursor: pointer;
+    min-block-size: 24px;
+    padding-block: 2px;
+  }
+
+  p {
+    margin: 4px 0 0;
+  }
+
+  ul {
+    margin: 4px 0 0;
+    padding-inline-start: 18px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.ui-strukturentwurf__gelesen-anfang {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-block-size: calc(var(--mat-sys-body-small-line-height, 1.25rem) * 10);
+  overflow-y: auto;
+  padding: 4px 8px;
+  border-inline-start: 2px solid var(--mat-sys-outline-variant);
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+}

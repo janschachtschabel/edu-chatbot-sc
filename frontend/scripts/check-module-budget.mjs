@@ -3,7 +3,7 @@
  * Budget der nachgeladenen UI-Module (Paket U3-0), Gegenstück zu `check-widget-budget.mjs`.
  *
  * Ein nachgeladenes Modul kostet erst, wenn sein Block erscheint — aber dann auf dem Gerät der Person,
- * oft im Mobilnetz. Deshalb je Bündel höchstens 20 kB gzip (benannte Ausnahme: `ui-upload` 23 kB) und
+ * oft im Mobilnetz. Deshalb je Bündel höchstens 20 kB gzip (benannte Ausnahme: `ui-upload` 24 kB) und
  * alle zusammen höchstens 60 kB gzip (kB dezimal, wie das Widget-Budget). Im Verzeichnis dürfen nur gehashte Bündel liegen
  * (`<ordner>.<8 hex>.js`) — alles andere würde das Backend nie ausliefern.
  *
@@ -22,7 +22,9 @@ export const JE_MODUL_GZIP = 20_000;
 // Oberfläche (Ende an der Sitzungsgrenze, Anhalten, Sitzungsrest, Grenze je Datei) 22,5 kB, also
 // 23 kB. Eine benannte Ausnahme statt einer höheren Grenze für alle (Review der Oberfläche, NIT 10).
 // Die Summe bleibt bei 60 kB.
-export const AUSNAHMEN = Object.freeze({ 'ui-upload': 23_000 });
+// Plan 2026-11-19, Paket C (2026-11-20): Texterkennung — Datenschutz-Satz, Hinweis zur Dauer, Blase
+// „per Texterkennung gelesen“, Grenze je Gespräch (`grenze_ocr`), je zweisprachig: 23,45 kB, also 24 kB.
+export const AUSNAHMEN = Object.freeze({ 'ui-upload': 24_000 });
 export const ZUSAMMEN_GZIP = 60_000;
 const DATEI = /^(ui-[a-z0-9-]+)\.[0-9a-f]{8}\.js$/;
 

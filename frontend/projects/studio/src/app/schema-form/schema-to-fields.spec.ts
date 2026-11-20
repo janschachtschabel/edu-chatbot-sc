@@ -358,6 +358,8 @@ describe('rootField — against the real area schemas', () => {
       // Paket A1: Daten und Argumente eines Schritts (frei, mit {"$teil": …}) und `weiter`
       // (Schritt-ID oder Regeln) — die Ablauf-Prüfung des Backends hält sie in Form.
       // Seit AS-0 ein Dokument je Ablauf (`06-ablaeufe`, Gruppe) — der Pfad beginnt am Ablauf.
+      // Plan 2026-11-19, A2 (E4): je Werkzeug ein freies Objekt — „Prüfen“ hält es am Schema.
+      '06-ablaeufe:schritte[].agent.feste_argumente[]', // dict[str, dict[str, Any]]
       '06-ablaeufe:schritte[].argumente', // dict[str, Any]
       '06-ablaeufe:schritte[].daten', // dict[str, Any]
       '06-ablaeufe:schritte[].freitext.ziel', // AS-3a: Zielauswahl (x-widget: schritt-ziel)

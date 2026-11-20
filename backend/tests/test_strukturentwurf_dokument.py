@@ -2,8 +2,9 @@
 
 Ebene 1 sieht die Gliederung des Dokuments (mit Kennungen ``[aN]``, ≤ 8000 Zeichen) und seinen
 Anfang (≤ 1500); jeder Punkt nennt die Abschnitte, aus denen er stammt. Ebene 2 bekommt den Text
-genau dieser Abschnitte samt Unterabschnitten (≤ 6000 je Aufruf). Das Modell sieht nie das ganze
-Dokument; was es an Kennungen erfindet, fällt weg.
+genau dieser Abschnitte samt Unterabschnitten (≤ 6000 je Aufruf); was das Modell an Kennungen
+erfindet, fällt weg. Seit Plan 2026-11-19, A4 sieht Ebene 1 eines kurzen Dokuments statt des Anfangs
+den ganzen Text (``test_strukturentwurf_ganztext``).
 """
 
 from __future__ import annotations
@@ -11,8 +12,11 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
 from boerdi.domain.dokument_gliederung import gliederung, mit_unterabschnitten
 from boerdi.services import strukturentwurf_dienst as dienst
+from boerdi.services import strukturentwurf_lauf as lauf_teil
 from tests.test_strukturentwurf_dienst import Attrappe, _k
 
 _MD = ("# Lehrplan Physik\nVorwort zum Plan.\n"
@@ -56,7 +60,8 @@ async def test_die_obere_ebene_folgt_dem_dokument_und_nennt_die_fundstelle():
     [aufruf] = llm.aufrufe
     dok = aufruf["auftrag"]["dokument"]
     assert f"- 1 Mechanik [{ids['1 Mechanik']}]" in dok["gliederung"]
-    assert dok["anfang"].startswith("# Lehrplan Physik")
+    # Zweites Review A, MINOR 5: ohne Zusage der Moderation (``ganz_moderiert``) der Anfang
+    assert dok["anfang"].startswith("# Lehrplan Physik") and "text" not in dok
 
 
 async def test_ebene_zwei_liest_den_text_der_abschnitte():
@@ -104,7 +109,7 @@ async def test_der_ganze_weg_ergibt_einen_gueltigen_block_mit_fundstellen(monkey
     llm = Attrappe([_k("Mechanik", 2, abschnitte=[ids["1 Mechanik"]]),
                     _k("Optik", 0, abschnitte=[ids["2 Optik"]])],
                    {"Mechanik": [_k("Kraft"), _k("Energie")]})
-    monkeypatch.setattr(dienst, "llm_json", lambda usage_acc: llm)
+    monkeypatch.setattr(dienst, "llm_json", lambda usage_acc, *_: llm)
     dokument = _dokument()
 
     async def lader():
@@ -120,6 +125,15 @@ async def test_der_ganze_weg_ergibt_einen_gueltigen_block_mit_fundstellen(monkey
 
 
 # ── Querschnitts-Review 2026-11-06: Moderation der Abschnittstexte vor Ebene 2 ───────────────
+# Review Paket A, MAJOR 3: nur auf dem Weg „gliederung“ — auf dem Weg „ganz“ ist der ganze Text
+# schon geprüft (``test_strukturentwurf_ebene2_ganz``). Diese Tests erzwingen den langen Weg.
+
+@pytest.fixture
+def langer_weg(monkeypatch):
+    from boerdi.services import strukturentwurf_dokument as sd
+
+    monkeypatch.setattr(sd, "GANZTEXT_ZEICHEN", 0)
+
 
 async def _ebene_zwei(moderieren, monkeypatch=None, modus="open"):
     from boerdi.settings import get_settings
@@ -140,7 +154,7 @@ async def _ebene_zwei(moderieren, monkeypatch=None, modus="open"):
     return next(a for a in llm.aufrufe if "knoten" in a["auftrag"])["auftrag"].get("auszug", "")
 
 
-async def test_ein_beanstandeter_auszug_geht_nicht_ans_modell():
+async def test_ein_beanstandeter_auszug_geht_nicht_ans_modell(langer_weg):
     """Die Moderation beim Hochladen sieht nur Übersicht und Anfang — ein Abschnitt weiter hinten
     erreichte das Modell sonst ungeprüft."""
     geprueft: list[str] = []
@@ -153,14 +167,14 @@ async def test_ein_beanstandeter_auszug_geht_nicht_ans_modell():
     assert geprueft and "Newton." in geprueft[0]
 
 
-async def test_ein_unbedenklicher_auszug_geht_hin():
+async def test_ein_unbedenklicher_auszug_geht_hin(langer_weg):
     async def moderieren(text):
         return {"flagged": False}
 
     assert "Newton." in await _ebene_zwei(moderieren)
 
 
-async def test_ohne_urteil_entscheidet_der_ausfallmodus(monkeypatch):
+async def test_ohne_urteil_entscheidet_der_ausfallmodus(monkeypatch, langer_weg):
     async def stumm(text):
         return {}
 
@@ -226,7 +240,7 @@ async def test_ohne_moderation_eine_warnung_je_entwurf(monkeypatch, caplog):
     assert len([r for r in caplog.records if "ohne Moderation" in r.getMessage()]) == 1
 
 
-async def test_eine_langsame_moderation_haelt_die_frist_des_entwurfs(monkeypatch):
+async def test_eine_langsame_moderation_haelt_die_frist_des_entwurfs(monkeypatch, langer_weg):
     """Nachprüfung Q4, Befund 1 und 3: das Warten auf die Moderation endet vor der Frist — der Punkt
     bleibt ``ausstehend``, ohne Modellaufruf, und Ebene 1 kommt an (sonst bräche der Lauf ab)."""
     abschnitte, _ = gliederung(_MD)
@@ -238,7 +252,7 @@ async def test_eine_langsame_moderation_haelt_die_frist_des_entwurfs(monkeypatch
         await asyncio.sleep(1.5)              # länger als die ganze Restzeit
         return {"flagged": False}
 
-    monkeypatch.setattr(dienst, "MINDEST_REST_S", 0.1)
+    monkeypatch.setattr(lauf_teil, "MINDEST_REST_S", 0.1)
     uhr = asyncio.get_running_loop()
     ende = uhr.time() + 0.5
     erzeugt = await dienst.erzeugen(dienst.Auftrag(thema="Lehrplan Physik", tiefe=2), llm=llm,

@@ -166,7 +166,7 @@ Kein Geheimnis.
 
 Drei Dinge müssen zusammenpassen, alle in unserer Hand außer Punkt 3:
 
-1. **Chart (`sessionIngress` in `deploy/helm/values.example.yaml`):** ein zweites, eigenes
+1. **Ingress am Repository-Host (Chart `helm/boerdi-session-ingress`):** ein zweites, eigenes
    Ingress-Objekt mit dem **Hostnamen des Repositorys**, das genau einen Pfad
    (`/edu-sharing/services/boerdi/auth/session`, `pathType: Exact`) **unverändert** an den
    öffentlichen Port dieses Backends leitet; das Backend nimmt den Pfad selbst an. **Kein
@@ -176,6 +176,47 @@ Drei Dinge müssen zusammenpassen, alle in unserer Hand außer Punkt 3:
    und dessen Ingress ändert sich nichts. `Cookie` und `Origin` müssen durchkommen, TLS mit dem
    Zertifikat des Repository-Hosts. Warum dieser Host: Das Sitzungs-Cookie trägt
    `Path=/edu-sharing` und `HttpOnly`; an jede andere Adresse schickt der Browser es nicht.
+   **Das Objekt liefert das Chart [`helm/boerdi-session-ingress`](helm/boerdi-session-ingress/)**
+   (Plan 2026-11-19): ein Ingress, Renderprüfungen für Host, Pfad, Ziel und verbotene
+   Annotationen, `NOTES.txt` nennt die passende `MCP_SESSION_URL`. Ziel ist entweder der Service
+   des Backends im Cluster (`backend.service.name`) oder — **Betrieb mit Docker Compose auf einem
+   eigenen Rechner** — ein `ExternalName`-Service auf den Chat-Host (`backend.externalName.host`,
+   HTTPS an Port 8443, der Host-Kopf des Repositorys bleibt erhalten). **Das Zertifikat des
+   Chat-Hosts wird geprüft — Pflicht:** ingress-nginx wertet `proxy-ssl-name`/`-verify` nur mit
+   einem `proxy-ssl-secret` aus, ohne gingen weder SNI noch Prüfung hinaus und das
+   Sitzungs-Cookie reiste ungeprüft. Das Chart legt das Secret aus `backend.externalName.caBundle`
+   (PEM; für Let's Encrypt ISRG Root X1 und X2) im Namespace des Ingress an, oder nimmt
+   `verifySecret` aus demselben Namespace; ohne beides bricht das Rendern ab (nur bewusst:
+   `insecureSkipVerify: true`). Für diesen zweiten Fall am Chat-Rechner:
+
+   ```bash
+   # in .env
+   SESSION_HOST=repository.staging.openeduhub.net
+   TRAEFIK_TRUSTED_IPS=<Ausgangsadressen des Clusters>   # nur für den Eingang `sitzung` (:8443)
+   ```
+
+   ```bash
+   docker compose -f compose.prod.yml -f compose.session.yml --env-file .env up -d
+   ```
+
+   `compose.session.yml` veröffentlicht Traefiks eigenen Eingang `sitzung` (:8443) und legt dort
+   den Router `boerdi-sitzung` an (Host des Repositorys + genau der Tauschpfad, TLS ohne
+   `certresolver` — Let's Encrypt kann für den fremden Host hier nicht ausstellen; der Ingress
+   nennt im TLS-Handschlag den Chat-Host). **Nur an diesem Eingang** behält Traefik
+   `X-Forwarded-For` von `TRAEFIK_TRUSTED_IPS`; der öffentliche Chat (`websecure`, 443) glaubt
+   niemandem. Wer dort steht, darf den Kopf frei setzen: nur die Ausgangsadressen des eigenen
+   Clusters eintragen (im Zugriffslog von Traefik als `ClientHost` des ersten Tauschs zu sehen).
+   **Vorbedingung am Cluster:** ingress-nginx übernimmt die Prüfwerte des ersten Ingress eines
+   Hosts für den ganzen Server-Block, solange die ConfigMap des Controllers
+   `proxy-ssl-location-only` nicht `"true"` hat — alles, was am Repository-Host sonst HTTPS
+   spricht, bekäme 502. Einziger Weg: die Einstellung setzen (gilt für alle Ingresse des
+   Controllers, Prüfwerte dann nur je Location — mit dem Betrieb des Clusters abstimmen;
+   Prüfbefehl in `docs/uebergabe-betrieb.md` §16), erst dann
+   `backend.externalName.proxySslLocationOnlyGesetzt: true`
+   (ohne bricht das Rendern ab). Hat am Host schon ein Ingress Regex-Pfade (md-editor), wird
+   unser Exact-Pfad zu `~* "^…"` — harmlos, das Backend prüft den Pfad exakt.
+   Dazu `annotations-risk-level` mindestens `High` und Port 8443 in der Firewall des Anbieters.
+   Schrittliste für Staging: [`docs/uebergabe-betrieb.md`](../docs/uebergabe-betrieb.md) §16.
 2. **Hier:** `MCP_SESSION_URL=https://<Repository-Host>/edu-sharing/services/boerdi/auth/session`.
    Eine geschlossene Anlage (`CORS_ALLOW_ALL=false`) nennt sie nur Seiten aus `CORS_ORIGINS`:
    der Repository-Host gehört dann in diese Liste. Ohne den Wert antwortet die Route 404.
@@ -447,6 +488,56 @@ Ein unbekannter Wert (etwa das deutsche `geschlossen`) gilt als `open`; der Star
 `closed` braucht einen erreichbaren Moderationszugang: Mit `b-api-academiccloud` gibt es
 keinen, dann bliebe jeder Zug unbeantwortet — auch das meldet der Start. Eine Alarmregel auf den
 Zähler zeigt einen dauerhaften Ausfall, bevor er auffällt.
+
+### Texterkennung gescannter PDF (`DOCUMENT_OCR`)
+
+Lädt eine Person „Hier im Chat“ eine PDF ohne Textschicht hoch (Scan), rendert das Backend ihre
+Seiten (pypdfium2, 150 DPI, Graustufen-JPEG, CPU ≈ 0,1 s je Seite) und schickt jede als **Bild an
+das Chat-Modell** — über denselben Weg wie der Chat (b-api bzw. OpenAI, Schlüssel des Zuges).
+Plan 2026-11-19, Paket C. Gesteuert wird im **Studio** (UI-Module → Hochladen): `ocr` (ab Werk an)
+und `ocr_max_seiten` (20, 1–50). Das Upload-Feld sagt vor dem Hochladen, dass gescannte Seiten als
+Bild an das KI-Modell gehen.
+
+| `DOCUMENT_OCR` | Verhalten |
+|---|---|
+| `auto` (Vorgabe, auch leer/unbekannt) | das Studio entscheidet |
+| `off` (auch `aus`, `false`, `0`) | nie — Notbremse, egal was das Studio sagt; ein Scan bleibt „kein lesbarer Text“ |
+
+- **Anbieter:** bei `b-api-academiccloud` nie (kein Bildeingang); dazu eine Logzeile beim ersten
+  Abruf des Upload-Felds (bzw. des ersten Uploads) je Prozess.
+- **Rendern im Kindprozess** neben der Umwandlung (Frist bis 30 s, ein Platz mit der Umwandlung,
+  ohne Anmerkungen). **Die harte Grenze ist der Speicher des Kindes:** 512 MB `RLIMIT_DATA` (Linux;
+  kleiner als `RAG_CONVERSION_MAX_MB`), danach endet das Kind, nicht das Backend. Davor eine
+  Vorprüfung: eine Seite, deren Bilder laut Metadaten zusammen mehr als 60 MP haben, wird nicht
+  gerendert — das sieht nur direkte und in Formen bis Tiefe 8 verschachtelte Bilder, nicht Bilder
+  in Kachelmustern, Masken oder Type3-Glyphen (gemessen bis +183 MB im Kind). Lässt sich keine
+  Seite rendern: 400 `unlesbar`; zu groß für das Kind: 413 `zu_gross`. Ein Scan braucht so zwei
+  Kindläufe nacheinander (Umwandlung, Rendern; Start unter Linux je rund 2 s) — bewusst, damit das
+  Rendern die kleinere Grenze hat.
+- **Last und Frist:** höchstens `min(8, Anbieter-Deckel / 2)` Seiten zugleich — für alle Uploads
+  zusammen, der Chat behält den Rest des Deckels —, innerhalb von 80 s ab dem Beginn der
+  Aufbereitung (bei Inhalten 50 s, danach folgen die Kurzangaben). Das Widget wartet 120 s auf die
+  Antwort, gezählt ab dem Ende des Hochladens (die Lesefrist des Ingress ist ebenfalls 120 s).
+  Was danach fehlt, fehlt; der Befund trägt dann `gekuerzt`. Ein vorübergehender Fehler des
+  Anbieters wird je Seite einmal wiederholt. Fehlt jede Seite (Anbieter überlastet, Frist),
+  antwortet der Endpunkt 503 `ausgelastet`.
+- **Grenze je Gespräch:** höchstens `lokal_max_dateien × ocr_max_seiten` Seitenaufrufe (gezählt aus
+  `usage_events`, Quelle `dokument_ocr`; eine von der Frist abgebrochene Seite zählt als ein
+  Aufruf), danach 429 `grenze_ocr`. Je Prozess liest eine Sitzung nur eine PDF zugleich und bucht,
+  bevor die nächste beginnt; über mehrere Kopien gibt es keine Reservierung (bei `BACKEND_REPLICAS`
+  > 1 kann eine Sitzung das Budget je Kopie einmal ausschöpfen). Dieselbe Datei in derselben Sitzung
+  liest ein Prozess höchstens einmal je Stunde, sofern das Ergebnis vollständig war
+  (Zwischenspeicher im Speicher, 64 Einträge, 5 Mio. Zeichen).
+- **Kosten:** je Seite ein Aufruf, gebucht für die Sitzung (Quelle `dokument_ocr`), auch wenn das
+  Dokument danach abgewiesen wird (Studio → Kosten). Messwerte: Änderungsnotiz
+  `docs/aenderungen/2026-11-19-paket-c-ocr.md`.
+- **Schlüssel:** wie die Kurzangaben und die Moderation des Uploads rechnen die Seiten über den
+  Schlüssel des Zuges ab, wenn das Widget ihn mitschickt; sonst (auch unter
+  `B_API_KEY_MODE=forward`) über `B_API_KEY` — der Upload ist kein Zug und wird nicht abgewiesen.
+- **Nur „Hier im Chat“ und nur ganz gescannte PDF:** der Weg über WLO liest den Volltext des
+  Repositorys; eine PDF mit Text auf einem Teil der Seiten (Teil-Scan) geht nicht an die
+  Texterkennung. Die Moderation prüft wie bei jedem Upload die Übersicht und die ersten 4 000
+  Zeichen.
 
 ### Deployen / aktualisieren
 

@@ -185,7 +185,9 @@ def _aufruf(monkeypatch, args: dict, vorbelegung: dict | None):
 
     gesehen: dict = {}
 
-    async def erzeugen(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
+    async def erzeugen(auftrag, *, llm, frist_ende, vorlage=None, dokument=None,
+                       moderieren=None, ganz_moderiert=False,
+                       llm_vorwaermen=None):
         gesehen["auftrag"] = auftrag
         return strukturentwurf_dienst.Erzeugt(daten=None, grund="test")
 

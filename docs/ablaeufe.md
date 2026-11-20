@@ -109,6 +109,13 @@ antwortet, sonst prüft der Test einen Weg, den es nicht gibt.
   `|`, nicht mit `__` am Anfang, höchstens 60 Zeichen.
 - **Vorgaben** (`agent.vorgaben`): Wissen der Redaktion für die Module des KI-Schritts, je
   Sprache bis 2000 Zeichen. `ui_strukturentwurf` setzt es in den Systemteil seines Generators.
+- **Feste Argumente** (`agent.feste_argumente`, Plan 2026-11-19, A2): je Werkzeug ein Objekt, etwa
+  `{ui_strukturentwurf: {aus_dokument: true}}`. Der Server setzt sie in jeden Aufruf des Werkzeugs
+  in diesem Schritt — anders als `vorbelegen` geht hier der Ablauf **vor** der KI. Nur für UI-Module
+  mit Dienst; sie gelten für **neue** Entwürfe, nicht mit `vorlage: true` (Vertiefen, erneut
+  Zeigen). Die Prüfung meldet Werkzeuge außerhalb des Schritts, Werkzeuge ohne Dienst, unbekannte
+  Argumente, falsche Werte, `aus_dokument` zusammen mit `aus_inhalten` sowie `vorlage`,
+  `vertiefen`, `erneut_zeigen` als feste Argumente.
 - **Ausstieg** (`ausstieg` am `ende`, ebenso „Abbrechen“ in der Leiste):
   - Die Person arbeitet ohne den Ablauf weiter.
   - Drei Züge mit der KI lang startet derselbe Ablauf nicht wieder von selbst, weder per Wendung
@@ -208,6 +215,12 @@ Hinweise gehen als Zeilen in `hinweise` (Vorsatz in der Sprache des Zugs, die Hi
 bekommen den übrigen Platz). Ein Argument, das die KI selbst setzt, geht vor; `tiefe` und
 `anzahl_oben` nur zusammen, `""` löscht `bildungsstufe` bzw. `hinweise`. Die KI sieht in
 `[VORBELEGT — …]`, was der Ablauf setzt.
+
+Die Schritte `entwurf_dokument` und `entwurf_inhalte` (und `entwurf` in
+`themenbaum_aus_inhalten`) tragen dazu `agent.feste_argumente` (Plan 2026-11-19, A2):
+`aus_dokument: true` bzw. `aus_inhalten: true` — dort entsteht nie ein freier Entwurf, auch wenn
+die KI das Argument vergisst. Mit `vorlage: true` (Vertiefen) gelten sie nicht. `zuege: 5`, damit
+ein „nochmal“ nach einem vorübergehenden Fehler (`voruebergehend`) das Budget nicht aufzehrt.
 
 **Kestra im Ablauf (Paket K):** Der Schritt `metadaten` (`repo_schreibt: true`, `warten: gesperrt`)
 nimmt alle abgelegten Einträge der Ablage, Inhalte **und** Strukturdokumente (E14): So liefern auch

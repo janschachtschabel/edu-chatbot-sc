@@ -142,6 +142,8 @@ schritte:
         de: "Rufe ui_strukturentwurf mit aus_inhalten: true, Thema, Fach, Stufe aus den Antworten auf; Zweck und Wünsche als hinweise. Ordner, Klassen, Formate, Jahre sind keine Punkte."
         en: "Call ui_strukturentwurf with aus_inhalten: true, topic, subject, level from the answers; purpose and wishes as hinweise. Folders, grades, formats, years are not topics."
       startknopf: {de: Entwurf erstellen, en: Create draft}
+      # Plan 2026-11-19, A2 (E4): hier nie ein freier Entwurf — der Server setzt aus_inhalten
+      feste_argumente: {ui_strukturentwurf: {aus_inhalten: true}}
       vorgaben:
         de: |-
           Der Baum entsteht von unten aus den Materialien der Person (ihre Titel, Beschreibungen und Schlagworte):
@@ -154,7 +156,7 @@ schritte:
           - Each item should be backed by at least two materials; a single material is not an item of its own but belongs to the nearest fitting topic.
           - By purpose: "Plan lessons" as a planning tree of one's own topics, "Material pool" by subject systematics, "Editorial collection" with audience-friendly labels.
       ausgabe: draft
-      zuege: 3
+      zuege: 5
     bei_fehler: ohne_entwurf
   - id: ende
     typ: ende

@@ -37,6 +37,14 @@ services:
       - --entryPoints.websecure.address=:443
       - --entryPoints.web.http.redirections.entryPoint.to=websecure
       - --entryPoints.web.http.redirections.entryPoint.scheme=https
+      # Eingang `sitzung` (Plan 2026-11-19, E9; Review B): nur für den Sitzungs-Tausch, den der
+      # Ingress des Clusters hierher leitet (compose.session.yml veröffentlicht ihn und legt den
+      # Router an; ohne die Datei ist er nicht erreichbar). Nur HIER behält traefik X-Forwarded-For
+      # von TRAEFIK_TRUSTED_IPS (Ausgangsadressen des Clusters, kommagetrennt) — sonst zählte die
+      # Grenze je Adresse alle Personen als eine. Am öffentlichen `websecure` glaubt traefik
+      # niemandem: wer vertraut ist, kann seine Adresse frei setzen. Vorgabe 127.0.0.1/32 = niemand.
+      - --entryPoints.sitzung.address=:8443
+      - --entryPoints.sitzung.forwardedHeaders.trustedIPs=${TRAEFIK_TRUSTED_IPS:-127.0.0.1/32}
       - --certificatesResolvers.le.acme.email=${ACME_EMAIL:?ACME_EMAIL fehlt}
       - --certificatesResolvers.le.acme.storage=/acme/acme.json
       - --certificatesResolvers.le.acme.tlschallenge=true
@@ -280,6 +288,7 @@ services:
       BOERDI_ALLOW_OPEN_ADMIN: ${BOERDI_ALLOW_OPEN_ADMIN:-}
       AGENT_OPEN: ${AGENT_OPEN:-}
       SPEECH_FORCE_ENABLE: ${SPEECH_FORCE_ENABLE:-}
+      DOCUMENT_OCR: ${DOCUMENT_OCR:-}
       STT_MODEL: ${STT_MODEL:-}
       TTS_MODEL: ${TTS_MODEL:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}

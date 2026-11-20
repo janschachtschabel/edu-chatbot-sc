@@ -19,7 +19,12 @@ Titel) oder alle Blätter oberhalb von ``tiefe``. Umstellen und Umbenennen macht
 **Dokument** (U3-2b, ``aus_dokument``): Ebene 1 sieht die Gliederung des Dokuments der Person mit
 Kennungen (≤ :data:`DOKUMENT_GLIEDERUNG` Zeichen) und seinen Anfang; jeder Punkt nennt seine
 ``abschnitte``, der erste ergibt die ``fundstelle``. Ebene 2 bekommt den Text dieser Abschnitte
-samt Unterabschnitten (≤ :data:`DOKUMENT_AUSZUG`). Das ganze Dokument sieht das Modell nie.
+samt Unterabschnitten (≤ :data:`DOKUMENT_AUSZUG`). Plan 2026-11-19, A4: bis
+``strukturentwurf_dokument.GANZTEXT_ZEICHEN`` sieht Ebene 1 statt des Anfangs den ganzen Text
+(vorher moderiert), und E1c: auch jeder Aufruf für Ebene 2 bekommt den ganzen Text
+(``strukturentwurf_ganz``, gleicher Anfang für das Prompt-Caching); A5: ``unterthemen: 0`` an
+einem Punkt mit Text heißt „nicht angegeben“. A1: vorübergehende Fehler des Anbieters werden
+einmal wiederholt.
 
 Eine **reine Funktion** Auftrag → Struktur mit ersetzbarer LLM-Naht (``llm``): so kann sie später
 als Job hinter der B-API laufen (Konzept §16.15, „Dienste sind reine Funktionen“).
@@ -31,20 +36,37 @@ import asyncio
 import copy
 import json
 import logging
-from collections.abc import Awaitable, Callable, Iterator
-from dataclasses import dataclass, field
+from collections.abc import Iterator
+from dataclasses import dataclass
 from itertools import zip_longest
 from typing import TYPE_CHECKING, Any, Final
 
-from boerdi.services import llm_parallel
 from boerdi.services import strukturentwurf_dokument as dokument_teil
+from boerdi.services import strukturentwurf_lauf as lauf_teil
 from boerdi.services import strukturentwurf_prompt as prompt
+from boerdi.services import strukturentwurf_wiederholen as wiederholen
 from boerdi.services.llm_parallel import LlmAusgelastet
-from boerdi.services.strukturentwurf_auszug import Auszuege, Moderieren
+from boerdi.services.strukturentwurf_auszug import Moderieren
 from boerdi.services.strukturentwurf_dokument import (  # noqa: F401 — wie bisher
     DOKUMENT_ANFANG,
     DOKUMENT_GLIEDERUNG,
 )
+
+# Review A (fünftes), MINOR 6: der Lauf in ``strukturentwurf_lauf`` (die alten Namen bleiben)
+from boerdi.services.strukturentwurf_lauf import (  # noqa: F401 — Re-Export
+    AUFRUF_FRIST_S,
+    DOKUMENT_AUSZUG,
+    MINDEST_REST_S,
+    PARALLEL,
+    Auftrag,
+    LlmJson,
+    _jetzt,
+    _Lauf,
+    parallel,
+)
+
+# Review A (zweites), MINOR 7: das Platzhalter-Thema in eigenem Modul (der alte Name bleibt)
+from boerdi.services.strukturentwurf_platzhalter import platzhalter_thema  # noqa: F401
 from boerdi.ui_module import strukturentwurf as se
 from boerdi.ui_module import strukturentwurf_text as st
 
@@ -53,80 +75,32 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: Höchstens so viele Aufrufe je Entwurf zugleich — bei einem kleinen Anbieter-Deckel weniger
-#: (:func:`parallel`, Review U2, Befund 3).
-PARALLEL: Final = 5
-MINDEST_REST_S: Final = 8.0
-AUFRUF_FRIST_S: Final = 40.0
 EBENE3_HOECHSTENS: Final = 24
 #: Frist ohne Lauf-Frist (Muster-Weg, Brücke): so lange wartet die Person höchstens.
 GESAMT_FRIST_S: Final = 90.0
 #: Unterpunkte je Punkt beim Vertiefen einer Vorlage (das Modell kennt dort keine Planzahl).
 VORLAGE_UNTERTHEMEN: Final = 4
 PHASE: Final = "strukturentwurf"
+PHASE_VORWAERMEN: Final = "strukturentwurf_vorwaermen"
 _TOKENS_OBEN: Final = 2500
-#: Deckel der Dokument-Auszüge (U3-2b): Gliederung und Anfang für Ebene 1, Text je Punkt.
-DOKUMENT_AUSZUG: Final = 6000
-_TOKENS_KINDER: Final = 1600
 #: Felder der Block-Daten, die aus einer Vorlage übernommen werden (ohne die Antwort-Merker).
 _WURZEL_FELDER: Final = ("titel", "quelle", "thema", "fach", "bildungsstufe", "wurzel_wlo_id",
                          "gekuerzt", "quelle_block", "knoten", se.RESTE)
 
-#: (Nachrichten, max_tokens, frist_s, platz_frist_s) → geparstes JSON; wirft bei jedem Fehler.
-LlmJson = Callable[[list[dict[str, Any]], int, float, float], Awaitable[Any]]
-
-
-#: Durchtest themenbaum r2-1 bzw. Paket K (19.11.): Wörter, die bei ``aus_inhalten`` nur auf die
-#: Dateien der Person zeigen — ein Thema, das ein solches Wort trägt und SONST nur Füllwörter, ist
-#: ein Platzhalter („Themen aus den bereitgestellten eigenen Dateien“), kein Sachgebiet.
-_PLATZHALTER_HINWEIS: Final = frozenset({
-    "dateien", "datei", "bereitgestellt", "bereitgestellte", "bereitgestellten", "hochgeladen",
-    "hochgeladenen", "inhalte", "inhalten", "materialien", "unterlagen", "person",
-    "files", "file", "provided", "uploaded", "contents", "materials"})
-_PLATZHALTER_FUELLWORT: Final = frozenset({
-    "themen", "thema", "aus", "den", "der", "die", "des", "dem", "von", "zu", "mit", "und",
-    "meine", "meinen", "meiner", "eigene", "eigenen", "deine", "deinen", "ihre", "ihren",
-    "topics", "topic", "from", "the", "my", "own", "your", "of", "and"})
-
-
-def platzhalter_thema(thema: str | None) -> bool:
-    """Ist ``thema`` nur ein Platzhalter für „die Dateien der Person“ — ein Hinweiswort
-    (:data:`_PLATZHALTER_HINWEIS`) und kein Sachbegriff daneben (nur Füllwörter)?"""
-    woerter = {w.strip(".,;:!?()[]„“\"'«»-").casefold() for w in str(thema or "").split()} - {""}
-    return bool(woerter & _PLATZHALTER_HINWEIS) and woerter <= (
-        _PLATZHALTER_HINWEIS | _PLATZHALTER_FUELLWORT)
-
-
-def parallel() -> int:
-    """Eigene Parallelität: höchstens :data:`PARALLEL`, höchstens die Hälfte des Anbieter-Deckels
-    (``LLM_MAX_CONCURRENCY``, AcademicCloud 2) — ein Entwurf belegt nie alle Plätze des Chats."""
-    return min(PARALLEL, max(1, llm_parallel.anbieter_deckel() // 2))
-
-
-@dataclass(frozen=True, slots=True)
-class Auftrag:
-    thema: str
-    fach: str | None = None
-    bildungsstufe: str | None = None
-    anzahl_oben: int = 10
-    tiefe: int = 2
-    hinweise: str = ""
-    vertiefen: tuple[str, ...] = ()
-    #: TW-2: Vorgaben der Redaktion aus dem Ablauf (Systemteil, nie Daten der Person).
-    vorgaben: str = ""
 
 
 @dataclass(frozen=True, slots=True)
 class Erzeugt:
     """Die Block-Daten — oder ``None`` mit ``grund`` (``fehler``, ``ausgelastet``, ``frist``,
-    ``leer``)."""
+    ``leer``, ``voruebergehend``)."""
 
     daten: dict[str, Any] | None
     grund: str | None = None
 
 
-def llm_json(usage_acc: dict[str, Any] | None) -> LlmJson:
-    """Die echte Naht: ein JSON-Aufruf über den Transport, gebucht im Zähler des Zugs."""
+def llm_json(usage_acc: dict[str, Any] | None, phase: str = PHASE) -> LlmJson:
+    """Die echte Naht: ein JSON-Aufruf über den Transport, gebucht im Zähler des Zugs (unter
+    ``phase``; das Vorwärmen unter :data:`PHASE_VORWAERMEN`, fünftes Review A, NIT 9)."""
 
     async def rufe(nachrichten: list[dict[str, Any]], max_tokens: int, frist_s: float,
                    platz_frist_s: float) -> Any:
@@ -136,108 +110,11 @@ def llm_json(usage_acc: dict[str, Any] | None) -> LlmJson:
         # der Zug gilt nicht als ausgelastet (``llm_parallel._anstellen``).
         resp = await llm.chat_completion(
             messages=nachrichten, temperature=0.4, max_tokens=max_tokens,
-            response_format={"type": "json_object"}, usage_acc=usage_acc, phase=PHASE,
+            response_format={"type": "json_object"}, usage_acc=usage_acc, phase=phase,
             frist_s=frist_s, platz_frist_s=platz_frist_s)
         return json.loads(resp.choices[0].message.content or "{}")
 
     return rufe
-
-
-def _jetzt() -> float:
-    return asyncio.get_running_loop().time()
-
-
-@dataclass
-class _Lauf:
-    auftrag: Auftrag
-    llm: LlmJson
-    frist_ende: float
-    daten: dict[str, Any]
-    vergeben: set[str] = field(default_factory=set)
-    zahl: int = 0
-    #: Kennung → vom Modell vorgesehene Zahl der Unterpunkte.
-    plaene: dict[str, int] = field(default_factory=dict)
-    #: Mit Vorlage: nur diese Punkte (die Kompaktfassung, die KI und Prüfung sahen) gehen an den
-    #: Dienst, und nur ihre Titel (Gegenreview U2, Befund 3); ``None`` ohne Vorlage.
-    sichtbar: set[str] | None = None
-    dokument: DokumentStand | None = None
-    #: Querschnitts-Review: der Auszug für Ebene 2 geht erst nach der Moderation hin.
-    moderieren: Moderieren | None = None
-    auszuege: Auszuege | None = None
-    sperre: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(parallel()))
-
-    def rest(self) -> float:
-        return self.frist_ende - _jetzt()
-
-    async def rufe(self, nachrichten: list[dict[str, Any]], tokens: int) -> Any:
-        """Ein Aufruf, der spätestens am Fristende endet — samt Warten auf den Platz: die Frist
-        des Transports beginnt erst danach (Gegenreview U2, Befund 1)."""
-        rest = max(self.rest() - 1.0, 0.0)
-        async with asyncio.timeout_at(self.frist_ende):
-            return await self.llm(nachrichten, tokens, min(rest, AUFRUF_FRIST_S), rest)
-
-    async def auszug(self, knoten: dict[str, Any]) -> str:
-        """Der geprüfte Text des Dokuments zu ``knoten`` (``strukturentwurf_auszug``)."""
-        if self.auszuege is None:
-            self.auszuege = Auszuege(self.dokument, DOKUMENT_AUSZUG, self.moderieren)
-        return await self.auszuege.fuer(knoten)
-
-    async def kinder(self, knoten: dict[str, Any], anzahl: int, pfad: list[str],
-                     geschwister: list[str], *, letzte: bool) -> None:
-        """Unterpunkte EINES Punkts erzeugen und an seine vorhandenen anhängen (Review U2,
-        Befund 2: beim Vertiefen bleiben Bearbeitungen) — sonst ``ausstehend``."""
-        vorhanden = list(knoten.get("kinder") or [])
-        # Mit Vorlage nur, was in der Kompaktfassung stand (Gegenreview U2, Befund 3).
-        vorhanden_titel = [k["titel"] for k in vorhanden
-                           if self.sichtbar is None or k.get("id") in self.sichtbar]
-        async with self.sperre:
-            platz = min(se.HOECHSTENS_KNOTEN - self.zahl, se.HOECHSTENS_KINDER - len(vorhanden))
-            # Review TW-1, Befund 2: ohne vorhandene Unterpunkte nie genau einen anfordern
-            if (self.rest() < MINDEST_REST_S or platz <= 0
-                    or (not vorhanden and min(anzahl, platz) < 2)):
-                knoten["ausstehend"] = True
-                return
-            try:
-                # Nachprüfung Q4, Befund 1: das Warten auf die Moderation (ein Platz je Entwurf,
-                # dahinter die geteilten Plätze) endet vor der Frist — sonst überzöge der Entwurf
-                # sie und der Lauf bräche ihn samt Ebene 1 ab. ``TimeoutError`` → ``ausstehend``.
-                async with asyncio.timeout_at(self.frist_ende - MINDEST_REST_S):
-                    auszug = await self.auszug(knoten)
-                if self.rest() < MINDEST_REST_S:
-                    # Review Q4, Befund 1: die Zeit der Moderation zählt vor dem Modellaufruf.
-                    knoten["ausstehend"] = True
-                    return
-                # Rückmeldung 16.11.: mit Auszug ist die Schätzung der oberen Ebene nur ein
-                # Hinweis — der Abschnitt bestimmt die Zahl, bis zur Grenze der oberen Ebene
-                if auszug:
-                    anzahl = max(anzahl, prompt.UNTERTHEMEN_OBEN)
-                antwort = await self.rufe(prompt.unterthemen(
-                    entwurf=self.daten["titel"], thema=self.auftrag.thema,
-                    fach=self.daten.get("fach"), bildungsstufe=self.daten.get("bildungsstufe"),
-                    hinweise=self.auftrag.hinweise, pfad=pfad,
-                    knoten=knoten if self.sichtbar is None else {"titel": knoten["titel"]},
-                    geschwister=geschwister, anzahl=min(anzahl, platz), letzte_ebene=letzte,
-                    vorhanden=vorhanden_titel, auszug=auszug, vorgaben=self.auftrag.vorgaben),
-                    _TOKENS_KINDER)
-            except Exception as e:  # noqa: BLE001 — ein Zweig fehlt, der Entwurf bleibt
-                logger.info("Strukturentwurf: Unterpunkte nicht erzeugt (%s)", type(e).__name__)
-                knoten["ausstehend"] = True
-                return
-        neu = []
-        for p in prompt.punkte(antwort)[:min(anzahl, platz)]:
-            if self.zahl >= se.HOECHSTENS_KNOTEN:
-                break
-            if kind := se.knoten_aus(p, se.neue_kennung(knoten["id"], self.vergeben),
-                                     wurzel=self.daten):
-                neu.append(kind)
-                self.zahl += 1
-                self.plaene[kind["id"]] = 0 if letzte else prompt.zahl_unterthemen(
-                    p, prompt.UNTERTHEMEN_TIEF)
-        if neu:
-            knoten["kinder"] = vorhanden + neu
-            knoten.pop("ausstehend", None)
-        else:
-            knoten["ausstehend"] = True
 
 
 def _mit_pfad(knoten: list[dict[str, Any]], ebene: int = 1, pfad: tuple[str, ...] = ()
@@ -251,25 +128,30 @@ def _mit_pfad(knoten: list[dict[str, Any]], ebene: int = 1, pfad: tuple[str, ...
 
 async def _ebene(lauf: _Lauf, ziele: list[tuple[dict[str, Any], int, list[str], list[str]]],
                  *, letzte: bool) -> None:
+    if lauf.text is not None and ziele and not ziele[0][2]:
+        await lauf.vorwaermen()              # Plan E1c: nur vor den oberen Punkten (Ebene 2)
     await asyncio.gather(*(lauf.kinder(k, n, pfad, g, letzte=letzte) for k, n, pfad, g in ziele))
 
 
 async def _obere_ebene(lauf: _Lauf) -> str | None:
     """Ebene 1 in die Daten; ``None`` oder der Grund, warum es keinen Entwurf gibt."""
     a = lauf.auftrag
-    if lauf.rest() < MINDEST_REST_S:
+    if lauf.rest() < lauf_teil.MINDEST_REST_S:   # eine Quelle (Tests setzen sie dort)
         return "frist"
     try:
-        antwort = await lauf.rufe(
-            dokument_teil.aufforderung_oben(lauf.auftrag, lauf.daten, lauf.dokument),
-            _TOKENS_OBEN)
+        nachrichten = dokument_teil.aufforderung_oben(lauf.auftrag, lauf.daten, lauf.dokument,
+                                                      text=lauf.text or "")
+        # Plan 2026-11-19, A1 (E3): ein 503 des Anbieters einmal wiederholen
+        antwort = await wiederholen.einmal_wiederholt(
+            lambda: lauf.rufe(nachrichten, _TOKENS_OBEN), lauf.rest, lauf_teil.MINDEST_REST_S)
     except LlmAusgelastet:
         return "ausgelastet"
     except TimeoutError:
         return "frist"
     except Exception as e:  # noqa: BLE001 — Grund ins Log, an die KI nur „ließ sich nicht erzeugen“
         logger.info("Strukturentwurf: obere Ebene nicht erzeugt (%s)", type(e).__name__)
-        return "fehler"
+        # A1, Befund S1: ein vorübergehender Fehler ist keine Sackgasse — „gleich nochmal“
+        return "voruebergehend" if wiederholen.voruebergehend(e) else "fehler"
     d = lauf.daten
     if isinstance(antwort, dict):
         if isinstance(antwort.get("titel"), str) and (
@@ -281,15 +163,15 @@ async def _obere_ebene(lauf: _Lauf) -> str | None:
     # Review TW-1, Befund 1: aus einem Dokument je Ordnungselement ein Punkt (bis zum Deckel) —
     # ein Lehrplan mit 13 Lernfeldern verlöre sonst drei
     oben = se.HOECHSTENS_OBEN if lauf.dokument is not None else a.anzahl_oben
+    paare: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for p in prompt.punkte(antwort)[:oben]:
         if k := se.knoten_aus(p, se.neue_kennung(None, lauf.vergeben), wurzel=d):
-            if lauf.dokument is not None:
-                dokument_teil.fundstelle(k, p, lauf.dokument)
+            paare.append((k, p))
             d["knoten"].append(k)
             lauf.plaene[k["id"]] = prompt.zahl_unterthemen(p, prompt.UNTERTHEMEN_OBEN)
     if lauf.dokument is not None:
-        # Durchtest TG-7 (NIT): eine Fundstelle, die an jedem Punkt gleich ist, entfällt
-        dokument_teil.ohne_gleiche_fundstelle(d["knoten"])
+        # Review A (zweites), MINOR 7: Fundstelle und Plan in ``strukturentwurf_dokument``
+        dokument_teil.nacharbeit(paare, lauf.plaene, lauf.dokument, ganz=lauf.text is not None)
     lauf.zahl = len(d["knoten"])
     return None if d["knoten"] else "leer"
 
@@ -343,11 +225,19 @@ async def _vertiefen(lauf: _Lauf) -> Erzeugt:
 async def erzeugen(auftrag: Auftrag, *, llm: LlmJson, frist_ende: float,
                    vorlage: dict[str, Any] | None = None,
                    dokument: DokumentStand | None = None,
-                   moderieren: Moderieren | None = None) -> Erzeugt:
+                   moderieren: Moderieren | None = None,
+                   ganz_moderiert: bool = False,
+                   llm_vorwaermen: LlmJson | None = None) -> Erzeugt:
     """Einen Entwurf erzeugen — aus dem ``dokument`` der Person oder frei — oder eine ``vorlage``
     vertiefen. Block-Daten nach ``ui-strukturentwurf/manifest.json`` (``eingabe``); geprüft wird
     beim Aufrufer. Mit ``dokument`` gehört ``moderieren`` dazu (``ui_module/dienst._moderation``):
-    ohne gehen die Auszüge für Ebene 2 ungeprüft ans Modell."""
+    ohne gehen die Auszüge für Ebene 2 ungeprüft ans Modell.
+
+    ``ganz_moderiert`` (zweites Review A, MINOR 5): der Aufrufer hat den GANZEN Text des Dokuments
+    moderiert (``ui_module/dienst_ganztext``) — nur dann sehen Ebene 1 und (Plan E1c) jeder Aufruf
+    für Ebene 2 ihn ganz (bis ``GANZTEXT_ZEICHEN``), ohne zweite Moderation. Ohne die Zusage gilt
+    der Weg „gliederung“ mit moderierten Auszügen. ``llm_vorwaermen``: die Naht für den
+    Vorwärm-Aufruf (eigene Phase, fünftes Review A, NIT 9); ohne sie ``llm``."""
     if vorlage is not None:
         daten = {f: copy.deepcopy(vorlage[f]) for f in _WURZEL_FELDER if f in vorlage}
         # Plan 2026-11-16, Durchtest TG-7 (m2): der Kopf der Vorlage (etwa aus den Ordnern) bekommt
@@ -369,5 +259,8 @@ async def erzeugen(auftrag: Auftrag, *, llm: LlmJson, frist_ende: float,
         if wert := form(getattr(auftrag, feld)):
             daten[feld] = wert
     daten["knoten"] = []
+    if gelesen := dokument_teil.gelesen(dokument, ganz=ganz_moderiert):
+        daten["gelesen"] = gelesen          # Plan 2026-11-19, A6 (E7): nur Anzeige, nie an die KI
+    text = dokument_teil.ganzer_text(dokument) if ganz_moderiert else None
     return await _neu(_Lauf(auftrag, llm, frist_ende, daten, dokument=dokument,
-                            moderieren=moderieren))
+                            moderieren=moderieren, text=text, llm_vorwaermen=llm_vorwaermen))

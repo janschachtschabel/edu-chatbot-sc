@@ -30,12 +30,14 @@ def gesehen(monkeypatch):
     aufrufe: list[dict[str, Any]] = []
     ergebnis = {"wert": dienst.Erzeugt(dict(_DATEN))}
 
-    async def attrappe(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
+    async def attrappe(auftrag, *, llm, frist_ende, vorlage=None, dokument=None,
+                       moderieren=None, ganz_moderiert=False,
+                       llm_vorwaermen=None):
         aufrufe.append({"auftrag": auftrag, "frist_ende": frist_ende, "vorlage": vorlage,
                         "llm": llm, "dokument": dokument})
         return ergebnis["wert"]
 
-    def naht(usage_acc):
+    def naht(usage_acc, *_):
         async def rufe(*_a):  # pragma: no cover — die Attrappe oben ruft sie nie
             raise AssertionError
         rufe.zaehler = usage_acc  # type: ignore[attr-defined]
@@ -86,7 +88,9 @@ def test_der_dienst_endet_vor_der_frist_des_laufs(monkeypatch, gesehen):
 
     beginn: dict[str, float] = {}
 
-    async def messe(auftrag, *, llm, frist_ende, vorlage=None, dokument=None, moderieren=None):
+    async def messe(auftrag, *, llm, frist_ende, vorlage=None, dokument=None,
+                    moderieren=None, ganz_moderiert=False,
+                    llm_vorwaermen=None):
         beginn["jetzt"] = asyncio.get_running_loop().time()
         gesehen[0].append({"frist_ende": frist_ende})
         return dienst.Erzeugt(dict(_DATEN))

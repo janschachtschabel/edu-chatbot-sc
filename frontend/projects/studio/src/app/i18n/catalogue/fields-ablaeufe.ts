@@ -137,6 +137,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AgentSchritt.vorbelegen.label': 'Antworten vorbelegen',
     'feld.AgentSchritt.vorbelegen.hint':
       'An: die Antworten dieses Laufs belegen den Strukturentwurf vor — Umfang wird Tiefe und Breite (kompakt 1/6, mittel 2/10, ausführlich 3/12), Stufe die Bildungsstufe, Thema das Thema; Zweck, für wen, Soll oder Ist und Hinweise gehen als Zeilen in die Hinweise. Was die KI selbst angibt, geht vor.',
+    'feld.AgentSchritt.feste_argumente.label': 'Feste Argumente',
+    'feld.AgentSchritt.feste_argumente.hint':
+      'Je Werkzeug ein Objekt, etwa ui_strukturentwurf → {"aus_dokument": true}: der Server setzt diese Argumente in jeden Aufruf des Werkzeugs in diesem Schritt — anders als „Antworten vorbelegen“ geht hier der Ablauf vor der KI. Sie gelten für neue Entwürfe, nicht beim Vertiefen oder erneuten Zeigen eines Entwurfs (vorlage). Nur Werkzeuge des Schritts, die UI-Module mit Dienst sind, und nur Argumente aus deren Schema („Prüfen“ meldet Abweichungen).',
     'feld.Schritt.typ.wahl.nachricht': 'Nachricht',
     'feld.Schritt.typ.wahl.modul': 'Modul',
     'feld.Schritt.typ.wahl.werkzeug': 'Werkzeug',
@@ -405,6 +408,9 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.AgentSchritt.vorbelegen.label': 'Prefill answers',
     'feld.AgentSchritt.vorbelegen.hint':
       'On: the answers of this run prefill the structure draft — scope becomes depth and breadth (compact 1/6, medium 2/10, detailed 3/12), level the educational level, topic the topic; purpose, audience, target or actual and notes go into the hints as lines. What the AI sets itself takes precedence.',
+    'feld.AgentSchritt.feste_argumente.label': 'Fixed arguments',
+    'feld.AgentSchritt.feste_argumente.hint':
+      'One object per tool, e.g. ui_strukturentwurf → {"aus_dokument": true}: the server sets these arguments in every call of the tool in this step — unlike “Prefill answers”, the workflow takes precedence over the AI. They apply to new drafts, not when a draft is deepened or shown again (vorlage). Only tools of the step that are UI modules with a service, and only arguments from their schema (“Check” reports deviations).',
     'feld.Schritt.typ.wahl.nachricht': 'Message',
     'feld.Schritt.typ.wahl.modul': 'Module',
     'feld.Schritt.typ.wahl.werkzeug': 'Tool',

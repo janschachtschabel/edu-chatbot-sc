@@ -283,6 +283,7 @@ async def run_agent_loop(
     modul_belegung: Callable[[], Awaitable[tuple[int, int]]] | None = None,
     modul_vorgaben: str = "",
     modul_vorbelegung: dict[str, Any] | None = None,
+    modul_feste: dict[str, dict[str, Any]] | None = None,
     modul_umlenkung: Callable[..., str | None] | None = None,
     dokument_leser: Callable[[dict[str, Any]], Awaitable[str]] | None = None,
 ) -> AgentRun:
@@ -730,7 +731,9 @@ async def run_agent_loop(
                                          verfuegbar=frozenset(angeboten),
                                          vorgaben=modul_vorgaben,
                                          # Plan 2026-11-16, TG-5: Antworten des Laufs
-                                         vorbelegung=modul_vorbelegung)
+                                         vorbelegung=modul_vorbelegung,
+                                         # Plan 2026-11-19, A2: feste Argumente des Schritts
+                                         feste_argumente=modul_feste)
                 try:
                     with schritt("respond.werkzeuge"):
                         ergebnis = await innerhalb(ende, modul_asynchron(name, args, umgebung))

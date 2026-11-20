@@ -1,7 +1,8 @@
 """``POST /api/auth/session`` — der Sitzungs-Tausch über unser Backend (Plan 2026-11-15, SA-16).
 
 Für den Browser ist die Route nur über die eigene Ingress-Regel auf dem Host des Repositorys
-erreichbar (Helm-Werte ``sessionIngress``): Nur dort schickt er das Sitzungs-Cookie mit. Die Regel
+erreichbar (Chart ``deploy/helm/boerdi-session-ingress``): Nur dort schickt er das Sitzungs-Cookie
+mit. Die Regel
 leitet den Pfad unverändert weiter; das Backend nimmt ihn unter
 :data:`PFAD_AM_REPOSITORY` an (dieselbe Funktion, nicht im API-Dokument). So braucht die Regel
 kein ``rewrite-target`` — das stellte bei ingress-nginx alle Pfade des Repository-Hosts auf

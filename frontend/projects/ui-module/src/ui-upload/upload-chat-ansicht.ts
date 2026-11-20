@@ -52,7 +52,9 @@ export function chatTeile(a: ChatAnsicht): Node[] {
     // Wie beim Übertragen: eine halb gesendete Datei abzubrechen ließe offen, ob sie angekommen ist
     const leiste = a.knoten('div', 'u__knoepfe');
     leiste.append(a.knopf(a.anhalten ? t.haeltAn : t.anhalten, { chat: 'anhalten' }, false, a.anhalten));
-    return [...teile, balken, fokussierbar(a.knoten('p', 'u__hinweis', satz)), leiste];
+    // Paket C: liest eine PDF schon eine Weile, sagt ein zweiter Satz warum (ohne Fortschritt je Seite)
+    const lange = lauf.phase === 'liest' && lauf.lange ? [a.knoten('p', 'u__hinweis', t.texterkennungLaeuft)] : [];
+    return [...teile, balken, fokussierbar(a.knoten('p', 'u__hinweis', satz)), ...lange, leiste];
   }
   if (lauf.phase === 'fertig') {
     // Nur sichtbar, solange ein Zug läuft: dieselbe Antwort, die sonst gleich ginge

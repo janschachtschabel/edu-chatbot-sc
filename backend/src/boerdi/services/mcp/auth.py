@@ -67,6 +67,8 @@ class _ZugStand:
     unklar: bool = False
     #: R1: bis wann der Server den Block annimmt (``expiresAt`` von ``/auth/status``, ISO).
     ablauf: str | None = None
+    #: B4 (Plan 2026-11-19): ``displayName`` der bestätigten Person — nur für die Antwort des Zuges.
+    anzeigename: str = ""
 
 
 _zug_stand: _ctxvars.ContextVar[_ZugStand | None] = _ctxvars.ContextVar(
@@ -187,6 +189,17 @@ def merke_ablauf(ablauf: str | None) -> None:
 def zug_ablauf() -> str | None:
     stand = _zug_stand.get()
     return stand.ablauf if stand is not None and not stand.abgewiesen else None
+
+
+def merke_anzeigename(name: str) -> None:
+    """Der Anzeigename der Person dieses Zuges (B4, gesäubert in ``anmeldung``) — für das Kürzel."""
+    _stand().anzeigename = name
+
+
+def zug_anzeigename() -> str:
+    """Leer ohne bestätigte Person oder nach einer Abweisung — der Name gilt nur mit dem Block."""
+    stand = _zug_stand.get()
+    return stand.anzeigename if stand is not None and not stand.abgewiesen else ""
 
 
 def zug_block_abgewiesen() -> bool:

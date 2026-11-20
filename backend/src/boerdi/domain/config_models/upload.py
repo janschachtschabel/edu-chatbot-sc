@@ -39,6 +39,12 @@ class UploadSettings(AreaModel):
     lokal_max_dateien: int = Field(default=10, ge=1, le=30)
     #: … und höchstens so viele MB zusammen (Rohgröße der Dateien; je Datei gilt ``max_mb``).
     lokal_max_mb_gesamt: int = Field(default=50, ge=1, le=200)
+    #: Plan 2026-11-19, Paket C (Nutzer 19.11.): gescannte PDF „Hier im Chat“ per Texterkennung
+    #: lesen — die Seiten gehen als Bild an das Chat-Modell (``services/dokumente/ocr``). Ab Werk
+    #: an; ``DOCUMENT_OCR=off`` und Anbieter ohne Bildeingang (AcademicCloud) schalten sie ab.
+    ocr: bool = True
+    #: … höchstens so viele Seiten je PDF (je Seite ein KI-Aufruf); darüber gekürzt.
+    ocr_max_seiten: int = Field(default=20, ge=1, le=50)
 
 
 class UploadConfigArea(AreaModel):

@@ -282,9 +282,11 @@ def _mcp(monkeypatch, antwort: dict, gerufen: list | None = None):
 def test_tg3d_der_volltext_kommt_nur_lesend_ueber_das_mcp(monkeypatch):
     """Nie selbst schreiben: der Leser ruft nur ``get_wlo_content_text`` (Cache nicht gelesen)."""
     gerufen: list = []
-    _mcp(monkeypatch, {"nodeId": "n-1", "title": "T", "text": "# A\nB", "source": "repository",
-                       "charCount": 5, "truncated": False}, gerufen)
-    assert asyncio.run(leser.volltext("n-1")) == ("# A\nB", "")
+    # Plan 2026-11-19, A3: ein Volltext braucht ``KAUM_TEXT_WOERTER`` Wörter, sonst gilt er als Scan
+    text = "# A\n" + " ".join(["Lernfeld"] * leser.KAUM_TEXT_WOERTER)
+    _mcp(monkeypatch, {"nodeId": "n-1", "title": "T", "text": text, "source": "repository",
+                       "charCount": len(text), "truncated": False}, gerufen)
+    assert asyncio.run(leser.volltext("n-1")) == (text, "")
     assert gerufen == [("get_wlo_content_text", {"nodeId": "n-1", "maxChars": 200_000}, False)]
 
 

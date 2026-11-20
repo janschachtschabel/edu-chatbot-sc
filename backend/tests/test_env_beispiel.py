@@ -93,9 +93,10 @@ def test_keine_einstellung_traegt_die_marke_zu_unrecht() -> None:
     assert not falsch, falsch
 
 
-#: Nur für Compose, nicht für die App (traefik, Image-Name, Repliken, Sicherung, Host-Ordner).
+#: Nur für Compose, nicht für die App (traefik, Image-Name, Repliken, Sicherung, Host-Ordner;
+#: seit Plan 2026-11-19 der zweite Router der Sitzung und die vertrauten Proxys von traefik).
 _NUR_COMPOSE = {"ACME_EMAIL", "BACKEND_REPLICAS", "BACKUP_KEEP_DAYS", "BOERDI_IMAGE",
-                "PUBLIC_HOST", "RERANK_MODEL_HOST_DIR"}
+                "PUBLIC_HOST", "RERANK_MODEL_HOST_DIR", "SESSION_HOST", "TRAEFIK_TRUSTED_IPS"}
 
 
 def test_kein_veralteter_eintrag() -> None:

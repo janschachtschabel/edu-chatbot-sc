@@ -342,11 +342,13 @@ Einzelheiten zu Betriebsarten, Rückfall-Regeln, Admin-Liste und Fehlerzuordnung
   - `MCP_SESSION_URL` (Vorgabe leer = aus): Anmeldung aus der WLO-Sitzung (Plan 2026-11-15, SA-16). Die
     Adresse auf dem Repository-Host, unter der unser Backend den Tausch annimmt
     (`https://<Repository-Host>/edu-sharing/services/boerdi/auth/session`).
-    - **Chart:** `sessionIngress` in `deploy/helm/values.example.yaml` — ein zweites Ingress-Objekt mit dem
-      Hostnamen des Repositorys, das genau diesen Pfad (`Exact`, kein `rewrite-target`) an den öffentlichen
-      Port des Backends leitet, mit einem TLS-Zertifikat für den Repository-Host im eigenen Namespace.
-      Hinweise für das Template stehen in den Werten (keine Cookie-Affinität, Host unverändert, Istio). Vorbild: das Chart des md-editors
-      (`ingress.basePath`), läuft so auf Staging. An edu-sharing und dessen Ingress ändert sich nichts.
+    - **Chart:** `deploy/helm/boerdi-session-ingress` (Plan 2026-11-19; Schritte in §16) — ein
+      eigenes Ingress-Objekt mit dem Hostnamen des Repositorys, das genau diesen Pfad (`Exact`, kein
+      `rewrite-target`) an das Backend leitet: im Cluster an dessen Service, sonst per `ExternalName` an
+      einen Compose-Rechner (mit Zertifikatsprüfung; Vorbedingung `proxy-ssl-location-only`). Vorbild:
+      das Chart des md-editors (`ingress.basePath`). Am Ingress von edu-sharing ändert sich nichts.
+      `sessionIngress` in `deploy/helm/values.example.yaml` gilt nur für ein Gesamt-Chart von Team 6,
+      das dieses Chart nicht einbindet — **nie beides zugleich** (derselbe Host und Pfad doppelt).
     - Am MCP-Server `WLO_SESSION_EXCHANGE=1` und, wenn die Adresse im Browser von `WLO_REPOSITORY_URL`
       abweicht, `WLO_SESSION_ALLOWED_ORIGINS`. Der MCP muss dafür nicht in den Cluster; das Backend ruft ihn
       server-zu-server. Ab MCP 1.4.0 zahlen die Tausche aus dem Budget unseres Schlüssels, wenn der MCP ihn in
@@ -374,6 +376,17 @@ Einzelheiten zu Betriebsarten, Rückfall-Regeln, Admin-Liste und Fehlerzuordnung
   Backend ab (409 `grenze_anzahl`, 413 `grenze_gesamt`), es verdrängt nichts. Jeder gelesene Inhalt
   kostet einen kurzen LLM-Aufruf für die Kurzangaben (höchstens 3 zugleich). Der Text bleibt bis
   `aufbewahrung_h` nach der letzten Nutzung. Keine Umgebungsvariable.
+- **Texterkennung gescannter PDF (Plan 2026-11-19, Paket C):** „Hier im Chat“ schickt die Seiten
+  einer PDF ohne Textschicht als **Bild an das Chat-Modell** (b-api bzw. OpenAI; das Upload-Feld
+  sagt es vorher). Gesteuert im Studio (`ocr`, ab Werk an; `ocr_max_seiten` 20, 1–50).
+  `DOCUMENT_OCR=off` ist die Notbremse des Betriebs (Vorgabe `auto` = das Studio entscheidet); bei
+  `b-api-academiccloud` nie (kein Bildeingang). Je Seite ein Aufruf, höchstens 8 zugleich über
+  alle Uploads, Frist 80 s je Upload (Inhalte 50 s), je Gespräch höchstens `lokal_max_dateien ×
+  ocr_max_seiten` Seiten (danach 429 `grenze_ocr`; je Kopie, ohne Reservierung über Kopien);
+  gerendert wird im Kindprozess mit 512 MB Speichergrenze (dazu ein Pixelbudget als Vorprüfung).
+  Kosten unter der Quelle `dokument_ocr`. Einzelheiten: `deploy/README.md`,
+  Abschnitt `DOCUMENT_OCR`. Neue direkte Abhängigkeit: `pypdfium2` (BSD-3/Apache-2.0; kam vorher
+  über `markitdown[pdf]`/`pdfplumber` mit).
 - **Betriebswerte, die der Aufbau bestimmt:** `FORWARDED_ALLOW_IPS` (Ingress-CIDR; im
   Testbetrieb ohne Proxy `127.0.0.1`), `TRUST_FORWARDED_FOR` (`false`), `B_API_KEY_MODE`,
   `B_API_ROUTE`, `RATE_LIMIT_STORAGE_URI` (Valkey), `LOG_FORMAT=json`, `INTERNAL_PORT`.
@@ -452,3 +465,143 @@ T4 – Jan Schachtschabel (technischer Owner).
   - Einzelheiten: `docs/aenderungen/2026-11-19-paket-n1-n2.md`, `…-paket-n3-zuordnung.md`,
     `…-paket-n4-freigabe-box.md`.
 - **Wer Updates anstößt und umsetzt:** *(vom Nutzer einzutragen)*.
+
+## 16 Sitzungsübernahme auf Staging einrichten
+
+Plan 2026-11-19 (Befund S3, E9): Auf Staging antwortete `…/edu-sharing/services/boerdi/auth/session`
+mit dem 404 von edu-sharing — es gab kein Ingress-Objekt für den Pfad. Das Widget in der Redaktion
+erkannte die Anmeldung deshalb nicht. Der Chatbot läuft auf Staging mit Docker Compose auf einem
+eigenen Rechner, das Repository im Cluster. Die Schritte, in dieser Reihenfolge:
+
+1. **MCP-Server** (eigener Rechner, `https://wlo-mcp.87.106.195.152.nip.io`, MCP-Team):
+   `WLO_SESSION_EXCHANGE=1` und `WLO_AUTH_PRIVATE_KEY` gesetzt; weicht die Herkunft der Redaktion im
+   Browser von `WLO_REPOSITORY_URL` ab, dazu `WLO_SESSION_ALLOWED_ORIGINS`. Ohne diese antwortet der
+   Tausch 404 bzw. 403 vom MCP, auch wenn alles andere stimmt.
+2. **Vorbedingungen am Cluster des Repositorys prüfen** (mit dem Betrieb des Clusters):
+   - **Namespace und Name der ConfigMap des Controllers** stehen in seinen Startargumenten
+     (`--configmap=<namespace>/<name>`; `$(POD_NAMESPACE)` ist der Namespace aus der ersten
+     Spalte):
+     ```bash
+     kubectl get deploy,ds -A -l app.kubernetes.io/name=ingress-nginx \
+       -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.spec.template.spec.containers[0].args}{"\n"}{end}'
+     ```
+     Fehlt `--configmap`, gilt für alles die Vorgabe (`proxy-ssl-location-only` = false) — dann
+     mit dem Betrieb eine ConfigMap anlegen und dem Controller nennen. In derselben Ausgabe darf
+     `--disable-svc-external-name` nicht stehen (Schritt 3 braucht den `ExternalName`-Service),
+     und ein `--watch-namespace` muss den Namespace aus Schritt 3 einschließen.
+   - **`proxy-ssl-location-only: "true"` — Pflicht.** ingress-nginx legt alle Ingresse eines Hosts
+     zu einem Server-Block zusammen und übernimmt die `proxy-ssl-*`-Werte des ersten Ingress für den
+     GANZEN Block, solange diese Einstellung nicht `"true"` ist (Vorgabe `"false"`). Dann prüfte
+     alles, was dort HTTPS spricht, gegen die Wurzeln und den Namen des Chat-Hosts — andere Ziele,
+     auch `backend-protocol: AUTO_HTTP`, eine `auth-url` oder `global-auth-url` mit https und
+     `mirror-target` — 502. Eine Prüfung der übrigen Ingresse deckt das nicht ab; der einzige Weg
+     ist die Einstellung:
+     ```bash
+     kubectl get configmap -n <namespace> <name> -o jsonpath='{.data.proxy-ssl-location-only}'
+     # muss "true" ausgeben
+     ```
+     **Dauerhaft setzen:** Wird der Controller per Helm verwaltet, in dessen Werte
+     `controller.config.proxy-ssl-location-only: "true"` — ein per `kubectl patch` gesetzter Wert
+     verschwände beim nächsten `helm upgrade` des Controllers still. Sonst:
+     ```bash
+     kubectl patch configmap -n <namespace> <name> --type merge \
+       -p '{"data":{"proxy-ssl-location-only":"true"}}'
+     ```
+     Der Controller lädt das ohne Neustart. Nach jedem Upgrade des Controllers erneut prüfen.
+     Die Einstellung gilt für **alle** Ingresse dieses Controllers: Prüfwerte gibt es danach nur
+     noch je Location. Ingresse mit eigenen `proxy-ssl-*` bleiben korrekt (jede ihrer Locations
+     trägt ihre eigenen Werte) — außer bei Unteranfragen wie `auth-url`, die die Werte bisher über
+     den Server-Block erbten. Betroffen sind also nur Ingresse mit `proxy-ssl-secret`:
+     ```bash
+     kubectl get ingress -A -o json | jq -r '.items[]
+       | select(.metadata.annotations["nginx.ingress.kubernetes.io/proxy-ssl-secret"] != null)
+       | "\(.metadata.namespace)/\(.metadata.name)"'
+     ```
+     Mit dem Betrieb des Clusters abstimmen. Erst danach im Chart
+     `backend.externalName.proxySslLocationOnlyGesetzt: true` setzen; ohne bricht das Rendern bei
+     Prüfung des Zertifikats ab.
+   - **`annotations-risk-level`** mindestens `High` (`proxy-ssl-name` ist als High eingestuft;
+     sonst weist der Controller den Ingress ab):
+     ```bash
+     kubectl get configmap -n <namespace> <name> -o jsonpath='{.data.annotations-risk-level}'
+     # leer = High (Vorgabe), sonst High oder Critical
+     ```
+   - **Port 8443** des Chat-Rechners ist in der Firewall des Anbieters offen (der Cluster spricht
+     ihn von außen an).
+3. **Ingress im Cluster des Repositorys** (ein Namespace mit Schreibrecht für Ingress, Service und
+   Secret, den der Controller beobachtet — kein `--watch-namespace` auf einen anderen).
+   Zuerst die Wurzeln von Let's Encrypt holen und die Beispielwerte als eigene Datei anlegen, darin
+   `backend.externalName.host` auf den Chat-Host setzen (dessen `PUBLIC_HOST`; Port 8443, der
+   Eingang `sitzung`):
+   ```bash
+   curl -fsSLO https://letsencrypt.org/certs/isrgrootx1.pem \
+     && curl -fsSLO https://letsencrypt.org/certs/isrg-root-x2.pem \
+     && cat isrgrootx1.pem isrg-root-x2.pem > le-wurzeln.pem
+   cp deploy/helm/boerdi-session-ingress/values-staging.example.yaml meine-werte.yaml
+   # meine-werte.yaml: backend.externalName.host eintragen
+   helm template boerdi-sitzung deploy/helm/boerdi-session-ingress -n <namespace> -f meine-werte.yaml \
+     --set-file backend.externalName.caBundle=le-wurzeln.pem \
+     --set backend.externalName.proxySslLocationOnlyGesetzt=true      # erst ansehen
+   helm upgrade --install boerdi-sitzung deploy/helm/boerdi-session-ingress \
+     -n <namespace> -f meine-werte.yaml \
+     --set-file backend.externalName.caBundle=le-wurzeln.pem \
+     --set backend.externalName.proxySslLocationOnlyGesetzt=true
+   ```
+   `proxySslLocationOnlyGesetzt=true` nur, wenn Schritt 2 `"true"` ergab. `tls` leer lassen:
+   ingress-nginx legt die Ingresse desselben Hosts zusammen und nimmt das Zertifikat aus dem
+   Ingress des Repositorys. **Die Prüfung des Chat-Zertifikats ist Pflicht** — ingress-nginx wertet
+   SNI und Prüfung nur mit `proxy-ssl-secret` aus, und auf diesem Weg reist das Sitzungs-Cookie.
+   Das Chart legt das Secret aus `caBundle` im Namespace des Releases an; ein vorhandenes
+   (`verifySecret`) muss im selben Namespace liegen (fremde nur mit
+   `--allow-cross-namespace-resources`). Der Controller muss `ExternalName`-Services zulassen
+   (ingress-nginx ohne `--disable-svc-external-name`). Die Renderprüfung bricht ab bei fehlendem
+   Host, falschem Pfad, zwei oder keinem Ziel, ohne Prüfung des Zertifikats (außer
+   `insecureSkipVerify: true`) und bei Annotationen, die den Weg oder den ganzen Repository-Host
+   verbiegen — die Liste steht in `deploy/helm/boerdi-session-ingress/templates/_helpers.tpl`
+   (`boerdi_session.pruefen`). Hat am Host schon ein Ingress Regex-Pfade (der md-editor), schreibt
+   ingress-nginx auch unseren Exact-Pfad als `~* "^…"` (Präfix, ohne Groß/klein) — harmlos: längere
+   Pfade gehen vor, und das Backend prüft den Pfad exakt.
+   **Voraussetzung am Ingress des Clusters:** `X-Forwarded-For` trägt die Adresse der Person
+   (ingress-nginx ab Werk: `$remote_addr`, `compute-full-forwarded-for` aus). Steht vor dem
+   Controller ein Load-Balancer ohne PROXY-Protokoll (`use-proxy-protocol`) bzw. ohne
+   `use-forwarded-headers`, ist `$remote_addr` dessen Adresse — dann zählen alle Personen
+   wieder als eine, und daran ändert `TRAEFIK_TRUSTED_IPS` nichts.
+4. **Chat-Rechner** (`deploy/.env`):
+   ```bash
+   MCP_SESSION_URL=https://repository.staging.openeduhub.net/edu-sharing/services/boerdi/auth/session
+   SESSION_HOST=repository.staging.openeduhub.net
+   CORS_ORIGINS=…,https://repository.staging.openeduhub.net   # bei CORS_ALLOW_ALL=false
+   ```
+   Dann `docker compose -f compose.prod.yml -f compose.session.yml --env-file .env up -d`. Die
+   Zusatzdatei veröffentlicht Port 8443 (Eingang `sitzung`, nur der Router für den Tausch).
+   `FORWARDED_ALLOW_IPS` bleibt im Compose-Betrieb leer (Uvicorn glaubt Traefik; `TRUST_FORWARDED_FOR`
+   setzt `compose.prod.yml`). Im Cluster-Betrieb (Ziel `backend.service`) gehört dort die Pod-CIDR
+   des Ingress-Controllers hinein.
+5. **Erster Tausch, Adressen nachtragen:** einmal in der Redaktion anmelden und das Widget öffnen.
+   Im Zugriffslog von Traefik (`docker compose logs traefik`) steht beim Router `boerdi-sitzung`
+   als `ClientHost` die Ausgangsadresse des Clusters. Sie (bzw. alle Ausgangsadressen) in
+   `TRAEFIK_TRUSTED_IPS` eintragen und Traefik neu starten. Ohne den Eintrag funktioniert der Tausch,
+   aber die Grenze je Adresse (10 je Minute) gilt für alle Personen zusammen. Das Vertrauen gilt
+   nur am Eingang `sitzung`; wer dort steht, darf `X-Forwarded-For` frei setzen — nur Adressen
+   des eigenen Clusters.
+6. **Prüfen:**
+   - Zuerst die Annahme, dass Traefik am Eingang `sitzung` per SNI dasselbe ACME-Zertifikat
+     liefert wie der Router `boerdi` am Port 443 (jetzt ist 8443 offen):
+     ```bash
+     openssl s_client -connect <Chat-Host>:8443 -servername <Chat-Host> -CAfile le-wurzeln.pem </dev/null
+     ```
+     → `Verify return code: 0 (ok)`.
+   - `curl -s -o /dev/null -w '%{http_code}\n' -X POST https://repository.staging.openeduhub.net/edu-sharing/services/boerdi/auth/session`
+     → `403` (fremde Herkunft): der Pfad erreicht das Backend. `404` mit `ErrorResponse` von
+     edu-sharing: der Ingress greift nicht. `404 page not found` (Traefik): `compose.session.yml`
+     nicht eingebunden oder `SESSION_HOST` falsch. `404` „nicht eingerichtet“: `MCP_SESSION_URL`
+     fehlt oder der Host-Kopf kam nicht an. `502`: die Prüfung des Chat-Zertifikats scheitert
+     (Log des Controllers: `upstream SSL certificate verify error`; Gegenprobe mit `openssl
+     s_client` oben). `504`: der Chat-Rechner ist nicht erreichbar (Port 8443 in der
+     Firewall des Anbieters, `compose.session.yml` eingebunden?).
+   - Andere Ziele am Repository-Host antworten weiter wie zuvor (Server-Block, Schritt 2).
+   - `curl -s https://<PUBLIC_HOST>/api/config/guide-mode` nennt `mcp_session_url`.
+   - In der Redaktion angemeldet: Das Widget zeigt in der Fußzeile den Kreis mit dem Kürzel, der
+     Knopf heißt „Abmelden — angemeldet als …“.
+
+Die Abnahme auf Staging macht der Betrieb (Plan §5, S3).
