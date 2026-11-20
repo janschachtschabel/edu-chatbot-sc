@@ -237,3 +237,7 @@ grün, `ui` stream 165 grün.
 - Keine Migration. Image neu bauen (Backend mit `pypdfium2` als direkter Abhängigkeit, Widget und
   das nachgeladene Upload-Modul), danach Hard-Reload. Die Texterkennung ist **ab Werk an**; wer sie
   nicht will: Studio „ocr“ aus oder `DOCUMENT_OCR=off`.
+
+## CI (20.11.)
+
+Das Budget der nachgeladenen Module (`frontend/scripts/check-module-budget.mjs`, nur in der CI) brach ab: `ui-upload` 23 448 B gzip > 23 000 B — die neuen Texte der Texterkennung (Datenschutz-Satz, Dauer, Blase, `grenze_ocr`, je zweisprachig). Benannte Ausnahme 23 → 24 kB, Test angepasst (rot gesehen); die Summe aller Module bleibt bei 49,3 kB (Grenze 60 kB). Alle Schritte des Frontend-Jobs lokal nachgezogen: grün.
