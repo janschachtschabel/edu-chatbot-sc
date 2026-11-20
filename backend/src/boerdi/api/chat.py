@@ -53,7 +53,7 @@ from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.llm_auth import KeinDelegationsToken
 from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.anmeldung import abgelehnt_in_diesem_zug
-from boerdi.services.mcp.auth import zug_ablauf
+from boerdi.services.mcp.auth import zug_ablauf, zug_anzeigename
 from boerdi.services.sitzungssperre import SitzungBeschaeftigt
 from boerdi.services.token_stream import TokenStrom
 from boerdi.services.usage_store import record_turn_usage
@@ -182,6 +182,8 @@ def _anmeldestand(resp: ChatResponse | None, req: ChatRequest | None = None,
     elif resp is not None:
         # R1 (Plan 2026-11-07): die Frist des Blocks, damit das Widget rechtzeitig neu anmeldet.
         resp.auth_expires_at = zug_ablauf()
+        # B4 (Plan 2026-11-19): der Name für das Kürzel — erst hier, nach dem Speichern des Zuges.
+        resp.auth_display_name = zug_anzeigename() or None
     return resp
 
 

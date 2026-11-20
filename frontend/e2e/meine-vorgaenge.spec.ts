@@ -56,7 +56,7 @@ test('bei 320 px bricht die Zeile um: das Feld oben in voller Breite, die Knöpf
     const kinder = Array.from(el.children).map((k) => {
       const r = k.getBoundingClientRect();
       return { klasse: (k as HTMLElement).className.split(' ')[0], breite: Math.round(r.width),
-        oben: Math.round(r.top), rechts: Math.round(r.right) };
+        oben: Math.round(r.top), mitte: Math.round((r.top + r.bottom) / 2), rechts: Math.round(r.right) };
     });
     return { kinder, scroll: el.scrollWidth, client: el.clientWidth };
   });
@@ -65,11 +65,13 @@ test('bei 320 px bricht die Zeile um: das Feld oben in voller Breite, die Knöpf
   const knoepfe = zeile.kinder.filter((k) => k.klasse !== 'chat-input');
   expect(feld.breite).toBeGreaterThanOrEqual(250);                  // volle Breite statt 76 px
   for (const k of knoepfe) expect(k.oben, `${k.klasse} unter dem Feld`).toBeGreaterThan(feld.oben);
-  expect(new Set(knoepfe.map((k) => k.oben)).size).toBe(1);         // die Knöpfe in einer Zeile
+  // die Knöpfe in einer Zeile — über die Mitte: das Kürzel (E8) ist mit 28 px kleiner als die Knöpfe
+  const mitten = knoepfe.map((k) => k.mitte);
+  expect(Math.max(...mitten) - Math.min(...mitten)).toBeLessThanOrEqual(4);
   expect(knoepfe.at(-1)!.klasse).toBe('btn-send');                  // Senden bleibt ganz rechts
 });
 
-test('mit Mikrofon (bis 408 px): Mikrofon und Feld oben, in Sicht- wie Tab-Reihenfolge', async ({ page }) => {
+test('mit Mikrofon (bis 444 px): Mikrofon und Feld oben, in Sicht- wie Tab-Reihenfolge', async ({ page }) => {
   // Review AS-Ud, Befund 6: das Mikrofon steht im DOM vor dem Feld — kein `order`, das es umdreht
   await page.setViewportSize({ width: 380, height: 640 });
   await angemeldet(page);
@@ -95,8 +97,9 @@ test('mit Mikrofon (bis 408 px): Mikrofon und Feld oben, in Sicht- wie Tab-Reihe
   expect(lage.scroll).toBeLessThanOrEqual(lage.client);
 });
 
-test('ab 364 px bleibt es auch angemeldet eine Zeile mit mindestens 120 px Feld', async ({ page }) => {
-  await page.setViewportSize({ width: 400, height: 640 });
+test('ab 400 px bleibt es auch angemeldet eine Zeile mit mindestens 120 px Feld', async ({ page }) => {
+  // Plan 2026-11-19 (E8): mit dem Kürzel liegt die Grenze bei 400 px (vorher 364 px).
+  await page.setViewportSize({ width: 440, height: 640 });
   await angemeldet(page);
   const w = await mount(page, MIT_ANMELDUNG);
   await vorgaengeStubben(page);

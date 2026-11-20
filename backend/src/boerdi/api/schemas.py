@@ -431,6 +431,11 @@ class ChatResponse(BaseModel):
     # ``expiresAt`` von ``/auth/status``) — nur bei Ticket- und Widget-Blöcken. Das Widget bietet
     # kurz davor die Anmeldung neu an bzw. tauscht das Ticket nach dem Ablauf neu.
     auth_expires_at: str | None = None
+    # Plan 2026-11-19 (B4): der Anzeigename der Person, die der MCP-Server für den Block dieses
+    # Zuges bestätigt hat (``displayName`` von ``/auth/status``, gesäubert, höchstens 120 Zeichen) —
+    # für das Kürzel im Widget. Nur in der Antwort an dieselbe Person: gesetzt nach dem Speichern
+    # des Zuges (``api/chat._anmeldestand``), also nie im Verlauf, in Debug oder Log.
+    auth_display_name: str | None = None
     # Paket K2b: ein Auftragsschritt mit ``warten: gesperrt`` wartet — das Widget nimmt bis zur
     # nächsten Antwort ohne diese Marke nur die Knöpfe an (das Backend weist anderes ohnehin ab).
     eingabe_gesperrt: bool = False

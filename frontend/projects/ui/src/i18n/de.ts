@@ -354,6 +354,11 @@ export const DE: Catalogue = {
   'auth.signOut': 'Abmelden — wieder anonym suchen',
   // Plan 2026-11-15: Anmeldung aus der Sitzung der Seite — der Knopf nennt, wer handelt.
   'auth.signOutAs': 'Abmelden — angemeldet als {name}',
+  // Plan 2026-11-19 (E8): der Kreis mit dem Kürzel links vom Anmelde-Knopf; ohne Namen nur
+  // „Angemeldet“, abgemeldet ausgegraut „Nicht angemeldet“.
+  'auth.signedInAs': 'Angemeldet als {name}',
+  'auth.signedIn': 'Angemeldet',
+  'auth.notSignedIn': 'Nicht angemeldet',
   'auth.signedOutSession': 'Abgemeldet. Ich suche wieder anonym. In WLO selbst bleibst du angemeldet.',
   'auth.sessionNone': 'In WLO ist auf dieser Seite gerade niemand angemeldet. Melde dich dort an und tippe danach noch einmal auf „Anmelden“.',
   'auth.sessionFailed': 'Deine WLO-Sitzung ließ sich gerade nicht übernehmen. Versuch es gleich noch einmal.',

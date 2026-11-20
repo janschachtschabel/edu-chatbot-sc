@@ -1,0 +1,45 @@
+Der Tauschpfad der Anmeldung aus der WLO-Sitzung liegt jetzt am Repository-Host:
+
+  https://{{ .Values.host }}{{ include "boerdi_session.pfad" . }}
+
+Am Chatbot (Backend) eintragen:
+
+  MCP_SESSION_URL=https://{{ .Values.host }}{{ include "boerdi_session.pfad" . }}
+{{- if .Values.backend.externalName.host }}
+  SESSION_HOST={{ .Values.host }}      # mit deploy/compose.session.yml auf {{ .Values.backend.externalName.host }}
+  TRAEFIK_TRUSTED_IPS=<Ausgangsadressen des Clusters>   # nur für den Eingang `sitzung` (:{{ .Values.backend.externalName.port }})
+{{- if not (include "boerdi_session.pruefSecret" .) }}
+
+WARNUNG (insecureSkipVerify): Das Zertifikat von {{ .Values.backend.externalName.host }} wird NICHT
+geprüft, und der TLS-Handschlag nennt keinen Namen. Auf diesem Weg reist das Sitzungs-Cookie der
+Redaktion — jeder, der sich dazwischenstellt, kann es lesen. backend.externalName.caBundle setzen
+und nach docs/uebergabe-betrieb.md §16 Schritt 2 proxySslLocationOnlyGesetzt.
+{{- end }}
+{{- else }}
+  FORWARDED_ALLOW_IPS=<Pod-CIDR des Ingress-Controllers>
+{{- end }}
+
+Dazu: der Repository-Host in CORS_ORIGINS (bei CORS_ALLOW_ALL=false) und am MCP-Server
+WLO_SESSION_EXCHANGE=1 und WLO_AUTH_PRIVATE_KEY. Prüfen:
+
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST https://{{ .Values.host }}{{ include "boerdi_session.pfad" . }}
+
+403 (fremde Herkunft) heißt: der Pfad erreicht das Backend. 404 mit ErrorResponse von edu-sharing
+heißt: der Ingress greift nicht. 404 mit „nicht eingerichtet“: MCP_SESSION_URL fehlt oder der
+Host-Kopf kam nicht an.
+{{- if .Values.backend.externalName.host }}
+404 „page not found“ (Traefik): der Router für SESSION_HOST fehlt.
+{{- end }}
+{{- if include "boerdi_session.pruefSecret" . }}
+502: die Prüfung des Chat-Zertifikats scheitert — im Log des Controllers steht dann
+„upstream SSL certificate verify error“. 504: der Chat-Rechner ist nicht erreichbar (Port
+{{ .Values.backend.externalName.port }} in der Firewall des Anbieters, compose.session.yml eingebunden?). Gegenprobe:
+
+  openssl s_client -connect {{ .Values.backend.externalName.host }}:{{ .Values.backend.externalName.port }} -servername {{ .Values.backend.externalName.host }} -CAfile <CA-Datei>
+
+(<CA-Datei>: dieselben Wurzeln wie in caBundle — bei verifySecret: dessen ca.crt)
+
+muss „Verify return code: 0“ melden (traefik liefert am Eingang `sitzung` per SNI das Zertifikat
+des Chat-Hosts). Vorausgesetzt ist proxy-ssl-location-only: "true" in der ConfigMap des
+Controllers — sonst gälte diese Prüfung für den ganzen Repository-Host.
+{{- end }}

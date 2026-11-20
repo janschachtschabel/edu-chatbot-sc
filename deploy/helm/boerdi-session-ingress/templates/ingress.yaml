@@ -1,0 +1,54 @@
+{{- include "boerdi_session.pruefen" . }}
+{{- $extern := .Values.backend.externalName }}
+{{- $anmerkungen := deepCopy (.Values.annotations | default dict) }}
+{{- if $extern.host }}
+{{- /* Ziel auf einem eigenen Rechner: über HTTPS. Mit dem Prüf-Secret nennt der Ingress im
+       TLS-Handschlag den Chat-Host (SNI) und prüft dessen Zertifikat bis zur Wurzel (Tiefe 3: auch
+       über die Kreuzsignatur von ISRG Root X2). Ohne Secret wertet ingress-nginx die übrigen
+       proxy-ssl-Annotationen nicht aus — darum setzt das Chart sie nur mit ihm. Der Host-Kopf
+       bleibt der des Repositorys (nicht umschreiben): daran erkennen das Backend und Traefik den
+       Tausch. */}}
+{{- $_ := set $anmerkungen "nginx.ingress.kubernetes.io/backend-protocol" "HTTPS" }}
+{{- $pruefSecret := include "boerdi_session.pruefSecret" . }}
+{{- if $pruefSecret }}
+{{- $_ := set $anmerkungen "nginx.ingress.kubernetes.io/proxy-ssl-secret" $pruefSecret }}
+{{- $_ := set $anmerkungen "nginx.ingress.kubernetes.io/proxy-ssl-verify" "on" }}
+{{- $_ := set $anmerkungen "nginx.ingress.kubernetes.io/proxy-ssl-verify-depth" "3" }}
+{{- $_ := set $anmerkungen "nginx.ingress.kubernetes.io/proxy-ssl-name" $extern.host }}
+{{- $_ := set $anmerkungen "nginx.ingress.kubernetes.io/proxy-ssl-server-name" "on" }}
+{{- end }}
+{{- end }}
+# Ein Ingress am Host des Repositorys für genau einen Pfad (Exact), unverändert weitergereicht —
+# kein rewrite, keine Affinität. Am Ingress von edu-sharing ändert sich nichts; ingress-nginx legt
+# aber alle Ingresse eines Hosts zu EINEM Server-Block zusammen — mit Prüf-Secret darum nur bei
+# `proxy-ssl-location-only: "true"` (proxySslLocationOnlyGesetzt). Hat ein Ingress am Host Regex-Pfade (md-editor),
+# wird unser Exact zu `~* "^…"` (Präfix, ohne Groß/klein) — harmlos, das Backend prüft exakt.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "boerdi_session.name" . }}
+  labels:
+    {{- include "boerdi_session.labels" . | nindent 4 }}
+  {{- with $anmerkungen }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: {{ include "boerdi_session.pfad" . | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "boerdi_session.ziel" . }}
+                port:
+                  number: {{ include "boerdi_session.zielPort" . }}

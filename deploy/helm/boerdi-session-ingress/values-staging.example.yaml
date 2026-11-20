@@ -1,0 +1,47 @@
+# Staging (Plan 2026-11-19, E9): die Redaktion auf repository.staging.openeduhub.net, der Chatbot auf
+# einem eigenen Rechner mit Docker Compose. Vor dem Einsatz die beiden Hosts prüfen.
+#
+# Ohne Prüfung des Zertifikats bricht das Rendern ab (Review B). Für den Chat-Host mit
+# Let's-Encrypt-Zertifikat die beiden Wurzeln von https://letsencrypt.org/certificates/ holen
+# (isrgrootx1.pem, isrg-root-x2.pem), zusammenlegen und mitgeben:
+#
+#   cat isrgrootx1.pem isrg-root-x2.pem > le-wurzeln.pem
+#   helm template boerdi-sitzung deploy/helm/boerdi-session-ingress \
+#     -n <namespace-am-repository> -f deploy/helm/boerdi-session-ingress/values-staging.example.yaml \
+#     --set-file backend.externalName.caBundle=le-wurzeln.pem \
+#     --set backend.externalName.proxySslLocationOnlyGesetzt=true
+#   helm upgrade --install boerdi-sitzung deploy/helm/boerdi-session-ingress \
+#     -n <namespace-am-repository> -f deploy/helm/boerdi-session-ingress/values-staging.example.yaml \
+#     --set-file backend.externalName.caBundle=le-wurzeln.pem \
+#     --set backend.externalName.proxySslLocationOnlyGesetzt=true
+#
+# proxySslLocationOnlyGesetzt erst, wenn die ConfigMap des Controllers
+# proxy-ssl-location-only: "true" hat (docs/uebergabe-betrieb.md §16, Schritt 2).
+#
+# Danach am Chat-Rechner: SESSION_HOST=repository.staging.openeduhub.net und
+# MCP_SESSION_URL=https://repository.staging.openeduhub.net/edu-sharing/services/boerdi/auth/session
+# (deploy/README.md, Abschnitt MCP_SESSION_URL; docs/uebergabe-betrieb.md §16).
+
+host: repository.staging.openeduhub.net
+
+# Wie das Repository auf Staging (ingress-nginx).
+className: nginx
+
+# Leer: ingress-nginx legt die Ingresse desselben Hosts zusammen, es gilt das Zertifikat aus dem
+# Ingress des Repositorys. Ein eigenes Secret läge im Namespace dieses Releases.
+tls: []
+
+backend:
+  externalName:
+    # Der Chat-Rechner (PUBLIC_HOST in seiner .env). Beispiel aus deploy/INSTALL-schnellstart.md —
+    # den tatsächlichen Host eintragen.
+    host: 87.106.127.225.nip.io
+    # Eingang `sitzung` aus compose.session.yml
+    port: 8443
+    # Die Wurzeln als PEM — per --set-file (siehe oben), nicht hier einfügen.
+    caBundle: ""
+    verifySecret: ""
+    # Erst auf true, wenn die ConfigMap des Controllers proxy-ssl-location-only: "true" hat
+    # (docs/uebergabe-betrieb.md §16) — sonst bricht das Rendern ab.
+    proxySslLocationOnlyGesetzt: false
+    insecureSkipVerify: false

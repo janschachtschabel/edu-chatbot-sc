@@ -295,6 +295,7 @@
   <!-- Eingabe-Footer (ALT 609-632) -->
   <!-- AS-Ud: angemeldet ein Knopf mehr — bei schmaler Breite bricht die Zeile um (`_chat-footer.scss`). -->
   <div class="chat-footer" [class.chat-footer--konto]="authButton() === 'signOut'"
+       [class.chat-footer--anmeldung]="authButton() !== 'hidden' && !probe()"
        [class.chat-footer--mikro]="languageButtonsVisible">
     @if (languageButtonsVisible) {
       <button
@@ -361,6 +362,21 @@
       >
         <span class="bb-icon" [innerHTML]="ICONS.restore | safeSvg"></span>
       </button>
+    }
+    <!-- Plan 2026-11-19 (E8): wer angemeldet ist, als Kürzel im Kreis direkt links vom Anmelde-Knopf;
+         abgemeldet der Umriss einer Person in einem gestrichelten Kreis. Nur eine Anzeige, kein Knopf:
+         `role="img"` mit Namen, der Inhalt ist für Vorleser stumm. -->
+    @if (authButton() !== 'hidden' && !probe()) {
+      <span class="konto-kuerzel" [class.konto-kuerzel--aus]="authButton() !== 'signOut'"
+            role="img" [attr.aria-label]="kuerzelTitel()" [title]="kuerzelTitel()">
+        @if (kuerzel()) {
+          <span aria-hidden="true">{{ kuerzel() }}</span>
+        } @else {
+          <!-- Review B (4): abgemeldet eine andere FORM (Umriss), nicht nur ein anderer Ton -->
+          <span class="bb-icon" aria-hidden="true"
+                [innerHTML]="(authButton() === 'signOut' ? ICONS.person : ICONS.person_outline) | safeSvg"></span>
+        }
+      </span>
     }
     @if (authButton() !== 'hidden') {
       <button

@@ -49,6 +49,16 @@ export const ICONS = {
   login: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M840-800L480-800L480-720L760-720L760-240L480-240L480-160L840-160Z"/><path d="M120-520L380-520L380-600L560-480L380-360L380-440L120-440Z"/></svg>`,
   /** Abmelden (Pfeil aus der Tür hinaus) */
   logout: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M120-800L480-800L480-720L200-720L200-240L480-240L480-160L120-160Z"/><path d="M380-520L660-520L660-600L840-480L660-360L660-440L380-440Z"/></svg>`,
+  // Plan 2026-11-19 (E8): angemeldet, aber ohne bekannten Namen. Auf demselben Raster von Hand
+  // gebaut wie Anmelden/Abmelden: Kopf als Kreis (Mitte 480/-640, Radius 160), darunter mit
+  // 80 Abstand die Schultern (Breite 160…800, Bogen bis y -400, unten gerade bei -160).
+  // Review B (4): „nicht angemeldet“ als UMRISS derselben Person — Strichstärke 80 wie überall:
+  // Kopf ein Ring (Radius 160 außen, 80 innen), Schultern außen wie beim gefüllten Symbol, innen um
+  // 80 eingerückt (Breite 240…720, Bogen bis y -320, unten gerade bei -240). `evenodd` stanzt aus.
+  /** Person, Umriss (Kürzel: nicht angemeldet) */
+  person_outline: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path fill-rule="evenodd" d="M480-800A160 160 0 1 1 480-480A160 160 0 1 1 480-800ZM480-720A80 80 0 1 0 480-560A80 80 0 1 0 480-720ZM160-160L160-240Q160-400 480-400Q800-400 800-240L800-160ZM240-240Q240-320 480-320Q720-320 720-240Z"/></svg>`,
+  /** Person (Kürzel ohne Namen) */
+  person: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M480-800A160 160 0 1 1 480-480A160 160 0 1 1 480-800Z"/><path d="M160-160L160-240Q160-400 480-400Q800-400 800-240L800-160Z"/></svg>`,
   // U2a — die beiden Größen-Symbole sind, anders als alle übrigen hier, NICHT
   // aus dem Material-Set kopiert, sondern auf demselben Raster (0 -960 960 960)
   // von Hand konstruiert: vier Eckwinkel, Strichstärke 80, Rand 120. Nach außen

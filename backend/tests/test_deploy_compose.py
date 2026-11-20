@@ -22,6 +22,7 @@ import yaml
 _DEPLOY = Path(__file__).resolve().parents[2] / "deploy"
 _ENV_BEISPIEL = _DEPLOY / ".env.example"
 _COMPOSE = _DEPLOY / "compose.prod.yml"
+_COMPOSE_SITZUNG = _DEPLOY / "compose.session.yml"
 
 
 def _dokumentierte_schluessel() -> list[str]:
@@ -41,10 +42,11 @@ def test_jeder_dokumentierte_schluessel_steht_in_compose() -> None:
     traefik-Labels, ``BOERDI_IMAGE`` unter ``image:``, ``POSTGRES_*`` beim
     Datenbank-Dienst. Wo es genau stehen muss, prueft der Test darunter.
     """
-    text = _COMPOSE.read_text("utf-8")
+    # Plan 2026-11-19 (E9): ``SESSION_HOST`` wirkt nur mit der Zusatzdatei ``compose.session.yml``.
+    text = _COMPOSE.read_text("utf-8") + _COMPOSE_SITZUNG.read_text("utf-8")
     fehlend = [k for k in _dokumentierte_schluessel() if not re.search(rf"\b{k}\b", text)]
     assert fehlend == [], (
-        f"in deploy/.env.example dokumentiert, in compose.prod.yml nirgends "
+        f"in deploy/.env.example dokumentiert, in compose.prod.yml/compose.session.yml nirgends "
         f"verdrahtet: {fehlend} — diese Werte erreichen den Container nie"
     )
 
@@ -265,3 +267,53 @@ def test_das_zugriffslog_traegt_weder_pfad_noch_kopfzeilen() -> None:
                   "--accesslog.fields.headers.defaultmode=drop"):
         assert zeile in befehl, zeile
     assert not [z for z in befehl if "fields.headers.names" in z], "keine Kopfzeile zurückholen"
+
+
+# ── Plan 2026-11-19 (E9, Paket B3): der Tauschpfad am Repository-Host auf dem Compose-Rechner ────
+
+
+def _labels(dienst: dict) -> dict[str, str]:
+    roh = dienst.get("labels") or []
+    if isinstance(roh, dict):
+        return {str(k): str(v) for k, v in roh.items()}
+    return dict(str(z).split("=", 1) for z in roh)
+
+
+def test_der_zweite_router_nimmt_nur_den_tauschpfad_am_repository_host() -> None:
+    """Der Cluster-Ingress reicht den Pfad mit dem Host-Kopf des Repositorys weiter (ExternalName).
+    Traefik braucht dafür einen eigenen Router — genau Host + Pfad, sonst nichts."""
+    from boerdi.api.sitzung import PFAD_AM_REPOSITORY
+
+    sitzung = yaml.safe_load(_COMPOSE_SITZUNG.read_text("utf-8"))
+    # Review B (2): ein eigener Eingang `sitzung` (:8443), veröffentlicht nur mit dieser Datei
+    assert set(sitzung["services"]) == {"backend", "traefik"}
+    assert sitzung["services"]["traefik"] == {"ports": ["8443:8443"]}
+    labels = _labels(sitzung["services"]["backend"])
+    regel = labels["traefik.http.routers.boerdi-sitzung.rule"]
+    assert regel.startswith("Host(`${SESSION_HOST:?")
+    assert regel.endswith(f"&& Path(`{PFAD_AM_REPOSITORY}`)")
+    assert labels["traefik.http.routers.boerdi-sitzung.entrypoints"] == "sitzung"
+    assert labels["traefik.http.routers.boerdi-sitzung.tls"] == "true"
+    assert labels["traefik.http.routers.boerdi-sitzung.service"] == "boerdi"
+    # Kein ACME für den fremden Host: die Herausforderung ginge an das Repository und scheiterte
+    # immer wieder. Der Ingress spricht den Chat-Host per SNI an (proxy-ssl-name).
+    assert not [k for k in labels if k.startswith("traefik.http.routers.boerdi-sitzung.tls.")]
+    # Der Router des Chats bleibt, wie er ist (Compose führt die Labels beider Dateien zusammen).
+    prod = _labels(yaml.safe_load(_COMPOSE.read_text("utf-8"))["services"]["backend"])
+    assert "traefik.http.routers.boerdi.rule" in prod
+    assert not set(labels) & set(prod)
+
+
+def test_traefik_glaubt_x_forwarded_for_nur_am_eingang_der_sitzung() -> None:
+    """Hinter dem Cluster-Ingress wären sonst alle Personen eine Adresse — die Grenze je Adresse
+    (10 je Minute) gälte für alle zusammen. Review B (2): das Vertrauen gilt NUR am eigenen
+    Eingang `sitzung`; am öffentlichen `websecure` (Chat) könnte sonst jeder aus dem Cluster-Netz
+    seine Adresse fälschen (Drosseln je IP, Log, ``X-WLO-Client-Address``). Vorgabe
+    127.0.0.1/32: niemand. Ohne compose.session.yml ist der Eingang nicht veröffentlicht."""
+    traefik = yaml.safe_load(_COMPOSE.read_text("utf-8"))["services"]["traefik"]
+    befehl = traefik["command"]
+    assert "--entryPoints.sitzung.address=:8443" in befehl
+    assert ("--entryPoints.sitzung.forwardedHeaders.trustedIPs="
+            "${TRAEFIK_TRUSTED_IPS:-127.0.0.1/32}") in befehl
+    assert not [z for z in befehl if "websecure.forwardedHeaders" in z]
+    assert not [p for p in traefik["ports"] if "8443" in str(p)]

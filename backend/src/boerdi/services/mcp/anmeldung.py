@@ -30,6 +30,11 @@ Ergebnis gilt je Fingerabdruck :data:`POSITIV_S` (Person) bzw. :data:`NEGATIV_S`
 * nach einer 429 auf ``/auth/status`` wird ``Retry-After`` eingehalten — je Block beim
   Anmelde-Schutz (``too_many_logins``), für alle beim erschöpften Budget (``rate_limited``).
 
+**Plan 2026-11-19 (B4):** ``displayName`` einer bestätigten Person geht gesäubert in den Befund
+und von dort nur in die Antwort des Zuges an dieselbe Person (``auth_display_name``, gelesen in
+``api/chat._anmeldestand``) — für das Kürzel im Widget. Nie ins Log, in Debug, Verlauf oder an
+das Modell; im Speicher steht er höchstens so lange wie die Bestätigung.
+
 Den Block protokolliert dieses Modul nie; der Cache hält nur Fingerabdrücke.
 """
 
@@ -39,6 +44,7 @@ import asyncio
 import hashlib
 import logging
 import time
+import unicodedata
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -61,6 +67,8 @@ HOECHSTENS = 1024
 #: Eigene Obergrenze für „keine Person“/„abgewiesen“ — jeder erfundene ``wlo…``-Block legt einen
 #: solchen Eintrag an; sie dürfen die bestätigten Personen nicht hinausdrängen.
 HOECHSTENS_NEGATIV = 256
+#: Längster Anzeigename, der ans Widget geht (B4) — der Kreis braucht ohnehin nur zwei Buchstaben.
+NAME_HOECHSTENS = 120
 
 
 @dataclass(frozen=True)
@@ -78,6 +86,9 @@ class Befund:
     #: alle Blöcke, wenn das Budget des Chatbots erschöpft ist (``rate_limited``).
     pause_s: float = 0.0
     pause_alle: bool = False
+    #: B4: ``displayName`` der bestätigten Person, gesäubert (:func:`_anzeigename`) — nur für die
+    #: Antwort des Zuges an dieselbe Person.
+    anzeigename: str = ""
 
 
 #: Fingerabdruck → (gültig bis, Befund), in LRU-Reihenfolge (zuletzt benutzt am Ende).
@@ -150,6 +161,7 @@ async def bestaetige_anmeldung() -> Befund:
     else:
         auth.setze_bestaetigung(person=befund.person, kennung=befund.kennung)
         auth.merke_ablauf(befund.ablauf if befund.person else None)
+        auth.merke_anzeigename(befund.anzeigename if befund.person else "")
         if befund.unklar:
             auth.merke_anmeldung_unklar()
     return befund
@@ -239,7 +251,8 @@ def _aus_stand(stand: dict[str, Any]) -> Befund:
         streuwert = hashlib.sha256(str(authority).encode("utf-8")).hexdigest()[:16]
         ablauf = stand.get("expiresAt")
         return Befund(person=True, kennung=f"p:{streuwert}",
-                      ablauf=ablauf if isinstance(ablauf, str) else None)
+                      ablauf=ablauf if isinstance(ablauf, str) else None,
+                      anzeigename=_anzeigename(stand.get("displayName")))
     if upstream == "unreachable":
         return _unklar("Repository ohne Antwort")
     if stand.get("mode") in ("user", "service") and stand.get("authenticated") is False:
@@ -247,6 +260,17 @@ def _aus_stand(stand: dict[str, Any]) -> Befund:
             return _unklar("Repository ohne Antwort")
         return Befund(person=False, abgelehnt=True)
     return Befund(person=False)
+
+
+def _anzeigename(wert: Any) -> str:
+    """``displayName`` des MCP — fremder Text: alle Zeichen der Klasse „C“ fallen weg — Steuer- und
+    Formatzeichen (Richtungswechsel, Nullbreite), einzelne Surrogate (ließen das Kodieren der
+    Antwort scheitern, Review B), private und nicht vergebene. Leerraum wird einfach, höchstens
+    :data:`NAME_HOECHSTENS` Zeichen."""
+    if not isinstance(wert, str):
+        return ""
+    zeichen = (z for z in wert if z.isspace() or not unicodedata.category(z).startswith("C"))
+    return " ".join("".join(zeichen).split())[:NAME_HOECHSTENS].strip()
 
 
 def markiere_abgelehnt() -> None:
