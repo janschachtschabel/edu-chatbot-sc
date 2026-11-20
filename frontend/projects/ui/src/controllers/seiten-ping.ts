@@ -10,16 +10,17 @@
 import { fehlerKurz } from '../obs/fehler-kurz';
 import { sitzungsWache } from '../session/session-id';
 import type { AblaufStand } from '../grouping/message-types';
+import { wartendeFuehrung } from './ablauf-seite-merker';
 import type { ContextGreetingContext } from './context-greeting.controller';
 
 /** Das `page_event` des Pings (Backend: `domain/hintergrund_zug.ABLAUF_SEITE`). */
 export const SEITEN_PING = 'ablauf_seite';
 
-/** Paket R2-c: pingt das Widget nach einem Seitenaufruf? Bei `wartet_seite` — und wenn der Verlauf
- *  den Stand nicht bestimmen konnte (`ui.ablauf_unbestimmt`: die Anmeldung kam nicht rechtzeitig);
- *  ohne wartenden Lauf antwortet das Backend leer. */
+/** Paket R2-c: pingt das Widget nach einem Seitenaufruf? Wenn eine Führung wartet — und wenn der
+ *  Verlauf den Stand nicht bestimmen konnte (`ui.ablauf_unbestimmt`: die Anmeldung kam nicht
+ *  rechtzeitig); ohne wartenden Lauf antwortet das Backend leer. */
 export function seitenPingNoetig(stand: AblaufStand | null, unbestimmt: boolean): boolean {
-  return stand?.status === 'wartet_seite' || (!stand && unbestimmt);
+  return wartendeFuehrung(stand) || (!stand && unbestimmt);
 }
 
 /** Review R2, Befund 1: die Marke `ablauf_unbestimmt` gilt für EINEN Ping — sonst pingte das Widget

@@ -54,11 +54,14 @@ def test_der_einstieg_folgt_detect_entry(seite):
 def test_gruppenwahl_mit_denselben_chips_und_hilfetexten(sprache):
     gruppe = tour.render("group", localize(CFG, sprache))
     unsicher = tour.render("group", localize(CFG, sprache), kind="unsure")
-    for sid in ("gruppe", "unsicher"):
-        assert [o.label[sprache] for o in SCHRITT[sid].optionen] == gruppe["quick_replies"]
-    assert SCHRITT["gruppe"].text[sprache] == gruppe["text"]
-    assert SCHRITT["gruppe"].kein_treffer[sprache] == unsicher["text"]
-    assert SCHRITT["unsicher"].text[sprache] == unsicher["text"]
+    s = SCHRITT["gruppe"]
+    chips = [o.label[sprache] for o in s.optionen] + [t.label[sprache] for t in s.text_antworten]
+    assert chips == gruppe["quick_replies"]
+    assert s.text[sprache] == gruppe["text"]
+    assert s.kein_treffer[sprache] == unsicher["text"]
+    # Plan 2026-11-20, G2a: „Bin mir nicht sicher“ ist in der Tour ein Fehlversuch, keine Wahl —
+    # ein Chip, der wie getippt zählt; einen eigenen Schritt dafür gibt es nicht mehr
+    assert "unsicher" not in SCHRITT
 
 
 @pytest.mark.parametrize("sprache", ["de", "en"])
@@ -68,6 +71,10 @@ def test_ein_chip_trifft_in_der_tour_seine_eigene_gruppe(sprache):
     cfg = localize(CFG, sprache)
     for g in cfg["groups"]:
         assert tour.match_group(g["label"], cfg)["id"] == g["id"]
+
+
+def test_review_g2_7_der_tour_chip_der_begruessung_startet_die_fuehrung():
+    assert ABLAUF.tour_chip is True
 
 
 def test_synonyme_wie_in_der_tour():
@@ -106,6 +113,9 @@ def test_texte_wie_in_der_tour(gruppe, sprache):
         if s.umsehen:
             assert s.umsehen.text[sprache] == tour.render(schritt, cfg, gruppe,
                                                           kind="explore")["text"]
+        # Review G2 (MINOR 3): auf eine Wendung hin rendert die Tour den Schritt neu (``normal``)
+        erneut = (s.text_erneut or s.text)[sprache]
+        assert erneut == tour.render(schritt, cfg, gruppe)["text"]
     label = next(o.label[sprache] for o in SCHRITT["gruppe"].optionen if o.id == sid)
     inhalte = SCHRITT["inhalte"].text[sprache].replace("{wahl.gruppe}", label)
     assert inhalte == tour.render("content", cfg, gruppe)["text"]
@@ -211,10 +221,9 @@ def _S():
 
 
 def test_die_leiste_springt_nach_der_gruppenwahl_nicht():
-    """m5: der Hilfetext wiederholt die Gruppenwahl und steht an ihrer Stelle — vorher folgte auf
-    „Schritt 2“ gleich „Schritt 4“."""
+    """m5: auf „Schritt n“ der Gruppenwahl folgt „Schritt n+1“ (der Hilfetext steht seit G2a am
+    Schritt selbst, ``kein_treffer``)."""
     from boerdi.services.ablauf import fortschritt
 
     n, m = fortschritt.position(ABLAUF, "gruppe")
-    assert fortschritt.position(ABLAUF, "unsicher") == (n, m)
     assert fortschritt.position(ABLAUF, "seite_lehrkraft") == (n + 1, m)

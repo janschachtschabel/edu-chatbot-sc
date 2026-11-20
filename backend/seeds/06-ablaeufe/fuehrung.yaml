@@ -11,10 +11,11 @@
 # - Pfade relativ statt base_host — der Chip und die Links in den Texten öffnen die Seite auf dem
 #   Host, auf dem das Widget läuft (in einer Studio-Probe oder Fremdeinbettung der Chatbot-Host).
 # - Die Ablauf-Leiste („Schritt n von m“, „Ablauf abbrechen“) steht über dem Chat.
-# - Das Widget öffnet sich von selbst, solange ein Seiten-Schritt wartet (die Tour in jedem
-#   Schritt); ein Seitenwechsel während der Gruppenwahl zeigt die Wahl nicht erneut.
-# - „Bin mir nicht sicher“ im Hilfetext zeigt den Hilfetext noch einmal; die Tour endete dort.
 # - Die Antworten tragen nicht das Etikett „KI-generierte Antwort“ (fester Text der Redaktion).
+# Sonst Zug für Zug wie die Tour (tests/test_fuehrung_durchspiel.py): „Bin mir nicht sicher“ zählt
+# wie getippt (text_antworten), ein Seitenwechsel in der Gruppenwahl zeigt die Frage erneut, der
+# Tour-Chip (tour_chip) beginnt neu an der aktuellen Seite, eine Wendung zeigt den wartenden
+# Schritt neu gerendert wie die Tour (text_erneut) — Plan 2026-11-20, G2a–G2d und Review G2.
 #
 # Aus, bis die Redaktion sie einschaltet (aktiv) und die eingebaute Tour abschaltet
 # (Tour & Lotse: website_tour.enabled = false).
@@ -30,6 +31,7 @@ wann:
 - Die Person möchte WLO kennenlernen, eine Führung über die Webseite oder sucht den Weg zum Mitmachen
 aktiv: false
 endet_bei_text: true
+tour_chip: true
 ausloeser:
 - art: knopf
 - art: text
@@ -134,7 +136,7 @@ schritte:
     en: To the home page
   ankunft:
   - /home
-  abweichung: &id003
+  abweichung: &id001
     de: 'Du bist gerade woanders unterwegs. Wenn du mit der Tour weitermachen
 
       möchtest, bring ich dich zum nächsten Halt: 👇'
@@ -158,7 +160,7 @@ schritte:
 
       So I can show you the offers that fit: what brings you here today?'
   schreibt: gruppe
-  optionen: &id002
+  optionen:
   - id: redaktionen
     label:
       de: Redaktionen
@@ -343,12 +345,11 @@ schritte:
     - kommune
     - landkreis
     - träger
-  - id: unsicher
-    label:
+  text_antworten:
+  - label:
       de: Bin mir nicht sicher
       en: I'm not sure
-    ziel: unsicher
-  kein_treffer: &id001
+  kein_treffer:
     de: 'Kein Problem! Sag mir einfach grob, was dich zu WLO führt — zum
 
       Beispiel „ich suche Material", „ich biete Inhalte an" oder „ich
@@ -375,11 +376,6 @@ schritte:
       different visitor groups — but you can also place yourself right here.
 
       So I can show you the offers that fit: what brings you here today?'
-- id: unsicher
-  typ: nachricht
-  text: *id001
-  schreibt: gruppe
-  optionen: *id002
 - id: zur_gruppenseite
   typ: verzweigung
   weiter:
@@ -421,7 +417,7 @@ schritte:
     en: To the page for Editorial teams
   ankunft:
   - /home/redaktionen
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_presse
   typ: seite
@@ -438,7 +434,7 @@ schritte:
     en: To the page for Press
   ankunft:
   - /mitmachen/ueber-wlo
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_contentanbieter
   typ: seite
@@ -455,7 +451,7 @@ schritte:
     en: To the page for Content providers
   ankunft:
   - /home/contentanbieter
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_abnehmer
   typ: seite
@@ -472,7 +468,7 @@ schritte:
     en: To the page for Content consumers
   ankunft:
   - /home/abnehmer-bildungs-und-wissensinhalte
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_lehrkraft
   typ: seite
@@ -489,7 +485,7 @@ schritte:
     en: To the page for Teachers
   ankunft:
   - /home/oer-community
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_lernende
   typ: seite
@@ -506,7 +502,7 @@ schritte:
     en: To the page for Learners
   ankunft:
   - /home/oer-community
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_eltern
   typ: seite
@@ -523,7 +519,7 @@ schritte:
     en: To the page for Parents
   ankunft:
   - /home/oer-community
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_oer_community
   typ: seite
@@ -540,7 +536,7 @@ schritte:
     en: To the page for OER community
   ankunft:
   - /home/oer-community
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_software_betreiber
   typ: seite
@@ -557,7 +553,7 @@ schritte:
     en: To the page for Infrastructure operators
   ankunft:
   - /home/software-betreiber
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_software_hersteller
   typ: seite
@@ -574,7 +570,7 @@ schritte:
     en: To the page for Developers
   ankunft:
   - /home/bildungsinfrastruktur-mitgestalten
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: seite_politik
   typ: seite
@@ -591,7 +587,7 @@ schritte:
     en: To the page for Policy makers
   ankunft:
   - /home/wlo-fuer-politik
-  abweichung: *id003
+  abweichung: *id001
   weiter: inhalte
 - id: inhalte
   typ: seite
@@ -614,7 +610,7 @@ schritte:
     en: To the educational content
   ankunft:
   - /bildungsinhalte
-  abweichung: *id003
+  abweichung: *id001
   weiter: zu_loesungen
 - id: zu_loesungen
   typ: verzweigung
@@ -687,7 +683,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/wlo-redaktionssoftware
@@ -698,7 +694,7 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/redaktionen
-    text: &id004
+    text: &id002
       de: 'Schau dich hier ruhig in Ruhe um. Wenn du bereit für die Anfrage bist,
 
         geht''s weiter: 👇'
@@ -747,7 +743,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /mitmachen/ueber-wlo
@@ -756,7 +752,7 @@ schritte:
     - /bildungsinhalte/oer-statistik
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_contentanbieter
   typ: seite
@@ -803,7 +799,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/wlo-inhalte-fuer-deine-suchmaschine
@@ -814,7 +810,7 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/contentanbieter
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_abnehmer
   typ: seite
@@ -861,7 +857,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/integrationen-fuer-lernplattformen-und-web-cms
@@ -872,7 +868,7 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/abnehmer-bildungs-und-wissensinhalte
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_lehrkraft
   typ: seite
@@ -919,7 +915,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /fachportale
@@ -928,7 +924,7 @@ schritte:
     - /bildungsinhalte/oer-statistik
     - /bildungsinhalte/datenquellen
     - /home/oer-community
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_lernende
   typ: seite
@@ -975,7 +971,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /fachportale
@@ -984,7 +980,7 @@ schritte:
     - /bildungsinhalte/oer-statistik
     - /bildungsinhalte/datenquellen
     - /home/oer-community
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_eltern
   typ: seite
@@ -1031,7 +1027,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /fachportale
@@ -1040,7 +1036,7 @@ schritte:
     - /bildungsinhalte/oer-statistik
     - /bildungsinhalte/datenquellen
     - /home/oer-community
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_oer_community
   typ: seite
@@ -1083,7 +1079,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/redaktionelle-arbeiten
@@ -1093,7 +1089,7 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/oer-community
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_software_betreiber
   typ: seite
@@ -1140,7 +1136,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/integrationen-fuer-lernplattformen-und-web-cms
@@ -1151,7 +1147,7 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/software-betreiber
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_software_hersteller
   typ: seite
@@ -1198,7 +1194,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/bildungs-api
@@ -1209,7 +1205,7 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/bildungsinfrastruktur-mitgestalten
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: loesungen_politik
   typ: seite
@@ -1256,7 +1252,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/souveraenes-ki-oekosystem
@@ -1267,7 +1263,7 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/wlo-fuer-politik
-    text: *id004
+    text: *id002
   weiter: kontakt
 - id: einstieg_redaktionen
   typ: seite
@@ -1310,7 +1306,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/wlo-redaktionssoftware
@@ -1321,8 +1317,45 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/redaktionen
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **Redaktionen** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Redaktionen besonders relevant:**
+
+      - [WLO-Redaktionssoftware](/angebote/wlo-redaktionssoftware/)
+
+      - [Redaktionelle Arbeiten](/angebote/redaktionelle-arbeiten/)
+
+      - [Metadaten verbessern lassen](/angebote/metadaten-verbessern-lassen/)'
+    en: 'These are the solutions that are particularly relevant for **Editorial teams**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Editorial teams:**
+
+      - [WLO editorial software](/angebote/wlo-redaktionssoftware/)
+
+      - [Editorial services](/angebote/redaktionelle-arbeiten/)
+
+      - [Metadata improvement](/angebote/metadaten-verbessern-lassen/)'
 - id: einstieg_presse
   typ: seite
   text:
@@ -1360,7 +1393,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /mitmachen/ueber-wlo
@@ -1369,8 +1402,41 @@ schritte:
     - /bildungsinhalte/oer-statistik
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **Presse** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Presse besonders relevant:**
+
+      - [Über WLO](/mitmachen/ueber-wlo/)
+
+      - [FAQ](/mitmachen/faq/)'
+    en: 'These are the solutions that are particularly relevant for **Press**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Press:**
+
+      - [About WLO](/mitmachen/ueber-wlo/)
+
+      - [FAQ](/mitmachen/faq/)'
 - id: einstieg_contentanbieter
   typ: seite
   text:
@@ -1412,7 +1478,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/wlo-inhalte-fuer-deine-suchmaschine
@@ -1423,8 +1489,45 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/contentanbieter
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **Contentanbieter** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Contentanbieter besonders relevant:**
+
+      - [WLO-Inhalte für deine Suchmaschine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)
+
+      - [Automatisierte Quellenerschließung](/angebote/automatisierte-quellenerschliessung/)
+
+      - [Metadaten verbessern lassen](/angebote/metadaten-verbessern-lassen/)'
+    en: 'These are the solutions that are particularly relevant for **Content providers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Content providers:**
+
+      - [WLO content for your search engine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)
+
+      - [Automated source indexing](/angebote/automatisierte-quellenerschliessung/)
+
+      - [Metadata improvement](/angebote/metadaten-verbessern-lassen/)'
 - id: einstieg_abnehmer
   typ: seite
   text:
@@ -1466,7 +1569,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/integrationen-fuer-lernplattformen-und-web-cms
@@ -1477,8 +1580,45 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/abnehmer-bildungs-und-wissensinhalte
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **Content-Abnehmer** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Content-Abnehmer besonders relevant:**
+
+      - [Integrationen für Lernplattformen & Web-CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)
+
+      - [Bildungs-API](/angebote/bildungs-api/)
+
+      - [WLO-Inhalte für deine Suchmaschine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)'
+    en: 'These are the solutions that are particularly relevant for **Content consumers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Content consumers:**
+
+      - [Integrations for learning platforms & web CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)
+
+      - [Education API](/angebote/bildungs-api/)
+
+      - [WLO content for your search engine](/angebote/wlo-inhalte-fuer-deine-suchmaschine/)'
 - id: einstieg_lehrkraft
   typ: seite
   text:
@@ -1520,7 +1660,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /fachportale
@@ -1529,8 +1669,45 @@ schritte:
     - /bildungsinhalte/oer-statistik
     - /bildungsinhalte/datenquellen
     - /home/oer-community
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **Lehrkraft** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Lehrkraft besonders relevant:**
+
+      - [Fachportale](/fachportale/)
+
+      - [Bildungsinhalte entdecken](/bildungsinhalte/)
+
+      - [Was ist OER?](/bildungsinhalte/oer/)'
+    en: 'These are the solutions that are particularly relevant for **Teachers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Teachers:**
+
+      - [Subject portals](/fachportale/)
+
+      - [Discover educational content](/bildungsinhalte/)
+
+      - [What is OER?](/bildungsinhalte/oer/)'
 - id: einstieg_oer_community
   typ: seite
   text:
@@ -1568,7 +1745,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/redaktionelle-arbeiten
@@ -1578,8 +1755,41 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/oer-community
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **OER-Community** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für OER-Community besonders relevant:**
+
+      - [Redaktionelle Arbeiten](/angebote/redaktionelle-arbeiten/)
+
+      - [Think Tank](/angebote/think-tank/)'
+    en: 'These are the solutions that are particularly relevant for **OER community**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for OER community:**
+
+      - [Editorial services](/angebote/redaktionelle-arbeiten/)
+
+      - [Think tank](/angebote/think-tank/)'
 - id: einstieg_software_betreiber
   typ: seite
   text:
@@ -1621,7 +1831,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/integrationen-fuer-lernplattformen-und-web-cms
@@ -1632,8 +1842,45 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/software-betreiber
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **Infrastruktur-Betreiber** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Infrastruktur-Betreiber besonders relevant:**
+
+      - [Integrationen für Lernplattformen & Web-CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)
+
+      - [Bildungs-API](/angebote/bildungs-api/)
+
+      - [Souveränes KI-Ökosystem](/angebote/souveraenes-ki-oekosystem/)'
+    en: 'These are the solutions that are particularly relevant for **Infrastructure operators**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Infrastructure operators:**
+
+      - [Integrations for learning platforms & web CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)
+
+      - [Education API](/angebote/bildungs-api/)
+
+      - [Sovereign AI ecosystem](/angebote/souveraenes-ki-oekosystem/)'
 - id: einstieg_software_hersteller
   typ: seite
   text:
@@ -1675,7 +1922,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/bildungs-api
@@ -1686,8 +1933,45 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/bildungsinfrastruktur-mitgestalten
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **Entwickler** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Entwickler besonders relevant:**
+
+      - [Bildungs-API](/angebote/bildungs-api/)
+
+      - [Souveränes KI-Ökosystem](/angebote/souveraenes-ki-oekosystem/)
+
+      - [Integrationen für Lernplattformen & Web-CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)'
+    en: 'These are the solutions that are particularly relevant for **Developers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Developers:**
+
+      - [Education API](/angebote/bildungs-api/)
+
+      - [Sovereign AI ecosystem](/angebote/souveraenes-ki-oekosystem/)
+
+      - [Integrations for learning platforms & web CMS](/angebote/integrationen-fuer-lernplattformen-und-web-cms/)'
 - id: einstieg_politik
   typ: seite
   text:
@@ -1729,7 +2013,7 @@ schritte:
     en: On to the enquiry
   ankunft:
   - /mitmachen
-  abweichung: *id003
+  abweichung: *id001
   umsehen:
     muster:
     - /angebote/souveraenes-ki-oekosystem
@@ -1740,8 +2024,45 @@ schritte:
     - /bildungsinhalte/datenquellen
     - /bildungsinhalte/oer
     - /home/wlo-fuer-politik
-    text: *id004
+    text: *id002
   weiter: kontakt
+  text_erneut:
+    de: 'Das sind die für **Politik / Rahmensetzer** besonders relevanten Lösungen. Schau dir
+
+      eine in Ruhe an — und wenn etwas passt, bring ich dich direkt zur
+
+      Anfrage. 👇
+
+
+      **Mehr zu den Inhalten:** [Fachportale](/fachportale/) · [OER-Statistik](/bildungsinhalte/oer-statistik/)
+      · [Datenquellen](/bildungsinhalte/datenquellen/) · [Was ist OER?](/bildungsinhalte/oer/)
+
+
+      **Für Politik / Rahmensetzer besonders relevant:**
+
+      - [Souveränes KI-Ökosystem](/angebote/souveraenes-ki-oekosystem/)
+
+      - [Think Tank](/angebote/think-tank/)
+
+      - [Bildungs-API](/angebote/bildungs-api/)'
+    en: 'These are the solutions that are particularly relevant for **Policy makers**.
+
+      Take your time with one — and if something fits, I''ll take you straight
+
+      to the enquiry. 👇
+
+
+      **More about the content:** [Subject portals](/fachportale/) · [OER statistics](/bildungsinhalte/oer-statistik/)
+      · [Data sources](/bildungsinhalte/datenquellen/) · [What is OER?](/bildungsinhalte/oer/)
+
+
+      **Particularly relevant for Policy makers:**
+
+      - [Sovereign AI ecosystem](/angebote/souveraenes-ki-oekosystem/)
+
+      - [Think tank](/angebote/think-tank/)
+
+      - [Education API](/angebote/bildungs-api/)'
 - id: kontakt
   typ: ende
   text:
@@ -1805,17 +2126,20 @@ tests:
   erwartet:
     status: wartet_seite
     ende: intro
-- name: 'Bin mir nicht sicher: Hilfetext mit denselben Chips'
+- name: 'Bin mir nicht sicher: Hilfetext, die Wahl gilt weiter'
   seite: /home/
   eingaben:
   - bei: gruppe
-    option: unsicher
+    text: Bin mir nicht sicher
+  - bei: gruppe
+    option: redaktionen
   erwartet:
     weg:
     - wo
     - gruppe
-    - unsicher
-    ende: unsicher
+    - zur_gruppenseite
+    - seite_redaktionen
+    ende: seite_redaktionen
 - name: 'Auf einer Zielgruppenseite: Einstieg bei den Lösungen'
   seite: /home/redaktionen/
   erwartet:

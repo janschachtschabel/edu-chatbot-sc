@@ -160,6 +160,14 @@ class Schnellantwort(AreaModel):
                         BeforeValidator(_leer_ist_nicht_gesetzt)] = None
 
 
+class TextAntwort(AreaModel):
+    """Plan 2026-11-20, G2a: ein Chip, der wie getippter Text zählt — keine Wahl. Der Schritt
+    nimmt ihn wie jeden Text: trifft er keine Option, kommt ``kein_treffer``, danach endet ein
+    Ablauf mit ``endet_bei_text`` (in der Tour ist „Bin mir nicht sicher“ ein Fehlversuch)."""
+
+    label: dict[str, Annotated[str, Field(max_length=60)]]
+
+
 class Freitext(AreaModel):
     """AS-3a: getippter Text an einem Schritt mit Schnellantworten wird der Teil ``schreibt``,
     dann geht es zum Schritt ``ziel``."""
@@ -254,6 +262,11 @@ class Schritt(AreaModel):
                         NurBei("typ", "nachricht", "modul")] = None
     #: AS-3a: getippter Text als Antwort (wird ein Teil) — auch ohne ``optionen``.
     freitext: Annotated[Freitext | None, NurBei("typ", "nachricht", "modul")] = None
+    #: G2a (Plan 2026-11-20): Chips hinter den ``optionen``, die wie getippter Text zählen. Vorgabe
+    #: ``None`` (wegen ``treiber.fassung``).
+    text_antworten: Annotated[Annotated[list[TextAntwort], Field(max_length=3)] | None,
+                              BeforeValidator(_leer_ist_nicht_gesetzt),
+                              NurBei("typ", "nachricht")] = None
     #: Plan 2026-11-16, zweites Review TG-4–6 (A): an einer Frage mit Freitext treffen ``synonyme``
     #: nur, wenn der ganze getippte Text gleich ist — mit ``synonyme_im_satz`` auch als ganzes Wort
     #: mitten im Satz (nicht hinter einer Verneinung; trifft er mehrere Optionen, ist er Freitext).
@@ -285,6 +298,11 @@ class Schritt(AreaModel):
                           BeforeValidator(_ohne_leere_saetze), NurBei("typ", "seite")] = None
     #: WF-4: Seiten, auf denen sich die Person in Ruhe umsehen soll (eigener Text, derselbe Chip).
     umsehen: Annotated[Umsehen | None, NurBei("typ", "seite")] = None
+    #: Review G2 (Plan 2026-11-20, MINOR 3): der Text je Sprache, wenn der wartende Schritt auf eine
+    #: Wendung hin erneut erscheint (``seite_zug.wiederholen``) — die Tour zeigt dann den Schritt
+    #: neu gerendert, nicht ihre Einstiegsbegrüßung. Leer: ``text``.
+    text_erneut: Annotated[dict[str, Annotated[str, Textarea()]] | None,
+                           BeforeValidator(_ohne_leere_saetze), NurBei("typ", "seite")] = None
 
 
 class Ausloeser(AreaModel):
@@ -426,6 +444,11 @@ class AblaufArea(AreaModel):
     #: eingebaute Web-Tour: eine Führung soll nicht unter jeder Antwort kleben bleiben. Am Ablauf,
     #: nicht an den Schritten: die Fassung wartender Läufe bleibt.
     endet_bei_text: bool | None = None
+    #: Review G2 (Plan 2026-11-20, MINOR 7): diesen Ablauf startet der Tour-Chip der Begrüßung
+    #: (``tour_action: start``), wenn die eingebaute Tour aus ist — wie sein Knopf
+    #: (``zug.tour_chip``). Höchstens ein aktiver Ablauf (Warnung der Prüfung). Abgewählt ist nicht
+    #: gesetzt.
+    tour_chip: Annotated[bool | None, BeforeValidator(lambda w: None if w is False else w)] = None
     ausloeser: list[Ausloeser] = []
     voraussetzungen: list[Annotated[str, Choices("anmeldung", "dokument_lesen")]] = []
     #: AS-4a: die Startdaten (höchstens 10 Felder) — Vorgabe ``None``; eine geleerte Liste zählt

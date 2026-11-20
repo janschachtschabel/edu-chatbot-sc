@@ -618,9 +618,15 @@ def _label(o: Any, sprache: str) -> str:
 
 
 def wahl_angebot(s: Schritt, sprache: str) -> dict[str, Any]:
-    """Die Wahl eines Schritts mit Schnellantworten — Label in der Sprache, sonst Deutsch."""
-    return {"schritt": s.id, "freitext": s.freitext is not None,
-            "optionen": [(o.id, _label(o, sprache)) for o in s.optionen or []]}
+    """Die Wahl eines Schritts mit Schnellantworten — Label in der Sprache, sonst Deutsch. ``texte``
+    (G2a, nur wenn der Schritt welche hat): die Chips, die wie getippter Text zählen."""
+    wahl: dict[str, Any] = {"schritt": s.id, "freitext": s.freitext is not None,
+                            "optionen": [(o.id, _label(o, sprache)) for o in s.optionen or []]}
+    if texte := [t for t in ((a.label.get(sprache) or "").strip()
+                             or (a.label.get("de") or "").strip()
+                             for a in s.text_antworten or []) if t]:
+        wahl["texte"] = texte
+    return wahl
 
 
 def wahl_aus_text(schritt: Schritt, text: str | None, sprache: str | None = None) -> str | None:

@@ -16,7 +16,8 @@ from tests.test_kennung_oeffentlich import (
 
 _STAND = {"id": "probe", "titel": "Probe", "nr": 1, "von": 3, "status": "wartet_wahl",
           "lauf": "a1b2", "persoenlich": False, "teile": [],
-          "weg": None}   # AS-7: der Weg nur bei wartet_seite
+          "weg": None,   # AS-7: der Weg nur bei wartet_seite
+          "fuehrung": False}   # G2d: nur bei einem Ablauf mit ``seite``-Schritt
 _SID = "bb-0123456789abcdef"
 
 
@@ -193,6 +194,21 @@ def test_z5_ein_anderswo_geloeschter_oder_beendeter_vorgang_zeigt_keine_leiste(
 def test_z5_ein_offener_vorgang_zeigt_die_leiste(client, monkeypatch, mit_stand):  # noqa: F811
     _verlauf_mit_verweis(monkeypatch, type("V", (), {"status": "wartet_person"})())
     assert client.get(f"/api/sessions/{_SID}/messages").json()[1]["ui"]["ablauf"] == _STAND
+
+
+@pytest.mark.parametrize(("sitzung", "leiste"), [("bb-anderes-gespraech", False), (_SID, True)])
+def test_e_f_ein_lauf_der_woanders_wartet_zeigt_keine_leiste(
+        client, monkeypatch, mit_stand, sitzung, leiste):  # noqa: F811
+    """Kontrolle Paket F, MINOR 2: wie ``arbeitsstand.auffrischen`` — ein (alter) Verweis auf einen
+    Lauf, der in einem anderen Gespräch wartet, zeigt hier keine Leiste; im eigenen schon."""
+    from boerdi.services import arbeitsstand
+
+    _verlauf_mit_verweis(monkeypatch, type("V", (), {"status": "wartet_person",
+                                                     "session_id": sitzung})())
+    monkeypatch.setattr(arbeitsstand, "has_personal_auth", lambda: True)
+    monkeypatch.setattr(arbeitsstand, "aufrufer_kennung", lambda: "person-a")
+    ui = client.get(f"/api/sessions/{_SID}/messages").json()[1]["ui"]
+    assert (ui.get("ablauf") == _STAND) is leiste
 
 
 def test_z6_eine_langsame_bestaetigung_haelt_den_verlauf_nicht_auf(

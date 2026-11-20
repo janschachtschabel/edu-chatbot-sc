@@ -311,7 +311,15 @@ def stand(entities: dict[str, Any], aufrufer: str, lang: str) -> dict[str, Any] 
                   for name, t in teile.items()
                   if name != typen.START_TEIL and isinstance(t, dict) and t.get("z")],
         **_weg(ablauf, lauf, lang),
+        # Plan 2026-11-20, G2d: eine Führung (mit ``seite``-Schritt) — das Widget pingt nach einem
+        # Seitenwechsel auch an ihrer Frage und öffnet sich (wie die Tour)
+        **({"fuehrung": True} if ist_fuehrung(ablauf) else {}),
     }
+
+
+def ist_fuehrung(ablauf: Any) -> bool:
+    """G2d: führt der Ablauf über Seiten (ein Schritt ``seite``)?"""
+    return any(s.typ == "seite" for s in ablauf.schritte)
 
 
 def _weg(ablauf: Any, lauf: dict[str, Any], lang: str) -> dict[str, Any]:

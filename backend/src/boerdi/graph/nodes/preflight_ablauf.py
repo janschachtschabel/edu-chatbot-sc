@@ -58,12 +58,14 @@ class Ausloeser:
     #: Durchtest Paket K (19.11.): eine Wendung (dieser Ablauf) an einer wartenden Frage — nie
     #: still die Antwort (``wendung_zug.wendung_trifft``).
     wendung: Any = None
+    #: Plan 2026-11-20, G2c: der Tour-Chip der Begrüßung startet diesen Ablauf wie sein Knopf.
+    tour_chip: Any = None
 
     @property
     def irgendeiner(self) -> bool:
         return bool(self.im_lauf or self.per_modul or self.per_text
                     or self.gesperrt or self.freitext or self.wiederholen or self.uebernahme
-                    or self.wendung is not None)
+                    or self.wendung is not None or self.tour_chip is not None)
 
 
 def abgewiesen(aktion: str | None, gesperrt: str | None) -> bool:
@@ -77,6 +79,16 @@ class Antwort:
     """Eine Aktion dieses Moduls hat geantwortet (``antwort`` kann ``None`` sein: ``fortsetzen``
     ohne offenen Block)."""
     antwort: ChatResponse | None
+
+
+def text_chip_als_text(ctx: TurnContext) -> None:
+    """G2a (Review G2, MAJOR 1): ein Chip, der wie getippt zählt, wird erst im Vorlauf Text — nur
+    an der wartenden Frage dieser Sitzung, zu der er gehört; ``ctx.req`` gilt danach für den Rest
+    des Zugs. Sonst bleibt er eine Wahl und bekommt „gilt nicht mehr“ (``wahl_zug.waehlen``).
+    Ein eigener Schritt vor ``bestimmen`` (Review G2, NIT 6), damit niemand die alte Anfrage
+    weiterreicht."""
+    if wahl_zug.text_chip_gilt(ctx.req, ctx.session_state):
+        ctx.req = ctx.req.model_copy(update={"action": None, "action_params": {}})
 
 
 async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
@@ -98,13 +110,15 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     # ersetzte ihn sonst still.
     # Review TW-4, Befund 2: der eben abgelehnte Ablauf startet nicht wieder von selbst
     abgelehnt = ablauf_zug.abgelehnt(req.session_id, ctx.session_state)
+    # G2c: ein Druck auf den Tour-Chip ist kein getippter Text — er startet wie ein Knopf
+    tour_chip = ablauf_zug.tour_chip(req)
     per_modul = (ablauf_zug.modul_ausloeser(ctx.ui_antwort, ohne=abgelehnt)
                  if not req.action and not im_lauf and ctx.ui_antwort is not None
                  and not ablauf_zug.lauf_wartet(req.session_id, ctx.session_state) else None)
     # Review A2a, Befund 1: getippter Text während eines wartenden Laufs ist ein gewöhnlicher Zug
     # (F1) — eine Wendung ersetzte sonst still den Lauf.
     per_text = (ablauf_zug.text_ausloeser(req.message, ohne=abgelehnt)
-                if not req.action and ctx.ui_antwort is None
+                if not req.action and ctx.ui_antwort is None and tour_chip is None
                 and not ablauf_zug.lauf_wartet(req.session_id, ctx.session_state) else None)
     # Paket K2b: ein Zug der Person (kein Kontext-Ping, kein Tour-Tick) im gesperrten Lauf.
     gesperrt = None
@@ -115,13 +129,13 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     # wartenden Schritt — gleich einem Label oder als Freitext — ist die Antwort, durch dieselbe
     # Sicherheitsprüfung. Vorher ein Lauf aufräumen, der nicht mehr kann (Review, Befund 3).
     getippt = (not req.action and ctx.ui_antwort is None and bool((req.message or "").strip())
-               and not ist_hintergrund_anfrage(req.environment))
+               and not ist_hintergrund_anfrage(req.environment) and tour_chip is None)
     if getippt:
         await wahl_zug.aufraeumen(session, req.session_id, ctx.session_state)
     lang = resolve_locale(req.environment.locale)
     # Durchtest Paket K (19.11.): eine Wendung an einer wartenden Frage ist nicht deren Antwort —
-    # auch nicht als Freitext (eine neue Sitzung übernahm den offenen Lauf, die Wendung wurde
-    # still ``zweck``)
+    # auch nicht als Freitext (damals übernahm eine neue Sitzung still den offenen Lauf, die Wendung
+    # wurde ``zweck``; seit Entscheid E-F, Plan 2026-11-20, übernimmt sie keinen mehr)
     wendung = (wendung_zug.wendung_trifft(req.session_id, ctx.session_state, req.message, lang,
                                        ohne=abgelehnt) if getippt else None)
     freitext = (getippt and wendung is None
@@ -133,7 +147,7 @@ async def bestimmen(ctx: TurnContext, session: AsyncSession) -> Ausloeser:
     if getippt and not freitext and not wiederholen and wendung is None:
         await wahl_zug.still_beenden(session, req.session_id, ctx.session_state)
     return Ausloeser(bool(im_lauf), per_modul, per_text, gesperrt, freitext,
-                     bool(wiederholen), uebernahme, wendung)
+                     bool(wiederholen), uebernahme, wendung, tour_chip)
 
 
 async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
@@ -176,6 +190,10 @@ async def antwort(ctx: TurnContext, session: AsyncSession, a: Ausloeser,
                                                     blocked_tools=gesperrt))
     if req.action == wahl_zug.AKTION:
         return Antwort(await wahl_zug.waehlen(session, req, state, blocked_tools=gesperrt))
+    if a.tour_chip is not None:
+        # G2c: wie der Knopf des Ablaufs; wartet ein anderer, erst die Rückfrage (Review G2, M2)
+        return Antwort(await ablauf_zug.per_tour_chip(session, req, state, a.tour_chip,
+                                                      blocked_tools=gesperrt))
     if a.wendung is not None:
         # Durchtest Paket K: ``None`` — der Lauf wartet nicht mehr an der Frage
         return Antwort(await wendung_zug.wendung_beantworten(session, req, state,

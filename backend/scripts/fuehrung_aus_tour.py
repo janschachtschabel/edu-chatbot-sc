@@ -109,7 +109,9 @@ def erzeugen(cfg: dict[str, Any]) -> dict[str, Any]:
     adv, _, _ = tour.expected("intro", "", cfg)
     schritte.append(_seiten_schritt("intro", _je_sprache(cfg, "intro"), "gruppe", nudge, adv))
 
-    # ── Gruppenwahl; „Bin mir nicht sicher“ und der erste Fehlversuch zeigen den Hilfetext ─
+    # ── Gruppenwahl; der erste Fehlversuch zeigt den Hilfetext, der zweite beendet die Führung
+    # (endet_bei_text) — wie die Tour. „Bin mir nicht sicher“ ist dort ein Fehlversuch, keine
+    # Wahl: ein Chip, der wie getippt zählt (G2a, ``text_antworten``).
     optionen = []
     for g in cfg["groups"]:
         optionen.append({"id": sid(g["id"]),
@@ -118,14 +120,10 @@ def erzeugen(cfg: dict[str, Any]) -> dict[str, Any]:
                          "ziel": "zur_gruppenseite",
                          "synonyme": [w for w in dict.fromkeys(g.get("synonyms") or [])
                                       if len(w) >= 3]})
-    optionen.append({"id": "unsicher", "label": unsicher_label, "ziel": "unsicher"})
-    unsicher = _text(_je_sprache(cfg, "group", art="unsure"))
     schritte.append({"id": "gruppe", "typ": "nachricht", "text": _text(_je_sprache(cfg, "group")),
-                     "schreibt": "gruppe", "optionen": optionen, "kein_treffer": unsicher})
-    # Nach dem Hilfetext beendet der nächste Fehlversuch die Führung (endet_bei_text) — wie im
-    # Original, das den Hilfetext als ersten Fehlversuch zählt.
-    schritte.append({"id": "unsicher", "typ": "nachricht", "text": unsicher,
-                     "schreibt": "gruppe", "optionen": optionen})
+                     "schreibt": "gruppe", "optionen": optionen,
+                     "text_antworten": [{"label": unsicher_label}],
+                     "kein_treffer": _text(_je_sprache(cfg, "group", art="unsure"))})
 
     # ── Zielgruppenseite je Gruppe ────────────────────────────────────────────────────────
     schritte.append({"id": "zur_gruppenseite", "typ": "verzweigung", "weiter": [
@@ -148,8 +146,13 @@ def erzeugen(cfg: dict[str, Any]) -> dict[str, Any]:
     # ── Lösungen je Gruppe, und derselbe Halt beim Einstieg mitten drin ───────────────────
     def loesungen(sid_: str, g: str, art: str) -> dict[str, Any]:
         adv, umschau, _ = tour.expected("solutions", g, cfg)
-        return _seiten_schritt(sid_, _je_sprache(cfg, "solutions", g, art), "kontakt", nudge,
-                               adv, (list(dict.fromkeys(umschau)), explore))
+        schritt = _seiten_schritt(sid_, _je_sprache(cfg, "solutions", g, art), "kontakt", nudge,
+                                  adv, (list(dict.fromkeys(umschau)), explore))
+        if art == "entry":
+            # Review G2 (MINOR 3): auf eine Wendung hin zeigt die Tour den Schritt neu gerendert
+            # (``wiederholen``: ``kind="normal"``) — die Lösungen, nicht die Einstiegsbegrüßung
+            schritt["text_erneut"] = _text(_je_sprache(cfg, "solutions", g))
+        return schritt
 
     schritte += [loesungen(f"loesungen_{sid(g)}", g, "normal") for g in gruppen]
     schritte += [loesungen(f"einstieg_{sid(g)}", g, "entry") for g in einstieg_gruppen]
@@ -170,6 +173,7 @@ def erzeugen(cfg: dict[str, Any]) -> dict[str, Any]:
                  "den Weg zum Mitmachen"],
         "aktiv": False,
         "endet_bei_text": True,
+        "tour_chip": True,        # Review G2 (MINOR 7): der Tour-Chip der Begrüßung startet ihn
         "ausloeser": [{"art": "knopf"},
                       *({"art": "text", "wendungen": phrasen[i:i + 10]}
                         for i in range(0, len(phrasen), 10))],
@@ -204,9 +208,11 @@ def _tests(cfg: dict[str, Any]) -> list[dict[str, Any]]:
                       "ende": "seite_lehrkraft"}},
         {"name": "Unbekannte Seite: erst zur Startseite", "seite": "/impressum/",
          "erwartet": {"status": "wartet_seite", "ende": "intro"}},
-        {"name": "Bin mir nicht sicher: Hilfetext mit denselben Chips", "seite": "/home/",
-         "eingaben": [{"bei": "gruppe", "option": "unsicher"}],
-         "erwartet": {"weg": ["wo", "gruppe", "unsicher"], "ende": "unsicher"}},
+        {"name": "Bin mir nicht sicher: Hilfetext, die Wahl gilt weiter", "seite": "/home/",
+         "eingaben": [{"bei": "gruppe", "text": "Bin mir nicht sicher"},
+                      {"bei": "gruppe", "option": erste}],
+         "erwartet": {"weg": ["wo", "gruppe", "zur_gruppenseite", f"seite_{erste}"],
+                      "ende": f"seite_{erste}"}},
         {"name": "Auf einer Zielgruppenseite: Einstieg bei den Lösungen",
          "seite": "/home/redaktionen/",
          "erwartet": {"weg": ["wo", "einstieg_redaktionen"], "status": "wartet_seite",
@@ -233,10 +239,11 @@ KOPF = """\
 # - Pfade relativ statt base_host — der Chip und die Links in den Texten öffnen die Seite auf dem
 #   Host, auf dem das Widget läuft (in einer Studio-Probe oder Fremdeinbettung der Chatbot-Host).
 # - Die Ablauf-Leiste („Schritt n von m“, „Ablauf abbrechen“) steht über dem Chat.
-# - Das Widget öffnet sich von selbst, solange ein Seiten-Schritt wartet (die Tour in jedem
-#   Schritt); ein Seitenwechsel während der Gruppenwahl zeigt die Wahl nicht erneut.
-# - „Bin mir nicht sicher“ im Hilfetext zeigt den Hilfetext noch einmal; die Tour endete dort.
 # - Die Antworten tragen nicht das Etikett „KI-generierte Antwort“ (fester Text der Redaktion).
+# Sonst Zug für Zug wie die Tour (tests/test_fuehrung_durchspiel.py): „Bin mir nicht sicher“ zählt
+# wie getippt (text_antworten), ein Seitenwechsel in der Gruppenwahl zeigt die Frage erneut, der
+# Tour-Chip (tour_chip) beginnt neu an der aktuellen Seite, eine Wendung zeigt den wartenden
+# Schritt neu gerendert wie die Tour (text_erneut) — Plan 2026-11-20, G2a–G2d und Review G2.
 #
 # Aus, bis die Redaktion sie einschaltet (aktiv) und die eingebaute Tour abschaltet
 # (Tour & Lotse: website_tour.enabled = false).

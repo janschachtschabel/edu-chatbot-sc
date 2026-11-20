@@ -220,6 +220,8 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     # (``preflight_ablauf.bestimmen``). Plan 2026-11-16, TG-2: die Ordner-Aktion („Als
     # Themenbaum-Entwurf übernehmen“, Entwurf ohne LLM) ist entfallen — eine Ordner-Antwort geht
     # den gewöhnlichen Weg, und ``persist`` übernimmt die Teile in den Vorgang.
+    preflight_ablauf.text_chip_als_text(ctx)
+    req = ctx.req     # G2a: ein Chip, der wie getippt zählt, ist jetzt Text
     a = await preflight_ablauf.bestimmen(ctx, session)
     if req.action not in _DIRECT_ACTIONS and not a.irgendeiner:
         return ctx
@@ -261,7 +263,7 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     # Ebenso eine getippte Nachricht im gesperrten Lauf (K2b) und ein Freitext an einem wartenden
     # Schritt (Review AS-3a, Befund 1): eine Krise bekommt ihre Antwort.
     if ((a.per_text is not None or a.gesperrt or a.freitext or a.wiederholen
-         or a.wendung is not None) and not req.action
+         or a.wendung is not None or a.tour_chip is not None) and not req.action
             and (decision.risk_level == "high" or ohne_pruefung)):
         wartet = a.freitext or a.wiederholen or a.wendung is not None
         if wartet and decision.risk_level == "high":

@@ -93,6 +93,9 @@ class AblaufStand(BaseModel):
     teile: list[AblaufTeilText] = Field(default_factory=list)
     #: AS-7: nur bei ``wartet_seite`` — der Weg zur Seite, auf die der Lauf wartet.
     weg: AblaufWeg | None = None
+    #: Plan 2026-11-20, G2d: der Ablauf führt über Seiten — auch an einer Frage (``wartet_wahl``)
+    #: pingt das Widget nach einem Seitenwechsel, und es öffnet sich von selbst.
+    fuehrung: bool = False
 
 
 class UiInfo(BaseModel):
