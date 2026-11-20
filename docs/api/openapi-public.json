@@ -330,6 +330,17 @@
       },
       "ChatResponse": {
         "properties": {
+          "auth_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Display Name"
+          },
           "auth_expires_at": {
             "anyOf": [
               {

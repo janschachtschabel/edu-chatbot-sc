@@ -212,6 +212,22 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ],
             "default": null,
             "title": "Vorbelegen"
+          },
+          "feste_argumente": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Feste Argumente"
           }
         },
         "title": "AgentSchritt",
@@ -4939,6 +4955,18 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "minimum": 1,
             "title": "Lokal Max Mb Gesamt",
             "type": "integer"
+          },
+          "ocr": {
+            "default": true,
+            "title": "Ocr",
+            "type": "boolean"
+          },
+          "ocr_max_seiten": {
+            "default": 20,
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Ocr Max Seiten",
+            "type": "integer"
           }
         },
         "title": "UploadSettings",
@@ -4957,7 +4985,9 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "max_seiten": 300,
           "aufbewahrung_h": 24,
           "lokal_max_dateien": 10,
-          "lokal_max_mb_gesamt": 50
+          "lokal_max_mb_gesamt": 50,
+          "ocr": true,
+          "ocr_max_seiten": 20
         }
       }
     },
