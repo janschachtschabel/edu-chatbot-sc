@@ -19,7 +19,7 @@ import { namenAntwort } from './upload-chat';
 import { ChatAblauf } from './upload-chat-ablauf';
 import { dateiEingaben, quellenAusAblage } from './upload-eingabe';
 import { ausDateiliste, erfasse, type Erfassung, type Quelle } from './upload-erfassen';
-import { lokaleAuswahl, lokaleGrenzen, type Ort } from './upload-orte';
+import { lokaleAuswahl, lokaleGrenzen, type Ort, orteAus } from './upload-orte';
 import { alleIgnorieren, setzeRolle, vorschlagen } from './upload-rollen';
 import { UPLOAD_STIL } from './upload-stil';
 import { type Sprache, texte, type UploadTexte } from './upload-texte';
@@ -43,7 +43,7 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     host: () => this.host, erfassung: () => this.erfassung, beschaeftigt: () => this._beschaeftigt,
     dateien: () => (this.erfassung ? lokaleAuswahl(this.erfassung, lokaleGrenzen(this._daten)).lesbar : []),
     t: () => this.t, wurzel: () => this.wurzel, ansagen: (text) => this.ansagen(text), zeichne: () => this.zeichne(),
-    nurLesen: () => !!this._kontext?.nurLesen,
+    nurLesen: () => !!this._kontext?.nurLesen, texterkennung: () => orteAus(this._daten).chat.texterkennung === true,
   });
   private readonly uebertragen = new UebertragenAblauf({
     host: () => this.host, erfassung: () => this.erfassung, daten: () => this._daten,

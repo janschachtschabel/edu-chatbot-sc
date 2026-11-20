@@ -62,6 +62,19 @@ export const FIELDS_UPLOAD: CataloguePart = {
     'feld.UploadSettings.lokal_max_mb_gesamt.hint':
       'So groß dürfen die im Chat gelesenen Dateien einer Sitzung zusammen sein, 1 bis 200 '
       + '(je Datei gilt „Größe je Dokument“). Gespeichert wird nur der Text, nie die Datei.',
+    // Plan 2026-11-19, Paket C: Texterkennung gescannter PDF (Studio steuert, DOCUMENT_OCR=off bremst)
+    'feld.UploadSettings.ocr.label': '„Hier im Chat“: gescannte PDF per Texterkennung lesen',
+    'feld.UploadSettings.ocr.hint':
+      'An (Vorgabe) = eine PDF ohne Text (Scan) liest der Chat, indem er ihre Seiten als Bild an das '
+      + 'KI-Modell schickt; das Upload-Feld sagt das vor dem Hochladen. Je Seite ein KI-Aufruf '
+      + '(Kosten unter „Kosten“, Phase dokument_ocr), bis zu anderthalb Minuten Wartezeit. Wirkt nicht bei '
+      + 'AcademicCloud (kein Bildeingang) und nicht, wenn der Betrieb DOCUMENT_OCR=off gesetzt hat. '
+      + 'Aus = ein Scan bleibt „kein lesbarer Text“.',
+    'feld.UploadSettings.ocr_max_seiten.label': 'Texterkennung: Seiten je PDF',
+    'feld.UploadSettings.ocr_max_seiten.hint':
+      'So viele Seiten einer gescannten PDF liest die Texterkennung höchstens, 1 bis 50; der Rest '
+      + 'fehlt (der Befund sagt „gekürzt“). Was nach 80 Sekunden (bei Inhalten 50) nicht gelesen ist, '
+      + 'fehlt ebenso. Je Gespräch höchstens „Dateien je Sitzung“ × diese Zahl.',
   },
   en: {
     'curated.uiModule.upload.label': 'Uploads',
@@ -109,5 +122,16 @@ export const FIELDS_UPLOAD: CataloguePart = {
     'feld.UploadSettings.lokal_max_mb_gesamt.hint':
       'The files read in the chat may add up to at most this size per session, 1 to 200 (each '
       + 'file is limited by “Size per document”). Only the text is kept, never the file.',
+    'feld.UploadSettings.ocr.label': '“Here in the chat”: read scanned PDFs by text recognition',
+    'feld.UploadSettings.ocr.hint':
+      'On (default) = the chat reads a PDF without text (a scan) by sending its pages as images to '
+      + 'the AI model; the upload picker says so before uploading. One AI call per page (costs under '
+      + '“Costs”, phase dokument_ocr), up to a minute and a half of waiting. No effect with AcademicCloud (no '
+      + 'image input) or when operations set DOCUMENT_OCR=off. Off = a scan stays “no readable text”.',
+    'feld.UploadSettings.ocr_max_seiten.label': 'Text recognition: pages per PDF',
+    'feld.UploadSettings.ocr_max_seiten.hint':
+      'At most this many pages of a scanned PDF are read, 1 to 50; the rest is missing (the result '
+      + 'says “shortened”). Whatever is not read after 80 seconds (50 for content files) is missing '
+      + 'too. Per conversation at most “files per session” × this number.',
   },
 };

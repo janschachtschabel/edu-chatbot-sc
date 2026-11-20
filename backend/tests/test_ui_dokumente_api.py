@@ -47,6 +47,7 @@ class _Lage:
         self.person = True
         self.ereignisse: list[dict] = []
         self.aufbereitet: list[tuple[bytes, str, int]] = []
+        self.ocr_lesen: list = []
         self.gespeichert: list[dict] = []
         self.geloescht: list[tuple] = []
         self.ergebnis: Aufbereitet | Abweisung = Aufbereitet(
@@ -69,8 +70,16 @@ def lage(monkeypatch) -> _Lage:
         lg.ereignisse.append({"message": message, "decision": decision,
                               "rate_limited": rate_limited})
 
-    async def aufbereiten(rumpf, name, *, max_seiten, frist_s, moderieren):
+    async def aufbereiten(rumpf, name, *, max_seiten, frist_s, moderieren, ocr_lesen=None):
         lg.aufbereitet.append((rumpf, name, max_seiten))
+        lg.ocr_lesen.append(ocr_lesen)
+        if ocr_lesen is not None:          # Paket C: wie der Dienst bei einem Scan
+            from boerdi.services.dokumente.ocr_sitzung import OcrGrenze
+
+            try:
+                await ocr_lesen(rumpf)
+            except OcrGrenze:
+                return Abweisung(429, "grenze_ocr")
         return lg.ergebnis
 
     async def speichern(s, **kw):
@@ -111,6 +120,8 @@ def _umgebung(monkeypatch):
     monkeypatch.setenv("STUDIO_API_KEY", "studio-schluessel-fuer-dokumente")
     monkeypatch.delenv("BOERDI_ALLOW_OPEN_ADMIN", raising=False)
     monkeypatch.setenv("RATE_LIMIT_CHAT", "off")
+    # Paket C: die Texterkennung schalten nur ihre eigenen Tests ein (``test_paket_c_ocr_api``)
+    monkeypatch.setenv("DOCUMENT_OCR", "off")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

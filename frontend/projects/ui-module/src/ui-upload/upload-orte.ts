@@ -30,6 +30,9 @@ export interface OrtStand {
   readonly hinweis?: 'ohne_erschliessung';
   /** Nur chat, vom Backend: der Code, wenn die Auswahl die Grenzen überschreitet. */
   readonly ueber_grenze?: 'ueber_grenze' | 'ueber_grenze_anmelden';
+  /** Nur chat, vom Backend (Plan 2026-11-19, Paket C): gescannte PDF liest der Server per
+   *  Texterkennung — ihre Seiten gehen als Bild an das KI-Modell. */
+  readonly texterkennung?: true;
   /** Nur chat, hier gerechnet: welche Grenze die Auswahl überschreitet — je Auswahl, Rest der
    *  Sitzung (`frei_*`) oder (bei `keine`) jede lesbare Datei über der Grenze je Datei. */
   readonly grenze?: 'anzahl' | 'gesamt' | 'frei_anzahl' | 'frei_gesamt' | 'datei';
@@ -93,6 +96,7 @@ function stand(roh: unknown): OrtStand {
     geht: true,
     ...(o['hinweis'] === 'ohne_erschliessung' ? { hinweis: 'ohne_erschliessung' as const } : {}),
     ...(UEBER.has(String(o['ueber_grenze'])) ? { ueber_grenze: o['ueber_grenze'] as OrtStand['ueber_grenze'] } : {}),
+    ...(o['texterkennung'] === true ? { texterkennung: true as const } : {}),
   };
 }
 

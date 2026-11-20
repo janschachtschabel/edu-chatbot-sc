@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAccessBlock, writeAccessBlock } from '../session/mcp-access';
-import { dokumentHochladen, type DokumentFehler } from './dokument-transport';
+import { ANTWORT_FRIST_MS, dokumentHochladen, type DokumentFehler, GESAMT_FRIST_MS } from './dokument-transport';
 
 /**
  * Paket U3-2c: ein Dokument aus `ui_upload` an `POST /api/ui/dokumente` — als XHR, weil nur sie den
@@ -18,7 +18,7 @@ class Xhr {
   status = 0;
   responseText = '';
   timeout = 0;
-  upload: { onprogress: ((e: { lengthComputable: boolean; loaded: number; total: number }) => void) | null } = { onprogress: null };
+  upload: { onprogress: ((e: { lengthComputable: boolean; loaded: number; total: number }) => void) | null; onload: (() => void) | null } = { onprogress: null, onload: null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   ontimeout: (() => void) | null = null;
@@ -49,7 +49,7 @@ function laden(mehr: Partial<Parameters<typeof dokumentHochladen>[0]> = {}) {
   });
 }
 
-afterEach(() => clearAccessBlock());
+afterEach(() => { clearAccessBlock(); vi.useRealTimers(); });
 
 describe('dokumentHochladen', () => {
   it('schickt Sitzung, Block und Datei mit Zugangsblock und meldet den Fortschritt', async () => {
@@ -109,6 +109,35 @@ describe('dokumentHochladen', () => {
     const leer = laden();
     Xhr.letzte.antworte(200, { name: 'x' });
     await expect(leer).rejects.toMatchObject({ code: 'fehler' });
+  });
+
+  // Paket C, zweites Review 3: die Texterkennung braucht bis zu 80 s — die Frist der Antwort beginnt
+  // erst, wenn die Datei ganz gesendet ist; ein langsames Hochladen frisst sie nicht auf.
+  it('die Frist der Antwort beginnt nach dem Hochladen; die Gesamtfrist bleibt als Deckel', async () => {
+    vi.useFakeTimers();
+    const lauf = laden();
+    const x = Xhr.letzte;
+    expect(x.timeout).toBe(GESAMT_FRIST_MS);
+    expect(GESAMT_FRIST_MS).toBeGreaterThan(ANTWORT_FRIST_MS);
+    vi.advanceTimersByTime(ANTWORT_FRIST_MS + 1000);      // noch beim Hochladen: keine Antwortfrist
+    expect(x.abgebrochen).toBe(false);
+    x.upload.onload?.();
+    vi.advanceTimersByTime(ANTWORT_FRIST_MS - 1);
+    expect(x.abgebrochen).toBe(false);
+    vi.advanceTimersByTime(2);
+    expect(x.abgebrochen).toBe(true);
+    await expect(lauf).rejects.toMatchObject({ code: 'zu_langsam' });
+  });
+
+  it('eine Antwort vor der Frist räumt die Uhr ab', async () => {
+    vi.useFakeTimers();
+    const lauf = laden();
+    const x = Xhr.letzte;
+    x.upload.onload?.();
+    x.antworte(200, BEFUND);
+    await expect(lauf).resolves.toEqual(BEFUND);
+    vi.advanceTimersByTime(ANTWORT_FRIST_MS * 2);
+    expect(x.abgebrochen).toBe(false);
   });
 
   it('ein Abbruch von außen bricht die Anfrage ab', async () => {

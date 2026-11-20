@@ -233,6 +233,10 @@
                   "ueber_grenze_anmelden"
                 ],
                 "description": "Nur chat: dieser Code gilt, wenn die Auswahl die Grenzen lokal_* ueberschreitet (dann nur namen bzw. wlo); _anmelden = mit WLO-Anmeldung ginge alles ueber WLO."
+              },
+              "texterkennung": {
+                "type": "boolean",
+                "description": "Nur chat (Plan 2026-11-19, Paket C): gescannte PDF liest der Chat per Texterkennung; ihre Seiten gehen als Bild an das KI-Modell."
               }
             }
           },

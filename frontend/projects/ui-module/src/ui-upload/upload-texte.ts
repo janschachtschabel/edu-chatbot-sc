@@ -57,6 +57,9 @@ const DE = {
   zuGrossHinweis: (n: number, mb: number) => `${zahl('de', n)} ${mehrzahl('de', n, 'Datei ist', 'Dateien sind')} größer als ${zahl('de', mb)} MB – davon geht nur der Name mit.`,
   sendetDatei: (k: number, n: number, prozent: number) => `Datei ${zahl('de', k)} von ${zahl('de', n)} wird hochgeladen … ${prozent} %`,
   liestDatei: (k: number, n: number) => `Datei ${zahl('de', k)} von ${zahl('de', n)} wird gelesen …`,
+  // Plan 2026-11-19, Paket C: ob eine PDF gescannt ist, weiß erst der Server — darum „bei gescannten Seiten“
+  // Review 11: ehrlich zur Frist (80 s Texterkennung, dazu Moderation und Speichern)
+  texterkennungLaeuft: 'Bei gescannten Seiten läuft eine Texterkennung – das kann bis zu anderthalb Minuten dauern.',
   dateiVon: (k: number, n: number) => `Datei ${zahl('de', k)} von ${zahl('de', n)}`,
   gelesenWartet: (n: number) => `Gelesen: ${zahl('de', n)} ${mehrzahl('de', n, 'Datei', 'Dateien')}. Bitte warten, bis die Antwort da ist.`,
   fehlerBei: (name: string, satz: string) => `„${name}“: ${satz}`,
@@ -80,6 +83,8 @@ const DE = {
     zu_viele_seiten: 'Die Datei hat zu viele Seiten.',
     entpackt_zu_gross: 'Die Datei ist zu groß.',
     kein_text: 'In der Datei steht kein lesbarer Text – vielleicht ist sie eingescannt.',
+    // Review Paket C, 3: das Seitenbudget der Texterkennung je Sitzung
+    grenze_ocr: 'Für dieses Gespräch sind schon so viele gescannte Seiten gelesen, wie gehen. Text-PDFs gehen weiter.',
     abgewiesen: 'Diese Datei kann der Chat nicht verarbeiten.',
     // Der Satz nennt nur Knöpfe, die es gibt (Review der Oberfläche, 1): den Weg nach `grenze_anzahl`
     // hängt die Ansicht an (`weiterOderNamen`/`nurNamenRest`); nach `grenze_gesamt` geht es weiter.
@@ -109,6 +114,8 @@ const DE = {
   // Paket U4: der Satz richtet sich nach dem gewählten Ort — was geht wohin, wie lange
   datenschutzLeer: 'Beim Auswählen wird nichts hochgeladen. Danach wählst du, wo die Dateien verarbeitet werden.',
   datenschutz: 'Ordner- und Dateinamen gehen an den Chat; alle Inhalte bleiben auf deinem Gerät.',
+  // Paket C: angehängt, wenn der Server `orte.chat.texterkennung` meldet
+  datenschutzOcr: 'Gescannte Seiten gehen als Bild an das KI-Modell.',
   datenschutzChat: (h: number) => `Ordner- und Dateinamen gehen an den Chat. „Hochladen“ schickt die lesbaren Dateien an den Chat; er behält nur ihren Text, bis zu ${zahl('de', h)} ${mehrzahl('de', h, 'Stunde', 'Stunden')} nach der letzten Nutzung, und für kurze Angaben liest sein KI-Modell den Anfang jedes Inhalts; ein daraus erstellter Entwurf bleibt im Arbeitsstand. Alle anderen Dateien bleiben auf deinem Gerät.`,
   datenschutzWlo: 'Ordner- und Dateinamen gehen an den Chat. „Hochladen“ legt die Dateien nach deiner Bestätigung in deinem persönlichen Bereich in WLO ab; dort bleiben sie, bis du sie löschst, und WLO erzeugt daraus Titel, Beschreibung, Fach und Stufe.',
   datenschutzWloOhne: 'Ordner- und Dateinamen gehen an den Chat. „Hochladen“ legt die Dateien nach deiner Bestätigung in deinem persönlichen Bereich in WLO ab; dort bleiben sie, bis du sie löschst.',
@@ -130,7 +137,9 @@ const DE = {
     namen_gekuerzt: () => 'Namen über 120 Zeichen sind gekürzt.',
   } satisfies Record<AntwortWarnung, (n: number) => string>,
   blaseNamen: (name: string, ordner: string, dateien: string) => `Nur die Namen gesendet – „${name}“: ${ordner}, ${dateien}.`,
-  blaseChat: (dateien: string) => `Hier im Chat bereitgestellt: ${dateien}.`,
+  // Review 12: eigene Form, wenn alle per Texterkennung gelesen sind
+  blaseChat: (n: number, ocr = 0) => `Hier im Chat bereitgestellt: ${zahl('de', n)} ${mehrzahl('de', n, 'Datei', 'Dateien')}${
+    !ocr ? '' : ocr < n ? `, davon ${zahl('de', ocr)} per Texterkennung gelesen` : n === 1 ? ', per Texterkennung gelesen' : ', alle per Texterkennung gelesen'}.`,
   nurLesen: (ordner: string, dateien: string) => `Erfasst: ${ordner}, ${dateien}.`,
   nurLesenNamen: (ordner: string, dateien: string) => `Nur Namen gesendet: ${ordner}, ${dateien}.`,
   nurLesenChat: (dateien: string) => `Hier im Chat bereitgestellt: ${dateien}.`,
@@ -179,6 +188,7 @@ const EN: typeof DE = {
   zuGrossHinweis: (n: number, mb: number) => `${zahl('en', n)} ${mehrzahl('en', n, 'file is', 'files are')} larger than ${zahl('en', mb)} MB – only the name goes along.`,
   sendetDatei: (k: number, n: number, prozent: number) => `Uploading file ${zahl('en', k)} of ${zahl('en', n)} … ${prozent} %`,
   liestDatei: (k: number, n: number) => `Reading file ${zahl('en', k)} of ${zahl('en', n)} …`,
+  texterkennungLaeuft: 'For scanned pages, text recognition is running – this can take up to a minute and a half.',
   dateiVon: (k: number, n: number) => `File ${zahl('en', k)} of ${zahl('en', n)}`,
   gelesenWartet: (n: number) => `Read: ${zahl('en', n)} ${mehrzahl('en', n, 'file', 'files')}. Please wait for the answer.`,
   fehlerBei: (name: string, satz: string) => `“${name}”: ${satz}`,
@@ -200,6 +210,7 @@ const EN: typeof DE = {
     zu_viele_seiten: 'The file has too many pages.',
     entpackt_zu_gross: 'The file is too large.',
     kein_text: 'The file contains no readable text – it may be scanned.',
+    grenze_ocr: 'This conversation has used up its scanned pages. PDFs with text still work.',
     abgewiesen: 'The chat cannot process this file.',
     grenze_anzahl: 'This conversation already holds as many files here in the chat as allowed.',
     ort_nicht_erlaubt: 'This workflow does not provide for “Here in the chat”.',
@@ -223,6 +234,7 @@ const EN: typeof DE = {
   nurLesenDokument: (name: string, abschnitte: string) => `Read: ${name}, ${abschnitte}.`,
   datenschutzLeer: 'Nothing is uploaded while you choose. Afterwards you pick where the files are processed.',
   datenschutz: 'Folder and file names go to the chat; all contents stay on your device.',
+  datenschutzOcr: 'Scanned pages go to the AI model as images.',
   datenschutzChat: (h: number) => `Folder and file names go to the chat. “Upload” sends the readable files to the chat; it keeps only their text, for up to ${zahl('en', h)} ${mehrzahl('en', h, 'hour', 'hours')} after last use, and its AI model reads the beginning of each content file for short details; a draft made from them stays in your work in progress. All other files stay on your device.`,
   datenschutzWlo: 'Folder and file names go to the chat. After you confirm, “Upload” stores the files in your personal area in WLO; they stay there until you delete them, and WLO creates title, description, subject and level from them.',
   datenschutzWloOhne: 'Folder and file names go to the chat. After you confirm, “Upload” stores the files in your personal area in WLO; they stay there until you delete them.',
@@ -243,7 +255,8 @@ const EN: typeof DE = {
     namen_gekuerzt: () => 'Names longer than 120 characters are shortened.',
   },
   blaseNamen: (name: string, ordner: string, dateien: string) => `Sent names only – “${name}”: ${ordner}, ${dateien}.`,
-  blaseChat: (dateien: string) => `Provided here in the chat: ${dateien}.`,
+  blaseChat: (n: number, ocr = 0) => `Provided here in the chat: ${zahl('en', n)} ${mehrzahl('en', n, 'file', 'files')}${
+    !ocr ? '' : ocr < n ? `, ${zahl('en', ocr)} of them read by text recognition` : n === 1 ? ', read by text recognition' : ', all read by text recognition'}.`,
   nurLesen: (ordner: string, dateien: string) => `Captured: ${ordner}, ${dateien}.`,
   nurLesenNamen: (ordner: string, dateien: string) => `Sent names only: ${ordner}, ${dateien}.`,
   nurLesenChat: (dateien: string) => `Provided here in the chat: ${dateien}.`,

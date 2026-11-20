@@ -2,7 +2,8 @@
 
 Was die Person (und gerahmt die KI) über das Dokument erfährt: Seiten, Wörter, Sprache, Gliederung,
 Warnungen. Gescannte PDF (fast kein Text je Seite) werden erkannt, damit die Person einen ehrlichen
-Satz bekommt — eine Texterkennung (OCR) gibt es nicht (Plan O-5).
+Satz bekommt. Seit Plan 2026-11-19, Paket C liest „Hier im Chat“ sie per Texterkennung über das
+Chat-Modell (``services/dokumente/ocr``); dann steht die Warnung ``ocr`` im Befund.
 """
 
 from __future__ import annotations
@@ -42,12 +43,18 @@ def gescannt(md: str, seiten: int | None) -> bool:
 
 
 def befund(md: str, *, seiten: int | None, gekuerzt: bool, bilder: int,
-           abschnitte: list[Abschnitt], gliederung_art: str) -> dict[str, Any]:
+           abschnitte: list[Abschnitt], gliederung_art: str, ocr: bool = False,
+           text_seiten: int | None = None) -> dict[str, Any]:
+    """``text_seiten``: über so viele Seiten verteilt sich der Text (Vorgabe ``seiten``) — nach
+    der Texterkennung die gelesenen, nicht alle der PDF (Review Paket C, Befund 7)."""
     zeichen = len(md)
     warnungen: list[str] = []
+    if ocr:
+        warnungen.append("ocr")
     if bilder:
         warnungen.append("bilder_entfernt")
-    if seiten and zeichen / seiten < WENIG_JE_SEITE:
+    nenner = text_seiten if text_seiten is not None else seiten
+    if nenner and zeichen / nenner < WENIG_JE_SEITE:
         warnungen.append("wenig_text")
     if gliederung_art == "teile":
         warnungen.append("keine_gliederung")

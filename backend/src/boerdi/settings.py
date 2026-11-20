@@ -48,6 +48,8 @@ _B_API_KEY_MODES = {"auto", "static", "forward"}
 #: Diese Werte von ``RATE_LIMIT_CHAT`` schalten das äußere Limit ab (``api/ratelimit``).
 RATE_LIMIT_AUS = ("off", "0", "none", "false", "disabled")
 _MODERATION_FAILURE_MODES = {"open", "closed"}
+#: Diese Werte von ``DOCUMENT_OCR`` schalten die Texterkennung ab (Paket C).
+_OCR_AUS = frozenset({"off", "aus", "false", "0", "no", "none", "disabled"})
 _VERBOSITY = {"low", "medium", "high"}
 # W12: `max` ergaenzt — die Chat-Completions-Referenz fuehrt es auf
 # (none|minimal|low|medium|high|xhigh|max). Fehlte hier, ein gueltiger Wert
@@ -248,6 +250,15 @@ class Settings(BaseSettings):
             "bypass the b-api response cache per request "
             "(clearCache: true; academiccloud only)"
         ),
+    )
+
+    # Plan 2026-11-19, Paket C (Nutzer 19.11.): Texterkennung gescannter PDF über das Chat-Modell.
+    # Ein- und ausgeschaltet wird im Studio (``01-base/upload-config``: ``ocr``, ab Werk an); die
+    # Umgebung ist nur die Notbremse: ``off`` schaltet sie ab, egal was das Studio sagt.
+    # ``auto`` (Vorgabe, auch leer/unbekannt) = das Studio entscheidet (``dokumente/ocr.aktiv``).
+    document_ocr: str = Field(
+        "auto", validation_alias=_env("DOCUMENT_OCR"),
+        description="auto | off — off disables OCR of scanned PDFs regardless of the Studio",
     )
 
     # ── Speech ──────────────────────────────────────────────────────────
@@ -627,6 +638,12 @@ class Settings(BaseSettings):
     def _coerce_moderation_failure_mode(cls, v: str) -> str:
         v = v.strip().lower()
         return v if v in _MODERATION_FAILURE_MODES else "open"
+
+    @field_validator("document_ocr")
+    @classmethod
+    def _coerce_document_ocr(cls, v: str) -> str:
+        # Notbremse: jedes übliche „aus“ hält; Unbekanntes lässt dem Studio die Wahl
+        return "off" if v.strip().lower() in _OCR_AUS else "auto"
 
     @field_validator("llm_provider")
     @classmethod

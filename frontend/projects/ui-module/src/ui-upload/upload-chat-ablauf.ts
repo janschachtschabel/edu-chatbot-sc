@@ -17,9 +17,14 @@
  * (`dublettenSchluessel`) geht einmal hoch und teilt die `upload_id`. Angesagt wird wie beim Übertragen
  * nur die erste, jede zehnte und die letzte Datei, dazu die erste nach einem Weitermachen (FE-5).
  * Zweites Review: 403 `ort_nicht_erlaubt` endet wie `grenze_anzahl`.
+ *
+ * Plan 2026-11-19, Paket C: ob eine PDF gescannt ist, erfährt das Feld erst aus dem Befund. Liest der
+ * Server eine PDF länger als {@link LANGE_MS} und ist die Texterkennung an, sagt ein Satz, dass sie bis
+ * zu anderthalb Minuten dauern kann (ein Text-PDF ist meist vorher fertig); die Blase nennt danach, wie viele
+ * Dateien per Texterkennung gelesen wurden.
  */
 import type { ElementHost } from '../_nachladen/element-vertrag';
-import { chatAntwort, type ChatLauf, type ChatStelle, codeVon, type GeleseneDatei, gelesenAus } from './upload-chat';
+import { chatAntwort, type ChatLauf, type ChatStelle, codeVon, type GeleseneDatei, gelesenAus, perTexterkennung } from './upload-chat';
 import type { Erfassung } from './upload-erfassen';
 import { dublettenSchluessel as schluessel, type LokaleDatei } from './upload-orte';
 import { chatFehlerSatz, type UploadTexte } from './upload-texte';
@@ -37,11 +42,15 @@ export interface ChatUmgebung {
   zeichne(): void;
   /** Der Block ist nicht mehr offen — dann geht keine Antwort mehr hin. */
   nurLesen?(): boolean;
+  /** Liest der Server gescannte PDF per Texterkennung (`orte.chat.texterkennung`, Paket C)? */
+  texterkennung?(): boolean;
 }
 
 type Ende = Extract<ChatLauf, { readonly phase: 'fehler' | 'halt' }>;
 /** Codes, nach denen jede weitere Datei ebenso scheiterte — der Lauf endet (`halt`). */
 const ENDET = new Set(['grenze_anzahl', 'ort_nicht_erlaubt']);
+/** Nach so langem Lesen einer PDF der Satz zur Texterkennung (Paket C). */
+export const LANGE_MS = 5000;
 
 export function sendetSatz(t: UploadTexte, prozent: number, s: ChatStelle): string {
   return t.sendetDatei(s.nr, s.von, prozent);
@@ -58,6 +67,8 @@ export class ChatAblauf {
   private getrennt = false;
   /** Wird die laufende Datei angesagt (Hochladen und Lesen)? */
   private ansage = false;
+  /** Wie viele der gelesenen per Texterkennung (für die Blase). */
+  private ocr = 0;
 
   constructor(private readonly u: ChatUmgebung) {}
 
@@ -148,7 +159,7 @@ export class ChatAblauf {
         if (this.u.erfassung() !== e) return this.verwerfen();   // inzwischen neu gewählt
         const upload_id = gelesenAus(befund);
         if (!upload_id) throw Object.assign(new Error('Befund unbrauchbar'), { code: 'fehler' });
-        gelesen.push({ i: d.i, rolle: d.rolle, upload_id });
+        gelesen.push({ i: d.i, rolle: d.rolle, upload_id, ...(perTexterkennung(befund) ? { ocr: true as const } : {}) });
         kennungen.set(schluessel(d), upload_id);
       } catch (fehler) {
         if (this.u.erfassung() !== e) return this.verwerfen();
@@ -172,6 +183,7 @@ export class ChatAblauf {
 
   private fertig(e: Erfassung<File>, gelesen: readonly GeleseneDatei[]): void {
     this.lauf = { phase: 'fertig', antwort: chatAntwort(e, gelesen, this.u.t().dateiOhneName) };
+    this.ocr = gelesen.filter((g) => g.ocr).length;
     if (!this.u.nurLesen?.()) this.u.host()?.vormerken(this.lauf.antwort as unknown as Record<string, unknown>);
     this.senden();
   }
@@ -187,7 +199,7 @@ export class ChatAblauf {
       this.u.zeichne();
       return;
     }
-    this.u.host()?.antworten(antwort as unknown as Record<string, unknown>, t.blaseChat(t.dateien(n)));
+    this.u.host()?.antworten(antwort as unknown as Record<string, unknown>, t.blaseChat(n, this.ocr));
   }
 
   /** Ein Fortschrittsschritt: nur Wert des Balkens und Satz an Ort und Stelle (das Label des Balkens
@@ -201,6 +213,7 @@ export class ChatAblauf {
       this.lauf = { phase: 'liest', stelle };
       if (this.ansage) this.u.ansagen(t.liestDatei(stelle.nr, stelle.von));
       this.u.zeichne();
+      if (this.u.texterkennung?.() && /\.pdf$/i.test(stelle.name)) setTimeout(() => this.lange(stelle), LANGE_MS);
       return;
     }
     this.lauf = { phase: 'sendet', anteil, stelle };
@@ -209,6 +222,14 @@ export class ChatAblauf {
     const zeile = this.u.wurzel().querySelector<HTMLElement>('[data-fokus="s:chat"]');
     if (balken) balken.value = prozent;
     if (zeile) zeile.textContent = sendetSatz(t, prozent, stelle);
+  }
+
+  /** Paket C: dieselbe PDF liest noch — der Satz zur Texterkennung, sichtbar und angesagt. */
+  private lange(stelle: ChatStelle): void {
+    if (this.lauf?.phase !== 'liest' || this.lauf.stelle !== stelle) return;
+    this.lauf = { phase: 'liest', stelle, lange: true };
+    this.u.ansagen(this.u.t().texterkennungLaeuft);
+    this.u.zeichne();
   }
 
   /** Antwort oder Fehler kamen für eine Auswahl, die es nicht mehr gibt — das Modul bleibt bedienbar. */

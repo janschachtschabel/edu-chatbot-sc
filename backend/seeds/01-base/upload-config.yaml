@@ -9,4 +9,8 @@
 #   max_mb: 10 (1–25) · max_seiten: 300 (1–1000) · aufbewahrung_h: 24 (1–72)
 #   lokal_max_dateien: 10 (1–30) · lokal_max_mb_gesamt: 50 (1–200)   Grenzen „Hier im Chat“ je Sitzung
 #                                   (Plan 2026-11-17, Paket U1; darüber WLO bzw. nur Namen)
+#   ocr: true                       gescannte PDF „Hier im Chat“ per Texterkennung lesen: die Seiten
+#                                   gehen als Bild an das Chat-Modell (Plan 2026-11-19, Paket C);
+#                                   DOCUMENT_OCR=off und AcademicCloud (kein Bildeingang) schalten ab
+#   ocr_max_seiten: 20 (1–50)       Seiten je PDF für die Texterkennung (je Seite ein KI-Aufruf)
 upload: {}

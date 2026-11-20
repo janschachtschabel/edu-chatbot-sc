@@ -9,6 +9,8 @@ als Satz (die Oberfläche übersetzt die Codes):
   (``dokument_ohne_anmeldung``).
   Gesperrt mit ``aus`` (Studio), ``nur_angemeldet`` oder — Review Paket U (19.11.), MAJOR 3 —
   ``grenze_sitzung`` (die Sitzung hält schon so viele Uploads, wie sie darf; der Dienst zählt).
+  ``texterkennung: true`` (Plan 2026-11-19, Paket C): gescannte PDF liest der Chat per
+  Texterkennung, ihre Seiten gehen als Bild an das KI-Modell — die Oberfläche sagt es vorher.
   ``ueber_grenze`` nennt den Code, den die Oberfläche zeigt, wenn die Auswahl die Grenze
   überschreitet: ``ueber_grenze_anmelden`` (ohne Anmeldung, und die Anmeldung öffnete den ganzen
   Weg über WLO: Ablage da, Flow startbar, vom Ablauf erlaubt — MINOR 5) bzw. ``ueber_grenze``.
@@ -59,6 +61,13 @@ def _flow_nach_anmeldung() -> bool:
     return mcp_starter.verfuegbar() and mcp_starter.flow_erlaubt(METADATEN_FLOW)
 
 
+def _texterkennung(cfg: Any) -> bool:
+    """Liest „Hier im Chat“ gescannte PDF per Texterkennung (Paket C, ``dokumente/ocr``)?"""
+    from boerdi.services.dokumente import ocr
+
+    return ocr.aktiv(cfg)
+
+
 def _chat(cfg: Any, person: bool, voll: bool) -> dict[str, Any]:
     if not cfg.dokument_im_chat:
         return {"geht": False, "grund": "aus"}
@@ -66,7 +75,10 @@ def _chat(cfg: Any, person: bool, voll: bool) -> dict[str, Any]:
         return {"geht": False, "grund": "nur_angemeldet"}
     if voll:
         return {"geht": False, "grund": "grenze_sitzung"}
-    return {"geht": True, "ueber_grenze": "ueber_grenze"}
+    chat: dict[str, Any] = {"geht": True, "ueber_grenze": "ueber_grenze"}
+    if _texterkennung(cfg):
+        chat["texterkennung"] = True
+    return chat
 
 
 def _wlo(ablage: bool, person: bool) -> dict[str, Any]:

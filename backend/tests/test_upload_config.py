@@ -52,3 +52,26 @@ def test_das_modell_weist_ab_was_ausserhalb_liegt(falsch):
 def test_ein_kaputter_bestand_faellt_auf_die_vorgabe(monkeypatch):
     monkeypatch.setattr(lader, "area", lambda key: {"upload": {"max_mb": "viel"}})
     assert lader.load_upload_config().max_mb == 10
+
+
+def test_texterkennung_ab_werk_an_und_im_studio_einstellbar(monkeypatch):
+    """Plan 2026-11-19, Paket C (Nutzer 19.11.): ``ocr`` an, ``ocr_max_seiten`` 20 (1–50). Der
+    Lader gibt das ganze Modell zurück — ein neuer Schlüssel kommt ohne Nacharbeit an; der
+    Studio-PUT (``/api/config/data``) speichert das rohe Dokument; fehlende Felder = Vorgabe."""
+    monkeypatch.setattr(lader, "area", lambda key: {})
+    werte = lader.load_upload_config()
+    assert (werte.ocr, werte.ocr_max_seiten) == (True, 20)
+    monkeypatch.setattr(lader, "area", lambda key: {"upload": {"ocr": False, "ocr_max_seiten": 5}})
+    werte = lader.load_upload_config()
+    assert (werte.ocr, werte.ocr_max_seiten) == (False, 5)
+    for falsch in ({"ocr_max_seiten": 0}, {"ocr_max_seiten": 51}):
+        with pytest.raises(ValidationError):
+            UploadConfigArea.model_validate({"upload": falsch})
+
+
+def test_der_seed_nennt_die_texterkennung_im_kopf():
+    from pathlib import Path
+
+    seed = Path(__file__).resolve().parents[1] / "seeds" / "01-base" / "upload-config.yaml"
+    kopf = seed.read_text(encoding="utf-8")
+    assert "ocr: true" in kopf and "ocr_max_seiten: 20" in kopf

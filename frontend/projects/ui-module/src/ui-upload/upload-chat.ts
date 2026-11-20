@@ -21,6 +21,8 @@ export interface GeleseneDatei {
   readonly i: number;
   readonly rolle: AblageRolle;
   readonly upload_id: string;
+  /** Plan 2026-11-19, Paket C: per Texterkennung gelesen (nur für die Blase, nicht in der Antwort). */
+  readonly ocr?: true;
 }
 
 /** Welche Datei gerade dran ist — `nr` ab 1, `von` alle lesbaren, dazu ihr Name. */
@@ -35,7 +37,8 @@ export interface ChatStelle {
  *  Oberfläche, 1 und 2) oder fertig (Antwort gebaut, wartet, wenn gerade ein Zug läuft). */
 export type ChatLauf =
   | { readonly phase: 'sendet'; readonly anteil: number; readonly stelle: ChatStelle }
-  | { readonly phase: 'liest'; readonly stelle: ChatStelle }
+  /** `lange`: eine PDF liest schon eine Weile — vielleicht per Texterkennung (Paket C). */
+  | { readonly phase: 'liest'; readonly stelle: ChatStelle; readonly lange?: true }
   | { readonly phase: 'fehler'; readonly code: string; readonly stelle: ChatStelle; readonly bisher: readonly GeleseneDatei[] }
   | {
     /** `code`: `grenze_anzahl` oder `ort_nicht_erlaubt` — jede weitere Datei scheiterte ebenso. */
@@ -66,6 +69,12 @@ export function codeVon(fehler: unknown): string {
 export function gelesenAus(befund: Readonly<Record<string, unknown>>): string | null {
   const id = befund['upload_id'];
   return typeof id === 'string' && UPLOAD_ID.test(id) ? id : null;
+}
+
+/** Hat der Server die Datei per Texterkennung gelesen (Warnung `ocr` im Befund, Paket C)? */
+export function perTexterkennung(antwort: Readonly<Record<string, unknown>>): boolean {
+  const b = antwort['befund'] as { warnungen?: unknown } | null | undefined;
+  return Array.isArray(b?.warnungen) && b.warnungen.includes('ocr');
 }
 
 export function chatAntwort<T>(e: Erfassung<T>, gelesen: readonly GeleseneDatei[], dateiOhneName?: string): UploadAntwort {

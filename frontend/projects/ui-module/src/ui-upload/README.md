@@ -45,6 +45,10 @@ eigenen Bündel (siehe `docs/ui-module.md` §2.5).
   laufenden Datei; „Nicht übertragene noch einmal senden“ schickt nur, was ein neuer Versuch heilen kann.
   Fähigkeit `hochladen` (für `ablegen`) und `oeffnen` (für die Links). Ohne https (kein `crypto.subtle`)
   der Code `unsicher`.
+- **Texterkennung** (Plan 2026-11-19, Paket C): meldet der Server `orte.chat.texterkennung`, hängt das Feld an
+  den Datenschutz-Satz „Gescannte Seiten gehen als Bild an das KI-Modell.“; liest der Server eine PDF länger
+  als 5 s (`LANGE_MS`), erscheint und ertönt „Bei gescannten Seiten läuft eine Texterkennung – das kann bis
+  zu anderthalb Minuten dauern.“; die Blase nennt danach „davon k per Texterkennung gelesen“ (Warnung `ocr`).
 - **Texte** (`upload-texte.ts`, `upload-uebertragen-texte.ts`): Deutsch und Englisch, Zahlen und Größen
   über `Intl`.
 - Backend: Dienst `upload_angebot` (`backend/src/boerdi/ui_module/dienst_upload.py`), Antwortform

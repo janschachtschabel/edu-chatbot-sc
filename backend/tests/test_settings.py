@@ -314,3 +314,15 @@ def test_ungueltiges_ratenlimit_verhindert_den_start(clean_env, wert) -> None:
 
 def test_leeres_ratenlimit_ist_die_vorgabe(clean_env) -> None:
     assert fresh(RATE_LIMIT_CHAT="").rate_limit_chat == "120/minute"
+
+
+
+def test_dokument_ocr_umgebung_ist_nur_notbremse(monkeypatch) -> None:
+    """Plan 2026-11-19, Paket C (C3, Nutzer 19.11.): das Studio schaltet die Texterkennung, die
+    Umgebung kann sie nur abschalten — ``auto`` (Vorgabe, auch Unbekanntes) | ``off``."""
+    monkeypatch.delenv("DOCUMENT_OCR", raising=False)
+    assert Settings(_env_file=None).document_ocr == "auto"
+    for aus in ("off", " OFF ", "aus", "false", "0"):
+        assert fresh(DOCUMENT_OCR=aus).document_ocr == "off"
+    assert fresh(DOCUMENT_OCR="llm").document_ocr == "auto"
+    assert "document_ocr_max_pages" not in Settings.model_fields   # Seiten nur im Studio

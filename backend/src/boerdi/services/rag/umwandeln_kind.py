@@ -72,7 +72,8 @@ def _einer() -> asyncio.Semaphore:
 
 async def im_kindprozess(funktion: Callable[..., str], *args: Any, frist_s: float | None = None,
                          platz_frist_s: float | None = None,
-                         abgesagt: asyncio.Event | None = None) -> str:
+                         abgesagt: asyncio.Event | None = None,
+                         max_mb: int | None = None) -> str:
     """``funktion(*args)`` in einem eigenen Prozess — das Ergebnis oder ein
     :class:`Umwandlungsfehler`. ``funktion`` muss auf Modulebene stehen (``spawn``
     importiert sie über ihren Namen). Wirft nur, wenn kein Kindprozess startet: das
@@ -83,7 +84,10 @@ async def im_kindprozess(funktion: Callable[..., str], *args: Any, frist_s: floa
     auf den Platz warten, danach ``ausgelastet``; die Frist der Umwandlung beginnt erst mit ihm.
 
     ``abgesagt`` (Review RB-1, Befund 1): will niemand mehr das Ergebnis, während der Lauf noch auf
-    den Platz wartet, startet er keinen Kindprozess — der Platz gehört gleich der nächsten Datei."""
+    den Platz wartet, startet er keinen Kindprozess — der Platz gehört gleich der nächsten Datei.
+
+    ``max_mb`` (Paket C, zweites Review 1): eigene Speichergrenze statt ``RAG_CONVERSION_MAX_MB`` —
+    das Rendern gescannter Seiten bekommt eine kleinere."""
     s = get_settings()
     platz = _einer()
     if platz_frist_s is None:
@@ -99,7 +103,7 @@ async def im_kindprozess(funktion: Callable[..., str], *args: Any, frist_s: floa
     try:
         lauf = asyncio.ensure_future(asyncio.to_thread(
             _ausfuehren, funktion, args, frist_s or s.rag_conversion_timeout_s,
-            s.rag_conversion_max_mb))
+            s.rag_conversion_max_mb if max_mb is None else max_mb))
     except BaseException:
         platz.release()
         raise
