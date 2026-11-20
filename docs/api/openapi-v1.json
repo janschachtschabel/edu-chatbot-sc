@@ -985,7 +985,8 @@
             "default": "struktur",
             "enum": [
               "inhalt",
-              "struktur"
+              "struktur",
+              "beides"
             ],
             "title": "Rolle",
             "type": "string"
@@ -1931,7 +1932,8 @@
             "default": "struktur",
             "enum": [
               "inhalt",
-              "struktur"
+              "struktur",
+              "beides"
             ],
             "title": "Rolle",
             "type": "string"
@@ -2078,7 +2080,7 @@
           },
           "rolle": {
             "default": "inhalt",
-            "pattern": "^(inhalt|struktur)$",
+            "pattern": "^(inhalt|struktur|beides)$",
             "title": "Rolle",
             "type": "string"
           },
@@ -3747,6 +3749,28 @@
                 "werkzeug"
               ]
             }
+          },
+          "zustimmung": {
+            "anyOf": [
+              {
+                "pattern": "^(freigabe|upload)$",
+                "type": "string",
+                "x-choices": [
+                  "freigabe",
+                  "upload"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zustimmung",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
           }
         },
         "required": [
@@ -4792,6 +4816,11 @@
             "minItems": 1,
             "title": "Eintraege",
             "type": "array"
+          },
+          "erschliessen": {
+            "default": false,
+            "title": "Erschliessen",
+            "type": "boolean"
           },
           "ordner": {
             "maxLength": 120,
@@ -7804,7 +7833,7 @@
     },
     "/api/config/ui-module": {
       "get": {
-        "description": "Je Modul (nach Namen): das Manifest, welche Schalter gelten (``schaltbar``) und ob es aus\nder fertigen Antwort abgeleitet wird; dazu der Bereich der Schalter.",
+        "description": "Je Modul (nach Namen): das Manifest, welche Schalter gelten (``schaltbar``), ob es aus\nder fertigen Antwort abgeleitet wird und — zweites Review P4–P6, MINOR 2 — ob ein Ablauf-Schritt\nseine ``daten`` als Parameter des Diensts gibt (``daten_sind_parameter``: der Treiber baut den\nBlock über den Dienst, ``treiber_bloecke.modul_block``; sonst sind sie Blockdaten nach\n``eingabe``); dazu der Bereich der Schalter.",
         "operationId": "ui_module_katalog_api_config_ui_module_get",
         "responses": {
           "200": {
