@@ -92,7 +92,7 @@ describe('Anmeldung aus der Sitzung der Seite — von selbst', () => {
 
     expect(readAccessBlock()).toBe(BLOCK);
     expect(sessionStorage.getItem(MCP_ACCESS_STORAGE_KEY), 'nicht im Web-Speicher').toBeNull();
-    expect(knopf(el)!.getAttribute('aria-label')).toBe('Abmelden — angemeldet als Lea Lehrerin');
+    expect(knopf(el)!.getAttribute('aria-label')).toBe('Konto – angemeldet als Lea Lehrerin');
     expect(anmeldeSaetze(c), 'still: kein Satz im Chat').toEqual([]);
 
     // Weitere Signal-Läufe stoßen keinen zweiten Tausch an.
@@ -324,7 +324,7 @@ describe('Anmeldung aus der Sitzung der Seite — Rennen und Herkunft des Blocks
     (c as unknown as { _signInAndRefresh: () => void })._signInAndRefresh();   // alter `__auth__`-Chip
     await ruhe();
     f.detectChanges();
-    expect(knopf(el)!.getAttribute('aria-label')).toBe('Abmelden — angemeldet als Lea Lehrerin');
+    expect(knopf(el)!.getAttribute('aria-label')).toBe('Konto – angemeldet als Lea Lehrerin');
   });
 });
 
@@ -368,7 +368,7 @@ describe('Anmeldung aus der Sitzung der Seite — Wache vor jedem Zug (SA-13)', 
     f.detectChanges();
 
     expect(readAccessBlock(), 'der Zug geht mit dem Block der neuen Person').toBe('wlo2.bmV1.aXY.Y3Q');
-    expect(knopf(el)!.getAttribute('aria-label')).toBe('Abmelden — angemeldet als Ben Redakteur');
+    expect(knopf(el)!.getAttribute('aria-label')).toBe('Konto – angemeldet als Ben Redakteur');
     expect(anmeldeSaetze(c)).toEqual([]);
   });
 
@@ -422,7 +422,7 @@ describe('Anmeldung aus der Sitzung der Seite — Wache vor jedem Zug (SA-13)', 
     f.detectChanges();
 
     expect(readAccessBlock()).toBe(BLOCK);
-    expect(knopf(el)!.getAttribute('aria-label')).toBe('Abmelden — angemeldet als Lea Lehrerin');
+    expect(knopf(el)!.getAttribute('aria-label')).toBe('Konto – angemeldet als Lea Lehrerin');
   });
 
   it('ein Gast kostet je Zug eine Frage, aber keinen Tausch', async () => {

@@ -87,6 +87,9 @@ export const DE: Catalogue = {
   'fortsetzen.schliessen': 'Hinweis schließen',
   'fortsetzen.pruefen': 'Stand prüfen',
   'vorgaenge.knopf': 'Meine Vorgänge',
+  // Plan 2026-11-20 (E-D2): der Name des Knopfs trägt, was Abzeichen und Markierung zeigen.
+  'vorgaenge.knopfOffen': '{anzahl} offen',
+  'vorgaenge.knopfHier': 'hier läuft ein Auftrag',
   'vorgaenge.titel': 'Meine Vorgänge in anderen Gesprächen',
   'vorgaenge.schliessen': 'Liste schließen',
   'vorgaenge.laedt': 'Liste wird geladen …',
@@ -348,17 +351,15 @@ export const DE: Catalogue = {
    *  Widget fünf Minuten ohne Hinweis. */
   'auth.cancelled': 'Anmeldung abgebrochen — das Anmeldefenster wurde geschlossen. Du kannst es jederzeit noch einmal versuchen.',
   'auth.failed': 'Die Anmeldung hat nicht geklappt. Bitte versuch es noch einmal.',
-  /** Beschriftung des Knopfs im angemeldeten Zustand. Sagt die WIRKUNG mit,
-   *  weil daneben ein Neustart-Knopf sitzt: hier endet die Anmeldung, nicht
-   *  das Gespräch. */
-  'auth.signOut': 'Abmelden — wieder anonym suchen',
-  // Plan 2026-11-15: Anmeldung aus der Sitzung der Seite — der Knopf nennt, wer handelt.
-  'auth.signOutAs': 'Abmelden — angemeldet als {name}',
-  // Plan 2026-11-19 (E8): der Kreis mit dem Kürzel links vom Anmelde-Knopf; ohne Namen nur
-  // „Angemeldet“, abgemeldet ausgegraut „Nicht angemeldet“.
+  // Plan 2026-11-20 (E-D1): EIN Konto-Knopf. Abgemeldet sagt sein Name Handlung und Zustand;
+  // angemeldet öffnet er ein Menü — sein Name sagt, wer angemeldet ist (Plan 2026-11-15: wer
+  // handelt), der Kopf des Menüs ebenso, der Eintrag „Abmelden“ beendet nur die Anmeldung.
+  'auth.konto.aus': 'Anmelden – nicht angemeldet',
+  'auth.konto.an': 'Konto – angemeldet als {name}',
+  'auth.konto.anOhneName': 'Konto – angemeldet',
+  'auth.konto.abmelden': 'Abmelden',
   'auth.signedInAs': 'Angemeldet als {name}',
   'auth.signedIn': 'Angemeldet',
-  'auth.notSignedIn': 'Nicht angemeldet',
   'auth.signedOutSession': 'Abgemeldet. Ich suche wieder anonym. In WLO selbst bleibst du angemeldet.',
   'auth.sessionNone': 'In WLO ist auf dieser Seite gerade niemand angemeldet. Melde dich dort an und tippe danach noch einmal auf „Anmelden“.',
   'auth.sessionFailed': 'Deine WLO-Sitzung ließ sich gerade nicht übernehmen. Versuch es gleich noch einmal.',

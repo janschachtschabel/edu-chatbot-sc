@@ -8,7 +8,7 @@
  * Gespräch und derselbe Zugangsblock gelten, mit denen gefragt wurde.
  */
 
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 
 import type { EigenerVorgang } from '../stream/offene-vorgaenge';
 
@@ -40,8 +40,13 @@ export class MeineVorgaengeController {
   readonly frage = signal<string | null>(null);
   readonly loescht = signal<string | null>(null);
   readonly meldung = signal<VorgangMeldung | null>(null);
+  /** Paket D2 (Plan 2026-11-20): die Zahl am Knopf — die Länge derselben Liste. Während eines neuen
+   *  Ladens bleibt die alte stehen (kein Flackern); vergessen heißt 0. */
+  readonly anzahl = computed(() => this.liste().length);
   /** Jede Abfrage zählt; eine ältere Antwort gilt nicht mehr. */
   private _lauf = 0;
+  /** Gespräch und Block, für die zuletzt geladen wurde — `vorladen` fragt je Paar einmal. */
+  private _geladenFuer = '';
 
   constructor(private readonly ctx: MeineVorgaengeContext) {}
 
@@ -60,10 +65,19 @@ export class MeineVorgaengeController {
     this.frage.set(null);
   }
 
+  /** D2: die Liste im Hintergrund holen, damit der Knopf ihre Zahl zeigt — einmal je Gespräch und
+   *  Anmeldung, nicht bei offener Liste (sie lud schon, und ein neues Laden nähme eine Rückfrage
+   *  weg). Fehler bleiben still: dann eben keine Zahl. */
+  async vorladen(): Promise<void> {
+    if (!this.ctx.sessionId() || this.offen() || this._schluessel() === this._geladenFuer) return;
+    await this.laden();
+  }
+
   async laden(): Promise<void> {
     const lauf = ++this._lauf;
     const sid = this.ctx.sessionId();
     const block = this.ctx.block();
+    this._geladenFuer = this._schluessel();
     this.stand.set('laedt');
     this.frage.set(null);
     try {
@@ -72,7 +86,9 @@ export class MeineVorgaengeController {
       this.liste.set(liste.filter((v) => v.session_id !== sid));
       this.stand.set('bereit');
     } catch {
-      if (this._gilt(lauf, sid, block)) this.stand.set('fehler');
+      if (!this._gilt(lauf, sid, block)) return;
+      this.stand.set('fehler');
+      this._geladenFuer = '';   // Review D, 10: das nächste Vorladen versucht es erneut
     }
   }
 
@@ -110,10 +126,15 @@ export class MeineVorgaengeController {
   /** Abgemeldet, neuer Block, Neustart: alles weg; eine laufende Antwort gilt nicht mehr. */
   vergessen(): void {
     this._lauf++;
+    this._geladenFuer = '';
     this.schliessen();
     this.liste.set([]);
     this.stand.set('laedt');
     this.meldung.set(null);
+  }
+
+  private _schluessel(): string {
+    return `${this.ctx.sessionId()}|${this.ctx.block() ?? ''}`;
   }
 
   private _gilt(lauf: number, sid: string, block: string | null): boolean {

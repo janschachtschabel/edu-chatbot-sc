@@ -142,3 +142,79 @@ describe('Querschnitts-Review AS-U/BU', () => {
     expect(ohne.lauf_status).toBeUndefined();
   });
 });
+
+/**
+ * Paket D2 (Plan 2026-11-20, E-D2): die Zahl am Knopf „Meine Vorgänge“. Dieselbe Liste wie im Panel
+ * (kein zweiter Abruf, kein zweiter Endpunkt), im Hintergrund geholt — einmal je Gespräch und
+ * Anmeldung (beim Öffnen des Widgets, nach der Anmeldung, nach einem Wechsel).
+ */
+describe('Paket D2 — Zahl am Knopf', () => {
+  it('vorladen holt die Liste, ohne das Panel zu öffnen; die Zahl ist ihre Länge', async () => {
+    const { c, abrufen } = make();
+    expect(c.anzahl()).toBe(0);
+    await c.vorladen();
+    expect(abrufen).toHaveBeenCalledWith(HIER);
+    expect(c.offen()).toBe(false);
+    expect(c.anzahl()).toBe(2);
+  });
+
+  it('einmal je Gespräch und Anmeldung — ein neues Gespräch oder ein neuer Block fragt neu', async () => {
+    const t = make();
+    await t.c.vorladen();
+    await t.c.vorladen();
+    expect(t.abrufen).toHaveBeenCalledTimes(1);
+    t.setSid(DORT);
+    await t.c.vorladen();
+    t.setBlock('block-q');
+    await t.c.vorladen();
+    expect(t.abrufen).toHaveBeenCalledTimes(3);
+  });
+
+  it('nach dem Vergessen (Abmelden, Neustart) fragt vorladen neu; bis dahin ist die Zahl 0', async () => {
+    const { c, abrufen } = make();
+    await c.vorladen();
+    c.vergessen();
+    expect(c.anzahl()).toBe(0);
+    await c.vorladen();
+    expect(abrufen).toHaveBeenCalledTimes(2);
+    expect(c.anzahl()).toBe(2);
+  });
+
+  it('ohne Gespräch und bei offener Liste nicht (die offene Liste lud schon — eine Rückfrage bliebe)', async () => {
+    const leer = make();
+    leer.setSid('');
+    await leer.c.vorladen();
+    expect(leer.abrufen).not.toHaveBeenCalled();
+
+    const { c, abrufen } = make();
+    await c.umschalten();
+    c.fragen(V1.id);
+    await c.vorladen();
+    expect(abrufen).toHaveBeenCalledTimes(1);
+    expect(c.frage()).toBe(V1.id);
+  });
+
+  it('die Zahl folgt dem Löschen', async () => {
+    const { c } = make();
+    await c.vorladen();
+    await c.loeschen(V1.id);
+    expect(c.anzahl()).toBe(1);
+  });
+
+  it('scheitert das Vorladen, bleibt es still: keine Zahl', async () => {
+    const { c } = make(new Error('netz'));
+    await expect(c.vorladen()).resolves.toBeUndefined();
+    expect(c.anzahl()).toBe(0);
+  });
+});
+
+describe('Review Paket D', () => {
+  it('10: scheitert das Vorladen, versucht das nächste Vorladen es erneut', async () => {
+    const { c, abrufen } = make(new Error('netz'));
+    await c.vorladen();
+    abrufen.mockResolvedValueOnce([V1]);
+    await c.vorladen();
+    expect(abrufen).toHaveBeenCalledTimes(2);
+    expect(c.anzahl()).toBe(1);
+  });
+});

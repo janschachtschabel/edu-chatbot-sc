@@ -10,10 +10,11 @@ import { clearAccessBlock, writeAccessBlock } from '../session/mcp-access';
 import { ChatShellComponent } from './chat-shell.component';
 
 /**
- * Das Anmelde-Kürzel in der Fußzeile (Plan 2026-11-19, E8): ein Kreis links vom Abmelde-Knopf,
- * sobald ein Block da ist — mit den Initialen, wenn der Name bekannt ist (Anmeldung aus der
- * Sitzung der Seite), sonst mit dem Personen-Symbol. Ohne Anmeldung (Nachtrag des Nutzers) dort
- * das ausgegraute Personen-Symbol. Nicht, wo keine Anmeldung angeboten wird, nicht in der Probe.
+ * Das Anmelde-Kürzel in der Fußzeile (Plan 2026-11-19, E8) — seit Paket D1 (Plan 2026-11-20, E-D1)
+ * IM Konto-Knopf statt in einem eigenen Kreis daneben: mit den Initialen, wenn der Name bekannt ist
+ * (Anmeldung aus der Sitzung der Seite), sonst mit dem Personen-Symbol; ohne Anmeldung das
+ * ausgegraute Umriss-Symbol. Nicht, wo keine Anmeldung angeboten wird. Das Menü selbst prüft
+ * `konto-knopf.component.spec.ts`.
  */
 
 const HERKUNFT = window.location.origin;
@@ -54,7 +55,7 @@ function make(over: { mcpSessionUrl?: string; sizeToggleVisible?: string; en?: b
   return { c: f.componentInstance, f, el: f.nativeElement as HTMLElement };
 }
 
-const kuerzel = (el: HTMLElement) => el.querySelector('.konto-kuerzel') as HTMLElement | null;
+const kuerzel = (el: HTMLElement) => el.querySelector('.btn-auth') as HTMLElement | null;
 
 beforeEach(() => { sessionStorage.clear(); clearAccessBlock(); });
 afterEach(() => {
@@ -70,10 +71,11 @@ describe('Anmelde-Kürzel', () => {
 
     const k = kuerzel(el)!;
     expect(k.textContent?.trim()).toBe('JS');
-    expect(k.getAttribute('role')).toBe('img');
-    expect(k.getAttribute('aria-label')).toBe('Angemeldet als Jan Schachtschabel');
-    expect(k.getAttribute('title')).toBe('Angemeldet als Jan Schachtschabel');
+    expect(k.getAttribute('aria-label')).toBe('Konto – angemeldet als Jan Schachtschabel');
+    expect(k.getAttribute('title')).toBe('Konto – angemeldet als Jan Schachtschabel');
     expect(k.querySelector('svg'), 'kein Symbol, wenn Buchstaben da sind').toBeNull();
+    expect(el.querySelector('.konto-kuerzel'), 'kein zweiter Kreis (E-D1)').toBeNull();
+    expect(el.querySelectorAll('.chat-footer button.btn-auth')).toHaveLength(1);
   });
 
   it('zeigt ohne Namen das Personen-Symbol und sagt nur „Angemeldet“', () => {
@@ -82,23 +84,24 @@ describe('Anmelde-Kürzel', () => {
     const k = kuerzel(make().el)!;
     expect(k.querySelector('svg')).not.toBeNull();
     expect(k.textContent?.trim()).toBe('');
-    expect(k.getAttribute('aria-label')).toBe(DE['auth.signedIn']);
-    expect(k.getAttribute('title')).toBe(DE['auth.signedIn']);
+    expect(k.getAttribute('aria-label')).toBe(DE['auth.konto.anOhneName']);
+    expect(k.getAttribute('title')).toBe(DE['auth.konto.anOhneName']);
   });
 
-  it('zeigt ohne Anmeldung das ausgegraute Personen-Symbol: „Nicht angemeldet“', () => {
+  it('zeigt ohne Anmeldung das ausgegraute Personen-Symbol: „Anmelden – nicht angemeldet“', () => {
     const { el } = make();
     const k = kuerzel(el)!;
-    expect(k.classList).toContain('konto-kuerzel--aus');
+    expect(k.classList).toContain('btn-auth--aus');
     expect(k.querySelector('svg')).not.toBeNull();
     expect(k.textContent?.trim()).toBe('');
-    expect(k.getAttribute('aria-label')).toBe(DE['auth.notSignedIn']);
-    expect(k.getAttribute('title')).toBe(DE['auth.notSignedIn']);
+    expect(k.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
+    expect(k.getAttribute('title')).toBe(DE['auth.konto.aus']);
+    expect(el.querySelector('.konto-kuerzel'), 'kein zweiter Kreis (E-D1)').toBeNull();
   });
 
   it('angemeldet ist der Kreis nicht ausgegraut', () => {
     writeAccessBlock(BLOCK);
-    expect(kuerzel(make().el)!.classList).not.toContain('konto-kuerzel--aus');
+    expect(kuerzel(make().el)!.classList).not.toContain('btn-auth--aus');
   });
 
   it('abgemeldet hat das Symbol eine andere Form als angemeldet ohne Namen (Review B, 4)', () => {
@@ -125,8 +128,8 @@ describe('Anmelde-Kürzel', () => {
 
     const k = kuerzel(el)!;
     expect(k.textContent?.trim()).toBe('');
-    expect(k.classList).toContain('konto-kuerzel--aus');
-    expect(k.getAttribute('aria-label')).toBe(DE['auth.notSignedIn']);
+    expect(k.classList).toContain('btn-auth--aus');
+    expect(k.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
   });
 
   it('fehlt, wenn diese Anlage keine Anmeldung anbietet', () => {
@@ -141,24 +144,23 @@ describe('Anmelde-Kürzel', () => {
     expect(make().el.querySelector('.chat-footer')!.classList).toContain('chat-footer--anmeldung');
   });
 
-  it('fehlt in der Probe der Studio-Vorschau — angemeldet wie abgemeldet', () => {
-    for (const angemeldet of [true, false]) {
-      if (angemeldet) writeAccessBlock(BLOCK); else clearAccessBlock();
-      const { c, f, el } = make();
-      c.setProbe(true);
-      f.detectChanges();
-      expect(kuerzel(el), String(angemeldet)).toBeNull();
-      TestBed.resetTestingModule();
-    }
+  it('bleibt in der Probe der Studio-Vorschau als Anmelde-Knopf stehen — wie der Anmelde-Knopf bisher', () => {
+    // Bis E-D1 fehlte dort nur der Kürzel-Kreis; anmelden ließ sich auch in der Probe.
+    const { c, f, el } = make();
+    c.setProbe(true);
+    f.detectChanges();
+    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
   });
 
-  it('sitzt direkt links vom Abmelde-Knopf — auch rahmenlos', () => {
+  it('sitzt dort, wo der Anmelde-Knopf saß: hinter „Meine Vorgänge“, vor Größe und Neustart', () => {
     writeAccessBlock(BLOCK);
     for (const sizeToggleVisible of ['true', 'false']) {
       const { el } = make({ sizeToggleVisible });
       const reihe = Array.from(el.querySelectorAll('.chat-footer > *'))
         .map((e) => e.className.split(' ')[0]);
-      expect(reihe.indexOf('konto-kuerzel'), sizeToggleVisible).toBe(reihe.indexOf('btn-auth') - 1);
+      const konto = reihe.indexOf('konto');
+      expect(konto, sizeToggleVisible).toBe(reihe.indexOf('btn-vorgaenge') + 1);
+      expect(konto, sizeToggleVisible).toBeLessThan(reihe.indexOf('btn-restart'));
       TestBed.resetTestingModule();
     }
   });
@@ -168,7 +170,7 @@ describe('Anmelde-Kürzel', () => {
     const { c, f, el } = make({ mcpSessionUrl: TAUSCH, en: true });
     await vi.waitFor(() => expect(c.authButton()).toBe('signOut'));
     f.detectChanges();
-    expect(kuerzel(el)!.getAttribute('aria-label')).toBe('Signed in as Jan Schachtschabel');
+    expect(kuerzel(el)!.getAttribute('aria-label')).toBe('Account – signed in as Jan Schachtschabel');
   });
 });
 
@@ -195,9 +197,7 @@ describe('Anmelde-Kürzel — Name aus der Antwort des Zuges', () => {
     f.detectChanges();
     const k = kuerzel(el)!;
     expect(k.textContent?.trim()).toBe('JS');
-    expect(k.getAttribute('aria-label')).toBe('Angemeldet als Jan Schachtschabel');
-    expect(el.querySelector('.btn-auth')!.getAttribute('aria-label'))
-      .toBe('Abmelden — angemeldet als Jan Schachtschabel');
+    expect(k.getAttribute('aria-label')).toBe('Konto – angemeldet als Jan Schachtschabel');
   });
 
   it('ein späterer Zug ohne Namen lässt ihn stehen (derselbe Block)', () => {
@@ -213,14 +213,14 @@ describe('Anmelde-Kürzel — Name aus der Antwort des Zuges', () => {
     const ohne = make();
     zug(ohne.c, 'Jan Schachtschabel', null);
     ohne.f.detectChanges();
-    expect(kuerzel(ohne.el)!.getAttribute('aria-label')).toBe(DE['auth.notSignedIn']);
+    expect(kuerzel(ohne.el)!.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
     TestBed.resetTestingModule();
 
     writeAccessBlock(BLOCK);
     const anders = make();
     zug(anders.c, 'Jan Schachtschabel', 'wlo2.ein-anderer-block');
     anders.f.detectChanges();
-    expect(kuerzel(anders.el)!.getAttribute('aria-label')).toBe(DE['auth.signedIn']);
+    expect(kuerzel(anders.el)!.getAttribute('aria-label')).toBe(DE['auth.konto.anOhneName']);
   });
 
   it('nimmt nur Text, gekürzt auf 120 Zeichen', () => {
@@ -228,15 +228,15 @@ describe('Anmelde-Kürzel — Name aus der Antwort des Zuges', () => {
     const { c, f, el } = make();
     zug(c, 42);
     f.detectChanges();
-    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.signedIn']);
+    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.konto.anOhneName']);
     zug(c, `  ${'Ä'.repeat(200)}  `);
     f.detectChanges();
-    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(`Angemeldet als ${'Ä'.repeat(120)}`);
+    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(`Konto – angemeldet als ${'Ä'.repeat(120)}`);
     // Review B (NIT 9): gezählt wird nach Zeichen — kein halbes Surrogatpaar am Ende
     zug(c, '\u{1D49C}'.repeat(130));
     f.detectChanges();
     expect(kuerzel(el)!.getAttribute('aria-label'))
-      .toBe(`Angemeldet als ${'\u{1D49C}'.repeat(120)}`);
+      .toBe(`Konto – angemeldet als ${'\u{1D49C}'.repeat(120)}`);
   });
 
   it('der Name aus der Sitzung der Seite geht vor', async () => {
@@ -255,13 +255,13 @@ describe('Anmelde-Kürzel — Name aus der Antwort des Zuges', () => {
     zug(c, 'Jan Schachtschabel');
     c.onAuthClick();
     f.detectChanges();
-    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.notSignedIn']);
+    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
 
     // Ein neuer Block (z. B. von Hand angemeldet): ohne neuen Namen das Symbol, nicht der alte.
     writeAccessBlock('wlo2.neuer-block');
     (c as unknown as { _hasAccessBlock: { set: (v: boolean) => void } })._hasAccessBlock.set(true);
     f.detectChanges();
-    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.signedIn']);
+    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.konto.anOhneName']);
     expect(kuerzel(el)!.textContent?.trim()).toBe('');
   });
 
@@ -272,6 +272,6 @@ describe('Anmelde-Kürzel — Name aus der Antwort des Zuges', () => {
     const intern = c as unknown as Intern;
     intern._onResult({ session_id: 's', content: 'ok', auth_invalid: true }, 'hallo');
     f.detectChanges();
-    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.notSignedIn']);
+    expect(kuerzel(el)!.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
   });
 });

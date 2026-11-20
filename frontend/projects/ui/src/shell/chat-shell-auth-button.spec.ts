@@ -9,7 +9,9 @@ import { isSignedOut, MCP_ACCESS_STORAGE_KEY, writeAccessBlock } from '../sessio
 import { ChatShellComponent } from './chat-shell.component';
 
 /**
- * Der Anmelde-/Abmelde-Knopf in der Eingabezeile. Gepinnt wird, was still
+ * Der Anmelde-/Abmelde-Knopf in der Eingabezeile — seit Paket D1 (Plan 2026-11-20, E-D1) der
+ * Konto-Knopf: abgemeldet meldet sein Klick an, angemeldet öffnet er ein Menü mit „Abmelden“.
+ * Gepinnt wird, was still
  * schiefgehen kann: dass er im rahmenlosen Modus verschwindet (er hängt an
  * KEINER Kopfzeile — das ist der Grund für die Platzierung), dass der Klick
  * seine Nutzergeste verliert (dann blockt der Browser das Anmeldefenster,
@@ -45,6 +47,8 @@ function widerruf(c: ChatShellComponent, ergebnis: boolean) {
 
 const warten = () => new Promise((r) => setTimeout(r, 0));
 
+const pfad = (svg: string) => svg.match(/ d="([^"]+)"/)![1];
+
 beforeEach(() => sessionStorage.clear());
 afterEach(() => { vi.restoreAllMocks(); sessionStorage.clear(); });
 
@@ -70,29 +74,31 @@ describe('Anmelde-Knopf — Sichtbarkeit', () => {
     const { el } = make();
     const reihe = Array.from(el.querySelectorAll('.chat-footer > *'))
       .map(e => e.className.split(' ')[0]);
-    expect(reihe.indexOf('btn-auth')).toBeGreaterThan(reihe.indexOf('chat-input'));
-    expect(reihe.indexOf('btn-auth')).toBeLessThan(reihe.indexOf('btn-restart'));
-    expect(reihe.indexOf('btn-auth')).toBeLessThan(reihe.indexOf('btn-send'));
+    expect(reihe.indexOf('konto')).toBeGreaterThan(reihe.indexOf('chat-input'));
+    expect(reihe.indexOf('konto')).toBeLessThan(reihe.indexOf('btn-restart'));
+    expect(reihe.indexOf('konto')).toBeLessThan(reihe.indexOf('btn-send'));
   });
 });
 
 describe('Anmelde-Knopf — die beiden Zustände', () => {
-  it('abgemeldet: Beschriftung, Ansage und Symbol laden zum Anmelden ein', () => {
+  it('abgemeldet: Beschriftung und Ansage sagen Handlung und Zustand, das Symbol ist der Umriss', () => {
     const b = knopf(make().el)!;
-    expect(b.getAttribute('aria-label')).toBe(DE['auth.signIn']);
-    expect(b.getAttribute('title')).toBe(DE['auth.signIn']);
-    expect(b.innerHTML).toContain('M840-800');  // Rahmen rechts = Pfeil hinein
+    expect(b.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
+    expect(b.getAttribute('title')).toBe(DE['auth.konto.aus']);
+    expect(b.innerHTML).toContain(pfad(ICONS.person_outline));
+    expect(b.hasAttribute('aria-haspopup')).toBe(false);
   });
 
-  it('angemeldet: Beschriftung sagt die Wirkung, und das Symbol dreht sich um', () => {
+  it('angemeldet: ein Menü-Knopf mit der gefüllten Person', () => {
     writeAccessBlock(BLOCK);
     const b = knopf(make().el)!;
-    expect(b.getAttribute('aria-label')).toBe(DE['auth.signOut']);
-    expect(b.innerHTML).toContain('M120-800');  // Rahmen links = Pfeil hinaus
+    expect(b.getAttribute('aria-label')).toBe(DE['auth.konto.anOhneName']);
+    expect(b.getAttribute('aria-haspopup')).toBe('menu');
+    expect(b.innerHTML).toContain(pfad(ICONS.person));
   });
 
   it('trennt die Zustände nicht über Farbe — die Symbole sind verschieden', () => {
-    expect(ICONS.login).not.toBe(ICONS.logout);
+    expect(pfad(ICONS.person)).not.toBe(pfad(ICONS.person_outline));
   });
 });
 
@@ -101,11 +107,32 @@ describe('Anmelde-Knopf — Klick', () => {
     // Ohne diese Zusage blockt der Browser das Anmeldefenster, und zwar
     // stumm: es gäbe keine Fehlermeldung, der Knopf täte scheinbar nichts.
     // Deshalb steht zwischen Klick und Start bewusst kein `await`.
-    const { c } = make();
+    const { c, el } = make();
     const start = vi.spyOn(c as unknown as { startSignIn: () => Promise<void> }, 'startSignIn')
       .mockResolvedValue(undefined);
-    c.onAuthClick();
+    knopf(el)!.click();
     expect(start).toHaveBeenCalledTimes(1);  // KEIN await davor — das ist der Test
+  });
+
+  it('angemeldet öffnet der Klick nur das Menü — erst „Abmelden“ darin meldet ab', async () => {
+    writeAccessBlock(BLOCK);
+    const { c, f, el } = make();
+    const abmelden = widerruf(c, true);
+    document.body.appendChild(el);
+    knopf(el)!.click();
+    f.detectChanges();
+    await f.whenStable();
+    expect(sessionStorage.getItem(MCP_ACCESS_STORAGE_KEY)).not.toBeNull();
+    const eintrag = el.querySelector('[role="menuitem"]') as HTMLButtonElement;
+    expect(eintrag.textContent?.trim()).toBe(DE['auth.konto.abmelden']);
+    eintrag.click();
+    expect(sessionStorage.getItem(MCP_ACCESS_STORAGE_KEY)).toBeNull();
+    await warten();
+    f.detectChanges();
+    expect(abmelden).toHaveBeenCalledWith(BLOCK);
+    expect(knopf(el)!.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
+    expect(el.querySelector('[role="menu"]')).toBeNull();
+    el.remove();
   });
 
   it('räumt beim Abmelden den Speicher und widerruft den Zugang am Server', async () => {
@@ -121,7 +148,7 @@ describe('Anmelde-Knopf — Klick', () => {
     expect(abmelden).toHaveBeenCalledWith(BLOCK);
     expect(isSignedOut()).toBe(true);
     expect(c.messages().map((m) => m.content)).toContain(DE['auth.signedOut']);
-    expect(knopf(el)!.getAttribute('aria-label')).toBe(DE['auth.signIn']);
+    expect(knopf(el)!.getAttribute('aria-label')).toBe(DE['auth.konto.aus']);
   });
 
   it('sagt ehrlich, wenn der Widerruf nicht bestätigt wurde', async () => {

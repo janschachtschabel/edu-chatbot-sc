@@ -65,13 +65,13 @@ test('bei 320 px bricht die Zeile um: das Feld oben in voller Breite, die Knöpf
   const knoepfe = zeile.kinder.filter((k) => k.klasse !== 'chat-input');
   expect(feld.breite).toBeGreaterThanOrEqual(250);                  // volle Breite statt 76 px
   for (const k of knoepfe) expect(k.oben, `${k.klasse} unter dem Feld`).toBeGreaterThan(feld.oben);
-  // die Knöpfe in einer Zeile — über die Mitte: das Kürzel (E8) ist mit 28 px kleiner als die Knöpfe
+  // die Knöpfe in einer Zeile — über die Mitte (bis Paket D1 war das Kürzel kleiner als die Knöpfe)
   const mitten = knoepfe.map((k) => k.mitte);
   expect(Math.max(...mitten) - Math.min(...mitten)).toBeLessThanOrEqual(4);
   expect(knoepfe.at(-1)!.klasse).toBe('btn-send');                  // Senden bleibt ganz rechts
 });
 
-test('mit Mikrofon (bis 444 px): Mikrofon und Feld oben, in Sicht- wie Tab-Reihenfolge', async ({ page }) => {
+test('mit Mikrofon (bis 408 px): Mikrofon und Feld oben, in Sicht- wie Tab-Reihenfolge', async ({ page }) => {
   // Review AS-Ud, Befund 6: das Mikrofon steht im DOM vor dem Feld — kein `order`, das es umdreht
   await page.setViewportSize({ width: 380, height: 640 });
   await angemeldet(page);
@@ -97,9 +97,9 @@ test('mit Mikrofon (bis 444 px): Mikrofon und Feld oben, in Sicht- wie Tab-Reihe
   expect(lage.scroll).toBeLessThanOrEqual(lage.client);
 });
 
-test('ab 400 px bleibt es auch angemeldet eine Zeile mit mindestens 120 px Feld', async ({ page }) => {
-  // Plan 2026-11-19 (E8): mit dem Kürzel liegt die Grenze bei 400 px (vorher 364 px).
-  await page.setViewportSize({ width: 440, height: 640 });
+test('ab 364 px bleibt es auch angemeldet eine Zeile mit mindestens 120 px Feld', async ({ page }) => {
+  // Paket D1 (Plan 2026-11-20): das Kürzel steckt im Konto-Knopf — die Grenze sank von 400 auf 364 px.
+  await page.setViewportSize({ width: 380, height: 640 });
   await angemeldet(page);
   const w = await mount(page, MIT_ANMELDUNG);
   await vorgaengeStubben(page);
@@ -168,4 +168,94 @@ test('Q-4: 320 × 360 px mit Leiste, offener Liste und wartendem Vorgang — das
   await expect(page.locator('.fortsetzen-hinweis')).toHaveCount(0);
   const bereich = await page.locator('.ueber-eingabe').evaluate((el) => ({ hoch: el.clientHeight, inhalt: el.scrollHeight }));
   expect(bereich.inhalt).toBeGreaterThan(bereich.hoch);             // der Bereich scrollt selbst
+});
+
+/** Kontrast der Vordergrundfarbe von `sel` gegen die Fläche von `grund` (1×1-Canvas, durch die
+ *  Shadow-Roots hindurch). */
+function kontrast(page: Page, sel: string, grund: string): Promise<number> {
+  return page.evaluate(([vorne, hinten]) => {
+    const tief = (wurzel: Document | ShadowRoot, s: string): Element | null => {
+      const direkt = wurzel.querySelector(s);
+      if (direkt) return direkt;
+      for (const el of Array.from(wurzel.querySelectorAll('*'))) {
+        const treffer = el.shadowRoot ? tief(el.shadowRoot, s) : null;
+        if (treffer) return treffer;
+      }
+      return null;
+    };
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 1;
+    const ctx = cv.getContext('2d', { willReadFrequently: true })!;
+    const rgb = (wert: string) => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = wert;
+      ctx.fillRect(0, 0, 1, 1);
+      return Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3);
+    };
+    const leucht = (f: number[]) => {
+      const [r, g, b] = f.map((c) => (c / 255 <= 0.03928 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [a, b] = [leucht(rgb(getComputedStyle(tief(document, vorne)!).color)),
+      leucht(rgb(getComputedStyle(tief(document, hinten)!).backgroundColor))].sort((x, y) => y - x);
+    return (a + 0.05) / (b + 0.05);
+  }, [sel, grund] as const);
+}
+
+test('D2: die Zahl am Knopf stimmt mit der Liste und steht im Namen; nach dem Löschen ist sie weg', async ({ page }) => {
+  await angemeldet(page);
+  const w = await mount(page, MIT_ANMELDUNG);
+  await vorgaengeStubben(page);
+  await w.open();
+  const knopf = page.locator('.btn-vorgaenge');
+  const zahl = page.locator('.btn-vorgaenge__zahl');
+  await expect(knopf).toHaveAttribute('aria-label', 'Meine Vorgänge – 1 offen');
+  await expect(zahl).toHaveText('1');
+  await expect(zahl).toHaveAttribute('aria-hidden', 'true');
+  // Abzeichen: on-primary auf primary (Text, ≥ 4,5 : 1)
+  const zahlKontrast = await kontrast(page, '.btn-vorgaenge__zahl', '.btn-vorgaenge__zahl');
+  console.log('Abzeichen-Kontrast:', zahlKontrast);
+  expect(zahlKontrast).toBeGreaterThanOrEqual(4.5);
+
+  await knopf.click();
+  const panel = page.getByRole('region', { name: 'Meine Vorgänge in anderen Gesprächen' });
+  await expect(panel.locator('.meine-vorgaenge__eintrag')).toHaveCount(1);
+  await panel.getByRole('button', { name: '„Optik in Klasse 8“ löschen' }).click();
+  await panel.getByRole('button', { name: 'Ja, löschen' }).click();
+  await expect(panel).toContainText('In anderen Gesprächen ist nichts offen.');
+  await expect(knopf).toHaveAttribute('aria-label', 'Meine Vorgänge');
+  await expect(zahl).toHaveCount(0);
+});
+
+test('D2: läuft hier ein Auftrag, ist der Knopf markiert — mit Text und ≥ 3:1, hell und dunkel', async ({ page }) => {
+  await angemeldet(page);
+  const w = await mount(page, MIT_ANMELDUNG);
+  await vorgaengeStubben(page);
+  w.enqueue(chatResponse({ content: 'Der Auftrag läuft.', ui: { pattern: 'ABLAUF', ablauf: {
+    id: 'themenbaum', titel: 'Themenbaum erstellen', nr: 3, von: 5, status: 'wartet_auftrag', lauf: 'a1',
+    teile: [] } } }));
+  await w.open();
+  const knopf = page.locator('.btn-vorgaenge');
+  await expect(knopf).not.toHaveClass(/btn-vorgaenge--hier/);
+  await page.locator('.chat-input').fill('weiter');
+  await page.locator('.btn-send').click();
+  await expect(knopf).toHaveClass(/btn-vorgaenge--hier/);
+  await expect(knopf).toHaveAttribute('aria-label', 'Meine Vorgänge – 1 offen – hier läuft ein Auftrag');
+  // `.btn-vorgaenge` hat einen Übergang (`transition: all .2s`) — gemessen wird der eingeschwungene Wert
+  const eingeschwungen = async () => {
+    let vorher = await kontrast(page, '.btn-vorgaenge', '.chat-footer');
+    await expect.poll(async () => {
+      const jetzt = await kontrast(page, '.btn-vorgaenge', '.chat-footer');
+      const gleich = jetzt === vorher;
+      vorher = jetzt;
+      return gleich;
+    }, { intervals: [100, 250, 500] }).toBe(true);
+    return vorher;
+  };
+  const hell = await eingeschwungen();
+  await page.evaluate(() => { document.documentElement.style.colorScheme = 'dark'; });
+  const dunkel = await eingeschwungen();
+  console.log('Markierung „hier läuft ein Auftrag“:', JSON.stringify({ hell, dunkel }));
+  expect(hell).toBeGreaterThanOrEqual(3);
+  expect(dunkel).toBeGreaterThanOrEqual(3);
 });
