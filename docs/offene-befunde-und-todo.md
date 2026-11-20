@@ -373,9 +373,37 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
     - Offen: Master-Skill-Knoten erneut ersetzen (Upload-Ausnahme „Ablauf geht vor“,
       Sackgassen-Regel).
     - Die KI schwankt von Lauf zu Lauf; die festen Wendungen bleiben der sichere Weg.
+- **Paket A / E1c — Messung über b-api-openai offen** (Plan 2026-11-19 §6 E1c, Notiz
+  [`2026-11-19-paket-a-dokument-entwurf.md`](aenderungen/2026-11-19-paket-a-dokument-entwurf.md)):
+  Gemessen ist nur OpenAI nativ (86–92 % der Eingabe gecacht). Zu messen über b-api-openai:
+  - der Cache-Anteil nach dem Vorwärm-Aufruf;
+  - die Dauer;
+  - ob die Rollenfolge zweier user-Nachrichten (Dokument, dann Aufgabe) durchgeht (vLLM-Vorlagen);
+  - die Kosten je Entwurf ohne Cache, etwa Bankkaufleute mit rund 371 000 Eingabe-Token.
+
+  Das Messskript `messe_e1c.py <pdf> <thema>` (Scratchpad des Pakets, nicht im Repo) läuft mit
+  `LLM_PROVIDER=b-api-openai` und dem Schlüssel aus der OS-Variable und gibt keine Werte aus.
+- **Themenbaum aus Dokument: `thema` aus dem Zweck** (Durchtest 20.11., bekannt seit TG-7 m1): Die KI
+  setzt im Dokument-Schritt selbst `thema: "Unterricht planen"`; die Vorbelegung (Name bzw. Thema des
+  Dokuments) verliert, weil das Argument der KI vorgeht (`services/ablauf/vorbelegung.py`, Entscheid
+  TG-5). Titel und Lernfelder stimmen trotzdem. Möglicher Weg: `thema` am Dokument-Schritt über
+  `agent.feste_argumente` bzw. eine Vorrang-Regel „aus dem Dokument“ — Entscheid offen.
+- **Scan-Lehrplan nach Schuljahren** (Durchtest 20.11., Aufbereitungsmechaniker per Texterkennung):
+  Gleichnamige Lerngebiete der drei Schuljahre stehen ohne Schuljahr nebeneinander (Seed-Regel „ohne
+  Nummern“), die Fachrichtungen B–D fehlen oben. Vorgaben des Schritts `entwurf_dokument` um „Schuljahr
+  bzw. Fachrichtung als Ebene 1, wenn das Dokument danach ordnet“ ergänzen — im Master-Skill bzw.
+  Studio prüfen.
 
 ## 4 Beim nächsten Deploy
 
+- **Pakete A/B/C (2026-11-20, Plan `2026-11-19-dokument-entwurf-und-sitzung.md`):** keine Migration.
+  Image neu bauen (Widget, Module `ui-strukturentwurf`/`ui-upload`, Studio), danach Hard-Reload.
+  Werksfassungen ändern sich (`06-ablaeufe/themenbaum*`: `feste_argumente`, `zuege: 5`;
+  `01-base/upload-config`): Werksabgleich in ruhiger Zeit. **Texterkennung ab Werk an** — gescannte
+  Seiten gehen als Bild an das KI-Modell; abschalten im Studio (UI-Module → Hochladen) oder als
+  Notbremse `DOCUMENT_OCR=off`. Neue Abhängigkeit `pypdfium2` (direkt, schon im Image).
+  Sitzungsübernahme: Chart `deploy/helm/boerdi-session-ingress` erst nach den Vorbedingungen in
+  `uebergabe-betrieb.md` §16 (vor allem `proxy-ssl-location-only: "true"` mit dem Betrieb des Clusters).
 - **Paket N (2026-11-19, PR #89):** keine Migration, keine neue Variable; Image neu bauen (Widget,
   Module `ui-inhaltsrahmen`/`ui-strukturentwurf`, Studio-Karte b-api-Betrieb). Werksfassung
   „Themenbaum erstellen“ ändert sich (`metadaten_frage`, `ohne_metadaten`) → Werksabgleich in
@@ -407,12 +435,14 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   `aenderungen/2026-11-15-anmeldung-aus-der-sitzung.md`, Antwort an den MCP-Entwickler
   `mcp-antwort-2026-11-15-sitzung.md`. Keine Migration, kein `import-config`. Ohne
   `MCP_SESSION_URL` ist der Weg aus.
-  - **Einschalten (SA-16, über unser Backend):** im Chart `sessionIngress` (eigenes
-    Ingress-Objekt mit dem Repository-Host, Pfad `/edu-sharing/services/boerdi/auth/session`
-    unverändert ans Backend, kein `rewrite-target`, wie beim md-editor; Team 6); am Chatbot `MCP_SESSION_URL` auf
-    diese Adresse (bei `CORS_ALLOW_ALL=false` den Repository-Host in `CORS_ORIGINS`); am
+  - **Einschalten (SA-16, über unser Backend):** Chart `deploy/helm/boerdi-session-ingress`
+    (eigenes Ingress-Objekt mit dem Repository-Host, Pfad `/edu-sharing/services/boerdi/auth/session`
+    unverändert ans Backend, kein `rewrite-target`, wie beim md-editor; Plan 2026-11-19, Paket B);
+    beim Compose-Rechner dazu `compose.session.yml` mit `SESSION_HOST`. **Vorbedingung:** die
+    ConfigMap des Controllers hat `proxy-ssl-location-only: "true"`. Am Chatbot `MCP_SESSION_URL`
+    auf diese Adresse (bei `CORS_ALLOW_ALL=false` den Repository-Host in `CORS_ORIGINS`); am
     MCP-Server `WLO_SESSION_EXCHANGE=1`. Der MCP muss nicht in den Cluster. Schritte:
-    `deploy/README.md`, Abschnitt `MCP_SESSION_URL`.
+    `docs/uebergabe-betrieb.md` §16.
   - **Hinter dem Proxy der B-API** muss die Kopfzeile `WLO-Access-Block` am Proxy-Eintrag
     freigegeben sein (`allowedRequestHeaders`), dazu `X-Boerdi-Engine` und `Accept-Language`.
     Sonst arbeitet jede angemeldete Person still als Gast. Mit dem b-api-Team klären, auch die

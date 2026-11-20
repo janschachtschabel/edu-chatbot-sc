@@ -438,6 +438,22 @@ Dienst liest das Dokument serverseitig über einen Lader in der Umgebung (`servi
 Ebene 1 sieht Gliederung (≤ 8000) und Anfang (≤ 1500), Ebene 2 den Text der zugeordneten Abschnitte
 (≤ 6000) — jeder solche Auszug geht vorher einmal durch die Moderation (beanstandet oder ohne Urteil
 bei `MODERATION_FAILURE_MODE=closed` → kein Auszug; `services/strukturentwurf_auszug`); jeder Punkt trägt `abschnitte` und `fundstelle`, der Entwurf `quelle: dokument`.
+**Weg „ganz“ (Plan 2026-11-19, Paket A):** Hat das Markdown höchstens `GANZTEXT_ZEICHEN` (100 000)
+Zeichen (mehrere Dokumente zusammen), sieht Ebene 1 statt des Anfangs den **ganzen Text** (die
+Lernfelder erkennt das Modell im Text, auch wo die Gliederung sie nicht zeigt). Vorher geht der
+ganze Text durch die Moderation — in Stücken, die die Moderation in einem Aufruf ganz prüft
+(≈ 30 600 Zeichen, 200 Überlappung), **nacheinander** (ein Platz je Entwurf); beanstandet →
+`abgewiesen`, ohne Urteil oder nur teilweise geprüft bei `closed` → `pruefung_fehlt`
+(`ui_module/dienst_ganztext`, an die Frist gebunden; läuft sie im Modus `open` ab oder fehlt
+das Urteil, gilt der Weg „gliederung“). Auf diesem Weg (nur mit `erzeugen(ganz_moderiert=True)`)
+bekommt auch **jeder Aufruf für Ebene 2 den ganzen Text** statt eines Auszugs; das Modell findet
+den Abschnitt seines Punkts selbst (Plan E1c, `services/strukturentwurf_ganz`). Für das
+Prompt-Caching beginnen die Nachrichten aller Punkte byte-gleich (Systemteil, dann das Dokument);
+ein Vorwärm-Aufruf nur mit diesem Anfang füllt den Cache, danach laufen alle Punkte parallel
+(gemessen 86–92 % der Eingabe-Token gecacht). Darüber bleibt der Weg über Gliederung, Anfang und
+moderierte Auszüge. `unterthemen: 0` an einem Punkt mit Text heißt „nicht
+angegeben“ (8). Der Entwurf trägt `gelesen` (`x-nur-system`, nur Anzeige: je Dokument Name, Zeichen,
+Weg, Anfang, Abschnittstitel; nie an die KI, nicht gemerkt, nicht in Antwort oder Download).
 
 **Ein Upload-Weg — „Wo verarbeiten?“ (Plan 2026-11-17, Paket U; Vertrag Teil a, Oberfläche Teil b):** Statt
 „Senden“, „Lesen lassen“ und „Übertragen“ wählt die Person nach der Auswahl einen **Ort** und klickt
@@ -450,7 +466,7 @@ Daten dafür, die Oberfläche übersetzt nur Codes.
   ein Satz von Wahrheitswerten):
   ```json
   {"vorauswahl": "wlo|chat|namen",
-   "chat":  {"geht": true, "ueber_grenze": "ueber_grenze|ueber_grenze_anmelden"},
+   "chat":  {"geht": true, "ueber_grenze": "ueber_grenze|ueber_grenze_anmelden", "texterkennung": true},
    "wlo":   {"geht": true, "hinweis": "ohne_erschliessung"},
    "namen": {"geht": true}}
   ```
@@ -460,6 +476,14 @@ Daten dafür, die Oberfläche übersetzt nur Codes.
   `chat.ueber_grenze`: der Code, den die Oberfläche zeigt, wenn die Auswahl die Grenzen überschreitet
   (dann ist „Hier im Chat“ für diese Auswahl gesperrt) — `ueber_grenze_anmelden`, wenn eine
   Anmeldung den WLO-Weg öffnete, sonst `ueber_grenze`. `namen` geht immer.
+  `chat.texterkennung: true` (Plan 2026-11-19, Paket C): gescannte PDF liest der Server per
+  Texterkennung (`services/dokumente/ocr.aktiv`: Studio `ocr`, `DOCUMENT_OCR` nicht `off`, Anbieter
+  mit Bildeingang). Die Oberfläche hängt dann an den Datenschutz-Satz „Gescannte Seiten gehen als
+  Bild an das KI-Modell.“; liest der Server eine PDF länger als 5 s, sagt sie „Bei gescannten Seiten
+  läuft eine Texterkennung – das kann bis zu anderthalb Minuten dauern.“ (sichtbar und angesagt; ob eine
+  PDF gescannt ist, weiß erst der Server). Die Blase nennt danach „davon k per Texterkennung
+  gelesen“ bzw. „per Texterkennung gelesen“/„alle …“ (Warnung `ocr` im Befund); in der Antwort
+  steht davon nichts.
 - Regeln (E13): angemeldet mit Ablage **und** Flow-Träger → Vorauswahl `wlo`, „chat“ Zweitwahl bis
   zur Grenze; ohne Anmeldung → `chat` bis zur Grenze, darüber nur `namen`; `wlo` ohne Anmeldung
   `nur_angemeldet`; angemeldet ohne Flow-Träger → `wlo` mit Hinweis, Vorauswahl `chat`. Sonst die
@@ -480,7 +504,11 @@ nur bei Inhalten: `{titel, beschreibung ≤ 400, schlagworte ≤ 8[, fach, stufe
 moderierten Anfang ≤ 4000 Zeichen; fehlt, wenn das LLM nichts lieferte — das Hochladen gilt
 trotzdem). Nie der Text. Neue Fehlercodes: 409 `grenze_anzahl`, 413 `grenze_gesamt` (Grenzen der
 Sitzung; vorab ohne Sperre, verbindlich unter der Sperre — es wird nichts verdrängt), dazu die
-bekannten (`zu_gross`, `art_unbekannt`, `kein_text`, `abgewiesen`, `ausgelastet`, …). Ein Format, das
+bekannten (`zu_gross`, `art_unbekannt`, `kein_text`, `abgewiesen`, `ausgelastet`, …). Paket C: eine
+per Texterkennung gelesene PDF trägt im Befund die Warnung `ocr` (gekürzt: `gekuerzt`); fehlte jede
+Seite (Anbieter, Frist), antwortet der Endpunkt 503 `ausgelastet`; ließ sich keine Seite rendern
+(kaputt, Pixelbudget) 400 `unlesbar`; ist das Seitenbudget des Gesprächs aufgebraucht 429
+`grenze_ocr`. Ein Format, das
 nicht gelesen wird (etwa pptx), lädt die Oberfläche nicht hoch; es fehlt in `dateien`.
 
 *Hochladen „In WLO“:* unverändert über `/api/ui/ablage/{vorbereiten,datei,abschluss}` (der Server

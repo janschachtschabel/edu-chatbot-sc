@@ -45,7 +45,11 @@ ingress:
 # öffentlichen Port dieses Backends; das Backend nimmt ihn unverändert an (api/sitzung.py,
 # PFAD_AM_REPOSITORY) und reicht den Tausch an den MCP-Server weiter.
 # Dazu MCP_SESSION_URL = https://<host><path> (env unten) und am MCP-Server WLO_SESSION_EXCHANGE=1.
-# Für das Template:
+# Das Template gibt es seit Plan 2026-11-19 als eigenes kleines Chart: deploy/helm/boerdi-session-ingress
+# (Ziel `backend.service` = dieser Service, oder `backend.externalName` für ein Backend auf einem
+# eigenen Rechner mit Docker Compose). Es setzt die Regeln unten um und bricht beim Rendern ab, wenn
+# sie verletzt sind. Ein Gesamt-Chart kann es einbinden oder die Werte hier übernehmen.
+# Die Regeln:
 # - genau EINE Regel: host, path, pathType Exact, Backend = Service dieses Charts, Port public;
 # - KEIN rewrite-target: ingress-nginx stellte damit alle Pfade des Repository-Hosts auf Regex um,
 #   auch die von edu-sharing, und Exact gälte nicht mehr. Deshalb nimmt das Backend den Pfad
@@ -61,6 +65,8 @@ ingress:
 #   aus); das Secret des Repositorys im Namespace von edu-sharing ist hier nicht lesbar;
 # - Istio statt ingress-nginx: ein VirtualService mit exact-Match auf den Pfad am Gateway des
 #   Repository-Hosts, wie die Istio-Variante im Chart des md-editors.
+# NUR für ein Gesamt-Chart, das deploy/helm/boerdi-session-ingress NICHT einbindet — nie beides
+# zugleich (derselbe Host und Pfad zweimal). Sonst dieses Chart nehmen (docs/uebergabe-betrieb.md §16).
 sessionIngress:
   enabled: false
   className: nginx                      # Ingress-Klasse des Clusters (wie beim Repository)
@@ -291,6 +297,7 @@ env:
   RERANK_MODEL_DIR: "/models"
   RERANK_URL: ""
   SPEECH_FORCE_ENABLE: "false"
+  DOCUMENT_OCR: "auto"
   STT_MODEL: "gpt-4o-mini-transcribe"
   STUDIO_COOKIE_SECURE: "true"
   STUDIO_CSP: "enforce"
