@@ -67,7 +67,7 @@ def test_import_tree_maps_yaml_and_md(tmp_path: Path) -> None:
         stored[area] = data
 
     stats = asyncio.run(seed_io.import_tree(tmp_path, put))
-    assert stats == {"areas": 2, "yaml": 1, "md": 1}
+    assert stats == {"areas": 2, "yaml": 1, "md": 1, "uebersprungen": 0}
     assert stored["01-base/welcome-config"] == {
         "welcome": {"greeting": "Moin", "quick_replies": ["a", "b"]}
     }

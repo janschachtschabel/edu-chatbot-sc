@@ -1,3 +1,7 @@
+# TESTBEISPIEL, kein Werks-Seed (Plan 2026-11-20, G1): eingefroren aus seeds/06-ablaeufe/themenbaum_aus_inhalten.yaml,
+# als der Ablauf aus dem Werk entfiel. Die Tests der Ablauf-Maschine (Zug, Vorgang, Wahl, KI-Zeile …)
+# brauchen einen kleinen, festen Ablauf; was das Werk ausliefert, prüfen die Tests der Seeds.
+# Die Laufzeit liest diese Datei nie.
 # ABGELÖST durch themenbaum („Themenbaum erstellen“, Plan 2026-11-16, TG-6, G-E2): ab Werk aus,
 # nicht gelöscht. Die Wendungen kollidieren nicht mit denen von themenbaum, solange er aus ist.
 # Ablauf „Themenbaum · aus eigenen Inhalten“ (Plan docs/plans/2026-11-10-themenbaum-aus-inhalten.md,

@@ -64,7 +64,7 @@ def test_freitext_schreibt_denselben_teil_wie_die_knoepfe():
 
 def test_getippter_zweck_bleibt_nicht_bei_der_ki_liegen(monkeypatch):
     """Die Nachstellung der Rückmeldung: Lauf wartet an ``wofuer``, die Person tippt."""
-    ablauf = _ablauf("themenbaum_aus_thema")
+    ablauf = _ablauf("themenbaum")               # Plan 2026-11-20, G1: der generische Seed
     wofuer = next(s for s in ablauf.schritte if s.id == "wofuer")
     lauf = {"ablauf": ablauf.id, "schritt": "wofuer", "status": "wartet_wahl"}
     monkeypatch.setattr(wahl_zug, "_wartend", lambda _sid, _state: (lauf, ablauf, wofuer))

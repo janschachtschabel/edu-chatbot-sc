@@ -36,6 +36,7 @@ class _Attrappe:
         self.verlieren = verlieren  # Bereiche, die „dazwischen“ geändert wurden
         self.eintraege: dict = {}
         self.zugeordnet: dict = {}
+        self.zu_entfernen: dict = {}
 
     async def lesen(self):
         return self.zeilen
@@ -50,11 +51,15 @@ class _Attrappe:
     async def zuordnen(self, hashes):
         self.zugeordnet.update(hashes)
 
+    async def entfernen(self, versionen):
+        self.zu_entfernen = dict(versionen)
+        return {a for a in versionen if a not in self.verlieren}
+
 
 def _lauf(pfad, a: _Attrappe, kollisionen=None):
     return asyncio.run(seed_sync.werksabgleich(
         pfad, pruefen=lambda s: s, lesen=a.lesen, entfernte=a.entfernte, schreiben=a.schreiben,
-        zuordnen=a.zuordnen, kollisionen=kollisionen))
+        zuordnen=a.zuordnen, entfernen=a.entfernen, kollisionen=kollisionen))
 
 
 def test_ablauf_schreibt_bedingt_mit_version_und_pruefsumme(tmp_path):
@@ -76,7 +81,76 @@ def test_ablauf_schreibt_bedingt_mit_version_und_pruefsumme(tmp_path):
     }
     assert a.zugeordnet == {"03-patterns/m02": pruefsumme(_werk("M02"))}
     assert bericht == {"neu": 1, "aktualisiert": 1, "zugeordnet": 1, "neues_werk": 0,
-                       "uebersprungen": 0, "konflikt": 0}
+                       "uebersprungen": 0, "konflikt": 0, "entfernt": 0, "verwaist": 0}
+    assert a.zu_entfernen == {}
+
+
+def test_g1_ablauf_entfernt_unberuehrtes_ohne_seed_bedingt_auf_die_version(tmp_path, caplog):
+    """Plan 2026-11-20, G1: ein Werksbereich, dessen Seed fehlt, entfällt — bedingt auf die
+    gelesene Version wie jedes Schreiben des Abgleichs. Gezählt wird, was entfernt wurde; was
+    dazwischen geändert wurde, zählt als übersprungen."""
+    pfad = _seed(tmp_path)
+    weg, auch_weg = _werk("M09", "alt\n"), _werk("M08", "alt\n")
+    angepasst = _werk("M07", "eigen\n")
+    a = _Attrappe([
+        {"area": "03-patterns/m09", "data": weg, "werk_hash": pruefsumme(weg),
+         "updated_by": "werksabgleich", "version": 7},
+        {"area": "03-patterns/m08", "data": auch_weg, "werk_hash": pruefsumme(auch_weg),
+         "updated_by": "werksabgleich", "version": 2},
+        {"area": "03-patterns/m07", "data": angepasst, "werk_hash": pruefsumme(_werk("M07")),
+         "updated_by": "studio", "version": 3},
+    ], verlieren=frozenset({"03-patterns/m08"}))
+    caplog.set_level("INFO", logger=seed_sync.logger.name)
+    bericht = _lauf(pfad, a)
+    assert a.zu_entfernen == {"03-patterns/m08": 2, "03-patterns/m09": 7}
+    assert bericht["entfernt"] == 1 and bericht["verwaist"] == 1
+    assert bericht["uebersprungen"] == 1
+    # Review G1, NIT 8: die entfernten Bereiche stehen mit Namen im Log
+    [zeile] = [r.getMessage() for r in caplog.records
+               if "nicht mehr im Werk, entfernt" in r.getMessage()]
+    assert "03-patterns/m09" in zeile and "03-patterns/m08" not in zeile
+
+
+def _unberuehrt_ohne_seed() -> _Attrappe:
+    weg = _werk("M09", "alt\n")
+    return _Attrappe([{"area": "03-patterns/m09", "data": weg, "werk_hash": pruefsumme(weg),
+                       "updated_by": "werksabgleich", "version": 7}])
+
+
+def test_g1_review_5_ein_uebersprungene_seed_datei_raeumt_nichts_ab(tmp_path, caplog):
+    """Review G1, Befund 5: eine Seed-Datei, die der Leser still überspringt (YAML-Wurzel keine
+    Abbildung), sähe aus wie „nicht mehr im Werk“ — ihr unberührter Bereich wäre gelöscht worden.
+    Ist der Seed nicht vollständig gelesen, entfernt der Abgleich nichts."""
+    pfad = _seed(tmp_path)
+    (pfad / "03-patterns" / "m09.yaml").write_text("- keine\n- abbildung\n", encoding="utf-8")
+    a = _unberuehrt_ohne_seed()
+    bericht = _lauf(pfad, a)
+    assert a.zu_entfernen == {} and bericht["entfernt"] == 0
+    assert "nicht vollständig" in caplog.text
+
+
+def test_g1_review_5_ein_von_der_pruefung_verworfener_bereich_raeumt_nichts_ab(tmp_path):
+    """Dasselbe für Bereiche, die ``pruefen`` (``pruefe_bereiche``: ungültiger Schlüssel) still
+    auslässt."""
+    pfad = _seed(tmp_path)
+    a = _unberuehrt_ohne_seed()
+    bericht = asyncio.run(seed_sync.werksabgleich(
+        pfad, pruefen=lambda s: {k: v for k, v in s.items() if k != "03-patterns/m04"},
+        lesen=a.lesen, entfernte=a.entfernte, schreiben=a.schreiben, zuordnen=a.zuordnen,
+        entfernen=a.entfernen))
+    assert a.zu_entfernen == {} and bericht["entfernt"] == 0
+
+
+def test_g1_review_6_ohne_abraeumen_bleibt_alles_stehen(tmp_path):
+    """Review G1, Befund 6: ein fremder Baum (``import-config --from … --werksabgleich``) ist nicht
+    das Werk — was ihm fehlt, ist nicht „aus dem Werk entfallen“."""
+    pfad = _seed(tmp_path)
+    a = _unberuehrt_ohne_seed()
+    bericht = asyncio.run(seed_sync.werksabgleich(
+        pfad, pruefen=lambda s: s, lesen=a.lesen, entfernte=a.entfernte, schreiben=a.schreiben,
+        zuordnen=a.zuordnen, entfernen=a.entfernen, abraeumen=False))
+    assert a.zu_entfernen == {} and bericht["entfernt"] == 0 and bericht["verwaist"] == 0
+    assert bericht["neu"] == 4                       # alles andere wie bisher
 
 
 def test_was_dazwischen_geaendert_wurde_zaehlt_als_uebersprungen(tmp_path):
@@ -110,7 +184,7 @@ def test_ungueltiger_seed_bricht_vor_dem_lesen_ab(tmp_path):
 
     with pytest.raises(ValueError):
         asyncio.run(seed_sync.werksabgleich(pfad, pruefen=pruefen, lesen=nie, entfernte=nie,
-                                            schreiben=nie, zuordnen=nie))
+                                            schreiben=nie, zuordnen=nie, entfernen=nie))
 
 
 def test_seed_wird_je_prozess_einmal_gelesen_und_bei_aenderung_neu(tmp_path, monkeypatch):

@@ -83,20 +83,47 @@ class WerksabgleichPlan:
     parken: dict[str, dict[str, Any]] = field(default_factory=dict)
     zuordnen: dict[str, str] = field(default_factory=dict)
     neues_werk: list[str] = field(default_factory=list)
+    #: Plan 2026-11-20, G1: Werksbereiche ohne Seed, nachweislich unberührt → gelesene Version;
+    #: das Entfernen ist darauf bedingt wie das Schreiben.
+    entfernen: dict[str, int] = field(default_factory=dict)
+    #: Werksbereiche ohne Seed, die angepasst sind oder eine stillgelegte eigene Fassung tragen —
+    #: sie bleiben (eigene Fassungen werden nie still gelöscht) und werden gemeldet.
+    verwaist: list[str] = field(default_factory=list)
     neu: int = 0
 
     def bericht(self) -> dict[str, int]:
         return {"neu": self.neu, "aktualisiert": len(self.schreiben) - self.neu,
-                "zugeordnet": len(self.zuordnen), "neues_werk": len(self.neues_werk)}
+                "zugeordnet": len(self.zuordnen), "neues_werk": len(self.neues_werk),
+                "verwaist": len(self.verwaist)}
+
+
+def _ordner(area: str) -> str:
+    return area.split("/", 1)[0]
 
 
 def plane_werksabgleich(
     seed: dict[str, dict[str, Any]], zeilen: dict[str, dict[str, Any]], *, entfernt: set[str],
+    abraeumen: bool = True,
 ) -> WerksabgleichPlan:
     """Fehlende Werksbereiche anlegen (außer im Studio gelöschten), unberührte veraltete anheben,
     gleichende zuordnen — angepasste nie anfassen. ``zeilen``: Bereich → ``{data, werk_hash,
-    updated_by, version}`` aus der Datenbank."""
+    updated_by, version, hat_eigene_fassung}`` aus der Datenbank.
+
+    Plan 2026-11-20, G1: ein Werksbereich, den der Seed nicht mehr trägt, entfällt nur, wenn er
+    nachweislich unberührt ist (Inhalt = gemerkte Basis) und keine eigene Fassung stillliegt —
+    und nur in einem Ordner, den der Seed kennt: ein leerer oder falsch gesetzter Seed räumt so
+    nichts ab. Ohne Basis (Studio-Anlage, Bestand vor 0011) bleibt er still. ``abraeumen=False``
+    (fremder Baum, unvollständig gelesener Seed) lässt Bereiche ohne Seed ganz außer Betracht."""
     plan = WerksabgleichPlan()
+    ordner = {_ordner(a) for a in seed} if abraeumen else set()
+    for area in sorted(zeilen.keys() - seed.keys()):
+        zeile = zeilen[area]
+        if zeile.get("werk_hash") is None or _ordner(area) not in ordner:
+            continue
+        if pruefsumme(zeile["data"]) == zeile["werk_hash"] and not zeile.get("hat_eigene_fassung"):
+            plan.entfernen[area] = zeile["version"]
+        else:
+            plan.verwaist.append(area)
     for area in sorted(seed):
         werk = seed[area]
         zeile = zeilen.get(area)

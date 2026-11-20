@@ -25,11 +25,13 @@ from boerdi.services.ablauf import ausloeser, wahl_zug, zug, zug_basis
 from boerdi.services.ablauf.pruefung import pruefe
 from boerdi.ui_module.namen import STRUKTURENTWURF, UPLOAD
 
-_SEED = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe" / "sammlungsstruktur.yaml"
+#: Plan 2026-11-20, G1: der kleine Ordner-Ablauf ist kein Werks-Seed mehr — die Tests der
+#: Ablauf-Maschine nehmen ihn als eingefrorenes Beispiel (``tests/ablauf_beispiele``).
+_SEED = pathlib.Path(__file__).parent / "ablauf_beispiele" / "sammlungsstruktur.yaml"
 
 
 def _katalog(aktiv=True, **mehr):
-    """Der mitgelieferte Ablauf (seit AS-0 ein Dokument) in der Form ``{ablaeufe: [...]}``, die die
+    """Der Beispiel-Ablauf (seit AS-0 ein Dokument) in der Form ``{ablaeufe: [...]}``, die die
     Tests der Laufzeit unterschieben (``ausloeser._roh_liste``)."""
     roh = yaml.safe_load(_SEED.read_text(encoding="utf-8"))
     roh["aktiv"] = aktiv
@@ -37,7 +39,7 @@ def _katalog(aktiv=True, **mehr):
     return {"ablaeufe": [roh]}
 
 
-def test_der_mitgelieferte_ablauf_besteht_die_pruefung():
+def test_der_beispiel_ablauf_besteht_die_pruefung():
     ablauf = AblaufArea.model_validate(yaml.safe_load(_SEED.read_text(encoding="utf-8")))
     assert ablauf.id == "sammlungsstruktur" == _SEED.stem
     assert pruefe(ablauf) == []
@@ -50,12 +52,6 @@ class _Speicher:
     async def lesen(self, s, vid, aufrufer):
         v = self.v.get(vid)
         return copy.deepcopy(v) if v is not None and v.aufrufer == aufrufer else None
-
-    async def juengster(self, s, aufrufer):
-        # wie ``vorgaenge.juengster``: nur offene (Querschnitts-Review, M6)
-        eigene = [v for v in self.v.values() if v.aufrufer == aufrufer
-                  and v.status not in ("fertig", "abgebrochen")]
-        return copy.deepcopy(eigene[-1]) if eigene else None
 
     async def loeschen(self, s, vid, aufrufer):
         if (v := self.v.get(vid)) is not None and v.aufrufer == aufrufer:
@@ -135,7 +131,7 @@ class _S:
 @pytest.fixture
 def umgebung(monkeypatch):
     sp = _Speicher()
-    for name in ("lesen", "juengster", "anlegen", "teil_setzen", "teil_entfernen",
+    for name in ("lesen", "anlegen", "teil_setzen", "teil_entfernen",
                  "lauf_setzen", "teil_wert",
                  "beruehren", "loeschen", "alle_loeschen", "sperren", "alle_sperren",
                  "anonyme_der_sitzung_loeschen", "sitzung_setzen"):
@@ -630,15 +626,15 @@ def test_nachpruefung_fall3_upload_waehrend_fremdem_lauf_geht_beim_start_mit(umg
 
 def test_nachpruefung_fall1_ein_fremder_wartender_lauf_bleibt_unberuehrt(umgebung):
     """Fall 1 (zwei Tabs derselben Person): Tab A wartet in „aus Ordnern“; Tab B erfasst im freien
-    Chat Ordner. Die Teile landen im jüngsten Vorgang (wie vor der zweiten Behebung), der Lauf von
-    Tab A bleibt, wo er war, und es entsteht kein weiterer Vorgang."""
+    Chat Ordner. Seit Plan 2026-11-20, Entscheid E-F übernimmt ein neues Gespräch keinen Vorgang
+    still: Tab B bekommt einen eigenen Vorgang. Der Lauf von Tab A bleibt, wo er war."""
     tab_a: dict = {"entities": {}}
     _starte(tab_a, "sammlungsstruktur")
     vorher = copy.deepcopy(umgebung.speicher.v["v-1"].akte["lauf"])
     tab_b: dict = {}
     asyncio.run(arbeitsstand.uebernehmen(_S(), "sitzung-zweiter-tab-01", tab_b,
                                          {"modul": UPLOAD, "block_id": "b9", "daten": _ORDNER}))
-    assert list(umgebung.speicher.v) == ["v-1"]
+    assert list(umgebung.speicher.v) == ["v-1", "v-2"]      # E-F: eigener Vorgang für Tab B
     assert umgebung.speicher.v["v-1"].akte["lauf"] == vorher
 
 

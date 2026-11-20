@@ -109,6 +109,61 @@ def test_neue_werksfassung_hebt_unberuehrtes_an_und_laesst_eigenes(db, tmp_path)
     assert "01-base/extra" not in stand                                 # gelöscht → bleibt weg
 
 
+def _g1_baeume(tmp_path: Path) -> tuple[Path, Path]:
+    """v1 trägt drei Abläufe, v2 nur noch „bleibt“."""
+    import json
+
+    v1 = _baum(tmp_path / "v1", "gruss", 640)
+    v2 = tmp_path / "v2"
+    for baum, kennungen in ((v1, ("bleibt", "weg", "angepasst")), (v2, ("bleibt",))):
+        (baum / "06-ablaeufe").mkdir(parents=True)
+        for kennung in kennungen:
+            (baum / "06-ablaeufe" / f"{kennung}.yaml").write_text(
+                json.dumps({**_ALT, "id": kennung}), encoding="utf-8")
+    return v1, v2
+
+
+def _als_seed(monkeypatch, pfad: Path) -> None:
+    """``CONFIG_SEED_DIR`` auf ``pfad`` — nur aus dem Seed-Ordner räumt der Abgleich ab."""
+    from boerdi.settings import get_settings
+
+    monkeypatch.setenv("CONFIG_SEED_DIR", str(pfad))
+    get_settings.cache_clear()
+
+
+def test_g1_werksbereich_ohne_seed_entfaellt_angepasstes_bleibt(db, tmp_path, monkeypatch):
+    """Plan 2026-11-20, G1: die alten Themenbaum-Abläufe fallen aus dem Seed. Beim nächsten Start
+    entfällt ein unberührter Werksablauf; ein in der Anlage angepasster bleibt, ebenso eine
+    Studio-Anlage. Ein Ordner, den der neue Seed gar nicht kennt, bleibt unangetastet."""
+    v1, v2 = _g1_baeume(tmp_path)
+    assert _cli("--from", str(v1), "--werksabgleich") == 0
+
+    async def anpassen(store):
+        geaendert = {**_ALT, "id": "angepasst", "titel": {"de": "Von der Redaktion"}}
+        await store.put("06-ablaeufe/angepasst", geaendert, updated_by="studio")
+        await store.put("06-ablaeufe/eigen", {**_ALT, "id": "eigen"}, updated_by="studio")
+
+    _mit_store(anpassen)
+    _als_seed(monkeypatch, v2)
+    assert _cli("--from", str(v2), "--werksabgleich") == 0
+    assert _cli("--from", str(v2), "--werksabgleich") == 0         # beim nächsten Start: stabil
+    bereiche = _bereiche()
+    assert "06-ablaeufe/weg" not in bereiche
+    assert {"06-ablaeufe/bleibt", "06-ablaeufe/angepasst", "06-ablaeufe/eigen"} <= bereiche
+    assert "01-base/welcome-config" in bereiche                    # Ordner fehlt im Seed
+
+
+def test_g1_review_6_ein_fremder_baum_raeumt_nichts_ab(db, tmp_path, capsys):
+    """Review G1, Befund 6: ``--from <fremder Baum> --werksabgleich`` (Umzug, ALT) ist nicht das
+    Werk — was dem Baum fehlt, bleibt; die Ausgabe sagt es."""
+    v1, v2 = _g1_baeume(tmp_path)
+    assert _cli("--from", str(v1), "--werksabgleich") == 0
+    capsys.readouterr()
+    assert _cli("--from", str(v2), "--werksabgleich") == 0         # Seed ist ``seeds``, nicht v2
+    assert "06-ablaeufe/weg" in _bereiche()
+    assert "nicht der Seed-Ordner" in capsys.readouterr().out
+
+
 def test_einfacher_import_gilt_nur_aus_dem_seed_als_werk(db, tmp_path):
     """Review #3: ein Import aus einem anderen Baum (Server-Umzug, ALT) ist nicht die
     Werksfassung — sonst überschriebe der nächste Start ihn als „unberührt“. Aus dem
@@ -143,7 +198,7 @@ def _katalog_baum(ziel: Path, *, mit_seed: bool) -> Path:
     ordner = ziel / "06-ablaeufe"
     ordner.mkdir(parents=True, exist_ok=True)
     ablaeufe = [_ALT]
-    werk = ordner / "sammlungsstruktur.yaml"
+    werk = ordner / "sammlung_pruefen.yaml"
     if werk.exists():
         ablaeufe.insert(0, yaml.safe_load(werk.read_text(encoding="utf-8")))
         werk.unlink()
@@ -169,5 +224,5 @@ def test_ein_alter_baum_loescht_mit_exact_keine_ablaeufe(db, tmp_path):
     assert _cli("--from", str(_SEEDS)) == 0
     assert _cli("--from", str(_katalog_baum(tmp_path / "alt", mit_seed=True)), "--exact") == 0
     bereiche = _bereiche()
-    assert {"06-ablaeufe/sammlungsstruktur", "06-ablaeufe/alt"} <= bereiche
+    assert {"06-ablaeufe/sammlung_pruefen", "06-ablaeufe/alt"} <= bereiche
     assert "06-ablaeufe/katalog" not in bereiche

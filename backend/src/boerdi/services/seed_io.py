@@ -137,8 +137,9 @@ def is_md_area(data: dict[str, Any]) -> bool:
 async def import_tree(
     src: Path, put: Callable[[str, dict[str, Any]], Awaitable[None]]
 ) -> dict[str, int]:
-    """Walk the config tree and put every YAML/MD file as one area."""
-    stats = {"areas": 0, "yaml": 0, "md": 0}
+    """Walk the config tree and put every YAML/MD file as one area. ``uebersprungen`` counts
+    files skipped with a warning — the factory sync must not read them as removed (Review G1, 5)."""
+    stats = {"areas": 0, "yaml": 0, "md": 0, "uebersprungen": 0}
     for path in sorted(src.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in _EXTS:
             continue
@@ -155,6 +156,7 @@ async def import_tree(
             parsed = yaml.safe_load(text) or {}
             if not isinstance(parsed, dict):
                 logger.warning("skipping %s: YAML root is not a mapping", rel)
+                stats["uebersprungen"] += 1
                 continue
             data = normalize_json_keys(parsed)
             stats["yaml"] += 1

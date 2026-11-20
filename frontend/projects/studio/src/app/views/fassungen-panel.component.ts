@@ -170,7 +170,11 @@ export class FassungenPanelComponent {
       const r = await this.api.werksabgleich();
       const nachtrag = r.uebersprungen > 0 || r.konflikt > 0
         ? ' ' + this.t('fassungen.abgleichNachtrag', { ...r }) : '';
-      return this.t('fassungen.abgleichDone', { ...r }) + nachtrag;
+      const entfernt = r.entfernt ?? 0;
+      const verwaist = r.verwaist ?? 0;
+      const ohneWerk = entfernt > 0 || verwaist > 0
+        ? ' ' + this.t('fassungen.abgleichOhneWerk', { entfernt, verwaist }) : '';
+      return this.t('fassungen.abgleichDone', { ...r }) + ohneWerk + nachtrag;
     });
     await this.liste.reload();
   }

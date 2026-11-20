@@ -99,7 +99,7 @@ async def werksabgleich(lang: Lang) -> dict:
     return await seed_sync.werksabgleich(
         pfad, pruefen=lambda seed: pruefe_bereiche(seed, lang), lesen=store.fassungen,
         entfernte=store.entfernte, schreiben=schreiben, zuordnen=store.werk_hashes_setzen,
-        kollisionen=kennungs_kollisionen)
+        entfernen=store.werk_entfernen, kollisionen=kennungs_kollisionen)
 
 
 @router.post("/umschalten")

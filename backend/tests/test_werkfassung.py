@@ -90,7 +90,37 @@ def test_werksabgleich_plant_nur_unberuehrtes_und_fehlendes():
     assert plan.schreiben["a/veraltet"] == NEU
     assert plan.zuordnen == {"a/gleich": pruefsumme(NEU)}
     assert plan.neues_werk == ["a/eigen"]
-    assert plan.bericht() == {"neu": 1, "aktualisiert": 1, "zugeordnet": 1, "neues_werk": 1}
+    assert plan.bericht() == {"neu": 1, "aktualisiert": 1, "zugeordnet": 1, "neues_werk": 1,
+                              "verwaist": 0}
+    assert plan.entfernen == {}                 # „a/nur-eigen“ hat keine Werksbasis: bleibt
+
+
+def test_g1_werksbereich_ohne_seed_entfaellt_nur_unberuehrt():
+    """Plan 2026-11-20, G1: fällt ein Bereich aus dem Seed (die alten Themenbaum-Abläufe), entfällt
+    er im Abgleich nur, wenn er nachweislich unberührt ist (Inhalt = gemerkte Werksbasis) und keine
+    eigene Fassung stillliegt. Angepasstes bleibt und wird gemeldet (``verwaist``), eine
+    Studio-Anlage (ohne Basis) bleibt still. Nur in Ordnern, die der Seed kennt — ein leerer oder
+    falsch gesetzter Seed räumt nichts ab."""
+    from boerdi.services.werkfassung import plane_werksabgleich
+
+    def zeile(data, werk_hash, version, eigene=False):
+        return {"data": data, "werk_hash": werk_hash, "updated_by": "werksabgleich",
+                "version": version, "hat_eigene_fassung": eigene}
+
+    seed = {"a/bleibt": NEU}
+    zeilen = {
+        "a/bleibt": zeile(NEU, pruefsumme(NEU), 1),
+        "a/weg": zeile(ALT, pruefsumme(ALT), 3),                  # unberührt → entfällt
+        "a/angepasst": zeile(EIGENES, pruefsumme(ALT), 5),        # eigen → bleibt, gemeldet
+        "a/still": zeile(ALT, pruefsumme(ALT), 2, eigene=True),   # eigene Fassung liegt still
+        "a/nur-eigen": zeile(EIGENES, None, 4),                   # im Studio angelegt
+        "b/ordner-fehlt": zeile(ALT, pruefsumme(ALT), 6),         # Ordner nicht im Seed
+    }
+    plan = plane_werksabgleich(seed, zeilen, entfernt=set())
+    assert plan.entfernen == {"a/weg": 3}
+    assert plan.verwaist == ["a/angepasst", "a/still"]
+    assert plan.schreiben == {} and plan.bericht()["verwaist"] == 2
+    assert plane_werksabgleich({}, zeilen, entfernt=set()).entfernen == {}
 
 
 # ── Umschalten (Review Paket 12, #1/#8): nie eine Fassung verlieren ──────────────────────

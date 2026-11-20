@@ -91,6 +91,12 @@ _DELETE_AREA = text("DELETE FROM config_areas WHERE area = :area RETURNING area"
 # Bereich, der eine trägt, wird nie mitgelöscht.
 _DELETE_OHNE_EIGENE = text(
     "DELETE FROM config_areas WHERE area = :area AND eigene_fassung IS NULL RETURNING area")
+_WERK_ENTFERNEN = text("""
+    DELETE FROM config_areas
+     WHERE area = :area AND version = :version
+       AND eigene_fassung IS NULL AND werk_hash IS NOT NULL
+    RETURNING area
+""")
 _HAT_EIGENE = text(
     "SELECT eigene_fassung IS NOT NULL FROM config_areas WHERE area = :area FOR UPDATE")
 
@@ -589,6 +595,23 @@ class ConfigStore:
         for area, version in versionen.items():
             self._remember(area, eintraege[area][0], version)
         return versionen
+
+    async def werk_entfernen(self, versionen: Mapping[str, int]) -> set[str]:
+        """Werksbereiche entfernen, die der Seed nicht mehr trägt (Plan 2026-11-20, G1) —
+        ``{area: gelesene Version}``. Bedingt wie ``werk_schreiben``: nur, was seit dem Lesen
+        unverändert ist, eine Werksbasis hat und keine eigene Fassung stilllegt. Kein Löschvermerk:
+        nicht die Redaktion hat gelöscht, sondern das Werk — kehrt der Seed zurück, legt ihn der
+        nächste Abgleich wieder an. Gibt die entfernten Bereiche zurück; eine Transaktion."""
+        entfernt: set[str] = set()
+        async with self._engine.begin() as conn:
+            for area, version in versionen.items():
+                row = (await conn.execute(_WERK_ENTFERNEN,
+                                          {"area": area, "version": version})).first()
+                if row is not None:
+                    entfernt.add(area)
+        for area in entfernt:
+            self._forget(area)
+        return entfernt
 
     async def werk_hashes_setzen(self, hashes: Mapping[str, str]) -> None:
         """Nur die Basis merken; Inhalt und Version bleiben (Erstzuordnung des Bestands)."""

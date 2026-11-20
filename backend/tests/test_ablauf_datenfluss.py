@@ -9,6 +9,11 @@
 
 from __future__ import annotations
 
+import pathlib
+
+import pytest
+import yaml
+
 from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.services.ablauf import typen
 from boerdi.services.ablauf.pruefung import pruefe, warnungen
@@ -93,12 +98,12 @@ def test_die_typtabelle_kennt_die_schreiber():
     assert t["zahlen"] == {"wlo.abdeckung@1"}
 
 
-def test_der_mitgelieferte_ablauf_bleibt_ohne_befund_und_warnung():
-    import pathlib
+_SEEDS = sorted((pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe").glob("*.yaml"))
 
-    import yaml
 
-    seed = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe" / "sammlungsstruktur.yaml"
+@pytest.mark.parametrize("seed", _SEEDS, ids=lambda p: p.stem)
+def test_die_mitgelieferten_ablaeufe_bleiben_ohne_befund_und_warnung(seed):
+    """Plan 2026-11-20, G1: vorher nur „aus Ordnern“ — jetzt jeder ausgelieferte Ablauf."""
     ablauf = AblaufArea.model_validate(yaml.safe_load(seed.read_text(encoding="utf-8")))
     assert pruefe(ablauf) == []
     assert _datenfluss(ablauf) == []

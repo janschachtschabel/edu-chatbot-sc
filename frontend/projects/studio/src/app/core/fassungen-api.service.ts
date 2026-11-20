@@ -43,6 +43,10 @@ export interface Werksabgleich {
   readonly uebersprungen: number;
   /** Kennung schon vergeben — nicht angelegt. */
   readonly konflikt: number;
+  /** Plan 2026-11-20, G1: unberührte Werksbereiche, die der Seed nicht mehr trägt — entfernt. */
+  readonly entfernt?: number;
+  /** Angepasste Bereiche, die der Seed nicht mehr trägt — bleiben als eigene. */
+  readonly verwaist?: number;
 }
 
 export interface Vergleich {

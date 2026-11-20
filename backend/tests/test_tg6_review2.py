@@ -98,7 +98,7 @@ def _hauptweg(ablauf: AblaufArea, name: str, halte) -> bool:
             and [n for _s, n, _m in halte] == list(range(1, len(halte) + 1)))
 
 
-@pytest.mark.parametrize("name", ["themenbaum", "themenbaum_aus_dokument", "fuehrung"])
+@pytest.mark.parametrize("name", ["themenbaum", "fuehrung"])
 def test_b_m_steigt_nie_und_n_bleibt_unter_m(monkeypatch, name):
     ablauf = _seed(name)
     geprueft: list[str] = []

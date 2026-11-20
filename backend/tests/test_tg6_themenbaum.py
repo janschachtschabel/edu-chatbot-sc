@@ -34,11 +34,18 @@ from tests.leiste_halte import leiste, ohne_sprung
 _SEEDS = pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe"
 _ALT = ("themenbaum_aus_thema", "themenbaum_aus_dokument", "themenbaum_aus_inhalten",
         "sammlungsstruktur")
+#: Plan 2026-11-20, G1: die vier sind nicht mehr im Werk — eingefroren als Testbeispiele.
+_BEISPIELE = pathlib.Path(__file__).parent / "ablauf_beispiele"
 
 
 def _seed(name: str) -> AblaufArea:
     return AblaufArea.model_validate(yaml.safe_load(
         (_SEEDS / f"{name}.yaml").read_text(encoding="utf-8")))
+
+
+def _beispiel(name: str) -> AblaufArea:
+    return AblaufArea.model_validate(yaml.safe_load(
+        (_BEISPIELE / f"{name}.yaml").read_text(encoding="utf-8")))
 
 
 def _alle() -> list[AblaufArea]:
@@ -112,20 +119,13 @@ def test_die_leitfragen_nehmen_getippten_text():
         assert s.freitext is None and s.kein_treffer, sid
 
 
-def test_die_alten_vier_sind_aus_und_abgeloest():
-    for name in _ALT:
-        text = (_SEEDS / f"{name}.yaml").read_text(encoding="utf-8")
-        assert "abgelöst durch themenbaum" in text.casefold()
-        ablauf = _seed(name)
-        assert ablauf.aktiv is False
-        assert pruefe(ablauf) == []
-
-
 def test_die_wendungen_der_alten_sind_uebernommen_und_kollidieren_nicht():
+    """Plan 2026-11-20, G1: die vier alten sind aus dem Werk entfernt (``test_ablauf_beispiele``);
+    ihre Wendungen starten weiter „Themenbaum erstellen“."""
     neu = _seed("themenbaum")
     eigene = {w for a in neu.ausloeser if a.art == "text" for w in a.wendungen}
     for name in _ALT:
-        alt = {w for a in _seed(name).ausloeser if a.art == "text" for w in a.wendungen}
+        alt = {w for a in _beispiel(name).ausloeser if a.art == "text" for w in a.wendungen}
         assert alt <= eigene, name
     # wie im Betrieb: die Seeds mit ihrem eigenen ``aktiv``
     assert wendungs_warnungen(neu, _alle()) == []
@@ -319,8 +319,9 @@ def test_ein_entwurf_ohne_grundlage_wird_auf_themenbaum_umgelenkt(monkeypatch):
 
 
 def test_ein_ablauf_ohne_upload_geht_beim_entwurf_vor(monkeypatch):
-    """Wie vor TG-6: ist „aus einem Thema“ an, lenkt ``ui_strukturentwurf`` nur dorthin."""
-    neu, thema = _seed("themenbaum"), _seed("themenbaum_aus_thema")
+    """Wie vor TG-6: ist „aus einem Thema“ an, lenkt ``ui_strukturentwurf`` nur dorthin (seit
+    Plan 2026-11-20, G1 nur noch als angepasste Fassung einer Anlage denkbar)."""
+    neu, thema = _seed("themenbaum"), _beispiel("themenbaum_aus_thema")
     monkeypatch.setattr(ausloeser, "vorschlaege", lambda: [neu, thema])
     hinweis = vorschlag.umlenkung(
         "ui_strukturentwurf", {"thema": "Karate"},

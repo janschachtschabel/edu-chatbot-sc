@@ -10,10 +10,8 @@ im Chat“ für diese Person (``01-base/upload-config``: ``dokument_im_chat``, o
 from __future__ import annotations
 
 import asyncio
-import pathlib
 
 import pytest
-import yaml
 
 from boerdi.domain.config_models.ablauf import AblaufArea
 from boerdi.domain.config_models.upload import UploadSettings
@@ -90,9 +88,3 @@ def test_das_seitenangebot_nur_wenn_jeder_lesen_darf(monkeypatch, schalter):
     schalter["cfg"] = UploadSettings(dokument_ohne_anmeldung=False)
     assert ausloeser.seiten_angebote() == []
 
-
-def test_der_dokument_ablauf_braucht_das_lesen():
-    pfad = (pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe"
-            / "themenbaum_aus_dokument.yaml")
-    ablauf = AblaufArea.model_validate(yaml.safe_load(pfad.read_text(encoding="utf-8")))
-    assert "dokument_lesen" in ablauf.voraussetzungen

@@ -203,13 +203,15 @@ def test_die_sprache_der_person_geht_an_den_flow(sprache):
     assert gestartet[0]["language"] == sprache
 
 
-def test_der_seed_aus_inhalten_nutzt_die_sprache_und_teilt_auf():
+def test_der_seed_nutzt_die_sprache_und_teilt_auf():
+    """Plan 2026-11-20, G1: der Schritt ``metadaten`` von „Themenbaum erstellen“ (vorher
+    „Themenbaum · aus eigenen Inhalten“)."""
     import pathlib
 
     import yaml
 
     pfad = (pathlib.Path(__file__).parents[1] / "seeds" / "06-ablaeufe"
-            / "themenbaum_aus_inhalten.yaml")
+            / "themenbaum.yaml")
     ablauf = AblaufArea.model_validate(yaml.safe_load(pfad.read_text(encoding="utf-8")))
     meta = next(s for s in ablauf.schritte if s.id == "metadaten")
     assert meta.argumente["language"] == {"$sprache": True}
