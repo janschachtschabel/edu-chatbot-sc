@@ -37,11 +37,13 @@ from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
 from boerdi.domain.config_models.kestra_flows import METADATEN_FLOW
 from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 from boerdi.services import teil_verweise
+from boerdi.services.ablage import vorgang_teil
 from boerdi.services.ablauf import (
     auftrag_teile,
     platzhalter,
     startdaten,
     typen,
+    upload_zustimmung,
     vergleich,
     werkzeuge,
 )
@@ -55,6 +57,7 @@ from boerdi.services.ablauf.pruefung import (
 from boerdi.services.ablauf.treiber_bloecke import fortschritt as _fortschritt
 from boerdi.services.ablauf.treiber_bloecke import modul_block as _modul_block
 from boerdi.services.arbeitsstand_teile import Teil  # R2-h: eine Definition
+from boerdi.ui_module.namen import UPLOAD as UPLOAD_MODUL  # "ui_upload" (NIT 6)
 
 logger = logging.getLogger(__name__)
 
@@ -479,7 +482,22 @@ async def _rechne_schritte(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
             vorlegen = getattr(starte, "vorlegen", None) if s.repo_schreibt else None
             vorlage = (await vorlegen(s.flow or "", args, s.aufteilen)
                        if not fehlt and callable(vorlegen) else None)
-            if vorlage is not None and vorlage.ausfall is None:
+            # Review P3, Befund 6: der GESPEICHERTE Teil ``ablage`` (vom Server beim Ablegen
+            # geschrieben) — nicht einer, den ein Schritt in diesem Zug geschrieben hat
+            ohne_box = (s.zustimmung == upload_zustimmung.UPLOAD and vorlage is not None
+                        and vorlage.ausfall is None and upload_zustimmung.passt(
+                            s, args, vorlage, await umgebung.teile(auftrag_teile.ABLAGE_TEIL),
+                            lauf))
+            job = None
+            if ohne_box:
+                # Plan 2026-11-20, P3 (UO-3): der Upload-Klick ist die Zustimmung — bestätigen
+                # wie nach „Freigeben“ (Schlüssel des ersten Teils, Stapel aus der Vorschau)
+                job = await starte.bestaetigen(s.flow or "", vorlage.erst, vorlage.token)
+                # ein schon abgelaufener Schlüssel: doch die Box (die holt beim Freigeben neu)
+                ohne_box = job is not None or starte.grund_des_fehlers != "abgelaufen"
+                stapel = _freigabe_stapel(s, vorlage.args)
+            if vorlage is not None and vorlage.ausfall is None and not ohne_box:
+                _upload_bindung(s, lauf, behalten=False)   # die Box ist jetzt der einzige Weg
                 kennung = secrets.token_hex(6)
                 aus.auftrag_freigabe = {
                     "flow": s.flow or "", "erst": vorlage.erst, "token": vorlage.token,
@@ -491,26 +509,40 @@ async def _rechne_schritte(ablauf: AblaufArea, lauf: dict[str, Any], start: int,
             if vorlage is not None and not vorlage.fehler and vorlage.probleme:
                 aus.texte.append(_teil_text(umgebung.sprache, "action.ablauf.auftragFreigabeKeins",
                                             n=len(vorlage.probleme)))
-            job = (None if fehlt or starte is None or vorlage is not None
-                   else await starte(s.flow or "", stuecke[0]))
+            if not ohne_box:
+                job = (None if fehlt or starte is None or vorlage is not None
+                       else await starte(s.flow or "", stuecke[0]))
             # Plan 2026-11-16, Durchtest TG-7 (m5): hat die b-api abgewiesen, sagt die Naht
             # warum (``auftrag_zug._Starter.hinweis``) — vor dem Text des Ersatzwegs. Paket K1:
             # auch nach einem Start mit offenem Ausgang (dann gibt es eine Kennung)
             hinweis = getattr(starte, "hinweis", None)
             satz = hinweis(umgebung.sprache) if callable(hinweis) else None
+            if job is None and ohne_box and not satz:
+                # wie „Freigeben“ ohne Satz des Trägers (``auftrag_freigabe_zug.starten``)
+                satz = _teil_text(umgebung.sprache, "action.ablauf.auftragAbgelehnt")
             if job is None:
                 fehler = True
                 if satz:
                     aus.texte.append(satz)
-                vorlaeufig = getattr(starte, "voruebergehend", None)
-                if callable(vorlaeufig) and vorlaeufig() and (
-                        frage := _rueckfrage(ablauf, s.id)) is not None:
+                frage_vorlaeufig = getattr(starte, "voruebergehend", None)
+                vorlaeufig = callable(frage_vorlaeufig) and bool(frage_vorlaeufig())
+                _upload_bindung(s, lauf, behalten=vorlaeufig)
+                if vorlaeufig and (frage := _rueckfrage(ablauf, s.id)) is not None:
                     # Paket K (Nachtrag MCP 18.11.): der Träger ist gerade nicht verfügbar — kein
                     # endgültiger Fehlschlag; zurück an die Frage davor, die Person versucht es
                     # gleich noch einmal
                     fehler, naechster = False, frage
             else:
+                _upload_bindung(s, lauf, behalten=False)   # der Upload-Block ist verbraucht
+                if ohne_box:
+                    # Befund 7: ``start`` ist die zufällige Marke des Laufs (keine Kennung einer
+                    # Person oder eines Knotens) — sie verbindet die Zeile mit den übrigen des Laufs
+                    logger.info("Auftrag ohne Box gestartet: Zustimmung durch Upload (Ablauf %s, "
+                                "Schritt %s, Lauf %s)", ablauf.id, s.id, lauf.get("start") or "-")
                 await _gestartet(aus, ablauf, s, job, stapel, satz, teile, umgebung.sprache)
+                if ohne_box:
+                    # Zweites Review P3, NIT 3: am Lauf (im Vorgang) steht, wer zustimmte
+                    lauf[upload_zustimmung.ZUSTIMMUNG] = upload_zustimmung.UPLOAD
                 return aus
         elif s.typ == "verzweigung":
             naechster = await _waehle(s, teile, list(lauf.get("gewaehlt") or []),
@@ -885,11 +917,47 @@ async def weiter(ablauf: AblaufArea, lauf: dict[str, Any], antwort: dict[str, An
     index = {s.id: i for i, s in enumerate(ablauf.schritte)}
     i = index[str(lauf.get("schritt"))]
     neu = {**lauf, "status": "laeuft", "gewaehlt": gewaehlt_aus(antwort)}
+    neue_teile: list[Teil] = []
+    if ablauf.schritte[i].modul == UPLOAD_MODUL:
+        # Plan 2026-11-20, P3: der Upload-Block DIESES Laufs — nur aus ihm gilt der Klick als
+        # Zustimmung zum Flow (``upload_zustimmung``). Review P3, Befund 3: nur nach einer fertigen
+        # Ablage in WLO; jede andere Antwort am Upload löst eine frühere Bindung (fail closed)
+        if upload_zustimmung.bindet(antwort):
+            neu[upload_zustimmung.BLOCK] = lauf.get("offener_block")
+        else:
+            neu.pop(upload_zustimmung.BLOCK, None)
+        if not upload_zustimmung.wlo_antwort(antwort):
+            umgebung = await _ohne_ablage_marke(umgebung, lauf.get("offener_block"), neue_teile)
     ziel = (nachfolger(ablauf, i) or [""])[0]
     if ziel not in index:
         neu["status"] = "fertig"
-        return Ausgabe(lauf=neu)
-    return await _rechne(ablauf, neu, index[ziel], umgebung)
+        return Ausgabe(lauf=neu, neue_teile=neue_teile)
+    aus = await _rechne(ablauf, neu, index[ziel], umgebung)
+    aus.neue_teile[:0] = neue_teile
+    return aus
+
+
+async def _ohne_ablage_marke(umgebung: Umgebung, block_id: Any, neue_teile: list[Teil]
+                             ) -> Umgebung:
+    """Zweites Review P4–P6, MINOR 1: lagen in diesem Block schon Dateien in WLO (Marke
+    ``abgelegt_block``) und antwortet die Person danach ohne WLO („Andere Auswahl“, dann „Nur hier
+    im Chat lesen“ oder die Dateinamen), verliert der Teil ``ablage`` die Marke — sonst nähme der
+    Ablauf den WLO-Weg (``erschliessen_weg`` → Flow bzw. Box) für eine Auswahl, die nicht in WLO
+    liegt. Gewählt statt einer Lauf-Marke in den Regeln: die Regeln lesen nur Teile, und die Marke
+    am Teil ist die eine Stelle, an der die Abläufe eine Ablage dieser Auswahl erkennen. Der Teil
+    geht als neuer Teil an den Aufrufer (``zug_basis.festhalten``); die Regeln dieses Aufrufs
+    sehen ihn schon."""
+    teile = umgebung.teile
+    ohne = vorgang_teil.ohne_marke(await teile(vorgang_teil.TEIL), block_id)
+    if ohne is None:
+        return umgebung
+    neue_teile.append((vorgang_teil.TEIL, vorgang_teil.TYP, ohne,
+                       vorgang_teil.zusammenfassung(ohne)))
+
+    async def lader(name: str) -> Any:
+        return ohne if name == vorgang_teil.TEIL else await teile(name)
+
+    return replace(umgebung, teile=lader)
 
 
 async def weiter_ki(ablauf: AblaufArea, lauf: dict[str, Any], umgebung: Umgebung
@@ -936,6 +1004,22 @@ async def _auftrag_stuecke(s: Schritt, teile: Any, sprache: str
             fehlt_etwas, ohne)
 
 
+def _upload_bindung(s: Schritt, lauf: dict[str, Any], *, behalten: bool) -> None:
+    """Die Bindung des Laufs an seinen Upload-Block (``upload_zustimmung.BLOCK``) an einem
+    Auftrag mit ``zustimmung: upload`` lösen — außer ``behalten``. Gelöst wird sie,
+
+    - wenn die Freigabe-Box kommt (zweites Review P3, MINOR 1): sie ist dann der einzige Weg zur
+      Zustimmung — „Vorschau erneut zeigen“ oder ein zweiter Versuch nach „Abbrechen“ starteten
+      sonst über den noch gebundenen Block ohne Box;
+    - nach jedem endgültigen Fehlschlag (Review P4, MAJOR 2: auch eine endgültig abgelehnte
+      Vorschau, ``ausfall: abgelehnt``) — nur ein vorübergehender Ausfall behält sie, der zweite
+      Versuch derselben Dateien geht dann ohne Box;
+    - nach jedem Start dieses Schritts (Review P3, Befund 2; Review P4, MAJOR 2): der Block ist
+      verbraucht, ein zweiter Besuch (Schleife, Rückkante, zweiter Auftrag) bekommt die Box."""
+    if s.zustimmung == upload_zustimmung.UPLOAD and not behalten:
+        lauf.pop(upload_zustimmung.BLOCK, None)
+
+
 def _rueckfrage(ablauf: AblaufArea, schritt_id: str) -> str | None:
     """Die Frage, deren Wahl direkt zu ``schritt_id`` führt (die Rückfrage vor einem schreibenden
     Flow, Prüfung ``auftrag_rueckfrage``) — ``None`` ohne."""
@@ -962,6 +1046,8 @@ async def _gestartet(aus: Ausgabe, ablauf: AblaufArea, s: Schritt, job: str,
     if (block := _fortschritt(ablauf.id, job, text, sprache)) is not None:
         aus.bloecke.append(block)
     lauf["status"] = WARTET_AUFTRAG
+    # Zweites Review P3, NIT 3: der Vermerk gilt nur für den Auftrag, der ohne Box startete
+    lauf.pop(upload_zustimmung.ZUSTIMMUNG, None)
     # Paket R1: mehrere Teile — der Stapel zählt, „Stand prüfen“ startet den nächsten
     lauf.pop(auftrag_teile.STAPEL, None)
     if stapel is not None:
@@ -993,12 +1079,18 @@ async def weiter_nach_freigabe(ablauf: AblaufArea, lauf: dict[str, Any], umgebun
         if satz:
             aus.texte.insert(0, satz)
         return aus
+    aus = Ausgabe(lauf=neu)
+    await _gestartet(aus, ablauf, s, job, _freigabe_stapel(s, args), satz, _Teile(umgebung.teile),
+                     umgebung.sprache)
+    return aus
+
+
+def _freigabe_stapel(s: Schritt, args: dict[str, Any]) -> dict[str, Any] | None:
+    """Der Stapel aus den freigegebenen Argumenten — nach „Freigeben“ und nach der Zustimmung
+    durch den Upload (P3) gleich."""
     stuecke = (auftrag_teile.teilen(args, s.aufteilen.argument, s.aufteilen.hoechstens)
                if s.aufteilen is not None else [args])
-    stapel = auftrag_teile.neuer_stapel(args, len(stuecke)) if len(stuecke) > 1 else None
-    aus = Ausgabe(lauf=neu)
-    await _gestartet(aus, ablauf, s, job, stapel, satz, _Teile(umgebung.teile), umgebung.sprache)
-    return aus
+    return auftrag_teile.neuer_stapel(args, len(stuecke)) if len(stuecke) > 1 else None
 
 
 def _starter_fuer(starte: Any, s: Schritt) -> Any:

@@ -36,7 +36,7 @@ from boerdi.services.mcp.auth import aufrufer_kennung
 #: Die offene Freigabe in ``entities`` (``_``: nie in Debug, Verlauf oder Kennzeile).
 KEY: Final = "_auftrag_freigabe"
 #: Die Liste, deren Knoten aufgeteilt werden, wenn der Schritt nichts anderes sagt.
-_LISTE: Final = "node_ids"
+_LISTE: Final = auftrag_teile.KNOTEN_LISTE
 _TITEL_ZEICHEN: Final = 120
 #: Review N4 (4): Probleme, die ein neuer Versuch nicht heilt — nur sie fallen heraus.
 ENDGUELTIG: Final = frozenset({"not_found", "not_readable", "not_a_record", "is_reference",

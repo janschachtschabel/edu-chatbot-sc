@@ -20,6 +20,7 @@ from typing import Any, Final, Protocol
 
 from boerdi.domain.write_confirm import CURATION_TOOLS, is_confirmable
 from boerdi.ui_module.namen import UPLOAD
+from boerdi.ui_module.rollen import ist_gliederung, ist_material
 
 
 @dataclass(frozen=True)
@@ -264,8 +265,8 @@ async def _bereite_dateien(k: DienstKontext) -> dict[str, int]:
     teil = await k.teile("struktur")
     liste = dateien(teil.get("struktur")) if isinstance(teil, dict) else []
     rollen = [d.get("rolle") for d in liste]
-    return {"dateien": sum(1 for r in rollen if r in ("inhalt", "struktur")),
-            "inhaltsdateien": rollen.count("inhalt")}
+    return {"dateien": sum(1 for r in rollen if ist_gliederung(r) or ist_material(r)),
+            "inhaltsdateien": sum(1 for r in rollen if ist_material(r))}
 
 
 def _bereites_dokument(dok: Any, kennungen: set[str] | None) -> dict[str, Any] | None:
@@ -412,9 +413,20 @@ def _ehrlich_gefragt(ablauf: Any, i: int) -> bool:
 
     Nachprüfung TG-4–6, MINOR 4: Eine Option zum Auftrag mit ``synonyme`` ist keine Zustimmung —
     ohne Freitext trifft ein Teilwort auch verneint („Nein, nicht erzeugen“ über „erzeugen“); die
-    Prüfung meldet sie (``auftrag_synonym``)."""
-    from boerdi.services.ablauf.pruefung import mit_wahl, nachfolger, schreibt_mit_freigabe
+    Prüfung meldet sie (``auftrag_synonym``).
 
+    Plan 2026-11-20, P3: ein Auftrag mit ``zustimmung: upload``
+    (``pruefung.upload_zustimmung_passt``) zählt als gefragt — er startet ohne Box nur nach dem
+    Upload-Klick der Person in DIESEM Lauf (``upload_zustimmung``), sonst mit der Freigabe-Box."""
+    from boerdi.services.ablauf.pruefung import (
+        mit_wahl,
+        nachfolger,
+        schreibt_mit_freigabe,
+        upload_zustimmung_passt,
+    )
+
+    if ablauf.schritte[i].zustimmung == "upload" and upload_zustimmung_passt(ablauf, i):
+        return True
     ziel = ablauf.schritte[i].id
     vor = [v for j, v in enumerate(ablauf.schritte) if ziel in nachfolger(ablauf, j)]
 

@@ -45,6 +45,7 @@ from typing import Any, Final
 
 from boerdi.ui_module import upload_bereitgestellt as bereit
 from boerdi.ui_module.rahmen import zeile
+from boerdi.ui_module.rollen import ist_gliederung, ist_material
 
 #: Alte Antwortformen, die ein offener Verlauf noch schicken kann (G-E4, ein Release lang).
 _ALTE_AKTION: Final = {"ordner_als_entwurf": "erfasst"}
@@ -91,9 +92,13 @@ def _ohne_ignorierte_namen(ordner: dict[str, Any]) -> dict[str, Any]:
 
 
 def merken(block_id: str, modul: str, daten: dict[str, Any]) -> dict[str, Any]:
-    # Review Paket U, MINOR 4: die Orte, die der Ablauf zulässt — Antwort und Endpunkte prüfen sie
+    # Review Paket U, MINOR 4: die Orte, die der Ablauf zulässt — Antwort und Endpunkte prüfen sie.
+    # Review P3 (Koordinator): ``haekchen`` — zeigt der Block „Metadaten von WLO erzeugen lassen“
+    # (nur, wenn der Schritt ``erschliessen`` ausdrücklich setzt, ``dienst_upload``)? Nur dann hält
+    # ``/api/ui/ablage/vorbereiten`` ``erschliessen`` im Teil ``ablage`` fest
     return {"block_id": block_id, "modul": modul, "frage": "Ordner erfassen",
-            "zweck": str(daten.get("zweck") or ""), "orte": bereit.erlaubte_orte(daten)}
+            "zweck": str(daten.get("zweck") or ""), "orte": bereit.erlaubte_orte(daten),
+            "haekchen": isinstance(daten.get("erschliessen"), bool)}
 
 
 def _anzahl(ordner: Any) -> int:
@@ -114,6 +119,16 @@ def dateien(ordner: Any) -> list[dict[str, Any]]:
 def mit_dateien(ordner: Any) -> bool:
     """TG-3a: trägt die Antwort Dateien je Ordner (neues Widget) — auch eine leere Liste?"""
     return isinstance(ordner, dict) and isinstance(ordner.get("dateiliste"), list)
+
+
+def material_zahl(daten: dict[str, Any]) -> int:
+    """Review P1, MINOR 4: wie viele Dateien einsortiert werden — ``inhalt`` und ``beides``
+    (``zahlen.inhalte`` zählt ``beides`` bei den Strukturdokumenten). Eine Antwort ohne Dateien
+    (vor TG-3a) kennt nur die Zahl. Review P2, Befund 6: auch für die Kurzbeschreibung des Teils
+    ``structure`` (``arbeitsstand_teile``)."""
+    if mit_dateien(struktur := daten.get("struktur")):
+        return sum(ist_material(d.get("rolle")) for d in dateien(struktur))
+    return int((daten.get("zahlen") or {}).get("inhalte") or 0)
 
 
 def ohne_dateien(ordner: dict[str, Any]) -> dict[str, Any]:
@@ -139,7 +154,8 @@ def grund(daten: dict[str, Any]) -> str | None:
     if any(int(d.get("i") or 0) >= int((daten.get("zahlen") or {}).get("dateien") or 0)
            for d in alle):
         return "Nummer einer Datei außerhalb der Erfassung"
-    if sum(1 for d in alle if d.get("rolle") == "struktur") > int(
+    # P1 (Plan 2026-11-20): ``beides`` zählt als Strukturdokument
+    if sum(1 for d in alle if ist_gliederung(d.get("rolle"))) > int(
             (daten.get("zahlen") or {}).get("strukturdokumente") or 0):
         # „höchstens“: liegt das Strukturdokument in einem Ordner über ``MAX_ORDNER``, fehlt es
         # in den Listen, zählt aber
@@ -240,11 +256,12 @@ def dateien_satz(daten: dict[str, Any]) -> str | None:
     struktur = daten.get("struktur")
     if not mit_dateien(struktur):
         return None
-    nutzbar = [d for d in dateien(struktur) if d.get("rolle") in ("inhalt", "struktur")]
+    nutzbar = [d for d in dateien(struktur)
+               if ist_gliederung(d.get("rolle")) or ist_material(d.get("rolle"))]
     ordner = int((daten.get("zahlen") or {}).get("ordner") or 0)
     satz = _zahl(len(nutzbar), "Datei", "Dateien")
     satz += f" in {_zahl(ordner, 'Ordner', 'Ordnern')}" if ordner else " ohne Ordner"
-    if strukturdokumente := sum(1 for d in nutzbar if d.get("rolle") == "struktur"):
+    if strukturdokumente := sum(1 for d in nutzbar if ist_gliederung(d.get("rolle"))):
         satz += f", davon {_zahl(strukturdokumente, 'Strukturdokument', 'Strukturdokumente')}"
     return satz
 
