@@ -90,7 +90,11 @@ export function ansichtTeile(s: UploadSicht): Node[] {
     // der Anmeldung geht — vor der Auswahl als Satz, danach sagt es der Chip („braucht eine WLO-Anmeldung“)
     const schalter = s.daten['schalter'] as Record<string, unknown> | undefined;
     if (schalter?.['lesen_nach_anmeldung'] === true) teile.push(knoten('p', 'u__hinweis', t.lesenNachAnmeldung));
-    if (schalter?.['ablage_nach_anmeldung'] === true) teile.push(knoten('p', 'u__hinweis', t.ablageNachAnmeldung));
+    if (schalter?.['ablage_nach_anmeldung'] === true) {
+      // Review Paket E, MINOR 8: auf dem Dokument-Weg (`einzeldatei_als_struktur`) entstehen keine Metadaten
+      const dokument = s.daten['einzeldatei_als_struktur'] === true;
+      teile.push(knoten('p', 'u__hinweis', dokument ? t.ablageNachAnmeldungDokument : t.ablageNachAnmeldung));
+    }
     teile.push(zone, waehler(s));
     if (s.zustand === 'fehler') {
       const meldung = knoten('p', 'u__hinweis', s.erfassung ? t.nichtsGefunden : t.leseFehler);

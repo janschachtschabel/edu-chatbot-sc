@@ -40,9 +40,9 @@ from boerdi.ui_module.datenquelle import Ergebnis
 from boerdi.ui_module.dienst_fehler import FEHLER as _FEHLER
 from boerdi.ui_module.dienst_fehler import FEHLER_ARGUMENTE as _FEHLER_ARGUMENTE
 from boerdi.ui_module.dienst_fehler import FEHLER_SONST as _FEHLER_SONST
-from boerdi.ui_module.dienst_fehler import namen as _namen
 from boerdi.ui_module.dienst_fehler import ohne_volltext as _ohne_volltext
-from boerdi.ui_module.dienst_fehler import volltext_satz as _volltext_satz
+from boerdi.ui_module.dienst_fehler import volltext_fehler as _volltext_fehler
+from boerdi.ui_module.dienst_fehler import volltext_satz as _volltext_satz  # noqa: F401 — Tests
 from boerdi.ui_module.dienst_strukturabgleich import strukturabgleich
 from boerdi.ui_module.dienst_upload import upload_angebot
 from boerdi.ui_module.katalog import Manifest
@@ -128,7 +128,7 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
         return _fehlschlag(modul, _FEHLER["inhalte_ausschluss"].format(name=modul), "argumente")
     if args.get("vorlage") is True and not isinstance(umgebung.vorlage, dict) and umgebung.teile:
         # Paket V1: ohne mitgeschickten oder gemerkten Entwurf den übernommenen aus dem Vorgang —
-        # auch Tage später und aus einer neuen Sitzung derselben Person.
+        # auch Tage später (nach „Fortsetzen“ im Gespräch des Vorgangs, Entscheid E-F).
         if isinstance(entwurf := await umgebung.teile("draft"), dict) and entwurf.get("knoten"):
             umgebung = dataclasses.replace(umgebung, vorlage=entwurf)
     if args.get("vorlage") is True and not isinstance(umgebung.vorlage, dict):
@@ -162,8 +162,8 @@ async def _strukturentwurf(manifest: Manifest, args: dict[str, Any], umgebung: U
             return _fehlschlag(modul, _FEHLER["dokument_vorlage"].format(name=modul), "argumente")
         dokument = await umgebung.dokument() if umgebung.dokument is not None else None
         if isinstance(dokument, OhneVolltext):
-            return _fehlschlag(modul, _FEHLER[_volltext_satz(dokument.fehlend)].format(
-                name=modul, namen=_namen(dokument.fehlend)), "volltext_fehlt")
+            # Plan 2026-11-20 §8, E1: endgültig ohne Text hat einen eigenen Code
+            return _fehlschlag(modul, *_volltext_fehler(modul, dokument.fehlend))
         if dokument is None:
             return _fehlschlag(modul, _FEHLER["kein_dokument"].format(name=modul),
                                "kein_dokument")

@@ -280,9 +280,9 @@ def test_m3_der_dienst_sagt_es_der_ki(monkeypatch):
 
     erg = asyncio.run(modul_dienst.aufruf(manifest, {"thema": "Physik", "aus_dokument": True},
                                           Umgebung(dokument=ohne)))
-    assert erg.outcome.error == "volltext_fehlt"
-    # Durchtest TG-7, m3: ``not_extracted`` heißt „noch nicht“ oder „nie“ (etwa ein Scan)
-    assert "„Lehrplan neu.pdf“" in erg.text and "keinen lesbaren Text" in erg.text
+    # Plan 2026-11-20 §8, E1: ``not_extracted`` ist endgültig — eigener Code, die Auswege im Satz
+    assert erg.outcome.error == "volltext_endgueltig"
+    assert "„Lehrplan neu.pdf“" in erg.text and "keinen Text gewinnen" in erg.text
     fehlend = (("B.pdf", "frist"), ("C.pdf", "access_denied"))
     assert modul_dienst._ohne_volltext(fehlend) == (
         "Dokument „B.pdf“: Volltext gerade nicht lesbar, später erneut. "

@@ -64,7 +64,8 @@ class DokumentStand:
 @dataclass(frozen=True)
 class OhneVolltext:
     """MINOR 3: Es gibt nur Strukturdokumente aus WLO, und keins hat (schon) einen Volltext — der
-    Dienst sagt das mit eigenem Code (``volltext_fehlt``) statt „kein Dokument“."""
+    Dienst sagt das mit eigenem Code statt „kein Dokument“: ``volltext_endgueltig`` (WLO gewann
+    keinen Text, Plan 2026-11-20 §8, E1), sonst ``volltext_fehlt``."""
 
     fehlend: tuple[tuple[str, str], ...]
 

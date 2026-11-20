@@ -371,11 +371,14 @@ def test_b9_die_rueckfrage_nennt_strukturdokumente_nur_falls_dabei():
 
 # ── B5: der Satz zum fehlenden Volltext ─────────────────────────────────────────────────────────
 
-def test_b5_volltext_fehlt_sagt_nochmal_schreiben():
+def test_b5_volltext_fehlt_sagt_nicht_mehr_nochmal_schreiben():
+    """Plan 2026-11-20 §8, E1: „nochmal“ half bei ``not_extracted`` nie — der Satz nennt die
+    Auswege statt eines neuen Versuchs."""
     from boerdi.ui_module import dienst
 
-    satz = dienst._FEHLER["volltext_fehlt_datei"]
-    assert "„nochmal“" in satz and "das prüft den Stand" not in satz
+    satz = dienst._FEHLER["volltext_endgueltig"]
+    assert "nochmal" not in satz and "das prüft den Stand" not in satz
+    assert "Hier im Chat lesen lassen" in satz
 
 
 # ══ Zweites Review (19.11.) ══════════════════════════════════════════════════════════════════════

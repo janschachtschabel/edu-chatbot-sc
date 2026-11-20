@@ -48,20 +48,27 @@ logger = logging.getLogger(__name__)
 VOLLTEXT_ZEICHEN: Final = 200_000
 VOLLTEXT_WERKZEUG: Final = "get_wlo_content_text"
 #: MINOR 2: so viele Volltexte gleichzeitig (Last am MCP) und so lange insgesamt ohne Frist des
-#: Entwurfs.
+#: Entwurfs. Review Paket E, MINOR 6: 50 statt 30 s — der MCP wartet beim ersten Lesen bis
+#: ``WLO_TEXT_TIMEOUT_MS`` (25 s) auf das Repositorium; danach muss eine Wiederholung (E2) noch
+#: passen. Der Dienst rechnet seine Frist (90 s) vor dem Lesen: ein langes Lesen kürzt den Entwurf.
 PARALLEL: Final = 3
-GESAMT_FRIST_S: Final = 30.0
+GESAMT_FRIST_S: Final = 50.0
 #: MINOR 3: die Gründe ohne Text — die des Servers (``content-text.ts``) und eigene. Andere Werte
 #: werden ``ohne_text``; nur diese Codes kommen ins Log.
 GRUENDE: Final = frozenset({
     "not_extracted", "no_text_no_url", "extraction_failed", "access_denied", "node_not_found",
     "text_unreadable", "ohne_text", "ohne_anmeldung", "abruf_fehler", "frist",
 })
-#: Gründe, bei denen ein späterer Versuch helfen kann (der Volltext entsteht noch).
-SPAETER: Final = frozenset({"not_extracted", "text_unreadable", "abruf_fehler", "frist"})
-#: Plan 2026-11-16, Durchtest TG-7 (m3): aus der Datei kam (noch) kein Text — „noch nicht“ oder
-#: „nie“ (Scan, Bild); das MCP unterscheidet beides nicht (``get_wlo_content_text``).
+#: Gründe, bei denen ein späterer Versuch helfen kann (Lesefehler, Frist). Plan 2026-11-20 §8, E1:
+#: ``not_extracted`` gehört nicht dazu — gemessen (§7) erzeugt das Repositorium den Text synchron
+#: beim ersten Lesen und wiederholt eine gescheiterte Extraktion nie.
+SPAETER: Final = frozenset({"text_unreadable", "abruf_fehler", "frist"})
+#: Aus der Datei kam kein Text, endgültig (Scan, Bild, Markdown, gescheiterte Extraktion im
+#: Repositorium; das MCP liest ``ccm:fulltext_status`` noch nicht und unterscheidet das nicht).
 NICHT_EXTRAHIERT: Final = "not_extracted"
+#: Plan 2026-11-20 §8, E2: bei einem Grund aus :data:`SPAETER` liest der Leser im selben Zug noch
+#: einmal — nach diesen Pausen, solange die Frist reicht (gemessen: erstes Lesen ≤ 10,5 s bei 8 MB).
+WIEDERHOLEN_S: Final = (5.0, 10.0)
 #: Nachprüfung, NIT 6: ein Sitzungsdokument, das nicht mehr lesbar ist (24 h vorbei, verdrängt).
 ABGELAUFEN: Final = "abgelaufen"
 #: Plan 2026-11-19, A3 (E5, Befund S2c): unter so vielen Wörtern ist ein Volltext aus WLO „kein
@@ -97,35 +104,48 @@ class Lesung:
 
 
 async def im_vorgang(teile: TeilLader) -> list[dict[str, str]]:
-    """Die Einträge des Teils ``strukturdokument`` — dazu Strukturdokumente aus ``ablage``, die
-    darin (noch) fehlen (ein Vorgang, abgelegt vor TG-3d)."""
-    eintraege = sd.eintraege(await teile(sd.TEIL))
-    bekannt = {e["ref"] for e in eintraege}
-    knoten = [e for e in sd.aus_ablage(await teile("ablage")) if e["ref"] not in bekannt]
-    return sd.eintraege({sd.FELD: [*eintraege, *knoten]})
+    """Die Einträge des Teils ``strukturdokument`` — fehlt der Teil (ein Vorgang, abgelegt vor
+    TG-3d), die Strukturdokumente aus ``ablage``. Review Paket E, MINOR 2: nur dann; sonst kehrte
+    ein Knoten zurück, den ein Ablauf verworfen hat (etwa nach „hier im Chat lesen lassen“), und
+    jeder Entwurf fragte das MCP nach seinem Text. Neue Ablagen trägt ``mit_ablage`` in den Teil
+    ein."""
+    if (teil := await teile(sd.TEIL)) is not None:
+        return sd.eintraege(teil)
+    return sd.aus_ablage(await teile("ablage"))
 
 
 def _aufrufer() -> str | None:
     return aufrufer_kennung() if has_personal_auth() else None
 
 
+#: Review Paket E, MINOR 5: die Art eines gescheiterten MCP-Aufrufs → Grund. Keine Antwort
+#: (Frist, Transport, ausgelastet) ist vorübergehend; eine abgewiesene Anmeldung nicht.
+_ART_GRUND: Final = {"timeout": "abruf_fehler", "transport": "abruf_fehler",
+                     "busy": "abruf_fehler", "auth": "ohne_anmeldung"}
+
+
 async def volltext(node_id: str) -> tuple[str | None, str]:
     """Der Volltext eines Knotens als Markdown und ein Grund (``""`` mit Text). Ohne persönliche
     Anmeldung wird nicht gelesen (die Knoten liegen im persönlichen Bereich)."""
-    from boerdi.services.mcp.client import call_mcp_tool
+    from boerdi.services.mcp import client
     from boerdi.services.mcp.parsers import parse_content_text
 
     if not has_personal_auth():
         return None, "ohne_anmeldung"
     try:
-        roh = await call_mcp_tool(VOLLTEXT_WERKZEUG,
-                                  {"nodeId": node_id, "maxChars": VOLLTEXT_ZEICHEN},
-                                  use_cache=False)
+        antwort = await client.call_mcp_tool_antwort(
+            VOLLTEXT_WERKZEUG, {"nodeId": node_id, "maxChars": VOLLTEXT_ZEICHEN}, use_cache=False)
     except Exception as fehler:  # noqa: BLE001 — ein fehlender Text beendet den Zug nie
         logger.warning("Strukturdokument aus WLO: Volltext nicht lesbar (%s)",
                        type(fehler).__name__)
         return None, "abruf_fehler"
-    gelesen = parse_content_text(roh)
+    if art := antwort.art:
+        # MINOR 5: der Fehlertext des Clients ist keine Antwort des Werkzeugs (sonst ``ohne_text``
+        # und der Satz „kein Zugriff“); abgelehnt (``tool``) nennt der Server einen Code
+        grund = _ART_GRUND.get(art) or (antwort.code if antwort.code in GRUENDE else "ohne_text")
+        logger.info("Strukturdokument aus WLO: Abruf gescheitert (%s, %s)", art, grund)
+        return None, grund
+    gelesen = parse_content_text(antwort.text)
     if inhalt := str(gelesen.get("text") or "").strip():
         if lesbar(bereinigen(inhalt)[0]):
             return inhalt, ""
@@ -152,18 +172,32 @@ def _aus_volltext(e: dict[str, str], inhalt: str) -> DokumentStand:
                          abschnitte=abschnitte, markdown=markdown, ungeprueft=True)
 
 
+#: Die Pause vor einer Wiederholung (Tests setzen eine Attrappe).
+_schlafen = asyncio.sleep
+
+
 async def _wlo_lesen(eintraege: list[dict[str, str]], frist_ende: float | None
                      ) -> dict[str, tuple[str | None, str]]:
-    """MINOR 2: die Volltexte parallel (höchstens :data:`PARALLEL`), alle bis zur Frist."""
+    """MINOR 2: die Volltexte parallel (höchstens :data:`PARALLEL`), alle bis zur Frist. E2: ein
+    vorübergehender Grund (:data:`SPAETER`) wird nach :data:`WIEDERHOLEN_S` wiederholt, solange die
+    Pause vor der Frist endet; in der Pause hält der Knoten keinen Platz. Der letzte Grund bleibt
+    stehen, falls die Frist den Versuch danach abbricht."""
     platz = asyncio.Semaphore(PARALLEL)
     ergebnis: dict[str, tuple[str | None, str]] = {}
+    loop = asyncio.get_running_loop()
+    ende = frist_ende if frist_ende is not None else loop.time() + GESAMT_FRIST_S
 
     async def eins(e: dict[str, str]) -> None:
-        async with platz:
-            ergebnis[e["ref"]] = await volltext(e["ref"])
+        for pause in (0.0, *WIEDERHOLEN_S):
+            if pause:
+                if ergebnis[e["ref"]][1] not in SPAETER or loop.time() + pause >= ende:
+                    return
+                logger.info("Strukturdokument aus WLO: neuer Versuch in %.0f s (%s)", pause,
+                            ergebnis[e["ref"]][1])
+                await _schlafen(pause)
+            async with platz:
+                ergebnis[e["ref"]] = await volltext(e["ref"])
 
-    ende = frist_ende if frist_ende is not None else (
-        asyncio.get_running_loop().time() + GESAMT_FRIST_S)
     aufgaben = [asyncio.ensure_future(eins(e)) for e in eintraege]
     try:
         async with asyncio.timeout_at(ende):
