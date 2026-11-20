@@ -17,6 +17,7 @@ from typing import Any
 from fastapi import APIRouter, Security
 
 from boerdi.api.deps import require_studio_key
+from boerdi.services.ablauf.werkzeuge import MODUL_DIENST_OHNE_MODELL
 from boerdi.ui_module import katalog, schalter
 from boerdi.ui_module.namen import ABGELEITETE
 
@@ -31,13 +32,17 @@ BEREICH = "01-base/display-rules"
 
 @router.get("/ui-module")
 async def ui_module_katalog() -> dict[str, Any]:
-    """Je Modul (nach Namen): das Manifest, welche Schalter gelten (``schaltbar``) und ob es aus
-    der fertigen Antwort abgeleitet wird; dazu der Bereich der Schalter."""
+    """Je Modul (nach Namen): das Manifest, welche Schalter gelten (``schaltbar``), ob es aus
+    der fertigen Antwort abgeleitet wird und — zweites Review P4–P6, MINOR 2 — ob ein Ablauf-Schritt
+    seine ``daten`` als Parameter des Diensts gibt (``daten_sind_parameter``: der Treiber baut den
+    Block über den Dienst, ``treiber_bloecke.modul_block``; sonst sind sie Blockdaten nach
+    ``eingabe``); dazu der Bereich der Schalter."""
     return {
         "bereich": BEREICH,
         "module": [
             {"name": name, "manifest": manifest, "schaltbar": schalter.schaltbar(name),
-             "abgeleitet": name in ABGELEITETE}
+             "abgeleitet": name in ABGELEITETE,
+             "daten_sind_parameter": name in MODUL_DIENST_OHNE_MODELL}
             for name, manifest in sorted(katalog.katalog().items())
         ],
     }

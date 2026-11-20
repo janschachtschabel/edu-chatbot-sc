@@ -16,10 +16,10 @@ seines Ordners als Verweise — ``inhalte: [{i, name, node_id?}]``:
 - **erschlossen** — dazu ``node_id``, sobald die Datei nach WLO übertragen ist (Teil ``ablage``,
   verknüpft über ``i``, TG-3b); Metadaten liegen im Teil ``metadaten`` unter derselben ``i``.
 
-Nur Dateien mit der Rolle ``inhalt``: Strukturdokumente sind keine Inhalte, ignorierte gehen nicht
-mit. Die Dateien eines Ordners unter der dritten Ebene gehören zum tiefsten Punkt darüber (der
-Ordner fällt weg, die Inhalte nicht). Dateien direkt in der Wurzel haben keinen Punkt. Das spätere
-Befüllen („Sammlungen 1:1“) liest diese Verweise.
+Nur Dateien mit der Rolle ``inhalt`` (oder ``beides``, P1): reine Strukturdokumente sind keine
+Inhalte, ignorierte gehen nicht mit. Die Dateien eines Ordners unter der dritten Ebene gehören
+zum tiefsten Punkt darüber (der Ordner fällt weg, die Inhalte nicht). Dateien direkt in der Wurzel
+haben keinen Punkt. Das spätere Befüllen („Sammlungen 1:1“) liest diese Verweise.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ import re
 from typing import Any, Final
 
 from boerdi.ui_module import strukturentwurf as se
+from boerdi.ui_module.rollen import ist_material
 
 #: Ebenen des Entwurfs aus Ordnern (Wurzel nicht mitgezählt); tiefere Ordner fallen weg.
 TIEFE: Final = 3
@@ -64,10 +65,11 @@ class _Zaehler:
 
 
 def _inhalte(ordner: dict[str, Any], z: _Zaehler) -> list[dict[str, Any]]:
-    """Die Inhaltsdateien dieses Ordners als Verweise (bis zur Grenze des Entwurfs)."""
+    """Die Inhaltsdateien dieses Ordners (P1: auch ``beides``) als Verweise (bis zur Grenze des
+    Entwurfs)."""
     aus: list[dict[str, Any]] = []
     for d in ordner.get("dateiliste") or []:
-        if not isinstance(d, dict) or d.get("rolle") != "inhalt":
+        if not isinstance(d, dict) or not ist_material(d.get("rolle")):
             continue
         i, name = d.get("i"), " ".join(str(d.get("name") or "").split())[:se.TITEL_ZEICHEN]
         if not isinstance(i, int) or isinstance(i, bool) or not name:

@@ -100,12 +100,18 @@ export interface AblageEintrag {
   readonly i?: number;
 }
 
-/** Inhalt oder Strukturdokument — für die Ablage in WLO (W4) wie für `hochladen` (Paket U4). */
-export type AblageRolle = 'inhalt' | 'struktur';
+/** Inhalt oder Strukturdokument — für die Ablage in WLO (W4) wie für `hochladen` (Paket U4); `beides`
+ *  (Plan 2026-11-20, P1) ist beides zugleich: das MCP liest es als Strukturdokument. */
+export type AblageRolle = 'inhalt' | 'struktur' | 'beides';
 
 /** U3-3b: die drei Schritte der Ablage — Freigabe vorbereiten, eine Datei, Abschluss (`vorgang.json`). */
 export type AblageSchritt =
-  | { readonly schritt: 'vorbereiten'; readonly ordner: string; readonly eintraege: readonly AblageEintrag[] }
+  | {
+    readonly schritt: 'vorbereiten'; readonly ordner: string; readonly eintraege: readonly AblageEintrag[];
+    /** Plan 2026-11-20, P2: das Häkchen „Metadaten von WLO erzeugen lassen“; das Backend hält es nur mit
+     *  Metadaten-Flow fest und sagt in der Antwort (`erschliessen`), ob. */
+    readonly erschliessen?: boolean;
+  }
   | {
     readonly schritt: 'datei'; readonly batchToken: string; readonly index: number; readonly datei: File;
     readonly onFortschritt?: (anteil: number) => void;

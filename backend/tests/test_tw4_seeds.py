@@ -97,8 +97,8 @@ def test_tg2_ein_gelesenes_dokument_startet_keinen_ablauf(alle_an):
 def test_tg2_kein_seed_nennt_die_alten_knoepfe_des_upload_felds():
     """G-E4: die Knöpfe „Themenbaum aus dem Strukturdokument erstellen“ und „Als
     Themenbaum-Entwurf übernehmen“ gibt es nicht mehr. Plan 2026-11-17, U6 (altes Soll: „Lesen
-    lassen“): der Dokument-Weg nennt den einen Knopf „Hochladen“ (seit Plan 2026-11-20, G1 im
-    generischen Seed)."""
+    lassen“): der Dokument-Weg nennt die Orte des Felds — seit Plan 2026-11-20 (Upload-Ort, P2/P4)
+    gibt es keinen Knopf „Hochladen“ mehr."""
     alt = ("Strukturdokument erstellen", "Themenbaum-Entwurf übernehmen", "jetzt erstellen",
            "from the structure document", "as topic tree draft")
     for datei in SEEDS.glob("*.yaml"):
@@ -106,8 +106,9 @@ def test_tg2_kein_seed_nennt_die_alten_knoepfe_des_upload_felds():
         assert not [a for a in alt if a in text], datei.name
     dokument = yaml.safe_load((SEEDS / "themenbaum.yaml").read_text(encoding="utf-8"))
     texte = {s["id"]: s["text"] for s in dokument["schritte"] if "text" in s}
-    assert "„Hochladen“" in texte["dokument_laden"]["de"]
-    assert "“Upload”" in texte["dokument_laden"]["en"]
+    assert "„In WLO ablegen und erschließen“" in texte["dokument_laden"]["de"]
+    assert "“Store and index in WLO”" in texte["dokument_laden"]["en"]
+    assert "„Hochladen“" not in texte["dokument_laden"]["de"]
     assert not [s for s, t in texte.items() if "Lesen lassen" in t["de"]]
 
 

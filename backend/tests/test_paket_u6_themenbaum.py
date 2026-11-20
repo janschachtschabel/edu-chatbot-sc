@@ -4,7 +4,8 @@ Der Ort ist im Upload-Feld gewählt (``aktion: bereitgestellt``, ``ort``). Nach 
 ``dateien_weg`` nur nach den Teilen der Auswahl (``block_id``):
 
 - ``metadaten`` dazu (hier im Chat gelesen, ``quelle: chatbot``) → die Fragen (``wofuer``);
-- ``ablage`` dazu (in WLO abgelegt) → Rückfrage und Kestra (``metadaten_frage``);
+- ``ablage`` dazu (in WLO abgelegt) → das Häkchen entscheidet (``erschliessen_weg``, seit P4 des
+  Plans 2026-11-20 ohne Rückfrage ``metadaten_frage``);
 - nur ``struktur`` (Namen) → ``aus_dateien``.
 
 Dazu: Angaben einer früheren Auswahl zählen nicht; auf dem Dokument-Weg bleibt der Entwurf der aus
@@ -51,7 +52,7 @@ def _auswahl(ort: str, **mehr: Any) -> dict[str, Any]:
 
 _ABLAGE_ZAHLEN = {"layout": "flach", "gesamt": 2, "abgelegt": 2, "unklar": 0, "fehler": 0,
                   "abgebrochen": 0, "ordner_verweigert": False, "vorgang_abgelegt": False}
-_ABLAGE_TEIL = {"format": "wlo.ablage@1", "block_id": _FELD, "inhalte": [
+_ABLAGE_TEIL = {"format": "wlo.ablage@1", "block_id": _FELD, "abgelegt_block": _FELD, "inhalte": [
     {"index": 0, "i": 0, "titel": "Linsen.pdf", "stand": "stored", "node_id": _A,
      "rolle": "inhalt"}]}
 
@@ -84,10 +85,14 @@ def test_die_frage_nach_dem_weg_ist_entfallen():
 
 
 def test_die_upload_schritte_nennen_den_neuen_knopf():
+    """Seit P4 (Plan 2026-11-20) gibt es keinen Knopf „Hochladen“ mehr — die Texte nennen die Orte
+    (``test_p4_themenbaum_erschliessen``); die alten Wörter bleiben draußen."""
     ablauf = _ablauf()
     for sid in ("dokument_laden", "ordner_laden", "dateien_laden"):
         s = next(x for x in ablauf.schritte if x.id == sid)
-        assert "„Hochladen“" in s.text["de"] and "“Upload”" in s.text["en"], sid
+        assert "„In WLO ablegen und erschließen“" in s.text["de"], sid
+        assert "“Store and index in WLO”" in s.text["en"], sid
+        assert "„Hochladen“" not in s.text["de"] and "“Upload”" not in s.text["en"], sid
         for alt in ("Senden", "Lesen lassen", "übertr"):
             assert alt not in s.text["de"], (sid, alt)
         for alt in ("“Send”", "Read document", "transfer"):
@@ -102,12 +107,30 @@ def test_hier_im_chat_gelesen_fuehrt_direkt_zu_den_fragen():
     assert weg[-3:] == ["dateien_laden", "dateien_weg", "wofuer"]
 
 
-def test_in_wlo_abgelegt_fuehrt_zur_rueckfrage_vor_kestra():
+def test_in_wlo_abgelegt_fuehrt_zum_haekchen_nicht_zur_rueckfrage():
+    """P4 (Plan 2026-11-20, UO-3): mit Häkchen gleich der Flow, ohne Rückfrage."""
     weg = _bis_nach_dem_upload(
         _auswahl("wlo", dateien=[{"i": 0, "rolle": "inhalt"}, {"i": 1, "rolle": "inhalt"}],
                  ablage=_ABLAGE_ZAHLEN),
-        teile={"ablage": _ABLAGE_TEIL}, angemeldet=True)
-    assert weg[-3:] == ["dateien_laden", "dateien_weg", "metadaten_frage"]
+        teile={"ablage": {**_ABLAGE_TEIL, "erschliessen": True}}, angemeldet=True)
+    assert weg[-4:] == ["dateien_laden", "dateien_weg", "erschliessen_weg", "metadaten"]
+
+
+def test_in_wlo_gewaehlt_nichts_abgelegt_fuehrt_zu_den_dateinamen():
+    """U6: „In WLO“ gewählt, aber nichts zur Auswahl abgelegt → die Dateinamen. Bis P4 ein
+    Selbsttest im Seed — der Platz (höchstens 20) ging an den Dokument-Weg über WLO.
+
+    Review P4, MAJOR 1: wie im Betrieb liegt der Teil ``ablage`` dieser Auswahl schon da
+    (``/vorbereiten`` schrieb ihn für die Vorschau, alles ``offen``) — ohne die Marke
+    ``abgelegt_block`` zählt er nicht als Ablage."""
+    offen = {"format": "wlo.ablage@1", "block_id": _FELD, "erschliessen": True, "inhalte": [
+        {"index": i, "i": i, "titel": t, "stand": "offen", "rolle": "inhalt"}
+        for i, t in enumerate(("Linsen.pdf", "Spiegel.pdf"))]}
+    weg = _bis_nach_dem_upload(
+        _auswahl("wlo", dateien=[{"i": 0, "rolle": "inhalt"}, {"i": 1, "rolle": "inhalt"}],
+                 ablage={**_ABLAGE_ZAHLEN, "abgelegt": 0, "fehler": 2}),
+        teile={"ablage": offen}, angemeldet=True)
+    assert weg[-4:] == ["dateien_laden", "dateien_weg", "aus_dateien", "wofuer"]
 
 
 def test_nur_namen_fuehrt_zu_den_dateinamen():
@@ -187,7 +210,6 @@ def test_angaben_da_nimmt_nur_angaben_zur_auswahl():
                      {"bei": "grundlage", "option": "dateien"},
                      {"bei": "dateien_laden", "antwort": _auswahl(
                          "wlo", dateien=[{"i": 0, "rolle": "inhalt"}], ablage=_ABLAGE_ZAHLEN)},
-                     {"bei": "metadaten_frage", "option": "nein"},
                      {"bei": "ohne_metadaten", "option": "ohne"}]})
     weg = asyncio.run(simulation.testen(_ablauf(), test)).weg
     assert weg[weg.index("angaben_da") + 1] == "aus_dateien"

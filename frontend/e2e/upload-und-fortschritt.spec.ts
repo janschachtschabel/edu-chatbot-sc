@@ -80,8 +80,9 @@ test.describe('ui_upload und ui_fortschritt zugleich (Querschnitts-Review M1)', 
 
     const upload = page.locator('boerdi-ui-upload');
     await upload.locator('input[webkitdirectory]').setInputFiles(ordner());
-    await upload.getByRole('button', { name: 'Hochladen', exact: true }).click();
-    await upload.getByRole('button', { name: 'Jetzt übertragen' }).click();
+    // Plan 2026-11-20, P2: „Weiter zur Vorschau“, dann der Knopf, der ablegt (ohne `erschliessen` in der Antwort: „In WLO ablegen“)
+    await upload.getByRole('button', { name: 'Weiter zur Vorschau' }).click();
+    await upload.getByRole('button', { name: 'In WLO ablegen', exact: true }).click();
     await expect.poll(() => dateien.length).toBe(1);
 
     // Während die erste Datei hängt: das Ergebnis des Auftrags wird abgeholt.

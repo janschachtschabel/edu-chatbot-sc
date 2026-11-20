@@ -52,6 +52,9 @@ def sprache_einsetzen(args: dict[str, Any], sprache: str) -> dict[str, Any]:
 METADATEN_FLOW_OHNE: Final = frozenset({"md", "markdown", "txt"})
 #: Der Teil, aus dem der Seed die ``node_ids`` des Metadaten-Flows wählt (``ablage/vorgang_teil``).
 ABLAGE_TEIL: Final = "ablage"
+#: Zweites Review P3, NIT 4: die Liste der Knoten eines Auftrags, wenn der Schritt nicht aufteilt
+#: (``auftrag_freigabe``, ``upload_zustimmung``, ``pruefung``) — der Name steht nur hier.
+KNOTEN_LISTE: Final = "node_ids"
 
 
 def _endungen(eintrag: dict[str, Any]) -> set[str]:
@@ -65,14 +68,14 @@ def ohne_textdateien(flow: str, args: dict[str, Any], ablage: Any) -> tuple[dict
     """Für :data:`METADATEN_FLOW`: ``node_ids`` ohne die Knoten, die ``ablage`` mit einer Endung
     aus :data:`METADATEN_FLOW_OHNE` führt — und wie viele wegfielen. Andere Flows und Knoten, die
     die Ablage nicht kennt, bleiben unverändert."""
-    ids = args.get("node_ids")
+    ids = args.get(KNOTEN_LISTE)
     if flow != METADATEN_FLOW or not isinstance(ids, list) or not isinstance(ablage, dict):
         return args, 0
     weg = {e["node_id"] for e in ablage.get("inhalte") or []
            if isinstance(e, dict) and isinstance(e.get("node_id"), str)
            and _endungen(e) & METADATEN_FLOW_OHNE}
     bleibt = [n for n in ids if n not in weg]
-    return ({**args, "node_ids": bleibt}, len(ids) - len(bleibt)) if weg else (args, 0)
+    return ({**args, KNOTEN_LISTE: bleibt}, len(ids) - len(bleibt)) if weg else (args, 0)
 
 
 def teilen(args: dict[str, Any], argument: str, hoechstens: int) -> list[dict[str, Any]]:

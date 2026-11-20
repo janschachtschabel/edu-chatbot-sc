@@ -607,6 +607,29 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               ]
             }
           },
+          "zustimmung": {
+            "anyOf": [
+              {
+                "pattern": "^(freigabe|upload)$",
+                "type": "string",
+                "x-choices": [
+                  "freigabe",
+                  "upload"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Zustimmung",
+            "x-nur-bei": {
+              "feld": "typ",
+              "werte": [
+                "auftrag"
+              ]
+            }
+          },
           "ausstieg": {
             "anyOf": [
               {
@@ -5042,6 +5065,16 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "minimum": 1,
             "title": "Ocr Max Seiten",
             "type": "integer"
+          },
+          "vorauswahl": {
+            "default": "chat",
+            "enum": [
+              "auto",
+              "wlo",
+              "chat"
+            ],
+            "title": "Vorauswahl",
+            "type": "string"
           }
         },
         "title": "UploadSettings",
@@ -5062,7 +5095,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "lokal_max_dateien": 10,
           "lokal_max_mb_gesamt": 50,
           "ocr": true,
-          "ocr_max_seiten": 20
+          "ocr_max_seiten": 20,
+          "vorauswahl": "chat"
         }
       }
     },

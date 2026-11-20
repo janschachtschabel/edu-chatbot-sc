@@ -364,4 +364,5 @@ def test_beim_erfassen_nennt_der_rahmen_alle_markierten():
     geprueft = _pruefe(daten)
     assert geprueft is not None
     _start, zeilen = upload_rahmen.zeilen(geprueft)
-    assert "Strukturdokumente: Lehrplan A.pdf, Lehrplan B.pdf" in zeilen
+    # Review P1, MINOR 4: in den Worten der Rollen-Auswahl
+    assert "Gliederung: Lehrplan A.pdf, Lehrplan B.pdf" in zeilen

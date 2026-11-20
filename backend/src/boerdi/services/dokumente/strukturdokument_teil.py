@@ -21,6 +21,8 @@ from __future__ import annotations
 import re
 from typing import Any, Final
 
+from boerdi.ui_module.rollen import ist_gliederung
+
 TEIL: Final = "strukturdokument"
 TYP: Final = "wlo.strukturdokumente@1"
 FELD: Final = "dokumente"
@@ -97,7 +99,8 @@ def zusammenfassung(liste: list[dict[str, str]]) -> str:
 
 
 def aus_ablage(ablage: Any) -> list[dict[str, str]]:
-    """TG-3e (mit WLO): jeder abgelegte Knoten mit der Rolle ``struktur`` aus dem Teil ``ablage``
+    """TG-3e (mit WLO): jeder abgelegte Knoten mit der Rolle ``struktur`` (P1: oder ``beides``) aus
+    dem Teil ``ablage``
     — auch aus einem ersetzten Stapel (``frueher``: die Knoten liegen weiter in WLO). Review
     TG-3d–f, MINOR 4: der aktuelle Stapel zuerst, ``frueher`` nur, solange unter
     :data:`HOECHSTENS` Platz ist — sonst verdrängten alte Knoten die eben abgelegten."""
@@ -105,11 +108,11 @@ def aus_ablage(ablage: Any) -> list[dict[str, str]]:
         return []
     aus: list[dict[str, str]] = []
     for e in ablage.get("inhalte") or []:
-        if (isinstance(e, dict) and e.get("rolle") == "struktur" and e.get("stand") == "stored"
+        if (isinstance(e, dict) and ist_gliederung(e.get("rolle")) and e.get("stand") == "stored"
                 and _node_id(e.get("node_id"))):
             aus.append(wlo(e["node_id"], e.get("name") or e.get("titel")))
     for e in reversed(ablage.get("frueher") or []):          # die jüngsten früheren zuerst
-        if isinstance(e, dict) and e.get("rolle") == "struktur" and _node_id(e.get("node_id")):
+        if isinstance(e, dict) and ist_gliederung(e.get("rolle")) and _node_id(e.get("node_id")):
             aus.append(wlo(e["node_id"], e.get("titel")))
     return eintraege({FELD: aus})
 

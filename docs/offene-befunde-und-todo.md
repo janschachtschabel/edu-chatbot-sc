@@ -41,6 +41,34 @@ Die zugehörigen Pläne:
 
 ## 1 Befunde mit Wirkung im Betrieb
 
+- **Upload-Ort und Erschließung (2026-11-20, Plan
+  [`plans/2026-11-20-upload-ort-und-erschliessung.md`](plans/2026-11-20-upload-ort-und-erschliessung.md),
+  Notiz `aenderungen/2026-11-20-upload-ort-und-erschliessung.md`), offen nach P1–P7:**
+  - **„Gliederungsdatei behalten oder aus WLO löschen?“** am Ende von „Themenbaum erstellen“ (UO-7):
+    wartet auf ein MCP-Werkzeug, das eigene, von der Person angelegte Inhalte im persönlichen Bereich
+    löscht (serverseitig geprüft). Wunsch an den MCP-Entwickler:
+    [`mcp-rueckmeldung-2026-11-20-loeschen-und-umwandlung.md`](mcp-rueckmeldung-2026-11-20-loeschen-und-umwandlung.md) §1.
+    Bis dahin bleibt eine in WLO abgelegte Gliederung (Lehrplan) als Inhalt im persönlichen Bereich.
+    Der Ablauf-Ausschluss von `wlo_delete_content` (R-E1, §1 „Paket S“) wäre dafür neu zu entscheiden.
+  - **E15 Umwandlungs-Flow** (Markdown mit Gliederung für Strukturdokumente, Ausgabe als Datei/Text):
+    Wunsch an die Flow-Autoren, dieselbe Rückmeldung §2. Die Stelle ist vorbereitet — ein Flow am
+    Auftragsschritt des Ablaufs, kein Code.
+  - **Häkchen im freien Chat — gewollt kein Verbraucher:** Im freien Chat zeigt `ui_upload` kein Häkchen
+    „Metadaten von WLO erzeugen lassen“ und hält `ablage.erschliessen` nicht fest (Entscheid zu Review
+    P2, Befund 1); eine Ablage im freien Chat bindet keinen Lauf und erschließt nie ohne Freigabe-Box.
+    Soll der freie Chat einmal erschließen, braucht es dort einen Verbraucher (eigener Entscheid).
+  - **„Anmelden“ am ausgegrauten Ort WLO:** Das Modul nennt den Konto-Knopf der Eingabezeile; ein
+    eigener Anmelde-Knopf bräuchte eine Host-Aktion im `ElementHost`, die es nicht gibt.
+  - **Titel überschrieben durch `node-metadata-write`:** angenommen; der Hinweis am Häkchen sagt es
+    vorher („der Dateiname bleibt nicht der Titel“). Vorschlag an den Flow-Autor bleibt
+    ([`mcp-rueckmeldung-2026-11-20-volltext-status.md`](mcp-rueckmeldung-2026-11-20-volltext-status.md) §4).
+  - **Durchtest im Browser** (Plan §5 Abnahme, Wegwerf-DB mit Anmelde- und MCP-Attrappe: Lehrplan →
+    WLO mit Häkchen → Flow ohne Box → Volltext → Entwurf; ohne Häkchen; Chat; fremde Knoten → Box;
+    freier Chat angemeldet → Chat vorgewählt) steht aus; die Pakete sind mit Unit-, Spec- und
+    E2E-Tests abgedeckt.
+  - **Marke `ablage.aufrufer`** bleibt ein Streuwert ohne Geheimnis (Entscheid 20.11. zu Befund 2 des
+    zweiten Reviews P3; der Vorgang trägt den Besitzer ohnehin im Klartext).
+
 - **Flow `node-metadata-write` scheitert für md (FLOW_FAILED), an Flow-Autor/MCP gemeldet; Chatbot
   schließt md/txt bis dahin aus** (Durchtest Paket K, 19.11., Notiz
   `aenderungen/2026-11-18-paket-k-kestra-ueber-mcp.md`). Ein Job mit einem Markdown-Knoten endet als
@@ -401,6 +429,19 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   Statuszeile gesetzt hat. Eigenes Debug-Paket (`/better-coding-debug`).
 
 ## 4 Beim nächsten Deploy
+
+- **Upload-Ort und Erschließung (2026-11-20, P1–P7):** keine Migration, keine neue Variable, keine
+  MCP-Änderung. Image neu bauen (Backend mit Seeds, Studio, Widget und Modul-Bündel; Budget
+  `ui-upload` 26 kB), danach Hard-Reload. Werksfassungen ändern sich (`06-ablaeufe/themenbaum`:
+  `metadaten_frage` → `erschliessen_weg`, `zustimmung: upload`, Schritt-Daten der Upload-Felder;
+  `01-base/upload-config`: `vorauswahl`) → Werksabgleich in ruhiger Zeit; im Studio angepasste
+  Fassungen bleiben (mit Rückfrage und Box) — dann „Werksfassung verwenden“. Neues Studio-Feld
+  „Vorgewählter Ort im freien Chat“ (Vorgabe Chat, auch angemeldet). **Verhalten:** keine Rückfrage
+  vor Kestra auf den Upload-Wegen, der Klick „In WLO ablegen und erschließen“ ist die Zustimmung (nur
+  für frisch abgelegte Knoten dieses Uploads, sonst Box); auch Lehrpläne werden in WLO erschlossen.
+  Eigene Abläufe nach dem Deploy im Studio prüfen (neue Befunde `zustimmung_upload`,
+  `ablage_reserviert`, `knopf_nichtssagend`, `dienst_daten_wert`). Einzelheiten
+  `uebergabe-betrieb.md` §15 und `aenderungen/2026-11-20-upload-ort-und-erschliessung.md`.
 
 - **Paket G1 (2026-11-20, Werks-Seeds bereinigt):** keine Migration, keine neue Variable; Image neu
   bauen (Backend mit neuem Seed, Studio-Text „Werksabgleich“). Der `migrate`-Dienst entfernt die vier
@@ -943,7 +984,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   (99,3 %), gzip 202,0 von 210 kB (über der Warnung ab 200). Vor dem nächsten UI-Paket, das das
   Hauptbündel wachsen lässt, einen Nachlade-Kandidaten bestimmen und messen — z. B.
   `shell/meine-vorgaenge.component.ts` (nur angemeldet und erst auf Klick gebraucht), nach dem
-  Muster des Debug-Panels (Paket BU-3). Nicht im Paket D umgebaut.
+  Muster des Debug-Panels (Paket BU-3). Nicht im Paket D umgebaut. **Stand 20.11. nach „Upload-Ort und
+  Erschließung“ (P2): weiter offen** — der Build warnt mit 202,26 kB gzip (> 200 kB) und 696 kB roh
+  (> 660 kB, Angular-Warnung); das Paket änderte nur das nachgeladene `ui-upload` (eigene Grenze, jetzt
+  26 kB), nicht das Hauptbündel.
 
 ## 6 Zurückgestellte Plan-Teile
 

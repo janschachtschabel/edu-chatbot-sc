@@ -17,13 +17,16 @@ from boerdi.ui_module.namen import UPLOAD
 @pytest.fixture
 def lage(monkeypatch):
     """Studio, Anmeldung, Stapel-Ablage des MCP und Flow-Träger — je Test einstellbar."""
-    werte = {"cfg": UploadSettings(), "person": True, "ablage": True, "flow": True, "ocr": False}
+    werte = {"cfg": UploadSettings(), "person": True, "ablage": True, "flow": True, "ocr": False,
+             "flow_grund": "dienst_nicht_erreichbar"}
     # Paket C: die Texterkennung prüfen ihre eigenen Tests (``test_paket_c_ocr_orte``)
     monkeypatch.setattr(upload_orte, "_texterkennung", lambda cfg: werte["ocr"])
     monkeypatch.setattr(upload_orte, "load_upload_config", lambda: werte["cfg"])
     monkeypatch.setattr(upload_orte, "has_personal_auth", lambda: werte["person"])
     monkeypatch.setattr(upload_orte, "_ablage_da", lambda: werte["ablage"])
     monkeypatch.setattr(upload_orte, "_flow_da", lambda: werte["flow"])
+    # Review P2, Befund 3: der Grund ohne Flow (eigener Test in ``test_p2_review_befunde``)
+    monkeypatch.setattr(upload_orte, "_ohne_flow_grund", lambda: werte["flow_grund"])
     # Durchtest U8: ob die Anmeldung hilft, prüft ein eigener Weg (ohne Starter dieses Zuges)
     monkeypatch.setattr(upload_orte, "_flow_nach_anmeldung", lambda: werte["flow"])
     return werte
@@ -40,7 +43,8 @@ def test_angemeldet_mit_flow_traeger_ist_wlo_vorgewaehlt(lage):
 def test_angemeldet_ohne_flow_traeger_wlo_nur_ablage_mit_hinweis_chat_vorgewaehlt(lage):
     lage["flow"] = False
     o = upload_orte.orte()
-    assert o["wlo"] == {"geht": True, "hinweis": "ohne_erschliessung"}
+    assert o["wlo"] == {"geht": True, "hinweis": "ohne_erschliessung",
+                        "grund_erschliessung": "dienst_nicht_erreichbar"}
     assert o["vorauswahl"] == "chat"
 
 
@@ -99,7 +103,9 @@ def _manifest() -> dict:
 def test_der_dienst_liefert_orte_und_grenzen(lage):
     erg = asyncio.run(dienst.aufruf(_manifest(), {"zweck": "bereitstellen"}, Umgebung()))
     d = erg.block.daten
-    assert d["orte"]["vorauswahl"] == "wlo"
+    # Plan 2026-11-20, P2 (UO-5): im freien Chat wählt das Studio vor — ab Werk ``chat``, auch
+    # angemeldet mit Flow (vorher ``wlo``; die Regel ``auto`` prüft ``test_p2_ort_vorauswahl``)
+    assert d["orte"]["vorauswahl"] == "chat"
     assert d["grenzen"]["lokal_max_dateien"] == 10 and d["grenzen"]["lokal_max_mb_gesamt"] == 50
     assert d["grenzen"]["lokal_max_mb_datei"] == 10
     # Teil b: die Frist „Hier im Chat“ für die Erklärzeile (Studio ``aufbewahrung_h``)
@@ -109,7 +115,9 @@ def test_der_dienst_liefert_orte_und_grenzen(lage):
 def test_orte_vom_ablauf_wirken_nur_aus_dem_ablauf(lage):
     args = {"zweck": "bereitstellen", "orte": ["namen"]}
     frei = asyncio.run(dienst.aufruf(_manifest(), args, Umgebung()))
-    assert frei.block.daten["orte"]["vorauswahl"] == "wlo"
+    # P2: frei gilt die Vorauswahl des Studios (``chat``) — die Einschränkung wirkt nicht
+    assert frei.block.daten["orte"]["vorauswahl"] == "chat"
+    assert frei.block.daten["orte"]["wlo"] == {"geht": True}
     ablauf = asyncio.run(dienst.aufruf(_manifest(), args, Umgebung(aus_ablauf=True)))
     assert ablauf.block.daten["orte"]["vorauswahl"] == "namen"
 

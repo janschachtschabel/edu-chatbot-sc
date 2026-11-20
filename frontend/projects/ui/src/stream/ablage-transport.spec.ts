@@ -65,6 +65,15 @@ describe('ablageSenden', () => {
     await expect(lauf).resolves.toMatchObject({ batch_token: 'tok-1234567890' });
   });
 
+  // Plan 2026-11-20, P2: das Häkchen „Metadaten von WLO erzeugen lassen“ reist mit dem Vorbereiten
+  it('vorbereiten trägt `erschliessen`, wenn das Modul es setzt', async () => {
+    const lauf = senden({ schritt: 'vorbereiten', ordner: 'P', erschliessen: false,
+      eintraege: [{ titel: 'M', sha256: 'a'.repeat(64), groesse: 5, art: 'pdf' }] });
+    expect(JSON.parse(Xhr.letzte.rumpf as string)).toMatchObject({ ordner: 'P', erschliessen: false });
+    Xhr.letzte.antworte(200, { batch_token: 'tok-1234567890', eintraege: [] });
+    await lauf;
+  });
+
   it('eine Datei geht als multipart und meldet den Fortschritt', async () => {
     const fortschritt: number[] = [];
     const datei = new File(['%PDF-'], 'Mechanik.pdf', { type: 'application/pdf' });

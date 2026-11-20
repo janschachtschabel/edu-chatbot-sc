@@ -22,7 +22,7 @@ from boerdi.domain.ui_bloecke import neuer_block
 from boerdi.services.config_loader.upload import load_upload_config
 from boerdi.services.mcp import faehigkeiten
 from boerdi.services.mcp.auth import has_personal_auth
-from boerdi.ui_module import katalog, upload_orte
+from boerdi.ui_module import katalog, rollen, upload_orte
 from boerdi.ui_module.datenquelle import Ergebnis
 from boerdi.ui_module.katalog import Manifest
 
@@ -72,9 +72,11 @@ def nicht_gelesen_satz() -> str:
     # Moduls kann der Knopf gefehlt haben (alte Vorgabe, Anmeldung dazwischen); darum nicht
     # behaupten, sie habe ihn übergangen. Plan 2026-11-16, TG-2: neutral, der Knopf hat kein Ziel;
     # Review M3 (d): das Feld erst auf Wunsch zeigen (wie „Entwirf nichts ungefragt“).
-    # Paket U4, Teil b: „Lesen lassen“ gibt es nicht mehr — die Knöpfe heißen wie im Feld.
+    # Paket U4, Teil b: „Lesen lassen“ gibt es nicht mehr — die Knöpfe heißen wie im Feld
+    # (Plan 2026-11-20, P2: Ort „Nur hier im Chat lesen“, Knopf „Hier lesen“).
     return ("Das Strukturdokument wurde NICHT gelesen. Braucht die Person seinen Inhalt, sag ihr, "
-            "dass sie es im Auswahlfeld mit „Hier im Chat“ und „Hochladen“ lesen lassen kann; "
+            "dass sie es im Auswahlfeld mit „Nur hier im Chat lesen“ und „Hier lesen“ lesen "
+            "lassen kann; "
             "zeige ui_upload dafür erst, wenn sie das will.")
 
 
@@ -123,24 +125,48 @@ async def upload_angebot(manifest: Manifest, args: dict[str, Any], umgebung: Umg
         grenzen["lokal_frei_dateien"], grenzen["lokal_frei_mb"] = rest
         voll = rest[0] == 0 or rest[1] == 0
     # E13: die Orte stehen neben ``schalter`` (der bleibt ein Satz von Wahrheitswerten);
-    # einschränken darf sie nur ein Ablauf (wie ``einzeldatei_als_struktur``)
+    # einschränken darf sie nur ein Ablauf — wie alle Schritt-Vorgaben (Review TW-6, Befund 7: die
+    # KI sieht die Felder, sie wirken nicht)
+    vorgaben = _schritt_vorgaben(args, cfg) if umgebung.aus_ablauf else _chat_vorgaben(cfg)
     orte_arg = args.get("orte")
     erlaubt = orte_arg if umgebung.aus_ablauf and isinstance(orte_arg, list) else None
     daten: dict[str, Any] = {"zweck": args["zweck"], "grenzen": grenzen, "schalter": schalter(),
-                             "orte": upload_orte.orte(erlaubt, voll=voll)}
+                             "orte": upload_orte.orte(erlaubt, voll=voll,
+                                                      vorzug=vorgaben["vorauswahl"]),
+                             "rolle_vorgabe": vorgaben["rolle_vorgabe"]}
+    if "erschliessen" in vorgaben:
+        daten["erschliessen"] = vorgaben["erschliessen"]
     if hinweis := " ".join(str(args.get("hinweis") or "").split()):
         daten["hinweis"] = hinweis[:300]
-    # Review 12.11., Befund 1: nur der Dokument-Ablauf will eine Einzeldatei als Strukturdokument —
-    # und nur aus dem Ablauf heraus (Review TW-6, Befund 7: die KI sieht das Feld, es wirkt nicht)
-    if args.get("einzeldatei_als_struktur") is True and umgebung.aus_ablauf:
-        daten["einzeldatei_als_struktur"] = True
     if katalog.daten_fehler(manifest, daten):
         return Ergebnis(None, FEHLER, ToolOutcome(tool=modul, status="error", error="abweichung"))
     block = neuer_block(modul, manifest["version"], manifest["art"], daten, TEXTFASSUNG)
     schalter_ = daten["schalter"]
-    return Ergebnis(block, QUITTUNG + _was_geht(schalter_) + _ablage_satz(
-        schalter_, dokument=daten.get("einzeldatei_als_struktur") is True),
+    return Ergebnis(block, QUITTUNG + _was_geht(schalter_)
+                    + _ablage_satz(schalter_, daten.get("erschliessen")),
                     ToolOutcome(tool=modul, status="success", item_count=1))
+
+
+def _chat_vorgaben(cfg: Any) -> dict[str, Any]:
+    """Plan 2026-11-20, P2 (UO-5): im freien Chat wählt das Studio den Ort vor (Vorgabe ``chat``,
+    auch angemeldet); Rollen nach der Regel des Moduls. Review P2, Befund 1: kein Häkchen — im
+    freien Chat nutzt niemand ``ablage.erschliessen``, WLO legt nur ab."""
+    return {"vorauswahl": cfg.vorauswahl, "rolle_vorgabe": "auto"}
+
+
+def _schritt_vorgaben(args: dict[str, Any], cfg: Any) -> dict[str, Any]:
+    """P2: die Vorgaben eines Ablauf-Schritts — ``vorauswahl`` (Vorgabe ``auto``, nicht das
+    Studio), ``rolle_vorgabe`` (``einzeldatei_als_struktur: true`` heißt ``gliederung``) und
+    ``erschliessen``. Review P2, Befund 1: das Häkchen nur, wenn der Schritt ``erschliessen``
+    ausdrücklich setzt (der Ablauf nutzt es danach, P3 ``zustimmung: upload``) — dann mit diesem
+    Wert als Vorgabe; ohne Angabe kein Häkchen."""
+    vorzug = args.get("vorauswahl")
+    vorgaben: dict[str, Any] = {
+        "vorauswahl": vorzug if vorzug in upload_orte.VORZUEGE else "auto",
+        "rolle_vorgabe": rollen.vorgabe(args)}
+    if isinstance(erschliessen := args.get("erschliessen"), bool):
+        vorgaben["erschliessen"] = erschliessen
+    return vorgaben
 
 
 async def _rest_der_sitzung(umgebung: Umgebung, cfg: Any) -> tuple[int, float] | None:
@@ -157,22 +183,25 @@ async def _rest_der_sitzung(umgebung: Umgebung, cfg: Any) -> tuple[int, float] |
     return max(0, cfg.lokal_max_dateien - anzahl), frei_mb
 
 
-def _ablage_satz(schalter: dict[str, bool], *, dokument: bool = False) -> str:
+def _ablage_satz(schalter: dict[str, bool], haken: bool | None = None) -> str:
     """Rückmeldung 16.11. (Review m5): die Ablage ist ab Werk an — die KI soll sie nicht verneinen
-    und die Voraussetzung kennen. ``dokument`` (Plan 2026-11-20 §8, E3; Review Paket E, MINOR 8):
-    auf dem Dokument-Weg läuft nach der Ablage kein Flow — keine Metadaten versprechen."""
-    if schalter.get("ablage_in_wlo") and dokument:
-        return (" Die Person kann das Dokument im Feld in ihrem persönlichen Bereich in WLO "
-                "ablegen; dort liest der Chat danach den Text. Metadaten entstehen auf diesem Weg "
-                "nicht — versprich keine.")
+    und die Voraussetzung kennen. Plan 2026-11-20, P2: auch auf dem Dokument-Weg (Rollen-Vorgabe
+    ``gliederung``) derselbe Satz. Review P2, Befund 1: ``haken`` ist die Vorgabe des Schritts
+    (``None``: kein Häkchen) — ohne Häkchen legt das Feld nur ab, und die KI verspricht keine
+    Metadaten."""
     if schalter.get("ablage_in_wlo"):
+        satz = (" Die Person kann die erfassten Dateien im Feld in ihren persönlichen Bereich in "
+                "WLO übertragen")
+        if haken is None:
+            return satz + (" (nur ablegen); dort entstehen Volltexte. Metadaten erzeugt WLO dabei "
+                           "nicht — versprich keine.")
         # Paket K3: Metadaten erzeugt ein Flow — nur, wenn ein Träger ihn starten kann (der MCP).
         # Die Ablage selbst hängt nicht daran.
         from boerdi.services.ablauf import zug_basis
 
-        satz = (" Die Person kann die erfassten Dateien im Feld in ihren persönlichen Bereich in "
-                "WLO übertragen; dort entstehen Volltexte")
-        return satz + (" und auf Wunsch Metadaten." if zug_basis.wlo_erschliessen() else
+        satz += "; dort entstehen Volltexte"
+        return satz + (" und, wenn sie das Häkchen „Metadaten von WLO erzeugen lassen“ setzt, "
+                       "Metadaten." if zug_basis.wlo_erschliessen() else
                        ". Metadaten erzeugen geht hier gerade nicht — versprich keine.")
     if schalter.get("ablage_nach_anmeldung"):
         return " Nach WLO übertragen kann sie die Dateien, wenn sie bei WLO angemeldet ist."

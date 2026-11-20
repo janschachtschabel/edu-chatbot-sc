@@ -515,3 +515,110 @@ def test_review_u4_in_wlo_nur_wenn_der_ablauf_es_erlaubt(client, lage):
     lage.entities = {OFFENE_FRAGE: {"block_id": _BLOCK, "modul": UPLOAD, "orte": ["chat", "namen"]}}
     r = _vorbereiten(client)
     assert (r.status_code, r.json()["detail"]) == (403, "ort_nicht_erlaubt")
+
+
+# ── Plan 2026-11-20, P2: das Häkchen „Metadaten von WLO erzeugen lassen“ ─────────────────────────
+
+@pytest.mark.parametrize(("gesendet", "flow", "erwartet"), [
+    ({"erschliessen": True}, True, True),
+    ({"erschliessen": True}, False, False),   # ohne Flow-Träger nie gesetzt
+    ({"erschliessen": False}, True, False),
+    ({}, True, False),                        # ein älteres Widget schickt nichts → aus
+])
+def test_p2_erschliessen_steht_im_teil_nur_mit_flow(client, lage, monkeypatch, gesendet, flow,
+                                                    erwartet):
+    from boerdi.ui_module import upload_orte
+
+    monkeypatch.setattr(upload_orte, "_flow_da", lambda: flow)
+    _mit_haekchen(lage)
+    r = _vorbereiten(client, **gesendet)
+    assert r.status_code == 200, r.text
+    assert lage.teil["erschliessen"] is erwartet
+    # die Oberfläche beschriftet den letzten Klick danach, was der Server festhielt
+    assert r.json()["erschliessen"] is erwartet
+
+
+def _mit_haekchen(lage) -> None:
+    """Der offene Upload-Block zeigt das Häkchen — der Schritt setzt ``erschliessen`` ausdrücklich
+    (``upload_antwort.merken``)."""
+    lage.entities[OFFENE_FRAGE]["haekchen"] = True
+
+
+def test_p3_review_ohne_haekchen_im_block_haelt_der_teil_kein_erschliessen(client, lage,
+                                                                         monkeypatch):
+    """Review P3 (Koordinator): zeigt der offene Block kein Häkchen (der Schritt setzt
+    ``erschliessen`` nicht, freier Chat), hält der Server ``erschliessen`` nie fest — auch wenn
+    die Anfrage es schickt."""
+    from boerdi.ui_module import upload_orte
+
+    monkeypatch.setattr(upload_orte, "_flow_da", lambda: True)
+    r = _vorbereiten(client, erschliessen=True)
+    assert r.status_code == 200, r.text
+    assert lage.teil["erschliessen"] is False and r.json()["erschliessen"] is False
+
+
+def test_p2_erschliessen_nimmt_nur_wahrheitswerte(client, lage):
+    r = _vorbereiten(client, erschliessen="ja")
+    assert r.status_code == 422
+    assert lage.mcp == []
+
+
+# ── Plan 2026-11-20, P3: worauf sich die Zustimmung durch den Upload verlässt ───────────────────
+
+def test_p3_erschliessen_und_neu_bleiben_ueber_datei_und_abschluss(client, lage, monkeypatch):
+    from boerdi.ui_module import upload_orte
+
+    monkeypatch.setattr(upload_orte, "_flow_da", lambda: True)
+    _mit_haekchen(lage)
+    assert _vorbereiten(client, erschliessen=True).status_code == 200
+    assert lage.teil["erschliessen"] is True and lage.teil["aufrufer"] is not None
+    assert [e.get("neu") for e in lage.teil["inhalte"]] == [None, None]     # noch nichts abgelegt
+    assert _datei(client, 0).status_code == 200
+    lage.ablegen = {"status": "stored", "nodeId": "n-1", "already": True}
+    assert _datei(client, 1).status_code == 200
+    r = client.post("/api/ui/ablage/abschluss", json={"session_id": _SITZUNG, "block_id": _BLOCK,
+                                                      "batch_token": _TOKEN})
+    assert r.status_code == 200
+    assert lage.teil["erschliessen"] is True and lage.teil["abgeschlossen"] is True
+    # Review P3, Befund 5 (Entscheid 20.11.): ``already`` kommt nur unter demselben Stapel-
+    # Schlüssel — der Knoten stammt auch von diesem Upload, also neu
+    assert [(e["stand"], e["neu"]) for e in lage.teil["inhalte"]] == [("stored", True),
+                                                                     ("stored", True)]
+
+
+def test_p3_ein_zweites_vorbereiten_ohne_haekchen_aendert_den_offenen_stapel_nicht(
+        client, lage, monkeypatch):
+    from boerdi.ui_module import upload_orte
+
+    monkeypatch.setattr(upload_orte, "_flow_da", lambda: True)
+    _mit_haekchen(lage)
+    _vorbereiten(client, erschliessen=True)
+    _datei(client, 0)
+    lage.plan = {**_PLAN, "batchToken": "tok-zweiter-stapel.0123456789"}
+    r = _vorbereiten(client, erschliessen=False)
+    assert (r.status_code, r.json()["detail"]) == (409, "stapel_offen")
+    assert lage.teil["erschliessen"] is True
+    assert lage.teil["token_kuerzel"] == vorgang_teil.kuerzel(_TOKEN)
+
+
+# ── Review P4 (20.11.), MAJOR 1: die Ablage zählt für den Ablauf erst, wenn etwas abgelegt ist ──
+
+def test_review_p4_vorbereiten_allein_markiert_keine_ablage(client, lage):
+    """``/vorbereiten`` schreibt den Teil (alles ``offen``) schon für die Vorschau — bricht die
+    Person dort ab und liest hier im Chat, darf der Ablauf das nicht für eine WLO-Ablage halten."""
+    assert _vorbereiten(client).status_code == 200
+    assert lage.teil["block_id"] == _BLOCK
+    assert vorgang_teil.ABGELEGT not in lage.teil
+
+
+def test_review_p4_eine_gescheiterte_datei_markiert_keine_ablage(client, lage):
+    _vorbereiten(client)
+    lage.ablegen = {"status": "failed"}
+    assert _datei(client, 0).status_code == 200
+    assert vorgang_teil.ABGELEGT not in lage.teil
+
+
+def test_review_p4_die_erste_abgelegte_datei_markiert_den_block(client, lage):
+    _vorbereiten(client)
+    assert _datei(client, 0).status_code == 200
+    assert lage.teil[vorgang_teil.ABGELEGT] == _BLOCK

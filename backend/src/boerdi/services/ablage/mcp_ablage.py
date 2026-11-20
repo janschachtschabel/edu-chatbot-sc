@@ -124,12 +124,14 @@ async def _werkzeug(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
 #: W4 (MCP-Stand 2026-11-08): die Rolle je Eintrag im Wortschatz des Servers. Ein Server vor W4
 #: verwirft das unbekannte Feld still (zod ohne ``strict``).
-_ROLLEN: Final = {"struktur": "structure", "inhalt": "content"}
+#: P1 (Plan 2026-11-20): ``beides`` liest das MCP als Strukturdokument; dass es auch Inhalt ist,
+#: steht nur im Teil ``ablage`` (``vorgang_teil``).
+_ROLLEN: Final = {"struktur": "structure", "inhalt": "content", "beides": "structure"}
 
 
 async def vorbereiten(ordner: str, eintraege: list[dict[str, Any]]) -> dict[str, Any]:
     """Plan an das MCP (``eintraege``: ``titel``, ``sha256``, ``groesse``, ``art``, ``rolle``
-    (``inhalt`` | ``struktur``, Vorgabe ``inhalt``)) → Vorschau + ``batchToken``."""
+    (``inhalt`` | ``struktur`` | ``beides``, Vorgabe ``inhalt``)) → Vorschau + ``batchToken``."""
     daten = await _werkzeug("wlo_prepare_file_batch", {
         "target": "home", "folderName": ordner,
         "entries": [{"title": e["titel"], "sha256": e["sha256"], "size": e["groesse"],

@@ -76,10 +76,15 @@ def test_der_flow_bekommt_inhalte_und_strukturdokumente():
     assert aufloesen(_ABLAGE, node_ids) == [_INHALT, _STRUKTUR]
 
 
-def test_die_rueckfrage_nennt_die_strukturdokumente():
-    frage = next(s for s in _SEED.schritte if s.id == "metadaten_frage")
-    assert "Strukturdokument" in frage.text["de"]
-    assert "structure document" in frage.text["en"]
+def test_der_dokument_weg_sagt_dass_wlo_die_gliederung_beschreibt():
+    """Plan 2026-11-20, P4 (UO-3/UO-6): die Rückfrage „… auch für Strukturdokumente?“ entfiel — die
+    Zustimmung ist der Klick „In WLO ablegen und erschließen“. Darum sagt schon der Schritt mit dem
+    Lehrplan (Rolle Gliederung), dass WLO ihn beschreibt; das Feld zeigt das Häkchen dazu."""
+    feld = next(s for s in _SEED.schritte if s.id == "dokument_laden")
+    assert feld.daten["rolle_vorgabe"] == "gliederung" and feld.daten["erschliessen"] is True
+    assert "„In WLO ablegen und erschließen“" in feld.text["de"]
+    assert "WLO es beschreiben" in feld.text["de"]
+    assert "WLO describe it" in feld.text["en"]
 
 
 # ── Vorbelegung aus den Strukturdokumenten ───────────────────────────────────────────────────────

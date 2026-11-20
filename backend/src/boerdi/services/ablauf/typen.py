@@ -72,6 +72,11 @@ BEREIT: Final = "wlo.bereit@1"
 #: sie nicht verwerfen (``verwirft``): die Knoten blieben, nur der Weg zu ihnen ginge verloren.
 #: Erweiterbar, wenn ein weiterer Teil Kennungen des Repositoriums trägt.
 NICHT_VERWERFBAR: Final = frozenset({"ablage"})
+#: Plan 2026-11-20, Review P3, Befund 6: Teile, die nur der Server schreibt (``ablage`` beim Ablegen
+#: über ``/api/ui/ablage``) — ``upload_zustimmung`` nimmt sie als Nachweis. Kein Schritt darf sie
+#: über ``schreibt``, ``ausgabe`` oder einen Freitext füllen (die übrigen :data:`MODUL_TEILE`
+#: schon: ``draft`` schreiben Werkzeuge und KI-Schritte der Werks-Abläufe).
+NUR_VOM_SERVER: Final = frozenset({"ablage"})
 #: Plan 2026-11-16, Review TG-3a–c, R3-5: Teile, die dieselben Daten in zwei Formen tragen (die alte
 #: Sicht und die neue). Wer den einen verwirft, verwirft den anderen mit — sonst bliebe die
 #: abgelehnte Auswahl in der anderen Form liegen (``treiber.weiter_wahl``, Simulation ebenso).

@@ -8,8 +8,13 @@
  * in die Gruppe auf den gewählten Ort, gesperrte überspringt der Browser — ohne eigenes Tastaturmuster.
  * Den gewählten Chip zeigt der Radiokreis und eine Umrandung, nicht nur eine Farbe. Fremdtext steht
  * hier nicht; die Knoten baut das Element (`knoten`), damit Gestalt und Fokus-Schlüssel gleich sind.
+ *
+ * Plan 2026-11-20, P2 (UO-2): unter dem gewählten Ort WLO das Häkchen „Metadaten von WLO erzeugen lassen“
+ * (ein echtes Kontrollkästchen mit Label, die Hinweiszeile per `aria-describedby`) — nur, wenn der
+ * Metadaten-Flow da ist; sonst heißt der Ort „In WLO ablegen“ und nennt den Grund. Review P2, Befund 1: nur, wenn der
+ * Ablauf-Schritt das Häkchen vorsieht (`hakenVorgesehen`) — ohne das heißt der Ort „In WLO ablegen“, nur ablegen.
  */
-import type { LokaleGrenzen, Orte, OrtStand } from './upload-orte';
+import { flowDa, type LokaleGrenzen, type Orte, type OrtStand } from './upload-orte';
 import type { UploadTexte } from './upload-texte';
 import { MAX_STAPEL } from './upload-uebertragen';
 
@@ -29,6 +34,10 @@ export interface OrteAnsicht {
   readonly ausgelassenWlo: string;
   /** Die Wahl ruht (ein Zug läuft). */
   readonly gesperrt: boolean;
+  /** P2: ist das Häkchen „Metadaten von WLO erzeugen lassen“ gesetzt (Wahl der Person, sonst die Vorgabe)? */
+  readonly erschliessen: boolean;
+  /** Review P2, Befund 1: sieht der Ablauf-Schritt das Häkchen vor (`erschliessen` in den Daten)? */
+  readonly hakenVorgesehen: boolean;
   knoten<K extends keyof HTMLElementTagNameMap>(tag: K, klasse?: string, text?: string): HTMLElementTagNameMap[K];
 }
 
@@ -51,23 +60,32 @@ function grenzSatz(t: UploadTexte, g: LokaleGrenzen, grenze: OrtStand['grenze'])
   return t.zuVieleHier(g.maxDateien);
 }
 
-/** Plan 2026-11-20 §8, E3: folgt der Ablage keine Erschließung (Dokument-Weg, kein Flow-Träger)? */
-function ohneErschliessung(orte: Orte): boolean {
-  return orte.nurAblegen === true || orte.wlo.hinweis === 'ohne_erschliessung';
+/** Der Name eines Orts — „erschließen“ nur, wenn der Ablauf-Schritt das Häkchen vorsieht (Review P2, Befund 1)
+ *  und danach ein Flow die Angaben erzeugen kann (P2: der alte Schlüssel `einzeldatei_als_struktur` schaltet das
+ *  nicht mehr ab). Gesperrt (ohne Anmeldung) zählt nur der Schritt. */
+export function ortName(t: UploadTexte, orte: Orte, ort: 'chat' | 'wlo', vorgesehen: boolean): string {
+  if (ort === 'chat') return t.ort.chat;
+  return vorgesehen && orte.wlo.hinweis !== 'ohne_erschliessung' ? t.ort.wlo : t.ortWloAblegen;
 }
 
-/** Der Name eines Orts — „erschließen“ nur, wenn danach ein Flow die Angaben erzeugt (E3). */
-export function ortName(t: UploadTexte, orte: Orte, ort: 'chat' | 'wlo'): string {
-  return ort === 'wlo' && ohneErschliessung(orte) ? t.ortWloAblegen : t.ort[ort];
+/** Review P2, Befund 1: gibt es das Häkchen hier — vom Schritt vorgesehen und der Metadaten-Flow da? */
+function mitHaken(a: Pick<OrteAnsicht, 'orte' | 'hakenVorgesehen'>): boolean {
+  return a.hakenVorgesehen && flowDa(a.orte.wlo);
 }
 
 /** Die Erklärzeile eines Orts: was er tut — oder, gesperrt, warum nicht. */
-export function erklaerung(a: Pick<OrteAnsicht, 't' | 'grenzen' | 'ohneAnmeldung' | 'orte'>, ort: 'chat' | 'wlo', s: OrtStand): string {
+export function erklaerung(
+  a: Pick<OrteAnsicht, 't' | 'grenzen' | 'ohneAnmeldung' | 'erschliessen' | 'hakenVorgesehen'>, ort: 'chat' | 'wlo', s: OrtStand,
+): string {
   const { t, grenzen: g } = a;
   if (s.geht) {
-    if (ort === 'chat') return t.erklaerChat(Math.min(g.maxDateien, g.freiDateien ?? Infinity), g.aufbewahrungH, a.ohneAnmeldung);
-    if (a.orte.nurAblegen) return t.erklaerWloDokument;
-    return s.hinweis === 'ohne_erschliessung' ? t.erklaerWloOhne : t.erklaerWlo;
+    if (ort === 'chat') {
+      return t.erklaerChat(Math.min(g.maxDateien, g.freiDateien ?? Infinity), g.aufbewahrungH, a.ohneAnmeldung, s.texterkennung === true);
+    }
+    // ohne Häkchen im Schritt nur ablegen — dann ist der fehlende Flow kein Thema (Review P2, Befund 1)
+    if (!a.hakenVorgesehen) return t.erklaerWlo(false);
+    if (s.hinweis === 'ohne_erschliessung') return t.erklaerWloOhne(s.grund_erschliessung ? t.ohneFlow[s.grund_erschliessung] : null);
+    return t.erklaerWlo(a.erschliessen);
   }
   let grund: string;
   if (s.grund === 'ueber_grenze' || s.grund === 'ueber_grenze_anmelden') {
@@ -85,17 +103,32 @@ export function erklaerung(a: Pick<OrteAnsicht, 't' | 'grenzen' | 'ohneAnmeldung
   return t.nichtWaehlbar(grund);
 }
 
-/** Der Datenschutz-Satz zum gewählten Ort. */
-export function datenschutzSatz(t: UploadTexte, orte: Orte, wahl: 'chat' | 'wlo' | null, g: LokaleGrenzen): string {
+/** Der Datenschutz-Satz zum gewählten Ort; bei WLO nennt er den Knopf, der wirklich ablegt (P2). `erschliessen`:
+ *  wird wirklich erschlossen — vor der Vorschau Häkchen und Flow, in der Vorschau der Wert des Servers (Review P2,
+ *  Befund 2). */
+export function datenschutzSatz(t: UploadTexte, orte: Orte, wahl: 'chat' | 'wlo' | null, g: LokaleGrenzen, erschliessen: boolean): string {
   if (wahl === 'chat') {
     // Paket C: die Seitenbilder verlassen den Server — das sagt das Feld vor dem Hochladen
     return orte.chat.texterkennung ? `${t.datenschutzChat(g.aufbewahrungH)} ${t.datenschutzOcr}` : t.datenschutzChat(g.aufbewahrungH);
   }
-  if (wahl === 'wlo') {
-    if (orte.nurAblegen) return t.datenschutzWloDokument;
-    return ohneErschliessung(orte) ? t.datenschutzWloOhne : t.datenschutzWlo;
-  }
+  if (wahl === 'wlo') return erschliessen ? t.datenschutzWlo : t.datenschutzWloOhne;
   return t.datenschutz;
+}
+
+/** P2: das Häkchen unter dem Ort WLO, mit seiner Hinweiszeile (sie wechselt mit dem Häkchen). */
+function haken(a: OrteAnsicht): Node[] {
+  const label = a.knoten('label', 'u__haken');
+  const feld = a.knoten('input');
+  feld.type = 'checkbox';
+  feld.checked = a.erschliessen;
+  feld.disabled = a.gesperrt;
+  feld.dataset['erschliessen'] = '';
+  feld.dataset['fokus'] = 'c:erschliessen';
+  feld.setAttribute('aria-describedby', 'u-erschliessen');
+  label.append(feld, a.knoten('span', undefined, a.t.haken));
+  const zeile = a.knoten('p', 'u__erklaer', a.erschliessen ? a.t.hakenHinweis : a.t.hakenAus);
+  zeile.id = 'u-erschliessen';
+  return [label, zeile];
 }
 
 function chip(a: OrteAnsicht, ort: 'chat' | 'wlo'): HTMLElement {
@@ -113,10 +146,11 @@ function chip(a: OrteAnsicht, ort: 'chat' | 'wlo'): HTMLElement {
   radio.dataset['fokus'] = `r:${ort}`;
   const id = `u-ort-${ort}`;
   radio.setAttribute('aria-describedby', id);
-  label.append(radio, a.knoten('span', undefined, ortName(a.t, a.orte, ort)));
+  label.append(radio, a.knoten('span', undefined, ortName(a.t, a.orte, ort, a.hakenVorgesehen)));
   const zeile = a.knoten('p', 'u__erklaer', erklaerung(a, ort, s));
   zeile.id = id;
   huelle.append(label, zeile);
+  if (ort === 'wlo' && an && mitHaken(a)) huelle.append(...haken(a));
   return huelle;
 }
 
@@ -133,6 +167,6 @@ export function orteTeile(a: OrteAnsicht): Node[] {
     teile.push(a.knoten('p', 'u__hinweis', a.t.zuGrossHinweis(a.zuGross, Math.round(a.grenzen.maxBytesDatei / MB))));
   }
   if (a.wahl === 'wlo' && a.ausgelassenWlo) teile.push(a.knoten('p', 'u__hinweis', a.ausgelassenWlo));
-  teile.push(a.knoten('p', 'u__hinweis', datenschutzSatz(a.t, a.orte, a.wahl, a.grenzen)));
+  teile.push(a.knoten('p', 'u__hinweis', datenschutzSatz(a.t, a.orte, a.wahl, a.grenzen, mitHaken(a) && a.erschliessen)));
   return teile;
 }

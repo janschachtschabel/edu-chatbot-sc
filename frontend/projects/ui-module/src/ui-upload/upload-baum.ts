@@ -9,7 +9,7 @@
  * Änderung neu und setzt den Fokus danach wieder auf denselben Schlüssel.
  */
 import type { Erfassung, OrdnerKnoten } from './upload-erfassen';
-import { strukturWaehlbar } from './upload-rollen';
+import { istGliederung, strukturWaehlbar } from './upload-rollen';
 import { groesse, type Sprache, type UploadTexte } from './upload-texte';
 
 export interface BaumSicht<T> {
@@ -48,11 +48,13 @@ function dateiZeile<T>(dok: Document, sicht: BaumSicht<T>, index: number): HTMLL
   auswahl.setAttribute('aria-label', sicht.t.rolleVon(d.name));
   auswahl.dataset['datei'] = String(index);
   auswahl.dataset['fokus'] = `d:${index}`;
-  for (const rolle of ['inhalt', 'struktur', 'ignorieren'] as const) {
+  auswahl.setAttribute('aria-describedby', LEGENDE);
+  // Plan 2026-11-20, P1 (UO-4): Gliederung / Material / beides / nicht verwenden
+  for (const rolle of ['struktur', 'inhalt', 'beides', 'ignorieren'] as const) {
     const o = el(dok, 'option', undefined, sicht.t.rolle[rolle]);
     o.value = rolle;
-    // TG-3e: auch gesperrt, wenn schon fünf andere Strukturdokumente markiert sind
-    o.disabled = rolle === 'struktur' && !strukturWaehlbar(sicht.erfassung, index);
+    // TG-3e: auch gesperrt, wenn schon fünf andere Strukturdokumente markiert sind (P1: mit beides)
+    o.disabled = istGliederung(rolle) && !strukturWaehlbar(sicht.erfassung, index);
     o.selected = d.rolle === rolle;
     auswahl.append(o);
   }
@@ -99,8 +101,14 @@ function ordnerZeile<T>(dok: Document, sicht: BaumSicht<T>, k: OrdnerKnoten): HT
   return li;
 }
 
-export function baueBaum<T>(dok: Document, sicht: BaumSicht<T>): HTMLUListElement {
+/** P1: die Kennung der Legende — jedes Auswahlfeld verweist darauf (`aria-describedby`). */
+const LEGENDE = 'u-legende';
+
+/** Der Baum und darunter die Legende der Rollen (P1: was jede Rolle bewirkt). */
+export function baueBaum<T>(dok: Document, sicht: BaumSicht<T>): HTMLElement[] {
   const ul = el(dok, 'ul', 'u__baum');
   ul.append(ordnerZeile(dok, sicht, sicht.erfassung.wurzel));
-  return ul;
+  const legende = el(dok, 'p', 'u__hinweis', sicht.t.rollenLegende);
+  legende.id = LEGENDE;
+  return [ul, legende];
 }

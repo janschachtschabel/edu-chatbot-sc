@@ -193,7 +193,8 @@ def test_der_rahmen_nennt_zahlen_und_ordner_aber_keine_dateinamen():
     geprueft = _pruefe(_antwort_daten())
     text = antwort.antwort_block(geprueft)
     assert text.startswith("[ORDNER DER PERSON")
-    assert "11 Inhalte" in text and "Lehrplan.pdf" in text
+    # Review P1, MINOR 4: die Zeile zählt Material in den Worten der Rollen-Auswahl
+    assert "11 Dateien als Material" in text and "Lehrplan.pdf" in text
     assert "01_Mechanik (6)" in text
     assert text.rstrip().endswith("[ENDE ORDNER]")
 
@@ -436,8 +437,9 @@ def test_mit_erlaubtem_lesen_verweist_der_rahmen_auf_den_knopf(monkeypatch):
     text = _nicht_gelesen_rahmen(monkeypatch, im_chat=True, ohne=False, person=True)
     assert "NICHT gelesen" in text
     # TG-2: neutral, kein Ziel; Paket U4 (Teil b): die Knöpfe heißen wie im Feld („Lesen lassen“
-    # gibt es nicht mehr); Review M3 (d): das Feld erst zeigen, wenn die Person es will
-    assert "„Hier im Chat“ und „Hochladen“" in text and "Lesen lassen“" not in text
+    # gibt es nicht mehr); Review M3 (d): das Feld erst zeigen, wenn die Person es will.
+    # Plan 2026-11-20, P2: Ort und Knopf heißen jetzt „Nur hier im Chat lesen“ und „Hier lesen“
+    assert "„Nur hier im Chat lesen“ und „Hier lesen“" in text and "Lesen lassen“" not in text
     assert "Strukturdokument erstellen" not in text
     assert "erst, wenn sie das will" in text
 
@@ -558,17 +560,19 @@ def test_ablage_ohne_kennungen_im_schema():
 
 def test_review_1211_einzeldatei_als_struktur_nur_auf_wunsch_des_blocks():
     """Review 12.11., Befund 1: nur der Dokument-Ablauf will eine Einzeldatei als Strukturdokument —
-    das Feld reicht den Wunsch durch, ohne ihn gibt es ihn nicht."""
+    das Feld reicht den Wunsch durch, ohne ihn gibt es ihn nicht. Plan 2026-11-20, P2: der alte
+    Schlüssel kommt als ``rolle_vorgabe: gliederung`` in den Block (er selbst nicht mehr)."""
     ohne = asyncio.run(dienst.aufruf(_manifest(), {"zweck": "sammlungsstruktur"}, Umgebung()))
-    assert "einzeldatei_als_struktur" not in ohne.block.daten
+    assert ohne.block.daten["rolle_vorgabe"] == "auto"
     # Review TW-6, Befund 7: nur aus einem Ablauf-Schritt — die KI sieht das Feld, es wirkt nicht
     von_der_ki = asyncio.run(dienst.aufruf(
         _manifest(), {"zweck": "sammlungsstruktur", "einzeldatei_als_struktur": True}, Umgebung()))
-    assert "einzeldatei_als_struktur" not in von_der_ki.block.daten
+    assert von_der_ki.block.daten["rolle_vorgabe"] == "auto"
     mit = asyncio.run(dienst.aufruf(
         _manifest(), {"zweck": "sammlungsstruktur", "einzeldatei_als_struktur": True},
         Umgebung(aus_ablauf=True)))
-    assert mit.block.daten["einzeldatei_als_struktur"] is True
+    assert mit.block.daten["rolle_vorgabe"] == "gliederung"
+    assert "einzeldatei_als_struktur" not in mit.block.daten
 
 
 # ── Rückmeldung 16.11.: der WLO-Weg ab Werk an ────────────────────────────────────────────────

@@ -1,12 +1,12 @@
 /**
  * „Hier im Chat“ (Plan 2026-11-17, Paket U4) — Regeln ohne DOM. Löst „Lesen lassen“ ab (U3-2c,
  * TG-3e): statt nur Strukturdokumente liest der Chat jetzt jede lesbare Datei der Auswahl, je Datei
- * ein `POST /api/ui/dokumente` mit `rolle` (`inhalt` | `struktur`, über `host.hochladen`). Das
+ * ein `POST /api/ui/dokumente` mit `rolle` (`inhalt` | `struktur` | `beides`, über `host.hochladen`). Das
  * Backend antwortet mit Befund, Rolle und bei Inhalten kurzen Angaben — nie mit dem Text; die
  * Antwort an den Chat trägt davon nur die `upload_id` (Teile rechnet der Server selbst).
  *
  * Antwort: `aktion: "bereitgestellt"` mit `ort: "chat"` und `dateien: [{i, rolle, upload_id}]`;
- * „Nur Namen senden“ mit `ort: "namen"` ohne Dateien.
+ * „Nur die Dateinamen senden“ mit `ort: "namen"` ohne Dateien.
  */
 import type { AblageRolle } from '../_vertrag/modul-host';
 import { antwortDaten, type UploadAntwort } from './upload-antwort';

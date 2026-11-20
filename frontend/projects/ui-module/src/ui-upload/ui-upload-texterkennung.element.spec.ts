@@ -85,7 +85,7 @@ describe('Paket C: Texterkennung im Upload-Feld', () => {
     const h = host();
     h.hochladen.mockResolvedValueOnce(befund(1, ['ocr'])).mockResolvedValueOnce(befund(2));
     const w = await feld([datei('P/scan.pdf'), datei('P/text.pdf')], h);
-    knopf(w, 'Hochladen')!.click();
+    knopf(w, 'Hier lesen')!.click();
     for (let i = 0; i < 5; i++) await warte();
     expect(h.antworten).toHaveBeenCalledTimes(1);
     expect(h.antworten.mock.calls[0][1]).toBe('Hier im Chat bereitgestellt: 2 Dateien, davon 1 per Texterkennung gelesen.');
@@ -97,7 +97,7 @@ describe('Paket C: Texterkennung im Upload-Feld', () => {
     const h = host();
     h.hochladen.mockResolvedValueOnce(befund(1));
     const w = await feld([datei('P/text.pdf')], h);
-    knopf(w, 'Hochladen')!.click();
+    knopf(w, 'Hier lesen')!.click();
     for (let i = 0; i < 5; i++) await warte();
     expect(h.antworten.mock.calls[0][1]).toBe('Hier im Chat bereitgestellt: 1 Datei.');
   });
@@ -111,7 +111,7 @@ describe('Paket C: Texterkennung im Upload-Feld', () => {
       return new Promise((ok) => { fertig = ok; });
     });
     const w = await feldMitUhr([datei('P/scan.pdf')], h);
-    knopf(w, 'Hochladen')!.click();
+    knopf(w, 'Hier lesen')!.click();
     await vi.advanceTimersByTimeAsync(4000);
     expect(w.textContent).not.toContain('Texterkennung');
     await vi.advanceTimersByTimeAsync(1500);
@@ -132,7 +132,7 @@ describe('Paket C: Texterkennung im Upload-Feld', () => {
         return new Promise(() => undefined);
       });
       const w = await feldMitUhr([f], h, d);
-      knopf(w, 'Hochladen')!.click();
+      knopf(w, 'Hier lesen')!.click();
       await vi.advanceTimersByTimeAsync(6000);
       expect(w.textContent).not.toContain('Texterkennung läuft');
       document.body.innerHTML = '';

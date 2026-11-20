@@ -155,11 +155,11 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.modul.label': 'Modul',
     'feld.Schritt.modul.hint': 'Name des UI-Moduls, z. B. ui_upload.',
     'feld.Schritt.daten.label': 'Daten',
-    'feld.Schritt.daten.hint': 'Daten des Moduls (JSON); {"$teil": "name"} liest einen Teil des Vorgangs.',
+    'feld.Schritt.daten.hint': 'Daten des Moduls (JSON); {"$teil": "name"} liest einen Teil des Vorgangs. Nimmt das Modul die Daten als Parameter (etwa ui_upload), stehen diese mit erlaubten Werten darunter, und „Prüfen“ meldet unbekannte Namen und Werte; sonst sind es Blockdaten, die „Prüfen“ mit der Eingabe des Moduls vergleicht.',
     'feld.Schritt.werkzeug.label': 'Werkzeug',
     'feld.Schritt.werkzeug.hint': 'Ein Dienst (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen, bereitgestellt, inhalte_aus_dateien) oder ein WLO-Werkzeug — ein schreibendes nur mit Freigabe.',
     'feld.Schritt.argumente.label': 'Argumente',
-    'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} setzt einen Teil des Vorgangs ein. Eine Auswahl filtert eine Liste und zieht ein Feld heraus: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}. {"$sprache": true} (nur am Auftrag, oberste Ebene) wird die Sprache der Person (de/en).',
+    'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} setzt einen Teil des Vorgangs ein. Eine Auswahl filtert eine Liste und zieht ein Feld heraus: {"$teil": "ablage", "liste": "inhalte", "wo": {"stand": "stored"}, "feld": "node_id"}. {"$sprache": true} (nur am Auftrag, oberste Ebene) wird die Sprache der Person (de/en).',
     'feld.Schritt.schreibt.label': 'Ergebnis als Teil',
     'feld.Schritt.schreibt.hint':
       'Name des Teils, unter dem das Ergebnis gespeichert wird. An einer Nachricht mit Schnellantworten: das Label der gewählten Antwort.',
@@ -177,6 +177,17 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
       + 'die WLO-Anmeldung. Nur angekreuzte Schritte startet der WLO-MCP (die Frage davor ist die '
       + 'Zustimmung); der Flow muss dort auch in WLO_BAPI_FLOWS stehen — ab Werk nur '
       + 'node-metadata-write. Ohne Kreuz geht der Flow den direkten Weg zur b-api.',
+    'feld.Schritt.zustimmung.label': 'Zustimmung zum Start',
+    'feld.Schritt.zustimmung.hint':
+      'Nur bei „Auftrag“ mit „Flow schreibt ins Repositorium“. „Freigabe“ (Vorgabe): die Person sieht '
+      + 'die Liste und klickt „Freigeben“. „Upload“ (nur für den Metadaten-Flow node-metadata-write): '
+      + 'der Klick „In WLO ablegen und erschließen“ ist die Zustimmung — nur für Inhalte, die genau '
+      + 'dieser Upload im selben Lauf neu angelegt hat, mit Häkchen „Metadaten von WLO erzeugen '
+      + 'lassen“ und derselben Anmeldung. Die Knoten kommen aus dem '
+      + 'Teil ablage (liste: inhalte), ein Upload-Schritt liegt davor. Passt etwas nicht (andere oder '
+      + 'schon vorhandene Inhalte), kommt doch die Freigabe-Box.',
+    'feld.Schritt.zustimmung.wahl.freigabe': 'Freigabe (Box)',
+    'feld.Schritt.zustimmung.wahl.upload': 'Upload (Klick „In WLO ablegen und erschließen“)',
     'feld.Schritt.dateien_holen.label': 'Dateien holen',
     'feld.Schritt.dateien_holen.hint':
       'Bis zu drei Dateien des Ergebnisses (ihre outputId), die beim Abholen geholt und wie ein Upload '
@@ -436,11 +447,11 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
     'feld.Schritt.modul.label': 'Module',
     'feld.Schritt.modul.hint': 'Name of the UI module, e.g. ui_upload.',
     'feld.Schritt.daten.label': 'Data',
-    'feld.Schritt.daten.hint': 'Data of the module (JSON); {"$teil": "name"} reads a part of the work item.',
+    'feld.Schritt.daten.hint': 'Data of the module (JSON); {"$teil": "name"} reads a part of the work item. If the module takes the data as parameters (such as ui_upload), they are listed below with allowed values and “Check” reports unknown names and values; otherwise they are block data that “Check” compares with the module’s input.',
     'feld.Schritt.werkzeug.label': 'Tool',
     'feld.Schritt.werkzeug.hint': 'A service (strukturentwurf_aus_ordnern, abdeckung_zaehlen, baum_aus_entwurf, struktur_mit_nodeids, metadaten_lesen, bereitgestellt, inhalte_aus_dateien) or a WLO tool — a writing one only with approval.',
     'feld.Schritt.argumente.label': 'Arguments',
-    'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} inserts a part of the work item. A selection filters a list and extracts a field: {"$teil": "ablage", "liste": "inhalte", "wo": {"rolle": "struktur"}, "feld": "node_id"}. {"$sprache": true} (auftrag only, top level) becomes the language of the person (de/en).',
+    'feld.Schritt.argumente.hint': 'JSON; {"$teil": "name"} inserts a part of the work item. A selection filters a list and extracts a field: {"$teil": "ablage", "liste": "inhalte", "wo": {"stand": "stored"}, "feld": "node_id"}. {"$sprache": true} (auftrag only, top level) becomes the language of the person (de/en).',
     'feld.Schritt.schreibt.label': 'Result as part',
     'feld.Schritt.schreibt.hint':
       'Name of the part the result is stored under. On a message with quick replies: the label of the chosen reply.',
@@ -458,6 +469,17 @@ export const FIELDS_ABLAEUFE: CataloguePart = {
       + 'are started by the WLO MCP (the question before them is the consent); the flow must also be '
       + 'listed there in WLO_BAPI_FLOWS — by default only node-metadata-write. Without the tick the '
       + 'flow goes straight to the b-api.',
+    'feld.Schritt.zustimmung.label': 'Consent to the start',
+    'feld.Schritt.zustimmung.hint':
+      'Only for “job” with “flow writes to the repository”. “Approval” (default): the person sees the '
+      + 'list and clicks “Approve”. “Upload” (only for the metadata flow node-metadata-write): the '
+      + 'click “Store and index in WLO” is the consent — only for content that exactly this upload '
+      + 'newly created in the same run, with the tick “Let WLO create metadata” and the same '
+      + 'sign-in. The nodes come from the part ablage (liste: '
+      + 'inhalte), an upload step comes before. If anything does not fit (other or existing content), '
+      + 'the approval box comes after all.',
+    'feld.Schritt.zustimmung.wahl.freigabe': 'Approval (box)',
+    'feld.Schritt.zustimmung.wahl.upload': 'Upload (click “Store and index in WLO”)',
     'feld.Schritt.dateien_holen.label': 'Fetch files',
     'feld.Schritt.dateien_holen.hint':
       'Up to three files of the result (their outputId), fetched on pick-up and checked like an upload. '

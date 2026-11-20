@@ -3,8 +3,9 @@
  * `upload-chat-ablauf.ts` ohne Angular und ohne Ansicht: er hält den Zustand (`lauf`, je Datei ein
  * `Ergebnis`), ruft den Host (`host.ablegen`) und lässt das Element neu zeichnen und ansagen.
  *
- * Schritte: Dateien prüfen (sha256, k von n) → Freigabe vorbereiten → Vorschau mit „Jetzt übertragen“/
- * „Abbrechen“ → je Datei senden, **nacheinander** → Ergebnis. „Anhalten“ wirkt nach der laufenden Datei
+ * Schritte: Dateien prüfen (sha256, k von n) → Freigabe vorbereiten (mit dem Häkchen `erschliessen`, Plan
+ * 2026-11-20, P2) → Vorschau mit „In WLO ablegen und erschließen“ bzw. „In WLO ablegen“ (je nachdem, was der
+ * Server festhielt)/„Abbrechen“ → je Datei senden, **nacheinander** → Ergebnis. „Anhalten“ wirkt nach der laufenden Datei
  * (eine halb gesendete Datei abzubrechen ließe offen, ob sie angekommen ist). Ein Fehler des Stapels
  * (Anmeldung, Schalter, abgelaufene Freigabe, Netz) hält an, der einer Datei nicht. Danach legt der
  * Ablauf `vorgang.json` ab, sobald nichts mehr nachzusenden ist (sonst vor dem Weiter im Chat), und
@@ -47,6 +48,8 @@ export interface UebertragenUmgebung {
   /** Der Block ist nicht mehr offen (ein Zug kam dazwischen): der Stapel läuft weiter, eine Antwort geht
    *  nicht mehr hin (Querschnitts-Review M1/M2). */
   nurLesen?(): boolean;
+  /** P2: das Häkchen „Metadaten von WLO erzeugen lassen“ (nur mit Metadaten-Flow); fehlt es: aus. */
+  erschliessen?(): boolean;
 }
 
 export class UebertragenAblauf {
@@ -137,7 +140,7 @@ export class UebertragenAblauf {
       this.u.zeichne();
       // Das Backend nimmt höchstens 120 Zeichen in einer Zeile (Review U3-3b, Befund 8).
       const ordner = einZeiler(e.wurzel.name) || t.auswahl;
-      const roh = await host.ablegen({ schritt: 'vorbereiten', ordner, eintraege });
+      const roh = await host.ablegen({ schritt: 'vorbereiten', ordner, eintraege, erschliessen: this.u.erschliessen?.() ?? false });
       if (ueberholt()) return this.verwerfen(nr);
       const plan = planAus(roh, eintraege.length);
       if (!plan) throw Object.assign(new Error('Plan unbrauchbar'), { code: 'fehler' });

@@ -32,6 +32,8 @@ import { StudioLanguageService } from '../i18n/studio-language.service';
 import { FORM_DOKUMENT } from './form-dokument';
 import { FORM_EPOCHE } from './form-epoche';
 import { JsonValueComponent } from './json-value.component';
+import { modulAmPfad } from './modul-parameter';
+import { ModulParameterComponent } from './modul-parameter.component';
 import {
   alsTabelleLesbar, type TeilArt, type TeilZeile, vorigeTeile, wertAus, type ZeilenFehler, zeilenAus,
 } from './teil-werte';
@@ -40,7 +42,7 @@ const ARTEN: readonly TeilArt[] = ['text', 'teil', 'json'];
 
 @Component({
   selector: 'studio-teil-werte',
-  imports: [JsonValueComponent],
+  imports: [JsonValueComponent, ModulParameterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './schema-form.scss',
   template: `
@@ -125,6 +127,9 @@ const ARTEN: readonly TeilArt[] = ['text', 'teil', 'json'];
         <p class="sf-error live" [id]="fehlerId()" aria-live="polite">{{ fehlerText() }}</p>
       </div>
     }
+    @if (modul(); as m) {
+      <studio-modul-parameter [modul]="m" [controlId]="controlId()" />
+    }
   `,
 })
 export class TeilWerteComponent {
@@ -158,6 +163,8 @@ export class TeilWerteComponent {
   private letzteEpoche: number | undefined;
 
   readonly lesbar = computed(() => alsTabelleLesbar(this.value()));
+  /** Plan 2026-11-20, P6: an den Daten eines Modul-Schritts dessen Modul — für die Parameter-Hilfe. */
+  readonly modul = computed(() => modulAmPfad(this.dokument?.(), this.pfad()));
   readonly zeilen = computed(() => this.entwurf() ?? zeilenAus(this.value()));
   readonly listId = computed(() => `${this.controlId()}-teile`);
   readonly fehlerId = computed(() => `${this.controlId()}-tw-err`);

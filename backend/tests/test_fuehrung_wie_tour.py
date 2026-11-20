@@ -227,3 +227,23 @@ def test_die_leiste_springt_nach_der_gruppenwahl_nicht():
 
     n, m = fortschritt.position(ABLAUF, "gruppe")
     assert fortschritt.position(ABLAUF, "seite_lehrkraft") == (n + 1, m)
+
+
+@pytest.mark.parametrize("satz", [
+    "Führe mich systematisch durch die Webseite.",   # der Text des Tour-Chips der Begrüßung
+    "Führe mich durch die Webseite", "führ mich durch die seite", "Führung starten",
+    "Starte die Webseitenführung", "Kannst du eine Führung durch die Webseite machen?",
+])
+def test_rueckmeldung_20_11_getippte_fuehrung_startet_tour_und_ablauf(satz):
+    """Rückmeldung 20.11.: „Führung“ getippt startete weder die Tour noch den Ablauf — die Phrasen
+    kannten nur „fuehre mich“ (ohne Umlaut) und „Tour“. Beide folgen derselben Liste."""
+    from boerdi.services.ablauf import ausloeser
+
+    assert tour.ist_ausloeser(satz, CFG)
+    assert ausloeser.trifft_text(ABLAUF, satz)
+
+
+@pytest.mark.parametrize("satz", ["Führe mich zu Material über Bruchrechnung",
+                                  "Wer hat die Führung im Projekt?"])
+def test_rueckmeldung_20_11_kein_fehlalarm(satz):
+    assert not tour.ist_ausloeser(satz, CFG)

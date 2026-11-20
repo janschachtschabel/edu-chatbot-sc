@@ -132,8 +132,12 @@ describe('Übertragen — Regeln (U3-3b)', () => {
     // Plan 2026-11-17, Paket U4: `bereitgestellt` mit Ort wlo — je abgelegter Datei die Nummer i der
     // Auswahl und die Rolle (nicht gesendete fehlen)
     expect(a).toMatchObject({ aktion: 'bereitgestellt', ort: 'wlo', dateien: [{ i: 1, rolle: 'inhalt' }] });
+    // Review P2, Befund 1: die Antwort nennt, was der Server zum Häkchen festhielt (hier nichts → nein)
     expect(a.ablage).toEqual({ layout: 'flach', gesamt: 2, abgelegt: 1, unklar: 0, fehler: 0, abgebrochen: 1,
-      ordner_verweigert: true, vorgang_abgelegt: false });
+      ordner_verweigert: true, vorgang_abgelegt: false, erschliessen: false });
+    const mit = uebertragenAntwort(E, { ...plan, erschliessen: true }, [{ stand: 'stored' }, { stand: 'abgebrochen' }],
+      { ordnerVerweigert: false, vorgangAbgelegt: true, nummern: [1, 3] });
+    expect(mit.ablage?.erschliessen).toBe(true);
     expect(JSON.stringify(a)).not.toContain('n-1');
     expect(JSON.stringify(a.ablage)).not.toContain('Mechanik');
     expect(a.struktur.dateiliste.map((d) => d.name)).toContain('01 Mechanik.pdf');
@@ -204,6 +208,29 @@ describe('Rolle im Stapel (W4)', () => {
         { index: 1, titel: 'B', art: 'jpg', groesse: 20, name: 'B.jpg', rolle: 'quatsch' }],
     };
     expect(planAus(roh, 2)?.eintraege.map((e) => e.rolle)).toEqual(['struktur', 'inhalt']);
+  });
+
+  // Review P1, MINOR 5: `beides` bleibt im Plan und in der Antwort `bereitgestellt` (Ort wlo)
+  it('P1: beides bleibt im Plan und steht mit `i` in der Antwort', () => {
+    const roh = {
+      batch_token: 'tok-1234567890', layout: 'folder', ordner: 'Physik', gesamt: 20,
+      eintraege: [{ index: 0, titel: 'A', art: 'pdf', groesse: 10, name: 'A.pdf', rolle: 'beides' },
+        { index: 1, titel: 'B', art: 'pdf', groesse: 10, name: 'B.pdf', rolle: 'inhalt' }],
+    };
+    const plan = planAus(roh, 2)!;
+    expect(plan.eintraege.map((e) => e.rolle)).toEqual(['beides', 'inhalt']);
+    const antwort = uebertragenAntwort(E, plan, [{ stand: 'stored' }, { stand: 'failed' }],
+      { ordnerVerweigert: false, vorgangAbgelegt: true, nummern: [4, 0] });
+    expect(antwort.dateien).toEqual([{ i: 4, rolle: 'beides' }]);
+  });
+
+  // Plan 2026-11-20, P2: der Plan sagt, ob der Server das Häkchen festhielt — ein älteres Backend nichts
+  it('P2: `erschliessen` nur, wenn der Server es ausdrücklich bestätigt', () => {
+    const roh = { batch_token: 'tok-1234567890', layout: 'folder', ordner: 'P', gesamt: 10,
+      eintraege: [{ index: 0, titel: 'A', art: 'pdf', groesse: 10, name: 'A.pdf' }] };
+    expect(planAus({ ...roh, erschliessen: true }, 1)?.erschliessen).toBe(true);
+    expect(planAus({ ...roh, erschliessen: 'ja' }, 1)?.erschliessen).toBe(false);
+    expect(planAus(roh, 1)?.erschliessen).toBe(false);
   });
 });
 

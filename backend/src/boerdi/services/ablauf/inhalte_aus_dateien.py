@@ -6,8 +6,8 @@ liefern sie der Kestra-Flow und ``metadaten_lesen``; ohne Anmeldung, ohne Ablage
 schnell gibt es nur die Namen aus dem Upload-Feld (Teil ``struktur``, ``wlo.auswahl@1``). Dieser
 Dienst macht daraus dasselbe Format ``wlo.metadaten@1`` — ohne Sprachmodell, ohne Netz:
 
-- **nur Dateien mit Rolle ``inhalt``** (ein Strukturdokument ist kein Material, ignorierte tragen
-  keinen Namen, R3-4);
+- **nur Dateien mit Rolle ``inhalt``** (oder ``beides``, P1; ein reines Strukturdokument ist kein
+  Material, ignorierte tragen keinen Namen, R3-4);
 - **Titel aus dem Dateinamen:** ohne Endung, ``_`` und ``-`` werden Leerzeichen, an der Wortgrenze
   auf :data:`TITEL_ZEICHEN` gekürzt; ein leerer Rest wird „Datei n“;
 - **der Ordnerpfad als Beschreibung** („Ordner: Physik 7 / Mechanik“) — für den Generator Herkunft,
@@ -30,6 +30,7 @@ import re
 from typing import Any, Final
 
 from boerdi.services.ablauf import metadaten
+from boerdi.ui_module.rollen import als_material, ist_material
 
 #: Titel aus einem Dateinamen — kurz wie ein Materialtitel, nicht wie ein ganzer Dateipfad.
 TITEL_ZEICHEN: Final = 80
@@ -76,14 +77,14 @@ def ordnerpfad(teile: list[str], hoechstens: int) -> str:
 
 
 def dateien_mit_pfad(ordner: Any, pfad: list[str]) -> list[tuple[dict[str, Any], list[str]]]:
-    """Alle Dateien mit Rolle ``inhalt`` samt Ordnerpfad, von oben nach unten (wie
-    ``upload_antwort.dateien``)."""
+    """Alle Dateien mit Rolle ``inhalt`` (P1: auch ``beides``) samt Ordnerpfad, von oben nach
+    unten (wie ``upload_antwort.dateien``)."""
     if not isinstance(ordner, dict):
         return []
     name = " ".join(str(ordner.get("name") or "").split())
     hier = [*pfad, name[:60]] if name else list(pfad)
     eigene = [(d, hier) for d in ordner.get("dateiliste") or []
-              if isinstance(d, dict) and d.get("rolle") == "inhalt"
+              if isinstance(d, dict) and ist_material(d.get("rolle"))
               and isinstance(d.get("name"), str)]
     return eigene + [x for k in ordner.get("kinder") or [] for x in dateien_mit_pfad(k, hier)]
 
@@ -122,7 +123,7 @@ def _einpassen(roh: list[tuple[dict[str, Any], list[str]]], block_id: Any,
     for n, (pfad_max, titel_max) in enumerate(stufen):
         inhalte = []
         for d, pfad in roh:
-            eintrag: dict[str, Any] = {"i": nummer(d), "rolle": "inhalt",
+            eintrag: dict[str, Any] = {"i": nummer(d), "rolle": als_material(d.get("rolle")),
                                        "titel": gekuerzt(titel(d["name"], str(
                                            d.get("endung") or "")), titel_max)
                                        or f"Datei {(nummer(d) or 0) + 1}"}

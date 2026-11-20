@@ -22,3 +22,14 @@ describe('VorschauModulHost.hochladen', () => {
     expect(b['angaben']).toBeUndefined();
   });
 });
+
+// Plan 2026-11-20, P2: die Vorschau hält das Häkchen „Metadaten von WLO erzeugen lassen“ fest, wie es kam — der
+// Knopf, der ablegt, heißt so wie im Betrieb
+describe('VorschauModulHost.ablegen', () => {
+  it('vorbereiten gibt erschliessen zurück, wie es kam', async () => {
+    const h = new VorschauModulHost(vi.fn(), (t) => t, () => ({}) as never);
+    const eintraege = [{ titel: 'a', sha256: 'a'.repeat(64), groesse: 1, art: 'pdf' }];
+    expect((await h.ablegen({ schritt: 'vorbereiten', ordner: 'P', eintraege, erschliessen: true }))['erschliessen']).toBe(true);
+    expect((await h.ablegen({ schritt: 'vorbereiten', ordner: 'P', eintraege }))['erschliessen']).toBe(false);
+  });
+});

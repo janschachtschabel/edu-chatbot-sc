@@ -13,7 +13,9 @@
  * gekürzter Name (über 120 Zeichen) meldet `namen_gekuerzt` — keine stille Kürzung. Höchstens 500
  * Dateien kappt schon `erfasse` (`zu_viele`).
  */
+import type { AblageRolle } from '../_vertrag/modul-host';
 import type { Erfassung, OrdnerKnoten, Rolle, Warnung } from './upload-erfassen';
+import { istGliederung, strukturZahl } from './upload-rollen';
 
 export const MAX_KNOTEN = 500;
 const MAX_NAME = 120;
@@ -71,12 +73,14 @@ export interface UploadAntwort {
   readonly ort?: 'chat' | 'wlo' | 'namen';
   /** Paket U4, nur mit `ort` chat oder wlo: je bereitgestellte Datei die Nummer `i` der Auswahl, die
    *  Rolle und bei chat die `upload_id` (nicht lesbare bzw. nicht abgelegte Dateien fehlen). */
-  readonly dateien?: readonly { readonly i: number; readonly rolle: 'inhalt' | 'struktur'; readonly upload_id?: string }[];
+  readonly dateien?: readonly { readonly i: number; readonly rolle: AblageRolle; readonly upload_id?: string }[];
   /** U3-3b, mit `aktion: "uebertragen"` bzw. `bereitgestellt` und `ort: "wlo"`: nur Zahlen der Ablage. */
   readonly ablage?: {
     readonly layout: 'ordner' | 'flach'; readonly gesamt: number; readonly abgelegt: number;
     readonly unklar: number; readonly fehler: number; readonly abgebrochen: number;
     readonly ordner_verweigert: boolean; readonly vorgang_abgelegt: boolean;
+    /** Review P2, Befund 1: hielt der Server das Häkchen fest (ältere Antworten: fehlt)? */
+    readonly erschliessen?: boolean;
   };
 }
 
@@ -138,7 +142,9 @@ export function antwortDaten<T>(e: Erfassung<T>, aktion: AntwortAktion, ohneName
 
   const struktur = baue(e.wurzel);
   const zaehlen = (rolle: string): number => e.dateien.filter((d) => d.rolle === rolle).length;
-  const sd = e.dateien.find((d) => d.rolle === 'struktur');
+  // P1 (Plan 2026-11-20): `beides` ist Strukturdokument; `inhalte` zählt nur reines Material, so
+  // bleibt `inhalte + strukturdokumente` die Zahl der verwendeten Dateien
+  const sd = e.dateien.find((d) => istGliederung(d.rolle));
   const warnungen: AntwortWarnung[] = [...e.warnungen];
   if (gekappt) warnungen.push('zu_viele_ordner');
   if (gekuerzt || (sd && zuLang(sd.name))) warnungen.push('namen_gekuerzt');
@@ -147,7 +153,7 @@ export function antwortDaten<T>(e: Erfassung<T>, aktion: AntwortAktion, ohneName
     struktur,
     zahlen: {
       ordner, dateien: e.dateien.length, inhalte: zaehlen('inhalt'), ignoriert: zaehlen('ignorieren'),
-      strukturdokumente: zaehlen('struktur'),
+      strukturdokumente: strukturZahl(e),
       bytes: e.dateien.reduce((s, d) => s + (d.rolle === 'ignorieren' ? 0 : d.groesse), 0),
     },
     strukturdokument: sd

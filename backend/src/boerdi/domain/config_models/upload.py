@@ -8,7 +8,7 @@ Die Obergrenzen sind fest, weil die Rumpf-Grenze (``api/body_limit``) vor jeder 
 greift: ``OBERGRENZE_MB`` ist dort die Grenze des Pfads.
 """
 
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from pydantic import Field
 
@@ -45,6 +45,11 @@ class UploadSettings(AreaModel):
     ocr: bool = True
     #: … höchstens so viele Seiten je PDF (je Seite ein KI-Aufruf); darüber gekürzt.
     ocr_max_seiten: int = Field(default=20, ge=1, le=50)
+    #: Plan 2026-11-20, P2 (UO-5): welcher Ort im freien Chat vorgewählt ist — ``chat`` (Vorgabe,
+    #: auch angemeldet), ``wlo`` oder ``auto`` (WLO, wenn angemeldet und der Metadaten-Flow da ist,
+    #: sonst Chat). Geht der Ort nicht, gilt ``auto``. Ein Ablauf setzt die Vorauswahl je Schritt
+    #: (``ui_upload``-Daten ``vorauswahl``); dieser Wert gilt dort nicht.
+    vorauswahl: Literal["auto", "wlo", "chat"] = "chat"
 
 
 class UploadConfigArea(AreaModel):

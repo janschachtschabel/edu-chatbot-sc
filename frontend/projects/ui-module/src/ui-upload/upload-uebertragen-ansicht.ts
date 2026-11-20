@@ -72,8 +72,9 @@ function liste(a: UebertragenAnsicht, plan: Plan): HTMLElement {
     const stand = ergebnis.code && ergebnis.stand === 'failed'
       ? `${a.t.stand.failed}: ${fehlerSatz(a.t, ergebnis.code)}` : a.t.stand[ergebnis.stand];
     const name = a.knoten('span', 'u__name', e.name);
-    // W4: die Rolle ist Teil der Freigabe — das Strukturdokument steht in der Vorschau dabei.
-    if (e.rolle === 'struktur') name.append(' – ', a.knoten('span', 'u__rolle', a.t.strukturdokument));
+    // W4: die Rolle ist Teil der Freigabe — eine Gliederung steht in der Vorschau dabei (Review P1, NIT 7: in den
+    // Worten der Rollen-Auswahl; `beides` liest das MCP als Strukturdokument)
+    if (e.rolle === 'struktur' || e.rolle === 'beides') name.append(' – ', a.knoten('span', 'u__rolle', a.t.rolle[e.rolle]));
     li.append(symbol, name, a.knoten('span', 'u__zahl', stand));
     const ziel = ergebnis.link ? a.link(ergebnis.link) : null;
     if (ziel?.href) {
@@ -136,7 +137,8 @@ export function uebertragenTeile(a: UebertragenAnsicht, dateien: (n: number) => 
     const bytes = plan.eintraege.reduce((s, e) => s + e.groesse, 0);
     const leiste = a.knoten('div', 'u__knoepfe');
     leiste.append(
-      a.knopf(t.jetzt, { uebertragen: 'los' }, true, a.gesperrt),
+      // P2: der Klick, der ablegt, heißt nach dem, was der Server festhielt (Häkchen und Metadaten-Flow)
+      a.knopf(plan.erschliessen ? t.ablegenErschliessen : t.ablegen, { uebertragen: 'los' }, true, a.gesperrt),
       a.knopf(t.abbrechen, { uebertragen: 'abbrechen' }, false, false),
     );
     return [...teile, kopf, a.knoten('p', 'u__hinweis', t.umfang(dateien(plan.eintraege.length), bytes)), liste(a, plan),

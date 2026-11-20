@@ -17,6 +17,16 @@ Querschnitts-Review 2026-11-06:
   es ist nicht endgültig; ein vom MCP gemeldetes ``unverified`` schon.
 - ``frueher``: abgelegte Einträge eines nicht abgeschlossenen Stapels, den ein neuer ersetzt hat —
   ihre nodeIds gehen so nicht verloren.
+
+Plan 2026-11-20, P3 (UO-3): ``aufrufer`` ist eine Marke der Person, die vorbereitet hat (ein
+Streuwert ihrer Kennung, nie die Kennung selbst), und ``neu`` je Eintrag sagt, dass DIESER Aufruf
+den Knoten angelegt hat (``stored``, auch mit ``already`` des MCP — Review P3, Befund 5). Beides
+prüft ``services/ablauf/upload_zustimmung``, bevor der Upload-Klick als Zustimmung zum Flow gilt.
+
+Review P4 (20.11.), MAJOR 1: ``abgelegt_block`` (:data:`ABGELEGT`) setzt erst die erste abgelegte
+Datei — den Teil schreibt schon ``/vorbereiten`` für die Vorschau. Abläufe erkennen eine Ablage
+dieser Auswahl an der Marke, nicht an ``block_id`` (sonst gälte eine abgebrochene Vorschau, auf die
+„Nur hier im Chat lesen“ folgte, als Ablage).
 """
 
 from __future__ import annotations
@@ -28,12 +38,26 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
 from boerdi.services import arbeitsstand
+from boerdi.services.mcp.auth import aufrufer_kennung
+from boerdi.ui_module.rollen import BEIDES, INHALT, STRUKTUR
 
 TEIL: Final = "ablage"
 TYP: Final = "wlo.ablage@1"
+#: Review P4, MAJOR 1: der Block, dessen Stapel mindestens eine Datei in WLO abgelegt hat.
+ABGELEGT: Final = "abgelegt_block"
 #: So lange gilt eine Freigabe beim MCP (``BATCH_TTL_MS``) — so lange hält ein offener Stapel.
 FREIGABE: Final = timedelta(minutes=30)
 _FRUEHER_MAX: Final = 200
+
+
+def aufrufer_marke() -> str:
+    """P3: die Marke des Aufrufers dieses Zugs (``aufrufer_kennung``) — leer ohne Kennung. Ein
+    Streuwert ohne Geheimnis: er bindet den Teil an die Person, ist aber kein Pseudonym — der
+    Vorgang trägt seinen Besitzer ohnehin im Klartext (``Vorgang.aufrufer``). Zweites Review P3,
+    Befund 2: ein HMAC brächte darum nichts und hinge an einer Variable, ohne die die Zustimmung
+    still ausfiele (Entscheid 20.11.)."""
+    kennung = aufrufer_kennung()
+    return hashlib.sha256(f"ablage:{kennung}".encode()).hexdigest()[:16] if kennung else ""
 
 
 def layout(roh: Any) -> str:
@@ -47,10 +71,14 @@ def kuerzel(batch_token: str) -> str:
 def _rolle(eintrag: dict[str, Any], erbeten: str | None) -> tuple[str, bool]:
     """W4: die Rolle aus der Vorschau des Servers (sie ist die Freigabe) — bestätigt; gibt ein
     Server vor W4 keine zurück, die erbetene, sonst ``inhalt`` — unbestätigt (Review W4, Befund 5:
-    dann steht sie weder im Fingerabdruck noch im Manifest; ein späterer Schritt prüft das)."""
+    dann steht sie weder im Fingerabdruck noch im Manifest; ein späterer Schritt prüft das).
+    P1 (Plan 2026-11-20): ``beides`` geht als ``structure`` ans MCP — bestätigt es ``structure``,
+    bleibt die erbetene ``beides`` (sonst ginge „auch Inhalt“ verloren)."""
     if eintrag.get("role") in ("structure", "content"):
-        return ("struktur" if eintrag["role"] == "structure" else "inhalt"), True
-    return (erbeten if erbeten in ("struktur", "inhalt") else "inhalt"), False
+        if eintrag["role"] == "structure":
+            return (BEIDES if erbeten == BEIDES else STRUKTUR), True
+        return INHALT, True
+    return (erbeten if erbeten in (STRUKTUR, INHALT, BEIDES) else INHALT), False
 
 
 def _rolle_felder(e: dict[str, Any], erbeten: list[str]) -> dict[str, Any]:
@@ -69,17 +97,21 @@ def _nummer(e: dict[str, Any], nummern: list[int | None]) -> dict[str, Any]:
 def aus_plan(plan: dict[str, Any], batch_token: str, block_id: str,
              vorher: dict[str, Any] | None = None, *,
              rollen: list[str] | None = None,
-             nummern: list[int | None] | None = None) -> dict[str, Any]:
+             nummern: list[int | None] | None = None,
+             erschliessen: bool = False) -> dict[str, Any]:
     """Der Teil aus der Vorschau des MCP-Servers (normalisierter Plan); ``vorher`` ist der Teil,
     den er ersetzt (dessen abgelegte Einträge bleiben als ``frueher``); ``rollen`` die erbetenen
     Rollen je Index (W4) — so weiß ein späterer Schritt, welcher Knoten das Strukturdokument ist;
-    ``nummern`` die feste Nummer ``i`` der Auswahl je Index (TG-3b)."""
+    ``nummern`` die feste Nummer ``i`` der Auswahl je Index (TG-3b). ``erschliessen`` (Plan
+    2026-11-20, P2): das Häkchen „Metadaten von WLO erzeugen lassen“ — nur wahr, wenn der
+    Metadaten-Flow beim Vorbereiten startbar war (prüft ``api/ui_ablage``)."""
     erbeten = list(rollen or [])
     feste = list(nummern or [])
     teil: dict[str, Any] = {
         "format": TYP, "ordner": str(plan.get("folderName") or ""),
         "layout": layout(plan.get("layout")), "token_kuerzel": kuerzel(batch_token),
         "block_id": block_id, "erstellt": datetime.now(UTC).isoformat(), "abgeschlossen": False,
+        "erschliessen": erschliessen, "aufrufer": aufrufer_marke(),
         "inhalte": [{"index": int(e["index"]), "titel": str(e.get("title") or ""),
                      "art": str(e.get("ext") or ""), "groesse": int(e.get("size") or 0),
                      "name": str(e.get("fileName") or ""), "stand": "offen",
@@ -140,6 +172,11 @@ def mit_ergebnis(wert: dict[str, Any], index: int, ergebnis: dict[str, Any]) -> 
     for e in neu["inhalte"]:
         if e["index"] == index:
             e["stand"] = str(ergebnis.get("status") or "unverified")
+            # P3: ein von diesem Upload angelegter Knoten. Review P3, Befund 5 (Entscheid 20.11.):
+            # auch ``already`` — das meldet der MCP nur für denselben Index unter DEMSELBEN
+            # Stapel-Schlüssel (der Knoten stammt also von diesem Upload, etwa nach einer
+            # Zeitüberschreitung); ein schon vorhandener Datensatz kommt als ``failed`` ohne nodeId
+            e["neu"] = e["stand"] == "stored"
             if ergebnis.get("ohne_antwort"):
                 e["ohne_antwort"] = True
             else:
@@ -149,7 +186,20 @@ def mit_ergebnis(wert: dict[str, Any], index: int, ergebnis: dict[str, Any]) -> 
     if ergebnis.get("folderDenied"):
         neu["layout"] = "flach"
         neu["ordner_verweigert"] = True
+    if any(e.get("stand") == "stored" for e in neu["inhalte"]):
+        neu[ABGELEGT] = neu.get("block_id")
     return neu
+
+
+def ohne_marke(teil: Any, block_id: Any) -> dict[str, Any] | None:
+    """Zweites Review P4–P6, MINOR 1: der Teil ohne die Marke :data:`ABGELEGT` des Blocks
+    ``block_id`` — ``None``, wenn er sie nicht trägt. Antwortet die Person im selben Block nach der
+    Ablage ohne WLO, gilt die Ablage nicht mehr als die dieser Auswahl; Einträge und Knoten
+    bleiben (sie liegen ja in WLO)."""
+    if (not isinstance(teil, dict) or teil.get("format") != TYP or not isinstance(block_id, str)
+            or not block_id or teil.get(ABGELEGT) != block_id):
+        return None
+    return {k: copy.deepcopy(v) for k, v in teil.items() if k != ABGELEGT}
 
 
 def zusammenfassung(wert: dict[str, Any]) -> str:

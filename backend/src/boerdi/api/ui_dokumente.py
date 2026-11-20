@@ -75,6 +75,7 @@ from boerdi.services.usage_store import record_turn_usage
 from boerdi.ui_module import upload_bereitgestellt as bereit
 from boerdi.ui_module.antwort import OFFENE_FRAGE
 from boerdi.ui_module.namen import UPLOAD
+from boerdi.ui_module.rollen import ist_material
 
 public_router = APIRouter(prefix="/api/ui", tags=["ui"])
 
@@ -102,7 +103,7 @@ class DokumentAntwort(BaseModel):
     befund: dict[str, Any]
     ueberschriften_vorschau: list[str]
     #: Paket U2: ``inhalt`` (Material) oder ``struktur`` (Strukturdokument, Vorgabe wie vor U).
-    rolle: Literal["inhalt", "struktur"] = "struktur"
+    rolle: Literal["inhalt", "struktur", "beides"] = "struktur"
     #: Paket U2: nur bei ``inhalt`` — ``{titel, beschreibung, schlagworte[, fach, stufe]}``; fehlt,
     #: wenn das LLM keine lieferte (der Titel entsteht dann aus dem Dateinamen).
     angaben: dict[str, Any] | None = None
@@ -134,7 +135,7 @@ def _offene_upload_frage(entities: dict[str, Any], block_id: str) -> bool:
 def ocr_frist(rolle: str) -> float:
     """Review 4: bei ``inhalt`` folgen noch die Kurzangaben (``inhalt_angaben.FRIST_S``) — die
     Texterkennung bekommt um so viel weniger, damit alles unter der Frist des Widgets bleibt."""
-    return OCR_FRIST_S - (inhalt_angaben.FRIST_S if rolle == "inhalt" else 0.0)
+    return OCR_FRIST_S - (inhalt_angaben.FRIST_S if ist_material(rolle) else 0.0)
 
 
 def _ocr_lesen(session: AsyncSession, session_id: str, cfg: Any, rolle: str) -> OcrLesen | None:
@@ -168,7 +169,7 @@ async def dokument_hochladen(
     session_id: Annotated[str, Form(pattern=f"^{SITZUNGSKENNUNG}$")],
     block_id: Annotated[str, Form(pattern=_BLOCK)],
     datei: Annotated[UploadFile, File()],
-    rolle: Annotated[Literal["inhalt", "struktur"], Form()] = "struktur",
+    rolle: Annotated[Literal["inhalt", "struktur", "beides"], Form()] = "struktur",
 ) -> DokumentAntwort:
     """Liest das Dokument, legt Markdown und Gliederung an der Sitzung ab, gibt den Befund.
 
@@ -217,7 +218,8 @@ async def dokument_hochladen(
     # Paket U2: Kurzangaben nur für Inhalte, nach Umwandlung und Moderation (der Anfang, den das
     # LLM sieht, ist der moderierte, ``inhalt_angaben``)
     angaben = None
-    if rolle == "inhalt":
+    # P1 (Plan 2026-11-20): ``beides`` ist auch ein Inhalt
+    if ist_material(rolle):
         verbrauch = new_accumulator()
         angaben = await inhalt_angaben_ermitteln(erg.markdown, name, usage_acc=verbrauch)
         # Kosten sichtbar (Wächter ``test_usage_coverage``): für die Sitzung gebucht, gleich hier —

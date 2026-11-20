@@ -49,6 +49,12 @@ _T: Final[dict[str, dict[str, str]]] = {
                         "en": "Step {s}: the answer {o} leads to a flow that writes to the "
                               "repository — without a synonym: a typed partial word (“do not "
                               "create”) would otherwise count as consent"},
+    "knopf_nichtssagend": {"de": "Schritt {s}: der Knopf „{l}“ ({o}) sagt nicht, was geschieht — "
+                                 "er steht vor {z}, der ins Repositorium schreibt; nenne die "
+                                 "Folge (etwa „In WLO ablegen und erschließen“)",
+                           "en": "Step {s}: the button “{l}” ({o}) does not say what happens — "
+                                 "it comes before {z}, which writes to the repository; name the "
+                                 "outcome (such as “Store and index in WLO”)"},
     "optionen_doppelt": {"de": "Schritt {s}: Kennungen der Schnellantworten doppelt: {ids}",
                          "en": "Step {s}: duplicate quick reply ids: {ids}"},
     "optionen_label_doppelt": {"de": "Schritt {s}: Schnellantworten gleich beschriftet: {l}",
@@ -110,6 +116,21 @@ _T: Final[dict[str, dict[str, str]]] = {
                            "en": "Step {s}: the flow writes to the repository — on every path a "
                                  "question to the person must come directly before it (a choice "
                                  "leading to it, or an approval)"},
+    # Plan 2026-11-20, P3: der Upload-Klick als Zustimmung braucht seine Quelle
+    # Review P3, Befund 1: nur am Metadaten-Flow
+    "zustimmung_upload": {
+        "de": "Schritt {s}: „Zustimmung durch den Upload“ gilt nur für den Metadaten-Flow "
+              "(node-metadata-write) mit „Flow schreibt ins Repositorium“, mit den Knoten aus dem "
+              "Teil ablage (liste: inhalte) und einem Upload-Schritt (ui_upload) davor",
+        "en": "Step {s}: “consent by the upload” only works for the metadata flow "
+              "(node-metadata-write) with “flow writes to the repository”, with the nodes from "
+              "the part ablage (liste: inhalte) and an upload step (ui_upload) before it"},
+    # Review P3, Befund 6: der Nachweis der Zustimmung durch den Upload
+    "ablage_reserviert": {
+        "de": "Schritt {s}: nur der Server schreibt beim Ablegen in WLO den Teil {t} — kein "
+              "Schritt darf ihn füllen",
+        "en": "Step {s}: only the server writes the part {t} when storing in WLO — no step may "
+              "fill it"},
     # Paket K, Review A4/A7: ein bekannt schreibender Flow ohne Vermerk ginge den Direktweg
     "auftrag_repo_schreibt": {
         "de": "Schritt {s}: der Flow {f} schreibt ins Repositorium — der Schritt braucht "
@@ -218,6 +239,27 @@ _T: Final[dict[str, dict[str, str]]] = {
                          "limits and switches are set by the system)"},
     "modul_feld_fehlt": {"de": "Schritt {s}: Modul {m} braucht das Feld {a}",
                          "en": "Step {s}: module {m} needs the field {a}"},
+    "dienst_daten_wert": {"de": "Schritt {s}: Modul {m}, Feld {a} — der Wert passt nicht "
+                                "(erwartet: {e})",
+                          "en": "Step {s}: module {m}, field {a} — the value does not fit "
+                                "(expected: {e})"},
+    # Review P5/P6, NIT 7: Stücke von {e} bei einer Liste
+    "erwartet_liste": {"de": "Liste: {w}", "en": "list: {w}"},
+    "erwartet_anzahl": {"de": "{n} Einträge", "en": "{n} entries"},
+    "erwartet_mindestens": {"de": "mindestens {n} Einträge", "en": "at least {n} entries"},
+    "erwartet_hoechstens": {"de": "höchstens {n} Einträge", "en": "at most {n} entries"},
+    # Zweites Review P4–P6, NIT 5: Einzahl und Typen in Worten statt JSON-Schema-Namen
+    "erwartet_mindestens_1": {"de": "mindestens 1 Eintrag", "en": "at least 1 entry"},
+    "erwartet_hoechstens_1": {"de": "höchstens 1 Eintrag", "en": "at most 1 entry"},
+    "erwartet_text_max": {"de": "Text ≤ {n} Zeichen", "en": "text ≤ {n} characters"},
+    "typ_boolean": {"de": "Wahrheitswert (true/false)", "en": "true/false"},
+    "typ_string": {"de": "Text", "en": "text"},
+    "typ_integer": {"de": "ganze Zahl", "en": "whole number"},
+    "typ_number": {"de": "Zahl", "en": "number"},
+    "typ_object": {"de": "Objekt", "en": "object"},
+    "typ_array": {"de": "Liste", "en": "list"},
+    "typ_null": {"de": "leer (null)", "en": "empty (null)"},
+    "erwartet_ohne_doppelte": {"de": "ohne Doppelte", "en": "no duplicates"},
     "schreibend": {"de": "Schritt {s}: Werkzeug {w} ist schreibend — das geht nur in einem "
                          "werkzeug-Schritt mit Freigabe, mit einem bestätigbaren WLO-Werkzeug, das "
                          "nicht löscht",
@@ -439,6 +481,11 @@ _T: Final[dict[str, dict[str, str]]] = {
     "seite_ausloeser": {"de": "Auslöser seite: 1 bis {max} Muster erwartet",
                         "en": "Trigger page: 1 to {max} patterns expected"},
 }
+
+
+def hat(schluessel: str) -> bool:
+    """Gibt es einen Text unter ``schluessel``?"""
+    return schluessel in _T
 
 
 def t(lang: str, schluessel: str, **werte: Any) -> str:

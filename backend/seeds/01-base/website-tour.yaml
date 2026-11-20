@@ -90,6 +90,16 @@ website_tour:
     - "führ mich rum"
     - "führ mich herum"
     - "fuehre mich"
+    # Rückmeldung 20.11.: „Führung“ getippt startete nichts (nur „fuehre mich“ ohne Umlaut stand
+    # hier). Bewusst mit „durch die …“ — „führe mich zu Material über …“ bleibt eine Suche.
+    - "führe mich durch die"
+    - "führ mich durch die"
+    - "führe mich systematisch"
+    - "webseitenführung"
+    - "führung starten"
+    - "starte die führung"
+    - "starte eine führung"
+    - "führung durch die"
     - "rundgang"
     - "zeig mir die seite"
     - "zeig mir die website"

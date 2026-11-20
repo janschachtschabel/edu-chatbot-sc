@@ -6,8 +6,10 @@
  * (Ordner- und Dateinamen) nur als `textContent`.
  *
  * Plan 2026-11-17, Paket U4: ein Weg — nach der Auswahl die Frage nach dem Ort (Chips), ein
- * Hauptknopf „Hochladen“, daneben „Nur Namen senden (nichts hochladen)“ und „Andere Auswahl“.
- * Läuft „Hier im Chat“ oder die Übertragung, steht statt der Frage deren Fortschritt.
+ * Hauptknopf, daneben „Nur die Dateinamen senden“ und „Andere Auswahl“. Läuft „Hier im Chat“ oder die
+ * Übertragung, steht statt der Frage deren Fortschritt. Plan 2026-11-20, P2: der Hauptknopf heißt je Ort
+ * „Hier lesen“ bzw. „Weiter zur Vorschau“ (er legt noch nichts ab — ablegen tut erst der Knopf der
+ * Vorschau, „In WLO ablegen und erschließen“ / „In WLO ablegen“).
  */
 import type { ModulKontext } from '../_vertrag/ui-block';
 import { antwortDaten, type UploadAntwort } from './upload-antwort';
@@ -15,10 +17,13 @@ import { baueBaum } from './upload-baum';
 import type { ChatAblauf } from './upload-chat-ablauf';
 import { chatTeile } from './upload-chat-ansicht';
 import { type Erfassung, GRENZEN, type Grenzen } from './upload-erfassen';
-import { chatOhneAnmeldung, gewaehlt, lokaleAuswahl, lokaleGrenzen, type Ort, orteFuer } from './upload-orte';
+import {
+  chatOhneAnmeldung, erschliessenVorgabe, flowDa, gewaehlt, hakenVorgesehen, lokaleAuswahl, lokaleGrenzen, type Ort, type Orte,
+  orteFuer,
+} from './upload-orte';
 import { datenschutzSatz, orteTeile } from './upload-orte-ansicht';
 import type { Sprache, UploadTexte } from './upload-texte';
-import { auswahl, maxBytesAblage } from './upload-uebertragen';
+import { auswahl, maxBytesAblage, zaehlung } from './upload-uebertragen';
 import type { UebertragenAblauf } from './upload-uebertragen-ablauf';
 import { uebertragenTeile } from './upload-uebertragen-ansicht';
 import { uebertragenTexte } from './upload-uebertragen-texte';
@@ -36,6 +41,8 @@ export interface UploadSicht {
   readonly auswahlFest: boolean;
   /** Der Ort, den die Person angeklickt hat (`null`: die Vorauswahl gilt). */
   readonly ort: Ort | null;
+  /** P2: das Häkchen „Metadaten von WLO erzeugen lassen“, wie die Person es gestellt hat (`null`: die Vorgabe). */
+  readonly erschliessen: boolean | null;
   readonly chat: ChatAblauf;
   readonly uebertragen: UebertragenAblauf;
   link(url: string): { href: string; hinweis: string };
@@ -61,6 +68,17 @@ export function zusammenfassung(t: UploadTexte, a: UploadAntwort): string {
 /** Der Ort, den „Hochladen“ für diese Sicht nimmt — `null`, wenn nur die Namen gehen. */
 export function wahlFuer(s: Pick<UploadSicht, 'daten' | 'erfassung' | 'ort'>): 'chat' | 'wlo' | null {
   return s.erfassung ? gewaehlt(orteFuer(s.daten, s.erfassung), s.ort) : null;
+}
+
+/** P2: ist das Häkchen gesetzt — die Wahl der Person, sonst die Vorgabe des Blocks (`erschliessen`)? */
+export function hakenGesetzt(s: Pick<UploadSicht, 'daten' | 'erschliessen'>): boolean {
+  return s.erschliessen ?? erschliessenVorgabe(s.daten);
+}
+
+/** P2: was `vorbereiten` als `erschliessen` schickt — nur mit Metadaten-Flow und gesetztem Häkchen; Review P2,
+ *  Befund 1: nur, wenn der Schritt das Häkchen vorsieht (sonst `false`: nur ablegen). */
+export function erschliessenFuer(s: Pick<UploadSicht, 'daten' | 'erschliessen'>, orte: Orte): boolean {
+  return hakenVorgesehen(s.daten) && flowDa(orte.wlo) && hakenGesetzt(s);
 }
 
 /** Läuft gerade ein Weg (oder steht sein Ergebnis da)? Dann zeigt das Modul ihn statt der Frage.
@@ -91,9 +109,7 @@ export function ansichtTeile(s: UploadSicht): Node[] {
     const schalter = s.daten['schalter'] as Record<string, unknown> | undefined;
     if (schalter?.['lesen_nach_anmeldung'] === true) teile.push(knoten('p', 'u__hinweis', t.lesenNachAnmeldung));
     if (schalter?.['ablage_nach_anmeldung'] === true) {
-      // Review Paket E, MINOR 8: auf dem Dokument-Weg (`einzeldatei_als_struktur`) entstehen keine Metadaten
-      const dokument = s.daten['einzeldatei_als_struktur'] === true;
-      teile.push(knoten('p', 'u__hinweis', dokument ? t.ablageNachAnmeldungDokument : t.ablageNachAnmeldung));
+      teile.push(knoten('p', 'u__hinweis', t.ablageNachAnmeldung(hakenVorgesehen(s.daten))));
     }
     teile.push(zone, waehler(s));
     if (s.zustand === 'fehler') {
@@ -158,7 +174,7 @@ function befund(s: UploadSicht, e: Erfassung<File>): Node[] {
     }
     teile.push(liste);
   }
-  teile.push(baueBaum(document, { erfassung: e, offen: s.offen, t, sprache: s.sprache, gesperrt: s.auswahlFest }));
+  teile.push(...baueBaum(document, { erfassung: e, offen: s.offen, t, sprache: s.sprache, gesperrt: s.auswahlFest }));
   const laeuft = s.chat.laeuft() || s.uebertragen.laeuft();
   const aktiv = wegAktiv(s);
   if (s.uebertragen.lauf) teile.push(ablageTeil(s));
@@ -170,17 +186,41 @@ function befund(s: UploadSicht, e: Erfassung<File>): Node[] {
   }
   const wahl = wahlFuer(s);
   if (!aktiv) teile.push(...frage(s, e, wahl));
-  else teile.push(knoten('p', 'u__hinweis', datenschutzSatz(t, orteFuer(s.daten, e), wahl, lokaleGrenzen(s.daten))));
+  else {
+    // Review P2, Befund 2: steht eine Vorschau, gilt der Wert des Servers — wie am Knopf, der ablegt
+    const lauf = s.uebertragen.lauf;
+    const orte = orteFuer(s.daten, e);
+    const erschliessen = lauf && 'plan' in lauf ? lauf.plan.erschliessen : erschliessenFuer(s, orte);
+    teile.push(knoten('p', 'u__hinweis', datenschutzSatz(t, orte, wahl, lokaleGrenzen(s.daten), erschliessen)));
+  }
   const leiste = knoten('div', 'u__knoepfe');
   if (!aktiv) {
-    // Ein Hauptknopf: „Hochladen“ — gehen nur die Namen, ist „Nur Namen senden“ der Hauptknopf.
-    if (wahl) leiste.append(knopf(t.hochladen, { hochladen: wahl }, true, s.beschaeftigt));
+    // Ein Hauptknopf je Ort (P2) — gehen nur die Namen, ist „Nur die Dateinamen senden“ der Hauptknopf.
+    if (wahl) leiste.append(knopf(wahl === 'chat' ? t.hierLesen : t.zurVorschau, { hochladen: wahl }, true, s.beschaeftigt));
     leiste.append(knopf(t.nurNamen, { namen: '1' }, !wahl, s.beschaeftigt));
   }
-  leiste.append(knopf(t.andereAuswahl, { zurueck: '1' }, false, laeuft));
+  // Zweites Review P4–P6, MINOR 1: liegen Dateien dieses Blocks in WLO, gilt die Ablage — eine
+  // andere Auswahl mit „Nur hier im Chat lesen“ ließe sonst den Ablauf den WLO-Weg nehmen
+  const schonInWlo = abgelegtInWlo(s.uebertragen);
+  const zurueck = knopf(t.andereAuswahl, { zurueck: '1' }, false, laeuft || schonInWlo);
+  leiste.append(zurueck);
   teile.push(leiste);
+  if (schonInWlo) {
+    const grund = knoten('p', 'u__hinweis', t.schonInWlo);
+    grund.id = SCHON_IN_WLO;
+    zurueck.setAttribute('aria-describedby', SCHON_IN_WLO);
+    teile.push(grund);
+  }
   if (s.beschaeftigt && !aktiv) teile.push(knoten('p', 'u__hinweis', t.beschaeftigt));
   return teile;
+}
+
+/** Die Kennung des Grunds am gesperrten „Andere Auswahl“ (`aria-describedby`). */
+const SCHON_IN_WLO = 'u-schon-in-wlo';
+
+/** Liegt mindestens eine Datei dieses Blocks in WLO? Dann bleibt nur „Im Chat weitermachen“. */
+export function abgelegtInWlo(u: Pick<UebertragenAblauf, 'ergebnisse'>): boolean {
+  return zaehlung(u.ergebnisse).abgelegt > 0;
 }
 
 /** Die Frage „Wo sollen sie verarbeitet werden?“ für diese Auswahl. */
@@ -193,7 +233,7 @@ function frage(s: UploadSicht, e: Erfassung<File>, wahl: 'chat' | 'wlo' | null):
     t: s.t, orte: orteFuer(s.daten, e), wahl, grenzen, nichtLesbar: lokal.nichtLesbar, zuGross: lokal.zuGross,
     ohneAnmeldung: chatOhneAnmeldung(s.daten),
     ausgelassenWlo: uebertragenTexte(s.sprache).ausgelassen(aus.ohneArt, aus.zuGross, Math.round(max / 1024 / 1024)),
-    gesperrt: s.beschaeftigt, knoten,
+    gesperrt: s.beschaeftigt, erschliessen: hakenGesetzt(s), hakenVorgesehen: hakenVorgesehen(s.daten), knoten,
   });
 }
 

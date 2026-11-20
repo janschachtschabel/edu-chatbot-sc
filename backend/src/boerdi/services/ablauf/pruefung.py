@@ -24,9 +24,11 @@ from __future__ import annotations
 from typing import Any, Final
 from urllib.parse import urlsplit
 
+from jsonschema import Draft202012Validator
+
 from boerdi.domain import seiten_muster
 from boerdi.domain.config_models.ablauf import AblaufArea, Schritt
-from boerdi.domain.config_models.kestra_flows import SCHREIBENDE_FLOWS
+from boerdi.domain.config_models.kestra_flows import METADATEN_FLOW, SCHREIBENDE_FLOWS
 from boerdi.domain.write_confirm import SCHLUESSEL_FELDER
 from boerdi.services.ablauf import (
     auftrag_teile,
@@ -37,6 +39,7 @@ from boerdi.services.ablauf import (
     vergleich,
     werkzeuge,
 )
+from boerdi.services.ablauf.pruefung_texte import hat as _hat_text
 from boerdi.services.ablauf.pruefung_texte import t as _t
 from boerdi.services.teil_verweise import (
     NAME,
@@ -63,6 +66,10 @@ MAX_AGENT_HINWEIS: Final = 200
 #: WF-2 (Plan 2026-11-15): 12 — die Webseitenführung zeigt 11 Gruppen und „Bin mir nicht sicher“.
 MAX_OPTIONEN: Final = 12
 _MODI: Final = frozenset({"vorschlagen", "direkt"})  # TB-E3
+#: Plan 2026-11-20, P5 (UO-8): Beschriftungen, die nicht sagen, was geschieht (nach :func:`_kern`)
+#: — vor einem Schritt, der ins Repositorium schreibt, ein Befund.
+NICHTSSAGEND: Final = frozenset({"ok", "okay", "weiter", "ja", "nein", "los", "start", "go",
+                                 "yes", "no", "next", "continue", "fortfahren"})
 
 
 #: Review K2c-1, Befund 8 (älter): tiefer sucht die Prüfung keine Verweise — eine sehr tief
@@ -153,6 +160,46 @@ def _direkt_gefragt(ablauf: AblaufArea, i: int) -> bool:
         (mit_wahl(v) and ziel in wahl_ziele(v)) or schreibt_mit_freigabe(v) for v in vor)
 
 
+def _erreichbar(ablauf: AblaufArea, start: int) -> set[int]:
+    """Die Schritte, die von ``start`` aus über :func:`nachfolger` erreichbar sind (ohne ihn)."""
+    index = {s.id: i for i, s in enumerate(ablauf.schritte)}
+    offen, gesehen = [index[z] for z in nachfolger(ablauf, start) if z in index], set()
+    while offen:
+        if (j := offen.pop()) not in gesehen:
+            gesehen.add(j)
+            offen += [index[z] for z in nachfolger(ablauf, j) if z in index]
+    return gesehen
+
+
+def upload_zustimmung_passt(ablauf: AblaufArea, i: int) -> bool:
+    """Plan 2026-11-20, P3: trägt ``zustimmung: upload`` am Auftrag ``i``? Nur am Metadaten-Flow
+    (Review P3, Befund 1), mit ``repo_schreibt``, mit den Knoten aus
+    ``{"$teil": "ablage", "liste": "inhalte", …}`` und einem ``ui_upload``-Schritt, der vor ihm
+    liegen kann. Ob der Klick im Lauf wirklich zählt, prüft der Server (``upload_zustimmung``) —
+    sonst kommt die Freigabe-Box."""
+    from boerdi.ui_module.namen import UPLOAD
+
+    s = ablauf.schritte[i]
+    liste = s.aufteilen.argument if s.aufteilen is not None else auftrag_teile.KNOTEN_LISTE
+    quelle = (s.argumente or {}).get(liste)
+    if not (s.flow == METADATEN_FLOW and s.repo_schreibt and isinstance(quelle, dict)
+            and quelle.get("$teil") == "ablage" and quelle.get("liste") == "inhalte"):
+        return False
+    return any(v.typ == "modul" and v.modul == UPLOAD and i in _erreichbar(ablauf, j)
+               for j, v in enumerate(ablauf.schritte))
+
+
+def _selbst_geschrieben(s: Schritt) -> set[str]:
+    """Die Teile, die Schritt ``s`` selbst füllt (``schreibt`` außer am Modul, ``ausgabe`` des
+    KI-Schritts, Freitext) — nicht, was ein Modul hinterlässt."""
+    namen = {s.schreibt} if s.typ != "modul" and s.schreibt else set()
+    if s.agent and s.agent.ausgabe:
+        namen.add(s.agent.ausgabe)
+    if s.freitext is not None:
+        namen.add(s.freitext.schreibt)
+    return namen
+
+
 def _wartet(s: Schritt) -> bool:
     if s.typ in ("agent", "auftrag") or schreibt_mit_freigabe(s) or mit_wahl(s):
         return True
@@ -216,7 +263,50 @@ def _dienst_daten(s: Schritt, manifest: dict[str, Any], lang: str) -> list[str]:
          for a in sorted(da - set(erlaubt))]
     b += [_t(lang, "modul_feld_fehlt", s=s.id, m=s.modul, a=a)
           for a in sorted(set(parameter.get("required") or ()) - da)]
+    # Plan 2026-11-20, P6: auch die Werte (erlaubte Werte, Typ) — ein Verweis auf einen Teil ist
+    # erst im Lauf da und bleibt hier ungeprüft
+    b += [_t(lang, "dienst_daten_wert", s=s.id, m=s.modul, a=a[:40], e=_erwartet(erlaubt[a], lang))
+          for a, wert in sorted((s.daten or {}).items())
+          if isinstance(erlaubt.get(a), dict) and not _alle_verweis_namen(wert)
+          and not Draft202012Validator(erlaubt[a]).is_valid(wert)]
     return b
+
+
+def _typ_wort(typ: Any, lang: str) -> str:
+    """Zweites Review P4–P6, NIT 5: der JSON-Schema-Typ in Worten („Wahrheitswert“, „Text“ …) —
+    ein unbekannter bleibt, wie er ist."""
+    schluessel = f"typ_{typ}"
+    return _t(lang, schluessel) if _hat_text(schluessel) else str(typ)
+
+
+def _erwartet(schema: dict[str, Any], lang: str) -> str:
+    """Was ein Parameter erwartet, kurz: die erlaubten Werte (auch die einer Liste), sonst der Typ
+    (mit der Höchstlänge eines Texts). Eine Liste nennt dazu ihre Länge und ob Doppelte erlaubt
+    sind (Review P5/P6, NIT 7) — etwa „Liste: chat, wlo, namen; 1–3 Einträge; ohne Doppelte“."""
+    items = schema.get("items")
+    werte = schema.get("enum") or (items.get("enum") if isinstance(items, dict) else None)
+    if werte:
+        kern = ", ".join(str(w) for w in werte)
+    elif schema.get("type") == "string" and "maxLength" in schema:
+        kern = _t(lang, "erwartet_text_max", n=schema["maxLength"])
+    else:
+        roh = schema.get("type") or "?"
+        kern = "/".join(_typ_wort(x, lang) for x in (roh if isinstance(roh, list) else [roh]))
+    if schema.get("type") != "array":
+        return kern
+    teile = [_t(lang, "erwartet_liste", w=kern)]
+    unten, oben = schema.get("minItems"), schema.get("maxItems")
+    if unten is not None and oben is not None:
+        teile.append(_t(lang, "erwartet_anzahl", n=f"{unten}–{oben}"))
+    elif unten is not None:
+        teile.append(_t(lang, "erwartet_mindestens_1" if unten == 1 else "erwartet_mindestens",
+                        n=unten))
+    elif oben is not None:
+        teile.append(_t(lang, "erwartet_hoechstens_1" if oben == 1 else "erwartet_hoechstens",
+                        n=oben))
+    if schema.get("uniqueItems"):
+        teile.append(_t(lang, "erwartet_ohne_doppelte"))
+    return "; ".join(teile)
 
 
 def _schritt(s: Schritt, module: dict[str, Any], lang: str,
@@ -500,6 +590,63 @@ def _text_antworten(s: Schritt, lang: str) -> list[str]:
                    for a in texte for sprache, t in a.label.items())):
         return [_t(lang, "text_antworten", s=s.id)]
     return []
+
+
+def _kern(label: str) -> str:
+    """Eine Beschriftung ohne Satzzeichen, Leerzeichen und Groß/Klein — „O.K.“ wird ``ok``."""
+    return "".join(z for z in label.casefold() if z.isalnum())
+
+
+def _schreibt_ins_repo(s: Schritt) -> bool:
+    """Ein Auftrag, der ins Repositorium schreibt (``repo_schreibt`` oder ein bekannt schreibender
+    Flow), oder ein schreibendes WLO-Werkzeug (``werkzeuge.schreibend``)."""
+    if s.typ == "auftrag":
+        return bool(s.repo_schreibt) or s.flow in SCHREIBENDE_FLOWS
+    return s.typ == "werkzeug" and werkzeuge.schreibend(s.werkzeug or "")
+
+
+def _ohne_halt_zu(ablauf: AblaufArea, ziel: str) -> set[str]:
+    """``ziel`` und jeder Schritt, der ohne Halt dorthin führen kann (Review P5/P6, MINOR 4):
+    Verzweigungen und — zweites Review P4–P6, NIT 3 — jeder andere Durchlauf-Schritt, der nicht
+    auf die Person wartet (:func:`_wartet`; etwa eine Nachricht ohne Wahl, ein lesendes Werkzeug).
+    Ein wartender Schritt beendet die Kette (er sagt selbst, was folgt); die Fixpunkt-Schleife
+    übersteht Kreise."""
+    menge, gewachsen = {ziel}, True
+    while gewachsen:
+        gewachsen = False
+        for i, v in enumerate(ablauf.schritte):
+            if (not _wartet(v) and v.id not in menge
+                    and menge & set(_normal(ablauf, i))):
+                menge.add(v.id)
+                gewachsen = True
+    return menge
+
+
+def _nichtssagende_knoepfe(ablauf: AblaufArea, ziel: str, lang: str) -> list[Befund]:
+    """Plan 2026-11-20, P5 (UO-8): ein Knopf, dessen Wahl zum schreibenden Schritt ``ziel`` führt
+    (direkt oder über Schritte ohne Halt, :func:`_ohne_halt_zu`), sagt, was geschieht — in keiner
+    Sprache nur „OK“, „Weiter“, „Ja“ … (:data:`NICHTSSAGEND`). Ein Text-Chip derselben Frage nur,
+    wenn er wie getippt eine dieser Optionen trifft (Review P5/P6, NIT 6) — sonst führt er zum
+    Hinweis, nie zum Schreiben."""
+    from boerdi.services.ablauf.treiber import wahl_aus_text  # treiber importiert dieses Modul
+
+    ziele = _ohne_halt_zu(ablauf, ziel)
+    befunde: list[Befund] = []
+    for j, v in enumerate(ablauf.schritte):
+        optionen = [o for o in v.optionen or [] if o.ziel in ziele] if mit_wahl(v) else []
+        if not optionen:
+            continue
+        schreibend = {o.id for o in optionen}
+        knoepfe = [(o.id, o.label) for o in optionen]
+        knoepfe += [("text_antworten", a.label) for a in v.text_antworten or []
+                    if any(wahl_aus_text(v, t, sprache) in schreibend
+                           for sprache, t in a.label.items())]
+        for kennung, label in knoepfe:
+            leer = next((x for x in label.values() if _kern(x) in NICHTSSAGEND), None)
+            if leer is not None:
+                befunde.append((j, _t(lang, "knopf_nichtssagend", s=v.id, o=kennung,
+                                      l=leer.strip()[:60], z=ziel)))
+    return befunde
 
 
 def _schreibt_je_schritt(ablauf: AblaufArea, module: dict[str, Any], i: int) -> set[str]:
@@ -908,7 +1055,12 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
         # Review TB-F1, Befund 2 (Plan N15): vor einem Flow, der ins Repositorium schreibt, steht
         # eine Rückfrage an die Person — seit dem Querschnitts-Review F/T (Befund 5) direkt davor,
         # auf jedem Weg: eine Wahl, deren Antwort zu ihm führt, oder eine Freigabe
-        if s.typ == "auftrag" and s.repo_schreibt and not _direkt_gefragt(ablauf, i):
+        # Plan 2026-11-20, P3 (UO-3): mit ``zustimmung: upload`` ist der Upload-Klick die
+        # Zustimmung — statt der Rückfrage braucht es Knoten aus der Ablage und den Upload davor
+        if s.typ == "auftrag" and s.zustimmung == "upload":
+            if not upload_zustimmung_passt(ablauf, i):
+                befunde.append((i, _t(lang, "zustimmung_upload", s=s.id)))
+        elif s.typ == "auftrag" and s.repo_schreibt and not _direkt_gefragt(ablauf, i):
             befunde.append((i, _t(lang, "auftrag_rueckfrage", s=s.id)))
         # Paket K, Review A4/A7: der MCP-Weg gilt nur für Schritte mit ``repo_schreibt`` — ein
         # bekannt schreibender Flow ohne den Vermerk ginge den Direktweg, ohne Rückfrage
@@ -920,6 +1072,8 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
             befunde += [(j, _t(lang, "auftrag_synonym", s=v.id, o=o.id))
                         for j, v in enumerate(ablauf.schritte) if mit_wahl(v)
                         for o in v.optionen or [] if o.ziel == s.id and o.synonyme]
+        if _schreibt_ins_repo(s):
+            befunde += _nichtssagende_knoepfe(ablauf, s.id, lang)
         rueckfrage = rueckfrage or s.typ == "modul" or bool(s.optionen) or s.freitext is not None
         rueckfrage = rueckfrage or (s.typ == "werkzeug" and s.freigabe is not None)
         # TB-F1: ein Flow, den der Betrieb nicht freischaltet, sperrt nur einen eingeschalteten
@@ -943,6 +1097,10 @@ def pruefe_gegliedert(ablauf: AblaufArea, lang: str = "de") -> list[Befund]:
         # AS-4a: ``start`` tragen nur die Startdaten
         if typen.START_TEIL in typen.schritt_ausgaben(s, module):
             befunde.append((i, _t(lang, "start_reserviert", s=s.id)))
+        # Review P3, Befund 6: ``ablage`` schreibt nur der Server — sonst fälschte ein Schritt den
+        # Nachweis der Zustimmung durch den Upload
+        befunde += [(i, _t(lang, "ablage_reserviert", s=s.id, t=t))
+                    for t in sorted(_selbst_geschrieben(s) & typen.NUR_VOM_SERVER)]
         # Review AS-4a, Befund 8: ``$teil: start`` mit Pfad nennt ein Feld des Schemas
         befunde += [(i, _t(lang, "start_feld", s=s.id, f=f[:40])) for f in dict.fromkeys(
             (pfad or "").split(".")[0] for n, pfad, _w in typen.schritt_verweise(s)

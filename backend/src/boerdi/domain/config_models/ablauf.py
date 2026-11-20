@@ -226,6 +226,15 @@ class Schritt(AreaModel):
     #: legt es hier fest. Ein Auftrag braucht ohnehin die WLO-Anmeldung; der Vermerk steht im Studio
     #: und im Handbuch. Vorgabe ``None`` (wegen ``treiber.fassung``).
     repo_schreibt: Annotated[bool | None, NurBei("typ", "auftrag")] = None
+    #: ``auftrag`` mit ``repo_schreibt`` (Plan 2026-11-20, P3, UO-3): wer dem Start zustimmt.
+    #: ``freigabe`` (Vorgabe): die Freigabe-Box. ``upload``: der Klick „In WLO ablegen und
+    #: erschließen“ — nur für Knoten, die der Upload-Block dieses Laufs neu angelegt hat
+    #: (``services/ablauf/upload_zustimmung``), sonst doch die Box. Vorgabe ``None`` (wegen
+    #: ``treiber.fassung``); ``freigabe`` und ``""`` aus dem Studio sind nicht gesetzt.
+    zustimmung: Annotated[Annotated[str, Choices("freigabe", "upload"),
+                                    Field(pattern=r"^(freigabe|upload)$")] | None,
+                          BeforeValidator(lambda w: None if w in ("", "freigabe") else w),
+                          NurBei("typ", "auftrag")] = None
     #: ``ende`` (Plan 2026-11-11, Review TW-4, Befund 2; Nutzer N16): hier steigt die Person aus dem
     #: Ablauf aus. Einige Züge lang startet derselbe Ablauf nicht wieder von selbst (Wendung,
     #: Modul-Antwort, Werkzeug der KI, ``zug_basis.abgelehnt``); die Antwort bietet „Doch mit

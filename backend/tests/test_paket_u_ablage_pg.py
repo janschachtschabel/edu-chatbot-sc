@@ -155,3 +155,28 @@ def test_inhalte_tragen_rolle_und_angaben_und_fehlen_in_strukturdokument_wegen(d
     assert ablage.angaben(next(z for z in alle if z.id == struktur)) is None
     # „das Dokument der Sitzung“ bleibt ein Strukturdokument, auch wenn ein Inhalt jünger ist
     assert juengstes is not None and juengstes.id == struktur
+
+
+def test_p1_beides_steht_in_beiden_lesewegen(db_url, grenzen):
+    """Plan 2026-11-20, P1: „Gliederung und Material“ (``beides``) ist Strukturdokument und Inhalt —
+    die Rolle bleibt gespeichert, beide Lesewege sehen das Dokument."""
+    from boerdi.services.dokumente import ablage
+
+    async def ablauf(sitzungen):
+        async with sitzungen() as s:
+            inhalt = await _neu(s, "Linsen.pdf", rolle="inhalt")
+            beides = await _neu(s, "Lehrplan.pdf", rolle="beides", angaben={"titel": "Plan"})
+            await s.commit()
+        async with sitzungen() as s:
+            strukturen = [z.id for z in await ablage.alle_lesbaren(s, _SID, None)]
+            inhalte = [z.id for z in await ablage.alle_lesbaren(s, _SID, None, rolle="inhalt")]
+            juengstes = await ablage.aktuelles(s, _SID, None)
+            zeile = next(z for z in await ablage.alle_lesbaren(s, _SID, None, rolle=None)
+                         if z.id == beides)
+        return inhalt, beides, strukturen, inhalte, juengstes, zeile
+
+    inhalt, beides, strukturen, inhalte, juengstes, zeile = _lauf(db_url, ablauf)
+    assert strukturen == [beides]
+    assert inhalte == [inhalt, beides]
+    assert juengstes is not None and juengstes.id == beides
+    assert ablage.rolle(zeile) == "beides" and ablage.angaben(zeile) == {"titel": "Plan"}

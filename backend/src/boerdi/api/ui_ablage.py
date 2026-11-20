@@ -1,15 +1,18 @@
 """``POST /api/ui/ablage/{vorbereiten,datei,abschluss}`` — Ablage im persönlichen Bereich (U3-3a).
 
 Das Modul ``ui_upload`` überträgt einen erfassten Ordner, nachdem die Person die Vorschau gesehen
-und „Jetzt übertragen“ gewählt hat. Kein Zug und keine KI — das Backend reicht an das MCP durch
+und „In WLO ablegen und erschließen“ bzw. „In WLO ablegen“ gewählt hat (bis Plan 2026-11-20, P2:
+„Jetzt übertragen“). Kein Zug und keine KI — das Backend reicht an das MCP durch
 (``services/ablage/mcp_ablage``, MA-1…MA-4):
 
 1. ``vorbereiten`` (JSON: Ordnername, je Datei Titel, sha256, Größe, Art, Rolle und die feste
-   Nummer ``i`` der Auswahl) → Vorschau des Servers (normalisierte Namen, Ordner oder flach) und der
-   Freigabe-Schlüssel. Die Vorschau wird Teil ``ablage`` im Vorgang
-   (``services/ablage/vorgang_teil``; nur ein Prüf-Kürzel des Schlüssels). Plan 2026-11-16, TG-3b:
-   das MCP zählt die Einträge nach ihrer Stelle (``index`` 0…n−1, auch für ``datei``); ``i`` merkt
-   sich das Backend je Eintrag im Teil — so verknüpft es Ordner (Teil ``struktur``) und Knoten.
+   Nummer ``i`` der Auswahl; seit Plan 2026-11-20, P2, das Häkchen ``erschliessen``) → Vorschau
+   des Servers (normalisierte Namen, Ordner oder flach) und der Freigabe-Schlüssel; ``erschliessen``
+   hält der Teil nur fest, wenn der Metadaten-Flow startbar ist (die Antwort sagt es). Die
+   Vorschau wird Teil ``ablage`` im Vorgang (``services/ablage/vorgang_teil``; nur ein Prüf-Kürzel
+   des Schlüssels). Plan 2026-11-16, TG-3b: das MCP zählt die Einträge nach ihrer Stelle
+   (``index`` 0…n−1, auch für ``datei``); ``i`` merkt sich das Backend je Eintrag im Teil — so
+   verknüpft es Ordner (Teil ``struktur``) und Knoten.
 2. ``datei`` (multipart: Schlüssel, Index, Datei — **nacheinander**, eine Datei zur Zeit) → die
    Bytes als Strom in einen Upload-Platz des MCP, dann als Eintrag ``index`` ablegen; der Stand geht
    in den Teil. Ein Index mit endgültigem Stand (auch ``failed``) gibt ihn zurück, ohne das MCP zu
@@ -41,7 +44,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StrictBool, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import get_session
@@ -65,8 +68,10 @@ from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import has_personal_auth
 from boerdi.services.rate_limits import check_rate_limit
 from boerdi.ui_module import upload_bereitgestellt as bereit
+from boerdi.ui_module import upload_orte
 from boerdi.ui_module.antwort import OFFENE_FRAGE
 from boerdi.ui_module.namen import UPLOAD
+from boerdi.ui_module.rollen import ist_gliederung
 
 logger = logging.getLogger(__name__)
 public_router = APIRouter(prefix="/api/ui/ablage", tags=["ui"])
@@ -92,7 +97,8 @@ class Eintrag(BaseModel):
     groesse: int = Field(gt=0)
     art: str = Field(pattern=_ART)
     #: W4-Anbindung (MCP-Stand 2026-11-08): Strukturdokument oder Inhalt — Teil der Freigabe.
-    rolle: str = Field(default="inhalt", pattern=r"^(inhalt|struktur)$")
+    #: P1 (Plan 2026-11-20): ``beides`` (Gliederung und Material) geht als ``structure`` ans MCP.
+    rolle: str = Field(default="inhalt", pattern=r"^(inhalt|struktur|beides)$")
     #: Plan 2026-11-16, TG-3b: die feste Nummer der Datei in der Auswahl (``i`` im Teil
     #: ``struktur``); geht nicht an das MCP. Fehlt bei einem Widget vor TG-3b.
     i: int | None = Field(default=None, ge=0, le=4999)
@@ -109,10 +115,14 @@ class Vorbereiten(BaseModel):
     block_id: str = Field(pattern=_BLOCK)
     ordner: str = Field(min_length=1, max_length=120)
     eintraege: list[Eintrag] = Field(min_length=1, max_length=200)
+    #: Plan 2026-11-20, P2: das Häkchen „Metadaten von WLO erzeugen lassen“. Ein älteres Widget
+    #: schickt es nicht — dann aus (es versprach nichts).
+    erschliessen: StrictBool = False
 
     @model_validator(mode="after")
     def _ein_strukturdokument(self) -> Vorbereiten:
-        struktur = [e for e in self.eintraege if e.rolle == "struktur"]
+        # P1: ``beides`` zählt mit und muss lesbar sein
+        struktur = [e for e in self.eintraege if ist_gliederung(e.rolle)]
         # Plan 2026-11-16, TG-3e: bis zu fünf Strukturdokumente (wie ``upload-rollen.ts``); das
         # MCP nimmt je Eintrag eine Rolle und begrenzt ihre Zahl nicht
         if (len(struktur) > _STRUKTUR_HOECHSTENS
@@ -231,12 +241,18 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
             raise _fehler(fehler.code) from None
         raise
     letzte = await _letzte_abwarten(liste)
+    # P2: festgehalten wird das Häkchen nur, wenn WLO danach wirklich Metadaten erzeugen kann.
+    # Review P3 (Koordinator): und nur, wenn der offene Block es zeigt (der Schritt setzt
+    # ``erschliessen`` ausdrücklich, ``upload_antwort.merken``) — sonst bewiese der Teil eine
+    # Zustimmung, die die Person nie gegeben hat
+    haekchen = (entities.get(OFFENE_FRAGE) or {}).get("haekchen") is True
+    erschliessen = anfrage.erschliessen and haekchen and upload_orte.flow_da()
     token = str(plan["batchToken"])
     rollen = [e.rolle for e in anfrage.eintraege]
     # TG-3b: Stelle in der Freigabe → feste Nummer der Auswahl
     nummern = [e.i for e in anfrage.eintraege]
     teil = vorgang_teil.aus_plan(plan, token, anfrage.block_id, vorher, rollen=rollen,
-                                 nummern=nummern)
+                                 nummern=nummern, erschliessen=erschliessen)
 
     dazwischen = False
 
@@ -250,7 +266,7 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
             return None
         # Review W4, Befund 1: der GESPEICHERTE Teil (die erbetene Rolle kam nur in die Antwort).
         return vorgang_teil.aus_plan(plan, token, anfrage.block_id, frisch, rollen=rollen,
-                                     nummern=nummern)
+                                     nummern=nummern, erschliessen=erschliessen)
 
     if not await vorgang_teil.speichern(session, anfrage.session_id, entities, teil, neu=neu):
         # Der wahre Grund statt „noch einmal versuchen“ (Review 2026-11-07, UI-Backend Befund 6).
@@ -263,7 +279,7 @@ async def vorbereiten(anfrage: Vorbereiten, request: Request, response: Response
             "gesamt": int(plan.get("totalBytes") or 0),
             "eintraege": [{k: e[k] for k in ("index", "titel", "art", "groesse", "name", "rolle")}
                           for e in teil["inhalte"]],
-            "letzte": letzte}
+            "letzte": letzte, "erschliessen": erschliessen}
 
 
 #: Paket M6: so lange wartet ``vorbereiten`` nach der Freigabe noch auf die Liste der letzten

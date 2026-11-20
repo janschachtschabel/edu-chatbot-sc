@@ -7,20 +7,24 @@
  * Inhalte. Plan 2026-11-17, Paket U4 — ein Weg: die Frage „Wo sollen sie verarbeitet werden?“
  * (`upload-orte*.ts`), dann **ein** Knopf „Hochladen“: „Hier im Chat“ (`upload-chat*.ts`,
  * `host.hochladen` mit Rolle) oder „In WLO ablegen und erschließen“ (`upload-uebertragen*.ts`,
- * `host.ablegen`, Vorschau mit „Jetzt übertragen“); daneben „Nur Namen senden (nichts hochladen)“.
+ * `host.ablegen`, Vorschau mit „In WLO ablegen (und erschließen)“); daneben „Nur die Dateinamen senden“.
+ * Plan 2026-11-20, P2: der Hauptknopf heißt je Ort („Hier lesen“, „Weiter zur Vorschau“); unter WLO das
+ * Häkchen „Metadaten von WLO erzeugen lassen“ — sein Stand geht mit `vorbereiten` als `erschliessen`.
  * Jede Antwort ist `aktion: "bereitgestellt"` mit `ort`. Darstellung in `upload-ansicht.ts`; hier
  * bleiben Zustand, Ereignisse und Fokus.
  */
 import type { ElementHost, NachladeElement } from '../_nachladen/element-vertrag';
 import type { ModulKontext } from '../_vertrag/ui-block';
 import { antwortDaten } from './upload-antwort';
-import { ansichtTeile, grenzenAus, nurLesenOhneStapel, type UploadSicht, wahlFuer, wegAktiv, type Zustand, zusammenfassung } from './upload-ansicht';
+import {
+  abgelegtInWlo, ansichtTeile, erschliessenFuer, grenzenAus, nurLesenOhneStapel, type UploadSicht, wahlFuer, wegAktiv, type Zustand, zusammenfassung,
+} from './upload-ansicht';
 import { namenAntwort } from './upload-chat';
 import { ChatAblauf } from './upload-chat-ablauf';
 import { dateiEingaben, quellenAusAblage } from './upload-eingabe';
-import { ausDateiliste, erfasse, type Erfassung, type Quelle } from './upload-erfassen';
-import { lokaleAuswahl, lokaleGrenzen, type Ort, orteAus } from './upload-orte';
-import { alleIgnorieren, setzeRolle, vorschlagen } from './upload-rollen';
+import { ausDateiliste, erfasse, type Erfassung, type Quelle, type Rolle } from './upload-erfassen';
+import { lokaleAuswahl, lokaleGrenzen, type Ort, orteAus, orteFuer } from './upload-orte';
+import { alleIgnorieren, rollenVorgabe, setzeRolle, vorschlagen } from './upload-rollen';
 import { UPLOAD_STIL } from './upload-stil';
 import { type Sprache, texte, type UploadTexte } from './upload-texte';
 import { UebertragenAblauf } from './upload-uebertragen-ablauf';
@@ -39,6 +43,8 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
   private offen = new Set<string>();
   /** Der Ort, den die Person angeklickt hat; `null` = die Vorauswahl des Systems gilt. */
   private ort: Ort | null = null;
+  /** P2: das Häkchen „Metadaten von WLO erzeugen lassen“, wie die Person es gestellt hat; `null` = die Vorgabe. */
+  private erschliessen: boolean | null = null;
   private readonly chat = new ChatAblauf({
     host: () => this.host, erfassung: () => this.erfassung, beschaeftigt: () => this._beschaeftigt,
     dateien: () => (this.erfassung ? lokaleAuswahl(this.erfassung, lokaleGrenzen(this._daten)).lesbar : []),
@@ -49,6 +55,7 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     host: () => this.host, erfassung: () => this.erfassung, daten: () => this._daten,
     beschaeftigt: () => this._beschaeftigt, t: () => uebertragenTexte(this.sprache), wurzel: () => this.wurzel,
     ansagen: (text) => this.ansagen(text), zeichne: () => this.zeichne(), nurLesen: () => !!this._kontext?.nurLesen,
+    erschliessen: () => (this.erfassung ? erschliessenFuer(this.sicht(), orteFuer(this._daten, this.erfassung)) : false),
   });
   private readonly wurzel: ShadowRoot;
   private readonly inhalt: HTMLDivElement;
@@ -135,8 +142,11 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     } else if (ziel instanceof HTMLInputElement && ziel.type === 'radio' && ziel.dataset['ort']) {
       this.ort = ziel.dataset['ort'] as Ort;
       this.zeichne();
+    } else if (ziel instanceof HTMLInputElement && ziel.type === 'checkbox' && ziel.dataset['erschliessen'] !== undefined) {
+      this.erschliessen = ziel.checked;
+      this.zeichne();
     } else if (ziel instanceof HTMLSelectElement && ziel.dataset['datei'] && this.erfassung && !this.auswahlFest()) {
-      const rolle = ziel.value as 'inhalt' | 'struktur' | 'ignorieren';
+      const rolle = ziel.value as Rolle;
       this.neu(setzeRolle(this.erfassung, Number(ziel.dataset['datei']), rolle));
     }
   }
@@ -210,8 +220,8 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     if (this.uebertragen.laeuft() || this.chat.laeuft()) return;
     this.uebertragen.zuruecksetzen();
     this.chat.zuruecksetzen();
-    const e = vorschlagen(erfasse(quellen, grenzenAus(this._daten)),
-      this._daten['einzeldatei_als_struktur'] === true);
+    // P2: die Rollen beginnen nach der Vorgabe des Blocks (`rolle_vorgabe`; alt `einzeldatei_als_struktur`)
+    const e = vorschlagen(erfasse(quellen, grenzenAus(this._daten)), rollenVorgabe(this._daten));
     this.offen = new Set([e.wurzel.pfad]);
     this.zustand = e.dateien.length ? 'erfasst' : 'fehler';
     this.neu(e);
@@ -247,7 +257,7 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
   }
 
   private zuruecksetzen(): void {
-    if (this.chat.laeuft() || this.uebertragen.laeuft()) return;
+    if (this.chat.laeuft() || this.uebertragen.laeuft() || abgelegtInWlo(this.uebertragen)) return;
     this.chat.zuruecksetzen();
     this.uebertragen.zuruecksetzen();
     this.erfassung = null;
@@ -292,7 +302,7 @@ export class UiUploadElement extends HTMLElement implements NachladeElement {
     return {
       t: this.t, sprache: this.sprache, daten: this._daten, kontext: this._kontext, zustand: this.zustand,
       erfassung: this.erfassung, offen: this.offen, beschaeftigt: this._beschaeftigt, auswahlFest: this.auswahlFest(),
-      ort: this.ort, chat: this.chat, uebertragen: this.uebertragen,
+      ort: this.ort, erschliessen: this.erschliessen, chat: this.chat, uebertragen: this.uebertragen,
       link: (url) => this.host?.link(url) ?? { href: '', hinweis: '' },
     };
   }

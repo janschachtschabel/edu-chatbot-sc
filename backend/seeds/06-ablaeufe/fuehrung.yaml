@@ -48,8 +48,18 @@ ausloeser:
   - fuehre mich
 - art: text
   wendungen:
+  - führe mich durch die
+  - führ mich durch die
+  - führe mich systematisch
+  - webseitenführung
+  - führung starten
+  - starte die führung
+  - starte eine führung
+  - führung durch die
   - rundgang
   - zeig mir die seite
+- art: text
+  wendungen:
   - zeig mir die website
   - wie funktioniert die seite
   - start the tour
@@ -58,10 +68,10 @@ ausloeser:
   - guided tour
   - show me around
   - show me the site
-- art: text
-  wendungen:
   - show me the website
   - how does this site work
+- art: text
+  wendungen:
   - how does this website work
 schritte:
 - id: wo

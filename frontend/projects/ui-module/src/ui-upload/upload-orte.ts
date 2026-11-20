@@ -12,10 +12,16 @@
  * (älteres Backend) gilt nur die Grenze je Auswahl, und den Rest weist der Server ab (`grenze_*`).
  *
  * Ohne `orte` (älteres Backend, Studio-Vorschau) leiten sich die Orte aus `schalter` ab.
+ *
+ * Plan 2026-11-20, P2: die Vorauswahl rechnet das Backend nach dem Anwendungsfall (Studio bzw. Schritt);
+ * hier gilt nur die globale Regel, wenn die Auswahl den vorgewählten Ort sperrt. Das Häkchen „Metadaten von
+ * WLO erzeugen lassen“ gibt es, wenn WLO geht und der Metadaten-Flow da ist ({@link flowDa}); seine Vorgabe
+ * kommt aus `erschliessen` ({@link erschliessenVorgabe}). Review P2, Befund 1: nur, wenn der Ablauf-Schritt
+ * `erschliessen` setzt ({@link hakenVorgesehen}) — ohne die Angabe (freier Chat) legt WLO nur ab.
  */
 import type { AblageRolle } from '../_vertrag/modul-host';
 import type { Erfassung } from './upload-erfassen';
-import { kannStrukturSein } from './upload-rollen';
+import { alsAblageRolle, kannStrukturSein } from './upload-rollen';
 import { auswahl, MAX_STAPEL, maxBytesAblage } from './upload-uebertragen';
 
 export type Ort = 'chat' | 'wlo' | 'namen';
@@ -24,10 +30,14 @@ export type Ort = 'chat' | 'wlo' | 'namen';
 export type OrtGrund = 'aus' | 'nur_angemeldet' | 'ablauf' | 'grenze_sitzung' | 'ueber_grenze' | 'ueber_grenze_anmelden'
   | 'stapel' | 'keine';
 
+export type GrundErschliessung = 'flow_nicht_freigegeben' | 'dienst_nicht_erreichbar';
+
 export interface OrtStand {
   readonly geht: boolean;
   readonly grund?: OrtGrund;
   readonly hinweis?: 'ohne_erschliessung';
+  /** Nur wlo mit `ohne_erschliessung` (Review P2, Befund 3): warum WLO gerade keine Metadaten erzeugt. */
+  readonly grund_erschliessung?: GrundErschliessung;
   /** Nur chat, vom Backend: der Code, wenn die Auswahl die Grenzen überschreitet. */
   readonly ueber_grenze?: 'ueber_grenze' | 'ueber_grenze_anmelden';
   /** Nur chat, vom Backend (Plan 2026-11-19, Paket C): gescannte PDF liest der Server per
@@ -42,9 +52,6 @@ export interface Orte {
   readonly vorauswahl: Ort;
   readonly chat: OrtStand;
   readonly wlo: OrtStand;
-  /** Plan 2026-11-20 §8, E3: auf dem Dokument-Weg (`einzeldatei_als_struktur`) folgt der Ablage kein
-   *  Flow — der Ort heißt nur „In WLO ablegen“ und verspricht keine Angaben. */
-  readonly nurAblegen?: true;
 }
 
 export interface LokaleGrenzen {
@@ -85,6 +92,7 @@ const VORGABE = { maxDateien: 10, mbGesamt: 50, aufbewahrungH: 24 };
 const GRUENDE = new Set<string>(['aus', 'nur_angemeldet', 'ablauf', 'grenze_sitzung']);
 const UEBER = new Set<string>(['ueber_grenze', 'ueber_grenze_anmelden']);
 const ORTE = new Set<string>(['chat', 'wlo', 'namen']);
+const OHNE_FLOW = new Set<string>(['flow_nicht_freigegeben', 'dienst_nicht_erreichbar']);
 
 function objekt(x: unknown): Record<string, unknown> | null {
   return x && typeof x === 'object' && !Array.isArray(x) ? x as Record<string, unknown> : null;
@@ -98,6 +106,8 @@ function stand(roh: unknown): OrtStand {
   return {
     geht: true,
     ...(o['hinweis'] === 'ohne_erschliessung' ? { hinweis: 'ohne_erschliessung' as const } : {}),
+    ...(o['hinweis'] === 'ohne_erschliessung' && OHNE_FLOW.has(String(o['grund_erschliessung']))
+      ? { grund_erschliessung: o['grund_erschliessung'] as GrundErschliessung } : {}),
     ...(UEBER.has(String(o['ueber_grenze'])) ? { ueber_grenze: o['ueber_grenze'] as OrtStand['ueber_grenze'] } : {}),
     ...(o['texterkennung'] === true ? { texterkennung: true as const } : {}),
   };
@@ -115,9 +125,24 @@ function ausSchaltern(daten: Readonly<Record<string, unknown>>): Orte {
 
 export function orteAus(daten: Readonly<Record<string, unknown>>): Orte {
   const o = objekt(daten['orte']);
-  const orte = !o || !ORTE.has(String(o['vorauswahl'])) ? ausSchaltern(daten)
+  return !o || !ORTE.has(String(o['vorauswahl'])) ? ausSchaltern(daten)
     : { vorauswahl: o['vorauswahl'] as Ort, chat: stand(o['chat']), wlo: stand(o['wlo']) };
-  return daten['einzeldatei_als_struktur'] === true ? { ...orte, nurAblegen: true } : orte;
+}
+
+/** P2: erzeugt WLO nach der Ablage Metadaten? Nur, wenn der Ort geht und kein `ohne_erschliessung` steht. */
+export function flowDa(wlo: OrtStand): boolean {
+  return wlo.geht && wlo.hinweis !== 'ohne_erschliessung';
+}
+
+/** Review P2, Befund 1: sieht der Ablauf-Schritt das Häkchen vor (setzt er `erschliessen`)? Nur dann nutzt ein
+ *  späterer Schritt die Wahl; ohne die Angabe (freier Chat) gibt es kein Häkchen, WLO legt nur ab. */
+export function hakenVorgesehen(daten: Readonly<Record<string, unknown>>): boolean {
+  return typeof daten['erschliessen'] === 'boolean';
+}
+
+/** P2: die Vorgabe des Häkchens (`erschliessen`, aus dem Ablauf-Schritt); ohne Angabe aus. */
+export function erschliessenVorgabe(daten: Readonly<Record<string, unknown>>): boolean {
+  return daten['erschliessen'] === true;
 }
 
 export function lokaleGrenzen(daten: Readonly<Record<string, unknown>>): LokaleGrenzen {
@@ -154,7 +179,7 @@ export function lokaleAuswahl<T>(e: Erfassung<T>, g?: Pick<LokaleGrenzen, 'maxBy
     if (d.rolle === 'ignorieren') return;
     if (!kannStrukturSein(d)) { nichtLesbar++; return; }
     if (g && d.groesse > g.maxBytesDatei) { zuGross++; return; }
-    lesbar.push({ i, rolle: d.rolle === 'struktur' ? 'struktur' : 'inhalt', name: d.name, groesse: d.groesse, handle: d.handle });
+    lesbar.push({ i, rolle: alsAblageRolle(d.rolle), name: d.name, groesse: d.groesse, handle: d.handle });
   });
   const zaehlend = new Map(lesbar.map((d) => [dublettenSchluessel(d), d.groesse]));
   return { lesbar, anzahl: zaehlend.size, nichtLesbar, zuGross, bytes: [...zaehlend.values()].reduce((s, b) => s + b, 0) };
@@ -174,8 +199,10 @@ function chatFuer(chat: OrtStand, a: LokaleAuswahl<unknown>, g: LokaleGrenzen): 
 function wloFuer<T>(wlo: OrtStand, e: Erfassung<T>, daten: Readonly<Record<string, unknown>>): OrtStand {
   if (!wlo.geht) return wlo;
   const n = auswahl(e, maxBytesAblage(daten)).kandidaten.length;
-  if (!n) return { geht: false, grund: 'keine' };
-  return n > MAX_STAPEL ? { geht: false, grund: 'stapel' } : wlo;
+  // P2: gesperrt für diese Auswahl bleibt der Hinweis — der Name des Orts verspricht dann kein „erschließen“
+  const hinweis = wlo.hinweis ? { hinweis: wlo.hinweis } : {};
+  if (!n) return { geht: false, grund: 'keine', ...hinweis };
+  return n > MAX_STAPEL ? { geht: false, grund: 'stapel', ...hinweis } : wlo;
 }
 
 /** Die Orte für diese Auswahl: Grenzen „Hier im Chat“, Größe einer Übertragung, Vorauswahl. */
@@ -196,7 +223,7 @@ export function chatOhneAnmeldung(daten: Readonly<Record<string, unknown>>): boo
   return typeof s['dokument_ohne_anmeldung'] === 'boolean' ? s['dokument_ohne_anmeldung'] : s['lesen_nach_anmeldung'] !== true;
 }
 
-/** Der Ort, den „Hochladen“ nimmt: die Wahl der Person, solange er geht, sonst die Vorauswahl;
+/** Der Ort, den der Hauptknopf nimmt: die Wahl der Person, solange er geht, sonst die Vorauswahl;
  *  `null`, wenn nur die Namen gehen. */
 export function gewaehlt(o: Orte, wahl: Ort | null): 'chat' | 'wlo' | null {
   if ((wahl === 'chat' || wahl === 'wlo') && o[wahl].geht) return wahl;

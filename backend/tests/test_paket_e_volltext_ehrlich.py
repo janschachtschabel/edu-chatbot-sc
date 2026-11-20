@@ -170,10 +170,12 @@ def test_r1_der_chat_ausweg_hat_ein_eigenes_feld_nur_mit_ort_chat(lage):  # noqa
     wahl = {o.id: o for o in schritte["ohne_dokumenttext"].optionen or []}
     feld = schritte[wahl["chat"].ziel]
     assert feld.id == "dokument_chat" and feld.modul == "ui_upload"
-    assert feld.daten == {"zweck": "bereitstellen", "einzeldatei_als_struktur": True,
-                          "orte": ["chat"]}
+    # Plan 2026-11-20, P4: ``rolle_vorgabe: gliederung`` statt des alten Schlüssels; kein Häkchen
+    assert feld.daten == {"zweck": "bereitstellen", "rolle_vorgabe": "gliederung",
+                          "vorauswahl": "auto", "orte": ["chat"]}
     assert feld.weiter == "dokument_gelesen"
-    # angemeldet mit Flow-Träger wäre sonst „In WLO ablegen“ vorgewählt — die Schleife
+    # angemeldet mit Flow-Träger wäre sonst „In WLO ablegen und erschließen“ vorgewählt — die
+    # Schleife
     erg = asyncio.run(modul_dienst.aufruf(katalog.katalog()["ui_upload"], dict(feld.daten),
                                           Umgebung(aus_ablauf=True)))
     orte = erg.block.daten["orte"]
@@ -270,9 +272,10 @@ def test_r7_der_seed_verspricht_die_texterkennung_nicht():
     assert "oft auch aus Scans" in schritt.text["de"] and "erkannt" not in schritt.text["de"]
 
 
-# ── MINOR 8: auf dem Dokument-Weg verspricht der Satz an die KI keine Metadaten ─────────────────
+# ── MINOR 8 (aufgehoben durch Plan 2026-11-20, P2/UO-6): der Dokument-Weg sagt dasselbe wie der
+# Datei-Weg — ob erschlossen wird, entscheidet das Häkchen im Feld; den Flow bekommt er in P4 ────
 
-def test_r8_der_dokument_weg_verspricht_keine_metadaten(lage, monkeypatch):  # noqa: F811
+def test_r8_der_dokument_weg_sagt_dasselbe_wie_der_datei_weg(lage, monkeypatch):  # noqa: F811
     from boerdi.ui_module import dienst_upload
 
     monkeypatch.setattr(dienst_upload, "schalter", lambda: {"ablage_in_wlo": True,
@@ -283,8 +286,7 @@ def test_r8_der_dokument_weg_verspricht_keine_metadaten(lage, monkeypatch):  # n
     args = {"zweck": "bereitstellen", "einzeldatei_als_struktur": True}
     satz = asyncio.run(modul_dienst.aufruf(katalog.katalog()["ui_upload"], args,
                                            Umgebung(aus_ablauf=True))).text
-    assert "Metadaten." not in satz and "auf Wunsch Metadaten" not in satz
-    assert "liest der Chat danach den Text" in satz
+    assert "liest der Chat danach den Text" not in satz and "Volltexte" in satz
 
 
 # ── NIT 12: die Pause hält keinen Platz; Frist im zweiten Versuch ───────────────────────────────

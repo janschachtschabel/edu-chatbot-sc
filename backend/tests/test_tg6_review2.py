@@ -40,9 +40,10 @@ def _schritt(sid: str):
     # Nachprüfung TG-4–6, MAJOR 1: Knopf-Fragen ohne Synonyme — nur das Label trifft
     ("ordner_weiter", "passt", None),
     ("ordner_weiter", "So lassen", "lassen"),
-    # U6: ``wlo_frage`` entfiel — dieselbe Regel an der Rückfrage vor Kestra
-    ("metadaten_frage", "nein danke", None),
-    ("metadaten_frage", "Ja", None),
+    # U6: ``wlo_frage`` entfiel, P4 (Plan 2026-11-20) die Rückfrage vor Kestra — dieselbe Regel am
+    # Ausweg ohne Angaben aus WLO
+    ("ohne_metadaten", "nein danke", None),
+    ("ohne_metadaten", "Ja", None),
 ])
 def test_a_nur_der_ganze_text_trifft_ein_synonym(sid, text, erwartet):
     assert treiber.wahl_aus_text(_schritt(sid), text, "de") == erwartet
@@ -232,16 +233,33 @@ _FLACH = {"aktion": "erfasst",
           "strukturdokument": None, "warnungen": []}
 
 
-@pytest.mark.parametrize(("block_id", "weiter"), [
-    ("simulationuiupload", "metadaten_frage"),       # dasselbe Feld: die Ablage gehört dazu
-    ("einfrueheresfeld01", "dateien_weg"),           # eine frühere Auswahl: nicht zu den Metadaten
+#: Die Antwort nach „In WLO ablegen“ und „Im Chat weitermachen“ (mit derselben Auswahl).
+_WLO = {**_FLACH, "aktion": "bereitgestellt", "ort": "wlo",
+        "dateien": [{"i": 0, "rolle": "inhalt"}],
+        "ablage": {"layout": "flach", "gesamt": 1, "abgelegt": 1, "unklar": 0, "fehler": 0,
+                   "abgebrochen": 0, "ordner_verweigert": False, "vorgang_abgelegt": True,
+                   "erschliessen": False}}
+
+
+@pytest.mark.parametrize(("block_id", "abgelegt", "antwort", "weiter"), [
+    # dasselbe Feld, eine Datei abgelegt: die Ablage gehört dazu (P4)
+    ("simulationuiupload", True, _WLO, "erschliessen_weg"),
+    # eine frühere Auswahl: nicht zu den Metadaten
+    ("einfrueheresfeld01", True, _WLO, "dateien_weg"),
+    # Review P4, MAJOR 1: dasselbe Feld, nur die Vorschau (nichts abgelegt) — keine Ablage
+    ("simulationuiupload", False, _WLO, "dateien_weg"),
+    # Zweites Review P4–P6, MINOR 1: dasselbe Feld, abgelegt, dann eine Antwort ohne WLO
+    # (hier die ältere ``erfasst``) — der Weg ohne WLO
+    ("simulationuiupload", True, _FLACH, "dateien_weg"),
 ])
-def test_h_nur_die_ablage_der_jetzigen_auswahl(block_id, weiter):
+def test_h_nur_die_ablage_der_jetzigen_auswahl(block_id, abgelegt, antwort, weiter):
     ablauf = _seed()
+    ablage = {"format": "wlo.ablage@1", "block_id": block_id, "inhalte": []}
+    if abgelegt:
+        ablage["abgelegt_block"] = block_id
     fall = _fall(ab="ordner_laden", angemeldet=False,
-                 teile={"ablage": {"format": "wlo.ablage@1", "block_id": block_id,
-                                   "inhalte": []}},
-                 eingaben=[{"bei": "ordner_laden", "antwort": _FLACH}])
+                 teile={"ablage": ablage},
+                 eingaben=[{"bei": "ordner_laden", "antwort": antwort}])
     ergebnis = asyncio.run(simulation.testen(ablauf, fall))
     assert ergebnis.weg[:3] == ["ordner_laden", "ordner_geladen", weiter], ergebnis.weg
 

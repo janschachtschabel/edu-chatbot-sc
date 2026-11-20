@@ -1,6 +1,7 @@
 /**
  * Die drei Schritte der Ablage im persönlichen Bereich (Paket U3-3b, T6) an `POST /api/ui/ablage/*`:
- * `vorbereiten` (JSON: Ordnername und je Datei Titel, sha256, Größe, Art, Rolle → Vorschau und Schlüssel),
+ * `vorbereiten` (JSON: Ordnername und je Datei Titel, sha256, Größe, Art, Rolle, dazu das Häkchen
+ * `erschliessen` — Plan 2026-11-20, P2 → Vorschau und Schlüssel),
  * `datei` (multipart, eine Datei zur Zeit, mit Fortschritt) und `abschluss` (JSON → `vorgang.json`).
  *
  * Über `xhr-senden.ts` wie das Dokument: Zugangsblock im Kopf, Fehler als `status` + `code` aus
@@ -27,7 +28,9 @@ const FRIST_MS = { vorbereiten: 60_000, datei: 180_000, abschluss: 60_000 } as c
 function rumpfFuer(o: AblageOptionen): FormData | Record<string, unknown> {
   const s = o.schritt;
   const kopf = { session_id: o.sessionId, block_id: o.blockId };
-  if (s.schritt === 'vorbereiten') return { ...kopf, ordner: s.ordner, eintraege: s.eintraege };
+  if (s.schritt === 'vorbereiten') {
+    return { ...kopf, ordner: s.ordner, eintraege: s.eintraege, ...(s.erschliessen === undefined ? {} : { erschliessen: s.erschliessen }) };
+  }
   if (s.schritt === 'abschluss') return { ...kopf, batch_token: s.batchToken };
   const rumpf = new FormData();
   rumpf.append('session_id', o.sessionId);
