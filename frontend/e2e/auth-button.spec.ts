@@ -173,17 +173,12 @@ function kontrast(page: import('@playwright/test').Page, sel: string, grund: str
   }, [sel, grund] as const);
 }
 
-/** Erst messen, wenn die Farben stehen: nach dem Umschalten des Farbschemas laufen Übergänge der
- *  Fußzeilen-Knöpfe — zwei gleiche Messungen hintereinander. */
+/** Den Endzustand messen: die Fußzeilen-Knöpfe haben Übergänge (nach dem Umschalten des Farbschemas,
+ *  nach neuen Initialen). Der Übergang ist dafür aus — zwei gleiche Messungen hintereinander bewiesen
+ *  auf dem langsamen CI-Rechner nichts (beide im selben Bild, mitten im Übergang). */
 async function eingeschwungen(page: import('@playwright/test').Page, sel: string, grund: string) {
-  let vorher = await kontrast(page, sel, grund);
-  await expect.poll(async () => {
-    const jetzt = await kontrast(page, sel, grund);
-    const gleich = jetzt.kontrast === vorher.kontrast;
-    vorher = jetzt;
-    return gleich;
-  }, { intervals: [100, 250, 500] }).toBe(true);
-  return vorher;
+  await page.locator(sel).evaluate((el) => { (el as HTMLElement).style.transition = 'none'; });
+  return kontrast(page, sel, grund);
 }
 
 const dunkel = (page: import('@playwright/test').Page) =>

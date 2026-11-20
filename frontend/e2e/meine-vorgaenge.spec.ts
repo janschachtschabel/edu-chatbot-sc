@@ -241,20 +241,13 @@ test('D2: läuft hier ein Auftrag, ist der Knopf markiert — mit Text und ≥ 3
   await page.locator('.btn-send').click();
   await expect(knopf).toHaveClass(/btn-vorgaenge--hier/);
   await expect(knopf).toHaveAttribute('aria-label', 'Meine Vorgänge – 1 offen – hier läuft ein Auftrag');
-  // `.btn-vorgaenge` hat einen Übergang (`transition: all .2s`) — gemessen wird der eingeschwungene Wert
-  const eingeschwungen = async () => {
-    let vorher = await kontrast(page, '.btn-vorgaenge', '.chat-footer');
-    await expect.poll(async () => {
-      const jetzt = await kontrast(page, '.btn-vorgaenge', '.chat-footer');
-      const gleich = jetzt === vorher;
-      vorher = jetzt;
-      return gleich;
-    }, { intervals: [100, 250, 500] }).toBe(true);
-    return vorher;
-  };
-  const hell = await eingeschwungen();
+  // `.btn-vorgaenge` hat einen Übergang (`transition: all .2s`). Gemessen wird der Endzustand: der
+  // Übergang ist im Test aus — zwei gleiche Messungen hintereinander bewiesen auf dem langsamen
+  // CI-Rechner nichts (beide im selben Bild, mitten im Übergang: 2,0 bzw. 2,5 statt des Endwerts).
+  await knopf.evaluate((el) => { (el as HTMLElement).style.transition = 'none'; });
+  const hell = await kontrast(page, '.btn-vorgaenge', '.chat-footer');
   await page.evaluate(() => { document.documentElement.style.colorScheme = 'dark'; });
-  const dunkel = await eingeschwungen();
+  const dunkel = await kontrast(page, '.btn-vorgaenge', '.chat-footer');
   console.log('Markierung „hier läuft ein Auftrag“:', JSON.stringify({ hell, dunkel }));
   expect(hell).toBeGreaterThanOrEqual(3);
   expect(dunkel).toBeGreaterThanOrEqual(3);

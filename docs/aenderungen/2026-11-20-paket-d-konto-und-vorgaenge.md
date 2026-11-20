@@ -152,3 +152,11 @@ Tests: `konto-knopf.component.spec.ts` +4, `meine-vorgaenge.spec.ts` +1,
 ohne Befund, E2E `auth-button` + `meine-vorgaenge` + `embed` 35/35, ganze E2E-Suite 130/130.
 
 Budget danach: roh 695,97 / 700 kB (99,4 %), gzip 202,23 / 210 kB.
+
+## Nachtrag CI (PR #92)
+
+Die E2E-Kontrastmessungen (`meine-vorgaenge.spec.ts` D2, `auth-button.spec.ts`) warteten auf „zwei
+gleiche Messungen hintereinander“ — auf dem langsamen CI-Rechner fielen beide in dasselbe Bild mitten
+im Übergang (`transition: all .2s`), gemessen 2,0 bzw. 2,5 : 1 statt des Endwerts. Jetzt schaltet der
+Test den Übergang am gemessenen Knopf ab und misst den Endzustand (Markierung hell 5,2, dunkel 9,5;
+Konto-Knopf abgemeldet 3,6 / 5,1). Fünffach wiederholt stabil; an der Oberfläche ändert sich nichts.
